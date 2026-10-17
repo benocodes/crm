@@ -1,0 +1,23 @@
+{
+  "name": "@vault/api",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vault/db": "workspace:*",
+    "kysely": "0.29.6",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

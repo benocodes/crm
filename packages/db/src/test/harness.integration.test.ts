@@ -97,7 +97,8 @@ describe('test harness', () => {
     try {
       expect(() => createOwnerTestDb()).toThrow('refusing: database "vault_dev" is not a test database')
     } finally {
-      process.env.TEST_DATABASE_URL = saved
+      if (saved === undefined) delete process.env.TEST_DATABASE_URL
+      else process.env.TEST_DATABASE_URL = saved
     }
   })
 })

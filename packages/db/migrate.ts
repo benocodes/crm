@@ -12,7 +12,8 @@ async function main() {
     })
     if (error) {
       console.error('Migration failed:', error)
-      process.exit(1)
+      process.exitCode = 1
+      return
     }
     if (!results?.length) console.log('Already up to date')
   } finally {
@@ -20,7 +21,7 @@ async function main() {
   }
 }
 
-main().then(() => process.exit(0)).catch((err) => {
+main().then(() => process.exit(process.exitCode ?? 0)).catch((err) => {
   console.error(err)
   process.exit(1)
 })
