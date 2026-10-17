@@ -1,92 +1,84 @@
 ---
 name: ship-branch
-description: Merge a finished feature branch into main and deploy it to production in the right order — shared test/dev DBs migrated forward first, the full suites green against the SHARED test DB, prod migration before the worker deploy, and the handset loop restarted when mobile-agent changed. Use whenever the user says "ship it", "merge and deploy", "deploy to production", or asks for the commands to get a branch live.
+description: Merge a finished feature branch into main and deploy it to production in the right order — shared test/dev databases migrated forward first, suites green against the shared test DB, prod migration before the Worker deploy. Use whenever the user says "ship it", "merge and deploy", "deploy to production", or asks for the commands to get a branch live.
 ---
 
 # Ship a branch
 
-"Deploy to production" here means **merge to main + manual deploy** — there is no CI on main and
-pushing deploys nothing. Give the user every command in full, `cd` included; never "run the prod
-migration".
+"Deploy to production" here means **merge to `main` + manual deploy** unless CI is later added; check
+`.github/workflows/` before assuming either way. Give the user every command in full, `cd` included; never
+"run the prod migration".
+
+The order matters because each step depends on the one before: shared test databases migrated forward,
+suites green, prod migration, then the Worker deploy. New code that writes a column production doesn't have
+yet fails every request that touches it.
 
 ## 1. Pre-merge, from the branch's worktree
 
-1. **LFS.** A fresh worktree holds ~130-byte pointer stubs until `git lfs pull`; they fail every
-   document/PDF test with an error that reads as a regression. `ls -la data/documents/` — real files
-   are megabytes.
-2. **Bring the SHARED databases up to the branch's migrations — `migrate`, never `reset`.** A worktree
-   usually tests against its own private DB (`pnpm db:test:worktree` → `donna_test_<worktree>`), so a new
-   migration there proves nothing about `donna_test`, which is what `main`'s checkout — and
-   `deploy:worker`'s own `vitest run` — use. Skipping this is how a green branch arrives on main as
-   `column "…" does not exist` (2026-09-30, migration 100).
+1. **Bring the SHARED databases up to the branch's migrations: `migrate`, never `reset`.** A worktree
+   usually tests against its own private DB (`pnpm db:test:worktree`), so a new migration there proves
+   nothing about the shared test DB, which is what `main`'s checkout and the deploy script's test run use.
+   Skipping this is how a green branch arrives on `main` as `column "…" does not exist`.
    ```bash
-   cd <worktree> && DATABASE_URL=postgresql://ori@localhost/donna_test pnpm -C packages/db db:migrate
+   cd <worktree> && DATABASE_URL=<shared test DB url> pnpm -C packages/db db:migrate
    cd <worktree> && pnpm -C packages/db db:migrate:dev
    ```
-   `db:test:reset` is the wrong tool: it `pg_terminate_backend`s every session on `donna_test`,
-   including other agents' concurrent runs. Plain `migrate` only applies what's pending.
-   Migrations are forward-only here, so this is safe to do before merge — the column just exists
-   early.
-3. **Codegen** if a migration landed: `pnpm -C packages/db db:codegen:dev`, and commit
-   `types.generated.ts` if it changed.
-4. **Suites against the shared DB** (`pgrep -f vitest` first — never two api suites at once on one DB):
+   `db:test:reset` is the wrong tool here: it terminates every session on the shared test DB, including
+   other agents' concurrent runs. Plain `migrate` only applies what's pending. Migrations are
+   forward-only, so this is safe before merge; the column just exists early.
+2. **Codegen** if a migration landed: `pnpm -C packages/db db:codegen`, and commit `types.generated.ts` if
+   it changed.
+3. **Suites against the shared DB.** Check `pgrep -f vitest` first: never two API suites at once on one
+   database, and run the `db` and `api` suites serially, not in parallel.
    ```bash
-   cd <worktree> && TEST_DATABASE_URL=postgresql://ori@localhost/donna_test DATABASE_URL=postgresql://ori@localhost/donna_test pnpm -C packages/api test
-   cd <worktree> && TEST_DATABASE_URL=postgresql://ori@localhost/donna_test pnpm -C packages/db test
-   cd <worktree> && pnpm -C packages/mobile-agent test     # if it changed
-   cd <worktree> && pnpm -C packages/web test              # if it changed
+   cd <worktree> && TEST_DATABASE_URL=<shared test DB url> pnpm -C packages/db test
+   cd <worktree> && TEST_DATABASE_URL=<shared test DB url> pnpm -C packages/api test
+   cd <worktree> && pnpm -r typecheck
    ```
    Report failures with their output; don't merge past a red suite without the user saying so.
-5. **Nothing stray.** `git status` in the worktree. A worktree set up with `pnpm db:test:worktree` keeps
-   its private DB in gitignored `.env.test.local` files; an older one may instead have an edited tracked
-   `packages/api/.env.test`, which must not be committed. Unrelated uncommitted work → ask before committing it.
+4. **Nothing stray.** `git status` in the worktree. Unrelated uncommitted work: ask before committing it.
 
 ## 2. Merge, from the main checkout
 
 ```bash
-cd /Users/ori/Code/donna && git status && git checkout main && git merge <branch>
+cd <repo root> && git status && git checkout main && git pull && git merge <branch>
 ```
 
-If the main checkout has foreign uncommitted changes, another session may be working there — stop and
-ask; never `git add -A` or a bare `git stash`.
+If the main checkout has foreign uncommitted changes, another session may be working there: stop and ask.
+Never `git add -A` or a bare `git stash`. If the project requires PRs for `main` (it is branch-protected),
+the user merges the PR on GitHub instead and you start from `git pull` here.
 
 ## 3. Deploy, in this order
 
-Each step depends on the one before; list only the steps the diff actually needs.
+List only the steps the diff actually needs.
 
-1. **Prod migration** — only if `packages/db/migrations/` changed. BEFORE the worker: new code writing
-   a column that doesn't exist yet fails every request that touches it.
+1. **Prod migration**, only if `packages/db/migrations/` changed, and BEFORE the Worker:
    ```bash
-   cd /Users/ori/Code/donna && pnpm -C packages/db db:migrate:prod
+   cd <repo root> && pnpm -C packages/db db:migrate:prod
    ```
-   Destructive SQL on prod needs explicit confirmation — read the migration's `up` first.
-2. **API worker** — if `packages/api` (or anything it bundles, e.g. `packages/db` types) changed.
-   `deploy:worker` re-runs typecheck + the api suite against `donna_test` first, which is why step 1.2
-   matters. Use `deploy:worker:skip-tests` only if the user asks.
+   Destructive SQL on prod needs explicit confirmation; read the migration's `up` first. Prod is a Neon
+   project: migrations go through the deploy flow or the Neon tooling, never a casual local run against a
+   shared database.
+2. **API Worker**, if `packages/api` (or anything it bundles, e.g. `packages/db` types) changed. The deploy
+   script re-runs typecheck and the API suite first, which is why step 1.1 matters. Use the skip-tests
+   variant only if the user asks.
    ```bash
-   cd /Users/ori/Code/donna && pnpm -C packages/api deploy:worker
+   cd <repo root> && pnpm -C packages/api deploy:worker
    ```
-3. **Web** — if `packages/web` changed: `cd /Users/ori/Code/donna && pnpm -C packages/web deploy:pages`
-   **Site Worker** — if `packages/site` or the `@donna/shared/public-listing` contract changed, after the
-   worker (it reads the API's `/public/sites/*` routes): `cd /Users/ori/Code/donna && pnpm -C packages/site deploy:worker`
-4. **Handset loop** — if `packages/mobile-agent` changed. It is a long-running local process, so the
-   deploy is a restart, and it goes AFTER the worker (a new client field is harmless to an old server
-   only if the server ignores it — don't rely on it). `SIGINT` the running loop (it finishes its cycle
-   and releases the run lock), confirm it's gone, then:
-   ```bash
-   cd /Users/ori/Code/donna && pnpm -C packages/mobile-agent mobile-agent --env=prod run
-   ```
-   See `mobile-agent-workflows` for process ownership checks.
-5. **Chrome extension** — if `packages/chrome-ext` changed, see `chrome-ext-driver-redist`.
+3. **Other Workers and bindings**: the Workflow, Queue consumers and cron triggers that ship with the API
+   Worker deploy with it; a separately deployed Worker (MCP, hook delivery) goes after the API Worker,
+   since it calls the API. If `wrangler.toml` gained a binding (a new Queue, R2 bucket, Hyperdrive config),
+   create the resource first.
+4. **Starter template or Outlook pane**, if those packages changed: their own deploy scripts, after the
+   API Worker.
 
 ## 4. Verify
 
-- Migration: Neon MCP `run_sql` on project `restless-rice-04376324` — e.g. `information_schema.columns`
-  for a new column.
-- Worker: hit the changed route, or watch the next real event land (a device capture, a run).
+- **Migration:** query `information_schema.columns` (via the Neon tooling) for the new column or table.
+- **Worker:** hit the changed route, or watch the next real event land (a captured mail, a delivered
+  webhook). `wrangler tail <worker> --format=pretty` while you do.
 - Say plainly what was verified and what wasn't.
-- Once prod looks fine, drop the worktree's private DB, then remove the worktree:
-  `cd <worktree> && pnpm db:test:worktree --drop`, then
-  `cd /Users/ori/Code/donna && git worktree remove <worktree>`.
+- Once prod looks fine, drop the worktree's private database and remove the worktree:
+  `cd <worktree> && pnpm db:test:worktree --drop`, then `cd <repo root> && git worktree remove <worktree>`.
 
-If the branch is an epic, `epic-retrospect` still owes its RETRO; shipping doesn't replace it.
+If the branch implements a cycle, [[retrospect]] still owes its RETRO; shipping doesn't replace it.

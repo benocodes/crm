@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Run `gh` as the zooidbot identity. Reads ZB_GH_TOKEN from the environment, or from
+# the repo's gitignored .env. Never prints the token or accepts it as an argument.
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+env_file="$repo_root/.env"
+
+token="${ZB_GH_TOKEN:-}"
+if [[ -z "$token" && -r "$env_file" ]]; then
+  token="$(sed -n 's/^ZB_GH_TOKEN=//p' "$env_file" | head -n 1)"
+  token="${token%\"}"; token="${token#\"}"; token="${token%\'}"; token="${token#\'}"
+fi
+
+if [[ -z "$token" ]]; then
+  echo "gh-zooidbot: ZB_GH_TOKEN is not set and not found in $env_file" >&2
+  exit 1
+fi
+
+GH_TOKEN="$token" exec gh "$@"

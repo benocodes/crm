@@ -1,13 +1,13 @@
 ---
 name: sprint-planning
-description: Open, checkpoint and close a sprint — a dependency-ordered band of specs planned together toward one goal (e.g. 063–068, the self-advancing CRM). Stubs the whole sequence up front so the band is reserved and visible, then maintains knowledge/SPRINT.md as the single live account of what is drafted, generated, executed and still open across all of them. Use when a design conversation produces more than one spec, when resuming such work in a fresh session, or when the architect is running low on context; delete the file when the last spec ships.
+description: Open, checkpoint and close a sprint — a dependency-ordered band of specs planned together toward one goal (e.g. 010–015, the first agent-readable vault). Stubs the whole sequence up front so the band is reserved and visible, then maintains knowledge/SPRINT.md as the single live account of what is drafted, generated, executed and still open across all of them. Use when a design conversation produces more than one spec, when resuming such work in a fresh session, or when the architect is running low on context; delete the file when the last spec ships.
 ---
 
 # Sprint Planning
 
 A design conversation routinely produces **several** specs at once, in a deliberate order — one
 spec's mechanism is another's prerequisite, and the order encodes why. Nothing in the repo holds
-that: `spec-author` owns one spec, `tdd-epic-generator` owns one epic, `handoff` owns one epic's
+that: `spec-author` owns one spec, `tdd-cycle-generator` owns one cycle, `handoff` owns one cycle's
 mid-execution state. The sequence itself — which specs, in what order, why that order, how far
 along — lives only in the conversation that produced it, and dies with it.
 
@@ -16,11 +16,11 @@ This skill makes the sequence a first-class artifact. It is the **architect's** 
 
 | | `handoff` | `sprint-planning` |
 |---|---|---|
-| Unit of work | one epic | a band of specs |
+| Unit of work | one cycle | a band of specs |
 | Written by | an agent executing a PLAN | an agent writing specs and generating PLANs |
 | Reports position against | the PLAN's phases/steps | the spec queue |
-| Lives at | `<ID>-e<NN>-HANDOFF.md`, in the epic folder | `knowledge/SPRINT.md` |
-| Cleared by | `epic-retrospect`, when the RETRO lands | `/sprint-planning close`, when the last spec ships |
+| Lives at | `HANDOFF.md`, in the cycle folder | `knowledge/SPRINT.md` |
+| Cleared by | `retrospect`, when the RETRO lands | `/sprint-planning close`, when the last spec ships |
 
 **On the name.** A sprint here is **not** time-boxed. It ends when the last spec in the band ships,
 not when a clock runs out, and its order is a dependency chain rather than a capacity plan. The word
@@ -30,7 +30,7 @@ is the team's; the deadline it usually implies is not part of this.
 
 There is exactly **one** live sprint: `knowledge/SPRINT.md`. Checkpointing overwrites it in place;
 closing deletes it. Don't append, don't version, don't keep two. A finished sprint's record is its
-shipped specs, their epics and their RETROs — a planning file lingering past that point is stale
+shipped specs, their cycles and their RETROs — a planning file lingering past that point is stale
 state competing with them, and `git log -- knowledge/SPRINT.md` serves anyone who wants the history.
 
 One live sprint at a time is a constraint, not a limitation: a second concurrent band of specs is a
@@ -47,12 +47,13 @@ common.
 
 Run this **after** the design conversation has settled and before writing any spec in full.
 
-1. **Fix the band.** Decide which specs the goal needs. For each, assign an `<AREA>-<id>` per
-   `spec-author` (per-area, monotonic, never renumbered) and a `<seq>` that places it in **execution
-   order** — that is what the seq prefix is for, and a contiguous band (063, 064, 065…) is what makes
+1. **Fix the band.** Decide which specs the goal needs. For each, assign an `<ID>` per
+   `spec-author` (an area code plus the number of the GitHub issue that spawns the spec; open the issue
+   with `--label self-triaged` if none exists; never renumbered) and a `<seq>` that places it in **execution
+   order** — that is what the seq prefix is for, and a contiguous band (010, 011, 012…) is what makes
    the sprint legible in an `ls`.
 
-2. **Stub every spec in the band, immediately.** Create each folder and its `<AREA>-<id>.md` with
+2. **Stub every spec in the band, immediately.** Create each folder and its `<ID>.md` with
    frontmatter (`status: draft`, a `drafted` changelog entry) and a Context section of a few
    sentences saying what problem it owns and why it sits where it sits. Nothing else.
 
@@ -73,15 +74,15 @@ Run this **after** the design conversation has settled and before writing any sp
 ### (bare) — checkpoint
 
 Rewrite `knowledge/SPRINT.md` in place against current repo state. Run when a plan is generated, an
-epic ships, a decision lands, context is running low, or the user asks.
+cycle ships, a decision lands, context is running low, or the user asks.
 
 Gather, in order — **evidence, not memory**:
 
 1. **Per-spec status.** For each spec in the band: does its folder exist, what is its `status:`
-   frontmatter, does `epics/` exist and what is in it, and for each epic does a `-PLAN.md`,
-   `-HANDOFF.md` or `-RETRO.md` exist. `ls` and `head` the files; don't recall.
+   frontmatter, which cycle folders implement it (its **Implementation cycles** block), and for each cycle does a
+   `PLAN.md`, `HANDOFF.md` or `RETRO.md` exist. `ls` and `head` the files; don't recall.
 2. **What actually shipped.** `git log --oneline` for the commits behind each generated plan and
-   each executed epic. A plan is "generated" when it is committed; an epic is "executed" when its
+   each executed cycle. A plan is "generated" when it is committed; a cycle is "executed" when its
    code is committed, which is not the same thing and must not be conflated.
 3. **Repo hazards in force right now** — the current branch, whether the working tree is clean,
    whether another session is active in this checkout. See Quality Rules.
@@ -95,12 +96,12 @@ Gather, in order — **evidence, not memory**:
 
 Run when the last spec in the band has shipped.
 
-1. Verify it: every spec's `status:` is `shipped`, and every epic has a RETRO.
-2. Confirm each spec's changelog and status were updated (`epic-retrospect` owns this; if it was
+1. Verify it: every spec's `status:` is `shipped`, and every cycle has a RETRO.
+2. Confirm each spec's changelog and status were updated (`retrospect` owns this; if it was
    skipped, say so rather than fixing it silently here).
 3. Check the open questions are genuinely closed, not merely stale. An unanswered question at close
    is a finding — report it.
-4. Delete `knowledge/SPRINT.md` and commit the deletion with a message naming the band, so
+4. Delete `knowledge/SPRINT.md` and commit the deletion in the knowledge repo (`git -C knowledge`) with a message naming the band, so
    `git log` reads as a record of what the sprint set out to do.
 
 ---
@@ -125,8 +126,8 @@ the specs — the thing that makes them one piece of work.}
 
 ## Sequence
 
-{A table of the band in EXECUTION order: seq+ID, one-line scope, spec status, epic status. Epic
-status distinguishes "no epic" / "plan generated (<sha>)" / "executed (<sha>)" / "shipped (retro)".}
+{A table of the band in EXECUTION order: seq+ID, one-line scope, spec status, cycle status. Cycle
+status distinguishes "no cycle" / "plan generated (<sha>)" / "executed (<sha>)" / "shipped (retro)".}
 
 ### Why this order
 
@@ -142,8 +143,8 @@ ordering argued once and discarded will be argued again otherwise.}
 
 {Facts established by investigation that no spec, skill or doc records yet — the things a fresh
 agent would otherwise pay to rediscover. Each with its evidence. Migration numbers claimed but not
-yet landed belong here. Prune anything that has since been written into a skill or doc by
-epic-retrospect; this is a staging area, not a second home.}
+yet landed belong here. Prune anything that has since been written into a skill or `AGENTS.md` by
+`retrospect`; this is a staging area, not a second home.}
 
 ## Repo State
 
@@ -173,11 +174,11 @@ Specific enough that a fresh agent doesn't re-derive it.}
    will drift from it, and the drift is invisible.
 
 3. **The Ledger is a staging area, not a second home.** A fact belongs there only until
-   `epic-retrospect` ingests it into an area skill, a `docs/` page or `AGENTS.md`. At each
+   `retrospect` ingests it into an area skill, `AGENTS.md` or `knowledge/architecture.md`. At each
    checkpoint, prune what has landed elsewhere. A durable fact left only here dies with the sprint.
 
-4. **Reference specs and epics by stable ID, never by seq-prefixed path.** `[[CORE-043]]`, not
-   `knowledge/specs/065-CORE-043-suggestion-expiry/CORE-043.md`. The seq is a reassignable ordering
+4. **Reference specs and cycles by stable ID, never by seq-prefixed path.** `[[AGT43]]`, not
+   `knowledge/specs/065-AGT43-suggestion-expiry/AGT43.md`. The seq is a reassignable ordering
    hint — and this skill *reassigns* it, which makes the rule load-bearing here rather than
    theoretical. The one exception is the Sequence table, where the seq is the subject.
 
@@ -200,12 +201,12 @@ Specific enough that a fresh agent doesn't re-derive it.}
 
 - **`spec-author`** owns each stub's format, the ID/seq rules, and supersession. `open` creates
   stubs that conform to it; this skill adds nothing to the spec format itself.
-- **`tdd-epic-generator`** turns a spec into a PLAN. Checkpoint after each generation so the
+- **`tdd-cycle-generator`** turns a spec into a PLAN. Checkpoint after each generation so the
   claimed migration number lands in the Ledger before it goes stale — a plan's hardcoded migration
   number is the single most common thing to rot between generation and execution.
-- **`handoff`** takes over inside one epic's execution. The two coexist: a sprint may have a live
-  `knowledge/SPRINT.md` and an executing epic with its own `-HANDOFF.md`. Neither replaces the other.
-- **`epic-retrospect`** is what drains the Ledger. When it ingests a lesson into a skill or doc, the
+- **`handoff`** takes over inside one cycle's execution. The two coexist: a sprint may have a live
+  `knowledge/SPRINT.md` and an executing cycle with its own `HANDOFF.md`. Neither replaces the other.
+- **`retrospect`** is what drains the Ledger. When it ingests a lesson into a skill or doc, the
   next checkpoint removes it from here.
 - **`wiki-lint`** should treat a `knowledge/SPRINT.md` whose specs are all `shipped` as a finding —
   the sprint should have been closed.
