@@ -58,7 +58,7 @@ describe('bootstrap', () => {
   })
   it('writes nothing on a bad scope', async () => {
     await expect(bootstrap(db, { ...base, scopes: ['tasks:delete'] })).rejects.toThrow('invalid scope')
-    await expect(bootstrap(db, { ...base, scopes: ['contacts:read'] })).rejects.toThrow('unknown scope: contacts:read')
+    await expect(bootstrap(db, { ...base, scopes: ['widgets:read'] })).rejects.toThrow('unknown scope: widgets:read')
     expect(await owner.selectFrom('organizations').selectAll().execute()).toHaveLength(0)
   })
   it('emits no events', async () => {
