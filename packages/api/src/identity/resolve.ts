@@ -24,6 +24,12 @@ async function liveIdentity(ctx: ServiceContext, kind: IdentityKind, value: stri
   return row ? toRecord(identities, row as Record<string, unknown>) : undefined
 }
 
+/** Display names arrive from channels: trim, treat blank as absent, cap at the contact name limit. */
+export function cleanName(name: string | undefined): string | undefined {
+  const t = name?.trim().slice(0, 500).trim()
+  return t ? t : undefined
+}
+
 /** [[CHN5]] calls this inside its own context. No batch limit here; [] gives []. */
 export async function resolveIdentities(ctx: ServiceContext, entries: readonly ResolveEntry[]): Promise<ResolveResult[]> {
   // 1. Normalise every entry before any lock or write.
@@ -92,7 +98,7 @@ export async function resolveIdentities(ctx: ServiceContext, entries: readonly R
       results.push({ identity: hit, contact: await contactOf(hit), created: false })
       continue
     }
-    const contact = await createResource(ctx, contacts, e.name ? { name: e.name } : {})
+    const contact = await createResource(ctx, contacts, cleanName(e.name) ? { name: cleanName(e.name) } : {})
     const inserted = await insertIdentity(ctx, { kind: e.kind, value: e.value, contact_id: contact.id, own: false })
     if (inserted) {
       await emitResourceEvent(ctx, identities, 'created', null, inserted, inserted.id)

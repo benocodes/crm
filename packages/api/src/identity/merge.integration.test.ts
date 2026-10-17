@@ -96,8 +96,8 @@ describe('mergeContacts', () => {
     const merged = ev.filter((e) => e.type === 'contact.merged')
     expect(merged).toHaveLength(1)
     expect(merged[0]).toMatchObject({ resource_id: r.id, resource_type: 'contact', actor_id: a.userId })
-    expect((merged[0]!.before as any).merged_into_id).toBeNull()
-    expect((merged[0]!.after as any).merged_into_id).toBe(s.id)
+    expect(merged[0]!.before).toEqual(r)
+    expect(merged[0]!.after).toMatchObject({ id: r.id, merged_into_id: s.id })
     expect(ev.filter((e) => e.type === 'contact.deleted')).toHaveLength(0)
   })
   it('event order', async () => {

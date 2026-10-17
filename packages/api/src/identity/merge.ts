@@ -62,7 +62,10 @@ async function lockContact(ctx: ServiceContext, id: string): Promise<ContactReco
   return toRecord(contacts, row as Row)
 }
 
-export async function mergeContacts(ctx: ServiceContext, survivorId: string, sourceId: string): Promise<ContactRecord> {
+export async function mergeContacts(ctx: ServiceContext, survivorIdIn: string, sourceIdIn: string): Promise<ContactRecord> {
+  // z.uuid() accepts upper case; compare and sort on the canonical lower-case form.
+  const survivorId = survivorIdIn.toLowerCase()
+  const sourceId = sourceIdIn.toLowerCase()
   // 1. Refuse self-merge.
   if (sourceId === survivorId) throw new ApiError(400, 'merge_into_self', 'a contact cannot be merged into itself')
   // 2. Lock both live rows, smaller id first.

@@ -96,6 +96,12 @@ describe('resolveIdentities', () => {
     expect(await count('contacts')).toBe(0)
     expect(await events()).toHaveLength(0)
   })
+  it('blank name is absent, long name is truncated, name is trimmed', async () => {
+    const r = await resolve(a, [email('b1@x.com', '   '), email('b2@x.com', 'x'.repeat(600)), email('b3@x.com', '  Padded  ')])
+    expect(r[0]!.contact!.name).toBeNull()
+    expect(r[1]!.contact!.name).toBe('x'.repeat(500))
+    expect(r[2]!.contact!.name).toBe('Padded')
+  })
   it('empty', async () => {
     expect(await resolve(a, [])).toEqual([])
   })

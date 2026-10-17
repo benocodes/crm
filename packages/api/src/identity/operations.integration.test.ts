@@ -102,6 +102,14 @@ describe('contacts.merge over REST', () => {
       expect((await err(res)).code).toBe('validation_error')
     }
   })
+  it('self with an upper-cased id', async () => {
+    const { s } = await two()
+    const mark = (await owner.selectFrom('events').selectAll().execute()).length
+    const res = await post(`/contacts/${s.id}/merge`, userToken(['contacts:write']), { source_id: s.id.toUpperCase() })
+    expect(res.status).toBe(400)
+    expect((await err(res)).code).toBe('merge_into_self')
+    expect(await owner.selectFrom('events').selectAll().execute()).toHaveLength(mark)
+  })
   it('self', async () => {
     const { s } = await two()
     const res = await post(`/contacts/${s.id}/merge`, userToken(['contacts:write']), { source_id: s.id })
