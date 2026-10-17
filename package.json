@@ -4,11 +4,17 @@
   "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@10.7.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "format": "pnpm -r format"
+    "format": "pnpm -r format",
+    "db:migrate": "pnpm -C packages/db db:migrate",
+    "db:test:reset": "pnpm -C packages/db db:test:reset",
+    "db:test:worktree": "pnpm -C packages/db db:test:worktree",
+    "db:codegen": "pnpm -C packages/db db:codegen"
   }
 }

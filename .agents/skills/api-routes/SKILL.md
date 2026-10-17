@@ -55,12 +55,16 @@ tests.
 
 Every operation runs inside the service context, which carries the transaction, the actor (user or agent
 principal), the granted scopes and the tenant. Tenancy is the **organisation**. The scoping wrappers in
-`middleware/with-organization.ts` are the only code that sets role or session config:
+`packages/db/src/tenancy.ts` (exported from `@vault/db`) are the only code that sets role or session config:
 
 | Wrapper | Use |
 |---|---|
-| `withOrganization(actor, organizationId, fn)` | The default. Sets `app.user_id` / `app.organization_id` with `set_config(…, true)` and the restricted role, inside a transaction. |
-| `withServiceRole(fn)` | `SET LOCAL ROLE service_role` (BYPASSRLS), no tenant context. Auth lookups and cross-tenant maintenance only. |
+| `withOrganization(db, { principalId, organizationId }, fn)` | The default. Validates both ids (throws `TenancyContextError`, codes `missing_organization` / `missing_principal` / `invalid_id`) before opening a transaction, sets `app.organization_id` / `app.principal_id` with `set_config(…, true)`, then `SET LOCAL ROLE vault_authenticated`. |
+| `withServiceRole(db, fn)` | `SET LOCAL ROLE vault_service` (BYPASSRLS), no tenant context. Auth lookups and cross-tenant maintenance only. |
+
+The app connects as `vault_app` (`LOGIN NOINHERIT`, a member of both roles, no privileges of its own), so
+a query outside a wrapper fails with `42501`. `vault_authenticated` has no `DELETE`/`TRUNCATE` anywhere,
+only `SELECT, INSERT` on `events`, and nothing on `api_keys`.
 
 - **Handlers never import `db` directly.** They use the transaction from the context. Plain `db` is for
   auth lookups and test fixtures.
@@ -81,7 +85,7 @@ which contacts or companies, read vs. suggest). Every registry entry declares th
 service context enforces it, so scope checks are written once.
 
 - Auth middleware, two kinds, never both on one route: human sessions (Clerk) and **API keys / agent
-  tokens** (hashed at rest, looked up under `service_role`, never logged beyond a short prefix).
+  tokens** (hashed at rest, looked up under `withServiceRole`, never logged beyond a short prefix).
 - **Agents never get send rights.** An agent's write surface is "submit a suggestion"; sending is performed
   by the vault's execution rail with credentials it holds.
 - A provisioner that creates the user or organisation row on first sight must SELECT first and INSERT only
@@ -134,8 +138,12 @@ directly. Unit tests only for pure helpers.
 
 **The test pool behaves like production: nothing is preset.** The predecessor's test pool presets
 `app.organization_id` and `service_role` globally, so a query that skips its tenancy wrapper passes every
-test and reads or writes zero rows in production. The vault's pool presets neither, every fixture names its
-organisation, and a query without a wrapper fails in tests.
+test and reads or writes zero rows in production. The vault's pool (`createTestDb()` from `@vault/db/test`)
+connects as `vault_app` and presets nothing, every fixture names its organisation, and a query without a
+wrapper fails in tests. Seeds (`seedOrganization`, `seedUser`, `seedAgent`) run under `withServiceRole`;
+there is deliberately no task or event seed: create those through the service layer. `createOwnerTestDb()`
+is for `truncateAll` and catalog inspection only, never fixtures. Both factories refuse a database whose
+name doesn't match `/(^|_)test(_|$)/`.
 
 - **A cross-tenant test needs a REAL second organisation** with an explicit `organization_id` threaded
   through every fixture on the other side. Two "different" users that land in one default org prove nothing;
@@ -147,7 +155,7 @@ organisation, and a query without a wrapper fails in tests.
   commands (merge, send, suggestion lifecycle) and channel adapters.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
-- When you add a table, add it to the `truncateAll` list in `src/test/db.ts`; leaked rows poison later tests.
+- `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
 - `beforeEach` is scoped to its enclosing `describe`. A second top-level `describe` in a file does not
   inherit the first one's reset; give it its own.
 - Before API tests: `pnpm db:test:reset` (or `db:test:worktree`). Run: `pnpm -C packages/api test [file]`.
