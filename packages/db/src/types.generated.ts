@@ -48,6 +48,29 @@ export interface ApiKeys {
   updated_at: Generated<Timestamp>;
 }
 
+export interface Companies {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  deleted_at: Timestamp | null;
+  domain: string | null;
+  id: Generated<string>;
+  name: string;
+  organization_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface Contacts {
+  company_id: string | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  merged_into_id: string | null;
+  name: string | null;
+  organization_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Events {
   actor_id: string;
   after: Json | null;
@@ -58,6 +81,19 @@ export interface Events {
   resource_id: string;
   resource_type: string;
   type: string;
+}
+
+export interface Identities {
+  contact_id: string | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  kind: string;
+  organization_id: string;
+  own: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
+  value: string;
 }
 
 export interface Memberships {
@@ -109,7 +145,10 @@ export interface Users {
 export interface DB {
   agents: Agents;
   api_keys: ApiKeys;
+  companies: Companies;
+  contacts: Contacts;
   events: Events;
+  identities: Identities;
   memberships: Memberships;
   organizations: Organizations;
   principals: Principals;
