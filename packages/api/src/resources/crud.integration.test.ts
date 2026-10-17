@@ -448,5 +448,7 @@ describe('subset guard', () => {
   it('create and update reject a definition without schemas', async () => {
     const ro = { ...tasks, name: 'ro', operations: ['list', 'get'], create: undefined, update: undefined } as never
     await expect(asUser(db, a, (ctx) => createResource(ctx, ro, { title: 'x' }))).rejects.toThrow('ro has no create schema')
+    const live = await mk(a)
+    await expect(asUser(db, a, (ctx) => updateResource(ctx, ro, live.id, { title: 'x' }))).rejects.toThrow('ro has no update schema')
   })
 })

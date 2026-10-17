@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
 import { createApp } from '../rest/app.js'
 import { Registry } from '../registry.js'
 import { createResource } from '../resources/crud.js'
@@ -49,4 +48,3 @@ describe('suite shape', () => {
     expect(() => assertFixturesCoverRegistry(new Registry().registerResource(tasks), { tasks: {}, stale: {} })).toThrow(/stale/)
   })
 })
-void z

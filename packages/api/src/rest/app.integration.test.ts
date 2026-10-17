@@ -16,6 +16,7 @@ let owner: Kysely<Database>
 let A: Tenant
 let B: Tenant
 let key: string
+let agentId: string
 
 const empty = z.object({})
 function testRegistry() {
@@ -109,6 +110,7 @@ beforeEach(async () => {
   A = await seedTenant(db, 'A')
   B = await seedTenant(db, 'B')
   const agent = await seedAgent(db, { organizationId: A.organizationId, createdBy: A.userId, scopes: ['tasks:read', 'tasks:write'] })
+  agentId = agent.id
   key = (await seedApiKey(db, { organizationId: A.organizationId, agentId: agent.id, createdBy: A.userId })).key
 })
 
@@ -187,7 +189,7 @@ describe('context', () => {
     const ev = await owner.selectFrom('events').selectAll().execute()
     expect(ev).toHaveLength(1)
     expect(ev[0]).toMatchObject({ organization_id: A.organizationId, type: 'probe.emitted' })
-    expect(ev[0]!.actor_id).not.toBe(A.userId)
+    expect(ev[0]!.actor_id).toBe(agentId)
   })
   it('an account op works for a user with no organisation', async () => {
     const res = await mkApp().request('/account/whoami', { headers: userHeaders(A, null) })
