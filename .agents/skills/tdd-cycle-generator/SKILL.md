@@ -40,7 +40,8 @@ unclaimed.
 
 ### Step 2: Decide cycle shape and scope
 
-Ask via `AskUserQuestion`:
+Ask via `AskUserQuestion` (in an orchestrated sprint, the planner decides these itself and records the
+choice and reason in the plan's header):
 
 1. **Cycle shape.**
    - **First cycle (spec-introducing).** `PLAN.md` lives in the spec's folder. Only when no `PLAN.md`
@@ -262,6 +263,10 @@ serve the test DB. Write the expected database into the step.}
 
 ## Phase 5: Retro and commit
 
+**In an orchestrated sprint** (AGENTS.md, "Running a sprint") this phase is split: the coder commits and
+pushes after Phase 3, the e2e-tester runs Phase 4, the planner runs `/retrospect` after review approves,
+and the orchestrator opens and merges the PR. Outside a sprint, the executing agent does all of it:
+
 Run `/retrospect` on this cycle folder **before** committing: it captures deviations while they are fresh
 and its ingest step propagates lessons. Then commit on the feature branch from the worktree:
 
@@ -274,8 +279,9 @@ git push -u origin feat/{cycle-short-name}
 gh pr create --fill
 ```
 
-Opening the PR is the hand-back point. Do NOT merge; the user reviews and merges. The retro, spec and
-plan live in the nested `knowledge/` repo and commit there (`git -C knowledge`).
+Opening the PR is the hand-back point. The executing agent never merges: in a sprint the orchestrator
+merges after review approves; otherwise the user reviews and merges. The retro, spec and plan live in the
+nested `knowledge/` repo and commit there (`git -C knowledge`).
 
 ---
 
