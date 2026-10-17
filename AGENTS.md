@@ -21,6 +21,9 @@ Read these first (they live in the separate knowledge repo, cloned at `knowledge
 | `orivibes/crm` | this repo | code, skills, issues, the project board |
 | `orivibes/crm-knowledge` (private) | `knowledge/` (gitignored here, its own `.git`) | vision, architecture, specs, plans, retros, discussions, `project-state.md` |
 
+The delivery board is the GitHub project **CRM**: https://github.com/users/orivibes/projects/2 (IDs and
+queries in `.agents/board.md`).
+
 `knowledge/` is a nested git repo. Use `git -C knowledge ...` for it; a commit in one repo never
 touches the other. Specs and plans land on `knowledge/`'s `main`; code lands through PRs on `orivibes/crm`.
 
