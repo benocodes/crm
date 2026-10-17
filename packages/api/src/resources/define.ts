@@ -8,13 +8,19 @@ export type Filter = {
   schema: z.ZodType
   normalize?: (value: unknown, filters: Record<string, unknown>) => unknown
 }
+export type CrudAction = 'list' | 'get' | 'create' | 'update' | 'delete'
+export const CRUD_ACTIONS: readonly CrudAction[] = ['list', 'get', 'create', 'update', 'delete']
 export interface ResourceDefinition<R extends { id: string } = { id: string }> {
   name: string
   eventName: string
   table: keyof Database & string
   record: z.ZodObject
-  create: z.ZodObject
-  update: z.ZodObject
+  create?: z.ZodObject
+  update?: z.ZodObject
+  operations?: readonly CrudAction[]
+  scopeResource?: string
+  /** Extra equality conditions for list, get, update and delete (not create); null = none. [[API7]]. */
+  rowFilter?: (ctx: ServiceContext) => Record<string, unknown> | null
   agentWritable?: readonly string[]
   filters?: Record<string, Filter>
   references?: Record<string, Reference>
@@ -33,16 +39,30 @@ export interface ResourceDefinition<R extends { id: string } = { id: string }> {
   }
 }
 
+export const crudActions = (def: ResourceDefinition<any>): readonly CrudAction[] => def.operations ?? CRUD_ACTIONS
+export const scopeResourceOf = (def: ResourceDefinition<any>): string => def.scopeResource ?? def.name
+export const resourcePath = (def: ResourceDefinition<any>): string => '/' + def.name.replaceAll('_', '-')
+export const readColumns = (def: ResourceDefinition<any>): string[] => Object.keys(def.record.shape)
+
 const NAME = /^[a-z][a-z0-9_]*$/
 
 /** Validates a definition at module load. Throws a plain Error: this is a programming mistake. */
 export function defineResource<R extends { id: string }>(def: ResourceDefinition<R>): ResourceDefinition<R> {
   if (!NAME.test(def.name)) throw new Error(`invalid resource name "${def.name}" (must match ${NAME})`)
   for (const schema of [def.record, def.create, def.update]) {
-    if ('custom' in schema.shape) throw new Error(`"custom" is a reserved field name (${def.name})`)
+    if (schema && 'custom' in schema.shape) throw new Error(`"custom" is a reserved field name (${def.name})`)
   }
+  if (def.scopeResource !== undefined && !NAME.test(def.scopeResource)) {
+    throw new Error(`invalid scopeResource "${def.scopeResource}" (${def.name})`)
+  }
+  const ops = crudActions(def)
+  if (ops.length === 0 || new Set(ops).size !== ops.length || ops.some((o) => !CRUD_ACTIONS.includes(o))) {
+    throw new Error(`invalid operations (${def.name})`)
+  }
+  if (ops.includes('create') && !def.create) throw new Error(`create schema required (${def.name})`)
+  if (ops.includes('update') && !def.update) throw new Error(`update schema required (${def.name})`)
   if (def.agentWritable) {
-    const known = new Set([...Object.keys(def.create.shape), ...Object.keys(def.update.shape)])
+    const known = new Set([...Object.keys(def.create?.shape ?? {}), ...Object.keys(def.update?.shape ?? {})])
     for (const f of def.agentWritable) {
       if (!known.has(f)) throw new Error(`agentWritable names unknown field "${f}" (${def.name})`)
     }

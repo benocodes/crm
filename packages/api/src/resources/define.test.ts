@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
-import { defineResource, parseListQuery, toRecord, type ResourceDefinition } from './define.js'
+import { defineResource, parseListQuery, readColumns, resourcePath, toRecord, type ResourceDefinition } from './define.js'
 import { tasks } from './tasks.js'
 
 const record = z.object({ id: z.string(), title: z.string() })
@@ -119,5 +119,30 @@ describe('parseListQuery', () => {
       },
     })
     expect(await code(() => parseListQuery(def, { filters: { value: 'a' } }))).toMatchObject({ code: 'invalid_identity' })
+  })
+})
+
+describe('definition helpers (CORE15)', () => {
+  it('readColumns', () => {
+    expect(readColumns(tasks)).toEqual([
+      'id', 'organization_id', 'title', 'notes', 'status', 'due_at', 'completed_at', 'assignee_id', 'created_by', 'created_at', 'updated_at',
+    ])
+    expect(readColumns(tasks)).not.toContain('deleted_at')
+  })
+  it('resourcePath', () => expect(resourcePath(base({ name: 'api_keys' }))).toBe('/api-keys'))
+  it('requires create and update schemas when generated', () => {
+    expect(() => defineResource(base({ create: undefined }))).toThrow('create schema required (widgets)')
+    expect(() => defineResource(base({ update: undefined }))).toThrow('update schema required (widgets)')
+  })
+  it('read-only needs no write schemas', () => {
+    expect(() => defineResource(base({ operations: ['list', 'get'], create: undefined, update: undefined }))).not.toThrow()
+  })
+  it('rejects bad operations', () => {
+    for (const operations of [[], ['list', 'list'], ['purge']] as never[]) {
+      expect(() => defineResource(base({ operations }))).toThrow('invalid operations (widgets)')
+    }
+  })
+  it('rejects a bad scopeResource', () => {
+    expect(() => defineResource(base({ scopeResource: 'Contacts' }))).toThrow()
   })
 })

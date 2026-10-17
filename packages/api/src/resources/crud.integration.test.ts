@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import type { Kysely } from 'kysely'
+import { sql, type Kysely } from 'kysely'
 import { z } from 'zod'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
@@ -127,7 +127,7 @@ describe('create', () => {
 
   it('uses the per-request schema', async () => {
     const inputSchema = vi.fn((_ctx: unknown, op: 'create' | 'update') =>
-      op === 'create' ? z.strictObject({ title: z.string().min(3) }) : tasks.update,
+      op === 'create' ? z.strictObject({ title: z.string().min(3) }) : tasks.update!,
     )
     const def = defineResource<TaskRecord>({ ...tasks, name: 'schema_tasks', inputSchema })
     expect(await apiError(asUser(db, a, (ctx) => createResource(ctx, def, { title: 'ab' })))).toMatchObject({
@@ -356,5 +356,99 @@ describe('transaction', () => {
     ).rejects.toThrow('boom')
     expect(await owner.selectFrom('tasks').selectAll().execute()).toHaveLength(0)
     expect(await owner.selectFrom('events').selectAll().execute()).toHaveLength(0)
+  })
+})
+
+describe('column grants (C1)', () => {
+  const COLS = [
+    'id', 'organization_id', 'title', 'status', 'due_at', 'completed_at', 'assignee_id', 'created_by', 'deleted_at', 'created_at', 'updated_at',
+  ].join(', ')
+  const narrow = defineResource<TaskRecord>({
+    ...tasks,
+    name: 'narrow_tasks',
+    record: tasks.record.omit({ notes: true }),
+    create: tasks.create!.omit({ notes: true }),
+    update: tasks.update!.omit({ notes: true }),
+  })
+
+  async function withoutNotesGrant(fn: () => Promise<void>) {
+    await sql.raw(`REVOKE SELECT ON tasks FROM vault_authenticated; GRANT SELECT (${COLS}) ON tasks TO vault_authenticated`).execute(owner)
+    try {
+      await fn()
+    } finally {
+      await sql.raw(`REVOKE SELECT (${COLS}) ON tasks FROM vault_authenticated; GRANT SELECT ON tasks TO vault_authenticated`).execute(owner)
+    }
+  }
+
+  it('the swap is real', async () => {
+    const r = await mk(a)
+    await withoutNotesGrant(async () => {
+      const err = await asUser(db, a, (ctx) => getResource(ctx, tasks, r.id)).then(() => undefined, (e) => e)
+      expect(err?.code).toBe('42501')
+    })
+  })
+
+  it('generic ops work under column grants', async () => {
+    await withoutNotesGrant(async () => {
+      const c = await asUser(db, a, (ctx) => createResource(ctx, narrow, { title: 'a' }))
+      expect(c).not.toHaveProperty('notes')
+      expect(await asUser(db, a, (ctx) => getResource(ctx, narrow, c.id))).not.toHaveProperty('notes')
+      const l = await asUser(db, a, (ctx) => listResource(ctx, narrow, {}))
+      expect(l.data.map((r) => r.id)).toEqual([c.id])
+      expect(l.data[0]).not.toHaveProperty('notes')
+      const u = await asUser(db, a, (ctx) => updateResource(ctx, narrow, c.id, { status: 'done' }))
+      expect(u).not.toHaveProperty('notes')
+      await asUser(db, a, (ctx) => deleteResource(ctx, narrow, c.id))
+      const ev = await eventsOf(c.id)
+      expect(ev.map((e) => e.type)).toEqual(['task.created', 'task.updated', 'task.deleted'])
+      for (const e of ev) {
+        expect(e.before ?? {}).not.toHaveProperty('notes')
+        expect(e.after ?? {}).not.toHaveProperty('notes')
+      }
+    })
+  })
+})
+
+describe('row filter (C3)', () => {
+  const mine = defineResource<TaskRecord>({
+    ...tasks,
+    name: 'my_tasks',
+    rowFilter: (ctx) => (ctx.actor.kind === 'agent' ? { assignee_id: ctx.actor.id } : null),
+  })
+  let t1: TaskRecord
+  let t2: TaskRecord
+  beforeEach(async () => {
+    t1 = await mk(a, { title: 'T1', assignee_id: a.agentId })
+    t2 = await mk(a, { title: 'T2' })
+  })
+
+  it('lists filtered for agents', async () => {
+    const l = await asAgent(db, a, (ctx) => listResource(ctx, mine, {}))
+    expect(l.data.map((r) => r.id)).toEqual([t1.id])
+  })
+  it('get outside the filter is 404', async () => {
+    expect(await apiError(asAgent(db, a, (ctx) => getResource(ctx, mine, t2.id)))).toMatchObject({ status: 404, code: 'not_found' })
+  })
+  it('update outside the filter is 404 and writes nothing', async () => {
+    expect(await apiError(asAgent(db, a, (ctx) => updateResource(ctx, mine, t2.id, { title: 'x' })))).toMatchObject({ status: 404 })
+    expect((await rowOf(t2.id))!.title).toBe('T2')
+    expect((await eventsOf(t2.id)).map((e) => e.type)).toEqual(['task.created'])
+  })
+  it('delete outside the filter is 404', async () => {
+    expect(await apiError(asAgent(db, a, (ctx) => deleteResource(ctx, mine, t2.id)))).toMatchObject({ status: 404 })
+    expect((await rowOf(t2.id))!.deleted_at).toBeNull()
+  })
+  it('users are unfiltered', async () => {
+    const l = await asUser(db, a, (ctx) => listResource(ctx, mine, {}))
+    expect(l.data.map((r) => r.id).sort()).toEqual([t1.id, t2.id].sort())
+  })
+})
+
+describe('subset guard', () => {
+  it('create and update reject a definition without schemas', async () => {
+    const ro = { ...tasks, name: 'ro', operations: ['list', 'get'], create: undefined, update: undefined } as never
+    await expect(asUser(db, a, (ctx) => createResource(ctx, ro, { title: 'x' }))).rejects.toThrow('ro has no create schema')
+    const live = await mk(a)
+    await expect(asUser(db, a, (ctx) => updateResource(ctx, ro, live.id, { title: 'x' }))).rejects.toThrow('ro has no update schema')
   })
 })

@@ -34,9 +34,9 @@ describe('tasks.create schema', () => {
     ['unknown key', { title: 'a', completed_at: '2026-10-17T10:00:00Z' }],
     ['date-only due_at', { title: 'a', due_at: '2026-10-17' }],
   ])('rejects %s', (_n, input) => {
-    expect(tasks.create.safeParse(input).success).toBe(false)
+    expect(tasks.create!.safeParse(input).success).toBe(false)
   })
   it('accepts offset datetimes and null assignee', () => {
-    expect(tasks.create.safeParse({ title: 'a', due_at: '2026-10-17T10:00:00+02:00', assignee_id: null }).success).toBe(true)
+    expect(tasks.create!.safeParse({ title: 'a', due_at: '2026-10-17T10:00:00+02:00', assignee_id: null }).success).toBe(true)
   })
 })
