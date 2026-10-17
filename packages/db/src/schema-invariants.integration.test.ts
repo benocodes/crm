@@ -117,4 +117,40 @@ describe('schema invariants', () => {
     const have = new Set(trig.map((r) => r.t))
     for (const r of withCol) expect(have.has(r.table_name), r.table_name).toBe(true)
   })
+
+  it('service role reaches every table', async () => {
+    const rows = await q(
+      `SELECT table_name FROM information_schema.role_table_grants
+       WHERE grantee = 'vault_service' AND table_schema = 'public' AND privilege_type = 'SELECT'`,
+    )
+    const granted = new Set(rows.map((r) => r.table_name))
+    for (const t of tables) expect(granted.has(t), t).toBe(true)
+  })
+
+  it('service role never deletes', async () => {
+    const rows = await q(
+      `SELECT table_name, privilege_type FROM information_schema.role_table_grants
+       WHERE grantee = 'vault_service' AND table_schema = 'public' AND privilege_type IN ('DELETE', 'TRUNCATE')`,
+    )
+    expect(rows).toEqual([])
+  })
+
+  it('events are append-only for the service role', async () => {
+    const rows = await q(
+      `SELECT privilege_type FROM information_schema.role_table_grants
+       WHERE grantee = 'vault_service' AND table_schema = 'public' AND table_name = 'events'`,
+    )
+    const privs = rows.map((r) => r.privilege_type)
+    expect(privs.length).toBeGreaterThan(0)
+    for (const p of privs) expect(['INSERT', 'SELECT']).toContain(p)
+  })
+
+  it("Kysely's tables are owner-only", async () => {
+    const rows = await q(
+      `SELECT grantee, table_name, privilege_type FROM information_schema.role_table_grants
+       WHERE table_schema = 'public' AND table_name IN ('kysely_migration', 'kysely_migration_lock')
+         AND grantee IN ('vault_service', 'vault_authenticated', 'vault_app')`,
+    )
+    expect(rows).toEqual([])
+  })
 })

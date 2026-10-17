@@ -23,8 +23,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
           Postgres (Hyperdrive) ── outbox: events table (same transaction)
 ```
 
-**This package is not built yet.** The sections below are the contract the first CORE and API cycles
-implement. Where this skill names a file, it is the intended path; correct it when the file lands.
+**What exists** ([[CORE12]]): the service layer, no HTTP. `src/errors.ts` (`ApiError`, `mapDatabaseError`),
+`src/scopes.ts` (`ScopeSet`), `src/outbox.ts` (`writeEvent`), `src/context.ts` (`withContext`,
+`withAccountContext`), `src/resources/{define,crud,tasks}.ts`, test helper `src/test/tenant.ts`
+(`seedTenant`, `asUser`, `asAgent`). The registry, REST, auth middleware and contract suite arrive with
+[[CORE15]]; where this skill names one of those, it is the intended shape.
 
 ## Operations: define once, expose everywhere
 
@@ -51,6 +54,33 @@ handler); a generic layer that tries to express every behavior turns into a fram
 Adding a resource also means adding it to the **contract suite** (see Testing); don't hand-write those
 tests.
 
+**The definition** (`defineResource` in `src/resources/define.ts`; `tasks.ts` is the worked example):
+`name` (plural, scope resource), `eventName` (singular, event prefix), `table`, `record` (read schema, a
+plain `z.object` so unlisted columns are stripped), `create`/`update` (`z.strictObject`, so unknown keys and
+`organization_id`/`created_by` are `validation_error`), optional `agentWritable`, `filters` (each with a
+`schema` and an optional `normalize(value, parsedFilters)`), `references` (`{ table, live? }`), and the
+escape hatches:
+
+| Hook | When it runs | Use it for |
+|---|---|---|
+| `inputSchema(ctx, op)` | instead of `create`/`update`, per request | custom fields ([[CORE10]]) |
+| `beforeWrite(ctx, { op, input, before })` | after validation, agent and reference checks, inside the lock on update | derived columns (`completed_at`), invariants that read `before` or lock other rows, throwing an `ApiError` (409s) |
+| `overrides.create(ctx, input, generic)` | after validation, agent and reference checks | `ON CONFLICT` inserts, multi-row creates |
+| `overrides.delete(ctx, id, generic)` | instead of the generic soft delete | cascading soft deletes |
+
+- **An override that writes without calling `generic` must emit** with `emitResourceEvent(ctx, def, action,
+  before, after, id)`.
+- **References are checked on the parsed input, before `overrides.create` runs.** If an override changes a
+  reference field before calling `generic` (or inserts itself), the new value is not checked: only the
+  foreign key catches it, and a plain FK accepts another organisation's id (Postgres checks FKs without
+  RLS). Re-check with a `SELECT` on `ctx.trx`, or rely on a composite `(organization_id, id)` FK.
+- `defineResource` throws at module load on a key named `custom` (reserved), an unknown `agentWritable`
+  field or a bad `name`.
+- **Known limits, owed by later plans:** the generic reads use `SELECT *` / `RETURNING *`, which fails
+  `42501` under column-level grants (`api_keys.key_hash`, [[CORE3]]): select the read schema's keys
+  ([[CORE15]]). Filters are column equality only, and `toRecord` maps one flat row; join filters and
+  embedded child rows need definition hooks ([[CHN5]]).
+
 ## The service context and tenancy
 
 Every operation runs inside the service context, which carries the transaction, the actor (user or agent
@@ -64,7 +94,18 @@ principal), the granted scopes and the tenant. Tenancy is the **organisation**. 
 
 The app connects as `vault_app` (`LOGIN NOINHERIT`, a member of both roles, no privileges of its own), so
 a query outside a wrapper fails with `42501`. `vault_authenticated` has no `DELETE`/`TRUNCATE` anywhere,
-only `SELECT, INSERT` on `events`, and nothing on `api_keys`.
+only `SELECT, INSERT` on `events`, and nothing on `api_keys`. `vault_service` has `SELECT, INSERT, UPDATE`
+(events `SELECT, INSERT`), no `DELETE`, and nothing on Kysely's tables.
+
+Operations don't call the wrappers directly; they run in a service context (`src/context.ts`):
+
+- `withContext(db, { actor, organizationId, scopes }, ctx => …)`: tenant operations. `ctx` has `trx`,
+  `actor`, `organizationId`, `scopes` and `emit(event)`, and deliberately **no `db`**. Usable outside a
+  request (a Workflow step) with an explicit principal.
+- `withAccountContext(db, { actor }, ctx => …)`: account operations with no organisation ([[CORE3]]):
+  service role, `ctx.emitFor(organizationId, event)`.
+- Both map a `23503` to `400 invalid_reference` **after** the transaction rolled back (in `.catch` on the
+  wrapper), never inside it; everything else, including `TenancyContextError`, passes through unchanged.
 
 - **Handlers never import `db` directly.** They use the transaction from the context. Plain `db` is for
   auth lookups and test fixtures.

@@ -150,11 +150,17 @@ Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_bas
   on a cluster where they already exist. The migration grants both group roles to `CURRENT_USER` too.
   Every vault database on a cluster (dev, test, each worktree) shares them, so **`down()` never drops
   roles**. Never touch other products' roles (`anon`, `authenticated`, `service_role`) on a shared cluster.
-- **Grants are minimal, per table, in the migration that creates the table.** `vault_service` gets `ALL`;
+- **Grants are minimal, per table, in the migration that creates the table.** `vault_service` gets
+  `SELECT, INSERT, UPDATE` (narrowed from `ALL` by `20261017_002_service_role_grants.ts`, [[CORE12]]): no
+  `DELETE`/`TRUNCATE` (soft delete; a spec that truly hard-deletes machinery rows grants `DELETE` on those
+  tables only), `events` exactly `SELECT, INSERT`, and nothing on `kysely_migration*`.
   `vault_authenticated` gets only what tenants need (no `DELETE`/`TRUNCATE` anywhere, `events` exactly
   `SELECT, INSERT`, `api_keys` nothing); `vault_app` gets nothing directly. A new table needs its own
-  `GRANT`s: there are no default privileges. `schema-invariants.integration.test.ts` enforces these rules
+  `GRANT`s **to both group roles**: there are no default privileges, and a table without a `vault_service`
+  `SELECT` fails the invariants suite. `schema-invariants.integration.test.ts` enforces these rules
   across every table.
+- **`REVOKE ALL ON ALL TABLES` also hits Kysely's tables.** The Migrator creates `kysely_migration*` before
+  running `up()`, so a schema-wide `GRANT`/`REVOKE` in a migration covers them; name tables explicitly.
 - **RLS is enabled and forced on every table** (identity tables too), with policies `TO vault_authenticated`
   named `<table>_tenant`. Policies call **`app.current_organization_id()`**, never `current_setting(...)`
   directly; the invariants test checks every policy expression.

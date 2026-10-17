@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./test": "./src/test/index.ts"
+    "./test": "./src/test/index.ts",
+    "./test-setup": "./src/test-setup.ts"
   },
   "scripts": {
     "db:migrate": "tsx migrate.ts",
