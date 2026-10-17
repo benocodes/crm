@@ -6,3 +6,7 @@ node_modules/
 
 # Separate repo (see knowledge/.git)
 knowledge/
+
+# Claude Code: local state (agents and skills are tracked)
+.claude/worktrees/
+.claude/settings.local.json
