@@ -132,9 +132,12 @@ ever looking at which await was actually stuck. The faster path:
 
 These files arrive with the CORE cycles that build the tenancy layer; keep this list current when they do.
 
-- `packages/db/src/db.ts`: `withRequestPool`, the ALS store, the lazy Kysely proxy.
-- `packages/api/src/worker.ts`: wraps `fetch` in `withRequestPool`.
-- `packages/api/src/middleware/with-organization.ts`: the tenancy wrappers; short `SET LOCAL` transactions.
+- `packages/db/src/db.ts`: today only `createDb(url, { max })`, a plain factory (Node pool,
+  `connectionTimeoutMillis: 2_000`); no module-level instance. `withRequestPool`, the ALS store and the
+  per-request pool arrive with the Worker in [[CORE12]].
+- `packages/api/src/worker.ts` ([[CORE12]]): wraps `fetch` in `withRequestPool`.
+- `packages/db/src/tenancy.ts`: the tenancy wrappers `withOrganization(db, { principalId, organizationId }, fn)`
+  and `withServiceRole(db, fn)`; one `set_config(..., true)` statement plus `SET LOCAL ROLE`, then `fn`.
 - `packages/api/src/auth/`: SELECT-first provisioners.
 
 ## References

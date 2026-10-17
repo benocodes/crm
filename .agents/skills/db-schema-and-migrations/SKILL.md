@@ -16,9 +16,9 @@ discipline from there.
 - **Kysely**: a query builder, not an ORM. Kysely's built-in `Migrator` with `FileMigrationProvider`; no
   `kysely-ctl`, no third-party migration tool.
 - **Drivers.** The Worker uses `pg` through Hyperdrive (see `hyperdrive-pg-rls`). Node tooling (migrations,
-  scripts, codegen) uses `@neondatabase/serverless`'s `Pool` as a drop-in for Kysely's `PostgresDialect`,
-  because the native `pg` driver has shown `read ETIMEDOUT` against Neon from Node 22 (dual-stack DNS
-  timing). Verify this still holds before relying on either.
+  scripts, codegen) uses `pg` today against local Postgres ([[CORE1]]). The predecessor needed
+  `@neondatabase/serverless`'s `Pool` for Node tooling against Neon, because the native `pg` driver showed
+  `read ETIMEDOUT` from Node 22 (dual-stack DNS timing); verify that before pointing tooling at Neon.
 - **Raw bodies stay out of Postgres.** Email bodies, attachments and captured payloads go to R2 behind the
   `ObjectStore` interface; Postgres holds metadata and a pointer.
 
@@ -140,6 +140,38 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   `DEFAULT`, a test insert that omits it silently picks up the session's organisation. The vault's test pool
   presets nothing (see `api-routes`), so every fixture insert names its organisation explicitly.
 
+## Roles, grants and policies
+
+Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_baseline.ts`).
+
+- **Roles are namespaced and cluster-wide:** `vault_authenticated` (NOLOGIN, RLS applies),
+  `vault_service` (NOLOGIN, BYPASSRLS), `vault_app` (LOGIN NOINHERIT, member of both, no privileges of its
+  own). They are created idempotently in a `DO` block that also `ALTER`s all three, so attributes converge
+  on a cluster where they already exist. The migration grants both group roles to `CURRENT_USER` too.
+  Every vault database on a cluster (dev, test, each worktree) shares them, so **`down()` never drops
+  roles**. Never touch other products' roles (`anon`, `authenticated`, `service_role`) on a shared cluster.
+- **Grants are minimal, per table, in the migration that creates the table.** `vault_service` gets `ALL`;
+  `vault_authenticated` gets only what tenants need (no `DELETE`/`TRUNCATE` anywhere, `events` exactly
+  `SELECT, INSERT`, `api_keys` nothing); `vault_app` gets nothing directly. A new table needs its own
+  `GRANT`s: there are no default privileges. `schema-invariants.integration.test.ts` enforces these rules
+  across every table.
+- **RLS is enabled and forced on every table** (identity tables too), with policies `TO vault_authenticated`
+  named `<table>_tenant`. Policies call **`app.current_organization_id()`**, never `current_setting(...)`
+  directly; the invariants test checks every policy expression.
+
+## Environment
+
+| Variable | Connects as | Used by | Default |
+|---|---|---|---|
+| `MIGRATION_DATABASE_URL` | database owner | `db:migrate`, `db:codegen` | `postgresql://localhost/vault_dev` |
+| `DATABASE_URL` | `vault_app` | the app ([[CORE12]]) | none |
+| `TEST_DATABASE_URL` | database owner | reset script, migration/invariant tests, `createOwnerTestDb` | `postgresql://localhost/vault_test` |
+| `TEST_APP_DATABASE_URL` | `vault_app` | `createTestDb` | `TEST_DATABASE_URL` with user `vault_app` |
+
+`pnpm db:test:worktree` writes both test URLs to `packages/db/.env.test.local`, which `src/test-setup.ts`
+loads (a value already set in the shell wins). Codegen must run as the owner: `vault_app` can't read the
+schema. Every helper that truncates or drops calls `assertTestDatabaseName` first.
+
 ## Testing migrations, and why you never round-trip `down()`
 
 Every consequential migration gets a paired integration test, `packages/db/src/migration-NNN.integration.test.ts`,
@@ -171,7 +203,14 @@ tests.
   addressed by their own ids; never a "nothing references it" query against shared reference data. A single
   failure otherwise leaves rows behind and the next run fails on an unrelated unique violation.
 - **Run the `db` and `api` suites serially** against one database; two at once is the same concurrency
-  hazard as two sessions.
+  hazard as two sessions. Inside a package, Vitest 4+ has no `poolOptions.forks.singleFork`: use
+  `pool: 'forks'` with `fileParallelism: false`.
+- **`now()` is the transaction's start time.** An `updated_at > created_at` check inside one rolled-back
+  transaction can never pass, however long it sleeps. Use separate committed statements and clean up in
+  `finally`, or compare against `clock_timestamp()`.
+- Constraint checks (`23514`, `23505`) run inside a transaction on the owner pool that the test rolls back,
+  and assert the SQLSTATE.
+- Kysely 0.29 exports `Migrator` and `FileMigrationProvider` from `kysely/migration`, not the root.
 
 ## Neon notes
 

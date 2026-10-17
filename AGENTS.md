@@ -154,6 +154,8 @@ Carried over from the predecessor product, where each cost real time. Add new on
    wrappers set role or session config.
 2. **The test harness must not mask RLS.** Do not preset `app.organization_id` or `service_role` on the
    test pool; a query that skips its tenancy wrapper must fail in tests the way it does in production.
+   The mechanism: `createTestDb` (`@vault/db/test`) connects as `vault_app`, which holds no table
+   privileges until a wrapper runs `SET LOCAL ROLE`; `harness.integration.test.ts` guards it.
 3. **Catching `23505` inside a transaction does not save it**: the transaction is already aborted. Use
    `ON CONFLICT` instead.
 4. **Agents never send.** Agents submit suggestions; the vault executes them with credentials it holds.

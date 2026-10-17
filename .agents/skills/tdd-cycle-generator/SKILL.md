@@ -315,6 +315,7 @@ Migration: <number used, or none> (<differs from the plan's claim? say so>)
 Tests: <command> → <N passed / M failed> (one line per suite); typecheck <clean | errors>; build <ok | n/a>
 Smoke: <what was exercised and seen> | skipped — <why>
 Deviations from plan: <bullets, or none>
+Absence checks: <each injected fault → which tests went red, run how> | none in plan
 Retro: <RETRO path> | not written — <why>
 Knowledge ingested: <file → one-line lesson> per change | none — <why>
 Spec status: <old> → <new>; changelog entry <added | not added>
@@ -378,7 +379,10 @@ skill ends; don't start implementing unless asked.
 10. **An absence test is only red-then-green if the fixture triggers the producer under the old code.** A
     conditional producer makes a bare-minimum fixture pass trivially. Plans that assert an absence say so
     and have the executing agent run the test before implementing to confirm it fails for the right
-    reason.
+    reason. **Check that the injected fault can actually turn each named test red** before promising it:
+    `set_config(..., false)` inside a transaction that rolls back is rolled back too, so it cannot redden
+    an "after rollback" leak test ([[CORE1]]). Tell the executor to run each target test alone (`-t`):
+    on a shared `max: 1` pool, one test's leak reddens the next for the wrong reason.
 11. **A deletion cycle's blast-radius grep is a floor, not a ceiling.** Grep for the deleted file's
     basename and exports too, and for operation names as string literals, not only the domain concept;
     tell the executor to treat every surprise the grep finds as a decision to make.
