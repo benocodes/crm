@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.DS_Store
+
+# Separate repo (see knowledge/.git)
+knowledge/
