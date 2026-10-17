@@ -1,7 +1,7 @@
 import { sql, type Transaction } from 'kysely'
 import type { ServiceContext } from '../context.js'
 import { ApiError } from '../errors.js'
-import { parseInput, parseListQuery, toRecord, type ResourceDefinition } from './define.js'
+import { parseInput, parseListQuery, readColumns, toRecord, type ResourceDefinition } from './define.js'
 
 export type ListResult<R> = { data: R[]; next_cursor: string | null }
 type ListQuery = { after?: unknown; limit?: unknown; filters?: Record<string, string> }
@@ -13,6 +13,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // cast is confined to this one helper (api-routes: never type a wrapper callback's `trx` as `any`).
 const db = (ctx: ServiceContext) => ctx.trx as unknown as Transaction<any>
 
+/** Adds the definition's row filter (if any, for this actor) as equality conditions. */
+function filtered<Q extends { where(col: string, op: '=', value: unknown): Q }>(ctx: ServiceContext, def: ResourceDefinition<any>, q: Q): Q {
+  for (const [col, value] of Object.entries(def.rowFilter?.(ctx) ?? {})) q = q.where(col, '=', value)
+  return q
+}
+
 const notFound = (def: ResourceDefinition<any>) => new ApiError(404, 'not_found', `${def.eventName} not found`)
 
 function assertUuid(def: ResourceDefinition<any>, id: string): void {
@@ -21,7 +27,7 @@ function assertUuid(def: ResourceDefinition<any>, id: string): void {
 
 function checkAgentFields(ctx: ServiceContext, def: ResourceDefinition<any>, input: Row): void {
   if (ctx.actor.kind !== 'agent') return
-  const writable = new Set(def.agentWritable ?? [...Object.keys(def.create.shape), ...Object.keys(def.update.shape)])
+  const writable = new Set(def.agentWritable ?? [...Object.keys(def.create?.shape ?? {}), ...Object.keys(def.update?.shape ?? {})])
   const denied = Object.keys(input).filter((k) => !writable.has(k))
   if (denied.length > 0) throw new ApiError(400, 'field_not_writable', `agents may not write: ${denied.join(', ')}`)
 }
@@ -40,11 +46,11 @@ async function checkReferences(ctx: ServiceContext, def: ResourceDefinition<any>
 
 async function lockLive(ctx: ServiceContext, def: ResourceDefinition<any>, id: string): Promise<Row> {
   assertUuid(def, id)
-  const row = await db(ctx)
-    .selectFrom(def.table)
-    .selectAll()
-    .where('id', '=', id)
-    .where('deleted_at', 'is', null)
+  const row = await filtered(
+    ctx,
+    def,
+    db(ctx).selectFrom(def.table).select(readColumns(def)).where('id', '=', id).where('deleted_at', 'is', null),
+  )
     .forUpdate()
     .executeTakeFirst()
   if (!row) throw notFound(def)
@@ -74,7 +80,7 @@ export async function listResource<R extends { id: string }>(
   query: ListQuery,
 ): Promise<ListResult<R>> {
   const { after, limit, filters } = parseListQuery(def, query)
-  let q = db(ctx).selectFrom(def.table).selectAll().where('deleted_at', 'is', null)
+  let q = filtered(ctx, def, db(ctx).selectFrom(def.table).select(readColumns(def)).where('deleted_at', 'is', null))
   if (after) q = q.where('id', '>', after)
   for (const [key, value] of Object.entries(filters)) q = q.where(key, '=', value)
   const rows = (await q.orderBy('id').limit(limit + 1).execute()) as Row[]
@@ -91,12 +97,11 @@ export async function getResource<R extends { id: string }>(
   id: string,
 ): Promise<R> {
   assertUuid(def, id)
-  const row = await db(ctx)
-    .selectFrom(def.table)
-    .selectAll()
-    .where('id', '=', id)
-    .where('deleted_at', 'is', null)
-    .executeTakeFirst()
+  const row = await filtered(
+    ctx,
+    def,
+    db(ctx).selectFrom(def.table).select(readColumns(def)).where('id', '=', id).where('deleted_at', 'is', null),
+  ).executeTakeFirst()
   if (!row) throw notFound(def)
   return toRecord(def, row as Row)
 }
@@ -106,7 +111,9 @@ export async function createResource<R extends { id: string }>(
   def: ResourceDefinition<R>,
   input: unknown,
 ): Promise<R> {
-  const parsed = parseInput(def.inputSchema?.(ctx, 'create') ?? def.create, input)
+  const schema = def.inputSchema?.(ctx, 'create') ?? def.create
+  if (!schema) throw new Error(`${def.name} has no create schema`)
+  const parsed = parseInput(schema, input)
   checkAgentFields(ctx, def, parsed)
   await checkReferences(ctx, def, parsed)
 
@@ -115,7 +122,7 @@ export async function createResource<R extends { id: string }>(
     const row = await db(ctx)
       .insertInto(def.table)
       .values({ ...written, organization_id: ctx.organizationId, created_by: ctx.actor.id })
-      .returningAll()
+      .returning(readColumns(def))
       .executeTakeFirstOrThrow()
     const record = toRecord(def, row as Row)
     await emitResourceEvent(ctx, def, 'created', null, record, record.id)
@@ -130,14 +137,16 @@ export async function updateResource<R extends { id: string }>(
   id: string,
   input: unknown,
 ): Promise<R> {
-  const parsed = parseInput(def.inputSchema?.(ctx, 'update') ?? def.update, input)
+  const schema = def.inputSchema?.(ctx, 'update') ?? def.update
+  if (!schema) throw new Error(`${def.name} has no update schema`)
+  const parsed = parseInput(schema, input)
   checkAgentFields(ctx, def, parsed)
   const current = await lockLive(ctx, def, id)
   const before = toRecord(def, current)
   if (Object.keys(parsed).length === 0) return before
   await checkReferences(ctx, def, parsed)
   const written = def.beforeWrite ? await def.beforeWrite(ctx, { op: 'update', input: parsed, before }) : parsed
-  const row = await db(ctx).updateTable(def.table).set(written).where('id', '=', id).returningAll().executeTakeFirstOrThrow()
+  const row = await db(ctx).updateTable(def.table).set(written).where('id', '=', id).returning(readColumns(def)).executeTakeFirstOrThrow()
   const after = toRecord(def, row as Row)
   await emitResourceEvent(ctx, def, 'updated', before, after, id)
   return after
