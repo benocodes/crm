@@ -286,6 +286,13 @@ name doesn't match `/(^|_)test(_|$)/`.
   commands (merge, send, suggestion lifecycle) and channel adapters.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
+- **Assert emit order with `orderBy(sql\`ctid\`)`** on `events` after a per-test truncate, never by
+  `id`: same-millisecond UUIDv7s are not monotonic and an id-ordered assertion flaked 2 runs in 4
+  ([[CORE2]]).
+- **A service function exported for another spec's in-process caller gets no adapter parsing.** The REST
+  body schema trims and bounds input; a channel calling the function directly does not pass through it.
+  Clean free text from external sources inside the function (`cleanName` in `src/identity/resolve.ts`:
+  trim, blank is absent, cap at the column limit), or one odd display name fails a whole capture batch.
 - **Assert an event's `actor_id` equals the calling principal's id**, never `not.toBe(someoneElse)`, which
   passes for almost any value ([[CORE15]] review).
 - `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
@@ -330,9 +337,19 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
     once a minute, in the lookup transaction ([[CORE15]]).
 - `sql.ref(alias)` emits a quoted identifier; if the surrounding raw SQL declares an unquoted alias, pass its
   folded lowercase spelling or Postgres says `42P01`.
-- **Kysely 0.27's `JoinBuilder` has no `orOn`.** An OR across a merged-identity alias (a contact and its
-  canonical contact) needs `.on((eb) => eb.or([...]))` inside the join, or a small resolver query first.
-  Check for an existing resolver before hand-rolling an identity-graph join.
+- **Kysely 0.27's `JoinBuilder` has no `orOn`.** An OR inside a join needs `.on((eb) => eb.or([...]))`.
+  (The vault has no canonical-contact alias to join across: contacts are people and identities are
+  addresses, [[CORE2]] D1.)
+- **Find-or-create of a parent plus child needs a lock before the select, not just `ON CONFLICT`.** An
+  `ON CONFLICT DO NOTHING` on the child alone leaves the losing transaction's parent row (and its
+  `*.created` event) orphaned. Take `lockKeys(ctx, keys)` (`src/identity/locks.ts`: one statement,
+  `pg_advisory_xact_lock` over distinct `hashtextextended` keys in ascending hash order, so overlapping
+  batches cannot deadlock), then select, then insert with `ON CONFLICT DO NOTHING` as the backstop. Every
+  insert path for that key must take the same lock ([[CORE2]] D16, `resolveIdentities`).
+- **Canonicalise ids before comparing or sorting them in JS.** `z.uuid()` accepts upper case, Postgres
+  treats both cases as one uuid, JS string comparison does not. An upper-cased self-merge got past an
+  `===` guard into a CHECK violation (an unmapped 500), and a case-sensitive sort can invert a lock order
+  ([[CORE2]] review). Lower-case at the top of the command.
 
 ## Things to avoid
 

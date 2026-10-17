@@ -34,6 +34,10 @@ All tables use **UUID v7** via the `pg_uuidv7` extension:
 X" cursors over a feed are a plain `id > $cursor`. Caveat: ids minted in the **same millisecond** are not
 monotonic (the random bits decide the order). Any test or query that relies on "latest row by id" across
 rows inserted in one transaction is flaky; pin explicit ids in fixtures or separate the writes in time.
+To assert the order a transaction *emitted* rows in (events), order by `ctid` on a table that is only
+ever inserted into and was truncated before the test: one backend appending to a fresh heap gives ctid in
+insert order (`packages/api/src/identity/merge.integration.test.ts`, [[CORE2]]). That is a test device,
+not a product ordering: no reader can recover intra-transaction order from same-millisecond ids.
 
 ## Writing migrations
 
@@ -118,6 +122,14 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   arrays but not bare numbers, strings or booleans; those go over the wire as raw text and Postgres's
   text→jsonb cast accepts only values that happen to be valid JSON. Event payload `before`/`after` values
   that can be scalars must be stringified explicitly.
+- **Intra-tenant references are composite foreign keys.** Postgres checks a foreign key without RLS, so
+  a plain `company_id → companies(id)` accepts another organisation's id. Give the target
+  `UNIQUE (organization_id, id)` and reference `(organization_id, <col>) → <target>(organization_id, id)`
+  (`packages/db/migrations/20261018_003_identity_model.ts`, [[CORE2]]). A self-reference
+  (`contacts.merged_into_id`) is added with `ALTER TABLE` after the unique constraint exists.
+- **A new foreign key to `contacts(id)` must join merge's re-point list** (`CONTACT_REFERENCES` in
+  `packages/api/src/identity/merge.ts`) or its exemptions; `merge-catalog.integration.test.ts` fails
+  otherwise ([[CORE2]] D11).
 - **Index names** `idx_{table}_{columns}`; unique `idx_{table}_{purpose}_unique` or inline `.unique()`.
 - **Conflicts: `ON CONFLICT`, not catch-and-retry.** A caught `23505` inside a transaction does not save it;
   the transaction is already aborted. When the unique index is partial, the `onConflict` clause must repeat
