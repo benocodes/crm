@@ -20,12 +20,11 @@ if (statSync(path.join(root, '.git')).isDirectory()) {
   process.exit(1)
 }
 
-const user = process.env.USER
 const dbName = worktreeDatabaseName(root)
 const envFile = path.join(root, 'packages/db/.env.test.local')
 
 if (process.argv.includes('--drop')) {
-  const admin = new pg.Client({ connectionString: `postgresql://${user}@localhost/postgres` })
+  const admin = new pg.Client({ connectionString: `postgresql://localhost/postgres` })
   await admin.connect()
   try {
     await admin.query(
@@ -41,7 +40,7 @@ if (process.argv.includes('--drop')) {
   process.exit(0)
 }
 
-const ownerUrl = `postgresql://${user}@localhost/${dbName}`
+const ownerUrl = `postgresql://localhost/${dbName}`
 writeFileSync(
   envFile,
   `TEST_DATABASE_URL=${ownerUrl}\nTEST_APP_DATABASE_URL=postgresql://vault_app@localhost/${dbName}\n`,

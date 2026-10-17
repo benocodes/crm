@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { sql, type Kysely } from 'kysely'
+import { sql, type Kysely, type Transaction } from 'kysely'
 import { TenancyContextError, withOrganization, withServiceRole } from './tenancy.js'
 import {
   createOwnerTestDb,
@@ -187,7 +187,7 @@ describe('tenancy wrappers', () => {
   })
 
   it('identity tables are service-only', async () => {
-    const attempts: Array<(trx: any) => Promise<unknown>> = [
+    const attempts: Array<(trx: Transaction<Database>) => Promise<unknown>> = [
       (trx) => trx.insertInto('organizations').values({ name: 'x' }).execute(),
       (trx) => trx.insertInto('principals').values({ kind: 'user' }).execute(),
       (trx) => trx.insertInto('users').values({ id: A.userId, email: 'z@x.test' }).execute(),

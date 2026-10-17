@@ -90,4 +90,14 @@ describe('test harness', () => {
       if (saved.o !== undefined) process.env.TEST_DATABASE_URL = saved.o
     }
   })
+
+  it('refuses a non-test database', () => {
+    const saved = process.env.TEST_DATABASE_URL
+    process.env.TEST_DATABASE_URL = 'postgresql://localhost/vault_dev'
+    try {
+      expect(() => createOwnerTestDb()).toThrow('refusing: database "vault_dev" is not a test database')
+    } finally {
+      process.env.TEST_DATABASE_URL = saved
+    }
+  })
 })

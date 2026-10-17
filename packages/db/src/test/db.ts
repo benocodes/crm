@@ -1,5 +1,6 @@
 import { sql, type Kysely } from 'kysely'
 import { createDb } from '../db.js'
+import { assertTestDatabaseName } from '../database-url.js'
 import type { Database } from '../types.js'
 
 /**
@@ -10,6 +11,7 @@ import type { Database } from '../types.js'
 export function createTestDb(options?: { max?: number }): Kysely<Database> {
   const url = process.env.TEST_APP_DATABASE_URL
   if (!url) throw new Error('TEST_APP_DATABASE_URL is not set (run `pnpm db:test:worktree`)')
+  assertTestDatabaseName(url)
   return createDb(url, options)
 }
 
@@ -17,6 +19,7 @@ export function createTestDb(options?: { max?: number }): Kysely<Database> {
 export function createOwnerTestDb(): Kysely<Database> {
   const url = process.env.TEST_DATABASE_URL
   if (!url) throw new Error('TEST_DATABASE_URL is not set (run `pnpm db:test:worktree`)')
+  assertTestDatabaseName(url)
   return createDb(url, { max: 2 })
 }
 
