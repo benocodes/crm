@@ -17,10 +17,11 @@ Each board item has its own id (`PVTI_…`), distinct from the issue number; tha
 
 ## Identity and permissions
 
-Board writes need a token with **Projects: read and write** on the `orivibes` account. The `zooidbot`
-fine-grained token in `.env` does not have it today (`createProjectV2` and item edits return "Resource not
-accessible by personal access token"); until it does, board writes fall back to the human's own `gh` login
-and the report says so. Issue writes work with the bot token.
+Board writes go through `scripts/gh-zooidbot`. The bot's classic token (`repo`, `project`, `workflow`) has
+Write access to the project, verified 2026-10-17 by adding, editing and deleting a draft item. The
+`gh project …` subcommands additionally demand the `read:org` scope and fail without it ("missing required
+scopes [read:org read:discussion]"). **Raw GraphQL works without it**, so the commands below use GraphQL for
+edits; add `read:org` to the token if you prefer `gh project item-edit`.
 
 ## Read the queue
 
@@ -41,17 +42,18 @@ gh api graphql -f query='
 ## Add an issue
 
 ```bash
-gh project item-add 2 --owner orivibes --url https://github.com/orivibes/crm/issues/<N>
+scripts/gh-zooidbot project item-add 2 --owner orivibes --url https://github.com/orivibes/crm/issues/<N>
 ```
 
-## Set a single-select field (Status, Priority, Size)
+## Set a field (Status, Priority, Size, Spec)
 
 ```bash
-gh project item-edit --id <PVTI_ITEM_ID> --project-id PVT_kwHOBiXMOs4BnhC0 \
-  --field-id <FIELD_ID> --single-select-option-id <OPTION_ID>
+scripts/gh-zooidbot api graphql \
+  -f query='mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$o}}){projectV2Item{id}}}' \
+  -f p=PVT_kwHOBiXMOs4BnhC0 -f i=<PVTI_ITEM_ID> -f f=<FIELD_ID> -f o=<OPTION_ID>
 ```
 
-Set the `Spec` text field with `--text "[[CORE12]]"` instead of `--single-select-option-id`.
+For the `Spec` text field use `value:{text:$t}` and `-f t='[[CORE12]]'` (declare `$t:String!`).
 
 ## Re-derive the IDs
 

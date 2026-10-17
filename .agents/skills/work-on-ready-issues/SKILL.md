@@ -85,7 +85,7 @@ One issue per invocation unless the user asks for a batch.
 
 ## Acting as zooidbot
 
-Issue writes (comment, label, assignee, close/reopen) and **board writes** (`gh project item-edit`) go
+Issue writes (comment, label, assignee, close/reopen) and **board writes** (see `board.md` for the GraphQL edit) go
 through `scripts/gh-zooidbot`; see [[triage-issues]] for why and for what to check if a write 403s. The
 branch push and `gh pr create` stay on the human's own `gh` identity, since that is their work. When the
 coding agent runs unattended with only the bot identity, it does everything as zooidbot, including push
@@ -93,7 +93,7 @@ and PR.
 
 ```bash
 scripts/gh-zooidbot issue edit <N> -R orivibes/crm --add-assignee @me
-scripts/gh-zooidbot project item-edit --id <PVTI_ITEM_ID> ...
+# board field edits: GraphQL snippet in .agents/board.md
 ```
 
 `main` is branch-protected (PR required, no force-push), so write access lets the bot push feature
