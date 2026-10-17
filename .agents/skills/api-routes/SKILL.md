@@ -23,11 +23,69 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
           Postgres (Hyperdrive) ── outbox: events table (same transaction)
 ```
 
-**What exists** ([[CORE12]]): the service layer, no HTTP. `src/errors.ts` (`ApiError`, `mapDatabaseError`),
-`src/scopes.ts` (`ScopeSet`), `src/outbox.ts` (`writeEvent`), `src/context.ts` (`withContext`,
-`withAccountContext`), `src/resources/{define,crud,tasks}.ts`, test helper `src/test/tenant.ts`
-(`seedTenant`, `asUser`, `asAgent`). The registry, REST, auth middleware and contract suite arrive with
-[[CORE15]]; where this skill names one of those, it is the intended shape.
+**What exists:**
+- **Service layer** ([[CORE12]]):
+  - `src/errors.ts` (`ApiError`, `mapDatabaseError`);
+  - `src/scopes.ts` (`ScopeSet`);
+  - `src/outbox.ts` (`writeEvent`);
+  - `src/context.ts` (`withContext`, `withAccountContext`);
+  - `src/resources/{define,crud,tasks}.ts`.
+- **Registry and HTTP** ([[CORE15]]):
+  - `src/registry.ts` (`Registry`, `resourceOperations`, `toolName`);
+  - `src/operations.ts` (`createVaultRegistry`, where new resources and operations are added);
+  - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
+  - `src/auth/{types,api-keys,middleware}.ts`;
+  - `src/bootstrap.ts` and `scripts/bootstrap.ts`;
+  - `src/dev-server.ts`.
+- **Test helpers** in `src/test/`:
+  - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);
+  - `keys.ts` (`seedApiKey`);
+  - `user-auth.ts` (`mintTestUserToken`, `fakeUserAuthenticator`);
+  - `contract.ts` (`runContractSuite`);
+  - `fixtures.ts`.
+- **Not yet built:**
+  - the Worker entry ([[OPS4]]);
+  - the JWT/Clerk branch ([[CORE3]]);
+  - MCP (after the MVP).
+
+## The registry and the REST adapter ([[CORE15]])
+
+- **An operation** is `{ kind: 'tenant' | 'account', name, summary, method, path, request?, validation?,
+  response, handler }`. `scope` is required on tenant operations; account operations take none and are for
+  users only (`403 user_required`).
+  - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
+    derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
+  - `path` uses OpenAPI form (`/contacts/{id}/merge`).
+  - `register` throws at load on a bad name, an empty summary, a duplicate name or route, a 204 with a
+    schema (or a non-204 without one), or an undeclared `{param}`.
+- **Validation.** With `validation: 'adapter'` (the default), the adapter parses params, query and body
+  with `request`; a failure is `400 validation_error`. Use `'handler'` only when the schema is chosen per
+  request (generic CRUD, [[CORE10]]).
+  - The body is read as text and `JSON.parse`d. No `Content-Type` is required, so agents can
+    `curl -d`.
+  - Don't use `createRoute` validators: they answer with their own error shape and a 415.
+  - Plain zod 4 schemas document fine through `registerPath`.
+- **Order inside a handler:**
+  1. parse the input;
+  2. tenant operations: `organization_required`, then the one scope check (`403 insufficient_scope`,
+     `requires <scope>`);
+  3. `withContext` / `withAccountContext`;
+  4. respond with `c.json(result, status)`, or an empty 204.
+- **`createApp({ db: (c) => Kysely, registry?, userAuthenticator?, version? })`.**
+  - The db resolver runs once per request, in `app.use('*')`, and never at construction.
+  - Auth is mounted on each registry route, never on `*`. A plain route the caller adds to the returned
+    app (`/health`, a webhook receiver) gets `c.var.db`, no auth, and no OpenAPI entry.
+  - `GET /openapi.json` is unauthenticated.
+- **Errors.** `renderError` turns an `ApiError` into its own status and body, and
+  `TenancyContextError(missing_organization)` into `403 organization_required`. Anything else is
+  logged (`[api] unhandled`) and masked as `500 internal`. Unmatched routes and methods return
+  `404 not_found`, `no such route`.
+- **Resource definition knobs:**
+  - `operations` (a CRUD subset; read-only definitions omit `create`/`update`);
+  - `scopeResource` (share a scope, e.g. identities use `contacts:*`);
+  - `rowFilter(ctx)` (extra equality conditions on list, get, update and delete; rows outside the
+    filter are 404).
+  - Routes are `resourcePath(def)`: `_` becomes `-`, so `api_keys` routes at `/api-keys`.
 
 ## Operations: define once, expose everywhere
 
@@ -40,8 +98,8 @@ a route or an MCP tool that bypasses the registry.
   access from a handler).
 - Commands are ordinary registry entries exposed as POST routes (`POST /contacts/{id}/merge`), so they get
   scopes, MCP tools and OpenAPI for free.
-- Hono RPC (`hc`) is the typed client over those routes for TypeScript consumers; `@hono/zod-openapi` routes
-  keep its typing. It is a client, not a separate transport.
+- There is no Hono RPC (`hc`) typing: a registry built in a loop gives no static route types. A TypeScript
+  consumer that needs typed calls should generate a client from `/openapi.json` ([[CORE15]]).
 
 ## Resources: declarative definitions, generic CRUD
 
@@ -74,12 +132,18 @@ escape hatches:
   reference field before calling `generic` (or inserts itself), the new value is not checked: only the
   foreign key catches it, and a plain FK accepts another organisation's id (Postgres checks FKs without
   RLS). Re-check with a `SELECT` on `ctx.trx`, or rely on a composite `(organization_id, id)` FK.
-- `defineResource` throws at module load on a key named `custom` (reserved), an unknown `agentWritable`
-  field or a bad `name`.
-- **Known limits, owed by later plans:** the generic reads use `SELECT *` / `RETURNING *`, which fails
-  `42501` under column-level grants (`api_keys.key_hash`, [[CORE3]]): select the read schema's keys
-  ([[CORE15]]). Filters are column equality only, and `toRecord` maps one flat row; join filters and
-  embedded child rows need definition hooks ([[CHN5]]).
+- `defineResource` throws at module load on any of these:
+  - a key named `custom` (reserved);
+  - an unknown `agentWritable` field;
+  - a bad `name` or `scopeResource`;
+  - empty, repeated or unknown `operations`;
+  - a generated create or update without its schema.
+- **Generic reads and writes name their columns** (`readColumns(def)` = the keys of `record`). A column
+  left out of `record` (`api_keys.key_hash`, `content_key`) is never selected, never returned and never
+  in an event, so column-level grants work ([[CORE15]]). Never reintroduce `selectAll()` or
+  `returningAll()` in `crud.ts`.
+- **Known limits, owed by later plans:** filters are column equality only, and `toRecord` maps one flat
+  row. Join filters and embedded child rows need definition hooks ([[CHN5]]).
 
 ## The service context and tenancy
 
@@ -125,8 +189,16 @@ Agents are first-class principals with their own identity, credentials and **sco
 which contacts or companies, read vs. suggest). Every registry entry declares the scope it needs and the
 service context enforces it, so scope checks are written once.
 
-- Auth middleware, two kinds, never both on one route: human sessions (Clerk) and **API keys / agent
-  tokens** (hashed at rest, looked up under `withServiceRole`, never logged beyond a short prefix).
+- **One Bearer credential per request, dispatched by shape** ([[CORE3]] D6, `src/auth/middleware.ts`).
+  Routes are shared by users and agents, so there is no "one auth kind per route".
+  - A JWT-shaped token (three base64url segments) goes to the `UserAuthenticator` seam. With no
+    authenticator configured, it is `401`.
+  - Anything else is an API key: `vk_` plus 32 random bytes in base64url, stored as SHA-256 hex, looked up
+    under `withServiceRole` together with its agent. Revoked keys, expired keys and disabled agents all
+    return the same `401 invalid or expired credentials`.
+  - An agent that sends an `X-Organization-Id` other than its own gets `403 organization_forbidden`.
+  - A 401 logs at most an 8-character token prefix.
+  - Known gap ([[CORE3]]): the scheme match is case-sensitive (`Bearer`). Make it case-insensitive.
 - **Agents never get send rights.** An agent's write surface is "submit a suggestion"; sending is performed
   by the vault's execution rail with credentials it holds.
 - A provisioner that creates the user or organisation row on first sight must SELECT first and INSERT only
@@ -138,6 +210,8 @@ A write appends an event row (`task.created`, `contact.updated`, with `before` a
 table **in the same transaction**. Hooks, webhooks, the agent cursor and the audit trail all read that one
 table. Because the event commits with the write, a crash between commit and delivery cannot lose it (the predecessor's in-memory after-commit kick could, and needed recovery crons). Commands emit through the same outbox.
 `before`/`after` scalars into a jsonb column need `JSON.stringify` (see `db-schema-and-migrations`).
+Writes that are not resources (identity bookkeeping, channel machinery, `bootstrap`) are the named
+exceptions in AGENTS.md invariant 5. A new exception needs a spec decision.
 
 ## Response shape and errors
 
@@ -189,13 +263,31 @@ name doesn't match `/(^|_)test(_|$)/`.
 - **A cross-tenant test needs a REAL second organisation** with an explicit `organization_id` threaded
   through every fixture on the other side. Two "different" users that land in one default org prove nothing;
   RLS has nothing to separate and the assertion passes for the wrong reason.
-- **The contract suite runs over every resource definition automatically:** create emits
-  `<resource>.created`; cross-tenant reads return nothing; a missing scope is refused; the REST and MCP
-  adapters both work. The generic machinery (tenancy isolation, scope enforcement, an event on every write,
+- **The contract suite runs over every resource definition automatically**
+  (`src/contract.integration.test.ts`, which calls `runContractSuite` from `src/test/contract.ts`). It
+  runs over REST, as both an agent (a real API key) and a user (`fakeUserAuthenticator`), checking:
+  - create, get, list, update and delete, with exact events and `actor_id`;
+  - cross-tenant 404s;
+  - unknown fields;
+  - missing scope, and read is not write;
+  - no credential;
+  - routes that should not be generated;
+  - the OpenAPI document.
+
+  To add a resource, register its definition in `createVaultRegistry` and add one entry in
+  `src/test/fixtures.ts`:
+  - `input` and `patch` builders, each producing unique values per call;
+  - `make` for read-only definitions.
+
+  A catalog test fails if a definition has no fixture or a fixture has no definition. A `ContractCheck`
+  passed in `checks` runs once per definition and registers its own `it` blocks; `env` is a getter
+  because tenants are re-seeded for each test. The generic machinery (tenancy isolation, scope enforcement, an event on every write,
   webhook delivery and retries, the cursor) is tested once, in depth. Bespoke tests are for real logic:
   commands (merge, send, suggestion lifecycle) and channel adapters.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
+- **Assert an event's `actor_id` equals the calling principal's id**, never `not.toBe(someoneElse)`, which
+  passes for almost any value ([[CORE15]] review).
 - `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
 - `beforeEach` is scoped to its enclosing `describe`. A second top-level `describe` in a file does not
   inherit the first one's reset; give it its own.
@@ -232,8 +324,10 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
   instead of SELECT-then-INSERT. Use `excluded.<col>` via `sql\`excluded.col\`` when the new value depends on
   the incoming row. A partial unique index needs its predicate repeated in the conflict clause.
 - Hot counters and "greatest of" columns: a raw-SQL update, not read-modify-write.
-- Fire-and-forget updates (`.execute().catch(() => {})`) only for observability columns like `last_used_at`
-  where a lost write is acceptable.
+- **No fire-and-forget queries in a request.** A query that outlives the response needs `waitUntil` in a
+  Worker, races the per-request pool teardown, and interleaves with the next test's truncate.
+  - Throttle an observability write and await it instead. For example, `last_used_at` is updated at most
+    once a minute, in the lookup transaction ([[CORE15]]).
 - `sql.ref(alias)` emits a quoted identifier; if the surrounding raw SQL declares an unquoted alias, pass its
   folded lowercase spelling or Postgres says `42P01`.
 - **Kysely 0.27's `JoinBuilder` has no `orOn`.** An OR across a merged-identity alias (a contact and its
