@@ -7,3 +7,7 @@ Product thinking and architecture live in the private knowledge repo (`orivibes/
 Contributor and agent guidance is in [AGENTS.md](AGENTS.md).
 
 Status: pre-code. The first cycles build the tenancy, schema and service layer.
+
+## License
+
+[Apache License 2.0](LICENSE).
