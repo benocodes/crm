@@ -10,7 +10,7 @@ The bug-fixing half of delivery: same board, same repo, same claim → branch �
 everything else. Intake and triage (label the type, demand repro steps, gate Ready) happen upstream in
 [[triage-issues]].
 
-One code repo, **`orivibes/crm`**. Board IDs and queries: [`.agents/board.md`](../../board.md). The
+One code repo, **`orivibes/crm`**. Board IDs and queries: the [`board`](../board/SKILL.md) skill. The
 board fields (Status, Priority, Size, Spec) mean the same as in [[work-on-ready-issues]]; **Spec** is
 usually blank for bugs.
 
@@ -22,7 +22,7 @@ repro. What I rely on triage to have set:
 
 ## Workflow
 
-1. **Read the queue** (query in `board.md`). Keep `Status == Ready`, no assignee, labeled `bug`. Sort by
+1. **Read the queue** (query in the `board` skill). Keep `Status == Ready`, no assignee, labeled `bug`. Sort by
    Priority then Size. Present `#N title · Priority/Size`.
 2. **Pick.** Default to the top item, or the one the user named. Announce it.
 3. **Read context.** `gh issue view <N> -R orivibes/crm --comments`. Extract steps, expected behavior,

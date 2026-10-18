@@ -1,6 +1,6 @@
 ---
 name: open-issue
-description: Open a GitHub issue in orivibes/crm as zooidbot. Use when the user asks to create, file, or open an issue; leave classification and project-board work to triage-issues.
+description: Open a GitHub issue in orivibes/crm as zooidbot. Use when the user asks to create, file, or open an issue; leave classification and project-board work to triage-issues (board IDs and commands: the board skill).
 ---
 
 # Open Issue

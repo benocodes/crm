@@ -22,7 +22,7 @@ Read these first (they live in the separate knowledge repo, cloned at `knowledge
 | `orivibes/crm-knowledge` (private) | `knowledge/` (gitignored here, its own `.git`) | vision, architecture, specs, plans, retros, discussions, `project-state.md` |
 
 The delivery board is the GitHub project **CRM**: https://github.com/users/orivibes/projects/2 (IDs and
-queries in `.agents/board.md`).
+queries in the `board` skill, `.agents/skills/board/SKILL.md`).
 
 `knowledge/` is a nested git repo. Use `git -C knowledge ...` for it; a commit in one repo never
 touches the other. Specs and plans land on `knowledge/`'s `main`; code lands through PRs on `orivibes/crm`.
@@ -34,6 +34,7 @@ The lifecycle is issue-driven. Skills live in `.agents/skills/`:
 | Stage | Skill |
 |---|---|
 | Intake | `open-issue` |
+| Board (IDs, queries, field edits) | `board` |
 | Triage | `triage-issues` |
 | Spec | `spec-author` |
 | Sprint (a band of specs) | `sprint-planning`, `sprint-checkpoint` |

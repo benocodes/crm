@@ -134,8 +134,8 @@ part most likely to have rotted.
 
 ### 9. Board and skill drift
 
-`.agents/board.md` holds the project board's IDs. If a skill hard-codes a board ID, option ID or field name
-that disagrees with it, report it. If `gh project field-list` (see `board.md`) no longer matches the file,
+The `board` skill holds the project board's IDs. If a skill hard-codes a board ID, option ID or field name
+that disagrees with it, report it. If `gh project field-list` (see the `board` skill) no longer matches the file,
 the IDs have rotted: re-derive them.
 
 ---
