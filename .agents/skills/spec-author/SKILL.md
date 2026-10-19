@@ -55,6 +55,12 @@ Mint the ID when triage decides the issue graduates to a spec (not at issue-crea
 
 Never transfer an issue between repos to mint from it; there is only one repo. If a spec is authored without a preceding issue at all (rare; nearly all spec-worthy work starts with `open-issue`), open one in `orivibes/crm` purely to mint the number, and **label it `self-triaged`** (`--label self-triaged`) so `triage-issues` doesn't also pick it up and a second spec for the same ID doesn't get drafted. The same rule applies whenever you file an issue that you, not triage, will spec. If one spec consolidates two related issues (e.g. a duplicate), mint from whichever one triage was acting on and cross-link the other on GitHub; don't invent a rule for picking the "right" one.
 
+**The `needs-spec` label is the queue.** `triage-issues` labels design-significant issues with no spec
+`needs-spec` (`gh issue list -R orivibes/crm --label needs-spec`). When you create the spec for one, remove
+the label and set the board's **Spec** field to the new `[[ID]]` (field IDs in `.agents/board.md`):
+`scripts/gh-zooidbot issue edit <N> -R orivibes/crm --remove-label needs-spec`. If you decide the issue
+needs no spec after all, remove the label and say why in a comment.
+
 Never mint from a PR number; that is a different number sequence and has nothing to do with the ID.
 
 GitHub issue numbers are unique per repo, so two specs can never independently claim the same ID: there is no scan-and-race step. Still `git push` promptly as normal practice, just not for collision-avoidance.

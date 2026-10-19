@@ -84,10 +84,13 @@ Reads (viewing, searching) can use plain `gh`.
    - **Spec**: grep `knowledge/specs/*/*.md` for a related, **non-shipped** spec (area codes in
      `AGENTS.md`). If a confident match exists, set `Spec` to its `[[ID]]`. This only *links*. If the
      issue looks design-significant (spans more than one package, needs a migration, or is a new concept:
-     `spec-author` §5) and no spec covers it, leave `Spec` empty and say so in the report.
+     `spec-author` §5) and no spec covers it, leave `Spec` empty, **label it `needs-spec`**
+     (`scripts/gh-zooidbot issue edit <N> -R orivibes/crm --add-label needs-spec`) and say so in the
+     report. The label is the durable queue of specs to write: `gh issue list -R orivibes/crm --label
+     needs-spec`. Skip it for issues labeled `self-triaged` (their filer writes the spec).
    - **Status**: `Ready` only when type is set, the body has an **Acceptance criteria** checklist (add one
-     if the report makes it obvious; don't invent scope), Priority and Size are set, and it isn't
-     **Blocked by** an open issue. Otherwise `Backlog`.
+     if the report makes it obvious; don't invent scope), Priority and Size are set, it isn't
+     **Blocked by** an open issue, and it is **not labeled `needs-spec`**. Otherwise `Backlog`.
    - **Body normalization**: if the issue lacks the standard shape, append structure and keep the
      reporter's text:
      ```
@@ -116,7 +119,8 @@ Reads (viewing, searching) can use plain `gh`.
   `Closes <owner/repo>#<N>`.
 - **Repro or it stays Backlog.** Never promote an under-specified bug to Ready to make progress look
   faster.
-- **Link specs, never author them.** A design gap you flag here isn't lost if nobody picks it up before
+- **Link specs, never author them.** Flag a missing spec with the `needs-spec` label; [[spec-author]]
+  removes it when the spec exists. A design gap you flag here isn't lost if nobody picks it up before
   delivery: [[work-on-ready-issues]] and [[fix-bugs]] close the knowledge loop at PR time. Flagging it
   early is still better; capturing it after shipping means the design followed the fix.
 - **Don't invent acceptance criteria** that aren't implied by the report. If you can't write a checklist
