@@ -95,7 +95,7 @@ describe('migration 001 baseline', () => {
     const rows = await q<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
     )
-    expect(rows.map((r) => r.table_name).sort()).toEqual([...TABLES, 'companies', 'contacts', 'identities', 'invitations', 'kysely_migration', 'kysely_migration_lock'].sort())
+    expect(rows.map((r) => r.table_name).sort()).toEqual([...TABLES, 'companies', 'contacts', 'identities', 'kysely_migration', 'kysely_migration_lock'].sort())
   })
 
   for (const table of TABLES.filter((t) => t in SHAPES)) {

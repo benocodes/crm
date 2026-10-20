@@ -96,20 +96,6 @@ export interface Identities {
   value: string;
 }
 
-export interface Invitations {
-  accepted_at: Timestamp | null;
-  accepted_by: string | null;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  deleted_at: Timestamp | null;
-  email: string;
-  expires_at: Timestamp;
-  id: Generated<string>;
-  organization_id: string;
-  role: string;
-  updated_at: Generated<Timestamp>;
-}
-
 export interface Memberships {
   created_at: Generated<Timestamp>;
   created_by: string;
@@ -122,6 +108,8 @@ export interface Memberships {
 }
 
 export interface Organizations {
+  auth_org_id: string | null;
+  auth_provider: string | null;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   name: string;
@@ -167,7 +155,6 @@ export interface DB {
   contacts: Contacts;
   events: Events;
   identities: Identities;
-  invitations: Invitations;
   memberships: Memberships;
   organizations: Organizations;
   principals: Principals;
