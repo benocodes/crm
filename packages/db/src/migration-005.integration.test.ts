@@ -64,156 +64,88 @@ async function tenantState(
 
 const principal = async (c: pg.PoolClient, kind = 'user') =>
   (await c.query(`INSERT INTO principals (kind) VALUES ($1) RETURNING id`, [kind])).rows[0].id as string
-const org = async (c: pg.PoolClient) => (await c.query(`INSERT INTO organizations (name) VALUES ('o') RETURNING id`)).rows[0].id as string
-const invite = (c: pg.PoolClient, o: string, by: string, email: string, extra = '') =>
-  c.query(
-    `INSERT INTO invitations (organization_id, email, role, expires_at, created_by ${extra ? ', ' + extra.split('=')[0] : ''})
-     VALUES ($1, $2, 'member', now() + interval '14 days', $3 ${extra ? ', ' + extra.split('=')[1] : ''})`,
-    [o, email, by],
-  )
-
 const priv = async (role: string, table: string, priv: string) =>
   (await q<{ p: boolean }>(`SELECT has_table_privilege($1, $2, $3) AS p`, [role, table, priv]))[0]!.p
 const colPriv = async (role: string, table: string, col: string, priv: string) =>
   (await q<{ p: boolean }>(`SELECT has_column_privilege($1, $2, $3, $4) AS p`, [role, table, col, priv]))[0]!.p
 
-describe('migration 005 administration', () => {
-  it('invitations columns', async () => {
-    const rows = await q<{ column_name: string; udt_name: string; is_nullable: string; column_default: string | null }>(
-      `SELECT column_name, udt_name, is_nullable, column_default FROM information_schema.columns
-       WHERE table_schema = 'public' AND table_name = 'invitations' ORDER BY column_name`,
+describe('migration 005 directory', () => {
+  it('organisation link columns', async () => {
+    const rows = await q<{ column_name: string; udt_name: string; is_nullable: string }>(
+      `SELECT column_name, udt_name, is_nullable FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'organizations' AND column_name IN ('auth_provider', 'auth_org_id') ORDER BY column_name`,
     )
-    const by = Object.fromEntries(rows.map((r) => [r.column_name, r]))
-    expect(Object.keys(by).sort()).toEqual(
-      ['accepted_at', 'accepted_by', 'created_at', 'created_by', 'deleted_at', 'email', 'expires_at', 'id', 'organization_id', 'role', 'updated_at'],
-    )
-    const shape = (n: string) => [by[n]!.udt_name, by[n]!.is_nullable]
-    expect(shape('id')).toEqual(['uuid', 'NO'])
-    expect(by.id!.column_default).toContain('uuid_generate_v7')
-    expect(shape('organization_id')).toEqual(['uuid', 'NO'])
-    expect(by.organization_id!.column_default).toBeNull()
-    expect(shape('email')).toEqual(['citext', 'NO'])
-    expect(shape('role')).toEqual(['text', 'NO'])
-    expect(shape('expires_at')).toEqual(['timestamptz', 'NO'])
-    expect(shape('accepted_at')).toEqual(['timestamptz', 'YES'])
-    expect(shape('accepted_by')).toEqual(['uuid', 'YES'])
-    expect(shape('created_by')).toEqual(['uuid', 'NO'])
-    expect(shape('deleted_at')).toEqual(['timestamptz', 'YES'])
-    expect(shape('created_at')).toEqual(['timestamptz', 'NO'])
-    expect(shape('updated_at')).toEqual(['timestamptz', 'NO'])
+    expect(rows).toEqual([
+      { column_name: 'auth_org_id', udt_name: 'text', is_nullable: 'YES' },
+      { column_name: 'auth_provider', udt_name: 'text', is_nullable: 'YES' },
+    ])
   })
 
-  it('role check', async () => {
-    expect(
-      await sqlstate(async (c) => {
-        const o = await org(c)
-        const p = await principal(c)
-        await c.query(
-          `INSERT INTO invitations (organization_id, email, role, expires_at, created_by) VALUES ($1, 'a@x.test', 'admin', now(), $2)`,
-          [o, p],
-        )
-      }),
-    ).toBe('23514')
+  it('link pair', async () => {
+    expect(await sqlstate((c) => c.query(`INSERT INTO organizations (name, auth_org_id) VALUES ('o', 'org_1')`))).toBe('23514')
   })
 
-  it('accepted pair', async () => {
+  it('link unique', async () => {
     expect(
       await sqlstate(async (c) => {
-        const o = await org(c)
-        const p = await principal(c)
-        await invite(c, o, p, 'a@x.test', 'accepted_at=now()')
-      }),
-    ).toBe('23514')
-  })
-
-  it('pending unique, case-insensitive', async () => {
-    expect(
-      await sqlstate(async (c) => {
-        const o = await org(c)
-        const p = await principal(c)
-        await invite(c, o, p, 'A@x.test')
-        await invite(c, o, p, 'a@x.test')
+        await c.query(`INSERT INTO organizations (name, auth_provider, auth_org_id) VALUES ('o', 'clerk', 'org_1')`)
+        await c.query(`INSERT INTO organizations (name, auth_provider, auth_org_id) VALUES ('p', 'clerk', 'org_1')`)
       }),
     ).toBe('23505')
   })
 
-  it('accepted or deleted frees the slot', async () => {
-    for (const variant of ['accepted', 'deleted']) {
-      const state = await sqlstate(async (c) => {
-        const o = await org(c)
-        const p = await principal(c)
-        await invite(c, o, p, 'a@x.test')
-        if (variant === 'accepted') {
-          await c.query(`INSERT INTO users (id, email) VALUES ($1, 'u@x.test')`, [p])
-          await c.query(`UPDATE invitations SET accepted_at = now(), accepted_by = $1`, [p])
-        } else await c.query(`UPDATE invitations SET deleted_at = now()`)
-        await invite(c, o, p, 'a@x.test')
-      })
-      expect(state, variant).toBeUndefined()
-    }
-  })
-
-  it('other organisation', async () => {
+  it('unlinked organisations', async () => {
     expect(
       await sqlstate(async (c) => {
-        const o = await org(c)
-        const o2 = await org(c)
-        const p = await principal(c)
-        await invite(c, o, p, 'a@x.test')
-        await invite(c, o2, p, 'a@x.test')
+        await c.query(`INSERT INTO organizations (name) VALUES ('o')`)
+        await c.query(`INSERT INTO organizations (name) VALUES ('p')`)
       }),
     ).toBeUndefined()
   })
 
-  it('accepted_by is a user', async () => {
+  it('system kind', async () => {
+    expect(await sqlstate((c) => principal(c, 'system'))).toBeUndefined()
+    expect(await sqlstate((c) => principal(c, 'robot'))).toBe('23514')
+  })
+
+  it('one system principal', async () => {
     expect(
       await sqlstate(async (c) => {
-        const o = await org(c)
-        const p = await principal(c)
-        const agent = await principal(c, 'agent')
-        await c.query(
-          `INSERT INTO invitations (organization_id, email, role, expires_at, created_by, accepted_at, accepted_by)
-           VALUES ($1, 'a@x.test', 'member', now(), $2, now(), $3)`,
-          [o, p, agent],
-        )
+        await principal(c, 'system')
+        await principal(c, 'system')
       }),
-    ).toBe('23503')
+    ).toBe('23505')
   })
 
-  it('indexes', async () => {
-    const rows = await q<{ indexname: string; indexdef: string }>(`SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'invitations'`)
-    const by = Object.fromEntries(rows.map((r) => [r.indexname, r.indexdef]))
-    expect(by.idx_invitations_pending_unique).toMatch(/UNIQUE/)
-    expect(by.idx_invitations_pending_unique).toMatch(/deleted_at IS NULL/)
-    expect(by.idx_invitations_pending_unique).toMatch(/accepted_at IS NULL/)
-    expect(by.idx_invitations_email).toBeDefined()
-  })
-
-  it('invitations RLS', async () => {
-    const [c] = await q<{ relrowsecurity: boolean; relforcerowsecurity: boolean }>(
-      `SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'invitations'`,
+  it('system readable in a tenant', async () => {
+    const o = await seedOrganization(db)
+    const u = await seedUser(db, { organizationId: o.id, role: 'owner' })
+    await q(`INSERT INTO principals (kind) VALUES ('system')`)
+    const rows = await withOrganization(db, { principalId: u.id, organizationId: o.id }, (trx) =>
+      trx.selectFrom('principals').select('id').where('kind', '=', 'system').execute(),
     )
-    expect(c).toEqual({ relrowsecurity: true, relforcerowsecurity: true })
-    const pol = await q<{ policyname: string; cmd: string; roles: string[] }>(
-      `SELECT policyname, cmd, roles::text[] AS roles FROM pg_policies WHERE tablename = 'invitations'`,
-    )
-    expect(pol).toEqual([{ policyname: 'invitations_tenant', cmd: 'ALL', roles: ['vault_authenticated'] }])
+    expect(rows).toHaveLength(1)
   })
 
-  it('invitations grants', async () => {
-    for (const p of ['SELECT', 'INSERT', 'UPDATE']) expect(await priv('vault_service', 'invitations', p), p).toBe(true)
-    expect(await priv('vault_authenticated', 'invitations', 'SELECT')).toBe(true)
-    expect(await priv('vault_authenticated', 'invitations', 'INSERT')).toBe(true)
-    expect(await colPriv('vault_authenticated', 'invitations', 'deleted_at', 'UPDATE')).toBe(true)
-    for (const col of ['email', 'accepted_at', 'accepted_by', 'role'])
-      expect(await colPriv('vault_authenticated', 'invitations', col, 'UPDATE'), col).toBe(false)
-    for (const r of ['vault_service', 'vault_authenticated']) expect(await priv(r, 'invitations', 'DELETE'), r).toBe(false)
+  it('tenant cannot insert system', async () => {
+    const o = await seedOrganization(db)
+    const u = await seedUser(db, { organizationId: o.id, role: 'owner' })
+    expect(
+      await tenantState({ principalId: u.id, organizationId: o.id }, (trx) =>
+        trx.insertInto('principals').values({ kind: 'system' }).execute(),
+      ),
+    ).toBe('42501')
   })
 
-  it('memberships grants', async () => {
-    for (const col of ['role', 'deleted_at']) expect(await colPriv('vault_authenticated', 'memberships', col, 'UPDATE'), col).toBe(true)
-    for (const col of ['user_id', 'organization_id', 'created_by']) expect(await colPriv('vault_authenticated', 'memberships', col, 'UPDATE'), col).toBe(false)
-    expect(await priv('vault_authenticated', 'memberships', 'INSERT')).toBe(false)
+  it('no invitations', async () => {
+    expect((await q<{ r: string | null }>(`SELECT to_regclass('public.invitations')::text AS r`))[0]!.r).toBeNull()
+  })
+
+  it('memberships: tenants read, never write', async () => {
+    expect(await priv('vault_authenticated', 'memberships', 'SELECT')).toBe(true)
+    for (const p of ['INSERT', 'UPDATE', 'DELETE']) expect(await priv('vault_authenticated', 'memberships', p), p).toBe(false)
+    for (const col of ['role', 'deleted_at', 'user_id', 'organization_id', 'created_by'])
+      expect(await colPriv('vault_authenticated', 'memberships', col, 'UPDATE'), col).toBe(false)
   })
 
   it('agents grants', async () => {
