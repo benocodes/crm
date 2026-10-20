@@ -315,6 +315,7 @@ Migration: <number used, or none> (<differs from the plan's claim? say so>)
 Tests: <command> → <N passed / M failed> (one line per suite); typecheck <clean | errors>; build <ok | n/a>
 Smoke: <what was exercised and seen> | skipped — <why>
 Deviations from plan: <bullets, or none>
+Red runs: <each new test file → command, N failed, for the right reason> (one line per file)
 Absence checks: <each injected fault → which tests went red, run how> | none in plan
 Retro: <RETRO path> | not written — <why>
 Knowledge ingested: <file → one-line lesson> per change | none — <why>
@@ -394,3 +395,17 @@ skill ends; don't start implementing unless asked.
 12. **A deletion cycle's blast-radius grep is a floor, not a ceiling.** Grep for the deleted file's
     basename and exports too, and for operation names as string literals, not only the domain concept;
     tell the executor to treat every surprise the grep finds as a decision to make.
+13. **Grep for exact-list assertions before adding a table, a grant or a scope.** Earlier suites pin whole
+    lists, and each addition breaks them: `migration-001`'s table list, `migration-002`'s
+    `vault_authenticated` grants, `tenancy`'s list of inserts that must fail `42501`,
+    `identity-definitions.test.ts`'s `declaredScopes()`, `bootstrap`'s default agent scopes. In
+    [[CORE27]] the plan named two of them, and the coder found the other three during the run. Grep
+    `packages/*/src` for `toEqual([` near `table_name`, `grants(`, `declaredScopes`, `scopes` and `42501`,
+    and list every hit in the plan's Phase 2 with its fix. In a `migration-NNN` test, **delete** the broken
+    assertion (`db-schema-and-migrations`: never rewrite an earlier migration's test to the new shape). In a
+    catalog test over the current registry (`declaredScopes`, bootstrap's scopes), **update** the list in
+    the same change: it states today's truth on purpose.
+14. **Every new test file gets its own recorded red run**, not only the migration test (rule 11). Phase 1
+    and Phase 2 each name the command that runs the new file alone, and the coder pastes the result (N
+    failed, and why) into the completion report's `Red runs` line. A file never seen failing is the same
+    gap as an absence test never seen failing ([[CORE27]] review note (e)).
