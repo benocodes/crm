@@ -12,5 +12,6 @@ export async function lockKeys(trx: Transaction<Database>, keys: readonly string
 }
 
 export const addressKey = (organizationId: string, kind: IdentityKind, value: string) => `identity:${organizationId}:${kind}:${value}`
-export const invitationKey = (organizationId: string, email: string) => `invitation:${organizationId}:${email}`
+/** Serialises every directory write for one provider organisation ([[CORE3]] D21). */
+export const directoryOrgKey = (provider: string, externalId: string) => `directory-org:${provider}:${externalId}`
 export const companyDomainKey = (organizationId: string, domain: string) => `company-domain:${organizationId}:${domain}`

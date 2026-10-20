@@ -8,6 +8,7 @@ import { authMiddleware } from '../auth/middleware.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
 import { withAccountContext, withContext } from '../context.js'
+import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
 import type { Operation, OperationInput, Registry } from '../registry.js'
@@ -69,7 +70,7 @@ async function run(c: Context<AppEnv>, op: Operation): Promise<unknown> {
     throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
   }
   if (principal.organizationId === null) {
-    throw new ApiError(403, 'organization_required', 'an organisation is required (send X-Organization-Id)')
+    throw new ApiError(403, 'organization_required', 'an organisation is required (sign in with an active organisation)')
   }
   if (!principal.scopes.has(op.scope)) {
     throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}`)
@@ -118,6 +119,9 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
       return c.json(result as never, op.response.status)
     })
   }
+
+  // Plain route, not an operation: the Svix signature is its only credential, and it is not documented.
+  if (options.authAdapter) app.post('/webhooks/clerk', clerkWebhookHandler(options.authAdapter))
 
   app.get('/openapi.json', (c) =>
     c.json(

@@ -141,8 +141,8 @@ describe('users', () => {
 
   it('drops a removed member from the list but still resolves them', async () => {
     const { a } = await setup()
-    const m = await k.owner.selectFrom('memberships').select('id').where('user_id', '=', a.memberId).executeTakeFirstOrThrow()
-    await k.call(`/memberships/${m.id}`, 'o', { method: 'DELETE', org: a.organizationId })
+    k.clerk.members.set(a.externalId, k.clerk.members.get(a.externalId)!.filter((m) => m.public_user_data.user_id !== 'm'))
+    expect((await k.webhook(clerkWebhook('organizationMembership.deleted', { organization: { id: a.externalId } }))).status).toBe(200)
     const list = await (await k.call('/users', 'o', { org: a.organizationId })).json()
     expect(list.data.map((u: { id: string }) => u.id)).toEqual([a.ownerId])
     expect((await k.call(`/users/${a.memberId}`, 'o', { org: a.organizationId })).status).toBe(200)

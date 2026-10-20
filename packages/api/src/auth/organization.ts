@@ -1,19 +1,19 @@
-import type { UserLogin } from './first-sight.js'
+import type { Role } from './roles.js'
 
 export type Resolution =
-  | { organizationId: string; role: 'owner' | 'member' }
+  | { organizationId: string; role: Role }
   | { organizationId: null; forbidden: boolean }
 
 /**
- * The active organisation ([[CORE3]] D7): an X-Organization-Id header (any value, including empty) must name a
- * live membership; without a header exactly one membership is the default.
+ * The active organisation ([[CORE3]] D7): the token's organisation claim decides (`active`, null without a
+ * claim). An X-Organization-Id header (any value, including empty) is only a cross-check: it must name that
+ * same organisation, case-insensitively, or the request is forbidden.
  */
-export function resolveOrganization(memberships: UserLogin['memberships'], header: string | undefined): Resolution {
-  if (header !== undefined) {
-    const wanted = header.toLowerCase()
-    const found = memberships.find((m) => m.organizationId.toLowerCase() === wanted)
-    return found ? { organizationId: found.organizationId.toLowerCase(), role: found.role } : { organizationId: null, forbidden: true }
-  }
-  if (memberships.length === 1) return { organizationId: memberships[0]!.organizationId, role: memberships[0]!.role }
-  return { organizationId: null, forbidden: false }
+export function resolveActiveOrganization(
+  active: { organizationId: string; role: Role } | null,
+  header: string | undefined,
+): Resolution {
+  if (header === undefined) return active ?? { organizationId: null, forbidden: false }
+  if (active && header.toLowerCase() === active.organizationId.toLowerCase()) return active
+  return { organizationId: null, forbidden: true }
 }

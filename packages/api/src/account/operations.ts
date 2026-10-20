@@ -1,16 +1,10 @@
 import { z } from 'zod'
 import type { AccountOperation } from '../registry.js'
-import { sql } from 'kysely'
-import { acceptInvitation } from './invitations.js'
-import { createOrganization, createOrganizationBody, membershipRecord, organizationRecord } from './organizations.js'
 
 const role = z.enum(['owner', 'member'])
 const meResponse = z.object({
   user: z.object({ id: z.uuid(), email: z.string(), name: z.string().nullable(), email_verified: z.boolean() }),
   memberships: z.array(z.object({ organization_id: z.uuid(), organization_name: z.string(), role })),
-  invitations: z.array(
-    z.object({ id: z.uuid(), organization_id: z.uuid(), organization_name: z.string(), role, expires_at: z.string() }),
-  ),
   active_organization: z.object({ id: z.uuid(), role, scopes: z.array(z.string()) }).nullable(),
 })
 
@@ -41,61 +35,15 @@ export function accountOperations(): AccountOperation[] {
           .orderBy('organizations.id')
           .execute()
         const memberships = rows.map((r) => ({ ...r, role: r.role as 'owner' | 'member' }))
-        // Pending invitations addressed to the caller, only once their email is verified (P11).
-        const invitations = user.email_verified
-          ? (
-              await ctx.trx
-                .selectFrom('invitations')
-                .innerJoin('organizations', 'organizations.id', 'invitations.organization_id')
-                .select([
-                  'invitations.id',
-                  'invitations.organization_id',
-                  'organizations.name as organization_name',
-                  'invitations.role',
-                  'invitations.expires_at',
-                ])
-                .where('invitations.email', '=', user.email)
-                .where('invitations.deleted_at', 'is', null)
-                .where('invitations.accepted_at', 'is', null)
-                .where(sql<boolean>`invitations.expires_at > now()`)
-                .orderBy('invitations.id')
-                .execute()
-            ).map((i) => ({ ...i, expires_at: i.expires_at.toISOString() }))
-          : []
         const active = memberships.find((m) => m.organization_id === ctx.organizationId)
         return {
           user: { id: user.id, email: user.email, name: user.name, email_verified: user.email_verified },
           memberships,
-          invitations,
           active_organization: active
             ? { id: active.organization_id, role: active.role, scopes: ctx.scopes.toStrings() }
             : null,
         }
       },
-    },
-    {
-      kind: 'account',
-      name: 'organizations.create',
-      summary: 'Create an organisation; the caller becomes its owner',
-      tags: ['organizations'],
-      method: 'post',
-      path: '/organizations',
-      validation: 'adapter',
-      request: { body: createOrganizationBody },
-      response: { status: 201, schema: organizationRecord },
-      handler: (ctx, input) => createOrganization(ctx, input.body as { name: string }),
-    },
-    {
-      kind: 'account',
-      name: 'invitations.accept',
-      summary: 'Accept an invitation; the caller becomes a member',
-      tags: ['invitations'],
-      method: 'post',
-      path: '/invitations/{id}/accept',
-      validation: 'adapter',
-      request: { params: z.object({ id: z.uuid() }) },
-      response: { status: 200, schema: membershipRecord },
-      handler: (ctx, input) => acceptInvitation(ctx, input.params.id as string),
     },
   ]
 }

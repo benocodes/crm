@@ -212,7 +212,7 @@ describe('context', () => {
     const res = await mkApp().request('/tasks', { headers: userHeaders(A, null) })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({
-      error: { code: 'organization_required', message: 'an organisation is required (send X-Organization-Id)' },
+      error: { code: 'organization_required', message: 'an organisation is required (sign in with an active organisation)' },
     })
   })
 })
@@ -307,7 +307,14 @@ describe('auth options and the account context ([[CORE3]])', () => {
       createApp({
         db: () => db,
         userAuthenticator: fakeUserAuthenticator(),
-        authAdapter: { provider: 'x', verify: async () => ({ ok: false, reason: 'malformed' }), fetchProfile: async () => ({ email: null, emailVerified: false, name: null }) },
+        authAdapter: {
+          provider: 'x',
+          verify: async () => ({ ok: false, reason: 'malformed' }),
+          fetchProfile: async () => ({ email: null, emailVerified: false, name: null }),
+          fetchOrganization: async () => null,
+          listMembers: async () => [],
+          parseWebhook: async () => ({ ok: false, reason: 'headers' }),
+        },
       }),
     ).toThrow()
   })

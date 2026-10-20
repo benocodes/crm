@@ -1,5 +1,6 @@
 import { ApiError } from '../errors.js'
 import { createClerkAdapter } from './clerk.js'
+import type { Role } from './roles.js'
 
 export type VerifyFailure = 'malformed' | 'algorithm' | 'signature' | 'expired' | 'not_yet_valid' | 'issuer' | 'azp' | 'claims'
 /** Always 401 `unauthenticated`. `reason` is for the middleware's log line, never the response. */
@@ -11,12 +12,23 @@ export class AuthFailure extends ApiError {
     super(401, 'unauthenticated', message)
   }
 }
-export type VerifyResult = { ok: true; subject: string } | { ok: false; reason: VerifyFailure }
+export type OrganizationClaim = { externalId: string; role: Role | null } // null = unmapped role ([[CORE3]] D19)
+export type VerifyResult =
+  | { ok: true; subject: string; issuedAt: Date; organization: OrganizationClaim | null }
+  | { ok: false; reason: VerifyFailure }
 export type AuthProfile = { email: string | null; emailVerified: boolean; name: string | null }
+export type DirectoryOrganization = { externalId: string; name: string }
+export type DirectoryMember = { subject: string; role: Role }
+export type DirectoryChange =
+  | { kind: 'organization'; externalId: string }
+  | { kind: 'user'; subject: string }
+  | { kind: 'ignored'; type: string }
+export type WebhookFailure = 'headers' | 'timestamp' | 'signature' | 'payload'
+export type WebhookResult = { ok: true; change: DirectoryChange } | { ok: false; reason: WebhookFailure }
 
 /**
- * The seam between the vault and an identity provider ([[CORE3]] D2). `verify` is networkless; `fetchProfile`
- * is the one network call, made once per new subject.
+ * The seam between the vault and an identity provider ([[CORE3]] D2, D24). `verify` and `parseWebhook` are
+ * networkless; the `fetch*` and `listMembers` calls are the Backend API, made outside any transaction.
  */
 export interface AuthAdapter {
   /** Stored in users.auth_provider. 'clerk' for the Clerk adapter. */
@@ -25,6 +37,12 @@ export interface AuthAdapter {
   verify(token: string): Promise<VerifyResult>
   /** Called once per new subject, outside any transaction. Throws on transport or HTTP failure. */
   fetchProfile(subject: string): Promise<AuthProfile>
+  /** null on 404. Throws on any other failure. */
+  fetchOrganization(externalId: string): Promise<DirectoryOrganization | null>
+  /** Every member, all pages; unmapped roles dropped with a warn. Throws on failure (a 404 too). */
+  listMembers(externalId: string): Promise<DirectoryMember[]>
+  /** Networkless. Never throws for a bad request; returns the reason. */
+  parseWebhook(req: { headers: Headers; body: string }): Promise<WebhookResult>
 }
 
 export type AuthEnv = Record<string, string | undefined>
@@ -43,6 +61,8 @@ export function createAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; no
   const issuer = need('CLERK_ISSUER')
   const secretKey = need('CLERK_SECRET_KEY')
   need('CLERK_AUTHORIZED_PARTIES')
+  const webhookSecret = need('CLERK_WEBHOOK_SECRET')
+  if (!WEBHOOK_SECRET_SHAPE.test(webhookSecret)) throw new Error('CLERK_WEBHOOK_SECRET must be a whsec_ secret')
   const authorizedParties = parseOriginList(env.CLERK_AUTHORIZED_PARTIES, 'CLERK_AUTHORIZED_PARTIES')
   if (authorizedParties.length === 0) throw new Error('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
   return createClerkAdapter({
@@ -50,12 +70,14 @@ export function createAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; no
     issuer,
     authorizedParties,
     secretKey,
+    webhookSecret,
     apiUrl: env.CLERK_API_URL?.trim() || undefined,
     fetch: deps.fetch,
     now: deps.now,
   })
 }
 
+const WEBHOOK_SECRET_SHAPE = /^whsec_[A-Za-z0-9+/]+={0,2}$/
 const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/
 
 function isOrigin(entry: string): boolean {
