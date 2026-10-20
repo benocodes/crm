@@ -37,15 +37,24 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/auth/{types,api-keys,middleware}.ts`;
   - `src/bootstrap.ts` and `scripts/bootstrap.ts`;
   - `src/dev-server.ts`.
+- **Human auth** ([[CORE3]] cycle 1):
+  - `src/auth/adapter.ts` (`AuthAdapter`, `createAuthAdapter(env)`, `parseOriginList`), `src/auth/clerk.ts`;
+  - `src/auth/first-sight.ts` (`lookupUser`, `provisionUser`), `src/auth/organization.ts`
+    (`resolveOrganization`), `src/auth/roles.ts` (`SCOPE_POLICY`, `scopesForRole`, `grantableScopes`),
+    `src/auth/user-authenticator.ts` (`createUserAuthenticator`, `AuthFailure`);
+  - `src/account/` (`me.get`, `organizations.create`);
+  - `scripts/smoke-auth.ts` (`pnpm -C packages/api smoke:auth`: local key pair, fake Clerk API, real app).
 - **Test helpers** in `src/test/`:
   - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);
   - `keys.ts` (`seedApiKey`);
-  - `user-auth.ts` (`mintTestUserToken`, `fakeUserAuthenticator`);
+  - `user-auth.ts` (`mintTestUserToken`, `fakeUserAuthenticator`: a stand-in for the contract suite);
+  - `clerk.ts` (`testIssuer`, `mintClerkToken`, `fakeClerkFetch`, `testClerkAdapter`: real verification
+    with a locally generated RS256 key pair; no test calls Clerk);
   - `contract.ts` (`runContractSuite`);
   - `fixtures.ts`.
 - **Not yet built:**
   - the Worker entry ([[OPS4]]);
-  - the JWT/Clerk branch ([[CORE3]]);
+  - invitations, memberships, users, agents and API keys over REST ([[CORE3]] cycle 2);
   - MCP (after the MVP).
 
 ## The registry and the REST adapter ([[CORE15]])
@@ -67,11 +76,16 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - Plain zod 4 schemas document fine through `registerPath`.
 - **Order inside a handler:**
   1. parse the input;
-  2. tenant operations: `organization_required`, then the one scope check (`403 insufficient_scope`,
-     `requires <scope>`);
+  2. tenant operations: `organization_forbidden` (the principal's flag), then `organization_required`,
+     then the one scope check (`403 insufficient_scope`, `requires <scope>`). Account operations ignore
+     both organisation flags and see `ctx.organizationId: null` instead;
   3. `withContext` / `withAccountContext`;
   4. respond with `c.json(result, status)`, or an empty 204.
-- **`createApp({ db: (c) => Kysely, registry?, userAuthenticator?, version? })`.**
+  Any new transport (MCP) must apply the same order.
+- **`createApp({ db: (c) => Kysely, registry?, authAdapter? | userAuthenticator?, corsOrigins?, version? })`.**
+  - `authAdapter` builds the real authenticator over the registry's declared scopes; `userAuthenticator`
+    is for tests and custom setups. Passing both throws, so a test can't silently run the fake.
+  - `corsOrigins` empty or absent: no CORS middleware and no `Access-Control-*` header.
   - The db resolver runs once per request, in `app.use('*')`, and never at construction.
   - Auth is mounted on each registry route, never on `*`. A plain route the caller adds to the returned
     app (`/health`, a webhook receiver) gets `c.var.db`, no auth, and no OpenAPI entry.
@@ -190,19 +204,40 @@ which contacts or companies, read vs. suggest). Every registry entry declares th
 service context enforces it, so scope checks are written once.
 
 - **One Bearer credential per request, dispatched by shape** ([[CORE3]] D6, `src/auth/middleware.ts`).
-  Routes are shared by users and agents, so there is no "one auth kind per route".
+  Routes are shared by users and agents, so there is no "one auth kind per route". The scheme is matched
+  case-insensitively (`bearer` works). No cookies are read.
   - A JWT-shaped token (three base64url segments) goes to the `UserAuthenticator` seam. With no
-    authenticator configured, it is `401`.
+    authenticator configured, it is `401`. The real authenticator verifies the token with no network call
+    (`AuthAdapter.verify` returns a failure reason, which the single 401 log line carries; the response is
+    always `401 invalid or expired credentials`). It then looks up the user (SELECT only), provisions it
+    on first sight, resolves the organisation and derives scopes from the role.
+  - **The authenticator never throws for organisation problems**: it cannot know the operation kind. It
+    returns `organizationId: null`, and sets `organizationForbidden` when the header names an organisation
+    with no live membership. `run` turns that into the 403 (see the order above).
+  - `X-Organization-Id` is compared case-insensitively for users and agents (the [[CORE2]] upper-case-UUID
+    lesson).
   - Anything else is an API key: `vk_` plus 32 random bytes in base64url, stored as SHA-256 hex, looked up
     under `withServiceRole` together with its agent. Revoked keys, expired keys and disabled agents all
     return the same `401 invalid or expired credentials`.
   - An agent that sends an `X-Organization-Id` other than its own gets `403 organization_forbidden`.
-  - A 401 logs at most an 8-character token prefix.
-  - Known gap ([[CORE3]]): the scheme match is case-sensitive (`Bearer`). Make it case-insensitive.
+  - A 401 logs at most an 8-character token prefix, once (the middleware logs an authenticator's 401;
+    authenticators don't log their own).
+- **A user's scopes come from their role on every request; they are never stored** ([[CORE3]] D8).
+  - **Every declared scope needs a row in `SCOPE_POLICY`** (`src/auth/roles.ts`: `{ member, agentGrantable }`).
+    A catalog test requires the policy's keys to equal `registry.declaredScopes()` exactly, so a cycle that
+    declares a scope fails CI until it decides both flags in the same change. Owners hold every declared
+    scope. A scope without a row is held by no member and granted to no agent (fail closed).
+  - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
 - **Agents never get send rights.** An agent's write surface is "submit a suggestion"; sending is performed
   by the vault's execution rail with credentials it holds.
 - A provisioner that creates the user or organisation row on first sight must SELECT first and INSERT only
-  on a miss.
+  on a miss. In order (`src/auth/first-sight.ts`): any network call (the profile fetch) **before** the
+  transaction opens. Then lock every unique key the insert can collide on (subject and email), re-select,
+  insert with `ON CONFLICT DO NOTHING` as the backstop, and throw on an empty `RETURNING` so the parent
+  `principals` row rolls back.
+- **Error classes live in a leaf module** (`errors.ts`, or the seam's own module such as `auth/adapter.ts`),
+  never next to their main thrower. `AuthFailure` in `user-authenticator.ts` is imported back by
+  `first-sight.ts`, which creates an import cycle ([[CORE3]] review; moved in cycle 2).
 
 ## Every write emits an event
 
@@ -345,7 +380,9 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
   `*.created` event) orphaned. Take `lockKeys(ctx, keys)` (`src/identity/locks.ts`: one statement,
   `pg_advisory_xact_lock` over distinct `hashtextextended` keys in ascending hash order, so overlapping
   batches cannot deadlock), then select, then insert with `ON CONFLICT DO NOTHING` as the backstop. Every
-  insert path for that key must take the same lock ([[CORE2]] D16, `resolveIdentities`).
+  insert path for that key must take the same lock ([[CORE2]] D16, `resolveIdentities`). `lockKeys` takes a
+  `ServiceContext`, so service-role code (`first-sight.ts`) copied its SQL. Type shared transaction
+  helpers on `Transaction<Database>` and pass `ctx.trx` ([[CORE3]] cycle 2 makes this change).
 - **Canonicalise ids before comparing or sorting them in JS.** `z.uuid()` accepts upper case, Postgres
   treats both cases as one uuid, JS string comparison does not. An upper-cased self-merge got past an
   `===` guard into a CHECK violation (an unmapped 500), and a case-sensitive sort can invert a lock order

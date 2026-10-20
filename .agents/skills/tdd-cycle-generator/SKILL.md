@@ -383,6 +383,14 @@ skill ends; don't start implementing unless asked.
     `set_config(..., false)` inside a transaction that rolls back is rolled back too, so it cannot redden
     an "after rollback" leak test ([[CORE1]]). Tell the executor to run each target test alone (`-t`):
     on a shared `max: 1` pool, one test's leak reddens the next for the wrong reason.
-11. **A deletion cycle's blast-radius grep is a floor, not a ceiling.** Grep for the deleted file's
+11. **A migration's test goes red before the migration exists.** The red tests and seed helpers often need
+    the new columns in `types.generated.ts` to typecheck, and that pulls the migration and codegen forward
+    into Phase 2, so the migration test never fails against the old schema ([[CORE3]] cycle 1). The plan's
+    Phase 2 must order it explicitly. First write the migration's integration test and run it alone
+    against the current schema: it must fail on the missing column or table, not on a compile error
+    (vitest runs untyped, so a type error does not block the run). Record that red run. Only then create
+    the migration, run codegen and change the seeds. Commit the red test before the migration, so the
+    history shows the order.
+12. **A deletion cycle's blast-radius grep is a floor, not a ceiling.** Grep for the deleted file's
     basename and exports too, and for operation names as string literals, not only the domain concept;
     tell the executor to treat every surprise the grep finds as a decision to make.
