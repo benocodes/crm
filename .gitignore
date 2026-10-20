@@ -10,3 +10,7 @@ knowledge/
 # Claude Code: local state (agents and skills are tracked)
 .claude/worktrees/
 .claude/settings.local.json
+
+# Third-party source kept for reference (AGPL etc.), never committed
+vendor/
+.neon
