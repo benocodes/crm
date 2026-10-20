@@ -409,3 +409,9 @@ skill ends; don't start implementing unless asked.
     and Phase 2 each name the command that runs the new file alone, and the coder pastes the result (N
     failed, and why) into the completion report's `Red runs` line. A file never seen failing is the same
     gap as an absence test never seen failing ([[CORE27]] review note (e)).
+15. **A rule that compares against stored state gets a test for "no stored state".** A guard such as
+    [[CORE3]] D20's newer-copy rule ("refuse when the copy changed after the token was issued") is silent
+    when there is no row to compare, and that is where it leaked in [[CORE29]]: a member added and removed
+    in Clerk before the vault held a row could be re-created by an older token. For each such rule, the
+    plan's Phase 2 names the empty-state case and its expected outcome, and if the spec does not say, the
+    planner raises it as a spec question before the plan ships.

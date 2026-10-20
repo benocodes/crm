@@ -368,7 +368,14 @@ name doesn't match `/(^|_)test(_|$)/`.
   Clean free text from external sources inside the function (`cleanName` in `src/identity/resolve.ts`:
   trim, blank is absent, cap at the column limit), or one odd display name fails a whole capture batch.
 - **Assert an event's `actor_id` equals the calling principal's id**, never `not.toBe(someoneElse)`, which
-  passes for almost any value ([[CORE15]] review).
+  passes for almost any value ([[CORE15]] review). When a spec attributes a write to a particular
+  principal, *every* path that writes it asserts the attribution on each event, not only one: the
+  [[CORE29]] repair tests checked `actor_id` against `systemId()` but the reconcile tests checked only event
+  types, so a reconcile that attributed its events to someone else would still have passed.
+- **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row
+  passes whatever the code under test does ([[CORE29]] review:
+  `src/directory/sync.integration.test.ts`, `src/auth/user-auth.integration.test.ts`). If the seeded id is
+  not needed, drop the `const` (`await seedUser(...)`); if it is, assert something the code decides.
 - `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
 - `beforeEach` is scoped to its enclosing `describe`. A second top-level `describe` in a file does not
   inherit the first one's reset; give it its own.
