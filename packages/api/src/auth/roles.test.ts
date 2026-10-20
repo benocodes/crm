@@ -36,4 +36,16 @@ describe('roles', () => {
     const declaredReal = createVaultRegistry().declaredScopes()
     expect(scopesForRole('owner', declaredReal).toStrings()).toEqual(declaredReal)
   })
+  it('administration rows', () => {
+    expect(SCOPE_POLICY['members:read']).toEqual({ member: true, agentGrantable: false })
+    expect(SCOPE_POLICY['members:write']).toEqual({ member: false, agentGrantable: false })
+    expect(SCOPE_POLICY['agents:read']).toEqual({ member: true, agentGrantable: false })
+    expect(SCOPE_POLICY['agents:write']).toEqual({ member: false, agentGrantable: false })
+  })
+  it('member holds the read scopes of administration', () => {
+    const member = scopesForRole('member', createVaultRegistry().declaredScopes()).toStrings()
+    expect(member).toEqual(expect.arrayContaining(['members:read', 'agents:read']))
+    expect(member).not.toContain('members:write')
+    expect(member).not.toContain('agents:write')
+  })
 })

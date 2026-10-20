@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { seedUser } from '@vault/db/test'
 import { createApp } from '../rest/app.js'
 import { Registry } from '../registry.js'
 import { createResource } from '../resources/crud.js'
@@ -10,7 +12,27 @@ import type { Database } from '@vault/db'
 const taskViews = { ...tasks, name: 'task_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
 const assignedTasks = { ...tasks, name: 'assigned_tasks', scopeResource: 'tasks' } as never
 
-const registry = new Registry().registerResource(tasks).registerResource(taskViews).registerResource(assignedTasks)
+// A read-only definition whose create is served by a hand-written operation (api_keys' shape).
+const postedViews = { ...tasks, name: 'posted_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
+// A read-only definition whose rows need a second user, seeded through the suite's db.
+const seededViews = { ...tasks, name: 'seeded_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
+
+const registry = new Registry()
+  .registerResource(tasks)
+  .registerResource(taskViews)
+  .registerResource(assignedTasks)
+  .registerResource(postedViews)
+  .registerResource(seededViews)
+  .register({
+    kind: 'tenant',
+    name: 'posted_views.create',
+    summary: 'Hand-written create',
+    method: 'post',
+    path: '/posted-views',
+    scope: { resource: 'tasks', action: 'write' },
+    response: { status: 201, schema: z.object({ id: z.string() }) },
+    handler: async (ctx) => createResource(ctx, tasks, { title: 'posted' }),
+  })
 const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
   task_views: { make: (ctx) => createResource(ctx, tasks, { title: 'v' }) },
@@ -20,6 +42,15 @@ const fixtures: Record<string, ContractFixture> = {
       return { title: 'x', assignee_id: ctx.actor.id }
     },
     patch: async () => ({ title: 'Renamed' }),
+  },
+  posted_views: { make: (ctx) => createResource(ctx, tasks, { title: 'p' }), handwritten: ['create'] },
+  seeded_views: {
+    async make(ctx, seed) {
+      expect(seed.tenant.organizationId).toBe(ctx.organizationId)
+      const u = await seedUser(seed.db, { organizationId: seed.tenant.organizationId })
+      expect(u.id).toMatch(/^[0-9a-f-]{36}$/)
+      return createResource(ctx, tasks, { title: 's' })
+    },
   },
 }
 
@@ -35,7 +66,7 @@ runContractSuite({ registry, fixtures, checks: [spyCheck] })
 
 describe('suite shape', () => {
   it('calls the hook per definition', () => {
-    expect(seen).toEqual(['tasks', 'task_views', 'assigned_tasks'])
+    expect(seen).toEqual(['tasks', 'task_views', 'assigned_tasks', 'posted_views', 'seeded_views'])
   })
   it('documents read-only definitions without write routes', async () => {
     const app = createApp({ db: () => ({}) as Kysely<Database>, registry })

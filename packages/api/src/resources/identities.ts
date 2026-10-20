@@ -93,7 +93,7 @@ export const identities = defineResource<IdentityRecord>({
       const owner = ownerColumns(input)
       const kind = input.kind as IdentityKind
       const value = normalizeIdentityValue(kind, input.value as string)
-      await lockKeys(ctx, [addressKey(ctx.organizationId, kind, value)])
+      await lockKeys(ctx.trx, [addressKey(ctx.organizationId, kind, value)])
       const created = await insertIdentity(ctx, { kind, value, ...owner })
       if (!created) {
         const existing = await ctx.trx

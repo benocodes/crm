@@ -19,6 +19,11 @@ function filtered<Q extends { where(col: string, op: '=', value: unknown): Q }>(
   return q
 }
 
+/** The live-row condition, unless the table has no soft delete (P1). */
+function live<Q extends { where(col: string, op: 'is', value: null): Q }>(def: ResourceDefinition<any>, q: Q): Q {
+  return def.softDelete === false ? q : q.where('deleted_at', 'is', null)
+}
+
 const notFound = (def: ResourceDefinition<any>) => new ApiError(404, 'not_found', `${def.eventName} not found`)
 
 function assertUuid(def: ResourceDefinition<any>, id: string): void {
@@ -49,7 +54,7 @@ async function lockLive(ctx: ServiceContext, def: ResourceDefinition<any>, id: s
   const row = await filtered(
     ctx,
     def,
-    db(ctx).selectFrom(def.table).select(readColumns(def)).where('id', '=', id).where('deleted_at', 'is', null),
+    live(def, db(ctx).selectFrom(def.table).select(readColumns(def)).where('id', '=', id)),
   )
     .forUpdate()
     .executeTakeFirst()
@@ -80,7 +85,7 @@ export async function listResource<R extends { id: string }>(
   query: ListQuery,
 ): Promise<ListResult<R>> {
   const { after, limit, filters } = parseListQuery(def, query)
-  let q = filtered(ctx, def, db(ctx).selectFrom(def.table).select(readColumns(def)).where('deleted_at', 'is', null))
+  let q = filtered(ctx, def, live(def, db(ctx).selectFrom(def.table).select(readColumns(def))))
   if (after) q = q.where('id', '>', after)
   for (const [key, value] of Object.entries(filters)) q = q.where(key, '=', value)
   const rows = (await q.orderBy('id').limit(limit + 1).execute()) as Row[]
@@ -100,7 +105,7 @@ export async function getResource<R extends { id: string }>(
   const row = await filtered(
     ctx,
     def,
-    db(ctx).selectFrom(def.table).select(readColumns(def)).where('id', '=', id).where('deleted_at', 'is', null),
+    live(def, db(ctx).selectFrom(def.table).select(readColumns(def)).where('id', '=', id)),
   ).executeTakeFirst()
   if (!row) throw notFound(def)
   return toRecord(def, row as Row)
@@ -141,15 +146,18 @@ export async function updateResource<R extends { id: string }>(
   if (!schema) throw new Error(`${def.name} has no update schema`)
   const parsed = parseInput(schema, input)
   checkAgentFields(ctx, def, parsed)
-  const current = await lockLive(ctx, def, id)
-  const before = toRecord(def, current)
-  if (Object.keys(parsed).length === 0) return before
-  await checkReferences(ctx, def, parsed)
-  const written = def.beforeWrite ? await def.beforeWrite(ctx, { op: 'update', input: parsed, before }) : parsed
-  const row = await db(ctx).updateTable(def.table).set(written).where('id', '=', id).returning(readColumns(def)).executeTakeFirstOrThrow()
-  const after = toRecord(def, row as Row)
-  await emitResourceEvent(ctx, def, 'updated', before, after, id)
-  return after
+  const generic = async (targetId: string, values: Row): Promise<R> => {
+    const current = await lockLive(ctx, def, targetId)
+    const before = toRecord(def, current)
+    if (Object.keys(values).length === 0) return before
+    await checkReferences(ctx, def, values)
+    const written = def.beforeWrite ? await def.beforeWrite(ctx, { op: 'update', input: values, before }) : values
+    const row = await db(ctx).updateTable(def.table).set(written).where('id', '=', targetId).returning(readColumns(def)).executeTakeFirstOrThrow()
+    const after = toRecord(def, row as Row)
+    await emitResourceEvent(ctx, def, 'updated', before, after, targetId)
+    return after
+  }
+  return def.overrides?.update ? def.overrides.update(ctx, id, parsed, generic) : generic(id, parsed)
 }
 
 export async function deleteResource<R extends { id: string }>(

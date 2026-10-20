@@ -15,6 +15,8 @@ import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 
 export type ContractActor = 'agent' | 'user'
 export type ContractGrant = 'full' | 'read' | 'none'
+/** What a fixture's `make` gets besides the context: the suite's pool (`vault_app`) and the tenant. */
+export type ContractSeed = { db: Kysely<Database>; tenant: ContractTenant }
 export interface ContractFixture {
   /** A valid create body. Required iff the definition generates `create`. Runs in a committed
    *  `withContext` as the tenant's owner user, so it may create prerequisite rows first. */
@@ -23,7 +25,9 @@ export interface ContractFixture {
   patch?: (ctx: ServiceContext) => Promise<Record<string, unknown>>
   /** Creates one live row; returns its id. Default: `createResource(ctx, def, await input(ctx))`.
    *  Required when the definition does not generate `create` (read-only resources). */
-  make?: (ctx: ServiceContext) => Promise<{ id: string }>
+  make?: (ctx: ServiceContext, seed: ContractSeed) => Promise<{ id: string }>
+  /** Generic routes served by a hand-written operation; the "not generated" case skips them. */
+  handwritten?: readonly CrudAction[]
   /** Default ['agent', 'user']. */
   actors?: readonly ContractActor[]
 }
@@ -159,7 +163,7 @@ export function runContractSuite(opts: {
         const op = (action: CrudAction) => registry.get(`${def.name}.${action}`)!
         const parse = (action: CrudAction, json: unknown) => op(action).response.schema!.parse(json)
         const make = (t: ContractTenant): Promise<{ id: string }> =>
-          env.as(t, def, (ctx) => (fixture.make ? fixture.make(ctx) : fixture.input!(ctx).then((input) => createResource(ctx, def, input))))
+          env.as(t, def, (ctx) => (fixture.make ? fixture.make(ctx, { db, tenant: t }) : fixture.input!(ctx).then((input) => createResource(ctx, def, input))))
         const eventCount = async () =>
           Number((await owner.selectFrom('events').select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n)
         const types = (events: EventRow[], action: string) => events.filter((e) => e.type === `${def.eventName}.${action}`)
@@ -308,7 +312,7 @@ export function runContractSuite(opts: {
               }
             })
 
-            const absent = CRUD_ACTIONS.filter((x) => !has(x))
+            const absent = CRUD_ACTIONS.filter((x) => !has(x) && !fixture.handwritten?.includes(x))
             if (absent.length > 0) {
               it('not generated', async () => {
                 const doc = (await (await app.request('/openapi.json')).json()) as any

@@ -1,20 +1,9 @@
-import { ApiError } from '../errors.js'
 import { ScopeSet } from '../scopes.js'
-import type { AuthAdapter, VerifyFailure } from './adapter.js'
+import { AuthFailure, type AuthAdapter } from './adapter.js'
 import { lookupUser, provisionUser } from './first-sight.js'
 import { resolveOrganization } from './organization.js'
 import { scopesForRole } from './roles.js'
 import type { UserAuthenticator } from './types.js'
-
-/** Always 401 `unauthenticated`. `reason` is for the middleware's log line, never the response. */
-export class AuthFailure extends ApiError {
-  constructor(
-    readonly reason: VerifyFailure | 'no_email',
-    message = 'invalid or expired credentials',
-  ) {
-    super(401, 'unauthenticated', message)
-  }
-}
 
 /** The [[CORE3]] implementation of the [[CORE15]] seam: verify, first sight, organisation, role scopes. */
 export function createUserAuthenticator(opts: { adapter: AuthAdapter; declaredScopes: readonly string[] }): UserAuthenticator {

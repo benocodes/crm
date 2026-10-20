@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import type { ContractFixture } from './contract.js'
 import { createResource } from '../resources/crud.js'
+import { seedUser } from '@vault/db/test'
+import { createApiKey } from '../auth/api-keys.js'
+import { agents } from '../resources/agents.js'
 import { contacts } from '../resources/contacts.js'
 
 export const fixtures: Record<string, ContractFixture> = {
@@ -16,5 +19,31 @@ export const fixtures: Record<string, ContractFixture> = {
       return { kind: 'email', value: `c-${randomUUID()}@example.com`, contact_id: c.id }
     },
     patch: async (ctx) => ({ contact_id: (await createResource(ctx, contacts, {})).id }),
+  },
+  // Administration ([[CORE3]]): human-only scopes, so the suite runs these as a user.
+  invitations: {
+    input: async () => ({ email: `i-${randomUUID()}@example.test`, role: 'member' }),
+    actors: ['user'],
+  },
+  memberships: {
+    async make(ctx, seed) {
+      const user = await seedUser(seed.db, { organizationId: seed.tenant.organizationId, role: 'member' })
+      return ctx.trx.selectFrom('memberships').select('id').where('user_id', '=', user.id).executeTakeFirstOrThrow()
+    },
+    patch: async () => ({ role: 'owner' }),
+    actors: ['user'],
+  },
+  agents: {
+    input: async () => ({ name: `agent-${randomUUID().slice(0, 8)}`, scopes: ['tasks:read'] }),
+    patch: async () => ({ name: 'Renamed agent' }),
+    actors: ['user'],
+  },
+  api_keys: {
+    async make(ctx) {
+      const agent = await createResource(ctx, agents, { name: 'k' })
+      return createApiKey(ctx.trx, { organizationId: ctx.organizationId, agentId: agent.id, createdBy: ctx.actor.id })
+    },
+    handwritten: ['create'],
+    actors: ['user'],
   },
 }

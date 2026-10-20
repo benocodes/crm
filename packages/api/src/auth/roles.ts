@@ -15,6 +15,11 @@ export const SCOPE_POLICY: ScopePolicy = {
   'contacts:write': { member: true, agentGrantable: true },
   'companies:read': { member: true, agentGrantable: true },
   'companies:write': { member: true, agentGrantable: true },
+  // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write.
+  'members:read': { member: true, agentGrantable: false },
+  'members:write': { member: false, agentGrantable: false },
+  'agents:read': { member: true, agentGrantable: false },
+  'agents:write': { member: false, agentGrantable: false },
 }
 
 /** Owner: every declared scope. Member: declared scopes flagged `member`; no entry means not granted (fail closed). */

@@ -3,7 +3,7 @@ import { ApiError } from '../errors.js'
 import type { AppEnv } from '../rest/app.js'
 import { authenticateApiKey } from './api-keys.js'
 import type { Principal, UserAuthenticator } from './types.js'
-import { AuthFailure } from './user-authenticator.js'
+import { AuthFailure } from './adapter.js'
 
 export const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 

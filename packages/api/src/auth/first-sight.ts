@@ -1,8 +1,8 @@
-import { sql, type Kysely, type Transaction } from 'kysely'
+import type { Kysely, Transaction } from 'kysely'
 import { withServiceRole, type Database } from '@vault/db'
 import { ApiError } from '../errors.js'
-import type { AuthAdapter } from './adapter.js'
-import { AuthFailure } from './user-authenticator.js'
+import { lockKeys } from '../identity/locks.js'
+import { AuthFailure, type AuthAdapter } from './adapter.js'
 
 export type UserLogin = { userId: string; memberships: { organizationId: string; role: 'owner' | 'member' }[] }
 
@@ -48,12 +48,7 @@ export async function provisionUser(db: Kysely<Database>, adapter: AuthAdapter, 
   const provider = adapter.provider
 
   return withServiceRole(db, async (trx) => {
-    await sql`
-      SELECT pg_advisory_xact_lock(k) FROM (
-        SELECT DISTINCT hashtextextended(key, 0) AS k
-        FROM unnest(${[`auth-subject:${provider}:${subject}`, `user-email:${email.toLowerCase()}`]}::text[]) AS t(key)
-        ORDER BY k
-      ) AS s`.execute(trx)
+    await lockKeys(trx, [`auth-subject:${provider}:${subject}`, `user-email:${email.toLowerCase()}`])
 
     const existing = await findBySubject(trx, provider, subject)
     if (existing) return existing

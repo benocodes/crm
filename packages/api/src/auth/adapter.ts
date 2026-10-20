@@ -1,6 +1,16 @@
+import { ApiError } from '../errors.js'
 import { createClerkAdapter } from './clerk.js'
 
 export type VerifyFailure = 'malformed' | 'algorithm' | 'signature' | 'expired' | 'not_yet_valid' | 'issuer' | 'azp' | 'claims'
+/** Always 401 `unauthenticated`. `reason` is for the middleware's log line, never the response. */
+export class AuthFailure extends ApiError {
+  constructor(
+    readonly reason: VerifyFailure | 'no_email',
+    message = 'invalid or expired credentials',
+  ) {
+    super(401, 'unauthenticated', message)
+  }
+}
 export type VerifyResult = { ok: true; subject: string } | { ok: false; reason: VerifyFailure }
 export type AuthProfile = { email: string | null; emailVerified: boolean; name: string | null }
 

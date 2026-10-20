@@ -37,7 +37,7 @@ describe('bootstrap', () => {
     const m = await owner.selectFrom('memberships').selectAll().where('user_id', '=', r.userId).execute()
     expect(m).toMatchObject([{ organization_id: r.organizationId, role: 'owner' }])
     const agent = await owner.selectFrom('agents').selectAll().where('id', '=', r.agentId).executeTakeFirstOrThrow()
-    expect(agent.scopes).toEqual(createVaultRegistry().declaredScopes())
+    expect(agent.scopes).toEqual(grantableScopes(createVaultRegistry().declaredScopes()))
     expect(agent.created_by).toBe(r.userId)
   })
   it('stores the key hashed', async () => {
