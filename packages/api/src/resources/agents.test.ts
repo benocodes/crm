@@ -47,7 +47,7 @@ describe('normalizeAgentScopes', () => {
   it('the first offender decides', () => {
     expect(fail(() => normalizeAgentScopes(['h:read', 'zz:read'], policy)).code).toBe('scope_not_grantable')
   })
-  it.each(['members:read', 'members:write', 'agents:read', 'agents:write'])('the real policy refuses %s', (s) => {
+  it.each(['members:read', 'agents:read', 'agents:write'])('the real policy refuses %s', (s) => {
     expect(fail(() => normalizeAgentScopes([s])).code).toBe('scope_not_grantable')
   })
 })

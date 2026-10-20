@@ -37,7 +37,7 @@ describe('agents', () => {
     expect([await count('principals'), await count('agents'), (await k.events()).length]).toEqual([p, a, e])
   })
 
-  it.each(['members:read', 'members:write', 'agents:read', 'agents:write'])('refuses the human-only scope %s', async (scope) => {
+  it.each(['members:read', 'agents:read', 'agents:write'])('refuses the human-only scope %s', async (scope) => {
     const t = await k.seedOrg()
     const [p, a] = [await count('principals'), await count('agents')]
     const res = await O(t.organizationId, '/agents', { method: 'POST', body: { name: 'X', scopes: [scope] } })

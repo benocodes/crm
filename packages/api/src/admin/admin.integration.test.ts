@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createVaultRegistry } from '../operations.js'
 import { useAdminKit } from '../test/admin-kit.js'
+import { clerkMembership, clerkWebhook } from '../test/clerk.js'
 
 const k = useAdminKit()
 const errorOf = async (res: Response) => (await res.json()).error as { code: string; message: string }
@@ -159,10 +160,10 @@ describe('users', () => {
   it('paginates', async () => {
     const a = await k.seedOrg('A')
     for (const sub of ['p1', 'p2']) {
-      const email = k.profile(sub)
-      const inv = await (await k.call('/invitations', 'o', { method: 'POST', org: a.organizationId, body: { email, role: 'member' } })).json()
-      await k.call(`/invitations/${inv.id}/accept`, sub, { method: 'POST' })
+      k.profile(sub)
+      k.clerk.members.get(a.externalId)!.push(clerkMembership({ organizationId: a.externalId, userId: sub, role: 'org:member' }))
     }
+    expect((await k.webhook(clerkWebhook('organization.updated', { id: a.externalId }))).status).toBe(200)
     const first = await (await k.call('/users?limit=2', 'o', { org: a.organizationId })).json()
     expect(first.data).toHaveLength(2)
     expect(first.next_cursor).toBe(first.data[1].id)
@@ -196,20 +197,21 @@ describe('users', () => {
 })
 
 describe('documentation', () => {
-  it('lists every administration operation', async () => {
+  it('lists every administration operation and none of the removed ones', async () => {
     await setup()
     const doc = (await (await k.app.request('/openapi.json')).json()) as any
     const ids = new Set(Object.values<any>(doc.paths).flatMap((p) => Object.values<any>(p).map((o) => o.operationId)))
     for (const name of [
-      'invitations.list', 'invitations.get', 'invitations.create', 'invitations.delete', 'invitations.accept',
-      'memberships.list', 'memberships.get', 'memberships.update', 'memberships.delete',
+      'memberships.list', 'memberships.get',
       'users.list', 'users.get', 'agents.list', 'agents.get', 'agents.create', 'agents.update',
       'api_keys.list', 'api_keys.get', 'api_keys.create', 'api_keys.revoke',
     ]) {
       expect(ids, name).toContain(name)
       expect(createVaultRegistry().get(name), name).toBeDefined()
     }
-    expect(doc.paths['/invitations/{id}/accept'].post).toBeDefined()
+    for (const gone of ['invitations.list', 'invitations.create', 'invitations.accept', 'memberships.update', 'memberships.delete', 'organizations.create']) {
+      expect(ids, gone).not.toContain(gone)
+    }
     expect(doc.paths['/api-keys/{id}/revoke'].post).toBeDefined()
   })
 })

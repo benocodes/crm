@@ -21,16 +21,11 @@ export const fixtures: Record<string, ContractFixture> = {
     patch: async (ctx) => ({ contact_id: (await createResource(ctx, contacts, {})).id }),
   },
   // Administration ([[CORE3]]): human-only scopes, so the suite runs these as a user.
-  invitations: {
-    input: async () => ({ email: `i-${randomUUID()}@example.test`, role: 'member' }),
-    actors: ['user'],
-  },
   memberships: {
     async make(ctx, seed) {
       const user = await seedUser(seed.db, { organizationId: seed.tenant.organizationId, role: 'member' })
       return ctx.trx.selectFrom('memberships').select('id').where('user_id', '=', user.id).executeTakeFirstOrThrow()
     },
-    patch: async () => ({ role: 'owner' }),
     actors: ['user'],
   },
   agents: {
