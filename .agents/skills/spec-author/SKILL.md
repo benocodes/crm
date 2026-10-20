@@ -43,7 +43,7 @@ The folder name follows the pattern:
 |--------|-----------------------------------------------------------------------|
 | `CORE` | schema, tenancy, service layer, resources, outbox/events              |
 | `API`  | operation registry, REST, MCP, hooks/webhooks, agent cursor           |
-| `CHN`  | channel adapters: capture (Graph mail/calendar, WhatsApp) and send    |
+| `CHN`  | channel adapters: capture (Gmail; later Graph, WhatsApp) and send     |
 | `AGT`  | agent principals, scopes, suggestions, approval rules, execution rail |
 | `UI`   | the email-client pane, digests                                        |
 | `DX`   | CLI, starter template, docs for consultants                           |

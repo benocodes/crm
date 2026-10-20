@@ -69,7 +69,7 @@ List only the steps the diff actually needs.
    Worker deploy with it; a separately deployed Worker (MCP, hook delivery) goes after the API Worker,
    since it calls the API. If `wrangler.toml` gained a binding (a new Queue, R2 bucket, Hyperdrive config),
    create the resource first.
-4. **Starter template or Outlook pane**, if those packages changed: their own deploy scripts, after the
+4. **Starter template or Chrome extension pane**, if those packages changed: their own deploy scripts, after the
    API Worker.
 
 ## 4. Verify

@@ -81,8 +81,8 @@ to ask the user, the agent decides and records instead.
 **Hard stops.** The orchestrator stops, records the situation in SPRINT.md (Position, Open Questions,
 Next Action) and tells the user before any of these, and never works around one:
 
-- **money or external accounts:** creating paid or external accounts or resources (Microsoft 365, Neon,
-  Clerk, Cloudflare resources, domains);
+- **money or external accounts:** creating paid or external accounts or resources (Google Cloud, Neon,
+  Clerk, Cloudflare resources, the Chrome Web Store, domains);
 - **production:** a deploy, or a migration against a production database;
 - **public announcements:** releases, posts, emails or messages to people outside the repo;
 - **irreversible data changes:** dropping any database other than the vault's own test databases,
@@ -109,9 +109,9 @@ agent can resolve, and when the sprint is finished.
 |---|---|
 | `CORE` | schema, tenancy, service layer, resources, outbox/events |
 | `API` | operation registry, REST, MCP, hooks/webhooks, agent cursor |
-| `CHN` | channel adapters: capture (Graph mail/calendar, WhatsApp) and send |
+| `CHN` | channel adapters: capture (Gmail; later Graph, WhatsApp) and send |
 | `AGT` | agent principals, scopes, suggestions, approval rules, execution rail |
-| `UI` | the email-client pane, digests |
+| `UI` | the email-client pane (Chrome extension beside Gmail), digests |
 | `DX` | CLI, starter template, docs for consultants |
 | `OPS` | infrastructure, deploy, CI, tooling, skills |
 

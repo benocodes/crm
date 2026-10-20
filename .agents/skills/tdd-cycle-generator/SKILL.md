@@ -89,7 +89,7 @@ conventions.
    hard-dependency prerequisite cycle landed very recently, its retro may not exist or may omit
    fine-grained details (helper signatures, status codes, column names): read that cycle's landed files
    before writing anything that claims to mirror them.
-5. **External services.** If the cycle integrates a third-party API (Microsoft Graph, Kapso/WhatsApp,
+5. **External services.** If the cycle integrates a third-party API (Gmail, Kapso/WhatsApp,
    Cloudflare's Queue/Workflow HTTP APIs, Clerk), fetch the service's current documentation *now*.
    Invented endpoints, payload shapes and signature headers invalidate entire phases. At minimum pin down
    the auth mechanism, the connect/callback flow, webhook signature verification and real payload shapes.
@@ -368,7 +368,7 @@ skill ends; don't start implementing unless asked.
 5. **No speculative dependencies.** Prefer the platform and Node builtins. A new dependency gets its own
    step so install and test runs are separable.
 6. **Fetch external API docs before writing** any plan that calls a third-party API.
-7. **Fixtures over synthetic data for adapters.** Recorded Graph and WhatsApp payloads are the fixture
+7. **Fixtures over synthetic data for adapters.** Recorded Gmail and WhatsApp payloads are the fixture
    source for capture and send adapters; store them under the package's `test/fixtures/`, reference by
    path, don't paste them.
 8. **One cycle, one folder.** A `PLAN.md` is the only plan in its folder. Never `PLAN-02.md`; later
