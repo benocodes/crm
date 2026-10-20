@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createAuthAdapter, parseOriginList } from './adapter.js'
-import { clerkUser, fakeClerkFetch, mintClerkToken, testIssuer } from '../test/clerk.js'
+import { WEBHOOK_SECRET, clerkUser, fakeClerkFetch, mintClerkToken, testIssuer } from '../test/clerk.js'
 
 const baseEnv = async () => {
   const issuer = await testIssuer()
@@ -10,6 +10,7 @@ const baseEnv = async () => {
     CLERK_ISSUER: issuer.issuer,
     CLERK_AUTHORIZED_PARTIES: issuer.party,
     CLERK_SECRET_KEY: 'sk_test_fake',
+    CLERK_WEBHOOK_SECRET: WEBHOOK_SECRET,
   } as Record<string, string | undefined>
 }
 
@@ -23,10 +24,10 @@ describe('createAuthAdapter', () => {
     const adapter = createAuthAdapter(await baseEnv())!
     expect(adapter.provider).toBe('clerk')
     const token = await mintClerkToken(await testIssuer(), { sub: 'user_9' })
-    expect(await adapter.verify(token)).toEqual({ ok: true, subject: 'user_9' })
+    expect(await adapter.verify(token)).toMatchObject({ ok: true, subject: 'user_9', organization: null })
   })
 
-  it.each(['CLERK_JWT_KEY', 'CLERK_ISSUER', 'CLERK_SECRET_KEY', 'CLERK_AUTHORIZED_PARTIES'])('missing %s', async (name) => {
+  it.each(['CLERK_JWT_KEY', 'CLERK_ISSUER', 'CLERK_SECRET_KEY', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_WEBHOOK_SECRET'])('missing %s', async (name) => {
     const env = await baseEnv()
     delete env[name]
     expect(() => createAuthAdapter(env)).toThrow(`AUTH_PROVIDER=clerk requires ${name}`)
@@ -35,6 +36,11 @@ describe('createAuthAdapter', () => {
   it('empty parties', async () => {
     const env = { ...(await baseEnv()), CLERK_AUTHORIZED_PARTIES: ' , ' }
     expect(() => createAuthAdapter(env)).toThrow('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
+  })
+
+  it('malformed webhook secret', async () => {
+    const env = { ...(await baseEnv()), CLERK_WEBHOOK_SECRET: 'secret' }
+    expect(() => createAuthAdapter(env)).toThrow('CLERK_WEBHOOK_SECRET must be a whsec_ secret')
   })
 
   it('unknown provider', () => {

@@ -6,11 +6,19 @@ import type { Database } from '../types.js'
 // Seeds run through `withServiceRole` on the `vault_app` db. No ON CONFLICT and no catching 23505
 // (AGENTS.md invariant 3): random emails avoid collisions.
 
-export async function seedOrganization(db: Kysely<Database>, opts: { name?: string } = {}): Promise<{ id: string }> {
+/** `authOrgId` links the organisation to its identity-provider organisation (`authProvider` defaults to 'clerk'). */
+export async function seedOrganization(
+  db: Kysely<Database>,
+  opts: { name?: string; authOrgId?: string; authProvider?: string } = {},
+): Promise<{ id: string }> {
   return withServiceRole(db, (trx) =>
     trx
       .insertInto('organizations')
-      .values({ name: opts.name ?? `Org ${randomUUID().slice(0, 8)}` })
+      .values({
+        name: opts.name ?? `Org ${randomUUID().slice(0, 8)}`,
+        auth_provider: opts.authOrgId ? (opts.authProvider ?? 'clerk') : null,
+        auth_org_id: opts.authOrgId ?? null,
+      })
       .returning('id')
       .executeTakeFirstOrThrow(),
   )

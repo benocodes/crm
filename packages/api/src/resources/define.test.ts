@@ -45,6 +45,15 @@ describe('defineResource', () => {
   it('name shape', () => {
     expect(() => defineResource(base({ name: 'Tasks' }))).toThrow()
   })
+  it('accepts softDelete false without delete', () => {
+    expect(() => defineResource(base({ softDelete: false, operations: ['list', 'get'] }))).not.toThrow()
+  })
+  it('softDelete false refuses delete', () => {
+    expect(() => defineResource(base({ softDelete: false, operations: ['list', 'get', 'delete'] }))).toThrow(
+      'delete requires soft delete (widgets)',
+    )
+    expect(() => defineResource(base({ softDelete: false }))).toThrow('delete requires soft delete (widgets)')
+  })
   it('accepts a valid definition', () => {
     expect(() => defineResource(base({ agentWritable: ['title'] }))).not.toThrow()
   })

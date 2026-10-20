@@ -22,6 +22,8 @@ export interface ResourceDefinition<R extends { id: string } = { id: string }> {
   /** Extra equality conditions for list, get, update and delete (not create); null = none. [[API7]]. */
   rowFilter?: (ctx: ServiceContext) => Record<string, unknown> | null
   agentWritable?: readonly string[]
+  /** false: the table has no deleted_at (P1). List, get and the row lock skip the live-row condition; `delete` cannot be generated. Default true. */
+  softDelete?: false
   filters?: Record<string, Filter>
   references?: Record<string, Reference>
   inputSchema?: (ctx: ServiceContext, op: 'create' | 'update') => z.ZodObject
@@ -34,6 +36,13 @@ export interface ResourceDefinition<R extends { id: string } = { id: string }> {
       ctx: ServiceContext,
       input: Record<string, unknown>,
       generic: (input: Record<string, unknown>) => Promise<R>,
+    ) => Promise<R>
+    /** P2. Runs after validation and the agent-field check, instead of the generic update; `generic` locks, writes and emits. */
+    update?: (
+      ctx: ServiceContext,
+      id: string,
+      input: Record<string, unknown>,
+      generic: (id: string, input: Record<string, unknown>) => Promise<R>,
     ) => Promise<R>
     delete?: (ctx: ServiceContext, id: string, generic: (id: string) => Promise<void>) => Promise<void>
   }
@@ -61,6 +70,7 @@ export function defineResource<R extends { id: string }>(def: ResourceDefinition
   }
   if (ops.includes('create') && !def.create) throw new Error(`create schema required (${def.name})`)
   if (ops.includes('update') && !def.update) throw new Error(`update schema required (${def.name})`)
+  if (def.softDelete === false && ops.includes('delete')) throw new Error(`delete requires soft delete (${def.name})`)
   if (def.agentWritable) {
     const known = new Set([...Object.keys(def.create?.shape ?? {}), ...Object.keys(def.update?.shape ?? {})])
     for (const f of def.agentWritable) {

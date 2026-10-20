@@ -108,6 +108,8 @@ export interface Memberships {
 }
 
 export interface Organizations {
+  auth_org_id: string | null;
+  auth_provider: string | null;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   name: string;

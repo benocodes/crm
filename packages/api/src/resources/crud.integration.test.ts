@@ -452,3 +452,53 @@ describe('subset guard', () => {
     await expect(asUser(db, a, (ctx) => updateResource(ctx, ro, live.id, { title: 'x' }))).rejects.toThrow('ro has no update schema')
   })
 })
+
+describe('update override (P2)', () => {
+  it('receives a generic that locks, writes and emits', async () => {
+    const spy = vi.fn(async (_ctx: unknown, id: string, input: Record<string, unknown>, generic: (id: string, input: Record<string, unknown>) => Promise<TaskRecord>) =>
+      generic(id, input),
+    )
+    const def = defineResource<TaskRecord>({ ...tasks, name: 'override_tasks', overrides: { update: spy as never } })
+    const t = await mk(a)
+    const after = await asUser(db, a, (ctx) => updateResource(ctx, def, t.id, { title: 'x' }))
+    expect(after.title).toBe('x')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0]!.slice(1, 3)).toEqual([t.id, { title: 'x' }])
+    expect((await eventsOf(t.id)).filter((e) => e.type === 'task.updated')).toHaveLength(1)
+  })
+
+  it('can refuse before the generic runs', async () => {
+    const def = defineResource<TaskRecord>({
+      ...tasks,
+      name: 'refusing_tasks',
+      overrides: {
+        async update() {
+          throw new ApiError(409, 'nope', 'refused')
+        },
+      },
+    })
+    const t = await mk(a)
+    const err = await apiError(asUser(db, a, (ctx) => updateResource(ctx, def, t.id, { title: 'x' })))
+    expect(err).toMatchObject({ status: 409, code: 'nope' })
+    expect((await rowOf(t.id))!.title).toBe('T')
+    expect((await eventsOf(t.id)).filter((e) => e.type === 'task.updated')).toHaveLength(0)
+  })
+})
+
+describe('softDelete: false (P1)', () => {
+  const agentRecord = z.object({ id: z.uuid(), organization_id: z.uuid(), name: z.string() })
+  const readOnlyAgents = defineResource<{ id: string; organization_id: string; name: string }>({
+    name: 'agent_views',
+    eventName: 'agent',
+    table: 'agents',
+    record: agentRecord,
+    operations: ['list', 'get'],
+    softDelete: false,
+  })
+  it('lists and gets a table without deleted_at', async () => {
+    const l = await asUser(db, a, (ctx) => listResource(ctx, readOnlyAgents, {}))
+    expect(l.data.map((r) => r.id)).toEqual([a.agentId])
+    const g = await asUser(db, a, (ctx) => getResource(ctx, readOnlyAgents, a.agentId))
+    expect(g).toEqual({ id: a.agentId, organization_id: a.organizationId, name: expect.any(String) })
+  })
+})

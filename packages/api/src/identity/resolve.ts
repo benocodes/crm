@@ -44,7 +44,7 @@ export async function resolveIdentities(ctx: ServiceContext, entries: readonly R
   if (normalized.length === 0) return []
 
   // 2. Lock every distinct address in one statement, in hash order.
-  await lockKeys(ctx, normalized.map((e) => addressKey(ctx.organizationId, e.kind, e.value)))
+  await lockKeys(ctx.trx, normalized.map((e) => addressKey(ctx.organizationId, e.kind, e.value)))
 
   // 3. Known identities, then the live contacts they point at.
   const known = new Map<string, IdentityRecord>()
@@ -122,7 +122,7 @@ export async function ensureOwnIdentity(
   address: { kind: IdentityKind; value: string },
 ): Promise<{ identity: IdentityRecord; outcome: 'created' | 'moved' | 'unchanged' }> {
   const value = normalizeIdentityValue(address.kind, address.value)
-  await lockKeys(ctx, [addressKey(ctx.organizationId, address.kind, value)])
+  await lockKeys(ctx.trx, [addressKey(ctx.organizationId, address.kind, value)])
   const existing = await liveIdentity(ctx, address.kind, value)
   if (!existing) {
     const inserted = await insertIdentity(ctx, { kind: address.kind, value, contact_id: null, own: true })

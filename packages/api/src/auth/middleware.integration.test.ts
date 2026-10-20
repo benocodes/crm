@@ -11,7 +11,7 @@ import { createApp } from '../rest/app.js'
 import { ScopeSet, parseScope } from '../scopes.js'
 import { seedApiKey } from '../test/keys.js'
 import { seedTenant, type Tenant } from '../test/tenant.js'
-import { AuthFailure } from './user-authenticator.js'
+import { AuthFailure } from './adapter.js'
 import type { Principal, UserAuthenticator } from './types.js'
 
 let db: Kysely<Database>

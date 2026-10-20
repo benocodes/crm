@@ -37,7 +37,7 @@ describe('bootstrap', () => {
     const m = await owner.selectFrom('memberships').selectAll().where('user_id', '=', r.userId).execute()
     expect(m).toMatchObject([{ organization_id: r.organizationId, role: 'owner' }])
     const agent = await owner.selectFrom('agents').selectAll().where('id', '=', r.agentId).executeTakeFirstOrThrow()
-    expect(agent.scopes).toEqual(createVaultRegistry().declaredScopes())
+    expect(agent.scopes).toEqual(grantableScopes(createVaultRegistry().declaredScopes()))
     expect(agent.created_by).toBe(r.userId)
   })
   it('stores the key hashed', async () => {
@@ -118,8 +118,10 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
     await bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })
     const kit = await testClerkAdapter({ profiles: new Map([['user_b', clerkUser({ id: 'user_b', email: 'b@x.test' })]]) })
     const authed = createApp({ db: () => db, authAdapter: kit.adapter })
-    const res = await authed.request('/tasks', { headers: { authorization: `Bearer ${await mintClerkToken(kit.issuer, { sub: 'user_b' })}` } })
+    // No organisation claim: a bootstrapped organisation is not linked to the provider, so /me is the check.
+    const res = await authed.request('/me', { headers: { authorization: `Bearer ${await mintClerkToken(kit.issuer, { sub: 'user_b' })}` } })
     expect(res.status).toBe(200)
+    expect((await res.json()).memberships).toHaveLength(1)
     expect(kit.fetch.calls).toHaveLength(0)
   })
 })

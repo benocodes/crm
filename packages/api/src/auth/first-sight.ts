@@ -1,34 +1,67 @@
-import { sql, type Kysely, type Transaction } from 'kysely'
+import type { Kysely, Transaction } from 'kysely'
 import { withServiceRole, type Database } from '@vault/db'
 import { ApiError } from '../errors.js'
-import type { AuthAdapter } from './adapter.js'
-import { AuthFailure } from './user-authenticator.js'
+import { lockKeys } from '../identity/locks.js'
+import { AuthFailure, type AuthAdapter } from './adapter.js'
+import type { Role } from './roles.js'
 
-export type UserLogin = { userId: string; memberships: { organizationId: string; role: 'owner' | 'member' }[] }
-
-async function liveMemberships(trx: Transaction<Database>, userId: string): Promise<UserLogin['memberships']> {
-  const rows = await trx
-    .selectFrom('memberships')
-    .select(['organization_id', 'role'])
-    .where('user_id', '=', userId)
-    .where('deleted_at', 'is', null)
-    .execute()
-  return rows.map((r) => ({ organizationId: r.organization_id, role: r.role as 'owner' | 'member' }))
+/**
+ * A known user and, when the token names an organisation the vault already has, what its copy says: the
+ * linked organisation's id and the user's most recently updated membership row there (live or soft-deleted;
+ * [[CORE3]] D20). Both are null for first sight, which the caller re-resolves through repair.
+ */
+export type UserLogin = {
+  userId: string
+  linkedOrganizationId: string | null
+  latestMembership: { role: Role; deletedAt: Date | null; updatedAt: Date } | null
 }
 
-async function findBySubject(trx: Transaction<Database>, provider: string, subject: string): Promise<UserLogin | null> {
+async function findBySubject(
+  trx: Transaction<Database>,
+  provider: string,
+  subject: string,
+  organizationExternalId: string | null,
+): Promise<UserLogin | null> {
   const user = await trx
     .selectFrom('users')
     .select('id')
     .where('auth_provider', '=', provider)
     .where('auth_subject', '=', subject)
     .executeTakeFirst()
-  return user ? { userId: user.id, memberships: await liveMemberships(trx, user.id) } : null
+  if (!user) return null
+  const login: UserLogin = { userId: user.id, linkedOrganizationId: null, latestMembership: null }
+  if (organizationExternalId === null) return login
+  const org = await trx
+    .selectFrom('organizations')
+    .select('id')
+    .where('auth_provider', '=', provider)
+    .where('auth_org_id', '=', organizationExternalId)
+    .executeTakeFirst()
+  if (!org) return login
+  const latest = await trx
+    .selectFrom('memberships')
+    .select(['role', 'deleted_at', 'updated_at'])
+    .where('organization_id', '=', org.id)
+    .where('user_id', '=', user.id)
+    .orderBy('updated_at', 'desc')
+    .orderBy('id', 'desc')
+    .limit(1)
+    .executeTakeFirst()
+  return {
+    ...login,
+    linkedOrganizationId: org.id,
+    latestMembership: latest ? { role: latest.role as Role, deletedAt: latest.deleted_at, updatedAt: latest.updated_at } : null,
+  }
 }
 
 /** The steady-state lookup: one service-role transaction of SELECTs only. */
-export function lookupUser(db: Kysely<Database>, provider: string, subject: string): Promise<UserLogin | null> {
-  return withServiceRole(db, (trx) => findBySubject(trx, provider, subject))
+export function lookupUser(
+  db: Kysely<Database>,
+  provider: string,
+  subject: string,
+  organizationExternalId: string | null,
+): Promise<UserLogin | null> {
+  return withServiceRole(db, (trx) => findBySubject(trx, provider, subject, organizationExternalId))
 }
 
 const accountConflict = () => new ApiError(409, 'account_conflict', 'this email belongs to another account')
@@ -48,14 +81,9 @@ export async function provisionUser(db: Kysely<Database>, adapter: AuthAdapter, 
   const provider = adapter.provider
 
   return withServiceRole(db, async (trx) => {
-    await sql`
-      SELECT pg_advisory_xact_lock(k) FROM (
-        SELECT DISTINCT hashtextextended(key, 0) AS k
-        FROM unnest(${[`auth-subject:${provider}:${subject}`, `user-email:${email.toLowerCase()}`]}::text[]) AS t(key)
-        ORDER BY k
-      ) AS s`.execute(trx)
+    await lockKeys(trx, [`auth-subject:${provider}:${subject}`, `user-email:${email.toLowerCase()}`])
 
-    const existing = await findBySubject(trx, provider, subject)
+    const existing = await findBySubject(trx, provider, subject, null)
     if (existing) return existing
 
     const taken = await trx.selectFrom('users').select('id').where('email', '=', email).executeTakeFirst()
@@ -80,6 +108,6 @@ export async function provisionUser(db: Kysely<Database>, adapter: AuthAdapter, 
       .executeTakeFirst()
     // Thrown so the transaction, and the principal row above, roll back.
     if (!user) throw accountConflict()
-    return { userId: user.id, memberships: [] }
+    return { userId: user.id, linkedOrganizationId: null, latestMembership: null }
   })
 }

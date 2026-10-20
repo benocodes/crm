@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import type { AccountOperation } from '../registry.js'
-import { createOrganization, createOrganizationBody, organizationRecord } from './organizations.js'
 
 const role = z.enum(['owner', 'member'])
 const meResponse = z.object({
@@ -45,18 +44,6 @@ export function accountOperations(): AccountOperation[] {
             : null,
         }
       },
-    },
-    {
-      kind: 'account',
-      name: 'organizations.create',
-      summary: 'Create an organisation; the caller becomes its owner',
-      tags: ['organizations'],
-      method: 'post',
-      path: '/organizations',
-      validation: 'adapter',
-      request: { body: createOrganizationBody },
-      response: { status: 201, schema: organizationRecord },
-      handler: (ctx, input) => createOrganization(ctx, input.body as { name: string }),
     },
   ]
 }

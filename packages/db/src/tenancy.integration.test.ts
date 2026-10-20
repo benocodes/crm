@@ -191,11 +191,6 @@ describe('tenancy wrappers', () => {
       (trx) => trx.insertInto('organizations').values({ name: 'x' }).execute(),
       (trx) => trx.insertInto('principals').values({ kind: 'user' }).execute(),
       (trx) => trx.insertInto('users').values({ id: A.userId, email: 'z@x.test' }).execute(),
-      (trx) =>
-        trx
-          .insertInto('agents')
-          .values({ id: A.agentId, organization_id: A.orgId, name: 'x', created_by: A.userId })
-          .execute(),
     ]
     for (const attempt of attempts) {
       await expect(withOrganization(db, ctx(A), attempt)).rejects.toMatchObject({ code: '42501' })

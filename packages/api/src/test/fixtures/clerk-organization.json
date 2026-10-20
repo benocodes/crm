@@ -1,0 +1,17 @@
+{
+  "object": "organization",
+  "id": "org_2abcDEFghiJKLmnoPQRstuVWXyz",
+  "name": "Acme",
+  "slug": "acme",
+  "image_url": "https://img.clerk.com/preview.png",
+  "has_image": false,
+  "members_count": 2,
+  "pending_invitations_count": 0,
+  "max_allowed_memberships": 5,
+  "admin_delete_enabled": true,
+  "public_metadata": {},
+  "private_metadata": {},
+  "created_by": "user_2abcDEFghiJKLmnoPQRstuVWXyz",
+  "created_at": 1760000000000,
+  "updated_at": 1760000000000
+}

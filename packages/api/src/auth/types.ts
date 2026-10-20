@@ -7,13 +7,13 @@ export type Principal = {
   actor: Actor
   organizationId: string | null
   scopes: ScopeSet
-  /** The X-Organization-Id header named an organisation without a live membership ([[CORE3]] D7). */
+  /** The organisation claim was unusable or the X-Organization-Id header contradicted it ([[CORE3]] D7). */
   organizationForbidden?: boolean
 }
 
 /**
  * The [[CORE3]] seam: verifies a JWT-shaped bearer token and resolves the user principal (first sight,
- * X-Organization-Id resolution, role scopes). Throws ApiError (401/403/409).
+ * organisation claim, role scopes). Throws ApiError (401/403/409).
  */
 export interface UserAuthenticator {
   authenticate(

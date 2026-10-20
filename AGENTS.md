@@ -134,6 +134,10 @@ pnpm db:codegen
 
 The `db:*` scripts are the contract the skills assume; they arrive with the first CORE cycle.
 
+The development machine is macOS: `sed` is BSD, where `-i` takes a backup suffix as its next argument
+(`sed -i '' 's/a/b/' file`), so GNU-style `sed -i 's/a/b/' file` misparses. Prefer the Edit tool for
+in-place edits ([[CORE29]] retro).
+
 ## Conventions
 
 - Files and folders kebab-case; functions and variables camelCase; types PascalCase; database fields and

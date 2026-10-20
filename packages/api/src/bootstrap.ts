@@ -7,8 +7,8 @@ import { ScopeSet } from './scopes.js'
 
 /**
  * Mints a first organisation, an owner user (reused if the email exists) and an agent with an API key.
- * A development and ops tool: it emits no events (a named exception to invariant 5; `organizations.create`
- * is the event-emitting path). With `authSubject` it also links the user's login ([[CORE3]] D5): the operator
+ * A development and ops tool: it emits no events (a named exception to invariant 5; the directory sync
+ * ([[CORE3]]) is the event-emitting path for organisations and memberships). With `authSubject` it also links the user's login ([[CORE3]] D5): the operator
  * re-link, and the sign-in path for a bootstrapped member.
  */
 export async function bootstrap(
