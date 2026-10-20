@@ -49,7 +49,6 @@ const UPDATED: Col = ['updated_at', 'timestamptz', false, true]
 const ORG: Col = ['organization_id', 'uuid', false, false]
 
 const SHAPES: Record<string, Col[]> = {
-  organizations: [ID, CREATED, UPDATED, ['name', 'text', false, false]],
   principals: [ID, CREATED, ['kind', 'text', false, false]],
   agents: [
     ID_NO_DEFAULT, CREATED, UPDATED, ORG,
