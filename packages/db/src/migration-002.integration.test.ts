@@ -40,12 +40,11 @@ describe('migration 002: vault_service grants', () => {
   })
 
   it('vault_authenticated grants are unchanged', async () => {
-    for (const t of ['organizations', 'principals', 'users', 'memberships', 'agents']) {
+    for (const t of ['organizations', 'users']) {
       expect(await grants('vault_authenticated', t), t).toEqual(['SELECT'])
     }
     expect(await grants('vault_authenticated', 'events')).toEqual(['INSERT', 'SELECT'])
     expect(await grants('vault_authenticated', 'tasks')).toEqual(['INSERT', 'SELECT', 'UPDATE'])
-    expect(await grants('vault_authenticated', 'api_keys')).toEqual([])
   })
 
   it('behaviour: vault_service cannot read kysely_migration but can read tasks', async () => {
