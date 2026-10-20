@@ -3,7 +3,13 @@ import type { Database } from '@vault/db'
 import type { Actor } from '../context.js'
 import type { ScopeSet } from '../scopes.js'
 
-export type Principal = { actor: Actor; organizationId: string | null; scopes: ScopeSet }
+export type Principal = {
+  actor: Actor
+  organizationId: string | null
+  scopes: ScopeSet
+  /** The X-Organization-Id header named an organisation without a live membership ([[CORE3]] D7). */
+  organizationForbidden?: boolean
+}
 
 /**
  * The [[CORE3]] seam: verifies a JWT-shaped bearer token and resolves the user principal (first sight,

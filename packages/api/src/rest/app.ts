@@ -1,11 +1,14 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Context } from 'hono'
+import { cors } from 'hono/cors'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
+import type { AuthAdapter } from '../auth/adapter.js'
 import { authMiddleware } from '../auth/middleware.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
+import { createUserAuthenticator } from '../auth/user-authenticator.js'
 import { withAccountContext, withContext } from '../context.js'
-import { ApiError, } from '../errors.js'
+import { ApiError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
 import type { Operation, OperationInput, Registry } from '../registry.js'
 import { parseInput } from '../resources/define.js'
@@ -18,8 +21,12 @@ export interface AppOptions {
   /** Resolves the request's database. Called once per request, never at construction. */
   db: (c: Context) => Kysely<Database>
   registry?: Registry
-  /** [[CORE3]]: absent means JWT-shaped tokens are 401. */
+  /** Custom or test setups. Absent (and no `authAdapter`) means JWT-shaped tokens are 401. */
   userAuthenticator?: UserAuthenticator
+  /** [[CORE3]]: builds the real authenticator over this registry's declared scopes. Exclusive with `userAuthenticator`. */
+  authAdapter?: AuthAdapter
+  /** Allowed CORS origins ([[CORE3]] C4). Empty or absent: no CORS middleware, no `Access-Control-*` header. */
+  corsOrigins?: readonly string[]
   /** `info.version` in the document. */
   version?: string
 }
@@ -53,7 +60,13 @@ async function run(c: Context<AppEnv>, op: Operation): Promise<unknown> {
     if (principal.actor.kind !== 'user') {
       throw new ApiError(403, 'user_required', 'this operation requires a signed-in user')
     }
-    return withAccountContext(c.var.db, { actor: principal.actor }, (ctx) => op.handler(ctx, input))
+    const organizationId = principal.organizationForbidden ? null : principal.organizationId
+    return withAccountContext(c.var.db, { actor: principal.actor, organizationId, scopes: principal.scopes }, (ctx) =>
+      op.handler(ctx, input),
+    )
+  }
+  if (principal.organizationForbidden) {
+    throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
   }
   if (principal.organizationId === null) {
     throw new ApiError(403, 'organization_required', 'an organisation is required (send X-Organization-Id)')
@@ -66,17 +79,37 @@ async function run(c: Context<AppEnv>, op: Operation): Promise<unknown> {
 }
 
 export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
+  if (options.authAdapter && options.userAuthenticator) {
+    throw new Error('createApp: pass either authAdapter or userAuthenticator, not both')
+  }
   const registry = options.registry ?? createVaultRegistry()
+  const userAuthenticator =
+    options.userAuthenticator ??
+    (options.authAdapter
+      ? createUserAuthenticator({ adapter: options.authAdapter, declaredScopes: registry.declaredScopes() })
+      : undefined)
   const app = new OpenAPIHono<AppEnv>()
   app.onError(renderError)
   app.notFound(renderNotFound)
+  const corsOrigins = options.corsOrigins ?? []
+  if (corsOrigins.length > 0) {
+    app.use(
+      '*',
+      cors({
+        origin: (origin) => (corsOrigins.includes(origin) ? origin : null),
+        allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
+        allowHeaders: ['Authorization', 'X-Organization-Id', 'Content-Type'],
+        maxAge: 600,
+      }),
+    )
+  }
   app.use('*', async (c, next) => {
     c.set('db', options.db(c))
     await next()
   })
 
   registerSecurityScheme(app)
-  const auth = authMiddleware({ userAuthenticator: options.userAuthenticator })
+  const auth = authMiddleware({ userAuthenticator })
   for (const op of registry.operations()) {
     documentOperation(app, op)
     app.on(op.method.toUpperCase(), honoPath(op.path), auth, async (c) => {

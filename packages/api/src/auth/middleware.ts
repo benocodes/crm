@@ -3,14 +3,19 @@ import { ApiError } from '../errors.js'
 import type { AppEnv } from '../rest/app.js'
 import { authenticateApiKey } from './api-keys.js'
 import type { Principal, UserAuthenticator } from './types.js'
+import { AuthFailure } from './user-authenticator.js'
 
 export const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 
-const BEARER = /^Bearer (\S+)$/
+const BEARER = /^Bearer +(\S+)$/i
 
-function unauthenticated(method: string, path: string, token: string | undefined, message: string): ApiError {
+function unauthenticated(method: string, path: string, token: string | undefined, message: string, reason?: string): ApiError {
   // At most 8 characters of the token ever reach a log.
-  console.warn('[auth] 401', method, path, { credentials: token !== undefined, prefix: token?.slice(0, 8) ?? '' })
+  console.warn('[auth] 401', method, path, {
+    credentials: token !== undefined,
+    prefix: token?.slice(0, 8) ?? '',
+    ...(reason !== undefined ? { reason } : {}),
+  })
   return new ApiError(401, 'unauthenticated', message)
 }
 
@@ -28,11 +33,23 @@ export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator }):
     let principal: Principal
     if (JWT_SHAPE.test(token)) {
       if (!opts.userAuthenticator) throw unauthenticated(method, path, token, 'invalid or expired credentials')
-      principal = await opts.userAuthenticator.authenticate(token, { db: c.var.db, organizationHeader })
+      try {
+        principal = await opts.userAuthenticator.authenticate(token, { db: c.var.db, organizationHeader })
+      } catch (err) {
+        // Log each authenticator 401 once; other failures (409, 500) are not the middleware's to log.
+        if (err instanceof ApiError && err.status === 401) {
+          console.warn('[auth] 401', method, path, {
+            credentials: true,
+            prefix: token.slice(0, 8),
+            ...(err instanceof AuthFailure ? { reason: err.reason } : {}),
+          })
+        }
+        throw err
+      }
     } else {
       const found = await authenticateApiKey(c.var.db, token)
       if (!found) throw unauthenticated(method, path, token, 'invalid or expired credentials')
-      if (organizationHeader !== undefined && organizationHeader !== found.organizationId) {
+      if (organizationHeader !== undefined && organizationHeader.toLowerCase() !== found.organizationId?.toLowerCase()) {
         throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
       }
       principal = found
