@@ -16,6 +16,7 @@
     "@hono/zod-openapi": "1.6.3",
     "@vault/db": "workspace:*",
     "hono": "4.13.12",
+    "jose": "6.2.12",
     "kysely": "0.29.6",
     "zod": "4.6.5"
   },
