@@ -18,13 +18,26 @@ export async function seedOrganization(db: Kysely<Database>, opts: { name?: stri
 
 export async function seedUser(
   db: Kysely<Database>,
-  opts: { organizationId: string; email?: string; role?: 'owner' | 'member' },
+  opts: {
+    organizationId: string
+    email?: string
+    role?: 'owner' | 'member'
+    authProvider?: string
+    authSubject?: string
+    emailVerified?: boolean
+  },
 ): Promise<{ id: string }> {
   return withServiceRole(db, async (trx) => {
     const principal = await trx.insertInto('principals').values({ kind: 'user' }).returning('id').executeTakeFirstOrThrow()
     await trx
       .insertInto('users')
-      .values({ id: principal.id, email: opts.email ?? `user-${randomUUID()}@example.test` })
+      .values({
+        id: principal.id,
+        email: opts.email ?? `user-${randomUUID()}@example.test`,
+        auth_provider: opts.authSubject ? (opts.authProvider ?? 'clerk') : null,
+        auth_subject: opts.authSubject ?? null,
+        email_verified: opts.emailVerified ?? false,
+      })
       .execute()
     await trx
       .insertInto('memberships')
@@ -37,6 +50,25 @@ export async function seedUser(
       .execute()
     return { id: principal.id }
   })
+}
+
+/** A membership of an existing user in another organisation (seedUser makes the first one). */
+export async function seedMembership(
+  db: Kysely<Database>,
+  opts: { organizationId: string; userId: string; role?: 'owner' | 'member' },
+): Promise<{ id: string }> {
+  return withServiceRole(db, (trx) =>
+    trx
+      .insertInto('memberships')
+      .values({
+        organization_id: opts.organizationId,
+        user_id: opts.userId,
+        role: opts.role ?? 'member',
+        created_by: opts.userId,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow(),
+  )
 }
 
 export async function seedAgent(

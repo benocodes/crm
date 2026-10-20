@@ -11,6 +11,7 @@ import { createApp } from '../rest/app.js'
 import { ScopeSet, parseScope } from '../scopes.js'
 import { seedApiKey } from '../test/keys.js'
 import { seedTenant, type Tenant } from '../test/tenant.js'
+import { AuthFailure } from './user-authenticator.js'
 import type { Principal, UserAuthenticator } from './types.js'
 
 let db: Kysely<Database>
@@ -182,5 +183,74 @@ describe('logging and plain routes', () => {
     const res = await get(app, '/plain')
     expect(res.status).toBe(200)
     expect(await res.text()).toBe('ok')
+  })
+})
+
+describe('bearer scheme ([[CORE3]] C11)', () => {
+  it.each([['bearer'], ['BEARER'], ['Bearer  ']])('scheme %j is accepted', async (scheme) => {
+    const res = await get(mkApp(), '/tasks', { authorization: `${scheme}${scheme.endsWith(' ') ? '' : ' '}${agentA.key}` })
+    expect(res.status).toBe(200)
+  })
+
+  it('accepts several spaces', async () => {
+    expect((await get(mkApp(), '/tasks', { authorization: `BEARER   ${agentA.key}` })).status).toBe(200)
+  })
+
+  it.each([['Basic x'], ['KEYALONE'], ['Bearer']])('%j is missing credentials', async (value) => {
+    const res = await get(mkApp(), '/tasks', { authorization: value })
+    expect(res.status).toBe(401)
+    expect((await res.json()).error.message).toBe('missing bearer credentials')
+  })
+
+  it('an agent X-Organization-Id compares case-insensitively', async () => {
+    const res = await get(mkApp(), '/tasks', bearer(agentA.key, { 'x-organization-id': A.organizationId.toUpperCase() }))
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('user authenticator failures ([[CORE3]] C11)', () => {
+  it('a 401 is logged once with prefix and reason', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    authenticate.mockRejectedValue(new AuthFailure('expired'))
+    const token = 'aaaaaaaaaaaa.b.c'
+    const res = await get(mkApp(), '/tasks', bearer(token))
+    expect(res.status).toBe(401)
+    expect(warn).toHaveBeenCalledTimes(1)
+    const args = warn.mock.calls[0]!
+    expect(args[0]).toBe('[auth] 401')
+    expect(args[3]).toEqual({ credentials: true, prefix: 'aaaaaaaa', reason: 'expired' })
+    expect(JSON.stringify(args)).not.toContain(token)
+  })
+
+  it('a 409 is not logged by the middleware', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    authenticate.mockRejectedValue(new ApiError(409, 'account_conflict', 'x'))
+    const res = await get(mkApp(), '/tasks', bearer('a.b.c'))
+    expect(res.status).toBe(409)
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  const forbidden: Principal = { actor: { id: '', kind: 'user' }, organizationId: null, scopes: ScopeSet.parse([]), organizationForbidden: true }
+
+  it('the forbidden flag is 403 on a tenant route', async () => {
+    authenticate.mockResolvedValue({ ...forbidden, actor: { id: A.userId, kind: 'user' } })
+    const res = await get(mkApp(), '/tasks', bearer('a.b.c'))
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: { code: 'organization_forbidden', message: 'not a member of that organisation' } })
+  })
+
+  it('the forbidden flag is ignored on an account route', async () => {
+    authenticate.mockResolvedValue({ ...forbidden, actor: { id: A.userId, kind: 'user' } })
+    const registry = new Registry().register({
+      kind: 'account',
+      name: 'probe.acct',
+      summary: 'Account probe',
+      method: 'get',
+      path: '/probe/acct',
+      response: { status: 200, schema: z.object({ ok: z.boolean() }) },
+      handler: async () => ({ ok: true }),
+    })
+    const app = createApp({ db: () => db, registry, userAuthenticator: { authenticate } })
+    expect((await get(app, '/probe/acct', bearer('a.b.c'))).status).toBe(200)
   })
 })

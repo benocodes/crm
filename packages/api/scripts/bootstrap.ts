@@ -4,7 +4,7 @@ import { bootstrap } from '../src/bootstrap.js'
 
 function usage(message: string): never {
   console.error(`bootstrap: ${message}`)
-  console.error('usage: pnpm -C packages/api bootstrap -- --org <name> --email <email> --agent <name> [--scopes a:read,b:write] [--name <user name>]')
+  console.error('usage: pnpm -C packages/api bootstrap -- --org <name> --email <email> --agent <name> [--scopes a:read,b:write] [--name <user name>] [--auth-provider clerk] [--auth-subject <provider user id>]')
   process.exit(1)
 }
 
@@ -18,6 +18,8 @@ try {
       agent: { type: 'string' },
       scopes: { type: 'string' },
       name: { type: 'string' },
+      'auth-provider': { type: 'string' },
+      'auth-subject': { type: 'string' },
     },
     strict: true,
   }).values
@@ -25,6 +27,8 @@ try {
   usage(err instanceof Error ? err.message : 'bad arguments')
 }
 const { org, email, agent, scopes, name } = values as Record<string, string | undefined>
+const authProvider = values['auth-provider'] as string | undefined
+const authSubject = values['auth-subject'] as string | undefined
 if (!org || !email || !agent) usage('--org, --email and --agent are required')
 
 const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhost/vault_dev', { max: 1 })
@@ -33,6 +37,8 @@ try {
     organizationName: org!,
     email: email!,
     userName: name,
+    authProvider,
+    authSubject,
     agentName: agent!,
     scopes: scopes ? scopes.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
   })

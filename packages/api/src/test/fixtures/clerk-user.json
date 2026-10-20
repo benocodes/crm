@@ -1,0 +1,16 @@
+{
+  "id": "user_2abcDEFghiJKLmnoPQRstuVWXyz",
+  "object": "user",
+  "first_name": "Ada",
+  "last_name": "Lovelace",
+  "primary_email_address_id": "idn_2primary",
+  "email_addresses": [
+    {
+      "id": "idn_2primary",
+      "object": "email_address",
+      "email_address": "ada@example.test",
+      "verification": { "status": "verified", "strategy": "from_oauth_google" },
+      "linked_to": []
+    }
+  ]
+}

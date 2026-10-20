@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
-import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
+import { createOwnerTestDb, createTestDb, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
 import { hashApiKey } from './auth/api-keys.js'
+import { assertAgentGrantable, grantableScopes, type ScopePolicy } from './auth/roles.js'
 import { bootstrap } from './bootstrap.js'
+import { clerkUser, mintClerkToken, testClerkAdapter } from './test/clerk.js'
 import { createVaultRegistry } from './operations.js'
 import { createApp } from './rest/app.js'
 
@@ -64,5 +66,60 @@ describe('bootstrap', () => {
   it('emits no events', async () => {
     await bootstrap(db, base)
     expect(await owner.selectFrom('events').selectAll().execute()).toHaveLength(0)
+  })
+})
+
+describe('bootstrap login linking ([[CORE3]] C15)', () => {
+  const linked = (email: string) => owner.selectFrom('users').selectAll().where('email', '=', email).execute()
+
+  it('links a new user', async () => {
+    await bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })
+    expect(await linked('b@x.test')).toMatchObject([{ auth_provider: 'clerk', auth_subject: 'user_b' }])
+  })
+
+  it('links an existing unlinked user', async () => {
+    const org = await seedOrganization(db)
+    const u = await seedUser(db, { organizationId: org.id, email: 'b@x.test' })
+    await bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })
+    const rows = await linked('b@x.test')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ id: u.id, auth_provider: 'clerk', auth_subject: 'user_b' })
+  })
+
+  it('refuses a relink and writes nothing', async () => {
+    const org = await seedOrganization(db)
+    await seedUser(db, { organizationId: org.id, email: 'b@x.test', authSubject: 'user_a' })
+    const orgs = (await owner.selectFrom('organizations').selectAll().execute()).length
+    await expect(bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_z' })).rejects.toThrow('user b@x.test is linked to another login')
+    expect((await owner.selectFrom('organizations').selectAll().execute()).length).toBe(orgs)
+  })
+
+  it('refuses a subject held by another user', async () => {
+    const org = await seedOrganization(db)
+    await seedUser(db, { organizationId: org.id, email: 'other@x.test', authSubject: 'user_b' })
+    await expect(bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })).rejects.toThrow(
+      'login clerk:user_b belongs to another user',
+    )
+  })
+
+  it('default agent scopes are the grantable ones', async () => {
+    const declared = createVaultRegistry().declaredScopes()
+    const r = await bootstrap(db, base)
+    const agent = await owner.selectFrom('agents').selectAll().where('id', '=', r.agentId).executeTakeFirstOrThrow()
+    expect(agent.scopes).toEqual(grantableScopes(declared))
+  })
+
+  it('refuses a human-only scope', () => {
+    const policy: ScopePolicy = { 'a:read': { member: true, agentGrantable: true }, 'a:write': { member: true, agentGrantable: false } }
+    expect(() => assertAgentGrantable(['a:read', 'a:write'], ['a:read', 'a:write'], policy)).toThrow('scope not grantable to an agent: a:write')
+  })
+
+  it('a bootstrapped user signs in', async () => {
+    await bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })
+    const kit = await testClerkAdapter({ profiles: new Map([['user_b', clerkUser({ id: 'user_b', email: 'b@x.test' })]]) })
+    const authed = createApp({ db: () => db, authAdapter: kit.adapter })
+    const res = await authed.request('/tasks', { headers: { authorization: `Bearer ${await mintClerkToken(kit.issuer, { sub: 'user_b' })}` } })
+    expect(res.status).toBe(200)
+    expect(kit.fetch.calls).toHaveLength(0)
   })
 })

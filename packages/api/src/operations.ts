@@ -1,3 +1,4 @@
+import { accountOperations } from './account/operations.js'
 import { identityOperations } from './identity/operations.js'
 import { Registry } from './registry.js'
 import { companies } from './resources/companies.js'
@@ -9,5 +10,6 @@ import { tasks } from './resources/tasks.js'
 export function createVaultRegistry(): Registry {
   const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities)
   for (const op of identityOperations()) registry.register(op)
+  for (const op of accountOperations()) registry.register(op)
   return registry
 }

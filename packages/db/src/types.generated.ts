@@ -99,6 +99,7 @@ export interface Identities {
 export interface Memberships {
   created_at: Generated<Timestamp>;
   created_by: string;
+  deleted_at: Timestamp | null;
   id: Generated<string>;
   organization_id: string;
   role: string;
@@ -135,8 +136,11 @@ export interface Tasks {
 }
 
 export interface Users {
+  auth_provider: string | null;
+  auth_subject: string | null;
   created_at: Generated<Timestamp>;
   email: string;
+  email_verified: Generated<boolean>;
   id: string;
   name: string | null;
   updated_at: Generated<Timestamp>;
