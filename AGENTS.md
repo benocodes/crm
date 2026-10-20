@@ -69,7 +69,7 @@ on a single issue (`fix-bugs`, `work-on-ready-issues`), are not orchestrated: do
 Subagents cannot start subagents, so the orchestrator must be the main session, never a subagent.
 
 **Per cycle:** planner `spec` (if the spec isn't approved) → planner `plan` → coder → e2e-tester →
-planner `review` (on changes requested: coder → e2e-tester → review, **at most two rounds**) → planner
+(on failure: coder → e2e-tester, until it passes) → planner `review` (on changes requested: coder → e2e-tester → review; **at most two coder rounds in total**) → planner
 `retro` → orchestrator opens the PR, waits for checks, merges (`gh pr merge --squash --delete-branch`),
 removes the worktree and its test DB, and checkpoints SPRINT.md. Cycles that build on each other run in
 order from an up-to-date `main`.
@@ -88,7 +88,7 @@ Next Action) and tells the user before any of these, and never works around one:
 - **irreversible data changes:** dropping any database other than the vault's own test databases,
   force-pushing, deleting branches the sprint didn't create.
 
-It also stops when a review loop exhausts its two rounds, when an agent is blocked on something no other
+It also stops when the fix loop exhausts its two coder rounds, when an agent is blocked on something no other
 agent can resolve, and when the sprint is finished.
 
 ## Identities
