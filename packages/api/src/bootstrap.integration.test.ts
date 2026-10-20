@@ -1,12 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
-import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
+import { createOwnerTestDb, createTestDb, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
 import { hashApiKey } from './auth/api-keys.js'
-import { SCOPE_POLICY, assertAgentGrantable, grantableScopes, type ScopePolicy } from './auth/roles.js'
+import { assertAgentGrantable, grantableScopes, type ScopePolicy } from './auth/roles.js'
 import { bootstrap } from './bootstrap.js'
 import { clerkUser, mintClerkToken, testClerkAdapter } from './test/clerk.js'
-import { seedOrganization, seedUser } from '@vault/db/test'
 import { createVaultRegistry } from './operations.js'
 import { createApp } from './rest/app.js'
 
@@ -108,7 +107,6 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
     const r = await bootstrap(db, base)
     const agent = await owner.selectFrom('agents').selectAll().where('id', '=', r.agentId).executeTakeFirstOrThrow()
     expect(agent.scopes).toEqual(grantableScopes(declared))
-    expect(Object.keys(SCOPE_POLICY).length).toBeGreaterThan(0)
   })
 
   it('refuses a human-only scope', () => {

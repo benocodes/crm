@@ -84,17 +84,13 @@ const mint = (sub: string, o: { azp?: string; exp?: number } = {}) => {
 let failures = 0
 async function check(
   name: string,
-  req: { path: string; method?: string; scheme?: string; token?: string; org?: string; body?: unknown; origin?: string },
+  req: { path: string; method?: string; scheme?: string; token?: string; org?: string; body?: unknown },
   expectStatus: number,
   verify?: (json: any, res: Response) => string | undefined,
 ): Promise<any> {
   const headers: Record<string, string> = {}
   if (req.token) headers.authorization = `${req.scheme ?? 'Bearer'} ${req.token}`
   if (req.org) headers['x-organization-id'] = req.org
-  if (req.origin) {
-    headers.origin = req.origin
-    headers['access-control-request-method'] = 'GET'
-  }
   const res = await fetch(base + req.path, {
     method: req.method ?? 'GET',
     headers,
@@ -111,11 +107,10 @@ const eq = (a: unknown, b: unknown, what: string) => (JSON.stringify(a) === JSON
 
 try {
   const tokA = await mint(subjectA)
-  const doc = await check('GET /openapi.json', { path: '/openapi.json' }, 200, (j) => {
+  await check('GET /openapi.json', { path: '/openapi.json' }, 200, (j) => {
     const ids = Object.values(j.paths).flatMap((p: any) => Object.values(p).map((o: any) => o.operationId))
     return ids.includes('me.get') && ids.includes('organizations.create') ? undefined : 'me.get / organizations.create missing'
   })
-  void doc
   await check('GET /me (first sight)', { path: '/me', token: tokA }, 200, (j) =>
     eq(j.memberships, [], 'memberships') ?? eq(j.active_organization, null, 'active_organization') ?? (j.user.email_verified === true ? undefined : 'email_verified'),
   )

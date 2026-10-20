@@ -9,13 +9,17 @@ export const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 
 const BEARER = /^Bearer +(\S+)$/i
 
-function unauthenticated(method: string, path: string, token: string | undefined, message: string, reason?: string): ApiError {
+function logUnauthenticated(method: string, path: string, token: string | undefined, reason?: string): void {
   // At most 8 characters of the token ever reach a log.
   console.warn('[auth] 401', method, path, {
     credentials: token !== undefined,
     prefix: token?.slice(0, 8) ?? '',
     ...(reason !== undefined ? { reason } : {}),
   })
+}
+
+function unauthenticated(method: string, path: string, token: string | undefined, message: string): ApiError {
+  logUnauthenticated(method, path, token)
   return new ApiError(401, 'unauthenticated', message)
 }
 
@@ -38,11 +42,7 @@ export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator }):
       } catch (err) {
         // Log each authenticator 401 once; other failures (409, 500) are not the middleware's to log.
         if (err instanceof ApiError && err.status === 401) {
-          console.warn('[auth] 401', method, path, {
-            credentials: true,
-            prefix: token.slice(0, 8),
-            ...(err instanceof AuthFailure ? { reason: err.reason } : {}),
-          })
+          logUnauthenticated(method, path, token, err instanceof AuthFailure ? err.reason : undefined)
         }
         throw err
       }

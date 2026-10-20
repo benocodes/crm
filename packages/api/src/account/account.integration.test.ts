@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql, type Kysely } from 'kysely'
-import { withServiceRole, type Database } from '@vault/db'
+import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, seedMembership, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
 import { createVaultRegistry } from '../operations.js'
 import { withAccountContext } from '../context.js'
@@ -184,4 +184,3 @@ describe('documentation', () => {
   })
 })
 
-void withServiceRole
