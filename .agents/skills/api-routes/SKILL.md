@@ -40,15 +40,22 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 - **Human auth** ([[CORE3]] cycle 1):
   - `src/auth/adapter.ts` (`AuthAdapter`, `createAuthAdapter(env)`, `parseOriginList`), `src/auth/clerk.ts`;
   - `src/auth/first-sight.ts` (`lookupUser`, `provisionUser`), `src/auth/organization.ts`
-    (`resolveOrganization`), `src/auth/roles.ts` (`SCOPE_POLICY`, `scopesForRole`, `grantableScopes`),
+    (`resolveActiveOrganization`), `src/auth/roles.ts` (`SCOPE_POLICY`, `scopesForRole`, `grantableScopes`),
     `src/auth/user-authenticator.ts` (`createUserAuthenticator`); `AuthFailure` lives in `src/auth/adapter.ts`;
-  - `src/account/` (`me.get`, `organizations.create`);
+  - `src/account/` (`me.get` only; organisations and memberships come from Clerk, [[CORE29]]);
   - `scripts/smoke-auth.ts` (`pnpm -C packages/api smoke:auth`: local key pair, fake Clerk API, real app).
 - **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
-  - definitions `src/resources/{invitations,memberships,agents,api-keys}.ts` (`memberships` guards the
-    last owner; `agents` validates scopes with `normalizeAgentScopes`; `api_keys` is read-only, `softDelete: false`);
+  - definitions `src/resources/{memberships,agents,api-keys}.ts` (`memberships` is read-only, written only
+    by the directory sync; `agents` validates scopes with `normalizeAgentScopes`; `api_keys` is read-only, `softDelete: false`);
   - `src/admin/` (`users.list`, `users.get`, `api_keys.create`, `api_keys.revoke`: `adminOperations()`);
-  - `src/account/invitations.ts` (`invitations.accept`, an account operation); `me.get` lists pending invitations;
+  - `src/directory/` ([[CORE29]]): `repairMembership` (the token claim repairs one user's membership),
+    `reconcileOrganization` (fetch-and-reconcile one Clerk organisation), `refreshUser`, `systemPrincipalId`
+    (created on first use) and `clerkWebhookHandler`, mounted as `POST /webhooks/clerk` by `createApp` only
+    when an `authAdapter` is given. It is the first plain route: no auth middleware (the Svix signature is
+    its credential), not in OpenAPI, `c.var.db` only. Directory events are attributed to the system principal;
+  - admin-kit (`src/test/admin-kit.ts`): `call(path, sub, { org })` mints the organisation claim from the copy
+    (`claim` overrides, `header` sends `x-organization-id`), `webhook(payload)` posts a signed delivery,
+    `seedOrg` links the organisation and mirrors it in the fake Clerk (`k.clerk.organizations`, `.members`);
   - `scripts/smoke-admin.ts` (`pnpm -C packages/api smoke:admin`, same scaffolding as `smoke-auth.ts`).
 - **Test helpers** in `src/test/`:
   - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);
@@ -239,10 +246,11 @@ service context enforces it, so scope checks are written once.
     always `401 invalid or expired credentials`). It then looks up the user (SELECT only), provisions it
     on first sight, resolves the organisation and derives scopes from the role.
   - **The authenticator never throws for organisation problems**: it cannot know the operation kind. It
-    returns `organizationId: null`, and sets `organizationForbidden` when the header names an organisation
-    with no live membership. `run` turns that into the 403 (see the order above).
-  - `X-Organization-Id` is compared case-insensitively for users and agents (the [[CORE2]] upper-case-UUID
-    lesson).
+    returns `organizationId: null`, and sets `organizationForbidden` when the token's organisation claim is
+    unusable (unmapped role, a newer soft-deletion in the copy) or the header contradicts it. `run` turns that
+    into the 403 (see the order above).
+  - A user's active organisation is the token's `o` claim; `X-Organization-Id` is only a cross-check, compared
+    case-insensitively for users and agents (the [[CORE2]] upper-case-UUID lesson).
   - Anything else is an API key: `vk_` plus 32 random bytes in base64url, stored as SHA-256 hex, looked up
     under `withServiceRole` together with its agent. Revoked keys, expired keys and disabled agents all
     return the same `401 invalid or expired credentials`.
@@ -414,7 +422,7 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
   insert path for that key must take the same lock ([[CORE2]] D16, `resolveIdentities`). `lockKeys(trx, keys)`
   takes a `Transaction<Database>`, so service-role code (`first-sight.ts`) and tenant code (`ctx.trx`) share
   it; type every shared transaction helper that way ([[CORE27]] P12). Key builders live beside it
-  (`invitationKey(org, email)`).
+  (`directoryOrgKey(provider, externalId)`).
 - **Canonicalise ids before comparing or sorting them in JS.** `z.uuid()` accepts upper case, Postgres
   treats both cases as one uuid, JS string comparison does not. An upper-cased self-merge got past an
   `===` guard into a CHECK violation (an unmapped 500), and a case-sensitive sort can invert a lock order

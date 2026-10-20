@@ -1,12 +1,12 @@
-// End-to-end smoke for [[CORE3]] administration (invitations, members, agents, API keys). Needs no Clerk account: it generates an RS256 key pair,
+// End-to-end smoke for [[CORE3]] administration (the directory sync by webhook, members, agents, API keys). Needs no Clerk account: it generates an RS256 key pair,
 // runs a fake Clerk Backend API locally and serves the real app over HTTP against DATABASE_URL.
-import { randomBytes, randomUUID } from 'node:crypto'
+import { createHmac, randomBytes } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { serve } from '@hono/node-server'
 import { SignJWT, exportSPKI, generateKeyPair } from 'jose'
 import { sql } from 'kysely'
-import { createDb } from '@vault/db'
+import { createDb, withServiceRole } from '@vault/db'
 import { createAuthAdapter } from '../src/auth/adapter.js'
 import { createVaultRegistry } from '../src/operations.js'
 import { createApp } from '../src/rest/app.js'
@@ -14,14 +14,16 @@ import { createApp } from '../src/rest/app.js'
 const ISSUER = 'https://smoke.clerk.test'
 const rand = randomBytes(4).toString('hex')
 const owner = { sub: `user_smoke_${rand}_owner`, email: `owner-${rand}@example.test` }
-const invitee = { sub: `user_smoke_${rand}_invitee`, email: `invitee-${rand}@example.test` }
-const stranger = { sub: `user_smoke_${rand}_stranger`, email: `stranger-${rand}@example.test` }
+const member = { sub: `user_smoke_${rand}_member`, email: `member-${rand}@example.test` }
 const profiles = new Map<string, unknown>([
   [owner.sub, userJson(owner.sub, owner.email)],
-  [invitee.sub, userJson(invitee.sub, invitee.email)],
-  // Invited, but their address is not verified: accepting must be refused.
-  [stranger.sub, userJson(stranger.sub, stranger.email, false)],
+  // Never signs in until the webhook has copied them.
+  [member.sub, userJson(member.sub, member.email)],
 ])
+// The fake Clerk's organisation and its (mutable) memberships.
+const orgExt = `org_smoke_${rand}`
+const organizations = new Map<string, unknown>([[orgExt, { object: 'organization', id: orgExt, name: `Smoke ${rand}` }]])
+const clerkMembers: { role: string; public_user_data: { user_id: string } }[] = [{ role: 'org:admin', public_user_data: { user_id: owner.sub } }]
 
 function userJson(id: string, email: string, verified = true) {
   return {
@@ -36,10 +38,22 @@ function userJson(id: string, email: string, verified = true) {
 const listen = (server: Server) => new Promise<number>((r) => server.listen(0, '127.0.0.1', () => r((server.address() as AddressInfo).port)))
 
 const fakeClerk = createServer((req, res) => {
-  const m = /^\/v1\/users\/([^/?]+)$/.exec(req.url ?? '')
-  const user = m ? profiles.get(decodeURIComponent(m[1]!)) : undefined
-  res.writeHead(user ? 200 : 404, { 'content-type': 'application/json' })
-  res.end(JSON.stringify(user ?? { errors: [{ code: 'resource_not_found' }] }))
+  const url = new URL(req.url ?? '', 'http://fake')
+  const respond = (body: unknown | undefined) => {
+    res.writeHead(body ? 200 : 404, { 'content-type': 'application/json' })
+    res.end(JSON.stringify(body ?? { errors: [{ code: 'resource_not_found' }] }))
+  }
+  const list = /^\/v1\/organizations\/([^/]+)\/memberships$/.exec(url.pathname)
+  if (list) {
+    if (decodeURIComponent(list[1]!) !== orgExt) return respond(undefined)
+    const limit = Number(url.searchParams.get('limit') ?? 10)
+    const offset = Number(url.searchParams.get('offset') ?? 0)
+    return respond({ data: clerkMembers.slice(offset, offset + limit), total_count: clerkMembers.length })
+  }
+  const org = /^\/v1\/organizations\/([^/]+)$/.exec(url.pathname)
+  if (org) return respond(organizations.get(decodeURIComponent(org[1]!)))
+  const m = /^\/v1\/users\/([^/]+)$/.exec(url.pathname)
+  respond(m ? profiles.get(decodeURIComponent(m[1]!)) : undefined)
 })
 const clerkPort = await listen(fakeClerk)
 
@@ -52,12 +66,14 @@ const appPort = await listen(probe)
 await new Promise((r) => probe.close(r))
 const origin = `http://localhost:${appPort}`
 
+const webhookSecret = 'whsec_' + randomBytes(24).toString('base64')
 const adapter = createAuthAdapter({
   AUTH_PROVIDER: 'clerk',
   CLERK_JWT_KEY: pem,
   CLERK_ISSUER: ISSUER,
   CLERK_AUTHORIZED_PARTIES: origin,
   CLERK_SECRET_KEY: 'sk_smoke',
+  CLERK_WEBHOOK_SECRET: webhookSecret,
   CLERK_API_URL: `http://127.0.0.1:${clerkPort}`,
 })!
 
@@ -70,9 +86,9 @@ const server = serve({ fetch: app.fetch, port: appPort, hostname: '127.0.0.1' })
 const base = `http://127.0.0.1:${appPort}`
 const declared = createVaultRegistry().declaredScopes()
 
-const mint = (sub: string, o: { azp?: string; exp?: number } = {}) => {
+const mint = (sub: string, o: { azp?: string; exp?: number; rol?: string } = {}) => {
   const now = Math.floor(Date.now() / 1000)
-  return new SignJWT({ azp: o.azp ?? origin, sid: 'sess_smoke', v: 2 })
+  return new SignJWT({ azp: o.azp ?? origin, sid: 'sess_smoke', v: 2, ...(o.rol ? { o: { id: orgExt, rol: o.rol, slg: 'smoke' } } : {}) })
     .setProtectedHeader({ alg: 'RS256' })
     .setIssuer(ISSUER)
     .setSubject(sub)
@@ -104,41 +120,69 @@ async function check(
   console.log(`${problem ? 'FAIL' : 'ok  '} ${name} -> ${res.status}${json?.error ? ` ${json.error.code}` : ''}${problem ? ` (${problem})` : ''}`)
   return json
 }
+
+/** A Svix-signed delivery to /webhooks/clerk. */
+async function deliver(type: string, data: unknown, opts: { secret?: string; id?: string } = {}): Promise<Response> {
+  const body = JSON.stringify({ data, object: 'event', type, timestamp: Date.now() })
+  const id = opts.id ?? `msg_${randomBytes(8).toString('hex')}`
+  const ts = String(Math.floor(Date.now() / 1000))
+  const key = Buffer.from((opts.secret ?? webhookSecret).replace(/^whsec_/, ''), 'base64')
+  const sig = createHmac('sha256', key).update(`${id}.${ts}.${body}`).digest('base64')
+  return fetch(`${base}/webhooks/clerk`, {
+    method: 'POST',
+    headers: { 'svix-id': id, 'svix-timestamp': ts, 'svix-signature': `v1,${sig}`, 'content-type': 'application/json' },
+    body,
+  })
+}
+async function webhook(name: string, type: string, data: unknown, expectStatus = 200, opts: { secret?: string; id?: string } = {}) {
+  const res = await deliver(type, data, opts)
+  const ok = res.status === expectStatus
+  if (!ok) failures++
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name} -> ${res.status}`)
+}
+const membershipData = () => ({ organization: { id: orgExt } })
+
+/** Directory events (organization.*, membership.*) of one organisation straight from the database (service role): types in order and their actors. */
+async function events(organizationId: string) {
+  return withServiceRole(db, async (trx) => {
+    const rows = await trx.selectFrom('events').select(['type', 'actor_id']).where('organization_id', '=', organizationId)
+      .where((eb) => eb.or([eb('type', 'like', 'organization.%'), eb('type', 'like', 'membership.%')]))
+      .execute()
+    const system = await trx.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirst()
+    return { types: rows.map((r) => r.type).sort(), allSystem: rows.every((r) => r.actor_id === system?.id) }
+  })
+}
 const eq = (a: unknown, b: unknown, what: string) => (JSON.stringify(a) === JSON.stringify(b) ? undefined : `${what}: got ${JSON.stringify(a)}`)
 
 try {
-  const tokO = await mint(owner.sub)
-  const tokI = await mint(invitee.sub)
-  const tokS = await mint(stranger.sub)
+  const tokO = await mint(owner.sub, { rol: 'org:admin' })
+  const tokM = await mint(member.sub, { rol: 'org:member' })
 
   await check('GET /openapi.json', { path: '/openapi.json' }, 200, (j) => {
     const have = new Set(Object.values(j.paths).flatMap((p: any) => Object.values(p).map((o: any) => o.operationId)))
     const missing = createVaultRegistry().operations().map((o) => o.name).filter((n) => !have.has(n))
     return missing.length ? `missing ${missing.join(', ')}` : undefined
   })
-  const me = await check('GET /me (owner, first sight)', { path: '/me', token: tokO }, 200)
-  const org = await check('POST /organizations', { path: '/organizations', method: 'POST', token: tokO, body: { name: `Smoke ${rand}` } }, 201)
-
-  const inv1 = await check('POST /invitations (invitee)', { path: '/invitations', method: 'POST', token: tokO, body: { email: invitee.email, role: 'member' } }, 201)
-  await check('POST /invitations (again)', { path: '/invitations', method: 'POST', token: tokO, body: { email: invitee.email, role: 'member' } }, 409, (j) => eq(j.error.code, 'invitation_exists', 'code'))
-  const inv2 = await check('POST /invitations (stranger)', { path: '/invitations', method: 'POST', token: tokO, body: { email: stranger.email, role: 'member' } }, 201)
-
-  await check('GET /me (invitee sees the invitation)', { path: '/me', token: tokI }, 200, (j) =>
-    eq(j.invitations.map((i: any) => [i.id, i.organization_name, i.role]), [[inv1.id, `Smoke ${rand}`, 'member']], 'invitations'),
+  const me = await check('GET /me (owner, first sight, claim repairs the copy)', { path: '/me', token: tokO }, 200, (j) =>
+    eq(j.active_organization?.role, 'owner', 'role'),
   )
-  const joined = await check('POST /invitations/{id}/accept (invitee)', { path: `/invitations/${inv1.id}/accept`, method: 'POST', token: tokI }, 200, (j) => eq(j.role, 'member', 'role'))
-  await check('POST /invitations/{id}/accept (again)', { path: `/invitations/${inv1.id}/accept`, method: 'POST', token: tokI }, 200, (j) => eq(j.id, joined.id, 'membership id'))
-  await check('GET /tasks (invitee, no header)', { path: '/tasks', token: tokI }, 200)
-  await check('POST /invitations/{id}/accept (stranger, unverified)', { path: `/invitations/${inv2.id}/accept`, method: 'POST', token: tokS }, 403, (j) => eq(j.error.code, 'email_unverified', 'code'))
-  await check("POST /invitations/{id}/accept (stranger, someone else's)", { path: `/invitations/${inv1.id}/accept`, method: 'POST', token: tokS }, 404)
+  const orgId = me.active_organization.id as string
 
-  await check('POST /invitations (member)', { path: '/invitations', method: 'POST', token: tokI, body: { email: `x-${rand}@example.test`, role: 'member' } }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
-  const members = await check('GET /memberships (member)', { path: '/memberships', token: tokI }, 200, (j) => eq(j.data.length, 2, 'count'))
-  await check('GET /users (member)', { path: '/users', token: tokI }, 200, (j) => eq(j.data.length, 2, 'count'))
-  const ownerMembership = members.data.find((m: any) => m.user_id === me.user.id)
-  const inviteeMembership = members.data.find((m: any) => m.id === joined.id)
-  await check('PATCH /memberships/{id} (last owner demotes self)', { path: `/memberships/${ownerMembership.id}`, method: 'PATCH', token: tokO, body: { role: 'member' } }, 409, (j) => eq(j.error.code, 'last_owner', 'code'))
+  await webhook('bad signature', 'organizationMembership.created', membershipData(), 401, { secret: 'whsec_' + randomBytes(24).toString('base64') })
+  clerkMembers.push({ role: 'org:member', public_user_data: { user_id: member.sub } })
+  const created = `msg_${randomBytes(8).toString('hex')}`
+  await webhook('organizationMembership.created (member who never signed in)', 'organizationMembership.created', membershipData(), 200, { id: created })
+  await check('GET /memberships (owner)', { path: '/memberships', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
+  await check('GET /users (owner)', { path: '/users', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
+  await check('GET /memberships (member, first sign-in)', { path: '/memberships', token: tokM }, 200, (j) => eq(j.data.length, 2, 'count'))
+  const before = await events(orgId)
+  await webhook('replayed delivery', 'organizationMembership.created', membershipData(), 200, { id: created })
+  const after = await events(orgId)
+  const replayed = eq(after.types, before.types, 'event types after a replay')
+  if (replayed) failures++
+  console.log(`${replayed ? 'FAIL' : 'ok  '} replay adds no events${replayed ? ` (${replayed})` : ''}`)
 
+  await check('POST /agents (member)', { path: '/agents', method: 'POST', token: tokM, body: { name: 'Bot', scopes: [] } }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
   await check('POST /agents (human-only scope)', { path: '/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['members:read'] } }, 400, (j) => eq(j.error.code, 'scope_not_grantable', 'code'))
   await check('POST /agents (unknown scope)', { path: '/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['nope:read'] } }, 400, (j) => eq(j.error.code, 'unknown_scope', 'code'))
   const agent = await check('POST /agents', { path: '/agents', method: 'POST', token: tokO, body: { name: `Bot ${rand}`, scopes: ['tasks:read', 'tasks:write'] } }, 201)
@@ -159,11 +203,22 @@ try {
   await check('GET /tasks (agent key, revoked)', { path: '/tasks', token: made.key }, 401)
   await check('POST /api-keys/{id}/revoke (again)', { path: `/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => eq(j.revoked_at, revoked.revoked_at, 'revoked_at'))
 
-  await check('PATCH /memberships/{id} (promote invitee)', { path: `/memberships/${inviteeMembership.id}`, method: 'PATCH', token: tokO, body: { role: 'owner' } }, 200, (j) => eq(j.role, 'owner', 'role'))
-  await check('PATCH /memberships/{id} (owner demotes self)', { path: `/memberships/${ownerMembership.id}`, method: 'PATCH', token: tokO, body: { role: 'member' } }, 200)
-  await check('DELETE /memberships/{id} (invitee removes former owner)', { path: `/memberships/${ownerMembership.id}`, method: 'DELETE', token: tokI }, 204)
-  await check('GET /tasks (removed former owner)', { path: '/tasks', token: tokO }, 403, (j) => eq(j.error.code, 'organization_required', 'code'))
-  console.log(`organization_id: ${org.id}`)
+  clerkMembers[1]!.role = 'org:admin'
+  await webhook('organizationMembership.updated (member becomes admin)', 'organizationMembership.updated', membershipData())
+  await check('GET /memberships?role=owner', { path: '/memberships?role=owner', token: tokO }, 200, (j) => eq(j.data.length, 2, 'owners'))
+  clerkMembers.pop()
+  await webhook('organizationMembership.deleted (member removed)', 'organizationMembership.deleted', membershipData())
+  await check('GET /memberships (one left)', { path: '/memberships', token: tokO }, 200, (j) => eq(j.data.length, 1, 'count'))
+  await check('GET /tasks (removed member, token without the organisation)', { path: '/tasks', token: await mint(member.sub) }, 403, (j) =>
+    eq(j.error.code, 'organization_required', 'code'),
+  )
+
+  const final = await events(orgId)
+  const expected = ['membership.created', 'membership.created', 'membership.deleted', 'membership.updated', 'organization.created']
+  const problem = eq(final.types, expected, 'event types') ?? (final.allSystem ? undefined : 'a directory event is not attributed to the system principal')
+  if (problem) failures++
+  console.log(`${problem ? 'FAIL' : 'ok  '} directory events: ${final.types.join(', ')}${problem ? ` (${problem})` : ''}`)
+  console.log(`organization_id: ${orgId}`)
 } finally {
   server.close()
   fakeClerk.close()

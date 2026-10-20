@@ -124,7 +124,7 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **A lifetime is a fixed duration, written in hours.** `now() + interval '14 days'` adds calendar days in
   the session's `TimeZone`, so across a DST change the result is 13 days 23 hours or 14 days 1 hour. Write
   an expiry as `interval '336 hours'` (absolute), and compute it in SQL so it equals `created_at + lifetime`
-  exactly (`packages/api/src/resources/invitations.ts`, [[CORE27]] review).
+  exactly ([[CORE27]] review).
 - **JSONB defaults** are `DEFAULT '{}'::jsonb`, not `DEFAULT '{}'`.
 - **A bare scalar into a jsonb column needs `JSON.stringify`.** `pg` auto-serializes plain objects and
   arrays but not bare numbers, strings or booleans; those go over the wire as raw text and Postgres's
@@ -177,9 +177,8 @@ Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_bas
   `vault_authenticated` gets only what tenants need (no `DELETE`/`TRUNCATE` anywhere, `events` exactly
   `SELECT, INSERT`); `vault_app` gets nothing directly.
 - **Tenant grants are column-level where a table mixes tenant-writable and machinery columns**
-  (`packages/db/migrations/20261020_005_administration.ts`, [[CORE27]] P3): `memberships`
-  `UPDATE (role, deleted_at)` and no tenant `INSERT` (every membership insert runs under the service
-  role); `agents` `UPDATE (name, scopes, disabled_at)`; `api_keys` `SELECT` on every column except
+  (`packages/db/migrations/20261020_005_directory.ts`, [[CORE27]] P3, [[CORE29]]): `memberships`
+  has no tenant `INSERT` or `UPDATE` (the directory sync writes under the service role); `agents` `UPDATE (name, scopes, disabled_at)`; `api_keys` `SELECT` on every column except
   `key_hash`, plus `UPDATE (revoked_at)`. Start narrow: widening later is a one-line grant, narrowing
   breaks callers. `SELECT … FOR UPDATE` needs `UPDATE` on at least one column of the table, so a
   column-level `UPDATE` grant also covers the row lock. A column left out of the `SELECT` grant must also
