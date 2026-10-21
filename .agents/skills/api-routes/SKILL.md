@@ -435,6 +435,13 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
   `===` guard into a CHECK violation (an unmapped 500), and a case-sensitive sort can invert a lock order
   ([[CORE2]] review). Lower-case at the top of the command.
 
+- **SQL-built event JSON must match the public record before normalization.** Postgres JSON timestamp
+  spelling can differ from JavaScript `toISOString()`; SQLite nested JSON and booleans require explicit
+  JSON typing. Assert structural equality of raw `event.after` and the returned record before oracle clock/id
+  normalization. Preserve an id bijection and reset independent oracle fixtures; replacing every id
+  with one token can conceal broken references. See [[CORE33]] and
+  `packages/storage-prototype/src/sql-kit.ts` / `src/test/oracle.ts` in that package.
+
 ## Things to avoid
 
 - Importing `db` in a handler instead of using the service context.
