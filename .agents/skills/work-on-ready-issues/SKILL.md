@@ -11,7 +11,7 @@ drains the queue: pick the top *Ready*, non-bug item, read its spec, build it, o
 the contract; read what triage wrote and never guess at scope.
 
 There is one code repo, **`orivibes/crm`**, and issues, branches and PRs all live in it.
-Board IDs and queries: [`.agents/board.md`](../../board.md).
+Board IDs and queries: the [`board`](../board/SKILL.md) skill.
 
 ## The board is the contract
 
@@ -87,7 +87,7 @@ One issue per invocation unless the user asks for a batch.
 
 ## Acting as zooidbot
 
-Issue writes (comment, label, assignee, close/reopen) and **board writes** (see `board.md` for the GraphQL edit) go
+Issue writes (comment, label, assignee, close/reopen) and **board writes** (see the `board` skill for the GraphQL edit) go
 through `scripts/gh-zooidbot`; see [[triage-issues]] for why and for what to check if a write 403s. The
 branch push and `gh pr create` stay on the human's own `gh` identity, since that is their work. When the
 coding agent runs unattended with only the bot identity, it does everything as zooidbot, including push
@@ -95,7 +95,7 @@ and PR.
 
 ```bash
 scripts/gh-zooidbot issue edit <N> -R orivibes/crm --add-assignee @me
-# board field edits: GraphQL snippet in .agents/board.md
+# board field edits: GraphQL snippet in the `board` skill
 ```
 
 `main` is branch-protected (PR required, no force-push), so write access lets the bot push feature

@@ -11,7 +11,7 @@ labeled, correctly gated board card **or** closes it as a duplicate or invalid. 
 **Status / Priority / Size / Spec** fields. Writing or extending a spec (`<ID>.md`) is a separate job
 ([[spec-author]]); this skill can *link* to an existing spec but never writes one.
 
-Board IDs and queries: [`.agents/board.md`](../../board.md).
+Board IDs and queries: the [`board`](../board/SKILL.md) skill.
 
 ## Acting as zooidbot
 
@@ -77,7 +77,7 @@ Reads (viewing, searching) can use plain `gh`.
    however urgent it looks. Don't set Priority or Size either; there is nothing to size.
 
 5. **Well-formed issues: add to the board and set metadata** (anything that cleared steps 3–4):
-   - Add to the project (`gh project item-add`, see `board.md`).
+   - Add to the project (`gh project item-add`, see the `board` skill).
    - **Priority** `Urgent`/`High`/`Medium`/`Low`: judge from impact (breaks the core flow vs. papercut
      vs. nice-to-have), not from how the reporter phrased it.
    - **Size** `XS`–`XL`: your rough effort read.

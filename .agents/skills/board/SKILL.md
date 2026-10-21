@@ -1,8 +1,14 @@
+---
+name: board
+description: The delivery board for orivibes/crm (GitHub project 2) - its project, field and option IDs, and the commands to read the queue, add an issue, and set Status, Priority, Size or Spec. Use whenever a skill or task reads or changes the board; triage-issues, work-on-ready-issues and fix-bugs all depend on it.
+---
+
 # Project board
 
 The delivery board for `orivibes/crm`: **https://github.com/users/orivibes/projects/2** (owner `orivibes`,
 a user project, number **2**). Skills read and write it with `gh project …` and GraphQL. Keep this file
-current; `wiki-lint` check 9 compares it with the live board.
+current; `wiki-lint` check 9 compares it with the live board. Other skills link here instead of
+copying IDs or queries.
 
 `PROJECT_ID = PVT_kwHOBiXMOs4BnhC0`
 
