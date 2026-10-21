@@ -31,15 +31,17 @@ If these are missing the item isn't really Ready; flag it back instead of invent
 
 ## Workflow
 
-1. **Read the queue** (query in the `board` skill). Keep items with `Status == Ready`, no assignee, and **not
-   labeled `bug`**. Sort by Priority (Urgent→Low) then Size (XS→XL). Present the ranked list:
+1. **Read the queue** (query in `board.md`). Keep items with `Status == Ready`, no assignee, and **not
+   labeled `bug` or `needs-spec`** (a `needs-spec` item waits for [[spec-author]], even if it was set
+   Ready by mistake; report it). Sort by Priority (Urgent→Low) then Size (XS→XL). Present the ranked list:
    `#N title · Priority/Size · Spec`.
 2. **Pick.** Default to the top item; if the user named one, use it (still require Ready unless they
    override). Announce the choice.
 3. **Read context.** `gh issue view <N> -R orivibes/crm`. Parse Acceptance criteria, Pointers, Blocked
    by. **If Blocked by has an open issue, stop** and report the blocker. If **Spec** is set, read
    `knowledge/specs/*/<ID>.md` (after `git -C knowledge pull --rebase`). If the change spans more than one
-   package or needs a migration and there is no spec, flag it back rather than guess.
+   package or needs a migration and there is no spec, flag it back rather than guess: label it
+   `needs-spec`, set Status → Backlog (as zooidbot), and report it.
 4. **Claim.** Set the board item **Status → In progress** and add yourself as assignee, both as zooidbot
    (*Acting as zooidbot*). This stops a second pass from re-handing the item out.
 5. **Worktree and branch.** Never switch branches in the main checkout; other sessions share it.

@@ -2,7 +2,7 @@ import type { Kysely, Transaction } from 'kysely'
 import { TenancyContextError, withOrganization, withServiceRole, type Database } from '@vault/db'
 import { mapDatabaseError } from './errors.js'
 import { writeEvent, type EventInput } from './outbox.js'
-import type { ScopeSet } from './scopes.js'
+import { ScopeSet } from './scopes.js'
 
 export type Actor = { id: string; kind: 'user' | 'agent' }
 export type EmitInput = Omit<EventInput, 'organizationId' | 'actorId'>
@@ -23,6 +23,10 @@ export interface ServiceContext {
 export interface AccountContext {
   readonly trx: Transaction<Database>
   readonly actor: Actor
+  /** The resolved active organisation, or null when there is none (or the header was refused). */
+  readonly organizationId: string | null
+  /** The scopes in that organisation; empty when `organizationId` is null. */
+  readonly scopes: ScopeSet
   emitFor(organizationId: string, event: EmitInput): Promise<void>
 }
 
@@ -51,14 +55,19 @@ export async function withContext<T>(
 
 export async function withAccountContext<T>(
   db: Kysely<Database>,
-  principal: { actor: Actor },
+  principal: { actor: Actor; organizationId?: string | null; scopes?: ScopeSet },
   fn: (ctx: AccountContext) => Promise<T>,
 ): Promise<T> {
   const { actor } = principal
+  const organizationId = principal.organizationId ?? null
+  // Scopes only mean something inside an organisation.
+  const scopes = organizationId === null ? ScopeSet.parse([]) : (principal.scopes ?? ScopeSet.parse([]))
   return withServiceRole(db, (trx) =>
     fn({
       trx,
       actor,
+      organizationId,
+      scopes,
       async emitFor(organizationId, event) {
         if (!UUID.test(organizationId)) {
           throw new TenancyContextError('organization id must be a UUID', 'invalid_id')

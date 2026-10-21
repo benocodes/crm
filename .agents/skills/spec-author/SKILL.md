@@ -43,7 +43,7 @@ The folder name follows the pattern:
 |--------|-----------------------------------------------------------------------|
 | `CORE` | schema, tenancy, service layer, resources, outbox/events              |
 | `API`  | operation registry, REST, MCP, hooks/webhooks, agent cursor           |
-| `CHN`  | channel adapters: capture (Graph mail/calendar, WhatsApp) and send    |
+| `CHN`  | channel adapters: capture (Gmail; later Graph, WhatsApp) and send     |
 | `AGT`  | agent principals, scopes, suggestions, approval rules, execution rail |
 | `UI`   | the email-client pane, digests                                        |
 | `DX`   | CLI, starter template, docs for consultants                           |
@@ -54,6 +54,12 @@ The folder name follows the pattern:
 Mint the ID when triage decides the issue graduates to a spec (not at issue-creation time; most issues never need one): take the issue's number and prefix it with the area code, e.g. issue `orivibes/crm#142` classified as an agent-surface concern becomes `AGT142`.
 
 Never transfer an issue between repos to mint from it; there is only one repo. If a spec is authored without a preceding issue at all (rare; nearly all spec-worthy work starts with `open-issue`), open one in `orivibes/crm` purely to mint the number, and **label it `self-triaged`** (`--label self-triaged`) so `triage-issues` doesn't also pick it up and a second spec for the same ID doesn't get drafted. The same rule applies whenever you file an issue that you, not triage, will spec. If one spec consolidates two related issues (e.g. a duplicate), mint from whichever one triage was acting on and cross-link the other on GitHub; don't invent a rule for picking the "right" one.
+
+**The `needs-spec` label is the queue.** `triage-issues` labels design-significant issues with no spec
+`needs-spec` (`gh issue list -R orivibes/crm --label needs-spec`). When you create the spec for one, remove
+the label and set the board's **Spec** field to the new `[[ID]]` (field IDs in `.agents/board.md`):
+`scripts/gh-zooidbot issue edit <N> -R orivibes/crm --remove-label needs-spec`. If you decide the issue
+needs no spec after all, remove the label and say why in a comment.
 
 Never mint from a PR number; that is a different number sequence and has nothing to do with the ID.
 

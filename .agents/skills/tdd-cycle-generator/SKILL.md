@@ -89,7 +89,7 @@ conventions.
    hard-dependency prerequisite cycle landed very recently, its retro may not exist or may omit
    fine-grained details (helper signatures, status codes, column names): read that cycle's landed files
    before writing anything that claims to mirror them.
-5. **External services.** If the cycle integrates a third-party API (Microsoft Graph, Kapso/WhatsApp,
+5. **External services.** If the cycle integrates a third-party API (Gmail, Kapso/WhatsApp,
    Cloudflare's Queue/Workflow HTTP APIs, Clerk), fetch the service's current documentation *now*.
    Invented endpoints, payload shapes and signature headers invalidate entire phases. At minimum pin down
    the auth mechanism, the connect/callback flow, webhook signature verification and real payload shapes.
@@ -315,6 +315,7 @@ Migration: <number used, or none> (<differs from the plan's claim? say so>)
 Tests: <command> → <N passed / M failed> (one line per suite); typecheck <clean | errors>; build <ok | n/a>
 Smoke: <what was exercised and seen> | skipped — <why>
 Deviations from plan: <bullets, or none>
+Red runs: <each new test file → command, N failed, for the right reason> (one line per file)
 Absence checks: <each injected fault → which tests went red, run how> | none in plan
 Retro: <RETRO path> | not written — <why>
 Knowledge ingested: <file → one-line lesson> per change | none — <why>
@@ -367,7 +368,7 @@ skill ends; don't start implementing unless asked.
 5. **No speculative dependencies.** Prefer the platform and Node builtins. A new dependency gets its own
    step so install and test runs are separable.
 6. **Fetch external API docs before writing** any plan that calls a third-party API.
-7. **Fixtures over synthetic data for adapters.** Recorded Graph and WhatsApp payloads are the fixture
+7. **Fixtures over synthetic data for adapters.** Recorded Gmail and WhatsApp payloads are the fixture
    source for capture and send adapters; store them under the package's `test/fixtures/`, reference by
    path, don't paste them.
 8. **One cycle, one folder.** A `PLAN.md` is the only plan in its folder. Never `PLAN-02.md`; later
@@ -383,6 +384,34 @@ skill ends; don't start implementing unless asked.
     `set_config(..., false)` inside a transaction that rolls back is rolled back too, so it cannot redden
     an "after rollback" leak test ([[CORE1]]). Tell the executor to run each target test alone (`-t`):
     on a shared `max: 1` pool, one test's leak reddens the next for the wrong reason.
-11. **A deletion cycle's blast-radius grep is a floor, not a ceiling.** Grep for the deleted file's
+11. **A migration's test goes red before the migration exists.** The red tests and seed helpers often need
+    the new columns in `types.generated.ts` to typecheck, and that pulls the migration and codegen forward
+    into Phase 2, so the migration test never fails against the old schema ([[CORE3]] cycle 1). The plan's
+    Phase 2 must order it explicitly. First write the migration's integration test and run it alone
+    against the current schema: it must fail on the missing column or table, not on a compile error
+    (vitest runs untyped, so a type error does not block the run). Record that red run. Only then create
+    the migration, run codegen and change the seeds. Commit the red test before the migration, so the
+    history shows the order.
+12. **A deletion cycle's blast-radius grep is a floor, not a ceiling.** Grep for the deleted file's
     basename and exports too, and for operation names as string literals, not only the domain concept;
     tell the executor to treat every surprise the grep finds as a decision to make.
+13. **Grep for exact-list assertions before adding a table, a grant or a scope.** Earlier suites pin whole
+    lists, and each addition breaks them: `migration-001`'s table list, `migration-002`'s
+    `vault_authenticated` grants, `tenancy`'s list of inserts that must fail `42501`,
+    `identity-definitions.test.ts`'s `declaredScopes()`, `bootstrap`'s default agent scopes. In
+    [[CORE27]] the plan named two of them, and the coder found the other three during the run. Grep
+    `packages/*/src` for `toEqual([` near `table_name`, `grants(`, `declaredScopes`, `scopes` and `42501`,
+    and list every hit in the plan's Phase 2 with its fix. In a `migration-NNN` test, **delete** the broken
+    assertion (`db-schema-and-migrations`: never rewrite an earlier migration's test to the new shape). In a
+    catalog test over the current registry (`declaredScopes`, bootstrap's scopes), **update** the list in
+    the same change: it states today's truth on purpose.
+14. **Every new test file gets its own recorded red run**, not only the migration test (rule 11). Phase 1
+    and Phase 2 each name the command that runs the new file alone, and the coder pastes the result (N
+    failed, and why) into the completion report's `Red runs` line. A file never seen failing is the same
+    gap as an absence test never seen failing ([[CORE27]] review note (e)).
+15. **A rule that compares against stored state gets a test for "no stored state".** A guard such as
+    [[CORE3]] D20's newer-copy rule ("refuse when the copy changed after the token was issued") is silent
+    when there is no row to compare, and that is where it leaked in [[CORE29]]: a member added and removed
+    in Clerk before the vault held a row could be re-created by an older token. For each such rule, the
+    plan's Phase 2 names the empty-state case and its expected outcome, and if the spec does not say, the
+    planner raises it as a spec question before the plan ships.

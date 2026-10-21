@@ -37,15 +37,40 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/auth/{types,api-keys,middleware}.ts`;
   - `src/bootstrap.ts` and `scripts/bootstrap.ts`;
   - `src/dev-server.ts`.
+- **Human auth** ([[CORE3]] cycle 1):
+  - `src/auth/adapter.ts` (`AuthAdapter`, `createAuthAdapter(env)`, `parseOriginList`), `src/auth/clerk.ts`;
+  - `src/auth/first-sight.ts` (`lookupUser`, `provisionUser`), `src/auth/organization.ts`
+    (`resolveActiveOrganization`), `src/auth/roles.ts` (`SCOPE_POLICY`, `scopesForRole`, `grantableScopes`),
+    `src/auth/user-authenticator.ts` (`createUserAuthenticator`); `AuthFailure` lives in `src/auth/adapter.ts`;
+  - `src/account/` (`me.get` only; organisations and memberships come from Clerk, [[CORE29]]);
+  - `scripts/smoke-auth.ts` (`pnpm -C packages/api smoke:auth`: local key pair, fake Clerk API, real app).
+- **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
+  - definitions `src/resources/{memberships,agents,api-keys}.ts` (`memberships` is read-only, written only
+    by the directory sync; `agents` validates scopes with `normalizeAgentScopes`; `api_keys` is read-only, `softDelete: false`);
+  - `src/admin/` (`users.list`, `users.get`, `api_keys.create`, `api_keys.revoke`: `adminOperations()`);
+  - `src/directory/` ([[CORE29]]): `repairMembership` (the token claim repairs one user's membership),
+    `reconcileOrganization` (fetch-and-reconcile one Clerk organisation), `refreshUser`, `systemPrincipalId`
+    (created on first use) and `clerkWebhookHandler`, mounted as `POST /webhooks/clerk` by `createApp` only
+    when an `authAdapter` is given. It is the first plain route: no auth middleware (the Svix signature is
+    its credential), not in OpenAPI, `c.var.db` only. Directory events are attributed to the system principal;
+  - admin-kit (`src/test/admin-kit.ts`): `call(path, sub, { org })` mints the organisation claim from the copy
+    (`claim` overrides, `header` sends `x-organization-id`), `webhook(payload)` posts a signed delivery,
+    `seedOrg` links the organisation and mirrors it in the fake Clerk (`k.clerk.organizations`, `.members`);
+  - `scripts/smoke-admin.ts` (`pnpm -C packages/api smoke:admin`, same scaffolding as `smoke-auth.ts`).
 - **Test helpers** in `src/test/`:
   - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);
   - `keys.ts` (`seedApiKey`);
-  - `user-auth.ts` (`mintTestUserToken`, `fakeUserAuthenticator`);
+  - `user-auth.ts` (`mintTestUserToken`, `fakeUserAuthenticator`: a stand-in for the contract suite);
+  - `clerk.ts` (`testIssuer`, `mintClerkToken`, `fakeClerkFetch`, `testClerkAdapter`: real verification
+    with a locally generated RS256 key pair; no test calls Clerk);
+  - `admin-kit.ts` (`useAdminKit()`: per-file setup for suites that need **real** roles: a real
+    authenticator over the fake Clerk issuer, `call(path, sub, init)` per Clerk subject, `keyCall` per API
+    key, `profile`, `seedOrg` (owner `o` and member `m`), `seedKeyedAgent`, `userId`, and `events()` in
+    write order). Use it for any test that checks who may do what, instead of `fakeUserAuthenticator`;
   - `contract.ts` (`runContractSuite`);
   - `fixtures.ts`.
 - **Not yet built:**
   - the Worker entry ([[OPS4]]);
-  - the JWT/Clerk branch ([[CORE3]]);
   - MCP (after the MVP).
 
 ## The registry and the REST adapter ([[CORE15]])
@@ -67,11 +92,16 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - Plain zod 4 schemas document fine through `registerPath`.
 - **Order inside a handler:**
   1. parse the input;
-  2. tenant operations: `organization_required`, then the one scope check (`403 insufficient_scope`,
-     `requires <scope>`);
+  2. tenant operations: `organization_forbidden` (the principal's flag), then `organization_required`,
+     then the one scope check (`403 insufficient_scope`, `requires <scope>`). Account operations ignore
+     both organisation flags and see `ctx.organizationId: null` instead;
   3. `withContext` / `withAccountContext`;
   4. respond with `c.json(result, status)`, or an empty 204.
-- **`createApp({ db: (c) => Kysely, registry?, userAuthenticator?, version? })`.**
+  Any new transport (MCP) must apply the same order.
+- **`createApp({ db: (c) => Kysely, registry?, authAdapter? | userAuthenticator?, corsOrigins?, version? })`.**
+  - `authAdapter` builds the real authenticator over the registry's declared scopes; `userAuthenticator`
+    is for tests and custom setups. Passing both throws, so a test can't silently run the fake.
+  - `corsOrigins` empty or absent: no CORS middleware and no `Access-Control-*` header.
   - The db resolver runs once per request, in `app.use('*')`, and never at construction.
   - Auth is mounted on each registry route, never on `*`. A plain route the caller adds to the returned
     app (`/health`, a webhook receiver) gets `c.var.db`, no auth, and no OpenAPI entry.
@@ -123,8 +153,25 @@ escape hatches:
 |---|---|---|
 | `inputSchema(ctx, op)` | instead of `create`/`update`, per request | custom fields ([[CORE10]]) |
 | `beforeWrite(ctx, { op, input, before })` | after validation, agent and reference checks, inside the lock on update | derived columns (`completed_at`), invariants that read `before` or lock other rows, throwing an `ApiError` (409s) |
-| `overrides.create(ctx, input, generic)` | after validation, agent and reference checks | `ON CONFLICT` inserts, multi-row creates |
-| `overrides.delete(ctx, id, generic)` | instead of the generic soft delete | cascading soft deletes |
+| `overrides.create(ctx, input, generic)` | after validation, agent and reference checks | `ON CONFLICT` inserts, multi-row creates, minting a parent row first (`agents`' principal) |
+| `overrides.update(ctx, id, input, generic)` | after validation and the agent-field check, **before** the row lock | locking other rows before the target (`memberships`' last-owner guard) |
+| `overrides.delete(ctx, id, generic)` | instead of the generic soft delete | cascading soft deletes, guards that lock other rows first |
+
+- **`softDelete: false`** marks a table with no `deleted_at` (`agents`, `api_keys`: disabled or revoked,
+  never deleted). List, get and the row lock drop the live-row condition, and `defineResource` refuses such
+  a definition if it generates `delete` ([[CORE27]] P1). Don't add a never-set `deleted_at` column instead.
+- **A guard that locks more rows than the target must lock them before the target.** `beforeWrite` runs
+  inside the target's lock, so a guard there that also locks siblings takes the locks in the wrong order:
+  two owners demoting each other at once each hold their own row and wait on the other's (`40P01`, an
+  unmapped 500). Use `overrides.update`/`overrides.delete`: lock the sibling set `FOR UPDATE ORDER BY id`
+  first, decide, then call `generic`. The second transaction waits, re-reads and gets the `409`
+  (`guardLastOwner`, `src/resources/memberships.ts`, [[CORE27]] P2).
+- **A response that carries a secret is a hand-written operation over a read-only definition.** The
+  generic create emits its return value as the event's `after`, so a create that returns a plaintext key
+  would put it in the outbox. `api_keys` generates only `list`/`get`; `api_keys.create` inserts, reads the
+  record back through `getResource`, emits that, and returns `{ ...record, key }` ([[CORE27]] P6). The
+  contract fixture names the route in `handwritten: ['create']`, so the suite's "not generated" case
+  skips it.
 
 - **An override that writes without calling `generic` must emit** with `emitResourceEvent(ctx, def, action,
   before, after, id)`.
@@ -137,7 +184,8 @@ escape hatches:
   - an unknown `agentWritable` field;
   - a bad `name` or `scopeResource`;
   - empty, repeated or unknown `operations`;
-  - a generated create or update without its schema.
+  - a generated create or update without its schema;
+  - `softDelete: false` with a generated `delete`.
 - **Generic reads and writes name their columns** (`readColumns(def)` = the keys of `record`). A column
   left out of `record` (`api_keys.key_hash`, `content_key`) is never selected, never returned and never
   in an event, so column-level grants work ([[CORE15]]). Never reintroduce `selectAll()` or
@@ -190,19 +238,41 @@ which contacts or companies, read vs. suggest). Every registry entry declares th
 service context enforces it, so scope checks are written once.
 
 - **One Bearer credential per request, dispatched by shape** ([[CORE3]] D6, `src/auth/middleware.ts`).
-  Routes are shared by users and agents, so there is no "one auth kind per route".
+  Routes are shared by users and agents, so there is no "one auth kind per route". The scheme is matched
+  case-insensitively (`bearer` works). No cookies are read.
   - A JWT-shaped token (three base64url segments) goes to the `UserAuthenticator` seam. With no
-    authenticator configured, it is `401`.
+    authenticator configured, it is `401`. The real authenticator verifies the token with no network call
+    (`AuthAdapter.verify` returns a failure reason, which the single 401 log line carries; the response is
+    always `401 invalid or expired credentials`). It then looks up the user (SELECT only), provisions it
+    on first sight, resolves the organisation and derives scopes from the role.
+  - **The authenticator never throws for organisation problems**: it cannot know the operation kind. It
+    returns `organizationId: null`, and sets `organizationForbidden` when the token's organisation claim is
+    unusable (unmapped role, a newer soft-deletion in the copy) or the header contradicts it. `run` turns that
+    into the 403 (see the order above).
+  - A user's active organisation is the token's `o` claim; `X-Organization-Id` is only a cross-check, compared
+    case-insensitively for users and agents (the [[CORE2]] upper-case-UUID lesson).
   - Anything else is an API key: `vk_` plus 32 random bytes in base64url, stored as SHA-256 hex, looked up
     under `withServiceRole` together with its agent. Revoked keys, expired keys and disabled agents all
     return the same `401 invalid or expired credentials`.
   - An agent that sends an `X-Organization-Id` other than its own gets `403 organization_forbidden`.
-  - A 401 logs at most an 8-character token prefix.
-  - Known gap ([[CORE3]]): the scheme match is case-sensitive (`Bearer`). Make it case-insensitive.
+  - A 401 logs at most an 8-character token prefix, once (the middleware logs an authenticator's 401;
+    authenticators don't log their own).
+- **A user's scopes come from their role on every request; they are never stored** ([[CORE3]] D8).
+  - **Every declared scope needs a row in `SCOPE_POLICY`** (`src/auth/roles.ts`: `{ member, agentGrantable }`).
+    A catalog test requires the policy's keys to equal `registry.declaredScopes()` exactly, so a cycle that
+    declares a scope fails CI until it decides both flags in the same change. Owners hold every declared
+    scope. A scope without a row is held by no member and granted to no agent (fail closed).
+  - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
 - **Agents never get send rights.** An agent's write surface is "submit a suggestion"; sending is performed
   by the vault's execution rail with credentials it holds.
 - A provisioner that creates the user or organisation row on first sight must SELECT first and INSERT only
-  on a miss.
+  on a miss. In order (`src/auth/first-sight.ts`): any network call (the profile fetch) **before** the
+  transaction opens. Then lock every unique key the insert can collide on (subject and email), re-select,
+  insert with `ON CONFLICT DO NOTHING` as the backstop, and throw on an empty `RETURNING` so the parent
+  `principals` row rolls back.
+- **Error classes live in a leaf module** (`errors.ts`, or the seam's own module such as `auth/adapter.ts`),
+  never next to their main thrower. `AuthFailure` once sat in `user-authenticator.ts`, and `first-sight.ts`
+  imported it back, an import cycle; it now lives in `auth/adapter.ts` beside `VerifyFailure` ([[CORE27]] P12).
 
 ## Every write emits an event
 
@@ -288,13 +358,24 @@ name doesn't match `/(^|_)test(_|$)/`.
   on every code path that renders the value.
 - **Assert emit order with `orderBy(sql\`ctid\`)`** on `events` after a per-test truncate, never by
   `id`: same-millisecond UUIDv7s are not monotonic and an id-ordered assertion flaked 2 runs in 4
-  ([[CORE2]]).
+  ([[CORE2]]). ctid order is valid **only on a fresh heap in a test** (truncated, one backend appending).
+  On a long-lived database (`vault_dev`), the heap reuses freed space, so a smoke or e2e check there
+  asserts the **set and count** of event types for its organisation, never their ctid order ([[CORE27]]
+  review). Once [[API6]] D13 lands (`events.id` defaulting to PG18 `uuidv7()`, monotonic per backend),
+  switch both to `ORDER BY id`.
 - **A service function exported for another spec's in-process caller gets no adapter parsing.** The REST
   body schema trims and bounds input; a channel calling the function directly does not pass through it.
   Clean free text from external sources inside the function (`cleanName` in `src/identity/resolve.ts`:
   trim, blank is absent, cap at the column limit), or one odd display name fails a whole capture batch.
 - **Assert an event's `actor_id` equals the calling principal's id**, never `not.toBe(someoneElse)`, which
-  passes for almost any value ([[CORE15]] review).
+  passes for almost any value ([[CORE15]] review). When a spec attributes a write to a particular
+  principal, *every* path that writes it asserts the attribution on each event, not only one: the
+  [[CORE29]] repair tests checked `actor_id` against `systemId()` but the reconcile tests checked only event
+  types, so a reconcile that attributed its events to someone else would still have passed.
+- **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row
+  passes whatever the code under test does ([[CORE29]] review:
+  `src/directory/sync.integration.test.ts`, `src/auth/user-auth.integration.test.ts`). If the seeded id is
+  not needed, drop the `const` (`await seedUser(...)`); if it is, assert something the code decides.
 - `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
 - `beforeEach` is scoped to its enclosing `describe`. A second top-level `describe` in a file does not
   inherit the first one's reset; give it its own.
@@ -342,10 +423,13 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
   addresses, [[CORE2]] D1.)
 - **Find-or-create of a parent plus child needs a lock before the select, not just `ON CONFLICT`.** An
   `ON CONFLICT DO NOTHING` on the child alone leaves the losing transaction's parent row (and its
-  `*.created` event) orphaned. Take `lockKeys(ctx, keys)` (`src/identity/locks.ts`: one statement,
+  `*.created` event) orphaned. Take `lockKeys(ctx.trx, keys)` (`src/identity/locks.ts`: one statement,
   `pg_advisory_xact_lock` over distinct `hashtextextended` keys in ascending hash order, so overlapping
   batches cannot deadlock), then select, then insert with `ON CONFLICT DO NOTHING` as the backstop. Every
-  insert path for that key must take the same lock ([[CORE2]] D16, `resolveIdentities`).
+  insert path for that key must take the same lock ([[CORE2]] D16, `resolveIdentities`). `lockKeys(trx, keys)`
+  takes a `Transaction<Database>`, so service-role code (`first-sight.ts`) and tenant code (`ctx.trx`) share
+  it; type every shared transaction helper that way ([[CORE27]] P12). Key builders live beside it
+  (`directoryOrgKey(provider, externalId)`).
 - **Canonicalise ids before comparing or sorting them in JS.** `z.uuid()` accepts upper case, Postgres
   treats both cases as one uuid, JS string comparison does not. An upper-cased self-merge got past an
   `===` guard into a CHECK violation (an unmapped 500), and a case-sensitive sort can invert a lock order

@@ -1,0 +1,34 @@
+{
+  "object": "organization_membership",
+  "id": "orgmem_2abcDEFghiJKLmnoPQRstuVWXyz",
+  "role": "org:admin",
+  "role_name": "Admin",
+  "permissions": ["org:sys_profile:manage", "org:sys_memberships:read"],
+  "public_metadata": {},
+  "private_metadata": {},
+  "organization": {
+    "object": "organization",
+    "id": "org_2abcDEFghiJKLmnoPQRstuVWXyz",
+    "name": "Acme",
+    "slug": "acme",
+    "image_url": "https://img.clerk.com/preview.png",
+    "has_image": false,
+    "members_count": 2,
+    "pending_invitations_count": 0,
+    "max_allowed_memberships": 5,
+    "admin_delete_enabled": true,
+    "public_metadata": {},
+    "created_at": 1760000000000,
+    "updated_at": 1760000000000
+  },
+  "public_user_data": {
+    "user_id": "user_2abcDEFghiJKLmnoPQRstuVWXyz",
+    "identifier": "ada@example.test",
+    "first_name": "Ada",
+    "last_name": "Lovelace",
+    "image_url": "https://img.clerk.com/preview.png",
+    "has_image": false
+  },
+  "created_at": 1760000000000,
+  "updated_at": 1760000000000
+}

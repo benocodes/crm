@@ -37,7 +37,11 @@ rows inserted in one transaction is flaky; pin explicit ids in fixtures or separ
 To assert the order a transaction *emitted* rows in (events), order by `ctid` on a table that is only
 ever inserted into and was truncated before the test: one backend appending to a fresh heap gives ctid in
 insert order (`packages/api/src/identity/merge.integration.test.ts`, [[CORE2]]). That is a test device,
-not a product ordering: no reader can recover intra-transaction order from same-millisecond ids.
+not a product ordering: no reader can recover intra-transaction order from same-millisecond ids. It holds
+**only on a fresh heap**: on a long-lived database (`vault_dev`) inserts reuse freed space, so smoke and
+e2e checks there compare the set and count of event types, never ctid order ([[CORE27]] review). [[API6]]
+D13 moves `events.id` to PG18's native `uuidv7()` (monotonic within a backend); after it lands, order by
+`id` in tests and smokes alike.
 
 ## Writing migrations
 
@@ -117,6 +121,10 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **Timestamps.** `created_at timestamptz NOT NULL DEFAULT now()` everywhere; `updated_at` with the shared
   `set_updated_at()` trigger on mutable tables.
 - **CITEXT** for email addresses (`CREATE EXTENSION IF NOT EXISTS "citext"`).
+- **A lifetime is a fixed duration, written in hours.** `now() + interval '14 days'` adds calendar days in
+  the session's `TimeZone`, so across a DST change the result is 13 days 23 hours or 14 days 1 hour. Write
+  an expiry as `interval '336 hours'` (absolute), and compute it in SQL so it equals `created_at + lifetime`
+  exactly ([[CORE27]] review).
 - **JSONB defaults** are `DEFAULT '{}'::jsonb`, not `DEFAULT '{}'`.
 - **A bare scalar into a jsonb column needs `JSON.stringify`.** `pg` auto-serializes plain objects and
   arrays but not bare numbers, strings or booleans; those go over the wire as raw text and Postgres's
@@ -167,7 +175,14 @@ Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_bas
   `DELETE`/`TRUNCATE` (soft delete; a spec that truly hard-deletes machinery rows grants `DELETE` on those
   tables only), `events` exactly `SELECT, INSERT`, and nothing on `kysely_migration*`.
   `vault_authenticated` gets only what tenants need (no `DELETE`/`TRUNCATE` anywhere, `events` exactly
-  `SELECT, INSERT`, `api_keys` nothing); `vault_app` gets nothing directly. A new table needs its own
+  `SELECT, INSERT`); `vault_app` gets nothing directly.
+- **Tenant grants are column-level where a table mixes tenant-writable and machinery columns**
+  (`packages/db/migrations/20261020_005_directory.ts`, [[CORE27]] P3, [[CORE29]]): `memberships`
+  has no tenant `INSERT` or `UPDATE` (the directory sync writes under the service role); `agents` `UPDATE (name, scopes, disabled_at)`; `api_keys` `SELECT` on every column except
+  `key_hash`, plus `UPDATE (revoked_at)`. Start narrow: widening later is a one-line grant, narrowing
+  breaks callers. `SELECT … FOR UPDATE` needs `UPDATE` on at least one column of the table, so a
+  column-level `UPDATE` grant also covers the row lock. A column left out of the `SELECT` grant must also
+  be left out of the definition's `record` (`api-routes`: generic reads name their columns). A new table needs its own
   `GRANT`s **to both group roles**: there are no default privileges, and a table without a `vault_service`
   `SELECT` fails the invariants suite. `schema-invariants.integration.test.ts` enforces these rules
   across every table.
@@ -176,6 +191,13 @@ Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_bas
 - **RLS is enabled and forced on every table** (identity tables too), with policies `TO vault_authenticated`
   named `<table>_tenant`. Policies call **`app.current_organization_id()`**, never `current_setting(...)`
   directly; the invariants test checks every policy expression.
+- **An `INSERT` policy on a table whose `SELECT` policy cannot see the new row yet means no `RETURNING`.**
+  `RETURNING` applies the `SELECT` policies to the inserted row and fails the insert if they reject it.
+  A tenant creating an agent inserts its `principals` row under `principals_insert_agent`
+  (`WITH CHECK (kind = 'agent' AND app.current_organization_id() IS NOT NULL)`), but `principals_tenant`
+  admits a principal only once its `agents` row exists. So mint the id first
+  (`SELECT uuid_generate_v7()`), insert the principal without `RETURNING`, then the child row with that id
+  (`packages/api/src/resources/agents.ts`, [[CORE27]] P4).
 
 ## Environment
 
@@ -209,6 +231,10 @@ reversibility is genuinely the thing under test, create a uniquely named ephemer
 the test (`vault_test_mig_<rand>`), round-trip there, and drop it in `afterAll`. Default to schema-assertion
 tests.
 
+- **See the migration test fail before writing the migration.** Run it alone on the test DB, at the old
+  schema, and check that it fails on the missing column or table. Then write the migration, run codegen
+  and update the seeds. If the migration and the generated types come first, nothing proves the test
+  asserts the change rather than the baseline ([[CORE3]] cycle 1; `tdd-cycle-generator` rule 11).
 - **A migration test lives until its migration is applied in prod, then it is deleted.** It asserts against
   the *latest* schema, so afterwards it can only fail for a later migration's legitimate change, and "fixing"
   it makes migration N's test describe migration M's change. A later migration that breaks an earlier test

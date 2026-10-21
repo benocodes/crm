@@ -212,7 +212,7 @@ describe('context', () => {
     const res = await mkApp().request('/tasks', { headers: userHeaders(A, null) })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({
-      error: { code: 'organization_required', message: 'an organisation is required (send X-Organization-Id)' },
+      error: { code: 'organization_required', message: 'an organisation is required (sign in with an active organisation)' },
     })
   })
 })
@@ -258,5 +258,81 @@ describe('per-request database', () => {
     } finally {
       await other.destroy()
     }
+  })
+})
+
+describe('CORS ([[CORE3]] C4)', () => {
+  const ORIGIN = 'https://pane.test.example'
+  const EXT = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop'
+  const preflight = (app: ReturnType<typeof createApp>, origin: string) =>
+    app.request('/tasks', {
+      method: 'OPTIONS',
+      headers: {
+        origin,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,x-organization-id',
+      },
+    })
+
+  it('sends no CORS headers by default', async () => {
+    const res = await createApp({ db: () => db }).request('/openapi.json', { headers: { origin: ORIGIN } })
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
+  it('answers an allowed preflight', async () => {
+    const res = await preflight(createApp({ db: () => db, corsOrigins: [ORIGIN] }), ORIGIN)
+    expect(res.status).toBe(204)
+    expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    const allowed = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase()
+    expect(allowed).toContain('authorization')
+    expect(allowed).toContain('x-organization-id')
+    expect(res.headers.get('access-control-allow-credentials')).toBeNull()
+  })
+
+  it('does not allow another origin', async () => {
+    const res = await preflight(createApp({ db: () => db, corsOrigins: [ORIGIN] }), 'https://evil.example')
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
+  it('allows an extension origin', async () => {
+    const res = await preflight(createApp({ db: () => db, corsOrigins: [EXT] }), EXT)
+    expect(res.status).toBe(204)
+    expect(res.headers.get('access-control-allow-origin')).toBe(EXT)
+  })
+})
+
+describe('auth options and the account context ([[CORE3]])', () => {
+  it('refuses both userAuthenticator and authAdapter', () => {
+    expect(() =>
+      createApp({
+        db: () => db,
+        userAuthenticator: fakeUserAuthenticator(),
+        authAdapter: {
+          provider: 'x',
+          verify: async () => ({ ok: false, reason: 'malformed' }),
+          fetchProfile: async () => ({ email: null, emailVerified: false, name: null }),
+          fetchOrganization: async () => null,
+          listMembers: async () => [],
+          parseWebhook: async () => ({ ok: false, reason: 'headers' }),
+        },
+      }),
+    ).toThrow()
+  })
+
+  it('an account operation sees the resolved organisation and scopes', async () => {
+    const registry = new Registry().register({
+      kind: 'account',
+      name: 'probe.ctx',
+      summary: 'Context',
+      method: 'get',
+      path: '/probe/ctx',
+      response: { status: 200, schema: z.object({ org: z.string().nullable(), scopes: z.array(z.string()) }) },
+      handler: async (ctx) => ({ org: ctx.organizationId, scopes: ctx.scopes.toStrings() }),
+    })
+    const app = createApp({ db: () => db, registry, userAuthenticator: fakeUserAuthenticator() })
+    const withOrg = await app.request('/probe/ctx', { headers: userHeaders(A) })
+    expect(await withOrg.json()).toEqual({ org: A.organizationId, scopes: ['tasks:read', 'tasks:write'] })
+    const without = await app.request('/probe/ctx', { headers: userHeaders(A, null) })
+    expect(await without.json()).toEqual({ org: null, scopes: [] })
   })
 })

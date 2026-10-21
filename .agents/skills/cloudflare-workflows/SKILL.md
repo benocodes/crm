@@ -1,6 +1,6 @@
 ---
 name: cloudflare-workflows
-description: How to structure Cloudflare Workflows (`step.do`) so retries are cheap, checkpoints serialize cleanly, and the orchestrator stays Node-testable. Read whenever adding or changing a Workflow (Graph mail/calendar delta sync, subscription renewal, webhook delivery), adding a `step.do(...)` call, or seeing errors like `Value returned from step "<name>" is not serialisable`, `DataCloneError`, `Step execution exceeded the maximum`, or workflows stuck without progressing past a step.
+description: How to structure Cloudflare Workflows (`step.do`) so retries are cheap, checkpoints serialize cleanly, and the orchestrator stays Node-testable. Read whenever adding or changing a Workflow (Gmail history sync, watch renewal, webhook delivery), adding a `step.do(...)` call, or seeing errors like `Value returned from step "<name>" is not serialisable`, `DataCloneError`, `Step execution exceeded the maximum`, or workflows stuck without progressing past a step.
 ---
 
 # Cloudflare Workflows: how to structure them
@@ -8,7 +8,7 @@ description: How to structure Cloudflare Workflows (`step.do`) so retries are ch
 A durable orchestrator that checkpoints between `step.do(...)` calls and replays completed steps on retry.
 The model is simple; the constraints have sharp edges. This skill is inherited from the predecessor product's agent-runs
 workflow, where each rule below was paid for in production. The vault's uses are different (durable
-per-mailbox delta sync against Microsoft Graph, Graph subscription renewal, webhook delivery with retries),
+per-mailbox history sync against Gmail, Gmail watch renewal, webhook delivery with retries),
 but the runtime is the same, so the traps are too.
 
 ## Mental model: three rules
@@ -25,9 +25,9 @@ but the runtime is the same, so the traps are too.
 
 Workflows meter **CPU time**, not wall-clock time. Per step (paid plan) CPU is 30s by default, configurable
 to 5 minutes; wall-clock duration is unlimited, so a step may wait on network I/O or a DB query
-indefinitely, and `step.sleep()` goes up to 365 days. A slow external call (a Graph page fetch, an LLM) burns
+indefinitely, and `step.sleep()` goes up to 365 days. A slow external call (a Gmail history page fetch, an LLM) burns
 almost no CPU and is fine. What consumes the budget is work in the step body: big JSON parses, compiling a
-large schema, crypto. **Rate limits**, not duration, are the real constraint on a slow provider (Graph
+large schema, crypto. **Rate limits**, not duration, are the real constraint on a slow provider (Gmail
 throttling returns 429 with `Retry-After`; respect it with `step.sleep`).
 
 ## Structure
@@ -157,7 +157,7 @@ read the captured value, or replays diverge from the original execution.
 ## Terminal failure
 
 When a step throws, the runtime retries it per the retry config, then fails the workflow. To record a
-*business* failure without auto-retry (a revoked Graph grant, a deterministic 4xx), classify inside a catch
+*business* failure without auto-retry (a revoked Google grant, a deterministic 4xx), classify inside a catch
 and write a `record-failure` step, then `return`. The workflow ends successfully and the failure lives in the
 DB row. That stops infinite retries on a deterministic failure.
 
@@ -183,7 +183,7 @@ Webhook delivery is the same shape with a dead-letter queue behind it.
 
 ## Where this lives in the vault
 
-These arrive with the CHN cycles that add Graph sync; update this list when they do.
+These arrive with the CHN cycles that add Gmail sync; update this list when they do.
 
 - `packages/api/src/sync/workflow-run.ts`: Node-safe orchestrator. `workflow.ts`: workerd entrypoint.
 - `packages/api/src/test/workerd-boundary.ts`: the step shim. Use it in every workflow test.

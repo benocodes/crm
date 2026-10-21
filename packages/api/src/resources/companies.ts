@@ -44,7 +44,7 @@ export const companies = defineResource<CompanyRecord>({
   async beforeWrite(ctx, { input, before }) {
     if (typeof input.domain !== 'string') return input
     const domain = normalizeDomain(input.domain)
-    await lockKeys(ctx, [companyDomainKey(ctx.organizationId, domain)])
+    await lockKeys(ctx.trx, [companyDomainKey(ctx.organizationId, domain)])
     let q = ctx.trx.selectFrom('companies').select('id').where('domain', '=', domain).where('deleted_at', 'is', null)
     if (before) q = q.where('id', '!=', before.id)
     const clash = await q.executeTakeFirst()

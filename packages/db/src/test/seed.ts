@@ -6,11 +6,19 @@ import type { Database } from '../types.js'
 // Seeds run through `withServiceRole` on the `vault_app` db. No ON CONFLICT and no catching 23505
 // (AGENTS.md invariant 3): random emails avoid collisions.
 
-export async function seedOrganization(db: Kysely<Database>, opts: { name?: string } = {}): Promise<{ id: string }> {
+/** `authOrgId` links the organisation to its identity-provider organisation (`authProvider` defaults to 'clerk'). */
+export async function seedOrganization(
+  db: Kysely<Database>,
+  opts: { name?: string; authOrgId?: string; authProvider?: string } = {},
+): Promise<{ id: string }> {
   return withServiceRole(db, (trx) =>
     trx
       .insertInto('organizations')
-      .values({ name: opts.name ?? `Org ${randomUUID().slice(0, 8)}` })
+      .values({
+        name: opts.name ?? `Org ${randomUUID().slice(0, 8)}`,
+        auth_provider: opts.authOrgId ? (opts.authProvider ?? 'clerk') : null,
+        auth_org_id: opts.authOrgId ?? null,
+      })
       .returning('id')
       .executeTakeFirstOrThrow(),
   )
@@ -18,13 +26,26 @@ export async function seedOrganization(db: Kysely<Database>, opts: { name?: stri
 
 export async function seedUser(
   db: Kysely<Database>,
-  opts: { organizationId: string; email?: string; role?: 'owner' | 'member' },
+  opts: {
+    organizationId: string
+    email?: string
+    role?: 'owner' | 'member'
+    authProvider?: string
+    authSubject?: string
+    emailVerified?: boolean
+  },
 ): Promise<{ id: string }> {
   return withServiceRole(db, async (trx) => {
     const principal = await trx.insertInto('principals').values({ kind: 'user' }).returning('id').executeTakeFirstOrThrow()
     await trx
       .insertInto('users')
-      .values({ id: principal.id, email: opts.email ?? `user-${randomUUID()}@example.test` })
+      .values({
+        id: principal.id,
+        email: opts.email ?? `user-${randomUUID()}@example.test`,
+        auth_provider: opts.authSubject ? (opts.authProvider ?? 'clerk') : null,
+        auth_subject: opts.authSubject ?? null,
+        email_verified: opts.emailVerified ?? false,
+      })
       .execute()
     await trx
       .insertInto('memberships')
@@ -37,6 +58,25 @@ export async function seedUser(
       .execute()
     return { id: principal.id }
   })
+}
+
+/** A membership of an existing user in another organisation (seedUser makes the first one). */
+export async function seedMembership(
+  db: Kysely<Database>,
+  opts: { organizationId: string; userId: string; role?: 'owner' | 'member' },
+): Promise<{ id: string }> {
+  return withServiceRole(db, (trx) =>
+    trx
+      .insertInto('memberships')
+      .values({
+        organization_id: opts.organizationId,
+        user_id: opts.userId,
+        role: opts.role ?? 'member',
+        created_by: opts.userId,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow(),
+  )
 }
 
 export async function seedAgent(

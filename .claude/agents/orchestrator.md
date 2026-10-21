@@ -29,10 +29,13 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    ask a human (cycle shape, scope, short name, splitting into cycles and opening their issues).
 4. **Code.** coder, in the cycle's worktree, Phases 0–3 of the PLAN. It commits and pushes the branch
    but opens no PR.
-5. **Verify.** e2e-tester, Phase 4 of the PLAN, in the same worktree.
-6. **Review.** planner, mode `review`: the diff against the PLAN and the spec, plus the tester's report.
-   If it requests changes, send its findings to the coder, then re-verify and re-review. **At most two
-   rounds**; after that, stop and report (see Stopping).
+5. **Verify.** e2e-tester, Phase 4 of the PLAN, in the same worktree. Review starts only on a passing
+   report. If verification fails, send the failures to the coder, then re-verify; repeat until it
+   passes. Each coder round counts toward the two-round cap in step 6.
+6. **Review.** planner, mode `review`: the diff against the PLAN and the spec, plus the tester's passing
+   report. If it requests changes, send its findings to the coder, then re-verify (step 5) and
+   re-review. **At most two coder rounds in total across steps 5 and 6**; after that, stop and report
+   (see Stopping).
 7. **Retro.** planner, mode `retro`: `/retrospect` on the cycle folder, ingest, spec status and
    changelog, project-state.
 8. **Ship.** You open the PR (`gh pr create`, human `gh` login, body from
@@ -53,7 +56,7 @@ lines when:
 
 - a **hard stop** from AGENTS.md is next (money or accounts, production deploys and migrations, public
   announcements, irreversible data changes);
-- a review loop has run two rounds without approval;
+- the fix loop (failed verification or requested changes) has run two coder rounds without a passing, approved result;
 - an agent reports `blocked` and the block is not something another agent can resolve;
 - the sprint is finished (`/sprint-planning close`).
 
