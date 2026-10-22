@@ -1,0 +1,1861 @@
+{
+  "format": 1,
+  "resource": "tasks",
+  "recorded_from": "pre-migration service (interactive transactions) at main@6440702",
+  "comparison": "symbolic: generated ids as <id:n>, server timestamps as <ts>",
+  "scenarios": [
+    {
+      "name": "create-and-read",
+      "about": "a minimal create answers 201 with defaults; get, list and the created event agree",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "First"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "First",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "First",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/tasks/{a}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "First",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/tasks",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "<id:1>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "First",
+                "notes": null,
+                "status": "open",
+                "due_at": null,
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "create-full-and-done",
+      "about": "every writable field on create; an offset due_at is stored as UTC; status done stamps completed_at",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "  Padded title  ",
+            "notes": "n",
+            "status": "done",
+            "due_at": "2026-10-25T10:00:00+02:00",
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Padded title",
+            "notes": "n",
+            "status": "done",
+            "due_at": "2026-10-25T08:00:00.000Z",
+            "completed_at": "<ts>",
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:1>",
+                "notes": "n",
+                "title": "Padded title",
+                "due_at": "2026-10-25T08:00:00.000Z",
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "By the agent",
+            "status": "open",
+            "notes": null,
+            "due_at": null,
+            "assignee_id": null
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:2>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "By the agent",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:2>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:2>",
+                "notes": null,
+                "title": "By the agent",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "create-validation",
+      "about": "unknown, empty, mistyped and system-owned fields are refused with validation_error and write nothing",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {},
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Invalid input: expected string, received undefined"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": ""
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Too small: expected string to have >=1 characters"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "x",
+            "completed_at": "<ts>"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Unrecognized key: \"completed_at\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "x",
+            "due_at": "2026-10-25"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Invalid ISO datetime"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "x",
+            "status": "blocked"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Invalid option: expected one of \"open\"|\"done\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "x",
+            "assignee_id": "not-a-uuid"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Invalid UUID"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/tasks",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "completion",
+      "about": "completed_at follows status: open to done stamps, done to done keeps, done to open clears, no status leaves it",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "Complete me"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Complete me",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Complete me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "status": "done"
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Complete me",
+            "notes": null,
+            "status": "done",
+            "due_at": null,
+            "completed_at": "<ts>",
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Complete me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Complete me",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "status": "done",
+            "notes": "again"
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Complete me",
+            "notes": "again",
+            "status": "done",
+            "due_at": null,
+            "completed_at": "<ts>",
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Complete me",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Complete me",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "title": "Renamed while done"
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Renamed while done",
+            "notes": "again",
+            "status": "done",
+            "due_at": null,
+            "completed_at": "<ts>",
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Complete me",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Renamed while done",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "status": "open"
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Renamed while done",
+            "notes": "again",
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Renamed while done",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Renamed while done",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "status": "open"
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Renamed while done",
+            "notes": "again",
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Renamed while done",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Renamed while done",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "status": "done"
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Renamed while done",
+            "notes": "again",
+            "status": "done",
+            "due_at": null,
+            "completed_at": "<ts>",
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Renamed while done",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": "again",
+                "title": "Renamed while done",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "patch-variants",
+      "about": "an empty patch checks existence and writes nothing; a same-value patch is a real update; null clears nullable fields",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "Patch me",
+            "notes": "keep",
+            "due_at": "2026-10-30T12:00:00Z",
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Patch me",
+            "notes": "keep",
+            "status": "open",
+            "due_at": "2026-10-30T12:00:00.000Z",
+            "completed_at": null,
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:1>",
+                "notes": "keep",
+                "title": "Patch me",
+                "due_at": "2026-10-30T12:00:00.000Z",
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {},
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Patch me",
+            "notes": "keep",
+            "status": "open",
+            "due_at": "2026-10-30T12:00:00.000Z",
+            "completed_at": null,
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "title": "Patch me"
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Patch me",
+            "notes": "keep",
+            "status": "open",
+            "due_at": "2026-10-30T12:00:00.000Z",
+            "completed_at": null,
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": "keep",
+                "title": "Patch me",
+                "due_at": "2026-10-30T12:00:00.000Z",
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": "keep",
+                "title": "Patch me",
+                "due_at": "2026-10-30T12:00:00.000Z",
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "notes": null,
+            "due_at": null,
+            "assignee_id": null
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Patch me",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": "keep",
+                "title": "Patch me",
+                "due_at": "2026-10-30T12:00:00.000Z",
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Patch me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "title": "x",
+            "zz_unknown": 1
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Unrecognized key: \"zz_unknown\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/0190b2c4-0000-7000-8000-00000000dead",
+          "request": {},
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "task not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/not-a-uuid",
+          "request": {
+            "title": "x"
+          },
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "task not found"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "references",
+      "about": "an assignee must be a principal of this vault; checked after existence, before any write; null is always fine",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "Assign me"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Assign me",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Assign me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "Bad assignee",
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "Foreign assignee",
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b003"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b003",
+            "title": "Not applied"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/0190b2c4-0000-7000-8000-00000000dead",
+          "request": {
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "task not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000c001"
+          },
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Assign me",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000c001",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.updated",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Assign me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Assign me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000c001",
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/tasks/{a}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Assign me",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000c001",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "delete",
+      "about": "delete is soft: the record leaves get, list and update; a second delete is not_found; the event carries the last record",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "Delete me"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Delete me",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Delete me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "Keep me"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:2>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "Keep me",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:2>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:2>",
+                "notes": null,
+                "title": "Keep me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "DELETE",
+          "path": "/tasks/{a}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "task.deleted",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "Delete me",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/tasks/{a}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "task not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "PATCH",
+          "path": "/tasks/{a}",
+          "request": {
+            "title": "x"
+          },
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "task not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "DELETE",
+          "path": "/tasks/{a}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "task not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "DELETE",
+          "path": "/tasks/not-a-uuid",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "task not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/tasks",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "<id:2>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "Keep me",
+                "notes": null,
+                "status": "open",
+                "due_at": null,
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "list-filters-and-pages",
+      "about": "filters are equality, pages are id-ordered with an opaque next_cursor, bad filters and limits are validation errors",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "t1",
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:1>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "t1",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:1>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:1>",
+                "notes": null,
+                "title": "t1",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "t2",
+            "status": "done"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:2>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "t2",
+            "notes": null,
+            "status": "done",
+            "due_at": null,
+            "completed_at": "<ts>",
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:2>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:2>",
+                "notes": null,
+                "title": "t2",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "t3",
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+            "status": "done"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:3>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "t3",
+            "notes": null,
+            "status": "done",
+            "due_at": null,
+            "completed_at": "<ts>",
+            "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:3>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:3>",
+                "notes": null,
+                "title": "t3",
+                "due_at": null,
+                "status": "done",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "completed_at": "<ts>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/tasks",
+          "request": {
+            "title": "t4"
+          },
+          "status": 201,
+          "response": {
+            "id": "<id:4>",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "t4",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "<ts>",
+            "updated_at": "<ts>"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "<id:4>",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "<ts>",
+              "before": null,
+              "after": {
+                "id": "<id:4>",
+                "notes": null,
+                "title": "t4",
+                "due_at": null,
+                "status": "open",
+                "created_at": "<ts>",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "<ts>",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/tasks?limit=2",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "<id:1>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "t1",
+                "notes": null,
+                "status": "open",
+                "due_at": null,
+                "completed_at": null,
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              },
+              {
+                "id": "<id:2>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "t2",
+                "notes": null,
+                "status": "done",
+                "due_at": null,
+                "completed_at": "<ts>",
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              }
+            ],
+            "next_cursor": "<id:2>"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "GET",
+          "path": "/tasks?limit=2&after={t2}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "<id:3>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "t3",
+                "notes": null,
+                "status": "done",
+                "due_at": null,
+                "completed_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              },
+              {
+                "id": "<id:4>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "t4",
+                "notes": null,
+                "status": "open",
+                "due_at": null,
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/tasks?status=done",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "<id:2>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "t2",
+                "notes": null,
+                "status": "done",
+                "due_at": null,
+                "completed_at": "<ts>",
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              },
+              {
+                "id": "<id:3>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "t3",
+                "notes": null,
+                "status": "done",
+                "due_at": null,
+                "completed_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/tasks?assignee_id=0190b2c4-0000-7000-8000-00000000b002&status=done",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "<id:3>",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "t3",
+                "notes": null,
+                "status": "done",
+                "due_at": null,
+                "completed_at": "<ts>",
+                "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "<ts>",
+                "updated_at": "<ts>"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "GET",
+          "path": "/tasks?status=blocked",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "filter status: Invalid option: expected one of \"open\"|\"done\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "GET",
+          "path": "/tasks?limit=0",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "limit: Too small: expected number to be >=1"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "GET",
+          "path": "/tasks?limit=201",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "limit: Too big: expected number to be <=200"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "GET",
+          "path": "/tasks?after=nope",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "after must be a UUID"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:12:00.000Z",
+          "method": "GET",
+          "path": "/tasks?title=t1",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "unknown filter: title"
+            }
+          },
+          "events": []
+        }
+      ]
+    }
+  ]
+}
