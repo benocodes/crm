@@ -51,7 +51,7 @@ const program = defineOperation<string>({
         step(selectColumns(qc, 'tasks', ['id']).where(eq('tasks', 'id', ID)), 'result'),
       ],
       events: [{ id: EVENT, type: 'task.updated', resourceType: 'task', resourceId: ID }],
-      decode: (rows) => PLAINTEXT.length > 0 && String(rows[0]?.id),
+      decode: (rows) => String(rows[0]?.id),
     }),
 })
 

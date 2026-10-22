@@ -1,8 +1,8 @@
 // Type fixtures ([[CORE35]] Step 1.1): compile-time proof that the generic helpers keep checking. Not a
 // Vitest file (never discovered); `pnpm typecheck` includes it. Every `@ts-expect-error` sits on the exact
 // offending expression and has a positive sibling; no `any` is involved around a call.
-import { type Expression, type SqlBool } from 'kysely'
-import { eq, projectAs, publicSelect, selectColumns, type ColumnOf, type PublicColumn, type QueryContext, type SyncHook, type ValueOf } from './index.js'
+import { type Expression, type ExpressionBuilder, type SqlBool } from 'kysely'
+import { eq, projectAs, publicSelect, selectColumns, type ColumnOf, type PublicColumn, type QueryContext, type StorageDatabase, type SyncHook, type Table, type ValueOf } from './index.js'
 
 declare const qc: QueryContext
 
@@ -12,7 +12,7 @@ const okSelect = selectColumns(qc, 'tasks', ['id', 'title', 'status'])
 const okFilter = eq('tasks', 'status', 'open')
 const okNullable = eq('tasks', 'assignee_id', null)
 const okPublic = publicSelect(qc, 'api_keys', ['id', 'prefix'])
-const okProjection = projectAs<{ id: string }>(selectColumns(qc, 'tasks', ['id', 'title']))
+const okProjection = projectAs<{ id: string }>()(selectColumns(qc, 'tasks', ['id', 'title']))
 
 // The inferred output of a helper is the exact Pick of the table's row.
 async function inferred() {
@@ -55,24 +55,26 @@ qc.db.selectFrom('tasks as t').select('tasks.title')
 
 // incompatible projection
 // @ts-expect-error id is a string, the record asks for a number
-projectAs<{ id: number }>(selectColumns(qc, 'tasks', ['id']))
+projectAs<{ id: number }>()(selectColumns(qc, 'tasks', ['id']))
 // @ts-expect-error the projection lacks the record's `title`
-projectAs<{ id: string; title: string }>(selectColumns(qc, 'tasks', ['id']))
+projectAs<{ id: string; title: string }>()(selectColumns(qc, 'tasks', ['id']))
 
 // secret column in a public projection
 // @ts-expect-error key_hash is a secret column
 publicSelect(qc, 'api_keys', ['id', 'key_hash'])
 
 // async hook where a synchronous one is required
-declare function defineHook<F extends (input: { title: string }) => object>(hook: SyncHook<F>): F
+declare function defineHook<R extends object>(hook: SyncHook<{ title: string }, R>): void
 defineHook((input) => ({ title: input.title }))
 // @ts-expect-error a hook may not return a Promise
 defineHook(async (input) => ({ title: input.title }))
 
 // an extension guard referencing another table's column
-declare function guard<T extends 'tasks'>(table: T, make: (eb: Parameters<ReturnType<typeof eq<T, 'title'>>>[0]) => Expression<SqlBool>): void
+declare function guard<T extends Table>(table: T, make: (eb: ExpressionBuilder<StorageDatabase, T>) => Expression<SqlBool>): void
 guard('tasks', (eb) => eb('tasks.title', '=', 'x'))
 // @ts-expect-error companies is not in scope of a tasks guard
 guard('tasks', (eb) => eb('companies.name', '=', 'x'))
+// @ts-expect-error a tasks guard may not read api_keys.key_hash
+guard('tasks', (eb) => eb('api_keys.key_hash', '=', 'x'))
 
 export { inferred, okFilter, okNullable, okProjection, okPublic, publicColumns, status, columns }
