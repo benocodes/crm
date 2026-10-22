@@ -1,0 +1,26 @@
+{
+  "name": "@vault/storage-postgres",
+  "private": true,
+  "description": "Enterprise tier (spec CORE35 D14): the multi-tenant Postgres runtime. Open packages never import this one.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vault/db": "workspace:*",
+    "@vault/storage": "workspace:*",
+    "kysely": "0.29.6",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/pg": "8.23.1",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}
