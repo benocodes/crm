@@ -63,7 +63,7 @@ describe('the D1 schema slice of CORE35 (C6)', () => {
     const cols = await all<{ name: string; notnull: number }>('PRAGMA table_info(tasks)')
     const byName = Object.fromEntries(cols.map((c) => [c.name, c.notnull === 1]))
     expect(byName).toEqual({
-      id: false, // a TEXT primary key reports notnull 0 in SQLite; the PRIMARY KEY makes it unique, the CHECK makes it a UUID
+      id: true,
       organization_id: true,
       title: true,
       notes: false,
