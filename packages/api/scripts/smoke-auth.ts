@@ -72,7 +72,8 @@ const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhos
 const dbName = (await sql<{ current_database: string }>`SELECT current_database()`.execute(db)).rows[0]!.current_database
 console.log(`database ${dbName}`)
 
-const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => postgresBinding(db) })
+const storage = postgresBinding(db)
+const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
 const server = serve({ fetch: app.fetch, port: appPort, hostname: '127.0.0.1' })
 const base = `http://127.0.0.1:${appPort}`
 const declared = createVaultRegistry().declaredScopes()
@@ -139,6 +140,19 @@ try {
   const org1 = { id: me.active_organization.id as string }
   const title = `smoke task ${rand}`
   await check('POST /tasks (claim)', { path: '/tasks', method: 'POST', token: tokOrg, body: { title } }, 201)
+  // [[CORE35]]: the task lifecycle through the prepared executor on Postgres, over HTTP.
+  const created = await check('POST /tasks (lifecycle)', { path: '/tasks', method: 'POST', token: tokOrg, body: { title: `${title} lifecycle` } }, 201, (j) =>
+    eq(j.status, 'open', 'status') ?? eq(j.completed_at, null, 'completed_at'),
+  )
+  const taskPath = `/tasks/${created.id}`
+  await check('PATCH /tasks/{id} status done', { path: taskPath, method: 'PATCH', token: tokOrg, body: { status: 'done' } }, 200, (j) =>
+    eq(j.status, 'done', 'status') ?? (typeof j.completed_at === 'string' ? undefined : `completed_at: got ${JSON.stringify(j.completed_at)}`),
+  )
+  await check('PATCH /tasks/{id} status open', { path: taskPath, method: 'PATCH', token: tokOrg, body: { status: 'open' } }, 200, (j) =>
+    eq(j.status, 'open', 'status') ?? eq(j.completed_at, null, 'completed_at'),
+  )
+  await check('DELETE /tasks/{id}', { path: taskPath, method: 'DELETE', token: tokOrg }, 204)
+  await check('GET /tasks/{id} (deleted)', { path: taskPath, token: tokOrg }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
   await check('GET /tasks (claim)', { path: '/tasks', token: tokOrg }, 200, (j) =>
     j.data.some((t: { title: string }) => t.title === title) ? undefined : 'task missing',
   )

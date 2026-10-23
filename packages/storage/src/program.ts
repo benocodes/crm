@@ -1,4 +1,4 @@
-import { sql, type CompiledQuery, type Expression, type RawBuilder, type SqlBool } from 'kysely'
+import { sql, type AliasedExpression, type CompiledQuery, type Expression, type RawBuilder, type SqlBool } from 'kysely'
 import { COLUMN_KINDS, type ColumnKind, type PhysicalTable } from './database.js'
 import { SetLimitExceeded, StorageError } from './errors.js'
 import type { CompiledRead } from './compile.js'
@@ -169,11 +169,11 @@ export function recordJson(qc: QueryContext, table: PhysicalTable, columns: read
 }
 
 /** Selects a record's columns with timestamps rendered as public ISO text (same on both engines). */
-export function recordColumns(qc: QueryContext, table: PhysicalTable, columns: readonly string[]): RawBuilder<unknown>[] {
+export function recordColumns(qc: QueryContext, table: PhysicalTable, columns: readonly string[]): AliasedExpression<unknown, string>[] {
   const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
   return columns.map((c) => {
     const ref = `${table}.${c}`
-    return (kinds[c] === 'timestamp' ? ts.iso(qc, ref) : sql<unknown>`${refOf(ref)}`).as(c) as unknown as RawBuilder<unknown>
+    return (kinds[c] === 'timestamp' ? ts.iso(qc, ref) : sql<unknown>`${refOf(ref)}`).as(c)
   })
 }
 

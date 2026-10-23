@@ -4,6 +4,7 @@ import {
   DEFAULT_MAX_SET_SIZE,
   ForeignOrganizationError,
   StatementFailed,
+  StorageError,
   UnitDriftError,
   planUnit,
   queryContext,
@@ -64,7 +65,7 @@ export interface D1RuntimeOptions {
 export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime {
   const maxSetSize = options.maxSetSize ?? DEFAULT_MAX_SET_SIZE
   const prepare = (sql: string, parameters: readonly unknown[]): D1PreparedLike => {
-    if (parameters.length > D1_MAX_PARAMETERS) throw new Error(`a statement binds ${parameters.length} parameters; D1 allows ${D1_MAX_PARAMETERS}`)
+    if (parameters.length > D1_MAX_PARAMETERS) throw new StorageError(`a statement binds ${parameters.length} parameters; D1 allows ${D1_MAX_PARAMETERS}`)
     return d1.prepare(sql).bind(...parameters.map(encode))
   }
   return {
@@ -84,11 +85,14 @@ export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime 
       const steps = planned.unit.steps
       let results: D1ResultLike[] = []
       if (steps.length > 0) {
+        // Build every statement BEFORE anything is sent: a statement that cannot be bound (too many parameters)
+        // is a refusal of a never-sent unit, never a commit of unknown outcome.
+        const statements = steps.map((s) => {
+          const c = toCompiled(s.query)
+          return prepare(c.sql, c.parameters)
+        })
         try {
-          results = await d1.batch(steps.map((s) => {
-            const c = toCompiled(s.query)
-            return prepare(c.sql, c.parameters)
-          }))
+          results = await d1.batch(statements)
         } catch (err) {
           const c = classifyD1Error(err)
           if (c.statement) throw new StatementFailed(prepared.name, c.kind, err)

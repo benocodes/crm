@@ -56,7 +56,7 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const tasks = definePreparedResource<'tasks', TaskRecord>({
+export const tasks = definePreparedResource({
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',

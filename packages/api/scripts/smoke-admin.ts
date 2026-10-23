@@ -82,7 +82,8 @@ const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhos
 const dbName = (await sql<{ current_database: string }>`SELECT current_database()`.execute(db)).rows[0]!.current_database
 console.log(`database ${dbName}`)
 
-const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => postgresBinding(db) })
+const storage = postgresBinding(db)
+const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
 const server = serve({ fetch: app.fetch, port: appPort, hostname: '127.0.0.1' })
 const base = `http://127.0.0.1:${appPort}`
 const declared = createVaultRegistry().declaredScopes()

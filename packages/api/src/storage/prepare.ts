@@ -2,12 +2,12 @@ import { COLUMN_KINDS, codecs, type ColumnKind } from '@vault/storage'
 import type { Actor } from '../context.js'
 import { ApiError } from '../errors.js'
 import { parseInput, parseListQuery } from '../resources/define.js'
-import type { PreparedResource, Values } from './definition.js'
+import { physicalTable, type PreparedResource, type Values } from './definition.js'
 
 // Pure preparation of a write or a list query: validation, the agent-field check and normalization.
 // No I/O, no clock, synchronous ([[CORE35]] D3 extension 1). Messages and statuses are the old ones.
 
-const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[def.table] as Record<string, ColumnKind>
+const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
 
 /** Canonical stored forms: lowercase UUID text, ISO-8601 UTC timestamps. Other values are untouched. */
 function normalize(def: PreparedResource, values: Values): Values {

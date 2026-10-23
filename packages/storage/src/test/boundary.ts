@@ -29,7 +29,15 @@ export const RULES: readonly Rule[] = [
     skipTests: true,
     allow: { 'dev-server.ts': 'composition entry point: picks the Postgres runtime; moves out at the CORE37 cutover (spec D21)' },
   },
-  { dir: 'api/scripts', forbid: ['pg', '@vault/storage-postgres'], allow: { '': 'ops/smoke entry points compose the Postgres runtime; same cutover (D21)' } },
+  {
+    dir: 'api/scripts',
+    forbid: ['pg', '@vault/storage-postgres'],
+    allow: {
+      'golden.ts': 'enterprise-side fixture generator: runs the Postgres path by design (D17)',
+      'smoke-auth.ts': 'smoke entry point composing the Postgres runtime; moves at the CORE37 cutover (D21)',
+      'smoke-admin.ts': 'smoke entry point composing the Postgres runtime; moves at the CORE37 cutover (D21)',
+    },
+  },
 ]
 
 const SPECIFIER = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g

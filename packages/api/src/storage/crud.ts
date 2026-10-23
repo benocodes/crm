@@ -21,7 +21,7 @@ import {
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import type { ListResult } from '../resources/crud.js'
-import type { PreparedEnv, PreparedResource } from './definition.js'
+import { physicalTable, type PreparedEnv, type PreparedResource } from './definition.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 
 // The generic prepared CRUD core ([[CORE35]] C4): list, get, create, update and soft delete for any
@@ -35,7 +35,7 @@ type Loose = Kysely<Record<string, Record<string, unknown>>>
 const loose = (qc: QueryContext): Loose => qc.db as unknown as Loose
 
 const columnsOf = (def: PreparedResource): string[] => Object.keys(def.record.shape)
-const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[def.table] as Record<string, ColumnKind>
+const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
 const ref = (def: PreparedResource, column: string) => sql.ref(`${def.table}.${column}`)
 const notFound = (def: PreparedResource) => new ApiError(404, 'not_found', `${def.eventName} not found`)
 const invalidReference = () => new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
@@ -55,7 +55,7 @@ const live = (def: PreparedResource, env: PreparedEnv, id?: string) => [
 ]
 
 const selectRecord = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id?: string) => {
-  let q = loose(qc).selectFrom(def.table).select(recordColumns(qc, def.table, columnsOf(def)) as never)
+  let q = loose(qc).selectFrom(def.table).select(recordColumns(qc, physicalTable(def), columnsOf(def)))
   for (const w of live(def, env, id)) q = q.where(w)
   return q
 }
@@ -66,7 +66,7 @@ function referenceReads(def: PreparedResource, qc: QueryContext, values: Record<
   for (const [column, spec] of Object.entries(def.references ?? {})) {
     const value = values[column]
     if (typeof value !== 'string' || spec === undefined) continue
-    reads[`ref:${column}`] = readMaybe(loose(qc).selectFrom(spec.table).select(sql<number>`1`.as('one') as never).where(sql<SqlBool>`${sql.ref(`${spec.table}.id`)} = ${value}`))
+    reads[`ref:${column}`] = readMaybe(loose(qc).selectFrom(spec.table).select(sql<number>`1`.as('one')).where(sql<SqlBool>`${sql.ref(`${spec.table}.id`)} = ${value}`))
   }
   return reads
 }
@@ -82,7 +82,7 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
       let q = selectRecord(def, qc, env)
       if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
       for (const [column, value] of Object.entries(filters)) q = q.where(sql<SqlBool>`${ref(def, column)} = ${value}`)
-      return { page: readAll(q.orderBy(ref(def, 'id') as never).limit(limit + 1)) }
+      return { page: readAll(q.orderBy(ref(def, 'id')).limit(limit + 1)) }
     },
     build: (found) =>
       unit({
@@ -123,7 +123,7 @@ export function getOperation<R extends { id: string }>(def: PreparedResource<Pre
 const resultStep = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, eventId: string): Step => {
   const q = loose(qc)
     .selectFrom(def.table)
-    .select(recordColumns(qc, def.table, columnsOf(def)) as never)
+    .select(recordColumns(qc, physicalTable(def), columnsOf(def)))
     .where(sql<SqlBool>`${ref(def, 'id')} = ${id}`)
     .where(sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`)
     .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`)
@@ -165,7 +165,7 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
               resourceType: def.eventName,
               resourceId: id,
               before: null,
-              after: { table: def.table, columns: columnsOf(def) },
+              after: { table: physicalTable(def), columns: columnsOf(def) },
             }),
             'first-event',
           ),
@@ -184,7 +184,7 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
 
 /** The before row, plus its exact stored `updated_at` for the drift guard. */
 const beforeRead = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string) =>
-  readMaybe(selectRecord(def, qc, env, id).select(ts.exact(qc, `${def.table}.updated_at`).as('__stamp') as never))
+  readMaybe(selectRecord(def, qc, env, id).select(ts.exact(qc, `${def.table}.updated_at`).as('__stamp')))
 
 export function updateOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, rawId: string, input: unknown): PreparedOperation<R> {
   const values = prepareUpdate(def, env.actor, input)
@@ -208,7 +208,7 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
       const computed = def.computed?.({ eb: expressionBuilder<StorageDatabase, PreparedResource['table']>(), qc, values: stored, now: env.now }) ?? {}
       let update = loose(qc)
         .updateTable(def.table)
-        .set({ ...stored, ...computed, updated_at: at } as never)
+        .set({ ...stored, ...computed, updated_at: at })
         .where(sql<SqlBool>`${ref(def, 'id')} = ${id}`)
         .where(sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`)
         .where(sql<SqlBool>`${ref(def, 'deleted_at')} is null`)
@@ -227,7 +227,7 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
               resourceType: def.eventName,
               resourceId: id,
               before,
-              after: { table: def.table, columns: columnsOf(def) },
+              after: { table: physicalTable(def), columns: columnsOf(def) },
             }),
             'first-event',
           ),
@@ -259,14 +259,14 @@ export function deleteOperation(def: PreparedResource, env: PreparedEnv, rawId: 
       const before = toRecord(def, rest)
       let update = loose(qc)
         .updateTable(def.table)
-        .set({ deleted_at: at, updated_at: at } as never)
+        .set({ deleted_at: at, updated_at: at })
         .where(sql<SqlBool>`${ref(def, 'id')} = ${id}`)
         .where(sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`)
         .where(sql<SqlBool>`${ref(def, 'deleted_at')} is null`)
         .where(sql<SqlBool>`${ts.exact(qc, `${def.table}.updated_at`)} = ${String(__stamp)}`)
       for (const g of def.guards?.(expressionBuilder<StorageDatabase, PreparedResource['table']>(), env) ?? []) update = update.where(g)
       const proof = loose(qc)
-        .selectNoFrom(sql<number>`1`.as('applied') as never)
+        .selectNoFrom(sql<number>`1`.as('applied'))
         .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`)
       return unit({
         steps: [

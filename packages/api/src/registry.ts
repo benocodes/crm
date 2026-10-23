@@ -203,7 +203,7 @@ export function preparedResourceOperations(def: PreparedResource<any, any>): Pre
   const s = scopeResourceOf(def)
   const actions = new Set<CrudAction>(crudActions(def))
   const idParams = z.object({ id: z.uuid() })
-  const rec = def.record as unknown as z.ZodType
+  const rec: z.ZodType = def.record
   const base = { kind: 'tenant' as const, executor: 'prepared' as const, validation: 'handler' as const, tags: [def.name] }
   const ops: PreparedTenantOperation[] = []
   if (actions.has('list')) {
