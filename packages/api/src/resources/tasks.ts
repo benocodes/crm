@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { defineResource } from './define.js'
+import { codecs } from '@vault/storage'
+import { definePreparedResource } from '../storage/definition.js'
 
 export type TaskRecord = {
   id: string
@@ -16,8 +17,10 @@ export type TaskRecord = {
 }
 
 /**
- * The completion escape hatch: `completed_at` follows `status`. Returns only the keys to change, so an
- * update that does not send `status`, or keeps a task done, leaves `completed_at` alone.
+ * The completion rule: `completed_at` follows `status`. Returns only the keys to change, so an update that
+ * does not send `status`, or keeps a task done, leaves `completed_at` alone. This pure function is the ORACLE
+ * of the rule: create applies it directly (there is no stored state yet); update expresses it as a SQL CASE
+ * over the stored row (`computed` below), and a test proves the two agree on every case.
  */
 export function taskCompletion(
   input: Record<string, unknown>,
@@ -53,7 +56,7 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const tasks = defineResource<TaskRecord>({
+export const tasks = definePreparedResource({
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
@@ -65,5 +68,18 @@ export const tasks = defineResource<TaskRecord>({
     assignee_id: { schema: z.uuid() },
   },
   references: { assignee_id: { table: 'principals' } },
-  beforeWrite: (_ctx, { input, before }) => ({ ...input, ...taskCompletion(input, before, new Date()) }),
+  // Extension 1 (create only): there is no stored row yet, so the pure rule applies directly.
+  prepare: ({ values, meta }) => {
+    if (meta.op !== 'create') return {}
+    const c = taskCompletion(values, null, meta.now)
+    return 'completed_at' in c ? { completed_at: c.completed_at ? codecs.timestamp.write(c.completed_at) : null } : {}
+  },
+  // Extension 2 (update): the completion CASE over the STORED status, evaluated at commit.
+  computed: ({ eb, values, now }) => {
+    if (values.status === 'done') {
+      return { completed_at: eb.case().when('tasks.status', '=', 'done').then(eb.ref('tasks.completed_at')).else(codecs.timestamp.write(now)).end() }
+    }
+    if (values.status === 'open') return { completed_at: null }
+    return {}
+  },
 })

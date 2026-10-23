@@ -1,0 +1,25 @@
+{
+  "name": "@vault/storage-d1",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./test": "./src/test/index.ts",
+    "./test/seed": "./src/test/seed.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vault/storage": "workspace:*",
+    "kysely": "0.29.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "miniflare": "4.20260730.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

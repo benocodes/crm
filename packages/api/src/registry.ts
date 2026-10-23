@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import type { AccountContext, ServiceContext } from './context.js'
 import { formatScope, type Scope } from './scopes.js'
+import type { PreparedOperation } from '@vault/storage'
+import { isPrepared, type PreparedEnv, type PreparedResource } from './storage/definition.js'
+import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
 import { createResource, deleteResource, getResource, listResource, updateResource } from './resources/crud.js'
 import {
   crudActions,
@@ -23,23 +26,39 @@ interface OperationBase {
   validation?: 'adapter' | 'handler'
   response: { status: 200 | 201 | 204; schema?: z.ZodType }
 }
-export interface TenantOperation extends OperationBase {
+interface TenantOperationBase extends OperationBase {
   kind: 'tenant'
   scope: Scope
+}
+/** The legacy interactive path (a Kysely transaction in `ServiceContext`). */
+export interface LegacyTenantOperation extends TenantOperationBase {
+  executor?: 'legacy'
   handler: (ctx: ServiceContext, input: OperationInput) => Promise<unknown>
 }
+/**
+ * The prepared path ([[CORE35]] C5): the operation builds a bounded program and the storage binding runs it.
+ * A prepared operation is never wrapped in a legacy transaction.
+ * TEMPORARY SEAM: this marker, the legacy variant and `withContext` for tenant operations are removed in
+ * [[CORE37]] once every operation is prepared (spec "Migration seam"; recorded in RESULT.md).
+ */
+export interface PreparedTenantOperation extends TenantOperationBase {
+  executor: 'prepared'
+  prepare: (env: PreparedEnv, input: OperationInput) => PreparedOperation<unknown>
+}
+export type TenantOperation = LegacyTenantOperation | PreparedTenantOperation
 export interface AccountOperation extends OperationBase {
   kind: 'account'
   handler: (ctx: AccountContext, input: OperationInput) => Promise<unknown>
 }
 export type Operation = TenantOperation | AccountOperation
+export type AnyResource = ResourceDefinition<any> | PreparedResource<any, any>
 
 const OP_NAME = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
 const TOOL_NAME = /^[a-z0-9_]{1,64}$/
 
 export class Registry {
   private readonly ops: Operation[] = []
-  private readonly defs: ResourceDefinition<any>[] = []
+  private readonly defs: AnyResource[] = []
 
   /** Validates at load: a bad operation is a programming mistake (plain Error). */
   register(op: Operation): this {
@@ -63,8 +82,8 @@ export class Registry {
     return this
   }
 
-  registerResource(def: ResourceDefinition<any>): this {
-    for (const op of resourceOperations(def)) this.register(op)
+  registerResource(def: AnyResource): this {
+    for (const op of isPrepared(def) ? preparedResourceOperations(def) : resourceOperations(def)) this.register(op)
     this.defs.push(def)
     return this
   }
@@ -73,7 +92,7 @@ export class Registry {
     return this.ops
   }
 
-  resources(): readonly ResourceDefinition<any>[] {
+  resources(): readonly AnyResource[] {
     return this.defs
   }
 
@@ -90,14 +109,14 @@ export class Registry {
 }
 
 /** The generic CRUD operations of a definition, in CRUD_ACTIONS order, for the actions it generates. */
-export function resourceOperations(def: ResourceDefinition<any>): TenantOperation[] {
+export function resourceOperations(def: ResourceDefinition<any>): LegacyTenantOperation[] {
   const p = resourcePath(def)
   const s = scopeResourceOf(def)
   const actions = new Set<CrudAction>(crudActions(def))
   const idParams = z.object({ id: z.uuid() })
   const rec = def.record
   const base = { kind: 'tenant' as const, validation: 'handler' as const, tags: [def.name] }
-  const ops: TenantOperation[] = []
+  const ops: LegacyTenantOperation[] = []
 
   if (actions.has('list')) {
     const query: Record<string, z.ZodType> = { after: z.uuid().optional(), limit: z.coerce.number().int().min(1).max(200).optional() }
@@ -177,3 +196,85 @@ export function resourceOperations(def: ResourceDefinition<any>): TenantOperatio
 
 /** The MCP/CLI-safe name derived from a dotted operation name. */
 export const toolName = (name: string): string => name.replaceAll('.', '_')
+
+/** The same operations, served by the prepared executor. Paths, scopes, schemas and statuses are identical. */
+export function preparedResourceOperations(def: PreparedResource<any, any>): PreparedTenantOperation[] {
+  const p = resourcePath(def)
+  const s = scopeResourceOf(def)
+  const actions = new Set<CrudAction>(crudActions(def))
+  const idParams = z.object({ id: z.uuid() })
+  const rec: z.ZodType = def.record
+  const base = { kind: 'tenant' as const, executor: 'prepared' as const, validation: 'handler' as const, tags: [def.name] }
+  const ops: PreparedTenantOperation[] = []
+  if (actions.has('list')) {
+    const query: Record<string, z.ZodType> = { after: z.uuid().optional(), limit: z.coerce.number().int().min(1).max(200).optional() }
+    for (const [key, f] of Object.entries(def.filters ?? {})) query[key] = (f as { schema: z.ZodType }).schema.optional()
+    ops.push({
+      ...base,
+      name: `${def.name}.list`,
+      summary: `List ${def.name}`,
+      method: 'get',
+      path: p,
+      scope: { resource: s, action: 'read' },
+      request: { query: z.object(query) },
+      response: { status: 200, schema: z.object({ data: z.array(rec), next_cursor: z.uuid().nullable() }) },
+      prepare: (env, input) => {
+        const { after, limit, ...filters } = input.query
+        return listOperation(def, env, { after, limit, filters: filters as Record<string, string> })
+      },
+    })
+  }
+  if (actions.has('get')) {
+    ops.push({
+      ...base,
+      name: `${def.name}.get`,
+      summary: `Get a ${def.eventName}`,
+      method: 'get',
+      path: `${p}/{id}`,
+      scope: { resource: s, action: 'read' },
+      request: { params: idParams },
+      response: { status: 200, schema: rec },
+      prepare: (env, input) => getOperation(def, env, input.params.id as string),
+    })
+  }
+  if (actions.has('create')) {
+    ops.push({
+      ...base,
+      name: `${def.name}.create`,
+      summary: `Create a ${def.eventName}`,
+      method: 'post',
+      path: p,
+      scope: { resource: s, action: 'write' },
+      request: { body: def.create },
+      response: { status: 201, schema: rec },
+      prepare: (env, input) => createOperation(def, env, input.body),
+    })
+  }
+  if (actions.has('update')) {
+    ops.push({
+      ...base,
+      name: `${def.name}.update`,
+      summary: `Update a ${def.eventName}`,
+      method: 'patch',
+      path: `${p}/{id}`,
+      scope: { resource: s, action: 'write' },
+      request: { params: idParams, body: def.update },
+      response: { status: 200, schema: rec },
+      prepare: (env, input) => updateOperation(def, env, input.params.id as string, input.body),
+    })
+  }
+  if (actions.has('delete')) {
+    ops.push({
+      ...base,
+      name: `${def.name}.delete`,
+      summary: `Delete a ${def.eventName}`,
+      method: 'delete',
+      path: `${p}/{id}`,
+      scope: { resource: s, action: 'write' },
+      request: { params: idParams },
+      response: { status: 204 },
+      prepare: (env, input) => deleteOperation(def, env, input.params.id as string),
+    })
+  }
+  return ops
+}

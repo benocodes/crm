@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { pgStorage } from '../test/storage.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, truncateAll } from '@vault/db/test'
@@ -24,7 +25,7 @@ afterAll(async () => {
   await db.destroy()
   await owner.destroy()
 })
-const app = () => createApp({ db: () => db, userAuthenticator: fakeUserAuthenticator() })
+const app = () => createApp({ db: () => db, userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(db) })
 
 beforeEach(async () => {
   await truncateAll(owner)

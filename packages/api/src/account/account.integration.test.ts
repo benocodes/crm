@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { pgStorage } from '../test/storage.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, seedMembership, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
@@ -27,7 +28,7 @@ beforeEach(async () => {
   await truncateAll(owner)
   profiles = new Map()
   kit = await testClerkAdapter({ profiles })
-  app = createApp({ db: () => db, authAdapter: kit.adapter })
+  app = createApp({ db: () => db, authAdapter: kit.adapter, storage: pgStorage(db) })
 })
 
 /** `claim`: the Clerk organisation id (and role) the token names. */

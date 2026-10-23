@@ -256,6 +256,36 @@ tests.
   and assert the SQLSTATE.
 - Kysely 0.29 exports `Migrator` and `FileMigrationProvider` from `kysely/migration`, not the root.
 
+## D1 migrations ([[CORE35]])
+
+`packages/db` is the Postgres package. D1's schema lives in the open `@vault/storage-d1`, as
+`packages/storage-d1/migrations/NNNN_<name>.sql`: forward-only and wrangler-compatible. Each cycle that
+migrates a resource appends a file. Local tests apply the files to disposable Miniflare bindings
+(`@vault/storage-d1/test`); never point tooling at a remote database id.
+
+- **Tenancy is the database** (spec D18). A singleton `deployment` row fixes the organisation id,
+  `organizations.id` references it, and every tenant table's `organization_id` references
+  `organizations`. A second organisation cannot be stored; `isolation.integration.test.ts` proves it.
+  D1 always enforces foreign keys, and `pragma foreign_keys = off` has no effect.
+- **Value conventions:**
+  - `STRICT` tables;
+  - canonical lowercase UUID text;
+  - timestamps as ISO-8601 UTC with milliseconds, checked with
+    `coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', c) = c, 0)`;
+  - booleans as checked 0/1;
+  - JSON as `json_valid` text;
+  - emails lowercase ASCII.
+- **Measured D1 limits:**
+  - LIKE/GLOB patterns are capped at **50 bytes**, so a long `GLOB` check fails at insert time;
+  - a statement binds at most **100 parameters**;
+  - a statement is at most 100 KB.
+- **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
+  inspects `sqlite_master`/PRAGMA. `schema-parity.integration.test.ts` on each engine ties the
+  physical columns to `COLUMN_KINDS` in `@vault/storage`, so a new column changes all three together.
+- **Postgres `set_updated_at` overrides any `updated_at` the application writes.** The prepared path
+  writes it, but on Postgres the stored value is the transaction's `now()` ([[CORE35]]; whether the app
+  should own it is a [[CORE36]] decision).
+
 ## Neon notes
 
 - Extensions available: `pgcrypto`, `citext`, `pg_uuidv7`.

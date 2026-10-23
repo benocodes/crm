@@ -415,3 +415,18 @@ skill ends; don't start implementing unless asked.
     in Clerk before the vault held a row could be re-created by an older token. For each such rule, the
     plan's Phase 2 names the empty-state case and its expected outcome, and if the spec does not say, the
     planner raises it as a spec question before the plan ships.
+16. **A behaviour row in a plan is checked against the shipped code before it ships.** When a cycle
+    migrates existing behaviour, the old service is the oracle. Read it and cite it, and never write what
+    the behaviour "should" be. [[CORE35]]'s PLAN said a same-value patch emits no event; the shipped
+    `updateResource` emits one, and the row became a coder deviation and a review decision (spec D22).
+    A real behaviour change is a spec decision, not a plan row.
+17. **A type-safety gate names its call-site negatives.** List the expected compile errors at the
+    declaration a user writes (a resource definition: unknown, secret or mistyped record column; unknown
+    or mistyped computed column; unknown filter or reference; a guard on another table), not only on
+    standalone helpers. A generic core built on an untyped internal view passes helper-level negatives
+    while its definitions accept anything ([[CORE35]] review F1).
+18. **Say how to red a suite that needs the whole vertical.** Integration suites that exercise a pipeline
+    end to end (contract, parity, atomicity, concurrency) cannot fail meaningfully before the pipeline
+    exists. Plan them as **absence mutations**: name the fault to inject and the test that must turn red,
+    and require the raw output in RESULT.md, instead of a red-first run that would only show a
+    missing-module error ([[CORE35]]).

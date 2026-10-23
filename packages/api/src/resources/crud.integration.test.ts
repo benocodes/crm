@@ -8,7 +8,8 @@ import { ApiError } from '../errors.js'
 import { asAgent, asUser, seedTenant, type Tenant } from '../test/tenant.js'
 import { createResource, deleteResource, getResource, listResource, updateResource } from './crud.js'
 import { defineResource } from './define.js'
-import { tasks, type TaskRecord } from './tasks.js'
+import { type TaskRecord } from './tasks.js'
+import { legacyTasks as tasks } from '../test/legacy-tasks.js'
 
 let db: Kysely<Database>
 let owner: Kysely<Database>

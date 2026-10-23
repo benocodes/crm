@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
 import { defineResource, parseListQuery, readColumns, resourcePath, toRecord, type ResourceDefinition } from './define.js'
-import { tasks } from './tasks.js'
+import { legacyTasks as tasks } from '../test/legacy-tasks.js'
 
 const record = z.object({ id: z.string(), title: z.string() })
 const base = (over: Partial<ResourceDefinition<any>> = {}): ResourceDefinition<any> => ({
