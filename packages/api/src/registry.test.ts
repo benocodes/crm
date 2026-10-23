@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { Registry, resourceOperations, toolName, type Operation } from './registry.js'
-import { tasks } from './resources/tasks.js'
+import { legacyTasks as tasks } from './test/legacy-tasks.js'
 import { parseScope } from './scopes.js'
 
 const op = (over: Partial<Operation> = {}): Operation =>

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { pgStorage } from '../test/storage.js'
 import { createApp } from '../rest/app.js'
 import { fakeUserAuthenticator } from '../test/user-auth.js'
 import { useAdminKit } from '../test/admin-kit.js'
@@ -113,7 +114,7 @@ describe('POST /webhooks/clerk', () => {
   })
 
   it('does not exist without an adapter', async () => {
-    const app = createApp({ db: () => k.db, userAuthenticator: fakeUserAuthenticator() })
+    const app = createApp({ db: () => k.db, userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(k.db) })
     const res = await app.request('/webhooks/clerk', { method: 'POST', body: '{}' })
     expect(res.status).toBe(404)
     expect((await res.json()).error.code).toBe('not_found')

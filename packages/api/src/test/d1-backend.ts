@@ -1,0 +1,105 @@
+// Test-only. The D1 backend of the shared contract suite ([[CORE35]] D16/D18): one local Miniflare D1 binding
+// PER TENANT (never two tenants in one D1), the real app and the prepared executor, the injected-principal
+// authentication stand-in. Nothing reaches a remote database.
+import type { Kysely } from 'kysely'
+import type { Database } from '@vault/db'
+import { coldDb, uuidv7 } from '@vault/storage'
+import { d1Binding, type D1Like } from '@vault/storage-d1'
+import { clearD1, openLocalD1 } from '@vault/storage-d1/test'
+import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
+import type { ServiceContext } from '../context.js'
+import { Registry } from '../registry.js'
+import { scopeResourceOf } from '../resources/define.js'
+import { createApp } from '../rest/app.js'
+import { ScopeSet } from '../scopes.js'
+import type { ContractBackend, ContractSession, ContractTenant, EventRow } from './contract.js'
+import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
+
+const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
+
+export function d1Backend(): ContractBackend {
+  return {
+    name: 'd1',
+    async open(registry: Registry): Promise<ContractSession> {
+      const local = await openLocalD1(['A', 'B'])
+      const names = ['A', 'B'] as const
+      const byOrg = new Map<string, { d1: D1Like; app: ReturnType<typeof createApp> }>()
+      // The relational Kysely is never reached by a prepared operation; a cold one proves it (it cannot execute).
+      const unusedDb = coldDb('d1') as unknown as Kysely<Database>
+      const all = () => [...byOrg.values()]
+      return {
+        // Routes without a credential or a database: the document and the 401 cases.
+        app: createApp({ db: () => unusedDb, registry, userAuthenticator: fakeUserAuthenticator() }),
+        db: unusedDb,
+        owner: unusedDb,
+        async reset() {
+          byOrg.clear()
+          const tenants: ContractTenant[] = []
+          for (const name of names) {
+            const d1 = local.bindings[name]!
+            await clearD1(d1)
+            const t: ContractTenant = { organizationId: uuidv7(), userId: uuidv7(), agentId: uuidv7() }
+            await seedDeployment(d1, { organizationId: t.organizationId })
+            await seedPrincipal(d1, { id: t.userId, kind: 'user' })
+            await seedPrincipal(d1, { id: t.agentId, kind: 'agent' })
+            const binding = d1Binding(d1, { organizationId: t.organizationId })
+            const app = createApp({ db: () => unusedDb, registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
+            byOrg.set(t.organizationId, { d1, app })
+            tenants.push(t)
+          }
+          return { a: tenants[0]!, b: tenants[1]! }
+        },
+        close: () => local.dispose(),
+        async call(t, actor, scopes, method, path, body) {
+          const token = mintTestUserToken({
+            userId: actor === 'agent' ? t.agentId : t.userId,
+            organizationId: t.organizationId,
+            scopes,
+            kind: actor,
+          })
+          return byOrg.get(t.organizationId)!.app.request(path, {
+            method,
+            headers: { authorization: `Bearer ${token}` },
+            body: body === undefined ? undefined : JSON.stringify(body),
+          })
+        },
+        async principalId(t, actor) {
+          return actor === 'agent' ? t.agentId : t.userId
+        },
+        async as(t, d, fn) {
+          const ctx = {
+            actor: { id: t.userId, kind: 'user' as const },
+            organizationId: t.organizationId,
+            scopes: ScopeSet.parse([`${scopeResourceOf(d)}:read`, `${scopeResourceOf(d)}:write`]),
+            // Fixtures that need a relational transaction are Postgres-only; here it fails loudly.
+            get trx(): never {
+              throw new Error('this fixture needs a Postgres transaction; it cannot run on the D1 backend')
+            },
+            emit: async () => {
+              throw new Error('legacy emit is not available on D1')
+            },
+          } as unknown as ServiceContext
+          return fn(ctx)
+        },
+        async eventsOf(id): Promise<EventRow[]> {
+          const rows: EventRow[] = []
+          for (const { d1 } of all()) {
+            const r = await d1.prepare('SELECT * FROM events WHERE resource_id = ? ORDER BY id').bind(id).all()
+            rows.push(...(r.results as EventRow[]).map((e) => ({ ...e, before: parse(e.before), after: parse(e.after) })))
+          }
+          return rows
+        },
+        async countEvents() {
+          let n = 0
+          for (const { d1 } of all()) n += Number((await d1.prepare('SELECT count(*) AS n FROM events').first())!.n)
+          return n
+        },
+        async countRows(table) {
+          let n = 0
+          for (const { d1 } of all()) n += Number((await d1.prepare(`SELECT count(*) AS n FROM "${table}"`).first())!.n)
+          return n
+        },
+      }
+    },
+  }
+}

@@ -9,6 +9,7 @@ import { sql } from 'kysely'
 import { createDb, withServiceRole } from '@vault/db'
 import { createAuthAdapter } from '../src/auth/adapter.js'
 import { createVaultRegistry } from '../src/operations.js'
+import { postgresBinding } from '@vault/storage-postgres'
 import { createApp } from '../src/rest/app.js'
 
 const ISSUER = 'https://smoke.clerk.test'
@@ -81,7 +82,7 @@ const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhos
 const dbName = (await sql<{ current_database: string }>`SELECT current_database()`.execute(db)).rows[0]!.current_database
 console.log(`database ${dbName}`)
 
-const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin] })
+const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => postgresBinding(db) })
 const server = serve({ fetch: app.fetch, port: appPort, hostname: '127.0.0.1' })
 const base = `http://127.0.0.1:${appPort}`
 const declared = createVaultRegistry().declaredScopes()

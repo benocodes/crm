@@ -48,9 +48,10 @@ export interface ResourceDefinition<R extends { id: string } = { id: string }> {
   }
 }
 
-export const crudActions = (def: ResourceDefinition<any>): readonly CrudAction[] => def.operations ?? CRUD_ACTIONS
-export const scopeResourceOf = (def: ResourceDefinition<any>): string => def.scopeResource ?? def.name
-export const resourcePath = (def: ResourceDefinition<any>): string => '/' + def.name.replaceAll('_', '-')
+type Named = { name: string; operations?: readonly CrudAction[]; scopeResource?: string }
+export const crudActions = (def: Named): readonly CrudAction[] => def.operations ?? CRUD_ACTIONS
+export const scopeResourceOf = (def: Named): string => def.scopeResource ?? def.name
+export const resourcePath = (def: Named): string => '/' + def.name.replaceAll('_', '-')
 export const readColumns = (def: ResourceDefinition<any>): string[] => Object.keys(def.record.shape)
 
 const NAME = /^[a-z][a-z0-9_]*$/
@@ -99,7 +100,7 @@ export function parseInput(schema: z.ZodType, input: unknown): Record<string, un
 const LIMIT = z.coerce.number().int().min(1).max(200)
 
 export function parseListQuery(
-  def: ResourceDefinition<any>,
+  def: { filters?: Record<string, Filter> },
   raw: { after?: unknown; limit?: unknown; filters?: Record<string, string> },
 ): { after: string | null; limit: number; filters: Record<string, unknown> } {
   let limit = 50

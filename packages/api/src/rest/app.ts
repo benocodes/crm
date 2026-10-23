@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Kysely } from 'kysely'
+import { execute, uuidv7, type StorageBinding } from '@vault/storage'
 import type { Database } from '@vault/db'
 import type { AuthAdapter } from '../auth/adapter.js'
 import { authMiddleware } from '../auth/middleware.js'
@@ -9,7 +10,7 @@ import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
 import { withAccountContext, withContext } from '../context.js'
 import { clerkWebhookHandler } from '../directory/webhook.js'
-import { ApiError } from '../errors.js'
+import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
 import type { Operation, OperationInput, Registry } from '../registry.js'
 import { parseInput } from '../resources/define.js'
@@ -17,7 +18,7 @@ import { formatScope } from '../scopes.js'
 import { renderError, renderNotFound } from './errors.js'
 import { documentOperation, honoPath, registerSecurityScheme } from './openapi.js'
 
-export type AppEnv = { Variables: { db: Kysely<Database>; principal: Principal } }
+export type AppEnv = { Variables: { db: Kysely<Database>; principal: Principal; storage?: StorageBinding } }
 export interface AppOptions {
   /** Resolves the request's database. Called once per request, never at construction. */
   db: (c: Context) => Kysely<Database>
@@ -26,6 +27,14 @@ export interface AppOptions {
   userAuthenticator?: UserAuthenticator
   /** [[CORE3]]: builds the real authenticator over this registry's declared scopes. Exclusive with `userAuthenticator`. */
   authAdapter?: AuthAdapter
+  /**
+   * The storage binding that serves prepared operations ([[CORE35]]), chosen by trusted composition code,
+   * never by request input. Required once the registry has a prepared operation.
+   */
+  storage?: (c: Context) => StorageBinding
+  /** Injected clock and id source for prepared units (tests and golden fixtures). Default: real time, UUIDv7. */
+  clock?: () => Date
+  newId?: () => string
   /** Allowed CORS origins ([[CORE3]] C4). Empty or absent: no CORS middleware, no `Access-Control-*` header. */
   corsOrigins?: readonly string[]
   /** `info.version` in the document. */
@@ -54,7 +63,7 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   return { params, query, body }
 }
 
-async function run(c: Context<AppEnv>, op: Operation): Promise<unknown> {
+async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions, 'clock' | 'newId'>): Promise<unknown> {
   const input = await readInput(c, op)
   const principal = c.var.principal
   if (op.kind === 'account') {
@@ -76,6 +85,18 @@ async function run(c: Context<AppEnv>, op: Operation): Promise<unknown> {
     throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}`)
   }
   const { actor, organizationId, scopes } = principal
+  if (op.executor === 'prepared') {
+    const storage = c.var.storage
+    if (!storage) throw new Error(`operation ${op.name} is prepared but createApp was given no storage binding`)
+    const clock = injected.clock ?? (() => new Date())
+    const now = clock()
+    const env = { actor, organizationId, scopes, now, newId: injected.newId ?? (() => uuidv7(now)) }
+    try {
+      return (await execute(storage, { actorId: actor.id, organizationId }, op.prepare(env, input))).value
+    } catch (err) {
+      throw mapStorageError(err)
+    }
+  }
   return withContext(c.var.db, { actor, organizationId, scopes }, (ctx) => op.handler(ctx, input))
 }
 
@@ -106,6 +127,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   }
   app.use('*', async (c, next) => {
     c.set('db', options.db(c))
+    if (options.storage) c.set('storage', options.storage(c))
     await next()
   })
 
@@ -114,7 +136,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   for (const op of registry.operations()) {
     documentOperation(app, op)
     app.on(op.method.toUpperCase(), honoPath(op.path), auth, async (c) => {
-      const result = await run(c, op)
+      const result = await run(c, op, options)
       if (op.response.status === 204) return c.body(null, 204)
       return c.json(result as never, op.response.status)
     })

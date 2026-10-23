@@ -1,5 +1,6 @@
 // Test-only. The per-file setup of the administration suites: a real authenticator over the fake Clerk
 // issuer, one `call` per subject or API key, and event reads in write order.
+import { pgStorage } from './storage.js'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 import { sql, type Kysely } from 'kysely'
 import type { Database } from '@vault/db'
@@ -78,7 +79,7 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
     k.profiles = new Map()
     const kit = await testClerkAdapter({ profiles: k.profiles })
     k.clerk = kit
-    k.app = createApp({ db: () => k.db, authAdapter: kit.adapter })
+    k.app = createApp({ db: () => k.db, authAdapter: kit.adapter, storage: pgStorage(k.db) })
     const request = (path: string, token: string, init: CallInit = {}) =>
       k.app.request(path, {
         method: init.method ?? 'GET',

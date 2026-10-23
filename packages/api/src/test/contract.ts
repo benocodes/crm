@@ -3,10 +3,10 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, truncateAll } from '@vault/db/test'
+import { postgresBinding } from '@vault/storage-postgres'
 import { withContext, type ServiceContext } from '../context.js'
-import type { Registry } from '../registry.js'
-import { createResource, getResource } from '../resources/crud.js'
-import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudAction, type ResourceDefinition } from '../resources/define.js'
+import type { AnyResource, Registry } from '../registry.js'
+import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudAction } from '../resources/define.js'
 import { createApp, type AppEnv } from '../rest/app.js'
 import { ScopeSet } from '../scopes.js'
 import { seedApiKey } from './keys.js'
@@ -35,8 +35,15 @@ export type ContractTenant = Tenant
 export type EventRow = Record<string, any>
 export interface ContractEnv {
   app: OpenAPIHono<AppEnv>
+  /** Postgres pools (`vault_app`, owner); on other backends these are unusable stand-ins. */
   db: Kysely<Database>
   owner: Kysely<Database>
+  countEvents(): Promise<number>
+  countRows(table: string): Promise<number>
+  /** A live row made through the public API as the tenant's user (no storage handle needed). */
+  make(t: ContractTenant, def: AnyResource, fixture: ContractFixture): Promise<{ id: string }>
+  /** The public record of a row as the tenant's user, via GET. */
+  read(t: ContractTenant, def: AnyResource, id: string): Promise<unknown>
   a: ContractTenant
   b: ContractTenant
   /** One request as the tenant's principal; `grant` picks its scopes. */
@@ -44,10 +51,97 @@ export interface ContractEnv {
   /** The id of the principal `call` uses for this actor and grant (what events record as `actor_id`). */
   principalId(t: ContractTenant, actor: ContractActor, grant: ContractGrant): Promise<string>
   /** Runs fn in a committed context as the tenant's owner user, with the definition's read and write scopes. */
-  as<T>(t: ContractTenant, def: ResourceDefinition<any>, fn: (ctx: ServiceContext) => Promise<T>): Promise<T>
+  as<T>(t: ContractTenant, def: AnyResource, fn: (ctx: ServiceContext) => Promise<T>): Promise<T>
   eventsOf(resourceId: string): Promise<EventRow[]>
 }
-export type ContractCheck = (def: ResourceDefinition<any>, fixture: ContractFixture, env: () => ContractEnv) => void
+export type ContractCheck = (def: AnyResource, fixture: ContractFixture, env: () => ContractEnv) => void
+
+/**
+ * Where a contract run executes ([[CORE35]] D16): the same assertions run on every backend. A session owns its
+ * stores, tenants, authentication stand-in and event reads; the suite owns the assertions.
+ */
+export interface ContractSession {
+  app: OpenAPIHono<AppEnv>
+  db: Kysely<Database>
+  owner: Kysely<Database>
+  /** Empties the stores and seeds tenants A and B (one store per tenant on D1: never two tenants in one). */
+  reset(): Promise<{ a: ContractTenant; b: ContractTenant }>
+  close(): Promise<void>
+  call(t: ContractTenant, actor: ContractActor, scopes: string[], method: string, path: string, body?: unknown): Promise<Response>
+  principalId(t: ContractTenant, actor: ContractActor, scopes: string[]): Promise<string>
+  as: ContractEnv['as']
+  eventsOf: ContractEnv['eventsOf']
+  countEvents: ContractEnv['countEvents']
+  countRows: ContractEnv['countRows']
+}
+export interface ContractBackend {
+  name: string
+  open(registry: Registry): Promise<ContractSession>
+}
+
+/** The Postgres backend: `vault_app` pool, owner pool for truncation and reads, the storage-postgres binding. */
+export function postgresBackend(): ContractBackend {
+  return {
+    name: 'postgres',
+    async open(registry) {
+      const db = createTestDb()
+      const owner = createOwnerTestDb()
+      const storage = postgresBinding(db)
+      const app = createApp({ db: () => db, registry, userAuthenticator: fakeUserAuthenticator(), storage: () => storage })
+      const agents = new Map<string, { id: string; key: string }>()
+      const agentFor = async (t: ContractTenant, scopes: string[]) => {
+        const k = `${t.organizationId}:${scopes.join(',')}`
+        let agent = agents.get(k)
+        if (!agent) {
+          const row = await seedAgent(db, { organizationId: t.organizationId, createdBy: t.userId, scopes })
+          const key = await seedApiKey(db, { organizationId: t.organizationId, agentId: row.id, createdBy: t.userId })
+          agent = { id: row.id, key: key.key }
+          agents.set(k, agent)
+        }
+        return agent
+      }
+      return {
+        app,
+        db,
+        owner,
+        async reset() {
+          await truncateAll(owner)
+          agents.clear()
+          return { a: await seedTenant(db, 'A'), b: await seedTenant(db, 'B') }
+        },
+        async close() {
+          await db.destroy()
+          await owner.destroy()
+        },
+        async call(t, actor, scopes, method, path, body) {
+          const token = actor === 'agent' ? (await agentFor(t, scopes)).key : mintTestUserToken({ userId: t.userId, organizationId: t.organizationId, scopes })
+          return app.request(path, {
+            method,
+            headers: { authorization: `Bearer ${token}` },
+            body: body === undefined ? undefined : JSON.stringify(body),
+          })
+        },
+        async principalId(t, actor, scopes) {
+          return actor === 'agent' ? (await agentFor(t, scopes)).id : t.userId
+        },
+        as: (t, d, fn) =>
+          withContext(
+            db,
+            {
+              actor: { id: t.userId, kind: 'user' },
+              organizationId: t.organizationId,
+              scopes: ScopeSet.parse([`${scopeResourceOf(d)}:read`, `${scopeResourceOf(d)}:write`]),
+            },
+            fn,
+          ),
+        eventsOf: (id) => owner.selectFrom('events').selectAll().where('resource_id', '=', id).orderBy('id').execute(),
+        countEvents: async () => Number((await owner.selectFrom('events').select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
+        countRows: async (table) =>
+          Number((await (owner as unknown as Kysely<Record<string, Record<string, unknown>>>).selectFrom(table).select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
+      }
+    },
+  }
+}
 
 /** The catalog case: every registered definition has a fixture and every fixture a definition. */
 export function assertFixturesCoverRegistry(registry: Registry, fixtures: Readonly<Record<string, ContractFixture>>): void {
@@ -64,36 +158,38 @@ export function assertFixturesCoverRegistry(registry: Registry, fixtures: Readon
 
 const NO_SUCH = '0190b2c4-0000-7000-8000-00000000dead'
 const METHOD: Record<CrudAction, string> = { list: 'GET', get: 'GET', create: 'POST', update: 'PATCH', delete: 'DELETE' }
-const pathOf = (def: ResourceDefinition<any>, action: CrudAction, id = NO_SUCH): string =>
+const pathOf = (def: AnyResource, action: CrudAction, id = NO_SUCH): string =>
   action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/${id}`
 
 export function runContractSuite(opts: {
   registry: Registry
   fixtures: Readonly<Record<string, ContractFixture>>
   checks?: readonly ContractCheck[]
+  /** Default: Postgres. The same assertions run on every backend passed. */
+  backend?: ContractBackend
 }): void {
   const { registry, fixtures, checks = [] } = opts
+  const backend = opts.backend ?? postgresBackend()
 
-  describe('contract', () => {
+  describe(`contract (${backend.name})`, () => {
+    let session: ContractSession
     let db: Kysely<Database>
     let owner: Kysely<Database>
     let app: OpenAPIHono<AppEnv>
     let a: ContractTenant
     let b: ContractTenant
 
-    beforeAll(() => {
-      db = createTestDb()
-      owner = createOwnerTestDb()
-      app = createApp({ db: () => db, registry, userAuthenticator: fakeUserAuthenticator() })
+    beforeAll(async () => {
+      session = await backend.open(registry)
+      db = session.db
+      owner = session.owner
+      app = session.app
     })
     afterAll(async () => {
-      await db.destroy()
-      await owner.destroy()
+      await session.close()
     })
     beforeEach(async () => {
-      await truncateAll(owner)
-      a = await seedTenant(db, 'A')
-      b = await seedTenant(db, 'B')
+      ;({ a, b } = await session.reset())
     })
 
     it('every definition has a fixture', () => assertFixturesCoverRegistry(registry, fixtures))
@@ -111,61 +207,37 @@ export function runContractSuite(opts: {
 
       describe(def.name, () => {
         let env: ContractEnv
-        const agents = new Map<string, { id: string; key: string }>()
-
         beforeEach(() => {
-          agents.clear()
-          const agentFor = async (t: ContractTenant, grant: ContractGrant) => {
-            const k = `${t.organizationId}:${grant}`
-            let agent = agents.get(k)
-            if (!agent) {
-              const row = await seedAgent(db, { organizationId: t.organizationId, createdBy: t.userId, scopes: scopeSets[grant] })
-              const key = await seedApiKey(db, { organizationId: t.organizationId, agentId: row.id, createdBy: t.userId })
-              agent = { id: row.id, key: key.key }
-              agents.set(k, agent)
-            }
-            return agent
-          }
+          const call: ContractEnv['call'] = (t, actor, grant, method, path, body) => session.call(t, actor, scopeSets[grant], method, path, body)
           env = {
             app,
             db,
             owner,
             a,
             b,
-            async call(t, actor, grant, method, path, body) {
-              const token =
-                actor === 'agent'
-                  ? (await agentFor(t, grant)).key
-                  : mintTestUserToken({ userId: t.userId, organizationId: t.organizationId, scopes: scopeSets[grant] })
-              return app.request(path, {
-                method,
-                headers: { authorization: `Bearer ${token}` },
-                body: body === undefined ? undefined : JSON.stringify(body),
-              })
+            call,
+            principalId: (t, actor, grant) => session.principalId(t, actor, scopeSets[grant]),
+            as: session.as,
+            eventsOf: session.eventsOf,
+            countEvents: session.countEvents,
+            countRows: session.countRows,
+            async make(t, d, fx) {
+              if (fx.make) return session.as(t, d, (ctx) => fx.make!(ctx, { db, tenant: t }))
+              const input = await session.as(t, d, fx.input!)
+              const res = await call(t, 'user', 'full', 'POST', pathOf(d, 'create'), input)
+              if (res.status !== 201) throw new Error(`fixture create failed: ${res.status} ${await res.text()}`)
+              return (await res.json()) as { id: string }
             },
-            async principalId(t, actor, grant) {
-              return actor === 'agent' ? (await agentFor(t, grant)).id : t.userId
+            async read(t, d, id) {
+              return (await call(t, 'user', 'full', 'GET', pathOf(d, 'get', id))).json()
             },
-            as: (t, d, fn) =>
-              withContext(
-                db,
-                {
-                  actor: { id: t.userId, kind: 'user' },
-                  organizationId: t.organizationId,
-                  scopes: ScopeSet.parse([`${scopeResourceOf(d)}:read`, `${scopeResourceOf(d)}:write`]),
-                },
-                fn,
-              ),
-            eventsOf: (id) => owner.selectFrom('events').selectAll().where('resource_id', '=', id).orderBy('id').execute(),
           }
         })
 
         const op = (action: CrudAction) => registry.get(`${def.name}.${action}`)!
         const parse = (action: CrudAction, json: unknown) => op(action).response.schema!.parse(json)
-        const make = (t: ContractTenant): Promise<{ id: string }> =>
-          env.as(t, def, (ctx) => (fixture.make ? fixture.make(ctx, { db, tenant: t }) : fixture.input!(ctx).then((input) => createResource(ctx, def, input))))
-        const eventCount = async () =>
-          Number((await owner.selectFrom('events').select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n)
+        const make = (t: ContractTenant): Promise<{ id: string }> => env.make(t, def, fixture)
+        const eventCount = () => env.countEvents()
         const types = (events: EventRow[], action: string) => events.filter((e) => e.type === `${def.eventName}.${action}`)
         const error = async (res: Response, status: number, code: string) => {
           expect(res.status).toBe(status)
@@ -244,7 +316,7 @@ export function runContractSuite(opts: {
 
             it('cross-tenant', async () => {
               const row = await make(b)
-              const snapshot = () => env.as(b, def, (ctx) => getResource(ctx, def, row.id))
+              const snapshot = () => env.read(b, def, row.id)
               const before = await snapshot()
               const eventsBefore = await env.eventsOf(row.id)
               if (has('get')) await error(await env.call(a, actor, 'full', 'GET', pathOf(def, 'get', row.id)), 404, 'not_found')
@@ -266,7 +338,7 @@ export function runContractSuite(opts: {
                 const total = await eventCount()
                 if (has('create')) {
                   const input = await env.as(a, def, fixture.input!)
-                  const rows = () => owner.selectFrom(def.table).select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()
+                  const rows = async () => ({ n: await env.countRows(def.table) })
                   const n = (await rows()).n
                   await error(await env.call(a, actor, 'full', 'POST', pathOf(def, 'create'), { ...input, zz_unknown: 1 }), 400, 'validation_error')
                   expect((await rows()).n).toBe(n)
