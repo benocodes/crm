@@ -12,7 +12,9 @@
     "dev": "tsx src/dev-server.ts",
     "bootstrap": "tsx scripts/bootstrap.ts",
     "smoke:auth": "tsx scripts/smoke-auth.ts",
-    "smoke:admin": "tsx scripts/smoke-admin.ts"
+    "smoke:admin": "tsx scripts/smoke-admin.ts",
+    "golden:generate": "tsx scripts/golden.ts generate",
+    "golden:check": "tsx scripts/golden.ts check"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
