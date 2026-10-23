@@ -23,6 +23,9 @@ importers:
       '@vault/db':
         specifier: workspace:*
         version: link:../db
+      '@vault/storage':
+        specifier: workspace:*
+        version: link:../storage
       hono:
         specifier: 4.13.12
         version: 4.13.12
@@ -42,6 +45,12 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
+      '@vault/storage-d1':
+        specifier: workspace:*
+        version: link:../storage-d1
+      '@vault/storage-postgres':
+        specifier: workspace:*
+        version: link:../storage-postgres
       tsx:
         specifier: 4.23.15
         version: 4.23.15
