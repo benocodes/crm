@@ -142,7 +142,7 @@ handler); a generic layer that tries to express every behavior turns into a fram
 Adding a resource also means adding it to the **contract suite** (see Testing); don't hand-write those
 tests.
 
-**The definition** (`defineResource` in `src/resources/define.ts`; `tasks.ts` is the worked example):
+**The definition** (`defineResource` in `src/resources/define.ts`; `companies.ts` is a worked example, and `tasks` has moved to the prepared path below):
 `name` (plural, scope resource), `eventName` (singular, event prefix), `table`, `record` (read schema, a
 plain `z.object` so unlisted columns are stripped), `create`/`update` (`z.strictObject`, so unknown keys and
 `organization_id`/`created_by` are `validation_error`), optional `agentWritable`, `filters` (each with a
@@ -192,6 +192,44 @@ escape hatches:
   `returningAll()` in `crud.ts`.
 - **Known limits, owed by later plans:** filters are column equality only, and `toRecord` maps one flat
   row. Join filters and embedded child rows need definition hooks ([[CHN5]]).
+
+## Prepared resources: the storage seam ([[CORE35]])
+
+Resources are moving from the interactive layer above to **prepared operations**: a bounded program of
+typed Kysely statements that runs as one atomic unit on Postgres (`@vault/storage-postgres`, enterprise)
+or D1 (`@vault/storage-d1`, open). `tasks` is the first, and the worked example is
+`src/resources/tasks.ts`. Until [[CORE37]], both paths coexist.
+
+- **`definePreparedResource({ table, record, ... })`** (`src/storage/definition.ts`) infers the table from
+  `table`. `RecordShape` makes every `record` key a public column of that table with a compatible type,
+  so an unknown, secret or mistyped column is a compile error at the call. `computed` (a SQL expression
+  over the stored row, e.g. the completion CASE) and `prepare` return values keyed and typed by column.
+  Every hook is synchronous and DB-free. Prove each new call-site rule in
+  `src/storage/definition.typecheck.ts`: an `@ts-expect-error` with a positive sibling, seen red.
+- **The registry marks prepared operations `executor: 'prepared'`.** `run()` in `src/rest/app.ts` executes
+  them through the binding from `createApp({ storage })` and never wraps them in `withContext`. **Every
+  composition (`dev-server.ts`, the smoke scripts, test apps) must pass `storage`**; a prepared operation
+  without one throws. Storage errors go through `mapStorageError`:
+  - a foreign-key failure is `invalid_reference`;
+  - drift is `409 conflict`;
+  - the cap is `set_limit_exceeded`;
+  - a foreign organisation is `403 organization_forbidden`.
+- **Generic writes compose three statements:** the mutation, `eventStatement` (an INSERT…SELECT that
+  renders `after` from the stored row and is gated on the mutation having applied), and a result select
+  gated on the event existing. Event `after` is therefore the stored row, never a recomputation.
+- **An empty patch is a no-op** (existence check only, no event); **a same-value patch is a real update**
+  (event, new `updated_at`; spec D22).
+- **`updated_at` differs by engine.** On Postgres the `set_updated_at` trigger stamps transaction time,
+  overriding the app clock; on D1 it is the injected clock. Tests assert it per engine ([[CORE35]] F5).
+- **Testing on both engines:**
+  - `src/test/engines.ts` opens Postgres (`vault_app`, no presets) and a Miniflare D1, with injected
+    clock and ids.
+  - `runContractSuite({ backend: d1Backend() })` runs the same assertions on D1, with one binding per
+    tenant, never two tenants in one D1.
+  - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
+    behaviour change, run `pnpm -C packages/api golden:generate`; `golden:check` fails on drift.
+  - Suites written after the vertical exists prove their strength with absence mutations (break the
+    runtime, see the target test fail), recorded in RESULT.md.
 
 ## The service context and tenancy
 
@@ -385,6 +423,12 @@ name doesn't match `/(^|_)test(_|$)/`.
   your diff against the clean tree and rerun; a pre-existing failure belongs in a follow-up, not in your
   commit.
 - Never run two API suites against one database at once (`pgrep -f vitest`).
+- **Never leave schema state behind on the shared test DB.** `ALTER TABLE … DISABLE TRIGGER` and similar
+  changes persist across runs and files. The golden backend's leaked `set_updated_at` disable hid
+  production `updated_at` from every later suite, and a test failed or passed depending on file order
+  ([[CORE35]] F5). Restore the state in `close()`/`afterAll`, and make the harness assert the production
+  state before a suite runs (`engines.ts` checks `tgenabled = 'O'`). If the guard trips, run
+  `pnpm db:test:worktree`.
 - For file downloads, assert a UTF-8 BOM on `response.arrayBuffer()` (`EF BB BF`), not `response.text()`:
   Fetch's decoder strips the BOM.
 - Postgres `NUMERIC` comes back from `pg` as a string even when a `sql<number>` annotation says otherwise.
