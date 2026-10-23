@@ -9,7 +9,7 @@ import { tasks } from '../resources/tasks.js'
 import { createApp } from '../rest/app.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 import { createOperation, getOperation, listOperation } from './crud.js'
-import { openEngines, type Engine } from './engines.js'
+import { openEngines, type Engine } from '../test/engines.js'
 
 const settle = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e)
 let engines: Engine[]

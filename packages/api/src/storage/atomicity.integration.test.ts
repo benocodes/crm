@@ -21,7 +21,7 @@ import { postgresBinding } from '@vault/storage-postgres'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { createOperation, updateOperation } from './crud.js'
 import { tasks } from '../resources/tasks.js'
-import { openEngines, type Engine } from './engines.js'
+import { openEngines, type Engine } from '../test/engines.js'
 
 const LABELS: readonly StatementLabel[] = ['first-mutation', 'first-event', 'result']
 const NOW = new Date('2026-10-22T10:00:00.000Z')

@@ -3,7 +3,7 @@ import { uuidv7 } from '@vault/storage'
 import { tasks } from '../resources/tasks.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createOperation, deleteOperation, updateOperation } from './crud.js'
-import { openEngines, type Engine, type RawRow } from './engines.js'
+import { openEngines, type Engine, type RawRow } from '../test/engines.js'
 
 // Coordinated starts, no sleeps, no retries masking failures ([[CORE35]] D16). Assertions are on the final
 // state and a valid event chain, never on which contender won.

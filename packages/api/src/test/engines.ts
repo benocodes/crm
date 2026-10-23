@@ -10,7 +10,7 @@ import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { execute } from '@vault/storage'
 import { ScopeSet } from '../scopes.js'
-import type { PreparedEnv } from './definition.js'
+import type { PreparedEnv } from '../storage/definition.js'
 
 export type RawRow = Record<string, any>
 export interface Engine {

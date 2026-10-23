@@ -15,6 +15,8 @@ export type JsonValue = ColumnType<unknown, string | null, string | null>
 export interface OrganizationsTable {
   id: string
   name: string
+  auth_provider: string | null
+  auth_org_id: string | null
   created_at: Timestamp
   updated_at: Timestamp
 }
@@ -91,7 +93,7 @@ export type PhysicalTable = Exclude<Table, 'api_keys'>
  * column a compile error.
  */
 export const COLUMN_KINDS = {
-  organizations: { id: 'uuid', name: 'text', created_at: 'timestamp', updated_at: 'timestamp' },
+  organizations: { id: 'uuid', name: 'text', auth_provider: 'text', auth_org_id: 'text', created_at: 'timestamp', updated_at: 'timestamp' },
   principals: { id: 'uuid', kind: 'text', created_at: 'timestamp' },
   events: {
     id: 'uuid',
