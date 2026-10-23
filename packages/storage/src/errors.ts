@@ -71,13 +71,16 @@ export class CodecError extends StorageError {
   override name = 'CodecError'
 }
 
-/** A statement of a unit failed in the database (constraint, syntax): the unit rolled back. */
+export type ConstraintKind = 'foreign_key' | 'unique' | 'check' | 'not_null' | 'other'
+
+/** A statement failed in the database (constraint, syntax): the unit rolled back. Classified the same on both engines. */
 export class StatementFailed extends StorageError {
   override name = 'StatementFailed'
   constructor(
     readonly operation: string,
+    readonly kind: ConstraintKind,
     cause: unknown,
   ) {
-    super(`${operation}: a statement failed and the unit rolled back`, { cause })
+    super(`${operation}: a statement failed and the unit rolled back (${kind})`, { cause })
   }
 }

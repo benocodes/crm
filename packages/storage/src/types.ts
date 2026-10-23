@@ -77,6 +77,8 @@ export interface ExecutionStats {
   readonly statements: number
   /** Batches or transactions used to run the unit's statements (D1: 1 for a mutation; Postgres: 1 transaction). */
   readonly roundTrips: number
+  /** Engine metadata of the unit's batch or transaction (D1: rows read/written, duration per statement). */
+  readonly meta?: readonly unknown[]
 }
 export interface ExecutionResult<T> {
   readonly value: T
