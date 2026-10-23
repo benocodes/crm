@@ -79,6 +79,7 @@ describe('program composition', () => {
       // The fault is a real constraint violation, not a thrown error.
       const fault = compileOperation(faulty, dialect).statements[at + 1]!
       expect(fault.sql).toMatch(/^insert into "tasks"/i)
+      expect(fault.sql).toMatch(/null/i)
     },
   )
 
