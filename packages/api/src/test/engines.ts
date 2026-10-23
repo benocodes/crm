@@ -56,6 +56,10 @@ async function openPostgres(opts: { maxConnections?: number }): Promise<Engine> 
     app,
     owner,
     async reset() {
+      // Guard: the production `updated_at` trigger must be on. A suite that disabled it and leaked the DDL would
+      // mask the real timestamps (AGENTS.md invariant 2), so fail loudly instead of passing on leaked state.
+      const { rows } = await sql<{ tgenabled: string }>`select tgenabled from pg_trigger where tgname = 'set_updated_at' and tgrelid = 'tasks'::regclass`.execute(owner)
+      if (rows[0]?.tgenabled !== 'O') throw new Error(`tasks.set_updated_at trigger is not enabled (tgenabled=${rows[0]?.tgenabled}); run \`pnpm db:test:worktree\``)
       await truncateAll(owner)
       const org = await seedOrganization(app, { name: 'Engine org' })
       const user = await seedUser(app, { organizationId: org.id, role: 'owner' })

@@ -70,10 +70,15 @@ describe.each(['postgres', 'd1'] as const)('tasks through the prepared executor 
     const id = uuidv7()
     await e.insertTask({ id, title: 'same', at: EARLIER })
     const { value } = await e.run(updateOperation(tasks, e.env({ now: NOW }), id, { title: 'same' }))
-    expect(value.updated_at).toBe(NOW.toISOString())
     const [event] = await e.events()
+    const [row] = await e.tasks()
+    // Both engines: the response, the event's `after` and the stored row agree; `before` is the prior record.
     expect(event!.before).toMatchObject({ title: 'same', updated_at: EARLIER })
-    expect(event!.after).toMatchObject({ title: 'same', updated_at: NOW.toISOString() })
+    expect(event!.after).toMatchObject({ title: 'same', updated_at: value.updated_at })
+    expect(codecs.timestamp.read(row!.updated_at)).toBe(value.updated_at)
+    if (name === 'd1') expect(value.updated_at).toBe(NOW.toISOString())
+    // Postgres keeps its updated_at trigger: the stored value is the database transaction time, after the prior stamp.
+    else expect(Date.parse(value.updated_at)).toBeGreaterThan(Date.parse(EARLIER))
   })
 
   it('event `before` is the exact prior record and `after` the stored one', async () => {

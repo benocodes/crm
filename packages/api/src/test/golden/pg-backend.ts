@@ -87,6 +87,8 @@ export function pgGoldenBackend(opts: {
       )
     },
     async close() {
+      // Never leak the generator's DDL into the shared worktree test database (production keeps this trigger).
+      await sql`ALTER TABLE tasks ENABLE TRIGGER set_updated_at`.execute(owner)
       await db.destroy()
       await owner.destroy()
     },
