@@ -132,7 +132,7 @@ describe.each(['postgres', 'd1'] as const)('administration storage behaviour on 
     it('update refuses a bad scope with nothing written', async () => {
       const a = await newAgent()
       const before = await snapshot(e)
-      expect(await fail('agents.update', { params: { id: a.id }, body: { scopes: ['members:write'] } })).toEqual([400, 'scope_not_grantable', 'scope not grantable to an agent: members:write'])
+      expect(await fail('agents.update', { params: { id: a.id }, body: { scopes: ['agents:write'] } })).toEqual([400, 'scope_not_grantable', 'scope not grantable to an agent: agents:write'])
       expect(await snapshot(e)).toEqual(before)
     })
 

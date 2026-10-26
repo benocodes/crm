@@ -1,0 +1,1574 @@
+{
+  "format": 1,
+  "resource": "administration",
+  "generated_by": "packages/api/scripts/golden.ts (postgres path)",
+  "named_differences": [],
+  "scenarios": [
+    {
+      "name": "agents-crud",
+      "about": "an agent is created with its principal, normalised scopes (trimmed name, deduplicated and sorted scopes); get and list read it; a rename and a scope change are updates; disabling twice keeps the first disabled_at; enabling clears it; an empty patch writes nothing",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "  Bot  ",
+            "scopes": [
+              "tasks:write",
+              "tasks:read",
+              "tasks:write"
+            ]
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Bot",
+            "scopes": [
+              "tasks:read",
+              "tasks:write"
+            ],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.created",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Bot",
+                "scopes": [
+                  "tasks:read",
+                  "tasks:write"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/agents/{a}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Bot",
+            "scopes": [
+              "tasks:read",
+              "tasks:write"
+            ],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/agents",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000c001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "golden-agent",
+                "scopes": [
+                  "tasks:read",
+                  "tasks:write",
+                  "companies:read",
+                  "companies:write",
+                  "contacts:read",
+                  "contacts:write",
+                  "agents:read",
+                  "agents:write",
+                  "members:read"
+                ],
+                "disabled_at": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Bot",
+                "scopes": [
+                  "tasks:read",
+                  "tasks:write"
+                ],
+                "disabled_at": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "updated_at": "2026-10-22T09:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {
+            "name": "Renamed"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Renamed",
+            "scopes": [
+              "tasks:read",
+              "tasks:write"
+            ],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.updated",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Bot",
+                "scopes": [
+                  "tasks:read",
+                  "tasks:write"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "tasks:read",
+                  "tasks:write"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {
+            "scopes": [
+              "contacts:read",
+              "tasks:read"
+            ]
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Renamed",
+            "scopes": [
+              "contacts:read",
+              "tasks:read"
+            ],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:04:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.updated",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:04:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "tasks:read",
+                  "tasks:write"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "contacts:read",
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {
+            "disabled": true
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Renamed",
+            "scopes": [
+              "contacts:read",
+              "tasks:read"
+            ],
+            "disabled_at": "2026-10-22T09:05:00.000Z",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.updated",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "contacts:read",
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "contacts:read",
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "disabled_at": "2026-10-22T09:05:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {
+            "disabled": true
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Renamed",
+            "scopes": [
+              "contacts:read",
+              "tasks:read"
+            ],
+            "disabled_at": "2026-10-22T09:05:00.000Z",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:06:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.updated",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:06:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "contacts:read",
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "disabled_at": "2026-10-22T09:05:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "contacts:read",
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:06:00.000Z",
+                "disabled_at": "2026-10-22T09:05:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {
+            "disabled": false
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Renamed",
+            "scopes": [
+              "contacts:read",
+              "tasks:read"
+            ],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:07:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.updated",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:07:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "contacts:read",
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:06:00.000Z",
+                "disabled_at": "2026-10-22T09:05:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Renamed",
+                "scopes": [
+                  "contacts:read",
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:07:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {},
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Renamed",
+            "scopes": [
+              "contacts:read",
+              "tasks:read"
+            ],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:07:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "Bare"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000009",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Bare",
+            "scopes": [],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:09:00.000Z",
+            "updated_at": "2026-10-22T09:09:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.created",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "name": "Bare",
+                "scopes": [],
+                "created_at": "2026-10-22T09:09:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "agents-refusals",
+      "about": "an unknown scope is unknown_scope and a human-only scope is scope_not_grantable (the first offender in input order decides, on create and on update); a blank name and an unknown field are validation errors; an unknown agent is 404; nothing is written for any of them",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "Bot"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Bot",
+            "scopes": [],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.created",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Bot",
+                "scopes": [],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "X",
+            "scopes": [
+              "tasks:read",
+              "nope:read"
+            ]
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "unknown_scope",
+              "message": "unknown scope: nope:read"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "X",
+            "scopes": [
+              "members:read",
+              "nope:read"
+            ]
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "scope_not_grantable",
+              "message": "scope not grantable to an agent: members:read"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "   "
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Too small: expected string to have >=1 characters"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "X",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Unrecognized key: \"organization_id\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {
+            "scopes": [
+              "agents:write"
+            ]
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "scope_not_grantable",
+              "message": "scope not grantable to an agent: agents:write"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {
+            "zz": 1
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Unrecognized key: \"zz\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/0190b2c4-0000-7000-8000-00000000dead",
+          "request": {
+            "name": "Y"
+          },
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "agent not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "GET",
+          "path": "/agents/nope",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "agent not found"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "api-keys-issue-revoke",
+      "about": "a key is issued once with its plaintext (vk_ + prefix of 11 characters), the event and every read carry neither the plaintext nor the hash; list filters by agent; revoke stamps revoked_at and updated_at with the unit clock and emits api_key.revoked; revoking again returns the same record with no event; a disabled agent may be issued a key",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "Bot",
+            "scopes": [
+              "tasks:read"
+            ]
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Bot",
+            "scopes": [
+              "tasks:read"
+            ],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.created",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Bot",
+                "scopes": [
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/api-keys",
+          "request": {
+            "agent_id": "{a}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+            "prefix": "vk_AQEBAQEB",
+            "last_used_at": null,
+            "revoked_at": null,
+            "expires_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z",
+            "key": "vk_AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+          },
+          "events": [
+            {
+              "type": "api_key.created",
+              "resource_type": "api_key",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "prefix": "vk_AQEBAQEB",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "expires_at": null,
+                "revoked_at": null,
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "last_used_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/api-keys",
+          "request": {
+            "agent_id": "{a}",
+            "expires_at": "2027-01-01T00:00:00.000Z"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+            "prefix": "vk_AgICAgIC",
+            "last_used_at": null,
+            "revoked_at": null,
+            "expires_at": "2027-01-01T00:00:00.000Z",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z",
+            "key": "vk_AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI"
+          },
+          "events": [
+            {
+              "type": "api_key.created",
+              "resource_type": "api_key",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "prefix": "vk_AgICAgIC",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "expires_at": "2027-01-01T00:00:00.000Z",
+                "revoked_at": null,
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "last_used_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/api-keys?agent_id={a}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "prefix": "vk_AQEBAQEB",
+                "last_used_at": null,
+                "revoked_at": null,
+                "expires_at": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "prefix": "vk_AgICAgIC",
+                "last_used_at": null,
+                "revoked_at": null,
+                "expires_at": "2027-01-01T00:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/api-keys/{k}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+            "prefix": "vk_AQEBAQEB",
+            "last_used_at": null,
+            "revoked_at": null,
+            "expires_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/api-keys/{k}/revoke",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+            "prefix": "vk_AQEBAQEB",
+            "last_used_at": null,
+            "revoked_at": "2026-10-22T09:05:00.000Z",
+            "expires_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": [
+            {
+              "type": "api_key.revoked",
+              "resource_type": "api_key",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "prefix": "vk_AQEBAQEB",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "expires_at": null,
+                "revoked_at": null,
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "last_used_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "prefix": "vk_AQEBAQEB",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "expires_at": null,
+                "revoked_at": "2026-10-22T09:05:00.000Z",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "last_used_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "POST",
+          "path": "/api-keys/{k}/revoke",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+            "prefix": "vk_AQEBAQEB",
+            "last_used_at": null,
+            "revoked_at": "2026-10-22T09:05:00.000Z",
+            "expires_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/api-keys/{k}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+            "prefix": "vk_AQEBAQEB",
+            "last_used_at": null,
+            "revoked_at": "2026-10-22T09:05:00.000Z",
+            "expires_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "PATCH",
+          "path": "/agents/{a}",
+          "request": {
+            "disabled": true
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Bot",
+            "scopes": [
+              "tasks:read"
+            ],
+            "disabled_at": "2026-10-22T09:08:00.000Z",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:08:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.updated",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:08:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Bot",
+                "scopes": [
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Bot",
+                "scopes": [
+                  "tasks:read"
+                ],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:08:00.000Z",
+                "disabled_at": "2026-10-22T09:08:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "POST",
+          "path": "/api-keys",
+          "request": {
+            "agent_id": "{a}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000010",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+            "prefix": "vk_AwMDAwMD",
+            "last_used_at": null,
+            "revoked_at": null,
+            "expires_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:09:00.000Z",
+            "updated_at": "2026-10-22T09:09:00.000Z",
+            "key": "vk_AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"
+          },
+          "events": [
+            {
+              "type": "api_key.created",
+              "resource_type": "api_key",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000010",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "prefix": "vk_AwMDAwMD",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:09:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "expires_at": null,
+                "revoked_at": null,
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "last_used_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "GET",
+          "path": "/api-keys",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "prefix": "vk_AQEBAQEB",
+                "last_used_at": null,
+                "revoked_at": "2026-10-22T09:05:00.000Z",
+                "expires_at": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:05:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "prefix": "vk_AgICAgIC",
+                "last_used_at": null,
+                "revoked_at": null,
+                "expires_at": "2027-01-01T00:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "agent_id": "0190b2c4-0000-7000-8000-000001000001",
+                "prefix": "vk_AwMDAwMD",
+                "last_used_at": null,
+                "revoked_at": null,
+                "expires_at": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:09:00.000Z",
+                "updated_at": "2026-10-22T09:09:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "api-keys-refusals",
+      "about": "a key for an unknown agent is invalid_reference; an expiry at or before the unit clock is a validation error; an unknown key cannot be revoked (404); an unknown field is refused; nothing is written for any of them",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/agents",
+          "request": {
+            "name": "Bot"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Bot",
+            "scopes": [],
+            "disabled_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "agent.created",
+              "resource_type": "agent",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Bot",
+                "scopes": [],
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "disabled_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/api-keys",
+          "request": {
+            "agent_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/api-keys",
+          "request": {
+            "agent_id": "{a}",
+            "expires_at": "2026-10-22T09:01:00.000Z"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "expires_at must be in the future"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/api-keys",
+          "request": {
+            "agent_id": "{a}",
+            "expires_at": "2026-10-22T09:03:00.000Z"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "expires_at must be in the future"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/api-keys",
+          "request": {
+            "agent_id": "{a}",
+            "key": "vk_mine"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Unrecognized key: \"key\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/api-keys/0190b2c4-0000-7000-8000-00000000dead/revoke",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "api_key not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "POST",
+          "path": "/api-keys/nope/revoke",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Invalid UUID"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/api-keys",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "memberships-read",
+      "about": "memberships are read-only: list, the role and user_id filters, get; an unknown id is 404; there is no write route",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/memberships",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000d001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "user_id": "0190b2c4-0000-7000-8000-00000000b001",
+                "role": "owner",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000d002",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "user_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "role": "member",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/memberships?role=owner",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000d001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "user_id": "0190b2c4-0000-7000-8000-00000000b001",
+                "role": "owner",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/memberships?user_id=0190b2c4-0000-7000-8000-00000000b002",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000d002",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "user_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "role": "member",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/memberships/0190b2c4-0000-7000-8000-00000000d002",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-00000000d002",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "user_id": "0190b2c4-0000-7000-8000-00000000b002",
+            "role": "member",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b002",
+            "created_at": "2026-10-22T08:00:00.000Z",
+            "updated_at": "2026-10-22T08:00:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/memberships/0190b2c4-0000-7000-8000-00000000dead",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "membership not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "PATCH",
+          "path": "/memberships/0190b2c4-0000-7000-8000-00000000d002",
+          "request": {
+            "role": "owner"
+          },
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "no such route"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "DELETE",
+          "path": "/memberships/0190b2c4-0000-7000-8000-00000000d002",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "no such route"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "users-read",
+      "about": "users are listed (live members only, keyset by id) and read by id; an unknown id and an id that is not a UUID are 404; a pagination step shows the cursor",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/users",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000b001",
+                "email": "b001@golden.test",
+                "name": null,
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000b002",
+                "email": "b002@golden.test",
+                "name": null,
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/users?limit=1",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000b001",
+                "email": "b001@golden.test",
+                "name": null,
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": "0190b2c4-0000-7000-8000-00000000b001"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/users?limit=1&after=0190b2c4-0000-7000-8000-00000000b001",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000b002",
+                "email": "b002@golden.test",
+                "name": null,
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/users/0190b2c4-0000-7000-8000-00000000b002",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-00000000b002",
+            "email": "b002@golden.test",
+            "name": null,
+            "created_at": "2026-10-22T08:00:00.000Z",
+            "updated_at": "2026-10-22T08:00:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/users/0190b2c4-0000-7000-8000-00000000dead",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "user not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "GET",
+          "path": "/users/nope",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "user not found"
+            }
+          },
+          "events": []
+        }
+      ]
+    }
+  ]
+}

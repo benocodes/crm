@@ -35,6 +35,8 @@ export interface AppOptions {
   /** Injected clock and id source for prepared units (tests and golden fixtures). Default: real time, UUIDv7. */
   clock?: () => Date
   newId?: () => string
+  /** The random source of units that mint a secret (`api_keys.create`). Default: `crypto.getRandomValues` (CORE40 P8). */
+  randomBytes?: (n: number) => Uint8Array
   /** Allowed CORS origins ([[CORE3]] C4). Empty or absent: no CORS middleware, no `Access-Control-*` header. */
   corsOrigins?: readonly string[]
   /** `info.version` in the document. */
@@ -63,7 +65,7 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   return { params, query, body }
 }
 
-async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions, 'clock' | 'newId'>): Promise<unknown> {
+async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions, 'clock' | 'newId' | 'randomBytes'>): Promise<unknown> {
   const input = await readInput(c, op)
   const principal = c.var.principal
   if (op.kind === 'account') {
@@ -90,9 +92,17 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
     if (!storage) throw new Error(`operation ${op.name} is prepared but createApp was given no storage binding`)
     const clock = injected.clock ?? (() => new Date())
     const now = clock()
-    const env = { actor, organizationId, scopes, now, newId: injected.newId ?? (() => uuidv7(now)) }
+    const env = {
+      actor,
+      organizationId,
+      scopes,
+      now,
+      newId: injected.newId ?? (() => uuidv7(now)),
+      randomBytes: injected.randomBytes ?? ((n: number) => crypto.getRandomValues(new Uint8Array(n))),
+    }
     try {
-      return (await execute(storage, { actorId: actor.id, organizationId }, op.prepare(env, input))).value
+      // `prepare` may be async (it can hash a secret) and may refuse with an ApiError: both map like a storage error.
+      return (await execute(storage, { actorId: actor.id, organizationId }, await op.prepare(env, input))).value
     } catch (err) {
       throw mapStorageError(err)
     }

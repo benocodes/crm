@@ -1,8 +1,12 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
+import { UnitDriftError, codecs, defineOperation, step, unit, type PreparedOperation } from '@vault/storage'
 import { SCOPE_POLICY, isAgentGrantable, type ScopePolicy } from '../auth/roles.js'
 import { ApiError } from '../errors.js'
-import { defineResource } from './define.js'
+import { eventStatement } from '../outbox.js'
+import { columnsOf, receipt, resultStep, toRecord } from '../storage/crud.js'
+import { definePreparedResource, type PreparedEnv } from '../storage/definition.js'
+import { prepareCreate } from '../storage/prepare.js'
 
 export const agentRecord = z.object({
   id: z.uuid(),
@@ -31,38 +35,81 @@ export function normalizeAgentScopes(scopes: readonly string[], policy: ScopePol
 const name = z.string().trim().min(1).max(200)
 const scopesField = z.array(z.string()).max(100)
 
-export const agents = defineResource<AgentRecord>({
+/**
+ * Agents, on the prepared path ([[CORE40]]). No delete (a table without `deleted_at`, P4). `disabled` is a hook
+ * input only (P5): it drives `disabled_at` in `computed` and is never written as a column. The scope rule is
+ * pure, so it runs in `prepare`; a scope change applies at once because the next request reads the stored list.
+ */
+export const agents = definePreparedResource({
   name: 'agents',
   eventName: 'agent',
   table: 'agents',
   scopeResource: 'agents',
   operations: ['list', 'get', 'create', 'update'],
-  softDelete: false,
   record: agentRecord,
   create: z.strictObject({ name, scopes: scopesField.default([]) }),
   update: z.strictObject({ name, scopes: scopesField, disabled: z.boolean() }).partial(),
-  beforeWrite(_ctx, { input }) {
-    const { disabled, ...rest } = input
-    const written: Record<string, unknown> = { ...rest }
-    if (Array.isArray(input.scopes)) written.scopes = normalizeAgentScopes(input.scopes as string[])
-    // Disabling twice keeps the first timestamp.
-    if (disabled === true) written.disabled_at = sql`coalesce(disabled_at, now())`
-    else if (disabled === false) written.disabled_at = null
-    return written
+  prepare: ({ values }) => (Array.isArray(values.scopes) ? { scopes: normalizeAgentScopes(values.scopes as string[]) } : {}),
+  // Disabling twice keeps the first timestamp; the stamp is the unit's clock, never the database's (D2).
+  computed: ({ eb, values, now }) => {
+    if (values.disabled === true) return { disabled_at: sql<string>`coalesce(${eb.ref('agents.disabled_at')}, ${codecs.timestamp.write(now)})` }
+    if (values.disabled === false) return { disabled_at: null }
+    return {}
   },
-  overrides: {
-    async create(ctx, input, generic) {
-      // The principal first, without RETURNING: no SELECT policy admits it until its agents row exists (P4).
-      const { id } = (await sql<{ id: string }>`SELECT uuid_generate_v7() AS id`.execute(ctx.trx)).rows[0]!
-      await ctx.trx.insertInto('principals').values({ id, kind: 'agent' }).execute()
-      return generic({ ...input, id })
-    },
-  },
+  override: { create: (env, input) => createAgentOperation(env, input) },
 })
 
-// RED-PHASE STUB (CORE40 Phase 1): replaced by the real program in Phase 3.
-import type { PreparedOperation } from '@vault/storage'
-import type { PreparedEnv } from '../storage/definition.js'
-export function createAgentOperation(_env: PreparedEnv, _input: unknown): PreparedOperation<AgentRecord> {
-  throw new Error('not implemented')
+/**
+ * `agents.create` (P13): the principal first, without RETURNING (no SELECT policy admits it until its agents row
+ * exists, [[CORE27]] P4), then the agents row, `agent.created` and the result. Four statements, constant.
+ */
+export function createAgentOperation(env: PreparedEnv, input: unknown): PreparedOperation<AgentRecord> {
+  const values = prepareCreate(agents, env.actor, input)
+  const scopes = normalizeAgentScopes(values.scopes as string[])
+  const id = env.newId()
+  const eventId = env.newId()
+  const at = codecs.timestamp.write(env.now)
+  return defineOperation<AgentRecord>({
+    name: 'agents.create',
+    mutates: true,
+    reads: () => ({}),
+    build: (_found, qc) =>
+      unit({
+        steps: [
+          step(qc.db.insertInto('principals').values({ id, kind: 'agent', created_at: at }), 'first-mutation'),
+          step(
+            qc.db.insertInto('agents').values({
+              id,
+              created_at: at,
+              updated_at: at,
+              organization_id: env.organizationId,
+              name: values.name as string,
+              scopes,
+              disabled_at: null,
+              created_by: env.actor.id,
+            }),
+          ),
+          step(
+            eventStatement(qc, {
+              id: eventId,
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'agent.created',
+              resourceType: 'agent',
+              resourceId: id,
+              before: null,
+              after: { table: 'agents', columns: columnsOf(agents) },
+            }),
+            'first-event',
+          ),
+          resultStep(agents, qc, env, id, eventId),
+        ],
+        events: [receipt(agents, eventId, 'created', id)],
+        decode: (rows) => {
+          if (rows.length === 0) throw new UnitDriftError('agents.create')
+          return toRecord(agents, rows[0]!)
+        },
+      }),
+  })
 }

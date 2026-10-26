@@ -15,8 +15,9 @@ export async function hashApiKey(key: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-export async function generateApiKey(): Promise<{ key: string; hash: string; prefix: string }> {
-  const key = API_KEY_PREFIX + base64url(crypto.getRandomValues(new Uint8Array(32)))
+/** The random source is injected (CORE40 P8) so golden runs can record a key; real code passes `crypto.getRandomValues`. */
+export async function generateApiKey(randomBytes: (n: number) => Uint8Array): Promise<{ key: string; hash: string; prefix: string }> {
+  const key = API_KEY_PREFIX + base64url(randomBytes(32))
   return { key, hash: await hashApiKey(key), prefix: key.slice(0, 11) }
 }
 
@@ -25,7 +26,7 @@ export async function createApiKey(
   trx: Transaction<Database>,
   args: { organizationId: string; agentId: string; createdBy: string; expiresAt?: Date | null },
 ): Promise<{ id: string; key: string; prefix: string }> {
-  const { key, hash, prefix } = await generateApiKey()
+  const { key, hash, prefix } = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
   const row = await trx
     .insertInto('api_keys')
     .values({

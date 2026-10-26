@@ -24,6 +24,7 @@ const env = (): PreparedEnv => {
     scopes: ScopeSet.parse(['contacts:read', 'contacts:write']),
     now: new Date('2026-10-22T10:00:00.000Z'),
     newId: () => uuid(++n),
+    randomBytes: (k) => new Uint8Array(k),
   }
 }
 const apiError = (fn: () => unknown): ApiError => {

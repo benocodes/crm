@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { defineResource } from './define.js'
+import { definePreparedResource } from '../storage/definition.js'
 
-// Never key_hash, never the plaintext key: the key exists only in the create response.
+// Never key_hash (a secret column: the type rejects it here), never the plaintext key: it exists only in the create response.
 export const apiKeyRecord = z.object({
   id: z.uuid(),
   organization_id: z.uuid(),
@@ -17,13 +17,12 @@ export const apiKeyRecord = z.object({
 export type ApiKeyRecord = z.infer<typeof apiKeyRecord>
 
 /** Read-only here; `api_keys.create` and `api_keys.revoke` are hand-written (`admin/`). */
-export const apiKeys = defineResource<ApiKeyRecord>({
+export const apiKeys = definePreparedResource({
   name: 'api_keys',
   eventName: 'api_key',
   table: 'api_keys',
   scopeResource: 'agents',
   operations: ['list', 'get'],
-  softDelete: false,
   record: apiKeyRecord,
   filters: { agent_id: { schema: z.uuid() } },
 })

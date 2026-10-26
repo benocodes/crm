@@ -22,7 +22,7 @@ import {
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import type { ListResult } from '../resources/crud.js'
-import { physicalTable, type Conflict, type PreparedEnv, type PreparedResource, type ReferenceTarget } from './definition.js'
+import { physicalTable, softDeletes, type Conflict, type PreparedEnv, type PreparedResource, type ReferenceTarget } from './definition.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 
 // The generic prepared CRUD core ([[CORE35]] C4): list, get, create, update and soft delete for any
@@ -46,14 +46,25 @@ export function toRecord<R extends { id: string }>(def: PreparedResource<Prepare
   const kinds = kindsOf(def)
   const converted: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(row)) {
-    converted[k] = kinds[k] === 'timestamp' ? codecs.timestamp.readNullable(v) : kinds[k] === 'boolean' ? codecs.boolean.readNullable(v) : v
+    converted[k] =
+      kinds[k] === 'timestamp'
+        ? codecs.timestamp.readNullable(v)
+        : kinds[k] === 'boolean'
+          ? codecs.boolean.readNullable(v)
+          : kinds[k] === 'string_array'
+            ? codecs.stringArray.readNullable(v)
+            : v
   }
   return def.record.parse(converted)
 }
 
+/** The columns a write may store: a field that is not a column of the table is a hook input only (CORE40 P5). */
+const columnsOnly = (def: PreparedResource, values: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(values).filter(([k]) => k in kindsOf(def)))
+
 const live = (def: PreparedResource, env: PreparedEnv, id?: string) => [
   sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`,
-  sql<SqlBool>`${ref(def, 'deleted_at')} is null`,
+  ...(softDeletes(def) ? [sql<SqlBool>`${ref(def, 'deleted_at')} is null`] : []),
   ...(id ? [sql<SqlBool>`${ref(def, 'id')} = ${id}`] : []),
 ]
 
@@ -147,7 +158,7 @@ export function getOperation<R extends { id: string }>(def: PreparedResource<Pre
 }
 
 /** Result select, gated on this unit's event having been written, so a drifted (no-op) unit returns nothing. */
-const resultStep = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, eventId: string): Step => {
+export const resultStep = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, eventId: string): Step => {
   const q = loose(qc)
     .selectFrom(def.table)
     .select(recordColumns(qc, physicalTable(def), columnsOf(def)))
@@ -166,8 +177,9 @@ export const receipt = (def: PreparedResource, eventId: string, action: string, 
 
 /** A bound value for an INSERT...SELECT: Postgres needs its type cast, D1 binds the value (booleans are encoded 1/0 by its runtime). */
 function boundValue(qc: QueryContext, kind: ColumnKind | undefined, value: unknown) {
-  if (kind === undefined || kind === 'string_array') throw new Error('unsupported column kind in a guarded insert')
+  if (kind === undefined) throw new Error('unsupported column kind in a guarded insert')
   if (value === null || value === undefined) return bind(qc, kind, null)
+  if (kind === 'string_array') return bind(qc, kind, value as readonly string[])
   if (kind === 'boolean') return bind(qc, kind, value === true)
   if (kind === 'json') return bind(qc, kind, JSON.stringify(value))
   if (typeof value !== 'string') throw new Error(`a ${kind} column needs a string, got ${typeof value}`)
@@ -197,7 +209,7 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
     build: (found, qc) => {
       if (missingReference(found, referenceReads(def, qc, env, stored))) throw invalidReference()
       refuseConflicts(found, conflictsOf(qc))
-      const row: Record<string, unknown> = { ...stored, id, organization_id: env.organizationId, created_by: env.actor.id, created_at: at, updated_at: at }
+      const row: Record<string, unknown> = { ...columnsOnly(def, stored), id, organization_id: env.organizationId, created_by: env.actor.id, created_at: at, updated_at: at }
       const guards = referenceGuards(def, env, stored)
       return unit({
         steps: [
@@ -257,11 +269,11 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
       const computed = def.computed?.({ eb: expressionBuilder<StorageDatabase, PreparedResource['table']>(), qc, values: stored, now: env.now }) ?? {}
       let update = loose(qc)
         .updateTable(def.table)
-        .set({ ...stored, ...computed, updated_at: at })
+        .set({ ...columnsOnly(def, stored), ...computed, updated_at: at })
         .where(sql<SqlBool>`${ref(def, 'id')} = ${id}`)
         .where(sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`)
-        .where(sql<SqlBool>`${ref(def, 'deleted_at')} is null`)
         .where(sql<SqlBool>`${ts.exact(qc, `${def.table}.updated_at`)} = ${String(__stamp)}`)
+      if (softDeletes(def)) update = update.where(sql<SqlBool>`${ref(def, 'deleted_at')} is null`)
       for (const g of def.guards?.(expressionBuilder<StorageDatabase, PreparedResource['table']>(), env) ?? []) update = update.where(g)
       for (const g of referenceGuards(def, env, stored)) update = update.where(g)
       return unit({
