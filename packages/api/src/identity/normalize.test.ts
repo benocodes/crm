@@ -51,3 +51,20 @@ describe('normalizeDomain', () => {
     expect([e.status, e.code, e.message]).toEqual([400, 'validation_error', 'domain: invalid domain'])
   })
 })
+
+describe('normalizeIdentityValue ASCII rule (CORE36 D7)', () => {
+  it('refuses a non-ASCII email with the D7 message', () => {
+    const e = apiError(() => normalizeIdentityValue('email', 'Jürgen@Example.com'))
+    expect([e.status, e.code, e.message]).toEqual([400, 'invalid_identity', 'non-ASCII email addresses are not supported'])
+  })
+  it('checks ASCII before the format', () => {
+    const e = apiError(() => normalizeIdentityValue('email', 'ö'))
+    expect([e.status, e.code, e.message]).toEqual([400, 'invalid_identity', 'non-ASCII email addresses are not supported'])
+  })
+  it('keeps ASCII emails unchanged apart from trim and lower case', () => {
+    expect(normalizeIdentityValue('email', ' Ori@Example.com ')).toBe('ori@example.com')
+  })
+  it('leaves phone numbers alone', () => {
+    expect(normalizeIdentityValue('phone', '+44 20 7946 0958')).toBe('+442079460958')
+  })
+})

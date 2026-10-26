@@ -109,3 +109,9 @@ export async function mergeContacts(ctx: ServiceContext, survivorIdIn: string, s
   // 6. The survivor.
   return result
 }
+
+// ---- CORE36 stubs (replaced in Phase 3) ----
+export const mergeReadKeys = { survivor: 'merge:survivor', source: 'merge:source', refs: (i: number) => `merge:refs:${i}` }
+export function mergeOperation(_env: unknown, _survivorId: string, _sourceId: string, _opts?: unknown): never {
+  throw new Error('not implemented')
+}

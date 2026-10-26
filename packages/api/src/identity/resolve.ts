@@ -141,3 +141,8 @@ export async function ensureOwnIdentity(
   await emitResourceEvent(ctx, identities, 'updated', existing, after, existing.id)
   return { identity: after, outcome: 'moved' }
 }
+
+// ---- CORE36 stubs (replaced in Phase 3) ----
+export function resolveOperation(_env: unknown, _entries: readonly ResolveEntry[]): never {
+  throw new Error('not implemented')
+}
