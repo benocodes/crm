@@ -118,9 +118,13 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **Tenancy.** Every tenant table gets `organization_id` (the RLS gate) **and** `user_id` or an actor
   reference (attribution), with RLS policies **enabled and forced**, in the same migration. The boundary is
   the organisation, not the user. A consultant is a principal with memberships in many organisations.
-- **Timestamps.** `created_at timestamptz NOT NULL DEFAULT now()` everywhere; `updated_at` with the shared
-  `set_updated_at()` trigger on mutable tables.
-- **CITEXT** for email addresses (`CREATE EXTENSION IF NOT EXISTS "citext"`).
+- **Timestamps.** `created_at timestamptz NOT NULL DEFAULT now()` and, on mutable tables, `updated_at` with the
+  same default. **No trigger stamps them**: the application writes every timestamp from its unit clock on both
+  engines ([[CORE36]] D2; migration 006 dropped `set_updated_at` and `app.set_updated_at()`, and the
+  schema-invariants test keeps them gone). Never add a trigger that writes a column the app owns.
+- **CITEXT** for email addresses (`CREATE EXTENSION IF NOT EXISTS "citext"`), plus a lowercase-ASCII CHECK. On
+  citext, `email = lower(email)` is always true: compare as text,
+  `CHECK (email::text = lower(email::text) AND email::text ~ '^[ -~]*$')` ([[CORE36]] D7, migration 006).
 - **A lifetime is a fixed duration, written in hours.** `now() + interval '14 days'` adds calendar days in
   the session's `TimeZone`, so across a DST change the result is 13 days 23 hours or 14 days 1 hour. Write
   an expiry as `interval '336 hours'` (absolute), and compute it in SQL so it equals `created_at + lifetime`
@@ -284,9 +288,13 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
 - **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
   inspects `sqlite_master`/PRAGMA. `schema-parity.integration.test.ts` on each engine ties the
   physical columns to `COLUMN_KINDS` in `@vault/storage`, so a new column changes all three together.
-- **Postgres `set_updated_at` overrides any `updated_at` the application writes.** The prepared path
-  writes it, but on Postgres the stored value is the transaction's `now()` ([[CORE35]]; whether the app
-  should own it is a [[CORE36]] decision).
+- **Each implementation cycle adds one numbered file** (`0002_identity_model.sql`: companies, contacts,
+  identities). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
+  owner and tombstone CHECKs, the email CHECK `value = lower(value) AND value NOT GLOB '*[^ -~]*'`. Add the new
+  tables to `clearD1`'s delete `order` (children first) in the same step.
+- **`unit_assertion`** (in 0002) is machinery, not a resource: an always-empty table whose named CHECK
+  `unit_assertion_holds` lets `assertStep` abort a D1 batch. The D1 runtime classifies that one constraint as
+  drift, so never reuse the name.
 
 ## Neon notes
 

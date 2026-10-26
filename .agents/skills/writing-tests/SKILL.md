@@ -33,9 +33,11 @@ skill is what the coder follows while writing them.
   only one ([[CORE29]]: repair tests checked `actor_id`, reconcile tests checked only event types).
 - **A rule that compares against stored state gets a test for "no stored state"** (rule 15): a guard that
   is silent when there is no row to compare is where it leaks.
-- **A pinned behaviour is a spec decision.** When a cycle migrates existing behaviour, the old code is the
-  oracle: record its outputs (golden scenarios) before changing it, and never write what the behaviour
-  "should" be (rule 16; [[CORE35]] D22).
+- **A pinned behaviour is a spec decision.** Tests assert the contract the spec writes down (statuses,
+  codes, messages, event order). Where a spec keeps a rule, the shipped code is a reference for reading it,
+  never an oracle to compare against: there is no legacy-oracle fixture ([[CORE36]] D12, no backward
+  compatibility). Where the spec is silent and a cycle pins existing behaviour, record that as a decision
+  (rule 16; [[CORE35]] D22).
 
 ## 2. Type-level tests
 
@@ -61,12 +63,20 @@ One program, two engines: the same assertions run on Postgres and D1.
     behaviour change, run `pnpm -C packages/api golden:generate`; `golden:check` fails on drift.
   - Suites written after the vertical exists prove their strength with absence mutations (break the
     runtime, see the target test fail), recorded in RESULT.md.
-- Assert engine differences explicitly, never hide them. `updated_at` is the transaction time (trigger) on
-  Postgres and the injected clock on D1: assert that the response, the event's `after.updated_at` and the
-  stored row agree on both, and the clock value only on D1 ([[CORE35]] F5).
+- Assert engine differences explicitly, never hide them. Since [[CORE36]] D2 there is no timestamp
+  difference: every stamp a unit writes equals its injected `now` on both engines. Assert the response, the
+  stored row and every event's `created_at`/`after` against the clock exactly, with no engine branch (the
+  clock-parity case in `src/storage/identity-model.storage.integration.test.ts`).
 - Golden fixtures pin behaviour across engines and across refactors. Name every deliberate difference in the
-  fixture (`named_differences`), and compare an old-code oracle symbolically (generated ids as `<id:n>`,
-  server timestamps as `<ts>`) when the old code could not inject ids or a clock.
+  fixture (`named_differences`; empty until [[CORE41]]'s D1 admission). Ids come from `goldenId(n)`, a
+  four-digit counter that throws above 9999. One file per area (`tasks.json`, `identity-model.json`, listed in
+  `scripts/golden.ts` `FIXTURES`).
+- **D1 drift is tested deterministically, not by racing.** `engine.betweenPlanAndCommit(hook)` (D1 only) runs
+  `hook` after the next unit's read batch and before its commit batch, so a test can delete, merge, insert or
+  swap rows between plan and commit and assert `409 conflict` with nothing changed. For every set write, cover
+  a row added, a row removed and **a swap that keeps the count** (the swap case caught a real gap in the
+  [[CORE36]] review). On Postgres, plan and commit share one locked transaction, so cover its races with
+  coordinated trials instead.
 - Atomicity, isolation and concurrency suites run on both engines. On D1 a double submit lets exactly one
   write land and the loser gets `409 conflict`; on Postgres run enough trials (20) to see a race, and report
   trial counts.
@@ -76,9 +86,9 @@ One program, two engines: the same assertions run on Postgres and D1.
 - **Never leave schema or settings changed on the shared test DB.** `ALTER TABLE ... DISABLE TRIGGER` and
   similar changes persist across runs and files. The golden backend's leaked `set_updated_at` disable hid
   production `updated_at` from every later suite, and a test passed or failed depending on file order
-  ([[CORE35]] F5). Restore the state in `close()`/`afterAll`/`finally`, and make the harness assert the
-  production state before a suite runs (`engines.ts` checks `tgenabled = 'O'`). If the guard trips, run
-  `pnpm db:test:worktree`.
+  ([[CORE35]] F5). Restore the state in `close()`/`afterAll`/`finally`. When a suite must alter production
+  state, make the harness assert that state before every suite (CORE35's `tgenabled` guard did this; it went
+  with the trigger in [[CORE36]]). If such a guard trips, run `pnpm db:test:worktree`.
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
 - Clean up in `afterEach`, delete only the exact rows this test seeded by their own ids, never a "nothing

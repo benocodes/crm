@@ -43,7 +43,9 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     (`resolveActiveOrganization`), `src/auth/roles.ts` (`SCOPE_POLICY`, `scopesForRole`, `grantableScopes`),
     `src/auth/user-authenticator.ts` (`createUserAuthenticator`); `AuthFailure` lives in `src/auth/adapter.ts`;
   - `src/account/` (`me.get` only; organisations and memberships come from Clerk, [[CORE29]]);
-  - `scripts/smoke-auth.ts` (`pnpm -C packages/api smoke:auth`: local key pair, fake Clerk API, real app).
+  - `scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:auth`: local key pair, fake
+    Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`
+    equals `SMOKE_EXPECT_DATABASE`, because an exported `DATABASE_URL` overrides `--env-file` ([[CORE36]]).
 - **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
   - definitions `src/resources/{memberships,agents,api-keys}.ts` (`memberships` is read-only, written only
     by the directory sync; `agents` validates scopes with `normalizeAgentScopes`; `api_keys` is read-only, `softDelete: false`);
@@ -56,7 +58,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - admin-kit (`src/test/admin-kit.ts`): `call(path, sub, { org })` mints the organisation claim from the copy
     (`claim` overrides, `header` sends `x-organization-id`), `webhook(payload)` posts a signed delivery,
     `seedOrg` links the organisation and mirrors it in the fake Clerk (`k.clerk.organizations`, `.members`);
-  - `scripts/smoke-admin.ts` (`pnpm -C packages/api smoke:admin`, same scaffolding as `smoke-auth.ts`).
+  - `scripts/smoke-admin.ts` (`pnpm -C packages/api smoke:admin`, same scaffolding as `smoke-auth.ts`, without the
+    database guard yet: confirm the database it prints before trusting it).
 - **Test helpers** in `src/test/`:
   - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);
   - `keys.ts` (`seedApiKey`);
@@ -142,7 +145,7 @@ handler); a generic layer that tries to express every behavior turns into a fram
 Adding a resource also means adding it to the **contract suite** (see Testing); don't hand-write those
 tests.
 
-**The definition** (`defineResource` in `src/resources/define.ts`; `companies.ts` is a worked example, and `tasks` has moved to the prepared path below):
+**The definition** (`defineResource` in `src/resources/define.ts`; `agents.ts` is a worked example. `tasks`, `companies`, `contacts` and `identities` have moved to the prepared path below):
 `name` (plural, scope resource), `eventName` (singular, event prefix), `table`, `record` (read schema, a
 plain `z.object` so unlisted columns are stripped), `create`/`update` (`z.strictObject`, so unknown keys and
 `organization_id`/`created_by` are `validation_error`), optional `agentWritable`, `filters` (each with a
@@ -198,7 +201,8 @@ escape hatches:
 Resources are moving from the interactive layer above to **prepared operations**: a bounded program of
 typed Kysely statements that runs as one atomic unit on Postgres (`@vault/storage-postgres`, enterprise)
 or D1 (`@vault/storage-d1`, open). `tasks` is the first, and the worked example is
-`src/resources/tasks.ts`. Until [[CORE37]], both paths coexist.
+`src/resources/tasks.ts`; the identity model (`companies`, `contacts`, `identities`, resolve, merge, the
+cascades) followed in [[CORE36]]. Until [[CORE41]] (the cutover), both paths coexist.
 
 - **`definePreparedResource({ table, record, ... })`** (`src/storage/definition.ts`) infers the table from
   `table`. `RecordShape` makes every `record` key a public column of that table with a compatible type,
@@ -211,7 +215,7 @@ or D1 (`@vault/storage-d1`, open). `tasks` is the first, and the worked example 
   composition (`dev-server.ts`, the smoke scripts, test apps) must pass `storage`**; a prepared operation
   without one throws. Storage errors go through `mapStorageError`:
   - a foreign-key failure is `invalid_reference`;
-  - drift is `409 conflict`;
+  - drift, and a unique-index failure inside a unit (only a racing D1 writer can cause it), are `409 conflict`;
   - the cap is `set_limit_exceeded`;
   - a foreign organisation is `403 organization_forbidden`.
 - **Generic writes compose three statements:** the mutation, `eventStatement` (an INSERT…SELECT that
@@ -219,8 +223,44 @@ or D1 (`@vault/storage-d1`, open). `tasks` is the first, and the worked example 
   gated on the event existing. Event `after` is therefore the stored row, never a recomputation.
 - **An empty patch is a no-op** (existence check only, no event); **a same-value patch is a real update**
   (event, new `updated_at`; spec D22).
-- **`updated_at` differs by engine.** On Postgres the `set_updated_at` trigger stamps transaction time,
-  overriding the app clock; on D1 it is the injected clock. Tests assert it per engine ([[CORE35]] F5).
+- **The application owns every timestamp, on both engines** ([[CORE36]] D2). A unit stamps `created_at`,
+  `updated_at`, `deleted_at` and its events' `created_at` from its one injected `now`. Postgres has no
+  `set_updated_at` trigger any more (migration 006), so a writer that does not set `updated_at` leaves it
+  unchanged. Never write `now()` in a program.
+- **`references: { col: { table, live? } }`** (principals, companies, contacts). The plan read
+  (`400 invalid_reference`) and the commit guard use one predicate: id, plus `organization_id` when the
+  target has it, plus `deleted_at IS NULL` when `live`. A create becomes `INSERT … SELECT … WHERE EXISTS`, an
+  update gets an extra `WHERE EXISTS`; on D1 a vanished reference makes the write a no-op and the gated event
+  and result turn it into drift.
+- **`conflicts`** (extension 5): refusals decided from extra plan reads, such as a company domain or an
+  identity address that is already taken. It returns `{ read, refuse(row | null) }` pairs. It is synchronous
+  and DB-free, it gets the prepared (normalised) values, and it runs after the reference checks. The partial
+  unique index is the commit-time re-check; a unique failure inside a unit maps to the retryable
+  `409 conflict` ([[CORE36]] P4).
+- **`override`** replaces a generated action with a concrete program. Its input is `{ after, limit, filters }`
+  for list, the id for get and delete, the body for create, and `{ id, body }` for update. The cascades
+  (`src/identity/cascades.ts`) are the `override.delete` of companies and contacts.
+- **Multi-statement units re-assert their plan at commit** ([[CORE36]] D4). On Postgres the org writer lock
+  makes the plan authoritative; on D1 nothing does, so:
+  - `assertStep(qc, cond)` aborts the unit as drift when `cond` is false (D1: an insert into the always-empty
+    `unit_assertion` table with the named CHECK `unit_assertion_holds`; Postgres: `select cond as holds`);
+  - `exactly(qc, step, n)` requires the step to touch exactly `n` rows (D1 adds an assertion on
+    `changes() = n`, which must immediately follow the step);
+  - **a set write is three guards:** restrict it to the PLANNED ids (`memberOf(qc, table, 'id', ids)`), wrap it
+    in `exactly(n)`, then `assertStep(not exists <live row still matching the predicate>)`. The count alone
+    misses a swap (one planned row gone, one unplanned row added): the unplanned row changes with no event.
+    The set guard alone misses an addition. See `cascades.ts` and `merge.ts` ([[CORE36]] review).
+  - **A statement that inserts no row resets D1's `changes()` to 0**, and so does a holding assertion. Never put
+    an `appliedPrev`-gated statement (such as `eventStatement`) directly after an assertion. Gate it on an
+    `exists (event id)` instead, or rely on the `exactly` before it.
+- **Sets cost a constant number of statements** ([[CORE36]] D5). Bind a set as ONE parameter with
+  `jsonRows(qc, alias, columns, rows)` (D1 `json_each`, Postgres `jsonb_array_elements … with ordinality`), and
+  emit its events with ONE `eventSetStatement` (ids and `before` in the parameter, `after` rendered from the
+  stored rows). The statement-count test compares a set of 1 with a set of 10 on both engines. Current
+  counts: company and contact delete 9, merge 12, resolve 7 on Postgres and 6 on D1.
+- **Concrete programs are `Program<T>` plan/build pairs** (`src/identity/program.ts`) with namespaced read
+  keys (`resolve:`, `own:`, `merge:`), so [[CORE25]] can compose them later. `resolveProgram`,
+  `ensureOwnProgram` and `mergeOperation` are the worked examples.
 - **Testing on both engines:** see `writing-tests` section 3.
 
 ## The service context and tenancy
@@ -393,12 +433,16 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
 - **Kysely 0.27's `JoinBuilder` has no `orOn`.** An OR inside a join needs `.on((eb) => eb.or([...]))`.
   (The vault has no canonical-contact alias to join across: contacts are people and identities are
   addresses, [[CORE2]] D1.)
-- **Find-or-create of a parent plus child needs a lock before the select, not just `ON CONFLICT`.** An
+- **On the prepared path, find-or-create needs no key lock** ([[CORE36]] D3). On Postgres the org writer lock
+  serialises all writers; on D1 the atomic batch plus the partial unique index makes a racing loser abort
+  whole (`409 conflict`, no orphan parent). The paragraph below applies only to the legacy writers left
+  until [[CORE41]] (first sight and the directory).
+- **Legacy path: find-or-create of a parent plus child needs a lock before the select, not just `ON CONFLICT`.** An
   `ON CONFLICT DO NOTHING` on the child alone leaves the losing transaction's parent row (and its
   `*.created` event) orphaned. Take `lockKeys(ctx.trx, keys)` (`src/identity/locks.ts`: one statement,
   `pg_advisory_xact_lock` over distinct `hashtextextended` keys in ascending hash order, so overlapping
   batches cannot deadlock), then select, then insert with `ON CONFLICT DO NOTHING` as the backstop. Every
-  insert path for that key must take the same lock ([[CORE2]] D16, `resolveIdentities`). `lockKeys(trx, keys)`
+  insert path for that key must take the same lock ([[CORE2]] D16; `first-sight.ts`). `lockKeys(trx, keys)`
   takes a `Transaction<Database>`, so service-role code (`first-sight.ts`) and tenant code (`ctx.trx`) share
   it; type every shared transaction helper that way ([[CORE27]] P12). Key builders live beside it
   (`directoryOrgKey(provider, externalId)`).
