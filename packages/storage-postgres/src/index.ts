@@ -70,7 +70,10 @@ export function createPostgresRuntime(db: Kysely<Database>, options: PostgresRun
         for (const step of planned.unit.steps) {
           const res = await run(toCompiled(step.query))
           // No drift is possible under the lock; a statement that was planned to change a row and did not is a bug or a lost race: abort.
-          if (step.expect === 'affected' && Number(res.numAffectedRows ?? 0n) === 0) throw new UnitDriftError(prepared.name)
+          const affected = Number(res.numAffectedRows ?? 0n)
+          if (step.expect === 'affected' && affected === 0) throw new UnitDriftError(prepared.name)
+          if (typeof step.expect === 'object' && affected !== step.expect.rows) throw new UnitDriftError(prepared.name)
+          if (step.expect === 'holds' && (res.rows as Row[])[0]?.holds !== true) throw new UnitDriftError(prepared.name)
           if (step.label === 'result') resultRows = res.rows as Row[]
         }
         // Decoding (which validates the record with Zod) happens BEFORE commit: a malformed record rolls everything back.

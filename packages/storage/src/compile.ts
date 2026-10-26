@@ -15,7 +15,7 @@ import {
 import type { StorageDatabase } from './database.js'
 import { ColdExecutionError } from './errors.js'
 import { Found, type FoundInput, compileReads, toCompiled } from './program.js'
-import type { Dialect, EventReceipt, PreparedOperation, QueryContext, ReadMode, StatementLabel } from './types.js'
+import type { Dialect, EventReceipt, PreparedOperation, QueryContext, ReadMode, StatementLabel, Step } from './types.js'
 
 /** A connection whose every execution throws: a cold database can only compile. */
 class ColdConnection implements DatabaseConnection {
@@ -92,7 +92,7 @@ export interface CompiledStatement {
   readonly label?: StatementLabel
   readonly sql: string
   readonly parameters: readonly unknown[]
-  readonly expect?: 'affected'
+  readonly expect?: Step['expect']
 }
 export interface CompiledOperation {
   readonly name: string

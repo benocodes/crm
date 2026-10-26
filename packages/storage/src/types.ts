@@ -31,8 +31,13 @@ export interface Read {
 export interface Step {
   readonly label?: StatementLabel
   readonly query: QueryLike
-  /** Postgres aborts the unit when the statement affects no row; on D1 the unit's later statements are gated in SQL instead. */
-  readonly expect?: 'affected'
+  /**
+   * 'affected': at least one row; `{ rows: n }`: exactly n rows; 'holds': a select whose one row has `holds = true`.
+   * Postgres checks these in the runtime and raises UnitDriftError. D1 cannot see counts inside a batch, so
+   * `exactly`/`assertStep` compile the check into SQL there and the D1 runtime ignores `expect`; on D1 the unit's later
+   * statements are gated in SQL instead ('affected').
+   */
+  readonly expect?: 'affected' | { readonly rows: number } | 'holds'
 }
 export interface EventReceipt {
   readonly id: string

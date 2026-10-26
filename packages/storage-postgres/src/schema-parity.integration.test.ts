@@ -17,8 +17,8 @@ describe('Postgres schema parity with the portable types', () => {
     const physical = rows.map((r) => r.column_name)
     for (const column of Object.keys(kinds)) expect(physical).toContain(column)
   })
-  it('tasks and events are modelled exactly (no extra physical column the types do not know)', async () => {
-    for (const table of ['tasks', 'events'] as const) {
+  it('tasks, events and the identity model are modelled exactly (no extra physical column the types do not know)', async () => {
+    for (const table of ['tasks', 'events', 'companies', 'contacts', 'identities'] as const) {
       const { rows } = await sql<{ column_name: string }>`select column_name from information_schema.columns where table_schema = 'public' and table_name = ${table}`.execute(owner)
       expect(rows.map((r) => r.column_name).sort()).toEqual(Object.keys(COLUMN_KINDS[table]).sort())
     }
