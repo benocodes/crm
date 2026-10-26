@@ -183,3 +183,111 @@ describe('the D1 schema slice of CORE35 (C6)', () => {
     })
   })
 })
+
+describe('the identity model slice (CORE36 C3)', () => {
+  const id = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')}`
+  const insertInto = (table: string, row: Record<string, unknown>) =>
+    fails(`INSERT INTO ${table} (${Object.keys(row).join(', ')}) VALUES (${Object.keys(row).map(() => '?').join(', ')})`, ...Object.values(row))
+  const insertOk = async (table: string, row: Record<string, unknown>) => {
+    await d1
+      .prepare(`INSERT INTO ${table} (${Object.keys(row).join(', ')}) VALUES (${Object.keys(row).map(() => '?').join(', ')})`)
+      .bind(...Object.values(row))
+      .run()
+  }
+  const base = (n: number, over: Record<string, unknown> = {}) => ({ id: id(n), organization_id: ORG, created_by: USER, created_at: AT, updated_at: AT, ...over })
+  const company = (n: number, over: Record<string, unknown> = {}) => base(n, { name: 'Acme', ...over })
+  const contact = (n: number, over: Record<string, unknown> = {}) => base(n, over)
+  const identity = (n: number, over: Record<string, unknown> = {}) => base(n, { kind: 'email', value: 'a@example.com', contact_id: id(500), own: 0, ...over })
+
+  beforeEach(async () => {
+    await seedDeployment(d1, { organizationId: ORG })
+    await seedPrincipal(d1, { id: USER, kind: 'user' })
+  })
+
+  it('creates the tables', async () => {
+    const names = (await all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'")).map((r) => r.name)
+    expect(names).toEqual(expect.arrayContaining(['companies', 'contacts', 'identities', 'unit_assertion']))
+  })
+
+  it('has the columns and nullability of the Postgres tables', async () => {
+    const shape = async (table: string) =>
+      Object.fromEntries((await all<{ name: string; notnull: number }>(`PRAGMA table_info(${table})`)).map((c) => [c.name, c.notnull === 1]))
+    const common = { id: true, created_at: true, updated_at: true, organization_id: true, created_by: true, deleted_at: false }
+    expect(await shape('companies')).toEqual({ ...common, name: true, domain: false })
+    expect(await shape('contacts')).toEqual({ ...common, name: false, company_id: false, merged_into_id: false })
+    expect(await shape('identities')).toEqual({ ...common, kind: true, value: true, contact_id: false, own: true })
+  })
+
+  it('keeps the foreign keys, composite and plain', async () => {
+    const fks = async (table: string) =>
+      (await all<{ id: number; seq: number; table: string; from: string; to: string }>(`PRAGMA foreign_key_list(${table})`))
+        .sort((a, b) => a.id - b.id || a.seq - b.seq)
+        .reduce<Record<number, string[]>>((acc, f) => ((acc[f.id] ??= []).push(`${f.from}->${f.table}.${f.to}`), acc), {})
+    const flat = async (table: string) =>
+      Object.values(await fks(table)).map((g) => g.join('+')).sort()
+    expect(await flat('companies')).toEqual(['created_by->principals.id', 'organization_id->organizations.id'])
+    expect(await flat('contacts')).toEqual([
+      'created_by->principals.id',
+      'organization_id->contacts.organization_id+merged_into_id->contacts.id',
+      'organization_id->companies.organization_id+company_id->companies.id',
+      'organization_id->organizations.id',
+    ].sort())
+    expect(await flat('identities')).toEqual([
+      'created_by->principals.id',
+      'organization_id->contacts.organization_id+contact_id->contacts.id',
+      'organization_id->organizations.id',
+    ].sort())
+  })
+
+  it('allows one live company per domain, and a domain again after a soft delete', async () => {
+    await insertOk('companies', company(1, { domain: 'acme.com' }))
+    expect(await insertInto('companies', company(2, { domain: 'acme.com' }))).toMatch(/UNIQUE/i)
+    await insertOk('companies', company(3, { domain: null }))
+    await insertOk('companies', company(4, { domain: null }))
+    await d1.prepare('UPDATE companies SET deleted_at = ? WHERE id = ?').bind(AT, id(1)).run()
+    await insertOk('companies', company(5, { domain: 'acme.com' }))
+  })
+
+  it('allows one live identity per address, and the address again after a soft delete', async () => {
+    await insertOk('contacts', contact(500))
+    await insertOk('identities', identity(1))
+    expect(await insertInto('identities', identity(2))).toMatch(/UNIQUE/i)
+    await d1.prepare('UPDATE identities SET deleted_at = ? WHERE id = ?').bind(AT, id(1)).run()
+    await insertOk('identities', identity(3))
+  })
+
+  it('enforces the owner rule own = (contact_id IS NULL)', async () => {
+    await insertOk('contacts', contact(500))
+    expect(await insertInto('identities', identity(1, { own: 1 }))).toMatch(/CHECK/i)
+    expect(await insertInto('identities', identity(2, { contact_id: null, own: 0 }))).toMatch(/CHECK/i)
+    await insertOk('identities', identity(3, { contact_id: null, own: 1, value: 'me@example.com' }))
+    expect(await insertInto('identities', identity(4, { own: 2 }))).toMatch(/CHECK/i)
+    expect(await insertInto('identities', identity(5, { kind: 'sms', value: 'x' }))).toMatch(/CHECK/i)
+  })
+
+  it('enforces the tombstone checks on merged_into_id', async () => {
+    await insertOk('contacts', contact(500))
+    expect(await insertInto('contacts', contact(501, { merged_into_id: id(500) }))).toMatch(/CHECK/i)
+    expect(await insertInto('contacts', contact(502, { merged_into_id: id(502), deleted_at: AT }))).toMatch(/CHECK/i)
+    await insertOk('contacts', contact(503, { merged_into_id: id(500), deleted_at: AT }))
+  })
+
+  it('stores email identities lowercase ASCII only, and leaves phones alone', async () => {
+    await insertOk('contacts', contact(500))
+    expect(await insertInto('identities', identity(1, { value: 'A@Example.com' }))).toMatch(/CHECK/i)
+    expect(await insertInto('identities', identity(2, { value: 'jürgen@example.com' }))).toMatch(/CHECK/i)
+    await insertOk('identities', identity(3, { kind: 'phone', value: '+14155550100' }))
+  })
+
+  it('refuses a reference that does not exist in this organisation (foreign key)', async () => {
+    expect(await insertInto('contacts', contact(500, { company_id: id(999) }))).toMatch(/FOREIGN KEY/i)
+    expect(await insertInto('identities', identity(1, { contact_id: id(999) }))).toMatch(/FOREIGN KEY/i)
+    expect(await insertInto('companies', company(2, { organization_id: OTHER_ORG }))).toMatch(/FOREIGN KEY/i)
+  })
+
+  it('unit_assertion never holds a row: a true condition inserts nothing, a false one aborts with the named constraint', async () => {
+    await d1.batch([d1.prepare('INSERT INTO unit_assertion (ok) SELECT 0 WHERE NOT (1 = 1)')])
+    expect(await fails('INSERT INTO unit_assertion (ok) SELECT 0 WHERE NOT (1 = 0)')).toContain('unit_assertion_holds')
+    expect((await all<{ n: number }>('SELECT count(*) AS n FROM unit_assertion'))[0]!.n).toBe(0)
+  })
+})

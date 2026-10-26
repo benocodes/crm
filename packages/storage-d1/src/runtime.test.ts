@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CommitOutcomeUnknown, StorageError, defineOperation, step, unit } from '@vault/storage'
+import { CommitOutcomeUnknown, StatementFailed, StorageError, UnitDriftError, defineOperation, step, unit } from '@vault/storage'
 import { sql } from 'kysely'
 import { classifyD1Error, createD1Runtime, D1_MAX_PARAMETERS } from './index.js'
 import type { D1Like } from './binding.js'
@@ -42,5 +42,36 @@ describe('the D1 runtime refuses a statement it cannot send without calling it a
   it('classifies SQLite errors as statement failures and a lost transport as unknown', () => {
     expect(classifyD1Error(new Error('D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT'))).toEqual({ statement: true, kind: 'foreign_key' })
     expect(classifyD1Error(new Error('D1_ERROR: Network connection lost'))).toEqual({ statement: false })
+  })
+})
+
+describe('a failed unit assertion is drift (CORE36 C2, D4)', () => {
+  const op = defineOperation<null>({
+    name: 'assertion.demo',
+    mutates: true,
+    reads: () => ({}),
+    build: (_f, qc) => unit({ steps: [step(sql`select 1`.compile(qc.db), 'first-mutation')], events: [], decode: () => null }),
+  })
+  const failing = (message: string): D1Like => ({
+    prepare: () => ({ bind: () => ({}) }) as never,
+    batch: async () => {
+      throw new Error(message)
+    },
+  })
+  const run = (message: string) =>
+    createD1Runtime(failing(message), { organizationId: ORG })
+      .execute({ actorId: ORG, organizationId: ORG }, op)
+      .catch((e: unknown) => e)
+
+  it('classifies the named constraint before the generic CHECK pattern', () => {
+    expect(classifyD1Error(new Error('D1_ERROR: CHECK constraint failed: unit_assertion_holds: SQLITE_CONSTRAINT'))).toEqual({ drift: true })
+  })
+  it('raises UnitDriftError for the assertion constraint', async () => {
+    expect(await run('D1_ERROR: CHECK constraint failed: unit_assertion_holds: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_CHECK)')).toBeInstanceOf(UnitDriftError)
+  })
+  it('keeps any other CHECK failure a StatementFailed of kind check', async () => {
+    const err = await run('D1_ERROR: CHECK constraint failed: identities_kind: SQLITE_CONSTRAINT')
+    expect(err).toBeInstanceOf(StatementFailed)
+    expect((err as StatementFailed).kind).toBe('check')
   })
 })
