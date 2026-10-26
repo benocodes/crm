@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net'
 import { serve } from '@hono/node-server'
 import { SignJWT, exportSPKI, generateKeyPair } from 'jose'
 import { sql } from 'kysely'
-import { createDb } from '@vault/db'
+import { createDb, withOrganization } from '@vault/db'
 import { createAuthAdapter } from '../src/auth/adapter.js'
 import { createVaultRegistry } from '../src/operations.js'
 import { postgresBinding } from '@vault/storage-postgres'
@@ -71,6 +71,14 @@ const adapter = createAuthAdapter({
 const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhost/vault_dev', { max: 4 })
 const dbName = (await sql<{ current_database: string }>`SELECT current_database()`.execute(db)).rows[0]!.current_database
 console.log(`database ${dbName}`)
+// Guard: an already-exported DATABASE_URL overrides --env-file, so the script refuses to run anywhere but the database
+// the caller named (the private worktree test database), instead of only printing it.
+const expectedDb = process.env.SMOKE_EXPECT_DATABASE
+if (!expectedDb || dbName !== expectedDb) {
+  console.error(`refusing to run: connected to "${dbName}", expected SMOKE_EXPECT_DATABASE="${expectedDb ?? ''}"`)
+  await db.destroy()
+  process.exit(1)
+}
 
 const storage = postgresBinding(db)
 const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
@@ -167,6 +175,33 @@ try {
   await check('GET /me (wrong azp)', { path: '/me', token: await mint(subjectA, { azp: 'https://evil.example' }) }, 401, (j) => eq(j.error.code, 'unauthenticated', 'code'))
   await check('GET /me (expired)', { path: '/me', token: await mint(subjectA, { exp: Math.floor(Date.now() / 1000) - 60 }) }, 401)
   await check('GET /me (second subject, same email)', { path: '/me', token: await mint(subjectB) }, 409, (j) => eq(j.error.code, 'account_conflict', 'code'))
+  // [[CORE36]]: the identity model over HTTP on Postgres: company, contact, resolve, merge, delete cascade, events.
+  const company = await check('POST /companies (mixed-case domain)', { path: '/companies', method: 'POST', token: tokOrg, body: { name: 'Smoke Co', domain: ` Smoke-${rand}.EXAMPLE.com ` } }, 201, (j) =>
+    eq(j.domain, `smoke-${rand}.example.com`, 'domain'),
+  )
+  await check('POST /contacts (on the company)', { path: '/contacts', method: 'POST', token: tokOrg, body: { name: 'Smoke Contact', company_id: company.id } }, 201)
+  const r1 = await check('POST /identities/resolve (first address)', { path: '/identities/resolve', method: 'POST', token: tokOrg, body: { identities: [{ kind: 'email', value: `One-${rand}@Example.com` }] } }, 200, (j) =>
+    eq(j.data.map((d: any) => d.created), [true], 'created'),
+  )
+  const r2 = await check('POST /identities/resolve (second address)', { path: '/identities/resolve', method: 'POST', token: tokOrg, body: { identities: [{ kind: 'email', value: `two-${rand}@example.com` }] } }, 200, (j) =>
+    eq(j.data.map((d: any) => d.created), [true], 'created'),
+  )
+  const survivorId = r1.data[0].contact.id as string
+  const sourceId = r2.data[0].contact.id as string
+  await check('POST /contacts/{id}/merge', { path: `/contacts/${survivorId}/merge`, method: 'POST', token: tokOrg, body: { source_id: sourceId } }, 200, (j) => eq(j.id, survivorId, 'survivor'))
+  await check('GET /contacts/{source} (merged)', { path: `/contacts/${sourceId}`, token: tokOrg }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
+  await check('DELETE /companies/{id}', { path: `/companies/${company.id}`, method: 'DELETE', token: tokOrg }, 204)
+  // Set and count of the organisation's identity-model event types (never ctid order on a reused database).
+  const events = await withOrganization(db, { principalId: me.user.id, organizationId: org1.id }, (trx) =>
+    sql<{ type: string }>`SELECT type FROM events WHERE type LIKE 'company.%' OR type LIKE 'contact.%' OR type LIKE 'identity.%'`.execute(trx),
+  )
+  const tally: Record<string, number> = {}
+  for (const e of events.rows) tally[e.type] = (tally[e.type] ?? 0) + 1
+  const wanted = { 'company.created': 1, 'contact.created': 3, 'identity.created': 2, 'identity.updated': 1, 'contact.merged': 1, 'company.deleted': 1, 'contact.updated': 1 }
+  const sortKeys = (o: Record<string, number>) => Object.fromEntries(Object.entries(o).sort())
+  const problem = eq(sortKeys(tally), sortKeys(wanted), 'event types')
+  if (problem) failures++
+  console.log(`${problem ? 'FAIL' : 'ok  '} identity-model events (${events.rows.length}) ${JSON.stringify(sortKeys(tally))}${problem ? ` (${problem})` : ''}`)
   const pre = await fetch(`${base}/tasks`, {
     method: 'OPTIONS',
     headers: { origin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization,x-organization-id' },
