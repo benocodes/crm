@@ -5,7 +5,7 @@ Guidance for coding agents working in this repository.
 ## What this is
 
 A **headless CRM** (working name: the vault). No app of its own: every interaction (email, calendar,
-WhatsApp, later calls and iMessage) lands in one multi-tenant Postgres database, agents the customer
+WhatsApp, later calls and iMessage) lands in one database (single-organisation D1 per self-hosted deployment; multi-tenant Postgres for the cloud-hosted and enterprise service), agents the customer
 brings read it over REST, MCP or hooks, and they **propose** actions as action requests that a person or a
 rule approves; the vault executes. The only screen is a pane in the user's email client.
 
@@ -119,7 +119,7 @@ agent can resolve, and when the sprint is finished.
 ## Stack and commands
 
 TypeScript (ESM), **pnpm** workspace, Node >= 22, Vitest. Cloudflare Workers + Hono +
-`@hono/zod-openapi`, Kysely on Neon Postgres via Hyperdrive, R2, Queues, Workflows. The Vercel AI SDK
+`@hono/zod-openapi`, Kysely on D1 (the single-organisation MVP engine, self-hosted on Cloudflare) or Neon Postgres via Hyperdrive (multi-tenant, cloud-hosted and enterprise), R2, Queues, Workflows. The Vercel AI SDK
 is the only LLM library (if the vault ever calls one).
 
 ```bash
@@ -159,13 +159,17 @@ in-place edits ([[CORE29]] retro).
 
 Carried over from the predecessor product, where each cost real time. Add new ones through `retrospect`, not ad hoc.
 
-1. **Tenancy is the organisation.** Every tenant table has `organization_id` (the RLS gate) and
-   `user_id`/actor attribution, with RLS in the same migration that creates the table. Only the scoping
-   wrappers set role or session config.
-2. **The test harness must not mask RLS.** Do not preset `app.organization_id` or `service_role` on the
+1. **Tenancy is the organisation.** Every tenant table has `organization_id` and `user_id`/actor
+   attribution. *Postgres path (multi-tenant):* `organization_id` is the RLS gate, with RLS in the same
+   migration that creates the table, and only the scoping wrappers set role or session config. *D1 path
+   (single organisation per deployment):* the database is the tenancy boundary; `organizations.id`
+   references the singleton deployment marker, so foreign keys make a second organisation unstorable
+   ([[CORE35]] D18), and no RLS is emulated.
+2. **The test harness must not mask tenancy.** *Postgres:* do not preset `app.organization_id` or `service_role` on the
    test pool; a query that skips its tenancy wrapper must fail in tests the way it does in production.
    The mechanism: `createTestDb` (`@vault/db/test`) connects as `vault_app`, which holds no table
-   privileges until a wrapper runs `SET LOCAL ROLE`; `harness.integration.test.ts` guards it.
+   privileges until a wrapper runs `SET LOCAL ROLE`; `harness.integration.test.ts` guards it. *D1:* each test organisation gets its own binding, and a
+   foreign organisation's identity must be refused, not filtered.
    A test also must not leave persistent state on the shared test database (DDL, a disabled trigger, a
    changed setting): restore it in teardown, and have the harness check the production state and fail loudly
    otherwise ([[CORE35]] retro, F5).
@@ -180,7 +184,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
    dev/ops `bootstrap` script ([[CORE15]]). If such a write has a tenant-visible consequence (a
    membership, a connection's status), that consequence must still emit its event. Add a new exception
    through a spec decision, never ad hoc.
-6. **Raw bodies stay out of Postgres** (R2 behind `ObjectStore`).
+6. **Raw bodies stay out of the database**, Postgres and D1 alike (R2 behind `ObjectStore`).
 7. **A workflow step's return value must be structured-cloneable by workerd**, which is stricter than
    Node. Return plain data, never class instances (see `cloudflare-workflows`).
 8. **A migration's number can go stale** between plan and implementation; re-check before creating it.
