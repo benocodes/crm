@@ -6,7 +6,7 @@ Guidance for coding agents working in this repository.
 
 A **headless CRM** (working name: the vault). No app of its own: every interaction (email, calendar,
 WhatsApp, later calls and iMessage) lands in one multi-tenant Postgres database, agents the customer
-brings read it over REST, MCP or hooks, and they **propose** actions as suggestions that a person or a
+brings read it over REST, MCP or hooks, and they **propose** actions as action requests that a person or a
 rule approves; the vault executes. The only screen is a pane in the user's email client.
 
 Read these first (they live in the separate knowledge repo, cloned at `knowledge/`):
@@ -111,7 +111,7 @@ agent can resolve, and when the sprint is finished.
 | `CORE` | schema, tenancy, service layer, resources, outbox/events |
 | `API` | operation registry, REST, MCP, hooks/webhooks, agent cursor |
 | `CHN` | channel adapters: capture (Gmail; later Graph, WhatsApp) and send |
-| `AGT` | agent principals, scopes, suggestions, approval rules, execution rail |
+| `AGT` | agent principals, scopes, action requests, approval rules, execution rail |
 | `UI` | the email-client pane (Chrome extension beside Gmail), digests |
 | `DX` | CLI, starter template, docs for consultants |
 | `OPS` | infrastructure, deploy, CI, tooling, skills |
@@ -163,7 +163,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
    privileges until a wrapper runs `SET LOCAL ROLE`; `harness.integration.test.ts` guards it.
 3. **Catching `23505` inside a transaction does not save it**: the transaction is already aborted. Use
    `ON CONFLICT` instead.
-4. **Agents never send.** Agents submit suggestions; the vault executes them with credentials it holds.
+4. **Agents never send.** Agents submit action requests; the vault executes them with credentials it holds.
 5. **Every write emits an event** to the outbox in the same transaction. Nothing else inserts into a
    resource's table except its service layer. The rule covers *resources* (anything tenant-visible).
    Writes that skip events are allowed only when they are not resources and a spec decision names them.
