@@ -49,3 +49,10 @@ export async function getUser(ctx: ServiceContext, id: string): Promise<UserReco
   if (!row) throw notFound()
   return toUser(row)
 }
+
+// RED-PHASE STUB (CORE40 Phase 1): replaced by the real program in Phase 3.
+import type { PreparedOperation } from '@vault/storage'
+import type { PreparedEnv } from '../storage/definition.js'
+export function getUserOperation(_env: PreparedEnv, _id: string): PreparedOperation<UserRecord> {
+  throw new Error('not implemented')
+}

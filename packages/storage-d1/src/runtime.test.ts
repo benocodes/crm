@@ -75,3 +75,21 @@ describe('a failed unit assertion is drift (CORE36 C2, D4)', () => {
     expect((err as StatementFailed).kind).toBe('check')
   })
 })
+
+describe('arrays are bound as JSON text (CORE40 C1)', () => {
+  it('a string array parameter reaches D1 as the JSON text of the array', async () => {
+    const bound: unknown[][] = []
+    const d1: D1Like = {
+      prepare: () => ({ bind: (...values: unknown[]) => (bound.push(values), {}) }) as never,
+      batch: async () => [{ results: [], meta: {} }] as never,
+    }
+    const op = defineOperation<null>({
+      name: 'array.demo',
+      mutates: true,
+      reads: () => ({}),
+      build: (_f, qc) => unit({ steps: [step(sql`select ${['x', 'y']}`.compile(qc.db), 'first-mutation')], events: [], decode: () => null }),
+    })
+    await createD1Runtime(d1, { organizationId: ORG }).execute({ actorId: ORG, organizationId: ORG }, op)
+    expect(bound).toEqual([['["x","y"]']])
+  })
+})

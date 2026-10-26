@@ -2,6 +2,10 @@
 // typecheck` includes it. Every `@ts-expect-error` sits on the exact offending expression, each has a positive
 // sibling, and nothing is cast around the call.
 import { z } from 'zod'
+import { membershipRecord } from '../account/organizations.js'
+import { agentRecord, agents } from '../resources/agents.js'
+import { apiKeyRecord, apiKeys } from '../resources/api-keys.js'
+import { memberships } from '../resources/memberships.js'
 import { definePreparedResource } from './definition.js'
 
 const filter = { schema: z.string() }
@@ -181,4 +185,59 @@ definePreparedResource({
   record: companiesRecord,
   // @ts-expect-error a prepare hook must be synchronous
   prepare: async () => ({}),
+})
+
+// --- CORE40: the administration tables ---------------------------------------------------------------
+
+// positive siblings: the real definitions compile, and so do call-site copies of them
+export const realAdministration = [agents, memberships, apiKeys]
+export const okAgents = definePreparedResource({ name: 'agents', eventName: 'agent', table: 'agents', record: agentRecord, filters: {} })
+export const okMemberships = definePreparedResource({ name: 'memberships', eventName: 'membership', table: 'memberships', record: membershipRecord, filters: { role: filter } })
+export const okApiKeys = definePreparedResource({ name: 'api_keys', eventName: 'api_key', table: 'api_keys', record: apiKeyRecord, filters: { agent_id: filter } })
+
+// 1. an api_keys record that carries the secret column
+definePreparedResource({
+  name: 'api_keys',
+  eventName: 'api_key',
+  table: 'api_keys',
+  // @ts-expect-error key_hash is a secret column of api_keys
+  record: apiKeyRecord.extend({ key_hash: z.string() }),
+})
+
+// 2. an agents record that mistypes the array column
+definePreparedResource({
+  name: 'agents',
+  eventName: 'agent',
+  table: 'agents',
+  // @ts-expect-error scopes is a string array, the record says string
+  record: agentRecord.extend({ scopes: z.string() }),
+})
+
+// 3. a memberships record with a field that is not a column
+definePreparedResource({
+  name: 'memberships',
+  eventName: 'membership',
+  table: 'memberships',
+  // @ts-expect-error email is a column of users, not of memberships
+  record: membershipRecord.extend({ email: z.string() }),
+})
+
+// 4. an async hook on agents
+definePreparedResource({
+  name: 'agents',
+  eventName: 'agent',
+  table: 'agents',
+  record: agentRecord,
+  // @ts-expect-error a prepare hook must be synchronous
+  prepare: async () => ({}),
+})
+
+// 5. an unknown filter column on api_keys
+definePreparedResource({
+  name: 'api_keys',
+  eventName: 'api_key',
+  table: 'api_keys',
+  record: apiKeyRecord,
+  // @ts-expect-error 'bogus' is not a column of api_keys
+  filters: { bogus: filter },
 })

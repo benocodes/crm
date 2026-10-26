@@ -53,3 +53,14 @@ export async function revokeApiKey(ctx: ServiceContext, id: string): Promise<Api
   await emitResourceEvent(ctx, apiKeys, 'revoked', before, after, before.id)
   return after
 }
+
+// RED-PHASE STUBS (CORE40 Phase 1): replaced by the real programs in Phase 3.
+import type { PreparedOperation } from '@vault/storage'
+import type { PreparedEnv } from '../storage/definition.js'
+export type IssuedKey = ApiKeyRecord & { key: string }
+export function issueApiKeyOperation(_env: PreparedEnv, _input: { agent_id: string; expires_at?: string | null }, _secret: { key: string; hash: string; prefix: string }): PreparedOperation<IssuedKey> {
+  throw new Error('not implemented')
+}
+export function revokeApiKeyOperation(_env: PreparedEnv, _id: string): PreparedOperation<ApiKeyRecord> {
+  throw new Error('not implemented')
+}

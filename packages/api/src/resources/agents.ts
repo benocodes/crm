@@ -59,3 +59,10 @@ export const agents = defineResource<AgentRecord>({
     },
   },
 })
+
+// RED-PHASE STUB (CORE40 Phase 1): replaced by the real program in Phase 3.
+import type { PreparedOperation } from '@vault/storage'
+import type { PreparedEnv } from '../storage/definition.js'
+export function createAgentOperation(_env: PreparedEnv, _input: unknown): PreparedOperation<AgentRecord> {
+  throw new Error('not implemented')
+}
