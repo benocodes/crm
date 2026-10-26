@@ -46,7 +46,7 @@ The lifecycle is issue-driven. Skills live in `.agents/skills/`:
 | Knowledge audit | `wiki-lint` |
 | Ship | `ship-branch` |
 
-Domain skills: `db-schema-and-migrations`, `api-routes`, `tenancy-and-testing`, `writing-tests`, `hyperdrive-pg-rls`, `cloudflare-workflows`.
+Domain skills: `db-schema-and-migrations`, `api-routes`, `writing-tests`, `hyperdrive-pg-rls`, `cloudflare-workflows`.
 
 **Vocabulary.** A **cycle** is one unit of work: a folder under `knowledge/specs/` that ends in one
 branch, one retro and (usually) one PR. A **spec** is the design (*what and why*); a spec can be
@@ -156,9 +156,9 @@ Carried over from the predecessor product, where each cost real time. Add new on
 
 1. **Tenancy is the organisation.** Every tenant table has `organization_id` and `user_id`/actor
    attribution. Postgres enforces it with RLS in the same migration as the table; a D1 deployment is one
-   organisation, enforced by the schema ([[CORE35]] D18). See `tenancy-and-testing`.
+   organisation, enforced by the schema ([[CORE35]] D18). See `api-routes` ("Tenancy per engine").
 2. **The test harness must not mask tenancy**, and must not leave persistent state on the shared test
-   database. See `tenancy-and-testing` and `writing-tests`.
+   database. See `writing-tests`.
 3. **Catching `23505` inside a transaction does not save it**: the transaction is already aborted. Use
    `ON CONFLICT` instead.
 4. **Agents never send.** Agents submit action requests; the vault executes them with credentials it holds.
@@ -176,7 +176,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
 8. **A migration's number can go stale** between plan and implementation; re-check before creating it.
 9. **Resolve an approval's anchor at approval time, not draft time.**
 10. **Open packages never import enterprise code** (`@vault/storage-postgres`, `@vault/db`, `pg`); a test
-    enforces it. See `tenancy-and-testing`.
+    enforces it. See `api-routes`.
 
 ## Knowledge hygiene
 

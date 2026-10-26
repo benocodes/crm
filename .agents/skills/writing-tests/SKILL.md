@@ -6,8 +6,7 @@ description: How to write tests for the vault that prove something - red first, 
 # Writing tests
 
 The rule behind everything here: **a test only counts once you have seen it fail for the right reason.**
-Tenancy specifics (how the harness must not mask RLS, the D1 single-organisation rules, the open/enterprise
-import boundary) are in `tenancy-and-testing`. Migration tests are in `db-schema-and-migrations`
+Tenancy itself (per-engine rules, the open/enterprise import boundary) is in `api-routes`. Migration tests are in `db-schema-and-migrations`
 ("Testing migrations"). Plan-level rules about tests (rules 11, 13-18) are in `tdd-cycle-generator`; this
 skill is what the coder follows while writing them.
 
@@ -114,6 +113,10 @@ wrapper fails in tests. Seeds (`seedOrganization`, `seedUser`, `seedAgent`) run 
 there is deliberately no task or event seed: create those through the service layer. `createOwnerTestDb()`
 is for `truncateAll` and catalog inspection only, never fixtures. Both factories refuse a database whose
 name doesn't match `/(^|_)test(_|$)/`.
+
+**D1 harness.** Each test organisation gets its own disposable binding (in-memory Miniflare), never two
+organisations in one D1. A foreign organisation's identity must be refused, not filtered: test the refusal,
+and test that a second organisation fails on a foreign key ([[CORE35]] D18).
 
 - **A cross-tenant test needs a REAL second organisation** with an explicit `organization_id` threaded
   through every fixture on the other side. Two "different" users that land in one default org prove nothing;

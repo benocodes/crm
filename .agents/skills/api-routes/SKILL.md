@@ -261,6 +261,27 @@ Operations don't call the wrappers directly; they run in a service context (`src
   `any`. That erases the wrapper's `Transaction<Database>` generic and its return type collapses to `{}`.
   Cast the callback's *return value* instead.
 
+### Tenancy per engine ([[CORE35]] D6, D18)
+
+| | Postgres (multi-tenant, cloud and enterprise) | D1 (single organisation, self-hosted MVP) |
+|---|---|---|
+| Boundary | `organization_id` is the RLS gate | the database itself |
+| Enforcement | RLS in the same migration that creates the table; only the scoping wrappers set role or session config | `organizations.id` references the singleton deployment marker; every tenant table has a foreign key onto `organizations`; D1 always enforces foreign keys, so a second organisation cannot be stored |
+| Shared programs | write `organization_id` | write `organization_id` too, but no D1 guarantee depends on it; RLS is not emulated |
+| Foreign identity | refused by RLS (`42501`) | refused before any SQL by the storage layer |
+
+Every tenant table on either engine also carries `user_id`/actor attribution.
+
+### Open packages never import enterprise code ([[CORE35]] D14, D15)
+
+`@vault/storage` and `@vault/storage-d1` are open source and must not import `@vault/storage-postgres`,
+`@vault/db` or `pg`; `packages/storage/src/import-boundary.test.ts` enforces it. In `packages/api`,
+production code may not import `pg` or `@vault/storage-postgres` either. The named exceptions are
+composition entry points, listed by file name in the test's allow-list with the reason (`src/dev-server.ts`;
+`scripts/golden.ts`, `smoke-auth.ts`, `smoke-admin.ts`) until the CORE37 cutover splits the Worker entry by
+engine (D21). Never allow a directory with an empty-string key (a rule that exempts every file forbids
+nothing), and keep a sandbox case showing an unlisted file that imports enterprise code fails.
+
 ## Principals and scopes
 
 Agents are first-class principals with their own identity, credentials and **scopes** (which channels,
@@ -349,7 +370,7 @@ message bodies or addresses at info level (customer communications are personal 
 
 Test-writing rules live in the `writing-tests` skill: red first, the contract suite and fixtures, golden
 fixtures and both-engine suites, absence mutations, event-order assertions, no leaked state, flakes. Tenancy
-in tests is in `tenancy-and-testing`.
+in tests is in `writing-tests` section 6.
 
 ## Verifying against a local dev server
 
