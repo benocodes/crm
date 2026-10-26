@@ -1,9 +1,11 @@
-import { sql, type Kysely, type Transaction } from 'kysely'
-import { withServiceRole, type Database } from '@vault/db'
-import { ScopeSet } from '../scopes.js'
+import type { PreparedOperation, StorageBinding } from '@vault/storage'
+import type { InternalEnv } from '../storage/internal.js'
 import type { Principal } from './types.js'
 
 export const API_KEY_PREFIX = 'vk_'
+const nope = (): never => {
+  throw new Error('not implemented')
+}
 
 // Web Crypto only (no node:crypto), so the same code runs in workerd.
 const base64url = (bytes: Uint8Array): string =>
@@ -21,54 +23,10 @@ export async function generateApiKey(randomBytes: (n: number) => Uint8Array): Pr
   return { key, hash: await hashApiKey(key), prefix: key.slice(0, 11) }
 }
 
-/** Inserts the key row. The plaintext exists only in this return value. */
-export async function createApiKey(
-  trx: Transaction<Database>,
-  args: { organizationId: string; agentId: string; createdBy: string; expiresAt?: Date | null },
-): Promise<{ id: string; key: string; prefix: string }> {
-  const { key, hash, prefix } = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
-  const row = await trx
-    .insertInto('api_keys')
-    .values({
-      organization_id: args.organizationId,
-      agent_id: args.agentId,
-      key_hash: hash,
-      prefix,
-      expires_at: args.expiresAt ?? null,
-      created_by: args.createdBy,
-    })
-    .returning('id')
-    .executeTakeFirstOrThrow()
-  return { id: row.id, key, prefix }
+export const LAST_USED_THROTTLE_MS = 60_000
+export function apiKeyAuthOperation(_keyHash: string, _now: Date): PreparedOperation<Principal | null> {
+  return nope()
 }
-
-/**
- * Looks the key up and (at most once a minute per key) records its use, in one service-role
- * transaction. Unknown, revoked, expired and disabled-agent keys are all `null`.
- */
-export async function authenticateApiKey(db: Kysely<Database>, key: string): Promise<Principal | null> {
-  const hash = await hashApiKey(key)
-  return withServiceRole(db, async (trx) => {
-    const row = await trx
-      .selectFrom('api_keys')
-      .innerJoin('agents', 'agents.id', 'api_keys.agent_id')
-      .select(['api_keys.id as key_id', 'agents.id as agent_id', 'agents.organization_id', 'agents.scopes'])
-      .where('api_keys.key_hash', '=', hash)
-      .where('api_keys.revoked_at', 'is', null)
-      .where((eb) => eb.or([eb('api_keys.expires_at', 'is', null), eb('api_keys.expires_at', '>', sql<Date>`now()`)]))
-      .where('agents.disabled_at', 'is', null)
-      .executeTakeFirst()
-    if (!row) return null
-    await trx
-      .updateTable('api_keys')
-      .set({ last_used_at: sql`now()` })
-      .where('id', '=', row.key_id)
-      .where((eb) => eb.or([eb('last_used_at', 'is', null), eb('last_used_at', '<', sql<Date>`now() - interval '60 seconds'`)]))
-      .execute()
-    return {
-      actor: { id: row.agent_id, kind: 'agent' as const },
-      organizationId: row.organization_id,
-      scopes: ScopeSet.parse(row.scopes),
-    }
-  })
+export async function authenticateApiKey(_storage: StorageBinding, _key: string, _env: InternalEnv): Promise<Principal | null> {
+  return nope()
 }

@@ -1,17 +1,12 @@
-import type { Transaction } from 'kysely'
-import type { Database } from '@vault/db'
+import type { QueryContext, Read, Row, Step } from '@vault/storage'
 
-/**
- * The one `system` principal that directory writes are attributed to ([[CORE3]] D22). Created on first use
- * rather than seeded, so it survives a test truncate and needs no seed anywhere. `ON CONFLICT DO NOTHING`
- * (never a caught 23505: invariant 3) makes concurrent first uses safe.
- */
-export async function systemPrincipalId(trx: Transaction<Database>): Promise<string> {
-  await trx
-    .insertInto('principals')
-    .values({ kind: 'system' })
-    .onConflict((oc) => oc.column('kind').where('kind', '=', 'system').doNothing())
-    .execute()
-  const row = await trx.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirstOrThrow()
-  return row.id
+const nope = (): never => {
+  throw new Error('not implemented')
+}
+export const SYSTEM_PRINCIPAL_READ = 'system:principal'
+export function systemPrincipalRead(_qc: QueryContext): Read {
+  return nope()
+}
+export function systemPrincipalSteps(_qc: QueryContext, _found: Row | null, _mint: string, _now: string): { id: string; steps: Step[] } {
+  return nope()
 }
