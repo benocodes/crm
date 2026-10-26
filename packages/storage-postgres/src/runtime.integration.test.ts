@@ -1,7 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'kysely'
 import { createOwnerTestDb, createTestDb, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
-import { StatementFailed, UnitDriftError, defineOperation, execute, readMaybe, selectColumns, step, unit, eq } from '@vault/storage'
+import type { Kysely } from 'kysely'
+import type { Database } from '@vault/db'
+import { StatementFailed, StorageError, UnitDriftError, defineOperation, execute, readAll, readMaybe, selectColumns, step, unit, eq } from '@vault/storage'
 import { classifyPostgresError, orgWriterKey, postgresBinding } from './index.js'
 
 const db = createTestDb({ max: 4 })
@@ -23,7 +25,7 @@ const noop = (mutates: boolean) =>
 
 describe('the Postgres runtime', () => {
   const binding = postgresBinding(db)
-  const identity = () => ({ actorId: user.id, organizationId: org.id })
+  const identity = () => ({ kind: 'tenant' as const, actorId: user.id, organizationId: org.id })
 
   it('takes the organisation writer lock for a mutating unit only, and counts the statements it sends', async () => {
     const write = await execute(binding, identity(), noop(true))
@@ -146,5 +148,77 @@ describe('the Postgres runtime', () => {
         expect(await count()).toBe(0)
       }
     })
+  })
+})
+
+/** A pool whose executed queries are counted: a refusal "before any SQL" must leave the count at zero. */
+function spyPool(): { pool: Kysely<Database>; queries: () => number } {
+  let n = 0
+  const pool = db.withPlugin({ transformQuery: (a) => a.node, transformResult: async (a) => (n++, a.result) })
+  return { pool, queries: () => n }
+}
+
+describe('storage identities (CORE41 C1)', () => {
+  const binding = postgresBinding(db)
+  const probe = (mutates: boolean) =>
+    defineOperation<string>({
+      name: 'who',
+      mutates,
+      reads: (qc) => ({ who: readMaybe(qc.db.selectNoFrom((eb) => eb.fn<string>('current_user', []).as('who'))) }),
+      build: (found) => unit({ steps: [], events: [], decode: () => found.one('who').who as string }),
+    })
+  const listMemberships = defineOperation<string[]>({
+    name: 'memberships.all',
+    mutates: false,
+    reads: (qc) => ({ rows: readAll(selectColumns(qc, 'memberships', ['id', 'organization_id']).orderBy('memberships.id')) }),
+    build: (found) => unit({ steps: [], events: [], decode: () => found.all('rows').map((r) => r.organization_id as string) }),
+  })
+
+  it('internal runs as the service role', async () => {
+    const res = await execute(binding, { kind: 'internal', organizationId: null }, probe(false))
+    expect(res.value).toBe('vault_service')
+  })
+
+  it('internal with an organisation takes the writer lock when it mutates', async () => {
+    const res = await execute(binding, { kind: 'internal', organizationId: org.id }, noop(true))
+    expect(res.stats.locks).toBe(1)
+  })
+
+  it('internal with an organisation does not lock a read-only unit', async () => {
+    expect((await execute(binding, { kind: 'internal', organizationId: org.id }, noop(false))).stats.locks).toBe(0)
+  })
+
+  it('internal without an organisation does not lock, even when it mutates', async () => {
+    expect((await execute(binding, { kind: 'internal', organizationId: null }, noop(true))).stats.locks).toBe(0)
+  })
+
+  it('internal rejects a non-UUID organisation before sending any statement', async () => {
+    const spy = spyPool()
+    const err = await execute(postgresBinding(spy.pool), { kind: 'internal', organizationId: 'x' }, noop(true)).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(StorageError)
+    expect(spy.queries()).toBe(0)
+  })
+
+  it('account reads across organisations', async () => {
+    const other = await seedOrganization(db, { name: 'Other' })
+    await seedUser(db, { organizationId: other.id })
+    const res = await execute(binding, { kind: 'account', actorId: user.id }, listMemberships)
+    expect(new Set(res.value)).toEqual(new Set([org.id, other.id]))
+    expect(res.stats.locks).toBe(0)
+  })
+
+  it('account refuses a mutating unit before any SQL', async () => {
+    const spy = spyPool()
+    const err = await execute(postgresBinding(spy.pool), { kind: 'account', actorId: user.id }, noop(true)).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(StorageError)
+    expect((err as Error).message).toMatch(/account units are read-only/)
+    expect(spy.queries()).toBe(0)
+  })
+
+  it('tenant still sees only its own organisation (RLS)', async () => {
+    const other = await seedOrganization(db, { name: 'Other' })
+    await seedUser(db, { organizationId: other.id })
+    const res = await execute(binding, { kind: 'tenant', actorId: user.id, organizationId: org.id }, listMemberships)
+    expect(res.value).toEqual([org.id])
   })
 })
