@@ -173,12 +173,12 @@ export function recordJson(qc: QueryContext, table: PhysicalTable, columns: read
     : sql<string>`json_object(${sql.join(pairs)})`
 }
 
-/** Selects a record's columns with timestamps rendered as public ISO text (same on both engines). */
-export function recordColumns(qc: QueryContext, table: PhysicalTable, columns: readonly string[]): AliasedExpression<unknown, string>[] {
+/** Selects a record's columns with timestamps rendered as public ISO text (same on both engines); `prefix` aliases them for a joined record. */
+export function recordColumns(qc: QueryContext, table: PhysicalTable, columns: readonly string[], prefix = ''): AliasedExpression<unknown, string>[] {
   const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
   return columns.map((c) => {
     const ref = `${table}.${c}`
-    return (kinds[c] === 'timestamp' ? ts.iso(qc, ref) : sql<unknown>`${refOf(ref)}`).as(c)
+    return (kinds[c] === 'timestamp' ? ts.iso(qc, ref) : sql<unknown>`${refOf(ref)}`).as(`${prefix}${c}`)
   })
 }
 

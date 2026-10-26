@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import type { TenantOperation } from '../registry.js'
+import type { PreparedTenantOperation } from '../registry.js'
 import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
-import { mergeContacts } from './merge.js'
-import { resolveIdentities } from './resolve.js'
+import { mergeOperation } from './merge.js'
+import { resolveOperation } from './resolve.js'
 
 const resolveBody = z.strictObject({
   identities: z
@@ -18,10 +18,12 @@ const resolveBody = z.strictObject({
     .max(100),
 })
 
-export function identityOperations(): TenantOperation[] {
+/** The identity commands on the prepared path ([[CORE36]]): same paths, scopes, schemas and statuses. */
+export function identityOperations(): PreparedTenantOperation[] {
   return [
     {
       kind: 'tenant',
+      executor: 'prepared',
       name: 'identities.resolve',
       summary: 'Resolve addresses to identities, creating contacts for new ones',
       tags: ['identities'],
@@ -36,12 +38,21 @@ export function identityOperations(): TenantOperation[] {
           data: z.array(z.object({ identity: identities.record, contact: contacts.record.nullable(), created: z.boolean() })),
         }),
       },
-      handler: async (ctx, input) => ({
-        data: await resolveIdentities(ctx, (input.body as z.infer<typeof resolveBody>).identities),
-      }),
+      prepare: (env, input) => {
+        const op = resolveOperation(env, (input.body as z.infer<typeof resolveBody>).identities)
+        // The response wraps the results as { data }; the unit is built once.
+        return {
+          ...op,
+          build: (found, qc) => {
+            const built = op.build(found, qc)
+            return { ...built, decode: (rows, f) => ({ data: built.decode(rows, f) }) }
+          },
+        }
+      },
     },
     {
       kind: 'tenant',
+      executor: 'prepared',
       name: 'contacts.merge',
       summary: 'Merge another contact into this one',
       tags: ['contacts'],
@@ -51,7 +62,7 @@ export function identityOperations(): TenantOperation[] {
       validation: 'adapter',
       request: { params: z.object({ id: z.uuid() }), body: z.strictObject({ source_id: z.uuid() }) },
       response: { status: 200, schema: contacts.record },
-      handler: (ctx, input) => mergeContacts(ctx, input.params.id as string, (input.body as { source_id: string }).source_id),
+      prepare: (env, input) => mergeOperation(env, input.params.id as string, (input.body as { source_id: string }).source_id),
     },
   ]
 }

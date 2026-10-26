@@ -1,5 +1,5 @@
 import { sql, type Kysely, type RawBuilder, type SqlBool, type Transaction } from 'kysely'
-import { appliedPrev, bind, recordJson, type PhysicalTable, type QueryContext, type QueryLike } from '@vault/storage'
+import { appliedPrev, bind, jsonRows, recordJson, type PhysicalTable, type QueryContext, type QueryLike } from '@vault/storage'
 import type { Database } from '@vault/db'
 
 export type EventInput = {
@@ -81,4 +81,40 @@ export function eventStatement(
   return L.insertInto('events')
     .columns(['id', 'created_at', 'organization_id', 'type', 'resource_type', 'resource_id', 'actor_id', 'before', 'after'])
     .expression(select)
+}
+
+/**
+ * The set form of the event statement ([[CORE36]] D5): ONE INSERT...SELECT for a whole set, so a cascade costs a
+ * constant number of statements. The event ids and the plan's `before` records travel in ONE `jsonRows` parameter;
+ * `after` is rendered from the STORED rows joined by id (null for deletes, which join nothing); rows are inserted in
+ * `ord` order. Not gated on `appliedPrev`: on D1 an assertion step resets `changes()`, so the caller's `exactly(n)`
+ * (which aborts the unit unless exactly these rows changed) is what guarantees the set exists.
+ */
+export function eventSetStatement(
+  qc: QueryContext,
+  e: {
+    at: string
+    organizationId: string
+    actorId: string
+    type: string
+    resourceType: string
+    after: { table: PhysicalTable; columns: readonly string[] } | null
+    rows: readonly { eventId: string; resourceId: string; before: Record<string, unknown> | null }[]
+  },
+): QueryLike {
+  // A labelled escape hatch: dynamic-table INSERT...SELECT from a one-parameter set (reviewed with eventStatement).
+  const set = jsonRows(
+    qc,
+    'r',
+    { event_id: 'uuid', resource_id: 'uuid', before: 'json' },
+    e.rows.map((r) => ({ event_id: r.eventId, resource_id: r.resourceId, before: r.before })),
+  )
+  const after = e.after ? recordJson(qc, e.after.table, e.after.columns) : bind(qc, 'json', null)
+  const join = e.after ? sql`join ${sql.table(e.after.table)} on ${sql.ref(`${e.after.table}.id`)} = ${sql.ref('r.resource_id')}` : sql``
+  return sql`
+    insert into "events" ("id", "created_at", "organization_id", "type", "resource_type", "resource_id", "actor_id", "before", "after")
+    select ${sql.ref('r.event_id')}, ${bind(qc, 'timestamp', e.at)}, ${bind(qc, 'uuid', e.organizationId)}, ${bind(qc, 'text', e.type)},
+      ${bind(qc, 'text', e.resourceType)}, ${sql.ref('r.resource_id')}, ${bind(qc, 'uuid', e.actorId)}, ${sql.ref('r.before')}, ${after}
+    from ${set} ${join}
+    order by ${sql.ref('r.ord')}`.compile(qc.db)
 }

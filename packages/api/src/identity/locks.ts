@@ -1,6 +1,5 @@
 import { sql, type Transaction } from 'kysely'
 import type { Database } from '@vault/db'
-import type { IdentityKind } from './normalize.js'
 
 /** Locks each distinct key for the rest of the transaction, in ascending hash order. */
 export async function lockKeys(trx: Transaction<Database>, keys: readonly string[]): Promise<void> {
@@ -11,7 +10,5 @@ export async function lockKeys(trx: Transaction<Database>, keys: readonly string
     ) AS s`.execute(trx)
 }
 
-export const addressKey = (organizationId: string, kind: IdentityKind, value: string) => `identity:${organizationId}:${kind}:${value}`
 /** Serialises every directory write for one provider organisation ([[CORE3]] D21). */
 export const directoryOrgKey = (provider: string, externalId: string) => `directory-org:${provider}:${externalId}`
-export const companyDomainKey = (organizationId: string, domain: string) => `company-domain:${organizationId}:${domain}`

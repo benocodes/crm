@@ -11,6 +11,8 @@ const DOMAIN = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}
 export function normalizeIdentityValue(kind: IdentityKind, value: string): string {
   if (kind === 'email') {
     const v = value.trim().toLowerCase()
+    // D7: emails are lowercase ASCII on both engines; checked before the format so the refusal names the cause.
+    if (/[^\u0020-\u007e]/.test(v)) throw new ApiError(400, 'invalid_identity', 'non-ASCII email addresses are not supported')
     if (v.length > 254 || !EMAIL.test(v)) throw new ApiError(400, 'invalid_identity', 'invalid email address')
     return v
   }

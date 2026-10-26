@@ -2,13 +2,7 @@
   "format": 1,
   "resource": "tasks",
   "generated_by": "packages/api/scripts/golden.ts (postgres path)",
-  "named_differences": [
-    {
-      "engine": "postgres",
-      "what": "the generator disables the tasks updated_at trigger so the stored clock equals the injected clock",
-      "why": "production Postgres keeps app.set_updated_at (updated_at = transaction time); D1 and the fixtures use the injected clock. No other difference."
-    }
-  ],
+  "named_differences": [],
   "scenarios": [
     {
       "name": "create-and-read",

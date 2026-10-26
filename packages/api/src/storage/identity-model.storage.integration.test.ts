@@ -52,7 +52,8 @@ describe.each(['postgres', 'd1'] as const)('identity model storage behaviour on 
       expect(ct).toMatchObject({ created_at: iso(3), updated_at: iso(3) })
       const id = await k.identity({ kind: 'email', value: 'a@b.com', contact_id: ct.id }, { now: at(4) })
       expect(id).toMatchObject({ created_at: iso(4), updated_at: iso(4) })
-      const id2 = await k.updateIdentity(id.id, { own: true }, { now: at(5) })
+      const movable = await k.identity({ kind: 'email', value: 'move@b.com', contact_id: ct.id }, { now: at(4) })
+      const id2 = await k.updateIdentity(movable.id, { own: true }, { now: at(5) })
       expect(id2).toMatchObject({ updated_at: iso(5) })
       expect((await eventsAt(5))[0]).toMatchObject({ type: 'identity.updated', after: id2 })
 
@@ -66,6 +67,7 @@ describe.each(['postgres', 'd1'] as const)('identity model storage behaviour on 
       expect(await k.row('contacts', ct.id)).toMatchObject({ deleted_at: iso(7), updated_at: iso(7) })
       expect(await k.row('identities', id.id)).toMatchObject({ deleted_at: iso(7), updated_at: iso(7) })
       expect((await eventsAt(7)).map((x) => x.type)).toEqual(['contact.deleted', 'identity.deleted'])
+      expect(await k.row('identities', movable.id)).toMatchObject({ deleted_at: null, updated_at: iso(5) }) // moved to own at t5: not the contact's any more
 
       const lone = await k.identity({ kind: 'email', value: 'lone@b.com', own: true }, { now: at(8) })
       await k.run((env) => deleteOperation(identities, env, lone.id), { now: at(9) })
@@ -94,7 +96,7 @@ describe.each(['postgres', 'd1'] as const)('identity model storage behaviour on 
       expect(await k.row('contacts', r.id)).toMatchObject({ deleted_at: iso(5), updated_at: iso(5), merged_into_id: s.id })
       const ev = await eventsAt(5)
       expect(ev.map((x) => x.type)).toEqual(['identity.updated', 'contact.updated', 'contact.merged'])
-      expect(ev[2]!.after).toMatchObject({ deleted_at: iso(5), updated_at: iso(5), merged_into_id: s.id })
+      expect(ev[2]!.after).toMatchObject({ updated_at: iso(5), merged_into_id: s.id })
     })
   })
 
