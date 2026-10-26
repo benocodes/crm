@@ -2,7 +2,7 @@ import { sql, type SqlBool } from 'kysely'
 import { UnitDriftError, bind, codecs, defineOperation, readMaybe, step, ts, unit, type PreparedOperation } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
-import { apiKeyRecord, apiKeys, type ApiKeyRecord } from '../resources/api-keys.js'
+import { apiKeys, type ApiKeyRecord } from '../resources/api-keys.js'
 import { beforeRead, columnsOf, receipt, resultStep, toRecord } from '../storage/crud.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import { canonicalId } from '../storage/prepare.js'
@@ -146,4 +146,3 @@ export function revokeApiKeyOperation(env: PreparedEnv, rawId: string): Prepared
   })
 }
 
-export { apiKeyRecord }
