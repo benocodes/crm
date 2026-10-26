@@ -104,18 +104,11 @@ describe('schema invariants', () => {
     expect(rows.map((r) => r.privilege_type).sort()).toEqual(['INSERT', 'SELECT'])
   })
 
-  it('updated_at has its trigger', async () => {
-    const withCol = await q(
-      `SELECT table_name FROM information_schema.columns
-       WHERE table_schema = 'public' AND column_name = 'updated_at' AND table_name = ANY($1)`,
-      [tables],
-    )
-    expect(withCol.length).toBeGreaterThan(0)
-    const trig = await q(
-      `SELECT tgrelid::regclass::text AS t FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'set_updated_at'`,
-    )
-    const have = new Set(trig.map((r) => r.t))
-    for (const r of withCol) expect(have.has(r.table_name), r.table_name).toBe(true)
+  it('no table stamps updated_at in the database', async () => {
+    // CORE36 D2: the application owns every timestamp; a forever invariant (no trigger, no function).
+    const trig = await q(`SELECT tgrelid::regclass::text AS t FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'set_updated_at'`)
+    expect(trig).toEqual([])
+    expect((await q(`SELECT to_regprocedure('app.set_updated_at()') AS f`))[0]!.f).toBeNull()
   })
 
   it('service role reaches every table', async () => {
