@@ -9,21 +9,21 @@ import { fakeUserAuthenticator, mintTestUserToken } from '../user-auth.js'
 import type { EventView, GoldenBackend } from './runner.js'
 import { IDS, type GoldenActor } from './scenarios.js'
 
-export const GOLDEN_ID_PREFIX = '0190b2c4-0000-7000-8000-0000010000'
-export const goldenId = (n: number): string => GOLDEN_ID_PREFIX + String(n).padStart(2, '0')
+export const GOLDEN_ID_PREFIX = '0190b2c4-0000-7000-8000-00000100'
+/** The n-th id a scenario mints: a four-digit counter, refused above 9999 (a longer one would not be a UUID). */
+export const goldenId = (n: number): string => {
+  if (n > 9999) throw new Error(`golden id counter ${n} exceeds 9999`)
+  return GOLDEN_ID_PREFIX + String(n).padStart(4, '0')
+}
+export const GOLDEN_SCOPES = ['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write']
 
 export interface PgGoldenBackend extends GoldenBackend {
   close(): Promise<void>
 }
 
-/**
- * `extra(state)` adds app options that take the injected clock and ids (absent for the pre-migration
- * service, which has neither). `freezeUpdatedAt` disables the `updated_at` trigger so the stored clock is
- * the injected one: a named difference, applied by the generator only (production keeps the trigger).
- */
+/** `extra(state)` adds app options that take the injected clock and ids. The application owns every timestamp (CORE36 D2): nothing is frozen or disabled. */
 export function pgGoldenBackend(opts: {
   extra?: (state: { db: Kysely<Database>; clock: () => Date; newId: () => string }) => Partial<AppOptions>
-  freezeUpdatedAt?: boolean
   pauseMs?: number
 } = {}): PgGoldenBackend {
   const db = createTestDb()
@@ -32,12 +32,11 @@ export function pgGoldenBackend(opts: {
   let counter = 0
   const extra = opts.extra?.({ db, clock: () => now, newId: () => goldenId(++counter) }) ?? {}
   const app = createApp({ db: () => db, userAuthenticator: fakeUserAuthenticator(), ...extra })
-  const scopes = ['tasks:read', 'tasks:write']
+  const scopes = GOLDEN_SCOPES
   return {
     async reset() {
       await truncateAll(owner)
       counter = 0
-      await sql`ALTER TABLE tasks ${sql.raw(opts.freezeUpdatedAt ? 'DISABLE' : 'ENABLE')} TRIGGER set_updated_at`.execute(owner)
       await withServiceRole(db, async (trx) => {
         for (const id of [IDS.org, IDS.foreignOrg]) {
           await trx.insertInto('organizations').values({ id, name: `Golden ${id.slice(-4)}` }).execute()
@@ -87,8 +86,6 @@ export function pgGoldenBackend(opts: {
       )
     },
     async close() {
-      // Never leak the generator's DDL into the shared worktree test database (production keeps this trigger).
-      await sql`ALTER TABLE tasks ENABLE TRIGGER set_updated_at`.execute(owner)
       await db.destroy()
       await owner.destroy()
     },

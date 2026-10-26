@@ -76,9 +76,8 @@ describe.each(['postgres', 'd1'] as const)('tasks through the prepared executor 
     expect(event!.before).toMatchObject({ title: 'same', updated_at: EARLIER })
     expect(event!.after).toMatchObject({ title: 'same', updated_at: value.updated_at })
     expect(codecs.timestamp.read(row!.updated_at)).toBe(value.updated_at)
-    if (name === 'd1') expect(value.updated_at).toBe(NOW.toISOString())
-    // Postgres keeps its updated_at trigger: the stored value is the database transaction time, after the prior stamp.
-    else expect(Date.parse(value.updated_at)).toBeGreaterThan(Date.parse(EARLIER))
+    // The application owns the clock on both engines (CORE36 D2): updated_at is exactly the unit's injected time.
+    expect(value.updated_at).toBe(NOW.toISOString())
   })
 
   it('event `before` is the exact prior record and `after` the stored one', async () => {

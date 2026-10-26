@@ -3,32 +3,34 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { postgresBinding } from '@vault/storage-postgres'
 import { d1GoldenBackend, type D1GoldenBackend } from '../test/golden/d1-backend.js'
 import { pgGoldenBackend, type PgGoldenBackend } from '../test/golden/pg-backend.js'
-import { runScenario, symbolic } from '../test/golden/runner.js'
-import { taskScenarios } from '../test/golden/scenarios.js'
+import { runScenario } from '../test/golden/runner.js'
+import { identityModelScenarios, taskScenarios, type GoldenScenario } from '../test/golden/scenarios.js'
 
-const read = (name: string) => JSON.parse(readFileSync(new URL(`../../fixtures/golden/${name}`, import.meta.url), 'utf-8'))
-const fixture = read('tasks.json') as { scenarios: Array<{ name: string }> }
-const legacy = read('legacy-oracle.tasks.json') as { scenarios: Array<{ name: string }> }
+// Golden fixtures (CORE35 D17, CORE36 D12): recorded through the Postgres prepared path only, replayed exactly on
+// D1. No legacy oracle, no symbolic comparison, no named engine difference.
+const read = (name: string) => JSON.parse(readFileSync(new URL(`../../fixtures/golden/${name}`, import.meta.url), 'utf-8')) as { named_differences: unknown[]; scenarios: Array<{ name: string }> }
+const SETS: Array<[string, string, readonly GoldenScenario[]]> = [
+  ['tasks', 'tasks.json', taskScenarios],
+  ['identity model', 'identity-model.json', identityModelScenarios],
+]
 
-describe('golden fixtures (CORE35 D17)', () => {
-  it('cover exactly the recorded scenarios', () => {
-    const names = taskScenarios.map((s) => s.name)
-    expect(fixture.scenarios.map((s) => s.name)).toEqual(names)
-    expect(legacy.scenarios.map((s) => s.name)).toEqual(names)
+describe.each(SETS)('golden fixtures: %s', (_label, file, scenarios) => {
+  const fixture = read(file)
+
+  it('cover exactly the recorded scenarios and name no engine difference', () => {
+    expect(fixture.scenarios.map((s) => s.name)).toEqual(scenarios.map((s) => s.name))
+    expect(fixture.named_differences).toEqual([])
   })
 
   describe('postgres path', () => {
     let pg: PgGoldenBackend
     beforeAll(() => {
-      pg = pgGoldenBackend({ freezeUpdatedAt: true, extra: ({ db, clock, newId }) => ({ storage: () => postgresBinding(db), clock, newId }) })
+      pg = pgGoldenBackend({ extra: ({ db, clock, newId }) => ({ storage: () => postgresBinding(db), clock, newId }) })
     })
     afterAll(() => pg.close())
 
-    it.each(taskScenarios.map((s) => [s.name, s] as const))('%s equals the committed fixture exactly and the old service symbolically', async (_n, scenario) => {
-      const transcript = await runScenario(pg, scenario)
-      expect(transcript).toEqual(fixture.scenarios.find((s) => s.name === scenario.name))
-      // The pre-migration service, recorded in Phase 0 (ids and server clock symbolic: it could not inject them).
-      expect(symbolic(transcript)).toEqual(legacy.scenarios.find((s) => s.name === scenario.name))
+    it.each(scenarios.map((s) => [s.name, s] as const))('%s equals the committed fixture exactly', async (_n, scenario) => {
+      expect(await runScenario(pg, scenario)).toEqual(fixture.scenarios.find((s) => s.name === scenario.name))
     })
   })
 
@@ -39,7 +41,7 @@ describe('golden fixtures (CORE35 D17)', () => {
     })
     afterAll(() => d1.close())
 
-    it.each(taskScenarios.map((s) => [s.name, s] as const))('%s equals the committed fixture exactly (no named differences for tasks)', async (_n, scenario) => {
+    it.each(scenarios.map((s) => [s.name, s] as const))('%s equals the committed fixture exactly', async (_n, scenario) => {
       expect(await runScenario(d1, scenario)).toEqual(fixture.scenarios.find((s) => s.name === scenario.name))
     })
   })

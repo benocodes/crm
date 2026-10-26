@@ -37,10 +37,8 @@ const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
   task_views: { make: (ctx) => createResource(ctx, tasks, { title: 'v' }) },
   assigned_tasks: {
-    input: async (ctx) => {
-      // The builder runs in the tenant's context: the reference check only passes in the right org.
-      return { title: 'x', assignee_id: ctx.actor.id }
-    },
+    // The builder names the tenant's own user: the reference check only passes in the right org.
+    input: async (kit) => ({ title: 'x', assignee_id: kit.tenant.userId }),
     patch: async () => ({ title: 'Renamed' }),
   },
   posted_views: { make: (ctx) => createResource(ctx, tasks, { title: 'p' }), handwritten: ['create'] },

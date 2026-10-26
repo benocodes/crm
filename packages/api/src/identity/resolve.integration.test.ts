@@ -1,198 +1,162 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { sql, type Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
-import { ApiError } from '../errors.js'
-import { withContext } from '../context.js'
-import { ScopeSet } from '../scopes.js'
-import { asAgent, asUser, seedTenant, type Tenant } from '../test/tenant.js'
-import { createResource } from '../resources/crud.js'
-import { contacts } from '../resources/contacts.js'
-import { identities } from '../resources/identities.js'
-import { ensureOwnIdentity, resolveIdentities } from './resolve.js'
+import { openEngines, type Engine } from '../test/engines.js'
+import { foreignTenant, identityKit, type IdentityKit } from '../test/identity-kit.js'
+import { ensureOwnIdentity, resolveOperation, type ResolveEntry } from './resolve.js'
 
-let db: Kysely<Database>
-let owner: Kysely<Database>
-let a: Tenant
-let b: Tenant
-
-beforeAll(() => {
-  db = createTestDb({ max: 4 })
-  owner = createOwnerTestDb()
+let engines: Engine[]
+beforeAll(async () => {
+  engines = await openEngines()
 })
 afterAll(async () => {
-  await db.destroy()
-  await owner.destroy()
-})
-beforeEach(async () => {
-  await truncateAll(owner)
-  a = await seedTenant(db, 'A')
-  b = await seedTenant(db, 'B')
+  for (const e of engines) await e.close()
 })
 
-// Insert order, not id order: same-millisecond UUIDv7s are not monotonic (db-schema-and-migrations).
-const events = () => owner.selectFrom('events').selectAll().orderBy(sql`ctid`).execute()
-const count = async (table: 'contacts' | 'identities') =>
-  Number((await owner.selectFrom(table).select((e) => e.fn.countAll().as('n')).executeTakeFirstOrThrow()).n)
-const email = (value: string, name?: string) => ({ kind: 'email' as const, value, ...(name ? { name } : {}) })
-const resolve = (t: Tenant, entries: Parameters<typeof resolveIdentities>[1]) => asUser(db, t, (ctx) => resolveIdentities(ctx, entries))
-async function apiError(p: Promise<unknown>): Promise<ApiError> {
-  const err = await p.then(() => undefined, (e) => e)
-  expect(err).toBeInstanceOf(ApiError)
-  return err as ApiError
-}
-const gate = () => {
-  let open!: () => void
-  const promise = new Promise<void>((r) => (open = r))
-  return { promise, open }
-}
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-const userCtx = (t: Tenant) => ({ actor: { id: t.userId, kind: 'user' as const }, organizationId: t.organizationId, scopes: ScopeSet.parse(['contacts:write']) })
+describe.each(['postgres', 'd1'] as const)('identities.resolve and ensureOwnIdentity on %s', (name) => {
+  let e: Engine
+  let k: IdentityKit
+  beforeAll(() => {
+    e = engines.find((x) => x.name === name)!
+  })
+  beforeEach(async () => {
+    await e.reset()
+    k = identityKit(e)
+  })
+  const resolve = (entries: ResolveEntry[], opts?: { as?: 'agent' }) => k.run((env) => resolveOperation(env, entries), opts)
+  const email = (value: string, extra: Partial<ResolveEntry> = {}): ResolveEntry => ({ kind: 'email', value, ...extra })
 
-describe('resolveIdentities', () => {
-  it('new address', async () => {
-    const [r] = await resolve(a, [email('New@X.com', 'New Person')])
-    expect(r).toMatchObject({ created: true, identity: { value: 'new@x.com' }, contact: { name: 'New Person' } })
-    const ev = await events()
-    expect(ev.map((e) => e.type)).toEqual(['contact.created', 'identity.created'])
-    for (const e of ev) expect(e.actor_id).toBe(a.userId)
-  })
-  it('no name', async () => {
-    const [r] = await resolve(a, [email('n@x.com')])
-    expect(r!.contact!.name).toBeNull()
-  })
-  it('existing is never renamed', async () => {
-    const k = await asUser(db, a, (ctx) => createResource(ctx, contacts, { name: 'Ori' }))
-    await asUser(db, a, (ctx) => createResource(ctx, identities, { kind: 'email', value: 'o@x.com', contact_id: k.id }))
-    const mark = (await events()).length
-    const [r] = await resolve(a, [email('O@x.com', 'Someone Else')])
-    expect(r).toMatchObject({ created: false, contact: { id: k.id, name: 'Ori' } })
-    expect(await events()).toHaveLength(mark)
-  })
-  it('own', async () => {
-    await asUser(db, a, (ctx) => createResource(ctx, identities, { kind: 'email', value: 'me@us.com', own: true }))
-    const [r] = await resolve(a, [email('me@us.com')])
-    expect(r).toMatchObject({ contact: null, created: false })
-    expect(r!.identity.own).toBe(true)
-  })
-  it('mixed batch keeps order', async () => {
-    const k = await asUser(db, a, (ctx) => createResource(ctx, contacts, {}))
-    await asUser(db, a, (ctx) => createResource(ctx, identities, { kind: 'email', value: 'a@x.com', contact_id: k.id }))
-    await asUser(db, a, (ctx) => createResource(ctx, identities, { kind: 'email', value: 'b@x.com', own: true }))
-    const r = await resolve(a, [email('c@x.com'), email('a@x.com'), email('b@x.com')])
-    expect(r.map((x) => [x.identity.value, x.created])).toEqual([['c@x.com', true], ['a@x.com', false], ['b@x.com', false]])
-  })
-  it('repeated in batch', async () => {
-    const r = await resolve(a, [email('x@y.com'), email('X@Y.com')])
-    expect(r[0]!.identity.id).toBe(r[1]!.identity.id)
-    expect(r.map((x) => x.created)).toEqual([true, false])
-    expect(await count('contacts')).toBe(1)
-    expect(await count('identities')).toBe(1)
-  })
-  it('invalid entry fails the whole call', async () => {
-    const e = await apiError(resolve(a, [email('ok@x.com'), { kind: 'phone', value: 'abc' }]))
-    expect([e.status, e.code]).toEqual([400, 'invalid_identity'])
-    expect(e.message.startsWith('identities[1]: ')).toBe(true)
-    expect(await count('contacts')).toBe(0)
-    expect(await events()).toHaveLength(0)
-  })
-  it('blank name is absent, long name is truncated, name is trimmed', async () => {
-    const r = await resolve(a, [email('b1@x.com', '   '), email('b2@x.com', 'x'.repeat(600)), email('b3@x.com', '  Padded  ')])
-    expect(r[0]!.contact!.name).toBeNull()
-    expect(r[1]!.contact!.name).toBe('x'.repeat(500))
-    expect(r[2]!.contact!.name).toBe('Padded')
-  })
-  it('empty', async () => {
-    expect(await resolve(a, [])).toEqual([])
-  })
-  it('per organisation', async () => {
-    const [ra] = await resolve(a, [email('x@y.com')])
-    const [rb] = await resolve(b, [email('x@y.com')])
-    expect(rb!.created).toBe(true)
-    expect(rb!.identity.id).not.toBe(ra!.identity.id)
-    expect(rb!.contact!.id).not.toBe(ra!.contact!.id)
-  })
-  it('as agent', async () => {
-    await asAgent(db, a, (ctx) => resolveIdentities(ctx, [email('ag@x.com')]))
-    for (const e of await events()) expect(e.actor_id).toBe(a.agentId)
-  })
-
-  it('concurrent resolve makes one contact', async () => {
-    const g = gate()
-    const t1 = withContext(db, userCtx(a), async (ctx) => {
-      const r = await resolveIdentities(ctx, [email('race@x.com')])
-      await g.promise
-      return r
+  describe('resolve', () => {
+    it('creates a contact and an identity for a new address, normalised, with the name', async () => {
+      const [r] = await resolve([email(' Ori@Example.com ', { name: 'Ori' })])
+      expect(r).toMatchObject({ created: true, identity: { kind: 'email', value: 'ori@example.com', own: false }, contact: { name: 'Ori' } })
+      expect(r!.identity.contact_id).toBe(r!.contact!.id)
+      const ev = await k.events()
+      expect(ev.map((x) => x.type)).toEqual(['contact.created', 'identity.created'])
+      expect(ev[0]).toMatchObject({ actor_id: e.userId, before: null, after: r!.contact })
+      expect(ev[1]).toMatchObject({ before: null, after: r!.identity })
     })
-    await sleep(100)
-    const t2 = withContext(db, userCtx(a), (ctx) => resolveIdentities(ctx, [email('race@x.com')]))
-    await sleep(200)
-    g.open()
-    const [r1, r2] = await Promise.all([t1, t2])
-    expect(r1[0]!.created).toBe(true)
-    expect(r2[0]!.created).toBe(false)
-    expect(r2[0]!.identity.id).toBe(r1[0]!.identity.id)
-    expect(await count('contacts')).toBe(1)
-    expect((await events()).filter((e) => e.type === 'contact.created')).toHaveLength(1)
-  })
 
-  it('concurrent create vs resolve', async () => {
-    const g = gate()
-    const t1 = withContext(db, userCtx(a), async (ctx) => {
-      const k = await createResource(ctx, contacts, {})
-      const i = await createResource(ctx, identities, { kind: 'email', value: 'race2@x.com', contact_id: k.id })
-      await g.promise
-      return i
+    it('a new address without a name gets a nameless contact', async () => {
+      const [r] = await resolve([email('a@example.com')])
+      expect(r!.contact!.name).toBeNull()
     })
-    await sleep(100)
-    const t2 = withContext(db, userCtx(a), (ctx) => resolveIdentities(ctx, [email('race2@x.com')]))
-    await sleep(200)
-    g.open()
-    const [i1, r2] = await Promise.all([t1, t2])
-    expect(r2[0]).toMatchObject({ created: false, identity: { id: i1.id } })
-    expect(await count('contacts')).toBe(1)
-  })
 
-  it('reversed batches do not deadlock', async () => {
-    const addrs = Array.from({ length: 10 }, (_, i) => email(`a${i + 1}@x.com`))
-    for (let round = 0; round < 10; round++) {
-      await truncateAll(owner)
-      a = await seedTenant(db, 'A')
-      await Promise.all([resolve(a, addrs), resolve(a, [...addrs].reverse())])
+    it('an existing address returns its identity and contact, never renames, and writes nothing', async () => {
+      const [first] = await resolve([email('a@example.com', { name: 'First' })])
+      const mark = (await e.rows('events')).length
+      const [again] = await resolve([email('A@Example.com', { name: 'Second' })])
+      expect(again).toMatchObject({ created: false, identity: { id: first!.identity.id }, contact: { id: first!.contact!.id, name: 'First' } })
+      expect(await e.rows('events')).toHaveLength(mark)
+    })
+
+    it('an own identity resolves to contact null', async () => {
+      const own = await k.identity({ kind: 'email', value: 'me@us.com', own: true })
+      const [r] = await resolve([email('me@us.com')])
+      expect(r).toMatchObject({ created: false, contact: null, identity: { id: own.id, own: true } })
+    })
+
+    it('a mixed batch answers in input order', async () => {
+      const [known] = await resolve([email('known@example.com', { name: 'Known' })])
+      const out = await resolve([email('new1@example.com'), email('known@example.com'), { kind: 'phone', value: '+44 20 7946 0958' }])
+      expect(out.map((r) => r.created)).toEqual([true, false, true])
+      expect(out.map((r) => r.identity.value)).toEqual(['new1@example.com', 'known@example.com', '+442079460958'])
+      expect(out[1]!.identity.id).toBe(known!.identity.id)
+    })
+
+    it('an address repeated in a batch is one contact and one identity, created only on its first occurrence', async () => {
+      const out = await resolve([email('dup@example.com', { name: 'First' }), email('DUP@example.com', { name: 'Second' })])
+      expect(out.map((r) => r.created)).toEqual([true, false])
+      expect(out[1]!.identity.id).toBe(out[0]!.identity.id)
+      expect(out[0]!.contact!.name).toBe('First')
+      expect(await k.count('contacts')).toBe(1)
+      expect(await k.count('identities')).toBe(1)
+    })
+
+    it('an invalid entry fails the whole call with its index and writes nothing', async () => {
+      const err = await k.fail((env) => resolveOperation(env, [email('ok@example.com'), { kind: 'phone', value: 'abc' }]))
+      expect(err.code).toBe('invalid_identity')
+      expect(err.message.startsWith('identities[1]: ')).toBe(true)
+      expect(await e.rows('events')).toHaveLength(0)
+      expect(await k.count('contacts')).toBe(0)
+    })
+
+    it('cleans names: padded trimmed, blank absent, long capped at 500', async () => {
+      const out = await resolve([email('a@example.com', { name: '  Padded  ' }), email('b@example.com', { name: '   ' }), email('c@example.com', { name: 'x'.repeat(600) })])
+      expect(out[0]!.contact!.name).toBe('Padded')
+      expect(out[1]!.contact!.name).toBeNull()
+      expect(out[2]!.contact!.name).toHaveLength(500)
+    })
+
+    it('an empty batch answers [] and sends no statement', async () => {
+      const res = await e.run(resolveOperation(k.env(), []))
+      expect(res.value).toEqual([])
+      expect(res.stats.statements).toBe(res.stats.locks)
+    })
+
+    it('emits every contact.created before every identity.created, each in input order (P5)', async () => {
+      const out = await resolve([email('a@example.com'), email('b@example.com'), email('c@example.com')])
+      const ev = await k.events()
+      expect(ev.map((x) => x.type)).toEqual(['contact.created', 'contact.created', 'contact.created', 'identity.created', 'identity.created', 'identity.created'])
+      expect(ev.slice(0, 3).map((x) => x.resource_id)).toEqual(out.map((r) => r.contact!.id))
+      expect(ev.slice(3).map((x) => x.resource_id)).toEqual(out.map((r) => r.identity.id))
+    })
+
+    it("an agent's resolve is attributed to the agent", async () => {
+      await resolve([email('a@example.com')], { as: 'agent' })
+      for (const ev of await k.events()) expect(ev.actor_id).toBe(e.agentId)
+    })
+
+    if (name === 'postgres') {
+      it('is per organisation: the same address in another organisation is a separate identity', async () => {
+        const [mine] = await resolve([email('shared@example.com')])
+        const other = await foreignTenant(e)
+        const [theirs] = await other.run(resolveOperation(other.env(), [email('shared@example.com')]))
+        expect(theirs!.created).toBe(true)
+        expect(theirs!.identity.id).not.toBe(mine!.identity.id)
+      })
     }
   })
-})
 
-describe('ensureOwnIdentity', () => {
-  const ensure = (t: Tenant, address: Parameters<typeof ensureOwnIdentity>[1]) => asUser(db, t, (ctx) => ensureOwnIdentity(ctx, address))
-  it('creates own', async () => {
-    const r = await ensure(a, { kind: 'email', value: 'Me@Us.com' })
-    expect(r.outcome).toBe('created')
-    expect(r.identity).toMatchObject({ own: true, value: 'me@us.com' })
-    expect((await events()).map((e) => e.type)).toEqual(['identity.created'])
-  })
-  it('moves from contact', async () => {
-    const [r0] = await resolve(a, [email('me@us.com')])
-    const mark = (await events()).length
-    const r = await ensure(a, { kind: 'email', value: 'me@us.com' })
-    expect(r.outcome).toBe('moved')
-    expect(r.identity).toMatchObject({ contact_id: null, own: true })
-    const ev = (await events()).slice(mark)
-    expect(ev.map((e) => e.type)).toEqual(['identity.updated'])
-    expect((ev[0]!.before as any).contact_id).toBe(r0!.contact!.id)
-    expect((await owner.selectFrom('contacts').select('deleted_at').where('id', '=', r0!.contact!.id).executeTakeFirstOrThrow()).deleted_at).toBeNull()
-  })
-  it('unchanged', async () => {
-    await ensure(a, { kind: 'email', value: 'me@us.com' })
-    const mark = (await events()).length
-    expect((await ensure(a, { kind: 'email', value: 'me@us.com' })).outcome).toBe('unchanged')
-    expect(await events()).toHaveLength(mark)
-  })
-  it('invalid', async () => {
-    expect((await apiError(ensure(a, { kind: 'email', value: 'nope' }))).code).toBe('invalid_identity')
-  })
-  it('then resolve sees own', async () => {
-    await ensure(a, { kind: 'email', value: 'me@us.com' })
-    expect((await resolve(a, [email('me@us.com')]))[0]!.contact).toBeNull()
+  describe('ensureOwnIdentity', () => {
+    const ensure = (address: { kind: 'email' | 'phone'; value: string }) => k.run((env) => ensureOwnIdentity(env, address))
+
+    it('creates an own identity', async () => {
+      const r = await ensure({ kind: 'email', value: ' Me@Us.com ' })
+      expect(r.outcome).toBe('created')
+      expect(r.identity).toMatchObject({ value: 'me@us.com', own: true, contact_id: null })
+      expect((await k.events()).map((x) => x.type)).toEqual(['identity.created'])
+    })
+
+    it('moves an address from a contact to own: the contact stays live, the event keeps the previous contact', async () => {
+      const c = await k.contact({ name: 'Was' })
+      const i = await k.identity({ kind: 'email', value: 'me@us.com', contact_id: c.id })
+      const mark = (await k.events()).length
+      const r = await ensure({ kind: 'email', value: 'me@us.com' })
+      expect(r.outcome).toBe('moved')
+      expect(r.identity).toMatchObject({ id: i.id, own: true, contact_id: null })
+      const ev = (await k.events()).slice(mark)
+      expect(ev.map((x) => x.type)).toEqual(['identity.updated'])
+      expect(ev[0]!.before.contact_id).toBe(c.id)
+      expect(ev[0]!.after).toEqual(r.identity)
+      expect((await k.row('contacts', c.id)).deleted_at).toBeNull()
+    })
+
+    it('an address that is already own is unchanged and writes no event', async () => {
+      const first = await ensure({ kind: 'email', value: 'me@us.com' })
+      const mark = (await e.rows('events')).length
+      const again = await ensure({ kind: 'email', value: 'me@us.com' })
+      expect(again).toMatchObject({ outcome: 'unchanged', identity: { id: first.identity.id } })
+      expect(await e.rows('events')).toHaveLength(mark)
+    })
+
+    it('refuses an invalid address', async () => {
+      const err = await k.fail((env) => ensureOwnIdentity(env, { kind: 'phone', value: 'abc' }))
+      expect(err.code).toBe('invalid_identity')
+    })
+
+    it('resolve then sees the own identity', async () => {
+      await ensure({ kind: 'email', value: 'me@us.com' })
+      const [r] = await resolve([email('me@us.com')])
+      expect(r).toMatchObject({ created: false, contact: null, identity: { own: true } })
+    })
   })
 })

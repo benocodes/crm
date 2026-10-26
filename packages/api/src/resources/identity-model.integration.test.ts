@@ -1,275 +1,299 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { randomUUID } from 'node:crypto'
-import { sql, type Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
-import { ApiError } from '../errors.js'
-import { asAgent, asUser, seedTenant, type Tenant } from '../test/tenant.js'
-import { createResource, deleteResource, listResource, updateResource } from './crud.js'
 import { companies } from './companies.js'
 import { contacts } from './contacts.js'
 import { identities } from './identities.js'
+import { createOperation, listOperation, updateOperation } from '../storage/crud.js'
+import { openEngines, type Engine } from '../test/engines.js'
+import { foreignTenant, identityKit, type IdentityKit } from '../test/identity-kit.js'
 
-let db: Kysely<Database>
-let owner: Kysely<Database>
-let a: Tenant
-let b: Tenant
-
-beforeAll(() => {
-  db = createTestDb()
-  owner = createOwnerTestDb()
+// The identity model's resources on both engines (CORE36 C7: Companies, Contacts, Identities). Exact statuses,
+// codes and messages; cross-organisation cases run on Postgres only (a D1 database holds one organisation).
+let engines: Engine[]
+beforeAll(async () => {
+  engines = await openEngines()
 })
 afterAll(async () => {
-  await db.destroy()
-  await owner.destroy()
-})
-beforeEach(async () => {
-  await truncateAll(owner)
-  a = await seedTenant(db, 'A')
-  b = await seedTenant(db, 'B')
+  for (const e of engines) await e.close()
 })
 
-async function apiError(p: Promise<unknown>): Promise<ApiError> {
-  const err = await p.then(() => undefined, (e) => e)
-  expect(err).toBeInstanceOf(ApiError)
-  return err as ApiError
-}
-// Insert order, not id order: same-millisecond UUIDv7s are not monotonic (db-schema-and-migrations).
-const events = (prefixes = ['company.', 'contact.', 'identity.']) =>
-  owner.selectFrom('events').selectAll().orderBy(sql`ctid`).execute().then((rows) => rows.filter((r) => prefixes.some((p) => r.type.startsWith(p))))
-const count = async (table: 'companies' | 'contacts' | 'identities') =>
-  Number((await owner.selectFrom(table).select((e) => e.fn.countAll().as('n')).executeTakeFirstOrThrow()).n)
-const mkCompany = (t: Tenant, input: Record<string, unknown> = { name: 'C' }) => asUser(db, t, (ctx) => createResource(ctx, companies, input))
-const mkContact = (t: Tenant, input: Record<string, unknown> = {}) => asUser(db, t, (ctx) => createResource(ctx, contacts, input))
-const mkIdentity = (t: Tenant, input: Record<string, unknown>) => asUser(db, t, (ctx) => createResource(ctx, identities, input))
+describe.each(['postgres', 'd1'] as const)('identity model resources on %s', (name) => {
+  let e: Engine
+  let k: IdentityKit
+  const postgres = name === 'postgres'
+  beforeAll(() => {
+    e = engines.find((x) => x.name === name)!
+  })
+  beforeEach(async () => {
+    await e.reset()
+    k = identityKit(e)
+  })
 
-describe('companies', () => {
-  it('create normalises domain', async () => {
-    const c = await mkCompany(a, { name: 'Acme', domain: ' Acme.COM ' })
-    expect(c.domain).toBe('acme.com')
-    const ev = await events()
-    expect(ev.map((e) => e.type)).toEqual(['company.created'])
-    expect((ev[0]!.after as any).domain).toBe('acme.com')
-  })
-  it('duplicate domain on create', async () => {
-    const first = await mkCompany(a, { name: 'A', domain: 'acme.com' })
-    const e = await apiError(mkCompany(a, { name: 'X', domain: 'ACME.com' }))
-    expect([e.status, e.code, e.message]).toEqual([409, 'domain_exists', `a company with domain acme.com already exists (${first.id})`])
-    expect(await count('companies')).toBe(1)
-    expect(await events()).toHaveLength(1)
-  })
-  it('duplicate domain on update', async () => {
-    await mkCompany(a, { name: 'A', domain: 'acme.com' })
-    const second = await mkCompany(a, { name: 'B', domain: 'b.com' })
-    const e = await apiError(asUser(db, a, (ctx) => updateResource(ctx, companies, second.id, { domain: 'acme.com' })))
-    expect(e.code).toBe('domain_exists')
-    expect((await owner.selectFrom('companies').select('domain').where('id', '=', second.id).executeTakeFirstOrThrow()).domain).toBe('b.com')
-  })
-  it('own domain on update is fine', async () => {
-    const c = await mkCompany(a, { name: 'A', domain: 'acme.com' })
-    const u = await asUser(db, a, (ctx) => updateResource(ctx, companies, c.id, { domain: 'ACME.COM', name: 'New' }))
-    expect(u.name).toBe('New')
-    expect((await events()).filter((e) => e.type === 'company.updated')).toHaveLength(1)
-  })
-  it('domain reusable after delete', async () => {
-    const c = await mkCompany(a, { name: 'A', domain: 'acme.com' })
-    await asUser(db, a, (ctx) => deleteResource(ctx, companies, c.id))
-    await expect(mkCompany(a, { name: 'A2', domain: 'acme.com' })).resolves.toMatchObject({ domain: 'acme.com' })
-  })
-  it('same domain in other org', async () => {
-    await mkCompany(a, { name: 'A', domain: 'acme.com' })
-    await expect(mkCompany(b, { name: 'B', domain: 'acme.com' })).resolves.toBeDefined()
-  })
-  it('invalid domain', async () => {
-    const e = await apiError(mkCompany(a, { name: 'X', domain: 'https://acme.com' }))
-    expect([e.status, e.code]).toEqual([400, 'validation_error'])
-  })
-  it('domain filter normalises', async () => {
-    const c = await mkCompany(a, { name: 'A', domain: 'acme.com' })
-    const r = await asUser(db, a, (ctx) => listResource(ctx, companies, { filters: { domain: 'ACME.com' } }))
-    expect(r.data.map((x) => x.id)).toEqual([c.id])
-  })
-  it('delete unlinks contacts (D15)', async () => {
-    const co = await mkCompany(a)
-    const k1 = await mkContact(a, { company_id: co.id })
-    const k2 = await mkContact(a, { company_id: co.id })
-    const k3 = await mkContact(a, { company_id: co.id })
-    await asUser(db, a, (ctx) => deleteResource(ctx, contacts, k3.id))
-    const mark = (await events()).length
-    await asUser(db, a, (ctx) => deleteResource(ctx, companies, co.id))
-    const ev = (await events()).slice(mark)
-    expect(ev.map((e) => e.type)).toEqual(['company.deleted', 'contact.updated', 'contact.updated'])
-    expect(ev.slice(1).map((e) => e.resource_id)).toEqual([k1.id, k2.id].sort())
-    for (const e of ev.slice(1)) {
-      expect((e.before as any).company_id).toBe(co.id)
-      expect((e.after as any).company_id).toBeNull()
-    }
-    for (const e of ev) expect(e.actor_id).toBe(a.userId)
-    const rows = await owner.selectFrom('contacts').select(['id', 'company_id']).execute()
-    expect(rows.find((r) => r.id === k1.id)!.company_id).toBeNull()
-    expect(rows.find((r) => r.id === k3.id)!.company_id).toBe(co.id)
-  })
-})
+  describe('companies', () => {
+    it('create normalises the domain and emits company.created', async () => {
+      const c = await k.company({ name: 'Acme', domain: ' Acme.COM ' })
+      expect(c).toMatchObject({ name: 'Acme', domain: 'acme.com', organization_id: e.organizationId, created_by: e.userId })
+      const ev = await k.events()
+      expect(ev.map((x) => x.type)).toEqual(['company.created'])
+      expect(ev[0]).toMatchObject({ actor_id: e.userId, before: null, after: c })
+    })
 
-describe('contacts', () => {
-  it('create empty', async () => {
-    expect(await mkContact(a)).toMatchObject({ name: null, company_id: null, merged_into_id: null })
-  })
-  it('company reference checked', async () => {
-    const other = await mkCompany(b)
-    const e = await apiError(mkContact(a, { company_id: other.id }))
-    expect([e.status, e.code]).toEqual([400, 'invalid_reference'])
-    expect(await count('contacts')).toBe(0)
-  })
-  it('deleted company refused', async () => {
-    const c = await mkCompany(a)
-    await asUser(db, a, (ctx) => deleteResource(ctx, companies, c.id))
-    expect((await apiError(mkContact(a, { company_id: c.id }))).code).toBe('invalid_reference')
-  })
-  it('company_id filter', async () => {
-    const c = await mkCompany(a)
-    const k = await mkContact(a, { company_id: c.id })
-    await mkContact(a)
-    const r = await asUser(db, a, (ctx) => listResource(ctx, contacts, { filters: { company_id: c.id } }))
-    expect(r.data.map((x) => x.id)).toEqual([k.id])
-  })
-  it('delete cascades to identities (D15)', async () => {
-    const k = await mkContact(a)
-    const i1 = await mkIdentity(a, { kind: 'email', value: 'x@y.com', contact_id: k.id })
-    const i2 = await mkIdentity(a, { kind: 'phone', value: '+14155550100', contact_id: k.id })
-    const mark = (await events()).length
-    await asUser(db, a, (ctx) => deleteResource(ctx, contacts, k.id))
-    const ev = (await events()).slice(mark)
-    expect(ev.map((e) => e.type)).toEqual(['contact.deleted', 'identity.deleted', 'identity.deleted'])
-    expect(ev.slice(1).map((e) => e.resource_id)).toEqual([i1.id, i2.id].sort())
-    for (const e of ev.slice(1)) {
-      expect((e.before as any).id).toBe(e.resource_id)
-      expect(e.after).toBeNull()
-    }
-    const rows = await owner.selectFrom('identities').select('deleted_at').execute()
-    expect(rows.every((r) => r.deleted_at !== null)).toBe(true)
-    const k2 = await mkContact(a)
-    await expect(mkIdentity(a, { kind: 'email', value: 'x@y.com', contact_id: k2.id })).resolves.toBeDefined()
-  })
-  it('merged_into_id not writable', async () => {
-    const k = await mkContact(a)
-    const other = await mkContact(a)
-    const e = await apiError(asUser(db, a, (ctx) => updateResource(ctx, contacts, k.id, { merged_into_id: other.id })))
-    expect(e.code).toBe('validation_error')
-  })
-})
+    it('a duplicate domain on create is domain_exists with the other company id, no row, no event', async () => {
+      const first = await k.company({ name: 'A', domain: 'acme.com' })
+      const err = await k.fail((env) => createOperation(companies, env, { name: 'X', domain: 'ACME.com' }))
+      expect(k.shape(err)).toEqual([409, 'domain_exists', `a company with domain acme.com already exists (${first.id})`])
+      expect(await k.count('companies')).toBe(1)
+      expect(await k.events()).toHaveLength(1)
+    })
 
-describe('identities', () => {
-  it('create normalises', async () => {
-    const k = await mkContact(a)
-    expect(await mkIdentity(a, { kind: 'email', value: ' Ori@Example.com ', contact_id: k.id })).toMatchObject({ value: 'ori@example.com', own: false })
-  })
-  it('create own', async () => {
-    expect(await mkIdentity(a, { kind: 'email', value: 'me@us.com', own: true })).toMatchObject({ contact_id: null, own: true })
-  })
-  it('owner rule', async () => {
-    const k = await mkContact(a)
-    for (const input of [
-      { kind: 'email', value: 'a@b.com', contact_id: k.id, own: true },
-      { kind: 'email', value: 'a@b.com' },
-    ]) {
-      const e = await apiError(mkIdentity(a, input))
-      expect([e.status, e.code, e.message]).toEqual([400, 'validation_error', 'exactly one of contact_id or own: true is required'])
+    it('a duplicate domain on update is refused and the row is untouched', async () => {
+      await k.company({ name: 'A', domain: 'acme.com' })
+      const second = await k.company({ name: 'B', domain: 'b.com' })
+      const err = await k.fail((env) => updateOperation(companies, env, second.id, { domain: 'acme.com' }))
+      expect(err.code).toBe('domain_exists')
+      expect((await k.row('companies', second.id)).domain).toBe('b.com')
+    })
+
+    it("a company's own domain on update is fine", async () => {
+      const c = await k.company({ name: 'A', domain: 'acme.com' })
+      const u = await k.updateCompany(c.id, { domain: 'ACME.COM', name: 'New' })
+      expect(u).toMatchObject({ name: 'New', domain: 'acme.com' })
+      expect((await k.events()).filter((x) => x.type === 'company.updated')).toHaveLength(1)
+    })
+
+    it('the domain is reusable after the company is deleted', async () => {
+      const c = await k.company({ name: 'A', domain: 'acme.com' })
+      await k.deleteCompany(c.id)
+      expect(await k.company({ name: 'A2', domain: 'acme.com' })).toMatchObject({ domain: 'acme.com' })
+    })
+
+    it('an invalid domain is a validation_error', async () => {
+      const err = await k.fail((env) => createOperation(companies, env, { name: 'X', domain: 'https://acme.com' }))
+      expect(k.shape(err)).toEqual([400, 'validation_error', 'domain: invalid domain'])
+    })
+
+    it('the domain filter normalises like the column', async () => {
+      const c = await k.company({ name: 'A', domain: 'acme.com' })
+      await k.company({ name: 'B', domain: 'b.com' })
+      expect((await k.list(companies, { domain: 'ACME.com' })).data.map((x) => x.id)).toEqual([c.id])
+    })
+
+    it('delete unlinks only live contacts, in id order, with before/after on every event', async () => {
+      const co = await k.company({ name: 'C' })
+      const k1 = await k.contact({ company_id: co.id })
+      const k2 = await k.contact({ company_id: co.id })
+      const k3 = await k.contact({ company_id: co.id })
+      await k.deleteContact(k3.id)
+      const mark = (await k.events()).length
+      await k.deleteCompany(co.id)
+      const ev = (await k.events()).slice(mark)
+      expect(ev.map((x) => x.type)).toEqual(['company.deleted', 'contact.updated', 'contact.updated'])
+      expect(ev.slice(1).map((x) => x.resource_id)).toEqual([k1.id, k2.id].sort())
+      expect(ev[0]).toMatchObject({ before: expect.objectContaining({ id: co.id }), after: null })
+      for (const x of ev.slice(1)) {
+        expect(x.before.company_id).toBe(co.id)
+        expect(x.after.company_id).toBeNull()
+      }
+      for (const x of ev) expect(x.actor_id).toBe(e.userId)
+      expect((await k.row('contacts', k1.id)).company_id).toBeNull()
+      expect((await k.row('contacts', k3.id)).company_id).toBe(co.id) // a deleted contact keeps its company_id
+    })
+
+    if (postgres) {
+      it('the same domain in another organisation is fine', async () => {
+        await k.company({ name: 'A', domain: 'acme.com' })
+        const other = await foreignTenant(e)
+        await expect(other.run(createOperation(companies, other.env(), { name: 'B', domain: 'acme.com' }))).resolves.toMatchObject({ domain: 'acme.com' })
+      })
     }
   })
-  it('invalid value', async () => {
-    const k = await mkContact(a)
-    const e = await apiError(mkIdentity(a, { kind: 'phone', value: '020 7946 0958', contact_id: k.id }))
-    expect([e.status, e.code]).toEqual([400, 'invalid_identity'])
+
+  describe('contacts', () => {
+    it('create empty', async () => {
+      expect(await k.contact({})).toMatchObject({ name: null, company_id: null, merged_into_id: null })
+    })
+
+    it('a missing company is invalid_reference and writes nothing', async () => {
+      const err = await k.fail((env) => createOperation(contacts, env, { company_id: '0190b2c4-0000-7000-8000-00000000dead' }))
+      expect(k.shape(err)).toEqual([400, 'invalid_reference', 'a referenced record does not exist'])
+      expect(await k.count('contacts')).toBe(0)
+      expect(await k.events()).toHaveLength(0)
+    })
+
+    it('a deleted company is invalid_reference', async () => {
+      const c = await k.company({ name: 'C' })
+      await k.deleteCompany(c.id)
+      const err = await k.fail((env) => createOperation(contacts, env, { company_id: c.id }))
+      expect(err.code).toBe('invalid_reference')
+    })
+
+    it('a company_id filter lists only that company', async () => {
+      const c = await k.company({ name: 'C' })
+      const member = await k.contact({ company_id: c.id })
+      await k.contact({})
+      expect((await k.list(contacts, { company_id: c.id })).data.map((x) => x.id)).toEqual([member.id])
+    })
+
+    it('delete tombstones the live identities, in id order, and frees their addresses', async () => {
+      const c = await k.contact({})
+      const i1 = await k.identity({ kind: 'email', value: 'x@y.com', contact_id: c.id })
+      const i2 = await k.identity({ kind: 'phone', value: '+14155550100', contact_id: c.id })
+      const gone = await k.identity({ kind: 'email', value: 'old@y.com', contact_id: c.id })
+      const mark = (await k.events()).length
+      await k.deleteContact(c.id)
+      const ev = (await k.events()).slice(mark)
+      expect(ev.map((x) => x.type)).toEqual(['contact.deleted', 'identity.deleted', 'identity.deleted', 'identity.deleted'])
+      expect(ev.slice(1).map((x) => x.resource_id)).toEqual([i1.id, i2.id, gone.id].sort())
+      for (const x of ev.slice(1)) {
+        expect(x.before.id).toBe(x.resource_id)
+        expect(x.after).toBeNull()
+        expect(x.actor_id).toBe(e.userId)
+      }
+      expect((await e.rows('identities')).every((r) => r.deleted_at !== null && r.updated_at === r.deleted_at)).toBe(true)
+      const other = await k.contact({})
+      await expect(k.identity({ kind: 'email', value: 'x@y.com', contact_id: other.id })).resolves.toBeDefined()
+    })
+
+    it('merged_into_id is not writable', async () => {
+      const other = await k.contact({})
+      const err = await k.fail((env) => createOperation(contacts, env, { merged_into_id: other.id }))
+      expect(err.code).toBe('validation_error')
+    })
+
+    if (postgres) {
+      it("another organisation's company is invalid_reference", async () => {
+        const other = await foreignTenant(e)
+        const theirs = await other.run(createOperation(companies, other.env(), { name: 'Theirs' }))
+        const err = await k.fail((env) => createOperation(contacts, env, { company_id: theirs.id }))
+        expect(err.code).toBe('invalid_reference')
+      })
+    }
   })
-  it('identity_exists (contact)', async () => {
-    const x = await mkContact(a)
-    const y = await mkContact(a)
-    await mkIdentity(a, { kind: 'email', value: 'ori@example.com', contact_id: x.id })
-    const mark = (await events()).length
-    const e = await apiError(mkIdentity(a, { kind: 'email', value: 'ORI@example.com', contact_id: y.id }))
-    expect([e.status, e.code, e.message]).toEqual([409, 'identity_exists', `the address already belongs to contact ${x.id}`])
-    expect(await count('identities')).toBe(1)
-    expect(await events()).toHaveLength(mark)
-  })
-  it('identity_exists (own)', async () => {
-    const y = await mkContact(a)
-    await mkIdentity(a, { kind: 'email', value: 'me@us.com', own: true })
-    const e = await apiError(mkIdentity(a, { kind: 'email', value: 'me@us.com', contact_id: y.id }))
-    expect([e.status, e.code, e.message]).toEqual([409, 'identity_exists', 'the address is already an own identity'])
-  })
-  it('cross-tenant contact refused', async () => {
-    const k = await mkContact(b)
-    const e = await apiError(mkIdentity(a, { kind: 'email', value: 'a@b.com', contact_id: k.id }))
-    expect([e.status, e.code]).toEqual([400, 'invalid_reference'])
-  })
-  it('move to another contact', async () => {
-    const x = await mkContact(a)
-    const y = await mkContact(a)
-    const i = await mkIdentity(a, { kind: 'email', value: 'a@b.com', contact_id: x.id })
-    const mark = (await events()).length
-    const u = await asUser(db, a, (ctx) => updateResource(ctx, identities, i.id, { contact_id: y.id }))
-    expect(u).toMatchObject({ contact_id: y.id, own: false })
-    expect((await events()).slice(mark).map((e) => e.type)).toEqual(['identity.updated'])
-  })
-  it('move to own', async () => {
-    const x = await mkContact(a)
-    const i = await mkIdentity(a, { kind: 'email', value: 'a@b.com', contact_id: x.id })
-    expect(await asUser(db, a, (ctx) => updateResource(ctx, identities, i.id, { own: true }))).toMatchObject({ contact_id: null, own: true })
-  })
-  it('move from own to contact', async () => {
-    const x = await mkContact(a)
-    const i = await mkIdentity(a, { kind: 'email', value: 'a@b.com', own: true })
-    expect(await asUser(db, a, (ctx) => updateResource(ctx, identities, i.id, { contact_id: x.id }))).toMatchObject({ contact_id: x.id, own: false })
-  })
-  it('update owner rule', async () => {
-    const x = await mkContact(a)
-    const i = await mkIdentity(a, { kind: 'email', value: 'a@b.com', contact_id: x.id })
-    const e = await apiError(asUser(db, a, (ctx) => updateResource(ctx, identities, i.id, { contact_id: x.id, own: true })))
-    expect([e.status, e.code]).toEqual([400, 'validation_error'])
-  })
-  it('empty patch is a no-op', async () => {
-    const x = await mkContact(a)
-    const i = await mkIdentity(a, { kind: 'email', value: 'a@b.com', contact_id: x.id })
-    const mark = (await events()).length
-    await asUser(db, a, (ctx) => updateResource(ctx, identities, i.id, {}))
-    expect(await events()).toHaveLength(mark)
-  })
-  it('immutable kind/value', async () => {
-    const x = await mkContact(a)
-    const i = await mkIdentity(a, { kind: 'email', value: 'a@b.com', contact_id: x.id })
-    const e = await apiError(asUser(db, a, (ctx) => updateResource(ctx, identities, i.id, { value: 'x@y.com' })))
-    expect(e.code).toBe('validation_error')
-    expect((await owner.selectFrom('identities').select('value').where('id', '=', i.id).executeTakeFirstOrThrow()).value).toBe('a@b.com')
-  })
-  it('value filter normalises', async () => {
-    const x = await mkContact(a)
-    const i = await mkIdentity(a, { kind: 'email', value: 'ori@example.com', contact_id: x.id })
-    const r = await asUser(db, a, (ctx) => listResource(ctx, identities, { filters: { kind: 'email', value: 'Ori@Example.COM' } }))
-    expect(r.data.map((v) => v.id)).toEqual([i.id])
-  })
-  it('value filter needs kind', async () => {
-    const e = await apiError(asUser(db, a, (ctx) => listResource(ctx, identities, { filters: { value: 'ori@example.com' } })))
-    expect([e.status, e.code, e.message]).toEqual([400, 'validation_error', 'filter value requires kind'])
-  })
-  it('value filter invalid', async () => {
-    const e = await apiError(asUser(db, a, (ctx) => listResource(ctx, identities, { filters: { kind: 'phone', value: 'abc' } })))
-    expect([e.status, e.code]).toEqual([400, 'invalid_identity'])
-  })
-  it('own and contact_id filters', async () => {
-    const x = await mkContact(a)
-    const own = await mkIdentity(a, { kind: 'email', value: 'me@us.com', own: true })
-    const on = await mkIdentity(a, { kind: 'email', value: 'x@us.com', contact_id: x.id })
-    const ids = async (filters: Record<string, string>) => (await asUser(db, a, (ctx) => listResource(ctx, identities, { filters }))).data.map((v) => v.id)
-    expect(await ids({ own: 'true' })).toEqual([own.id])
-    expect(await ids({ own: 'false' })).toEqual([on.id])
-    expect(await ids({ contact_id: x.id })).toEqual([on.id])
-  })
-  it('agents create with the agent as actor', async () => {
-    const k = await asAgent(db, a, (ctx) => createResource(ctx, contacts, {}))
-    const ev = await events()
-    expect(ev[0]!.actor_id).toBe(a.agentId)
-    expect(k.id).toBe(ev[0]!.resource_id)
-    void randomUUID
+
+  describe('identities', () => {
+    it('create normalises the value', async () => {
+      const c = await k.contact({})
+      expect(await k.identity({ kind: 'email', value: ' Ori@Example.com ', contact_id: c.id })).toMatchObject({ value: 'ori@example.com', own: false, contact_id: c.id })
+    })
+
+    it('create own', async () => {
+      expect(await k.identity({ kind: 'email', value: 'me@us.com', own: true })).toMatchObject({ contact_id: null, own: true })
+    })
+
+    it('enforces the owner rule', async () => {
+      const c = await k.contact({})
+      for (const input of [
+        { kind: 'email', value: 'a@b.com', contact_id: c.id, own: true },
+        { kind: 'email', value: 'a@b.com' },
+      ]) {
+        const err = await k.fail((env) => createOperation(identities, env, input))
+        expect(k.shape(err)).toEqual([400, 'validation_error', 'exactly one of contact_id or own: true is required'])
+      }
+    })
+
+    it('an invalid value is invalid_identity', async () => {
+      const c = await k.contact({})
+      const err = await k.fail((env) => createOperation(identities, env, { kind: 'phone', value: '020 7946 0958', contact_id: c.id }))
+      expect([err.status, err.code]).toEqual([400, 'invalid_identity'])
+    })
+
+    it('a non-ASCII email is invalid_identity with the D7 message, never a database error', async () => {
+      const c = await k.contact({})
+      const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'jürgen@example.com', contact_id: c.id }))
+      expect(k.shape(err)).toEqual([400, 'invalid_identity', 'non-ASCII email addresses are not supported'])
+      expect(await k.count('identities')).toBe(0)
+    })
+
+    it('checks the reference before the address (P6)', async () => {
+      const c = await k.contact({})
+      await k.identity({ kind: 'email', value: 'taken@example.com', contact_id: c.id })
+      const err = await k.fail((env) =>
+        createOperation(identities, env, { kind: 'email', value: 'taken@example.com', contact_id: '0190b2c4-0000-7000-8000-00000000dead' }),
+      )
+      expect(err.code).toBe('invalid_reference')
+    })
+
+    it('identity_exists names the contact, and writes neither a row nor an event', async () => {
+      const x = await k.contact({})
+      const y = await k.contact({})
+      await k.identity({ kind: 'email', value: 'ori@example.com', contact_id: x.id })
+      const mark = (await k.events()).length
+      const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'ORI@example.com', contact_id: y.id }))
+      expect(k.shape(err)).toEqual([409, 'identity_exists', `the address already belongs to contact ${x.id}`])
+      expect(await k.count('identities')).toBe(1)
+      expect(await k.events()).toHaveLength(mark)
+    })
+
+    it('identity_exists for an own address', async () => {
+      const y = await k.contact({})
+      await k.identity({ kind: 'email', value: 'me@us.com', own: true })
+      const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'me@us.com', contact_id: y.id }))
+      expect(k.shape(err)).toEqual([409, 'identity_exists', 'the address is already an own identity'])
+    })
+
+    it('moves to another contact, to own, and from own back to a contact', async () => {
+      const x = await k.contact({})
+      const y = await k.contact({})
+      const i = await k.identity({ kind: 'email', value: 'a@b.com', contact_id: x.id })
+      const mark = (await k.events()).length
+      expect(await k.updateIdentity(i.id, { contact_id: y.id })).toMatchObject({ contact_id: y.id, own: false })
+      expect((await k.events()).slice(mark).map((v) => v.type)).toEqual(['identity.updated'])
+      expect(await k.updateIdentity(i.id, { own: true })).toMatchObject({ contact_id: null, own: true })
+      expect(await k.updateIdentity(i.id, { contact_id: x.id })).toMatchObject({ contact_id: x.id, own: false })
+    })
+
+    it('an update names exactly one owner', async () => {
+      const x = await k.contact({})
+      const i = await k.identity({ kind: 'email', value: 'a@b.com', contact_id: x.id })
+      const err = await k.fail((env) => updateOperation(identities, env, i.id, { contact_id: x.id, own: true }))
+      expect(k.shape(err)).toEqual([400, 'validation_error', 'exactly one of contact_id or own: true is required'])
+    })
+
+    it('an empty patch is a no-op with no event', async () => {
+      const x = await k.contact({})
+      const i = await k.identity({ kind: 'email', value: 'a@b.com', contact_id: x.id })
+      const mark = (await k.events()).length
+      expect(await k.updateIdentity(i.id, {})).toMatchObject({ id: i.id, updated_at: i.updated_at })
+      expect(await k.events()).toHaveLength(mark)
+    })
+
+    it('kind and value are immutable', async () => {
+      const x = await k.contact({})
+      const i = await k.identity({ kind: 'email', value: 'a@b.com', contact_id: x.id })
+      for (const patch of [{ value: 'x@y.com' }, { kind: 'phone' }]) {
+        const err = await k.fail((env) => updateOperation(identities, env, i.id, patch))
+        expect(err.code).toBe('validation_error')
+      }
+      expect((await k.row('identities', i.id)).value).toBe('a@b.com')
+    })
+
+    it('filters: value normalises and needs kind; own and contact_id', async () => {
+      const x = await k.contact({})
+      const own = await k.identity({ kind: 'email', value: 'me@us.com', own: true })
+      const on = await k.identity({ kind: 'email', value: 'ori@example.com', contact_id: x.id })
+      const ids = async (filters: Record<string, string>) => (await k.list(identities, filters)).data.map((v) => v.id)
+      expect(await ids({ kind: 'email', value: 'Ori@Example.COM' })).toEqual([on.id])
+      expect(await ids({ own: 'true' })).toEqual([own.id])
+      expect(await ids({ own: 'false' })).toEqual([on.id])
+      expect(await ids({ contact_id: x.id })).toEqual([on.id])
+      const noKind = await k.fail((env) => listOperation(identities, env, { filters: { value: 'ori@example.com' } }))
+      expect(k.shape(noKind)).toEqual([400, 'validation_error', 'filter value requires kind'])
+      const invalid = await k.fail((env) => listOperation(identities, env, { filters: { kind: 'phone', value: 'abc' } }))
+      expect([invalid.status, invalid.code]).toEqual([400, 'invalid_identity'])
+    })
+
+    it("an agent's writes carry the agent as actor", async () => {
+      const c = await k.contact({}, { as: 'agent' })
+      const ev = await k.events()
+      expect(ev[0]).toMatchObject({ actor_id: e.agentId, resource_id: c.id })
+    })
+
+    if (postgres) {
+      it("another organisation's contact is invalid_reference", async () => {
+        const other = await foreignTenant(e)
+        const theirs = await other.run(createOperation(contacts, other.env(), {}))
+        const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'a@b.com', contact_id: theirs.id }))
+        expect(err.code).toBe('invalid_reference')
+      })
+    }
   })
 })
