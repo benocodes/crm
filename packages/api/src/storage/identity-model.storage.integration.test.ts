@@ -234,6 +234,24 @@ describe.each(['postgres', 'd1'] as const)('identity model storage behaviour on 
         expect(await e.rows('events')).toEqual(before.events)
       })
 
+      it('a company delete where a planned contact is swapped for an unplanned one (same count): 409 conflict, nothing changes', async () => {
+        const co = await k.company({ name: 'C' })
+        const a = await k.contact({ company_id: co.id })
+        const before = await snapshot(e)
+        let b: Record<string, any> | undefined
+        e.betweenPlanAndCommit(async () => {
+          await e.run(deleteContactOperation(k.env(), a.id))
+          b = await e.insert('contacts', { company_id: co.id })
+        })
+        const err = await k.fail((env) => deleteCompanyOperation(env, co.id))
+        expect([err.status, err.code]).toEqual([409, 'conflict'])
+        expect((await k.row('companies', co.id)).deleted_at).toBeNull()
+        expect((await k.row('contacts', b!.id)).company_id).toBe(co.id)
+        expect((await k.row('contacts', b!.id)).deleted_at).toBeNull()
+        // only the hook's own contact.deleted was added
+        expect((await e.rows('events')).slice(before.events.length).map((x) => x.type)).toEqual(['contact.deleted'])
+      })
+
       it('a unique-index race maps to conflict and leaves no orphan contact', async () => {
         const other = await k.contact({})
         e.betweenPlanAndCommit(async () => {

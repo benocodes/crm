@@ -1,9 +1,11 @@
 import { sql, type SqlBool } from 'kysely'
 import {
   UnitDriftError,
+  assertStep,
   codecs,
   defineOperation,
   exactly,
+  memberOf,
   readSet,
   step,
   ts,
@@ -25,8 +27,9 @@ import { canonicalId } from '../storage/prepare.js'
 
 // The two delete cascades ([[CORE36]] C7): the `override.delete` of companies and contacts. Each is a plan (the
 // parent with its stamp, the live children as one bounded set) and one unit of a CONSTANT number of statements:
-// the stamp-guarded parent tombstone, its event, ONE set statement over ALL the parent's live children asserted to
-// touch exactly the planned count (`exactly`, so on D1 a child added or removed between plan and commit aborts the unit), ONE set event
+// the stamp-guarded parent tombstone, its event, ONE set statement over the PLANNED children (`id IN set`) asserted to
+// touch exactly the planned count (`exactly`), an assertion that no live child of the parent remains (so on D1 a child
+// added, removed or swapped between plan and commit aborts the unit, and no unplanned child changes without an event), ONE set event
 // statement, and the result proof. The set statement is gated on the parent's event existing, so a parent that
 // drifted makes the whole unit a no-op (or, with children, an aborted batch).
 
@@ -84,6 +87,7 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
         .where(sql<SqlBool>`${sql.ref(`${c.child.table}.${c.column}`)} = ${id}`)
         .where(sql<SqlBool>`${sql.ref(`${c.child.table}.organization_id`)} = ${env.organizationId}`)
         .where(sql<SqlBool>`${sql.ref(`${c.child.table}.deleted_at`)} is null`)
+        .where(memberOf(qc, childTable, 'id', ids))
         .where(eventExists(parentEventId))
       const proof = qc.db.selectNoFrom(sql<number>`1`.as('applied')).where(eventExists(parentEventId))
 
@@ -104,6 +108,10 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
           'first-event',
         ),
         ...exactly(qc, step(changeChildren), ids.length),
+        assertStep(
+          qc,
+          sql<SqlBool>`not exists (select 1 from ${sql.table(c.child.table)} where ${sql.ref(`${c.child.table}.${c.column}`)} = ${id} and ${sql.ref(`${c.child.table}.organization_id`)} = ${env.organizationId} and ${sql.ref(`${c.child.table}.deleted_at`)} is null)`,
+        ),
         step(
           eventSetStatement(qc, {
             at,

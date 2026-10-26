@@ -1,6 +1,10 @@
 // End-to-end smoke for [[CORE3]] authentication: sign-in, the organisation claim and its repair, the header
 // rule and CORS. Needs no Clerk account: it generates an RS256 key pair, runs a fake Clerk Backend API locally
 // and serves the real app over HTTP against DATABASE_URL.
+//
+// SMOKE_EXPECT_DATABASE is required: the script refuses to run unless current_database() equals it (an exported
+// DATABASE_URL overrides --env-file). Example, from the repo root, against a worktree's private test database:
+//   SMOKE_EXPECT_DATABASE=vault_test_<worktree> pnpm -C packages/api smoke:auth
 import { randomBytes, randomUUID } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
