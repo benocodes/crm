@@ -1,0 +1,347 @@
+{
+  "format": 1,
+  "resource": "directory",
+  "generated_by": "packages/api/scripts/golden.ts (postgres path)",
+  "named_differences": [],
+  "scenarios": [
+    {
+      "name": "webhook-reconcile",
+      "about": "one delivery creates a member, re-roles another and removes a third; the same delivery again changes nothing",
+      "steps": [
+        {
+          "as": {
+            "clerk": "user_golden_claim",
+            "claim": {
+              "org": "org_golden",
+              "role": "org:member"
+            }
+          },
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/tasks",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": [
+            {
+              "type": "membership.created",
+              "resource_type": "membership",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000004",
+              "actor_id": "0190b2c4-0000-7000-8000-000001000003",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000004",
+                "role": "member",
+                "user_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-000001000003",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "webhook",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/webhooks/clerk",
+          "request": {
+            "type": "organizationMembership.updated",
+            "object": "event",
+            "data": {
+              "id": "orgmem_user_golden_added",
+              "organization": {
+                "id": "org_golden"
+              },
+              "public_user_data": {
+                "user_id": "user_golden_added"
+              }
+            },
+            "timestamp": 1792659600000
+          },
+          "status": 200,
+          "response": {
+            "received": true
+          },
+          "events": [
+            {
+              "type": "membership.created",
+              "resource_type": "membership",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-000001000003",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "role": "member",
+                "user_id": "0190b2c4-0000-7000-8000-000001000006",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-000001000003",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "membership.updated",
+              "resource_type": "membership",
+              "resource_id": "0190b2c4-0000-7000-8000-00000000d002",
+              "actor_id": "0190b2c4-0000-7000-8000-000001000003",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-00000000d002",
+                "role": "member",
+                "user_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b002",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-00000000d002",
+                "role": "owner",
+                "user_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b002",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "membership.deleted",
+              "resource_type": "membership",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000004",
+              "actor_id": "0190b2c4-0000-7000-8000-000001000003",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000004",
+                "role": "member",
+                "user_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-000001000003",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "webhook",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/webhooks/clerk",
+          "request": {
+            "type": "organizationMembership.updated",
+            "object": "event",
+            "data": {
+              "id": "orgmem_user_golden_added",
+              "organization": {
+                "id": "org_golden"
+              },
+              "public_user_data": {
+                "user_id": "user_golden_added"
+              }
+            },
+            "timestamp": 1792659600000
+          },
+          "status": 200,
+          "response": {
+            "received": true
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/memberships",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000d001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "user_id": "0190b2c4-0000-7000-8000-00000000b001",
+                "role": "owner",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000d002",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "user_id": "0190b2c4-0000-7000-8000-00000000b002",
+                "role": "owner",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b002",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "user_id": "0190b2c4-0000-7000-8000-000001000006",
+                "role": "member",
+                "created_by": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/users",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000b001",
+                "email": "b001@golden.test",
+                "name": null,
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-00000000b002",
+                "email": "b002@golden.test",
+                "name": null,
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000006",
+                "email": "added@golden.test",
+                "name": "Ada Added",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "webhook-rename",
+      "about": "a rename at the provider updates the organisation and emits organization.updated; nothing else changes",
+      "steps": [
+        {
+          "as": "webhook",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/webhooks/clerk",
+          "request": {
+            "type": "organization.updated",
+            "object": "event",
+            "data": {
+              "id": "org_golden"
+            },
+            "timestamp": 1792659600000
+          },
+          "status": 200,
+          "response": {
+            "received": true
+          },
+          "events": [
+            {
+              "type": "organization.updated",
+              "resource_type": "organization",
+              "resource_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "actor_id": "0190b2c4-0000-7000-8000-000001000002",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Golden a001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Golden org renamed",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T09:00:00.000Z"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "webhook-user-updated",
+      "about": "user.updated refreshes a known user's profile (updated_at is the step clock, no event); an unknown subject costs no provider call",
+      "steps": [
+        {
+          "as": "webhook",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/webhooks/clerk",
+          "request": {
+            "type": "user.updated",
+            "object": "event",
+            "data": {
+              "id": "user_golden_1"
+            },
+            "timestamp": 1792659600000
+          },
+          "status": 200,
+          "response": {
+            "received": true
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/users/0190b2c4-0000-7000-8000-00000000b001",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-00000000b001",
+            "email": "ada.lovelace@golden.test",
+            "name": "Ada Lovelace",
+            "created_at": "2026-10-22T08:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "webhook",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/webhooks/clerk",
+          "request": {
+            "type": "user.updated",
+            "object": "event",
+            "data": {
+              "id": "user_golden_nobody"
+            },
+            "timestamp": 1792659600000
+          },
+          "status": 200,
+          "response": {
+            "received": true
+          },
+          "events": []
+        }
+      ]
+    }
+  ]
+}

@@ -186,8 +186,9 @@ export async function bootstrap(
   const newId = env.newId ?? (() => uuidv7(now))
   const secret = await generateApiKey(env.randomBytes ?? ((n) => crypto.getRandomValues(new Uint8Array(n))))
   const login = opts.authSubject !== undefined ? { provider: opts.authProvider ?? 'clerk', subject: opts.authSubject } : null
+  const minted = newId() // consumed on both engines: the id source advances the same way
   const op = bootstrapOperation({
-    organizationId: storage.kind === 'd1' ? storage.organizationId : newId(),
+    organizationId: storage.kind === 'd1' ? storage.organizationId : minted,
     organizationName: opts.organizationName,
     link: storage.kind === 'd1' ? { provider: storage.authProvider, externalId: storage.authOrgId } : null,
     email,

@@ -14,9 +14,31 @@ export const IDS = {
   membership: '0190b2c4-0000-7000-8000-00000000d001',
   membership2: '0190b2c4-0000-7000-8000-00000000d002',
   missing: '0190b2c4-0000-7000-8000-00000000dead',
+  /** The fixed API keys of `agent` (CORE41 P15): one valid, one expired at seed time. */
+  agentKey: '0190b2c4-0000-7000-8000-00000000e001',
+  expiredKey: '0190b2c4-0000-7000-8000-00000000e002',
 } as const
 
-export type GoldenActor = 'user' | 'agent'
+/** The deployment's provider link: the local organisation is `('clerk', GOLDEN_ORG_LINK)` on both engines; the foreign one (Postgres only) is `GOLDEN_FOREIGN_LINK`. */
+export const GOLDEN_ORG_LINK = 'org_golden'
+export const GOLDEN_FOREIGN_LINK = 'org_golden_foreign'
+/** The login subjects of the two seeded users. */
+export const GOLDEN_SUBJECTS = { user: 'user_golden_1', user2: 'user_golden_2' } as const
+/** The fixed secrets of the seeded keys. They are test constants, never real credentials. */
+export const GOLDEN_AGENT_KEY = 'vk_golden-agent-key-0001-fixed-for-fixtures'
+export const GOLDEN_EXPIRED_KEY = 'vk_golden-agent-key-0002-expired-at-seed'
+
+/**
+ * Who sends a step. `user` and `agent` are injected principals (the alg:none stand-in token); `agent-key` and `expired-key` present the
+ * seeded API keys; `{ clerk }` is a real Clerk-signed token for that subject (with an optional organisation claim); `webhook` is a
+ * Svix-signed delivery of the step's `body` to `POST /webhooks/clerk` (CORE41 P15).
+ */
+export type GoldenActor = 'user' | 'agent' | 'agent-key' | 'expired-key' | 'webhook' | { clerk: string; claim?: { org: string; role: string } }
+/** The fake Clerk a scenario runs against: profiles by subject and organisations with their members (role `org:admin` or `org:member`). */
+export interface GoldenClerk {
+  users?: ReadonlyArray<{ subject: string; email: string | null; first?: string | null; last?: string | null; verified?: boolean }>
+  organizations?: ReadonlyArray<{ id: string; name: string; members: ReadonlyArray<readonly [string, 'org:admin' | 'org:member']> }>
+}
 export interface GoldenStep {
   as: GoldenActor
   /** The injected clock for this request (ISO, UTC). */
@@ -33,12 +55,18 @@ export interface GoldenScenario {
   name: string
   /** Why the scenario exists: the old behaviour it pins. */
   about: string
+  /** Loaded into the fake Clerk before the first step. */
+  clerk?: GoldenClerk
+  /** Seeds the agent's two fixed API keys (`IDS.agentKey`, `IDS.expiredKey`). Off by default so the older fixtures, which list keys, stay byte-identical. */
+  keys?: true
   steps: readonly GoldenStep[]
 }
 
 const T0 = Date.parse('2026-10-22T09:00:00.000Z')
 /** The n-th minute after the scenario clock origin. */
 export const at = (n: number): string => new Date(T0 + n * 60_000).toISOString()
+/** The n-th second after the scenario clock origin. */
+export const secs = (n: number): string => new Date(T0 + n * 1000).toISOString()
 
 export const taskScenarios: readonly GoldenScenario[] = [
   {
@@ -414,6 +442,126 @@ export const administrationScenarios: readonly GoldenScenario[] = [
   },
 ]
 
-/** The deployment's provider link: the local organisation is `('clerk', GOLDEN_ORG_LINK)` on both engines; the foreign one (Postgres only) is `GOLDEN_FOREIGN_LINK`. */
-export const GOLDEN_ORG_LINK = 'org_golden'
-export const GOLDEN_FOREIGN_LINK = 'org_golden_foreign'
+
+const DELIVERY = (type: string, data: unknown) => ({ type, object: 'event', data, timestamp: T0 })
+const MEMBERSHIP_DELIVERY = (type: string, org: string, userId: string) => DELIVERY(type, { id: `orgmem_${userId}`, organization: { id: org }, public_user_data: { user_id: userId } })
+
+export const authScenarios: readonly GoldenScenario[] = [
+  {
+    name: 'api-key-auth',
+    keys: true,
+    about: 'a seeded key authenticates; last_used_at is stamped at most once a minute (30 s and exactly 60 s later: no stamp; 61 s later: stamped) and updated_at never moves',
+    steps: [
+      { as: 'agent-key', at: secs(0), method: 'GET', path: `/api-keys/${IDS.agentKey}` },
+      { as: 'agent-key', at: secs(30), method: 'GET', path: `/api-keys/${IDS.agentKey}` },
+      { as: 'agent-key', at: secs(60), method: 'GET', path: `/api-keys/${IDS.agentKey}` },
+      { as: 'agent-key', at: secs(61), method: 'GET', path: `/api-keys/${IDS.agentKey}` },
+    ],
+  },
+  {
+    name: 'api-key-refusals',
+    keys: true,
+    about: 'a revoked key and a key that expired before the request are both 401 with the shared message',
+    steps: [
+      { as: 'agent-key', at: at(0), method: 'GET', path: '/tasks' },
+      { as: 'user', at: at(1), method: 'POST', path: `/api-keys/${IDS.agentKey}/revoke` },
+      { as: 'agent-key', at: at(2), method: 'GET', path: '/tasks' },
+      { as: 'expired-key', at: at(3), method: 'GET', path: '/tasks' },
+    ],
+  },
+  {
+    name: 'first-sight-and-me',
+    about: 'the first sight of a subject provisions it with no event (the email is normalised); a second call writes nothing; a seeded user reads /me with its organisation',
+    clerk: { users: [{ subject: 'user_golden_new', email: ' Grace@Golden.Test ', first: 'Grace', last: 'Hopper', verified: true }] },
+    steps: [
+      { as: { clerk: 'user_golden_new' }, at: at(0), method: 'GET', path: '/me' },
+      { as: { clerk: 'user_golden_new' }, at: at(1), method: 'GET', path: '/me' },
+      { as: { clerk: GOLDEN_SUBJECTS.user, claim: { org: GOLDEN_ORG_LINK, role: 'org:admin' } }, at: at(2), method: 'GET', path: '/me' },
+    ],
+  },
+  {
+    name: 'first-sight-refusals',
+    about: 'an email that belongs to another user (any case) is 409 account_conflict, a non-ASCII email is 400 invalid_identity, a profile with no email is 401; none writes anything',
+    clerk: {
+      users: [
+        { subject: 'user_golden_dup', email: 'B002@Golden.TEST' },
+        { subject: 'user_golden_ascii', email: 'ñandú@golden.test' },
+        { subject: 'user_golden_noemail', email: null },
+      ],
+    },
+    steps: [
+      { as: { clerk: 'user_golden_dup' }, at: at(0), method: 'GET', path: '/me' },
+      { as: { clerk: 'user_golden_ascii' }, at: at(1), method: 'GET', path: '/me' },
+      { as: { clerk: 'user_golden_noemail' }, at: at(2), method: 'GET', path: '/me' },
+      { as: 'user', at: at(3), method: 'GET', path: '/users' },
+    ],
+  },
+  {
+    name: 'claim-repair',
+    about: 'a token claiming an organisation the user has no membership in repairs the copy: membership.created by the system principal, then the tenant call succeeds; the next sign-in writes nothing',
+    clerk: {
+      users: [{ subject: 'user_golden_claim', email: 'claim@golden.test', first: 'Claire', last: 'Claim' }],
+      organizations: [{ id: GOLDEN_ORG_LINK, name: 'Golden org', members: [] }],
+    },
+    steps: [
+      { as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } }, at: at(0), method: 'GET', path: '/tasks' },
+      { as: 'user', at: at(1), method: 'GET', path: '/memberships' },
+      { as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } }, at: at(2), method: 'GET', path: '/tasks' },
+    ],
+  },
+  {
+    name: 'foreign-organisation-claim',
+    about: 'a token claiming another provider organisation: Postgres is multi-tenant and repairs it (200); a D1 serves one organisation and refuses it 403 before any SQL (CORE36 D19, the one named difference)',
+    clerk: {
+      users: [{ subject: 'user_golden_foreigner', email: 'foreigner@golden.test' }],
+      organizations: [{ id: GOLDEN_FOREIGN_LINK, name: 'Foreign org', members: [] }],
+    },
+    steps: [{ as: { clerk: 'user_golden_foreigner', claim: { org: GOLDEN_FOREIGN_LINK, role: 'org:admin' } }, at: at(0), method: 'GET', path: '/tasks' }],
+  },
+]
+
+export const directoryScenarios: readonly GoldenScenario[] = [
+  {
+    name: 'webhook-reconcile',
+    about: 'one delivery creates a member, re-roles another and removes a third; the same delivery again changes nothing',
+    clerk: {
+      users: [
+        { subject: 'user_golden_claim', email: 'claim@golden.test' },
+        { subject: 'user_golden_added', email: 'added@golden.test', first: 'Ada', last: 'Added' },
+      ],
+      organizations: [
+        {
+          id: GOLDEN_ORG_LINK,
+          name: 'Golden a001', // the seeded name: only the memberships change
+          // user_golden_claim is left out: the delivery removes the membership the first step repairs into existence.
+          members: [[GOLDEN_SUBJECTS.user, 'org:admin'], [GOLDEN_SUBJECTS.user2, 'org:admin'], ['user_golden_added', 'org:member']],
+        },
+      ],
+    },
+    steps: [
+      { as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } }, at: at(0), method: 'GET', path: '/tasks' },
+      { as: 'webhook', at: at(1), method: 'POST', path: '/webhooks/clerk', body: MEMBERSHIP_DELIVERY('organizationMembership.updated', GOLDEN_ORG_LINK, 'user_golden_added') },
+      { as: 'webhook', at: at(2), method: 'POST', path: '/webhooks/clerk', body: MEMBERSHIP_DELIVERY('organizationMembership.updated', GOLDEN_ORG_LINK, 'user_golden_added') },
+      { as: 'user', at: at(3), method: 'GET', path: '/memberships' },
+      { as: 'user', at: at(4), method: 'GET', path: '/users' },
+    ],
+  },
+  {
+    name: 'webhook-rename',
+    about: 'a rename at the provider updates the organisation and emits organization.updated; nothing else changes',
+    clerk: {
+      organizations: [{ id: GOLDEN_ORG_LINK, name: 'Golden org renamed', members: [[GOLDEN_SUBJECTS.user, 'org:admin'], [GOLDEN_SUBJECTS.user2, 'org:member']] }],
+    },
+    steps: [{ as: 'webhook', at: at(0), method: 'POST', path: '/webhooks/clerk', body: DELIVERY('organization.updated', { id: GOLDEN_ORG_LINK }) }],
+  },
+  {
+    name: 'webhook-user-updated',
+    about: 'user.updated refreshes a known user\'s profile (updated_at is the step clock, no event); an unknown subject costs no provider call',
+    clerk: { users: [{ subject: GOLDEN_SUBJECTS.user, email: 'Ada.Lovelace@Golden.Test', first: 'Ada', last: 'Lovelace', verified: true }] },
+    steps: [
+      { as: 'webhook', at: at(0), method: 'POST', path: '/webhooks/clerk', body: DELIVERY('user.updated', { id: GOLDEN_SUBJECTS.user }) },
+      { as: 'user', at: at(1), method: 'GET', path: `/users/${IDS.user}` },
+      { as: 'webhook', at: at(2), method: 'POST', path: '/webhooks/clerk', body: DELIVERY('user.updated', { id: 'user_golden_nobody' }) },
+    ],
+  },
+]

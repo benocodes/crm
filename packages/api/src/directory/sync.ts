@@ -502,7 +502,11 @@ const forbidden = () => new ApiError(403, 'organization_forbidden', 'not a membe
 /** A D1 serves one provider organisation (D19): a unit for another link is refused before any SQL. */
 const foreignLink = (storage: StorageBinding, provider: string, externalId: string) =>
   storage.kind === 'd1' && (provider !== storage.authProvider || externalId !== storage.authOrgId)
-const newOrganizationId = (storage: StorageBinding, env: InternalEnv) => (storage.kind === 'd1' ? storage.organizationId : env.newId())
+/** The id a new organisation gets. The id source is consumed on both engines, so a golden run mints the same ids afterwards. */
+const newOrganizationId = (storage: StorageBinding, env: InternalEnv) => {
+  const minted = env.newId()
+  return storage.kind === 'd1' ? storage.organizationId : minted
+}
 
 /**
  * Repair for a verified claim. The provider is asked about an organisation the vault has never seen BEFORE the unit
