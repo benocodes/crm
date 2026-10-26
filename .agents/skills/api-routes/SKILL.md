@@ -221,15 +221,7 @@ or D1 (`@vault/storage-d1`, open). `tasks` is the first, and the worked example 
   (event, new `updated_at`; spec D22).
 - **`updated_at` differs by engine.** On Postgres the `set_updated_at` trigger stamps transaction time,
   overriding the app clock; on D1 it is the injected clock. Tests assert it per engine ([[CORE35]] F5).
-- **Testing on both engines:**
-  - `src/test/engines.ts` opens Postgres (`vault_app`, no presets) and a Miniflare D1, with injected
-    clock and ids.
-  - `runContractSuite({ backend: d1Backend() })` runs the same assertions on D1, with one binding per
-    tenant, never two tenants in one D1.
-  - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
-    behaviour change, run `pnpm -C packages/api golden:generate`; `golden:check` fails on drift.
-  - Suites written after the vertical exists prove their strength with absence mutations (break the
-    runtime, see the target test fail), recorded in RESULT.md.
+- **Testing on both engines:** see `writing-tests` section 3.
 
 ## The service context and tenancy
 
@@ -355,84 +347,9 @@ message bodies or addresses at info level (customer communications are personal 
 
 ## Testing
 
-**Real Postgres, no mocking the context.** Integration tests call the app in-process
-(`app.fetch(new Request(…))`), seed through the same helpers production code uses, and assert DB rows
-directly. Unit tests only for pure helpers.
-
-**The test pool behaves like production: nothing is preset.** The predecessor's test pool presets
-`app.organization_id` and `service_role` globally, so a query that skips its tenancy wrapper passes every
-test and reads or writes zero rows in production. The vault's pool (`createTestDb()` from `@vault/db/test`)
-connects as `vault_app` and presets nothing, every fixture names its organisation, and a query without a
-wrapper fails in tests. Seeds (`seedOrganization`, `seedUser`, `seedAgent`) run under `withServiceRole`;
-there is deliberately no task or event seed: create those through the service layer. `createOwnerTestDb()`
-is for `truncateAll` and catalog inspection only, never fixtures. Both factories refuse a database whose
-name doesn't match `/(^|_)test(_|$)/`.
-
-- **A cross-tenant test needs a REAL second organisation** with an explicit `organization_id` threaded
-  through every fixture on the other side. Two "different" users that land in one default org prove nothing;
-  RLS has nothing to separate and the assertion passes for the wrong reason.
-- **The contract suite runs over every resource definition automatically**
-  (`src/contract.integration.test.ts`, which calls `runContractSuite` from `src/test/contract.ts`). It
-  runs over REST, as both an agent (a real API key) and a user (`fakeUserAuthenticator`), checking:
-  - create, get, list, update and delete, with exact events and `actor_id`;
-  - cross-tenant 404s;
-  - unknown fields;
-  - missing scope, and read is not write;
-  - no credential;
-  - routes that should not be generated;
-  - the OpenAPI document.
-
-  To add a resource, register its definition in `createVaultRegistry` and add one entry in
-  `src/test/fixtures.ts`:
-  - `input` and `patch` builders, each producing unique values per call;
-  - `make` for read-only definitions.
-
-  A catalog test fails if a definition has no fixture or a fixture has no definition. A `ContractCheck`
-  passed in `checks` runs once per definition and registers its own `it` blocks; `env` is a getter
-  because tenants are re-seeded for each test. The generic machinery (tenancy isolation, scope enforcement, an event on every write,
-  webhook delivery and retries, the cursor) is tested once, in depth. Bespoke tests are for real logic:
-  commands (merge, send, suggestion lifecycle) and channel adapters.
-- **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
-  on every code path that renders the value.
-- **Assert emit order with `orderBy(sql\`ctid\`)`** on `events` after a per-test truncate, never by
-  `id`: same-millisecond UUIDv7s are not monotonic and an id-ordered assertion flaked 2 runs in 4
-  ([[CORE2]]). ctid order is valid **only on a fresh heap in a test** (truncated, one backend appending).
-  On a long-lived database (`vault_dev`), the heap reuses freed space, so a smoke or e2e check there
-  asserts the **set and count** of event types for its organisation, never their ctid order ([[CORE27]]
-  review). Once [[API6]] D13 lands (`events.id` defaulting to PG18 `uuidv7()`, monotonic per backend),
-  switch both to `ORDER BY id`.
-- **A service function exported for another spec's in-process caller gets no adapter parsing.** The REST
-  body schema trims and bounds input; a channel calling the function directly does not pass through it.
-  Clean free text from external sources inside the function (`cleanName` in `src/identity/resolve.ts`:
-  trim, blank is absent, cap at the column limit), or one odd display name fails a whole capture batch.
-- **Assert an event's `actor_id` equals the calling principal's id**, never `not.toBe(someoneElse)`, which
-  passes for almost any value ([[CORE15]] review). When a spec attributes a write to a particular
-  principal, *every* path that writes it asserts the attribution on each event, not only one: the
-  [[CORE29]] repair tests checked `actor_id` against `systemId()` but the reconcile tests checked only event
-  types, so a reconcile that attributed its events to someone else would still have passed.
-- **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row
-  passes whatever the code under test does ([[CORE29]] review:
-  `src/directory/sync.integration.test.ts`, `src/auth/user-auth.integration.test.ts`). If the seeded id is
-  not needed, drop the `const` (`await seedUser(...)`); if it is, assert something the code decides.
-- `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
-- `beforeEach` is scoped to its enclosing `describe`. A second top-level `describe` in a file does not
-  inherit the first one's reset; give it its own.
-- Before API tests: `pnpm db:test:reset` (or `db:test:worktree`). Run: `pnpm -C packages/api test [file]`.
-- **A full-suite failure that reproduces standalone is a real bug, not contention.** If it only fails in the
-  full run and passes alone, rerun once. To tell "my change broke it" from "it was already broken", revert
-  your diff against the clean tree and rerun; a pre-existing failure belongs in a follow-up, not in your
-  commit.
-- Never run two API suites against one database at once (`pgrep -f vitest`).
-- **Never leave schema state behind on the shared test DB.** `ALTER TABLE … DISABLE TRIGGER` and similar
-  changes persist across runs and files. The golden backend's leaked `set_updated_at` disable hid
-  production `updated_at` from every later suite, and a test failed or passed depending on file order
-  ([[CORE35]] F5). Restore the state in `close()`/`afterAll`, and make the harness assert the production
-  state before a suite runs (`engines.ts` checks `tgenabled = 'O'`). If the guard trips, run
-  `pnpm db:test:worktree`.
-- For file downloads, assert a UTF-8 BOM on `response.arrayBuffer()` (`EF BB BF`), not `response.text()`:
-  Fetch's decoder strips the BOM.
-- Postgres `NUMERIC` comes back from `pg` as a string even when a `sql<number>` annotation says otherwise.
-  Convert at the DTO boundary and assert actual JSON value types in route tests.
+Test-writing rules live in the `writing-tests` skill: red first, the contract suite and fixtures, golden
+fixtures and both-engine suites, absence mutations, event-order assertions, no leaked state, flakes. Tenancy
+in tests is in `tenancy-and-testing`.
 
 ## Verifying against a local dev server
 

@@ -1,0 +1,160 @@
+---
+name: writing-tests
+description: How to write tests for the vault that prove something - red first, absence mutations, contract and golden suites, tests that run on both storage engines, type-level negative tests, no leaked state, flake handling. Use whenever you write or change a test, plan a cycle's test phases (Phase 1 and 2 of a PLAN), review a coder's tests, or investigate a flaky or order-dependent test.
+---
+
+# Writing tests
+
+The rule behind everything here: **a test only counts once you have seen it fail for the right reason.**
+Tenancy specifics (how the harness must not mask RLS, the D1 single-organisation rules, the open/enterprise
+import boundary) are in `tenancy-and-testing`. Migration tests are in `db-schema-and-migrations`
+("Testing migrations"). Plan-level rules about tests (rules 11, 13-18) are in `tdd-cycle-generator`; this
+skill is what the coder follows while writing them.
+
+## 1. Prove the test can fail
+
+- **Red first, per file.** Run each new test file alone before the code it tests exists and record the run
+  (N failed, and why) in the completion report's `Red runs` line. A file never seen failing is the same gap
+  as an absence test never seen failing ([[CORE27]] review). A missing-module error is not a useful red:
+  stub the module so the assertion itself fails.
+- **A suite that needs the whole vertical (contract, parity, atomicity, concurrency, golden replay) cannot
+  fail meaningfully first.** Prove its strength with **absence mutations**: inject one fault into the
+  implementation, see the named test turn red, restore it, and keep the raw output in RESULT.md. Examples
+  from [[CORE35]]: replace the D1 batch with autocommit statements (7 atomicity tests fail); put the event in
+  its own Postgres transaction (6 fail); emit `after` values as `before` (8 fail); hard-code the set cap; add
+  a `pg` import to an open package; erase a type with `any`; drop the writer lock.
+- **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
+  on every code path that renders the value.
+- **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row passes
+  whatever the code under test does ([[CORE29]] review). If the seeded id is not needed, drop the `const`
+  (`await seedUser(...)`); if it is, assert something the code decides.
+- **Assert the exact thing the spec attributes.** An event's `actor_id` equals the calling principal's id,
+  never `not.toBe(someoneElse)`, which passes for almost any value ([[CORE15]] review). When a spec
+  attributes a write to a principal, *every* path that writes it asserts the attribution on each event, not
+  only one ([[CORE29]]: repair tests checked `actor_id`, reconcile tests checked only event types).
+- **A rule that compares against stored state gets a test for "no stored state"** (rule 15): a guard that
+  is silent when there is no row to compare is where it leaks.
+- **A pinned behaviour is a spec decision.** When a cycle migrates existing behaviour, the old code is the
+  oracle: record its outputs (golden scenarios) before changing it, and never write what the behaviour
+  "should" be (rule 16; [[CORE35]] D22).
+
+## 2. Type-level tests
+
+When the contract is a compile-time one (a typed storage or definition API), test the compile errors.
+
+- Put `@ts-expect-error` negatives with a **positive sibling** each in a `*.typecheck.ts` file that
+  `pnpm -r typecheck` covers. Write them **at the call site a user writes** (a resource definition: unknown,
+  secret or mistyped record column; unknown or mistyped computed column; unknown filter or reference; a
+  guard on another table), not only on standalone helpers ([[CORE35]] review F1).
+- Show each negative red: against a permissive type it reports an unused directive (TS2578); with the
+  directive removed it reports the real diagnostic (TS2322, TS2353, TS2345). Keep both outputs.
+- A cast that erases the check (`as never`, `any`) defeats the test; a cast needs one commented, reviewed
+  boundary.
+
+## 3. Tests across storage engines
+
+One program, two engines: the same assertions run on Postgres and D1.
+  - `src/test/engines.ts` opens Postgres (`vault_app`, no presets) and a Miniflare D1, with injected
+    clock and ids.
+  - `runContractSuite({ backend: d1Backend() })` runs the same assertions on D1, with one binding per
+    tenant, never two tenants in one D1.
+  - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
+    behaviour change, run `pnpm -C packages/api golden:generate`; `golden:check` fails on drift.
+  - Suites written after the vertical exists prove their strength with absence mutations (break the
+    runtime, see the target test fail), recorded in RESULT.md.
+- Assert engine differences explicitly, never hide them. `updated_at` is the transaction time (trigger) on
+  Postgres and the injected clock on D1: assert that the response, the event's `after.updated_at` and the
+  stored row agree on both, and the clock value only on D1 ([[CORE35]] F5).
+- Golden fixtures pin behaviour across engines and across refactors. Name every deliberate difference in the
+  fixture (`named_differences`), and compare an old-code oracle symbolically (generated ids as `<id:n>`,
+  server timestamps as `<ts>`) when the old code could not inject ids or a clock.
+- Atomicity, isolation and concurrency suites run on both engines. On D1 a double submit lets exactly one
+  write land and the loser gets `409 conflict`; on Postgres run enough trials (20) to see a race, and report
+  trial counts.
+
+## 4. Tests leave nothing behind
+
+- **Never leave schema or settings changed on the shared test DB.** `ALTER TABLE ... DISABLE TRIGGER` and
+  similar changes persist across runs and files. The golden backend's leaked `set_updated_at` disable hid
+  production `updated_at` from every later suite, and a test passed or failed depending on file order
+  ([[CORE35]] F5). Restore the state in `close()`/`afterAll`/`finally`, and make the harness assert the
+  production state before a suite runs (`engines.ts` checks `tgenabled = 'O'`). If the guard trips, run
+  `pnpm db:test:worktree`.
+- **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
+  run depends on leaked state.
+- Clean up in `afterEach`, delete only the exact rows this test seeded by their own ids, never a "nothing
+  references it" query against shared reference data (`db-schema-and-migrations`).
+
+## 5. Flakes are defects
+
+A test that fails once and then passes is a bug until its cause is found. Do not rerun and move on.
+
+- **Read the failure for what it says.** CORE35's flake expected the injected clock and received wall-clock
+  time: that named the cause (a trigger stamping `updated_at`, enabled on a fresh DB and disabled by a leak
+  on reruns) directly.
+- A full-suite failure that reproduces standalone is a real bug, not contention. If it only fails in the
+  full run, rerun once; to tell "my change broke it" from "it was already broken", revert your diff against
+  the clean tree and rerun. A pre-existing failure belongs in a follow-up, not in your commit.
+- Never run two suites against one database at once (`pgrep -f vitest`); run the `db` and `api` suites
+  serially. Inside a package, Vitest 4+ has no `poolOptions.forks.singleFork`: use `pool: 'forks'` with
+  `fileParallelism: false`.
+- **Event order.** See "Assert emit order" in section 6; never order by `id` in a test.
+
+## 6. Backend (`packages/api`) tests
+
+**Real Postgres, no mocking the context.** Integration tests call the app in-process
+(`app.fetch(new Request(…))`), seed through the same helpers production code uses, and assert DB rows
+directly. Unit tests only for pure helpers.
+
+**The test pool behaves like production: nothing is preset.** The predecessor's test pool presets
+`app.organization_id` and `service_role` globally, so a query that skips its tenancy wrapper passes every
+test and reads or writes zero rows in production. The vault's pool (`createTestDb()` from `@vault/db/test`)
+connects as `vault_app` and presets nothing, every fixture names its organisation, and a query without a
+wrapper fails in tests. Seeds (`seedOrganization`, `seedUser`, `seedAgent`) run under `withServiceRole`;
+there is deliberately no task or event seed: create those through the service layer. `createOwnerTestDb()`
+is for `truncateAll` and catalog inspection only, never fixtures. Both factories refuse a database whose
+name doesn't match `/(^|_)test(_|$)/`.
+
+- **A cross-tenant test needs a REAL second organisation** with an explicit `organization_id` threaded
+  through every fixture on the other side. Two "different" users that land in one default org prove nothing;
+  RLS has nothing to separate and the assertion passes for the wrong reason.
+- **The contract suite runs over every resource definition automatically**
+  (`src/contract.integration.test.ts`, which calls `runContractSuite` from `src/test/contract.ts`). It
+  runs over REST, as both an agent (a real API key) and a user (`fakeUserAuthenticator`), checking:
+  - create, get, list, update and delete, with exact events and `actor_id`;
+  - cross-tenant 404s;
+  - unknown fields;
+  - missing scope, and read is not write;
+  - no credential;
+  - routes that should not be generated;
+  - the OpenAPI document.
+
+  To add a resource, register its definition in `createVaultRegistry` and add one entry in
+  `src/test/fixtures.ts`:
+  - `input` and `patch` builders, each producing unique values per call;
+  - `make` for read-only definitions.
+
+  A catalog test fails if a definition has no fixture or a fixture has no definition. A `ContractCheck`
+  passed in `checks` runs once per definition and registers its own `it` blocks; `env` is a getter
+  because tenants are re-seeded for each test. The generic machinery (tenancy isolation, scope enforcement, an event on every write,
+  webhook delivery and retries, the cursor) is tested once, in depth. Bespoke tests are for real logic:
+  commands (merge, send, suggestion lifecycle) and channel adapters.
+- **Assert emit order with `orderBy(sql\`ctid\`)`** on `events` after a per-test truncate, never by
+  `id`: same-millisecond UUIDv7s are not monotonic and an id-ordered assertion flaked 2 runs in 4
+  ([[CORE2]]). ctid order is valid **only on a fresh heap in a test** (truncated, one backend appending).
+  On a long-lived database (`vault_dev`), the heap reuses freed space, so a smoke or e2e check there
+  asserts the **set and count** of event types for its organisation, never their ctid order ([[CORE27]]
+  review). Once [[API6]] D13 lands (`events.id` defaulting to PG18 `uuidv7()`, monotonic per backend),
+  switch both to `ORDER BY id`.
+- **A service function exported for another spec's in-process caller gets no adapter parsing.** The REST
+  body schema trims and bounds input; a channel calling the function directly does not pass through it.
+  Clean free text from external sources inside the function (`cleanName` in `src/identity/resolve.ts`:
+  trim, blank is absent, cap at the column limit), or one odd display name fails a whole capture batch.
+- `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
+- `beforeEach` is scoped to its enclosing `describe`. A second top-level `describe` in a file does not
+  inherit the first one's reset; give it its own.
+- Before API tests: `pnpm db:test:reset` (or `db:test:worktree`). Run: `pnpm -C packages/api test [file]`.
+- For file downloads, assert a UTF-8 BOM on `response.arrayBuffer()` (`EF BB BF`), not `response.text()`:
+  Fetch's decoder strips the BOM.
+- Postgres `NUMERIC` comes back from `pg` as a string even when a `sql<number>` annotation says otherwise.
+  Convert at the DTO boundary and assert actual JSON value types in route tests.

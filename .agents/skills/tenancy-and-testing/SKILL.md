@@ -34,16 +34,10 @@ Every tenant table on either engine also carries `user_id`/actor attribution.
 - A foreign organisation's identity must be refused, not filtered. Test the refusal, and test that a second
   organisation fails on a foreign key.
 
-## Tests leave no persistent state ([[CORE35]] F5)
+## Tests leave no persistent state
 
-A test or generator must not leave schema or settings changed on the shared test database: DDL, a disabled
-trigger, a changed setting. The CORE35 golden backend disabled `set_updated_at` on `tasks` and never
-re-enabled it; suites then passed only on leaked state and failed on a fresh database.
-
-- Restore the state in teardown (`close()` in a `finally`).
-- Have the harness assert the production state at the start (for example `pg_trigger.tgenabled = 'O'`) and
-  fail loudly otherwise. A crash mid-run can still leak, and the guard catches it.
-- Verify from a fresh database (`pnpm db:test:worktree`), and run the suite twice in a row.
+See `writing-tests` section 4 (the CORE35 F5 lesson: restore state in teardown, assert the production state
+in the harness, verify from a fresh database).
 
 ## Open packages never import enterprise code ([[CORE35]] D14, D15)
 

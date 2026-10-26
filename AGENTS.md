@@ -46,7 +46,7 @@ The lifecycle is issue-driven. Skills live in `.agents/skills/`:
 | Knowledge audit | `wiki-lint` |
 | Ship | `ship-branch` |
 
-Domain skills: `db-schema-and-migrations`, `api-routes`, `tenancy-and-testing`, `hyperdrive-pg-rls`, `cloudflare-workflows`.
+Domain skills: `db-schema-and-migrations`, `api-routes`, `tenancy-and-testing`, `writing-tests`, `hyperdrive-pg-rls`, `cloudflare-workflows`.
 
 **Vocabulary.** A **cycle** is one unit of work: a folder under `knowledge/specs/` that ends in one
 branch, one retro and (usually) one PR. A **spec** is the design (*what and why*); a spec can be
@@ -158,7 +158,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
    attribution. Postgres enforces it with RLS in the same migration as the table; a D1 deployment is one
    organisation, enforced by the schema ([[CORE35]] D18). See `tenancy-and-testing`.
 2. **The test harness must not mask tenancy**, and must not leave persistent state on the shared test
-   database. See `tenancy-and-testing`.
+   database. See `tenancy-and-testing` and `writing-tests`.
 3. **Catching `23505` inside a transaction does not save it**: the transaction is already aborted. Use
    `ON CONFLICT` instead.
 4. **Agents never send.** Agents submit action requests; the vault executes them with credentials it holds.

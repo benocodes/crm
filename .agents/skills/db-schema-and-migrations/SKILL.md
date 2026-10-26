@@ -214,6 +214,8 @@ schema. Every helper that truncates or drops calls `assertTestDatabaseName` firs
 
 ## Testing migrations, and why you never round-trip `down()`
 
+General test-writing rules (red first, no leaked state, flakes) are in `writing-tests`; this section is the migration-specific part.
+
 Every consequential migration gets a paired integration test, `packages/db/src/migration-NNN.integration.test.ts`,
 using a raw `pg.Pool` against `TEST_DATABASE_URL` (not the API test harness). It **asserts the resulting
 schema** by inspecting `information_schema` and `pg_catalog` on the already-migrated test database
