@@ -478,6 +478,16 @@ describe.each(['postgres', 'd1'] as const)('administration storage behaviour on 
         expect(await revokeEvents()).toHaveLength(0)
       })
 
+      it('revoke vs a revoke that did not move updated_at: the revoked_at guard alone makes it 409, with no api_key.revoked event', async () => {
+        const { k } = await keyed()
+        e.betweenPlanAndCommit(async () => {
+          await e.update('api_keys', k.id, { revoked_at: iso(5) })
+        })
+        expect((await fail('api_keys.revoke', { params: { id: k.id } }, { now: at(6) }))[1]).toBe('conflict')
+        expect(await row('api_keys', k.id)).toMatchObject({ revoked_at: iso(5), updated_at: iso(1) })
+        expect(await revokeEvents()).toHaveLength(0)
+      })
+
       it('revoke vs touch: a bump of only updated_at between plan and commit is 409 (the stamp guard) and the key stays live', async () => {
         const { k } = await keyed()
         e.betweenPlanAndCommit(async () => {
