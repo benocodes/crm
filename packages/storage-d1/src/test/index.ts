@@ -71,7 +71,7 @@ export async function openLocalD1(names: readonly string[], opts: { migrate?: bo
 export async function clearD1(d1: D1Like): Promise<void> {
   const { results } = await d1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all()
   const tables = new Set((results ?? []).map((r) => (r as { name: string }).name))
-  const order = ['events', 'identities', 'contacts', 'companies', 'tasks', 'users', 'principals', 'organizations', 'deployment']
+  const order = ['events', 'identities', 'contacts', 'companies', 'tasks', 'api_keys', 'agents', 'memberships', 'users', 'principals', 'organizations', 'deployment']
   const known = order.filter((t) => tables.has(t))
   const rest = [...tables].filter((t) => !order.includes(t))
   const statements = [...rest, ...known].map((t) => d1.prepare(`DELETE FROM "${t}"`))

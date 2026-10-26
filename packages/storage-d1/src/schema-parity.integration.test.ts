@@ -4,7 +4,7 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 
 // The portable StorageDatabase types are bound to the physical schema: every modelled table has exactly the
-// modelled columns (api_keys is type-only until CORE36 and is not in COLUMN_KINDS).
+// modelled columns (every table in COLUMN_KINDS is physical on D1 since CORE40's 0003).
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {

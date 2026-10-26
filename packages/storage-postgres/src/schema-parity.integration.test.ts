@@ -4,7 +4,7 @@ import { createOwnerTestDb } from '@vault/db/test'
 import { COLUMN_KINDS } from '@vault/storage'
 
 // The portable StorageDatabase types are bound to the physical Postgres schema: every modelled table has at
-// least the modelled columns (Postgres tables carry more, e.g. organizations.auth_*, which later cycles model).
+// least the modelled columns; since CORE40 the second test requires them to be exactly the modelled columns.
 const owner = createOwnerTestDb()
 afterAll(() => owner.destroy())
 beforeAll(async () => {
@@ -17,8 +17,8 @@ describe('Postgres schema parity with the portable types', () => {
     const physical = rows.map((r) => r.column_name)
     for (const column of Object.keys(kinds)) expect(physical).toContain(column)
   })
-  it('tasks, events and the identity model are modelled exactly (no extra physical column the types do not know)', async () => {
-    for (const table of ['tasks', 'events', 'companies', 'contacts', 'identities'] as const) {
+  it('every modelled table is modelled exactly (no extra physical column the types do not know)', async () => {
+    for (const table of Object.keys(COLUMN_KINDS) as Array<keyof typeof COLUMN_KINDS>) {
       const { rows } = await sql<{ column_name: string }>`select column_name from information_schema.columns where table_schema = 'public' and table_name = ${table}`.execute(owner)
       expect(rows.map((r) => r.column_name).sort()).toEqual(Object.keys(COLUMN_KINDS[table]).sort())
     }
