@@ -4,7 +4,7 @@ import { definePreparedResource } from '../storage/definition.js'
 
 /**
  * Read-only ([[CORE3]] D1, D14): Clerk is the source of truth, so the vault writes memberships only through
- * the directory sync (legacy until [[CORE41]]). No last-owner guard is needed here.
+ * the directory sync (prepared programs since [[CORE41]]). No last-owner guard is needed here.
  */
 export const memberships = definePreparedResource({
   name: 'memberships',

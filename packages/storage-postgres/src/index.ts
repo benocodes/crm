@@ -22,7 +22,7 @@ import {
 // the organisation writer lock (so drift cannot happen), validates the final record before commit, counts the
 // statements it really sends, and never catches 23505 inside the transaction (ON CONFLICT is the program's job).
 
-/** The organisation writer lock key: same hashing as the existing `lockKeys` convention (api identity/locks). */
+/** The organisation writer lock key, hashed with `hashtextextended` into a transaction-scoped advisory lock. */
 export const orgWriterKey = (organizationId: string): string => `org-writer:${organizationId}`
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
