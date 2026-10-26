@@ -129,9 +129,10 @@ export async function planUnit<T>(
 const refOf = (path: string) => sql.ref(path)
 
 /** Binds `value` with the cast Postgres needs for an otherwise untyped parameter in INSERT...SELECT; D1 binds it plain. */
-export function bind(qc: QueryContext, kind: Exclude<ColumnKind, 'string_array'>, value: string | boolean | null): RawBuilder<string> {
+export function bind(qc: QueryContext, kind: ColumnKind, value: string | boolean | readonly string[] | null): RawBuilder<string> {
+  // A string array is bound as ONE parameter; the D1 runtime encodes it as JSON text (the column's only array form).
   if (qc.dialect === 'd1') return sql<string>`${value}`
-  const type = { uuid: 'uuid', text: 'text', timestamp: 'timestamptz', json: 'jsonb', boolean: 'boolean' }[kind]
+  const type = { uuid: 'uuid', text: 'text', timestamp: 'timestamptz', json: 'jsonb', boolean: 'boolean', string_array: 'text[]' }[kind]
   return sql<string>`cast(${value} as ${sql.raw(type)})`
 }
 
@@ -165,7 +166,9 @@ export function recordJson(qc: QueryContext, table: PhysicalTable, columns: read
         ? ts.iso(qc, ref)
         : kinds[c] === 'boolean' && qc.dialect === 'd1'
           ? sql`json(iif(${refOf(ref)}, 'true', 'false'))` // D1 stores 0/1; an event's `after` carries a JSON boolean on both engines
-          : sql`${refOf(ref)}`
+          : kinds[c] === 'string_array' && qc.dialect === 'd1'
+            ? sql`json(${refOf(ref)})` // D1 stores a JSON array as text; an event's `after` carries a JSON array on both engines
+            : sql`${refOf(ref)}`
     return sql`${sql.lit(c)}, ${value}`
   })
   return qc.dialect === 'postgres'

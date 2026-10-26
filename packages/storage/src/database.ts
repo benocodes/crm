@@ -13,6 +13,12 @@ export type NullableTimestamp = ColumnType<Date | string | null, string | null, 
 export type JsonValue = ColumnType<unknown, string | null, string | null>
 /** A boolean as read: `boolean` (Postgres) or 0/1 (D1); written as a boolean (the D1 runtime encodes it 1/0). */
 export type BooleanColumn = ColumnType<boolean | number, boolean, boolean>
+/**
+ * A text array: Postgres `text[]`, D1 a JSON array of text (the runtime encodes a JS array on write, and `toRecord`
+ * decodes on read). The column type models the DECODED value (`string[]`), like the public record does, so a record
+ * that mistypes the column (`z.string()`) is a compile error; the raw D1 text never reaches a typed consumer.
+ */
+export type StringArrayColumn = ColumnType<string[], readonly string[], readonly string[]>
 
 export interface OrganizationsTable {
   id: string
@@ -85,17 +91,48 @@ export interface IdentitiesTable {
   contact_id: string | null
   own: BooleanColumn
 }
-/**
- * TYPE ONLY until [[CORE40]] migrates api_keys (no physical D1 table yet): it exists so the secret-column
- * negative type tests run against a real secret (`key_hash`).
- */
+export interface UsersTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  email: string
+  name: string | null
+  auth_provider: string | null
+  auth_subject: string | null
+  email_verified: BooleanColumn
+}
+export interface MembershipsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  user_id: string
+  role: 'owner' | 'member'
+  created_by: string
+  deleted_at: NullableTimestamp
+}
+export interface AgentsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  name: string
+  scopes: StringArrayColumn
+  disabled_at: NullableTimestamp
+  created_by: string
+}
 export interface ApiKeysTable {
   id: string
+  created_at: Timestamp
+  updated_at: Timestamp
   organization_id: string
   agent_id: string
   key_hash: string
   prefix: string
-  created_at: Timestamp
+  last_used_at: NullableTimestamp
+  revoked_at: NullableTimestamp
+  expires_at: NullableTimestamp
+  created_by: string
 }
 
 export interface StorageDatabase {
@@ -106,6 +143,9 @@ export interface StorageDatabase {
   companies: CompaniesTable
   contacts: ContactsTable
   identities: IdentitiesTable
+  users: UsersTable
+  memberships: MembershipsTable
+  agents: AgentsTable
   api_keys: ApiKeysTable
 }
 
@@ -122,8 +162,8 @@ export interface SecretColumns {
 export type PublicColumn<T extends Table> = Exclude<ColumnOf<T>, T extends keyof SecretColumns ? SecretColumns[T] : never>
 
 export type ColumnKind = 'uuid' | 'text' | 'timestamp' | 'json' | 'boolean' | 'string_array'
-/** Tables that exist physically on both engines (api_keys is type-only until CORE40). */
-export type PhysicalTable = Exclude<Table, 'api_keys'>
+/** Every table exists physically on both engines (CORE40 migrated the last type-only table, api_keys). */
+export type PhysicalTable = Table
 
 /**
  * Per column: how the value is bound, cast, read and rendered into record JSON. Doubles as the column
@@ -190,5 +230,48 @@ export const COLUMN_KINDS = {
     value: 'text',
     contact_id: 'uuid',
     own: 'boolean',
+  },
+  users: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    email: 'text',
+    name: 'text',
+    auth_provider: 'text',
+    auth_subject: 'text',
+    email_verified: 'boolean',
+  },
+  memberships: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    user_id: 'uuid',
+    role: 'text',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+  },
+  agents: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    name: 'text',
+    scopes: 'string_array',
+    disabled_at: 'timestamp',
+    created_by: 'uuid',
+  },
+  api_keys: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    agent_id: 'uuid',
+    key_hash: 'text',
+    prefix: 'text',
+    last_used_at: 'timestamp',
+    revoked_at: 'timestamp',
+    expires_at: 'timestamp',
+    created_by: 'uuid',
   },
 } as const satisfies { [T in PhysicalTable]: { [C in ColumnOf<T>]: ColumnKind } }

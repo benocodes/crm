@@ -55,6 +55,7 @@ const encode = (value: unknown): unknown => {
   if (value === undefined) return null
   if (value instanceof Date) return value.toISOString()
   if (typeof value === 'boolean') return value ? 1 : 0
+  if (Array.isArray(value)) return JSON.stringify(value) // D1's only array form: JSON text (CORE40 P6)
   return value
 }
 
