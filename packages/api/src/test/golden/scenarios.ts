@@ -413,3 +413,7 @@ export const administrationScenarios: readonly GoldenScenario[] = [
     ],
   },
 ]
+
+/** The deployment's provider link: the local organisation is `('clerk', GOLDEN_ORG_LINK)` on both engines; the foreign one (Postgres only) is `GOLDEN_FOREIGN_LINK`. */
+export const GOLDEN_ORG_LINK = 'org_golden'
+export const GOLDEN_FOREIGN_LINK = 'org_golden_foreign'

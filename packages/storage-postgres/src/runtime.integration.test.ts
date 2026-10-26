@@ -164,7 +164,7 @@ describe('storage identities (CORE41 C1)', () => {
     defineOperation<string>({
       name: 'who',
       mutates,
-      reads: (qc) => ({ who: readMaybe(qc.db.selectNoFrom((eb) => eb.fn<string>('current_user', []).as('who'))) }),
+      reads: (qc) => ({ who: readMaybe(qc.db.selectNoFrom(sql<string>`current_user`.as('who'))) }),
       build: (found) => unit({ steps: [], events: [], decode: () => found.one('who').who as string }),
     })
   const listMemberships = defineOperation<string[]>({

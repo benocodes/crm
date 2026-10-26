@@ -4,30 +4,60 @@ import type { D1Like } from '../binding.js'
 
 export const SEED_AT = '2026-10-22T08:00:00.000Z'
 
+/**
+ * The deployment marker and, unless `organization: false`, the local organisation row carrying the SAME auth link
+ * (CORE41 P4). `organization: false` seeds the marker alone: the state D1 bootstrap starts from.
+ */
 export async function seedDeployment(
   d1: D1Like,
-  opts: { organizationId: string; name?: string; provider?: string; externalId?: string },
+  opts: { organizationId: string; name?: string; provider?: string; externalId?: string; organization?: boolean },
 ): Promise<void> {
-  await d1.batch([
+  const provider = opts.provider ?? 'clerk'
+  const externalId = opts.externalId ?? `org_${opts.organizationId.slice(-6)}`
+  const statements = [
     d1
       .prepare('INSERT INTO deployment (singleton, organization_id, auth_provider, auth_org_id) VALUES (1, ?, ?, ?)')
-      .bind(opts.organizationId, opts.provider ?? 'clerk', opts.externalId ?? `org_${opts.organizationId.slice(-6)}`),
-    d1
-      .prepare('INSERT INTO organizations (id, created_at, updated_at, name) VALUES (?, ?, ?, ?)')
-      .bind(opts.organizationId, SEED_AT, SEED_AT, opts.name ?? 'Local organisation'),
-  ])
+      .bind(opts.organizationId, provider, externalId),
+  ]
+  if (opts.organization !== false) {
+    statements.push(
+      d1
+        .prepare('INSERT INTO organizations (id, created_at, updated_at, name, auth_provider, auth_org_id) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(opts.organizationId, SEED_AT, SEED_AT, opts.name ?? 'Local organisation', provider, externalId),
+    )
+  }
+  await d1.batch(statements)
 }
 
 export async function seedPrincipal(
   d1: D1Like,
-  opts: { id: string; kind: 'user' | 'agent' | 'system'; email?: string },
+  opts: {
+    id: string
+    kind: 'user' | 'agent' | 'system'
+    email?: string
+    name?: string | null
+    authProvider?: string
+    authSubject?: string
+    emailVerified?: boolean
+    at?: string
+  },
 ): Promise<void> {
-  const statements = [d1.prepare('INSERT INTO principals (id, kind, created_at) VALUES (?, ?, ?)').bind(opts.id, opts.kind, SEED_AT)]
+  const at = opts.at ?? SEED_AT
+  const statements = [d1.prepare('INSERT INTO principals (id, kind, created_at) VALUES (?, ?, ?)').bind(opts.id, opts.kind, at)]
   if (opts.kind === 'user') {
     statements.push(
       d1
-        .prepare('INSERT INTO users (id, created_at, updated_at, email) VALUES (?, ?, ?, ?)')
-        .bind(opts.id, SEED_AT, SEED_AT, opts.email ?? `${opts.id.slice(-12)}@seed.test`),
+        .prepare('INSERT INTO users (id, created_at, updated_at, email, name, auth_provider, auth_subject, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(
+          opts.id,
+          at,
+          at,
+          opts.email ?? `${opts.id.slice(-12)}@seed.test`,
+          opts.name ?? null,
+          opts.authSubject === undefined ? null : (opts.authProvider ?? 'clerk'),
+          opts.authSubject ?? null,
+          opts.emailVerified ? 1 : 0,
+        ),
     )
   }
   await d1.batch(statements)

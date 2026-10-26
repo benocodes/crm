@@ -85,10 +85,10 @@ describe.each(['postgres', 'd1'] as const)('atomicity on %s', (name) => {
       },
     })
     const small: StorageBinding =
-      name === 'postgres' ? postgresBinding(e.app!, { maxSetSize: 4 }) : d1Binding(e.d1!, { organizationId: e.organizationId, maxSetSize: 4 })
+      name === 'postgres' ? postgresBinding(e.app!, { maxSetSize: 4 }) : d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId, maxSetSize: 4 })
     const big: StorageBinding =
-      name === 'postgres' ? postgresBinding(e.app!, { maxSetSize: 500 }) : d1Binding(e.d1!, { organizationId: e.organizationId, maxSetSize: 500 })
-    const identity = { actorId: e.userId, organizationId: e.organizationId }
+      name === 'postgres' ? postgresBinding(e.app!, { maxSetSize: 500 }) : d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId, maxSetSize: 500 })
+    const identity = { kind: 'tenant' as const, actorId: e.userId, organizationId: e.organizationId }
     const { execute } = await import('@vault/storage')
     const err = await settle(execute(small, identity, completeAll))
     expect(err).toBeInstanceOf(SetLimitExceeded)
@@ -130,9 +130,9 @@ describe.each(['postgres', 'd1'] as const)('atomicity on %s', (name) => {
           return results
         },
       }
-      const binding = d1Binding(flaky, { organizationId: e.organizationId })
+      const binding = d1Binding(flaky, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId })
       const { execute } = await import('@vault/storage')
-      const err = await settle(execute(binding, { actorId: e.userId, organizationId: e.organizationId }, createOperation(tasks, e.env({ now: NOW }), { title: 'x' })))
+      const err = await settle(execute(binding, { kind: 'tenant', actorId: e.userId, organizationId: e.organizationId }, createOperation(tasks, e.env({ now: NOW }), { title: 'x' })))
       expect(err).toBeInstanceOf(CommitOutcomeUnknown)
       expect(batches).toBe(1) // an assignee-free create has no plan-phase reads: exactly one batch ran, and it was not replayed
       expect(await e.tasks()).toHaveLength(1)

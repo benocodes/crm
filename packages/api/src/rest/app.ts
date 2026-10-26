@@ -102,7 +102,7 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
     }
     try {
       // `prepare` may be async (it can hash a secret) and may refuse with an ApiError: both map like a storage error.
-      return (await execute(storage, { actorId: actor.id, organizationId }, await op.prepare(env, input))).value
+      return (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, await op.prepare(env, input))).value
     } catch (err) {
       throw mapStorageError(err)
     }

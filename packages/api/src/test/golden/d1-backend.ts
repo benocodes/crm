@@ -10,7 +10,7 @@ import { createApp } from '../../rest/app.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../user-auth.js'
 import { GOLDEN_SCOPES, GOLDEN_SEED_AT, goldenId, goldenRandomBytes } from './pg-backend.js'
 import type { EventView, GoldenBackend } from './runner.js'
-import { IDS, type GoldenActor } from './scenarios.js'
+import { GOLDEN_ORG_LINK, IDS, type GoldenActor } from './scenarios.js'
 
 export interface D1GoldenBackend extends GoldenBackend {
   close(): Promise<void>
@@ -23,7 +23,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
   let counter = 0
   const random = { n: 0 }
   const unusedDb = coldDb('d1') as unknown as Kysely<Database>
-  const binding = d1Binding(d1, { organizationId: IDS.org })
+  const binding = d1Binding(d1, { organizationId: IDS.org, authProvider: 'clerk', authOrgId: GOLDEN_ORG_LINK })
   const app = createApp({
     db: () => unusedDb,
     userAuthenticator: fakeUserAuthenticator(),
@@ -38,7 +38,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
       await clearD1(d1)
       counter = 0
       random.n = 0
-      await seedDeployment(d1, { organizationId: IDS.org })
+      await seedDeployment(d1, { organizationId: IDS.org, externalId: GOLDEN_ORG_LINK })
       await seedPrincipal(d1, { id: IDS.user, kind: 'user', email: `${IDS.user.slice(-4)}@golden.test` })
       await seedPrincipal(d1, { id: IDS.user2, kind: 'user', email: `${IDS.user2.slice(-4)}@golden.test` })
       await seedMembership(d1, { id: IDS.membership, organizationId: IDS.org, userId: IDS.user, role: 'owner', at: GOLDEN_SEED_AT })

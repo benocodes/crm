@@ -80,6 +80,6 @@ export async function foreignTenant(e: Engine) {
     organizationId: org.id,
     userId: user.id,
     env: (): PreparedEnv => ({ ...e.env({ now: new Date(BASE + ++tick * 1000) }), organizationId: org.id, actor: { id: user.id, kind: 'user' } }),
-    run: <T>(op: PreparedOperation<T>) => execute(e.binding, { actorId: user.id, organizationId: org.id }, op).then((r) => r.value),
+    run: <T>(op: PreparedOperation<T>) => execute(e.binding, { kind: 'tenant', actorId: user.id, organizationId: org.id }, op).then((r) => r.value),
   }
 }
