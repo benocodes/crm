@@ -10,6 +10,9 @@ export const IDS = {
   agent: '0190b2c4-0000-7000-8000-00000000c001',
   foreignOrg: '0190b2c4-0000-7000-8000-00000000a002',
   foreignUser: '0190b2c4-0000-7000-8000-00000000b003',
+  /** The fixed memberships of `user` (owner) and `user2` (member) in `org` (CORE40 P12). */
+  membership: '0190b2c4-0000-7000-8000-00000000d001',
+  membership2: '0190b2c4-0000-7000-8000-00000000d002',
   missing: '0190b2c4-0000-7000-8000-00000000dead',
 } as const
 
@@ -312,6 +315,101 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(12), method: 'POST', path: '/contacts/{t}/merge', body: { source_id: '{r}' } },
       { as: 'user', at: at(13), method: 'POST', path: '/contacts/{t}/merge', body: { source_id: '{s}' } },
       { as: 'user', at: at(14), method: 'GET', path: '/identities?contact_id={t}' },
+    ],
+  },
+]
+
+// ---- administration (CORE40 D12, P12): agents, api keys, memberships, users ------------------------------------------
+export const administrationScenarios: readonly GoldenScenario[] = [
+  {
+    name: 'agents-crud',
+    about:
+      'an agent is created with its principal, normalised scopes (trimmed name, deduplicated and sorted scopes); get and list read it; a rename and a scope change are updates; disabling twice keeps the first disabled_at; enabling clears it; an empty patch writes nothing',
+    steps: [
+      { as: 'user', at: at(0), method: 'POST', path: '/agents', body: { name: '  Bot  ', scopes: ['tasks:write', 'tasks:read', 'tasks:write'] }, save: 'a' },
+      { as: 'user', at: at(1), method: 'GET', path: '/agents/{a}' },
+      { as: 'user', at: at(2), method: 'GET', path: '/agents' },
+      { as: 'user', at: at(3), method: 'PATCH', path: '/agents/{a}', body: { name: 'Renamed' } },
+      { as: 'user', at: at(4), method: 'PATCH', path: '/agents/{a}', body: { scopes: ['contacts:read', 'tasks:read'] } },
+      { as: 'user', at: at(5), method: 'PATCH', path: '/agents/{a}', body: { disabled: true } },
+      { as: 'user', at: at(6), method: 'PATCH', path: '/agents/{a}', body: { disabled: true } },
+      { as: 'user', at: at(7), method: 'PATCH', path: '/agents/{a}', body: { disabled: false } },
+      { as: 'user', at: at(8), method: 'PATCH', path: '/agents/{a}', body: {} },
+      { as: 'user', at: at(9), method: 'POST', path: '/agents', body: { name: 'Bare' } },
+    ],
+  },
+  {
+    name: 'agents-refusals',
+    about:
+      'an unknown scope is unknown_scope and a human-only scope is scope_not_grantable (the first offender in input order decides, on create and on update); a blank name and an unknown field are validation errors; an unknown agent is 404; nothing is written for any of them',
+    steps: [
+      { as: 'user', at: at(0), method: 'POST', path: '/agents', body: { name: 'Bot' }, save: 'a' },
+      { as: 'user', at: at(1), method: 'POST', path: '/agents', body: { name: 'X', scopes: ['tasks:read', 'nope:read'] } },
+      { as: 'user', at: at(2), method: 'POST', path: '/agents', body: { name: 'X', scopes: ['members:read', 'nope:read'] } },
+      { as: 'user', at: at(3), method: 'POST', path: '/agents', body: { name: '   ' } },
+      { as: 'user', at: at(4), method: 'POST', path: '/agents', body: { name: 'X', organization_id: IDS.org } },
+      { as: 'user', at: at(5), method: 'PATCH', path: '/agents/{a}', body: { scopes: ['agents:write'] } },
+      { as: 'user', at: at(6), method: 'PATCH', path: '/agents/{a}', body: { zz: 1 } },
+      { as: 'user', at: at(7), method: 'PATCH', path: `/agents/${IDS.missing}`, body: { name: 'Y' } },
+      { as: 'user', at: at(8), method: 'GET', path: '/agents/nope' },
+    ],
+  },
+  {
+    name: 'api-keys-issue-revoke',
+    about:
+      'a key is issued once with its plaintext (vk_ + prefix of 11 characters), the event and every read carry neither the plaintext nor the hash; list filters by agent; revoke stamps revoked_at and updated_at with the unit clock and emits api_key.revoked; revoking again returns the same record with no event; a disabled agent may be issued a key',
+    steps: [
+      { as: 'user', at: at(0), method: 'POST', path: '/agents', body: { name: 'Bot', scopes: ['tasks:read'] }, save: 'a' },
+      { as: 'user', at: at(1), method: 'POST', path: '/api-keys', body: { agent_id: '{a}' }, save: 'k' },
+      { as: 'user', at: at(2), method: 'POST', path: '/api-keys', body: { agent_id: '{a}', expires_at: '2027-01-01T00:00:00.000Z' }, save: 'k2' },
+      { as: 'user', at: at(3), method: 'GET', path: '/api-keys?agent_id={a}' },
+      { as: 'user', at: at(4), method: 'GET', path: '/api-keys/{k}' },
+      { as: 'user', at: at(5), method: 'POST', path: '/api-keys/{k}/revoke' },
+      { as: 'user', at: at(6), method: 'POST', path: '/api-keys/{k}/revoke' },
+      { as: 'user', at: at(7), method: 'GET', path: '/api-keys/{k}' },
+      { as: 'user', at: at(8), method: 'PATCH', path: '/agents/{a}', body: { disabled: true } },
+      { as: 'user', at: at(9), method: 'POST', path: '/api-keys', body: { agent_id: '{a}' } },
+      { as: 'user', at: at(10), method: 'GET', path: '/api-keys' },
+    ],
+  },
+  {
+    name: 'api-keys-refusals',
+    about:
+      'a key for an unknown agent is invalid_reference; an expiry at or before the unit clock is a validation error; an unknown key cannot be revoked (404); an unknown field is refused; nothing is written for any of them',
+    steps: [
+      { as: 'user', at: at(0), method: 'POST', path: '/agents', body: { name: 'Bot' }, save: 'a' },
+      { as: 'user', at: at(1), method: 'POST', path: '/api-keys', body: { agent_id: IDS.missing } },
+      { as: 'user', at: at(2), method: 'POST', path: '/api-keys', body: { agent_id: '{a}', expires_at: at(1) } },
+      { as: 'user', at: at(3), method: 'POST', path: '/api-keys', body: { agent_id: '{a}', expires_at: at(3) } },
+      { as: 'user', at: at(4), method: 'POST', path: '/api-keys', body: { agent_id: '{a}', key: 'vk_mine' } },
+      { as: 'user', at: at(5), method: 'POST', path: `/api-keys/${IDS.missing}/revoke` },
+      { as: 'user', at: at(6), method: 'POST', path: '/api-keys/nope/revoke' },
+      { as: 'user', at: at(7), method: 'GET', path: '/api-keys' },
+    ],
+  },
+  {
+    name: 'memberships-read',
+    about: 'memberships are read-only: list, the role and user_id filters, get; an unknown id is 404; there is no write route',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/memberships' },
+      { as: 'user', at: at(1), method: 'GET', path: '/memberships?role=owner' },
+      { as: 'user', at: at(2), method: 'GET', path: `/memberships?user_id=${IDS.user2}` },
+      { as: 'user', at: at(3), method: 'GET', path: `/memberships/${IDS.membership2}` },
+      { as: 'user', at: at(4), method: 'GET', path: `/memberships/${IDS.missing}` },
+      { as: 'user', at: at(5), method: 'PATCH', path: `/memberships/${IDS.membership2}`, body: { role: 'owner' } },
+      { as: 'user', at: at(6), method: 'DELETE', path: `/memberships/${IDS.membership2}` },
+    ],
+  },
+  {
+    name: 'users-read',
+    about: 'users are listed (live members only, keyset by id) and read by id; an unknown id and an id that is not a UUID are 404; a pagination step shows the cursor',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/users' },
+      { as: 'user', at: at(1), method: 'GET', path: '/users?limit=1' },
+      { as: 'user', at: at(2), method: 'GET', path: `/users?limit=1&after=${IDS.user}` },
+      { as: 'user', at: at(3), method: 'GET', path: `/users/${IDS.user2}` },
+      { as: 'user', at: at(4), method: 'GET', path: `/users/${IDS.missing}` },
+      { as: 'user', at: at(5), method: 'GET', path: '/users/nope' },
     ],
   },
 ]

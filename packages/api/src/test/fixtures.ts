@@ -1,9 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import type { ContractFixture } from './contract.js'
-import { createResource } from '../resources/crud.js'
-import { seedUser } from '@vault/db/test'
-import { createApiKey } from '../auth/api-keys.js'
-import { agents } from '../resources/agents.js'
 
 export const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
@@ -21,10 +17,7 @@ export const fixtures: Record<string, ContractFixture> = {
   },
   // Administration ([[CORE3]]): human-only scopes, so the suite runs these as a user.
   memberships: {
-    async make(ctx, seed) {
-      const user = await seedUser(seed.db, { organizationId: seed.tenant.organizationId, role: 'member' })
-      return ctx.trx.selectFrom('memberships').select('id').where('user_id', '=', user.id).executeTakeFirstOrThrow()
-    },
+    make: async (kit) => ({ id: (await kit.seedMember('member')).membershipId }),
     actors: ['user'],
   },
   agents: {
@@ -33,9 +26,9 @@ export const fixtures: Record<string, ContractFixture> = {
     actors: ['user'],
   },
   api_keys: {
-    async make(ctx) {
-      const agent = await createResource(ctx, agents, { name: 'k' })
-      return createApiKey(ctx.trx, { organizationId: ctx.organizationId, agentId: agent.id, createdBy: ctx.actor.id })
+    async make(kit) {
+      const agent = await kit.post('/agents', { name: 'k' })
+      return kit.post('/api-keys', { agent_id: agent.id })
     },
     handwritten: ['create'],
     actors: ['user'],

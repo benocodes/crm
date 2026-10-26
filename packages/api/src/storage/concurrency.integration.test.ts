@@ -6,6 +6,8 @@ import { identities } from '../resources/identities.js'
 import { mergeOperation } from '../identity/merge.js'
 import { resolveOperation } from '../identity/resolve.js'
 import { identityKit } from '../test/identity-kit.js'
+import { issueApiKeyOperation, revokeApiKeyOperation } from '../admin/api-keys.js'
+import { generateApiKey } from '../auth/api-keys.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createOperation, deleteOperation, updateOperation } from './crud.js'
 import { openEngines, type Engine, type RawRow } from '../test/engines.js'
@@ -222,5 +224,45 @@ describe.each(['postgres', 'd1'] as const)('concurrent identity-model writes on 
       }
     }
     console.log(`[concurrency] ${name} merge vs identity create: create then merge ${tally.createThenMerge}, merge then create refused ${tally.mergeThenRefused}, conflict ${tally.conflict} of ${TRIALS}`)
+  })
+})
+
+// ---- administration (CORE40 D13): two revokes of one key --------------------------------------------------------
+describe.each(['postgres', 'd1'] as const)('concurrent administration writes on %s', (name) => {
+  let e: Engine
+  const TRIALS = name === 'postgres' ? 20 : 5
+  beforeAll(() => {
+    e = engines.find((x) => x.name === name)!
+  })
+
+  it(`two revokes of one key end with exactly one api_key.revoked event (${TRIALS} trials)`, async () => {
+    const tally = { bothOk: 0, conflict: 0 }
+    for (let i = 0; i < TRIALS; i++) {
+      await e.reset()
+      const env = e.env({ now: T(0) })
+      const key = (await e.run(issueApiKeyOperation(env, { agent_id: e.agentId }, await generateApiKey(env.randomBytes)))).value
+      const settled = await together([
+        () => mapped(e.run(revokeApiKeyOperation(e.env({ now: T(1) }), key.id))),
+        () => mapped(e.run(revokeApiKeyOperation(e.env({ now: T(2) }), key.id))),
+      ])
+      for (const r of settled) if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
+      const ok = settled.filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+      expect(ok.length).toBeGreaterThanOrEqual(1)
+      const revoked = (await e.rows('events')).filter((x) => x.type === 'api_key.revoked')
+      expect(revoked).toHaveLength(1)
+      const [stored] = await e.rows('api_keys')
+      expect(stored!.revoked_at).not.toBeNull()
+      expect(stored!.revoked_at).toBe(stored!.updated_at)
+      expect(revoked[0]!.after).toMatchObject({ revoked_at: stored!.revoked_at, updated_at: stored!.updated_at })
+      // Every success answers the one revocation that happened, whoever won.
+      for (const r of ok) expect(r.value.value).toMatchObject({ revoked_at: stored!.revoked_at })
+      if (name === 'postgres') {
+        // The writer lock serialises the units: the second sees the revoked key and returns it unchanged.
+        expect(ok).toHaveLength(2)
+        expect(ok[0]!.value.value.revoked_at).toBe(ok[1]!.value.value.revoked_at)
+      }
+      ok.length === 2 ? tally.bothOk++ : tally.conflict++
+    }
+    console.log(`[concurrency] ${name} double revoke: both 200 ${tally.bothOk}, one conflicted ${tally.conflict} of ${TRIALS}`)
   })
 })

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
-import { createOwnerTestDb, createTestDb, seedAgent, truncateAll } from '@vault/db/test'
+import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } from '@vault/db/test'
 import { postgresBinding } from '@vault/storage-postgres'
 import { withContext, type ServiceContext } from '../context.js'
 import type { AnyResource, Registry } from '../registry.js'
@@ -15,16 +15,17 @@ import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 
 export type ContractActor = 'agent' | 'user'
 export type ContractGrant = 'full' | 'read' | 'none'
-/** What a fixture's `make` gets besides the context: the suite's pool (`vault_app`) and the tenant. */
-export type ContractSeed = { db: Kysely<Database>; tenant: ContractTenant }
 /**
- * What a fixture's `input` and `patch` get (CORE36 P8): they run OUTSIDE any transaction, on every backend.
- * `post` creates a prerequisite row through the public API as the tenant's user with every declared scope and
- * throws on a non-2xx; `ctx` is the Postgres-only committed service context for legacy fixtures (the D1 backend's throws).
+ * What a fixture's `input`, `patch` and `make` get (CORE36 P8, CORE40 P10): they run OUTSIDE any transaction, on every
+ * backend. `post` creates a prerequisite row through the public API as the tenant's user with every declared scope and
+ * throws on a non-2xx; `seedMember` seeds a user with a live membership in the tenant's organisation (memberships have
+ * no public writer: Clerk is the source, CORE3 D1); `ctx` is the Postgres-only committed service context, kept only for
+ * the contract suite's own self-test over the legacy tasks (the D1 backend's throws).
  */
 export interface FixtureKit {
   tenant: ContractTenant
   post(path: string, body: unknown): Promise<{ id: string }>
+  seedMember(role?: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
   ctx<T>(fn: (ctx: ServiceContext) => Promise<T>): Promise<T>
 }
 export interface ContractFixture {
@@ -32,9 +33,9 @@ export interface ContractFixture {
   input?: (kit: FixtureKit) => Promise<Record<string, unknown>>
   /** A valid, non-empty update body. Required iff the definition generates `update`. */
   patch?: (kit: FixtureKit) => Promise<Record<string, unknown>>
-  /** Creates one live row; returns its id. Default: `createResource(ctx, def, await input(ctx))`.
+  /** Creates one live row; returns its id. Default: POST `input`.
    *  Required when the definition does not generate `create` (read-only resources). */
-  make?: (ctx: ServiceContext, seed: ContractSeed) => Promise<{ id: string }>
+  make?: (kit: FixtureKit) => Promise<{ id: string }>
   /** Generic routes served by a hand-written operation; the "not generated" case skips them. */
   handwritten?: readonly CrudAction[]
   /** Default ['agent', 'user']. */
@@ -81,6 +82,8 @@ export interface ContractSession {
   call(t: ContractTenant, actor: ContractActor, scopes: string[], method: string, path: string, body?: unknown): Promise<Response>
   principalId(t: ContractTenant, actor: ContractActor, scopes: string[]): Promise<string>
   as: ContractEnv['as']
+  /** Seeds a user with a live membership in the tenant's organisation. */
+  seedMember(t: ContractTenant, role: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
   eventsOf: ContractEnv['eventsOf']
   countEvents: ContractEnv['countEvents']
   countRows: ContractEnv['countRows']
@@ -134,6 +137,11 @@ export function postgresBackend(): ContractBackend {
         },
         async principalId(t, actor, scopes) {
           return actor === 'agent' ? (await agentFor(t, scopes)).id : t.userId
+        },
+        async seedMember(t, role) {
+          const u = await seedUser(db, { organizationId: t.organizationId, role })
+          const m = await owner.selectFrom('memberships').select('id').where('user_id', '=', u.id).executeTakeFirstOrThrow()
+          return { userId: u.id, membershipId: m.id }
         },
         as: (t, d, fn) =>
           withContext(
@@ -236,13 +244,14 @@ export function runContractSuite(opts: {
                 if (res.status < 200 || res.status >= 300) throw new Error(`fixture post ${path} failed: ${res.status} ${await res.text()}`)
                 return (await res.json()) as { id: string }
               },
+              seedMember: (role = 'member') => session.seedMember(t, role),
               ctx: (fn) => session.as(t, d, fn),
             }),
             eventsOf: session.eventsOf,
             countEvents: session.countEvents,
             countRows: session.countRows,
             async make(t, d, fx) {
-              if (fx.make) return session.as(t, d, (ctx) => fx.make!(ctx, { db, tenant: t }))
+              if (fx.make) return fx.make(env.kit(t, d))
               const input = await fx.input!(env.kit(t, d))
               const res = await call(t, 'user', 'full', 'POST', pathOf(d, 'create'), input)
               if (res.status !== 201) throw new Error(`fixture create failed: ${res.status} ${await res.text()}`)
