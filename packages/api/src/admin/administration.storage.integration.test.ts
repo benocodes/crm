@@ -219,13 +219,13 @@ describe.each(['postgres', 'd1'] as const)('administration storage behaviour on 
     it('refuses an unknown agent, a past expiry and an expiry equal to now, writing nothing', async () => {
       const before = await snapshot(e)
       expect(await fail('api_keys.create', { body: { agent_id: UNKNOWN } })).toEqual([400, 'invalid_reference', 'a referenced record does not exist'])
+      expect(await snapshot(e)).toEqual(before)
       const now = at(9)
       const a = await newAgent()
       const mid = await snapshot(e)
       expect(await fail('api_keys.create', { body: { agent_id: a.id, expires_at: iso(8) } }, { now })).toEqual([400, 'validation_error', 'expires_at must be in the future'])
       expect(await fail('api_keys.create', { body: { agent_id: a.id, expires_at: iso(9) } }, { now })).toEqual([400, 'validation_error', 'expires_at must be in the future'])
       expect(await snapshot(e)).toEqual(mid)
-      expect(before.api_keys).toEqual([])
     })
 
     if (name === 'postgres') {
