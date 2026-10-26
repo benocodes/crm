@@ -46,7 +46,7 @@ The lifecycle is issue-driven. Skills live in `.agents/skills/`:
 | Knowledge audit | `wiki-lint` |
 | Ship | `ship-branch` |
 
-Domain skills: `db-schema-and-migrations`, `api-routes`, `hyperdrive-pg-rls`, `cloudflare-workflows`.
+Domain skills: `db-schema-and-migrations`, `api-routes`, `tenancy-and-testing`, `hyperdrive-pg-rls`, `cloudflare-workflows`.
 
 **Vocabulary.** A **cycle** is one unit of work: a folder under `knowledge/specs/` that ends in one
 branch, one retro and (usually) one PR. A **spec** is the design (*what and why*); a spec can be
@@ -133,11 +133,6 @@ pnpm db:test:worktree # private test database for this worktree
 pnpm db:codegen
 ```
 
-Storage packages (the typed storage seam, [[CORE35]]): `packages/storage` (open: typed prepared operations),
-`packages/storage-d1` (open: D1 runtime and migrations, `pnpm -C packages/storage-d1 test`) and
-`packages/storage-postgres` (enterprise: Postgres runtime). D1 is the single-organisation MVP engine; Postgres
-is the multi-tenant path.
-
 The `db:*` scripts are the contract the skills assume; they arrive with the first CORE cycle.
 
 The development machine is macOS: `sed` is BSD, where `-i` takes a backup suffix as its next argument
@@ -160,19 +155,10 @@ in-place edits ([[CORE29]] retro).
 Carried over from the predecessor product, where each cost real time. Add new ones through `retrospect`, not ad hoc.
 
 1. **Tenancy is the organisation.** Every tenant table has `organization_id` and `user_id`/actor
-   attribution. *Postgres path (multi-tenant):* `organization_id` is the RLS gate, with RLS in the same
-   migration that creates the table, and only the scoping wrappers set role or session config. *D1 path
-   (single organisation per deployment):* the database is the tenancy boundary; `organizations.id`
-   references the singleton deployment marker, so foreign keys make a second organisation unstorable
-   ([[CORE35]] D18), and no RLS is emulated.
-2. **The test harness must not mask tenancy.** *Postgres:* do not preset `app.organization_id` or `service_role` on the
-   test pool; a query that skips its tenancy wrapper must fail in tests the way it does in production.
-   The mechanism: `createTestDb` (`@vault/db/test`) connects as `vault_app`, which holds no table
-   privileges until a wrapper runs `SET LOCAL ROLE`; `harness.integration.test.ts` guards it. *D1:* each test organisation gets its own binding, and a
-   foreign organisation's identity must be refused, not filtered.
-   A test also must not leave persistent state on the shared test database (DDL, a disabled trigger, a
-   changed setting): restore it in teardown, and have the harness check the production state and fail loudly
-   otherwise ([[CORE35]] retro, F5).
+   attribution. Postgres enforces it with RLS in the same migration as the table; a D1 deployment is one
+   organisation, enforced by the schema ([[CORE35]] D18). See `tenancy-and-testing`.
+2. **The test harness must not mask tenancy**, and must not leave persistent state on the shared test
+   database. See `tenancy-and-testing`.
 3. **Catching `23505` inside a transaction does not save it**: the transaction is already aborted. Use
    `ON CONFLICT` instead.
 4. **Agents never send.** Agents submit action requests; the vault executes them with credentials it holds.
@@ -189,9 +175,8 @@ Carried over from the predecessor product, where each cost real time. Add new on
    Node. Return plain data, never class instances (see `cloudflare-workflows`).
 8. **A migration's number can go stale** between plan and implementation; re-check before creating it.
 9. **Resolve an approval's anchor at approval time, not draft time.**
-10. **Open packages never import enterprise code.** `@vault/storage` and `@vault/storage-d1` must not import
-    `@vault/storage-postgres`, `@vault/db` or `pg`; `packages/storage/src/import-boundary.test.ts` enforces it
-    ([[CORE35]] D14/D15).
+10. **Open packages never import enterprise code** (`@vault/storage-postgres`, `@vault/db`, `pg`); a test
+    enforces it. See `tenancy-and-testing`.
 
 ## Knowledge hygiene
 
