@@ -182,9 +182,12 @@ Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_bas
   `SELECT, INSERT`); `vault_app` gets nothing directly.
 - **Tenant grants are column-level where a table mixes tenant-writable and machinery columns**
   (`packages/db/migrations/20261020_005_directory.ts`, [[CORE27]] P3, [[CORE29]]): `memberships`
-  has no tenant `INSERT` or `UPDATE` (the directory sync writes under the service role); `agents` `UPDATE (name, scopes, disabled_at)`; `api_keys` `SELECT` on every column except
-  `key_hash`, plus `UPDATE (revoked_at)`. Start narrow: widening later is a one-line grant, narrowing
-  breaks callers. `SELECT … FOR UPDATE` needs `UPDATE` on at least one column of the table, so a
+  has no tenant `INSERT` or `UPDATE` (the directory sync writes under the service role); `agents` `UPDATE (name, scopes, disabled_at, updated_at)`; `api_keys` `SELECT` on every column except
+  `key_hash`, plus `UPDATE (revoked_at, updated_at)`. Start narrow: widening later is a one-line grant, narrowing
+  breaks callers. **A column-level `UPDATE` grant must include `updated_at`** whenever tenants update the
+  table: the app stamps it on every write (D2 above), so a grant without it fails `42501` on the first
+  prepared update (`20261026_007_admin_app_clock_grants.ts`, [[CORE40]] P3). Pin the grant with a
+  `has_column_privilege` test that also asserts nothing else widened (`src/migration-007.integration.test.ts`). `SELECT … FOR UPDATE` needs `UPDATE` on at least one column of the table, so a
   column-level `UPDATE` grant also covers the row lock. A column left out of the `SELECT` grant must also
   be left out of the definition's `record` (`api-routes`: generic reads name their columns). A new table needs its own
   `GRANT`s **to both group roles**: there are no default privileges, and a table without a `vault_service`
