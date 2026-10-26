@@ -272,16 +272,6 @@ Operations don't call the wrappers directly; they run in a service context (`src
 
 Every tenant table on either engine also carries `user_id`/actor attribution.
 
-### Open packages never import enterprise code ([[CORE35]] D14, D15)
-
-`@vault/storage` and `@vault/storage-d1` are open source and must not import `@vault/storage-postgres`,
-`@vault/db` or `pg`; `packages/storage/src/import-boundary.test.ts` enforces it. In `packages/api`,
-production code may not import `pg` or `@vault/storage-postgres` either. The named exceptions are
-composition entry points, listed by file name in the test's allow-list with the reason (`src/dev-server.ts`;
-`scripts/golden.ts`, `smoke-auth.ts`, `smoke-admin.ts`) until the CORE37 cutover splits the Worker entry by
-engine (D21). Never allow a directory with an empty-string key (a rule that exempts every file forbids
-nothing), and keep a sandbox case showing an unlisted file that imports enterprise code fails.
-
 ## Principals and scopes
 
 Agents are first-class principals with their own identity, credentials and **scopes** (which channels,

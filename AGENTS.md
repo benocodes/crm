@@ -176,7 +176,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
 8. **A migration's number can go stale** between plan and implementation; re-check before creating it.
 9. **Resolve an approval's anchor at approval time, not draft time.**
 10. **Open packages never import enterprise code** (`@vault/storage-postgres`, `@vault/db`, `pg`); a test
-    enforces it. See `api-routes`.
+    enforces it, and its allow-list records the temporary exceptions ([[CORE35]] D14/D15).
 
 ## Knowledge hygiene
 
