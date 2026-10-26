@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { AccountContext, ServiceContext } from './context.js'
-import { formatScope, type Scope } from './scopes.js'
+import type { Actor, ServiceContext } from './context.js'
+import { formatScope, type Scope, type ScopeSet } from './scopes.js'
 import type { PreparedOperation } from '@vault/storage'
 import { isPrepared, type PreparedEnv, type PreparedResource } from './storage/definition.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
@@ -46,9 +46,20 @@ export interface PreparedTenantOperation extends TenantOperationBase {
   prepare: (env: PreparedEnv, input: OperationInput) => PreparedOperation<unknown> | Promise<PreparedOperation<unknown>>
 }
 export type TenantOperation = LegacyTenantOperation | PreparedTenantOperation
+/**
+ * What an account operation sees ([[CORE41]] C2, P12): the signed-in user, the active organisation and its scopes when
+ * there is one (null and empty otherwise), and the unit's clock. Account operations are read-only prepared programs run
+ * with an `account` storage identity; a write would be an internal unit with an explicit organisation instead.
+ */
+export interface AccountEnv {
+  readonly actor: Actor
+  readonly organizationId: string | null
+  readonly scopes: ScopeSet
+  readonly now: Date
+}
 export interface AccountOperation extends OperationBase {
   kind: 'account'
-  handler: (ctx: AccountContext, input: OperationInput) => Promise<unknown>
+  prepare: (env: AccountEnv, input: OperationInput) => PreparedOperation<unknown>
 }
 export type Operation = TenantOperation | AccountOperation
 export type AnyResource = ResourceDefinition<any> | PreparedResource<any, any>

@@ -8,13 +8,14 @@ import type { AuthAdapter } from '../auth/adapter.js'
 import { authMiddleware } from '../auth/middleware.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
-import { withAccountContext, withContext } from '../context.js'
+import { withContext } from '../context.js'
 import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
 import type { Operation, OperationInput, Registry } from '../registry.js'
 import { parseInput } from '../resources/define.js'
-import { formatScope } from '../scopes.js'
+import { ScopeSet, formatScope } from '../scopes.js'
+import { internalEnv } from '../storage/internal.js'
 import { renderError, renderNotFound } from './errors.js'
 import { documentOperation, honoPath, registerSecurityScheme } from './openapi.js'
 
@@ -72,10 +73,21 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
     if (principal.actor.kind !== 'user') {
       throw new ApiError(403, 'user_required', 'this operation requires a signed-in user')
     }
+    const storage = c.var.storage
+    if (!storage) throw new Error(`operation ${op.name} is an account operation but createApp was given no storage binding`)
+    // Scopes only mean something inside an organisation; an unusable claim or a contradicted header is no organisation here.
     const organizationId = principal.organizationForbidden ? null : principal.organizationId
-    return withAccountContext(c.var.db, { actor: principal.actor, organizationId, scopes: principal.scopes }, (ctx) =>
-      op.handler(ctx, input),
-    )
+    const env = {
+      actor: principal.actor,
+      organizationId,
+      scopes: organizationId === null ? ScopeSet.parse([]) : principal.scopes,
+      now: (injected.clock ?? (() => new Date()))(),
+    }
+    try {
+      return (await execute(storage, { kind: 'account', actorId: principal.actor.id }, op.prepare(env, input))).value
+    } catch (err) {
+      throw mapStorageError(err)
+    }
   }
   if (principal.organizationForbidden) {
     throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
@@ -142,7 +154,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   })
 
   registerSecurityScheme(app)
-  const auth = authMiddleware({ userAuthenticator })
+  const auth = authMiddleware({ userAuthenticator, env: () => internalEnv(options) })
   for (const op of registry.operations()) {
     documentOperation(app, op)
     app.on(op.method.toUpperCase(), honoPath(op.path), auth, async (c) => {
@@ -153,7 +165,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   }
 
   // Plain route, not an operation: the Svix signature is its only credential, and it is not documented.
-  if (options.authAdapter) app.post('/webhooks/clerk', clerkWebhookHandler(options.authAdapter))
+  if (options.authAdapter) app.post('/webhooks/clerk', clerkWebhookHandler(options.authAdapter, { clock: options.clock, newId: options.newId }))
 
   app.get('/openapi.json', (c) =>
     c.json(

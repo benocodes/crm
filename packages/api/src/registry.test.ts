@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { defineOperation, unit } from '@vault/storage'
 import { Registry, resourceOperations, toolName, type Operation } from './registry.js'
 import { legacyTasks as tasks } from './test/legacy-tasks.js'
 import { parseScope } from './scopes.js'
@@ -91,7 +92,7 @@ describe('Registry.register', () => {
       method: 'get',
       path: '/account/whoami',
       response: { status: 200, schema: z.object({}) },
-      handler: async () => ({}),
+      prepare: () => defineOperation({ name: 'account.whoami', mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => ({}) }) }),
     })
     expect(r.declaredScopes()).toEqual(['tasks:read', 'tasks:write'])
   })

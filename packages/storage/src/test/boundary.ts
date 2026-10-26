@@ -36,6 +36,7 @@ export const RULES: readonly Rule[] = [
       'golden.ts': 'enterprise-side fixture generator: runs the Postgres path by design (D17)',
       'smoke-auth.ts': 'smoke entry point composing the Postgres runtime; moves at the CORE37 cutover (D21)',
       'smoke-admin.ts': 'smoke entry point composing the Postgres runtime; moves at the CORE37 cutover (D21)',
+      'bootstrap.ts': 'bootstrap CLI composing the Postgres runtime; TEMPORARY: moves to @vault/server-postgres in CORE44 (CORE41 P14)',
     },
   },
 ]

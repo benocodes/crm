@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Kysely } from 'kysely'
 import { TenancyContextError, type Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
-import { withAccountContext, withContext } from './context.js'
+import { withContext } from './context.js'
 import { ApiError } from './errors.js'
 import { ScopeSet } from './scopes.js'
 import { asAgent, asUser, seedTenant, type Tenant } from './test/tenant.js'
@@ -102,52 +102,5 @@ describe('withContext', () => {
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ status: 400, code: 'invalid_reference' })
     expect(await owner.selectFrom('tasks').selectAll().execute()).toHaveLength(0)
-  })
-})
-
-describe('withAccountContext', () => {
-  beforeEach(async () => {
-    await truncateAll(owner)
-    a = await seedTenant(db, 'A')
-    b = await seedTenant(db, 'B')
-  })
-  const actor = () => ({ id: a.userId, kind: 'user' as const })
-
-  it('reaches across organisations', async () => {
-    const rows = await withAccountContext(db, { actor: actor() }, (ctx) =>
-      ctx.trx.selectFrom('organizations').select('id').execute(),
-    )
-    expect(rows.map((r) => r.id).sort()).toEqual([a.organizationId, b.organizationId].sort())
-  })
-
-  it('emitFor writes one event per explicit organisation', async () => {
-    const x = randomUUID()
-    const ev = { type: 'probe.created', resourceType: 'probe', resourceId: x, before: null, after: null }
-    await withAccountContext(db, { actor: actor() }, async (ctx) => {
-      await ctx.emitFor(b.organizationId, ev)
-      await ctx.emitFor(a.organizationId, ev)
-    })
-    const rows = await eventsOf(x)
-    expect(rows.map((r) => r.organization_id).sort()).toEqual([a.organizationId, b.organizationId].sort())
-    for (const r of rows) expect(r.actor_id).toBe(a.userId)
-  })
-
-  it('emitFor validates the organisation id', async () => {
-    const err = await withAccountContext(db, { actor: actor() }, (ctx) =>
-      ctx.emitFor('nope', { type: 'probe.created', resourceType: 'probe', resourceId: randomUUID(), before: null, after: null }),
-    ).catch((e) => e)
-    expect(err).toBeInstanceOf(TenancyContextError)
-    expect(err.code).toBe('invalid_id')
-  })
-
-  it('rolls back emitted events', async () => {
-    const x = randomUUID()
-    await expect(
-      withAccountContext(db, { actor: actor() }, async (ctx) => {
-        await ctx.emitFor(a.organizationId, { type: 'probe.created', resourceType: 'probe', resourceId: x, before: null, after: null })
-        throw new Error('boom')
-      }),
-    ).rejects.toThrow('boom')
-    expect(await eventsOf(x)).toHaveLength(0)
   })
 })

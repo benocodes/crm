@@ -1,15 +1,30 @@
 import type { Kysely } from 'kysely'
 import { withServiceRole, type Database } from '@vault/db'
-import { createApiKey } from '../auth/api-keys.js'
+import { generateApiKey } from '../auth/api-keys.js'
 
-/** Test helper: mints a key for an agent. `revoked` sets `revoked_at = now()` after creation. */
+/**
+ * Test seed: mints a key for an agent with a direct insert under the service role (the production path is `api_keys.create`;
+ * a seed must not depend on it). `revoked` stamps `revoked_at` at the same time.
+ */
 export async function seedApiKey(
   db: Kysely<Database>,
   args: { organizationId: string; agentId: string; createdBy: string; expiresAt?: Date | null; revoked?: boolean },
 ): Promise<{ id: string; key: string }> {
+  const { key, hash, prefix } = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
   return withServiceRole(db, async (trx) => {
-    const { id, key } = await createApiKey(trx, args)
-    if (args.revoked) await trx.updateTable('api_keys').set({ revoked_at: new Date() }).where('id', '=', id).execute()
-    return { id, key }
+    const row = await trx
+      .insertInto('api_keys')
+      .values({
+        organization_id: args.organizationId,
+        agent_id: args.agentId,
+        key_hash: hash,
+        prefix,
+        expires_at: args.expiresAt ?? null,
+        revoked_at: args.revoked ? new Date() : null,
+        created_by: args.createdBy,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow()
+    return { id: row.id, key }
   })
 }

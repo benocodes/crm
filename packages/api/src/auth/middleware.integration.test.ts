@@ -4,12 +4,14 @@ import { z } from 'zod'
 import type { Kysely } from 'kysely'
 import { withServiceRole, type Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, truncateAll } from '@vault/db/test'
+import { defineOperation, unit } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { Registry } from '../registry.js'
 import { legacyTasks as tasks } from '../test/legacy-tasks.js'
 import { createApp } from '../rest/app.js'
 import { ScopeSet, parseScope } from '../scopes.js'
 import { seedApiKey } from '../test/keys.js'
+import { pgStorage } from '../test/storage.js'
 import { seedTenant, type Tenant } from '../test/tenant.js'
 import { AuthFailure } from './adapter.js'
 import type { Principal, UserAuthenticator } from './types.js'
@@ -34,7 +36,7 @@ const whoamiRegistry = () =>
   })
 
 const mkApp = (withAuth = true) =>
-  createApp({ db: () => db, registry: whoamiRegistry(), userAuthenticator: withAuth ? { authenticate } : undefined })
+  createApp({ db: () => db, registry: whoamiRegistry(), userAuthenticator: withAuth ? { authenticate } : undefined, storage: pgStorage(db) })
 const get = (app: ReturnType<typeof mkApp>, path: string, headers: Record<string, string> = {}) => app.request(path, { headers })
 const bearer = (key: string, extra: Record<string, string> = {}) => ({ authorization: `Bearer ${key}`, ...extra })
 
@@ -144,7 +146,7 @@ describe('credential dispatch', () => {
     expect(res.status).toBe(200)
     expect((await res.json()).kind).toBe('user')
     expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(authenticate).toHaveBeenCalledWith('a.b.c', { db, organizationHeader: A.organizationId })
+    expect(authenticate).toHaveBeenCalledWith('a.b.c', { storage: expect.objectContaining({ kind: 'postgres' }), organizationHeader: A.organizationId, env: expect.objectContaining({ now: expect.any(Date), newId: expect.any(Function) }) })
   })
 
   it('a key-shaped token never reaches the authenticator', async () => {
@@ -248,9 +250,9 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
       method: 'get',
       path: '/probe/acct',
       response: { status: 200, schema: z.object({ ok: z.boolean() }) },
-      handler: async () => ({ ok: true }),
+      prepare: () => defineOperation({ name: 'probe.acct', mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => ({ ok: true }) }) }),
     })
-    const app = createApp({ db: () => db, registry, userAuthenticator: { authenticate } })
+    const app = createApp({ db: () => db, registry, userAuthenticator: { authenticate }, storage: pgStorage(db) })
     expect((await get(app, '/probe/acct', bearer('a.b.c'))).status).toBe(200)
   })
 })

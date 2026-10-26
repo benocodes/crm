@@ -3,6 +3,8 @@ import { z } from 'zod'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, truncateAll } from '@vault/db/test'
+import { pgStorage } from '../test/storage.js'
+import { defineOperation, readAll, unit } from '@vault/storage'
 import { Registry } from '../registry.js'
 import { legacyTasks as tasks } from '../test/legacy-tasks.js'
 import { parseScope } from '../scopes.js'
@@ -74,20 +76,19 @@ function testRegistry() {
       summary: 'Who am I (account)',
       method: 'get',
       path: '/account/whoami',
-      request: { query: z.object({ emit: z.string().optional() }) },
-      validation: 'adapter',
-      response: { status: 200, schema: z.object({ actor_id: z.string() }) },
-      handler: async (ctx, input) => {
-        const emit = (input.query as { emit?: string }).emit
-        if (emit) {
-          await ctx.emitFor(emit, { type: 'probe.emitted', resourceType: 'probe', resourceId: ctx.actor.id, before: null, after: null })
-        }
-        return { actor_id: ctx.actor.id }
-      },
+      response: { status: 200, schema: z.object({ actor_id: z.string(), organizations: z.number() }) },
+      // An account unit reads across organisations (the service role on Postgres) and cannot write ([[CORE41]] P12).
+      prepare: (env) =>
+        defineOperation({
+          name: 'account.whoami',
+          mutates: false,
+          reads: (qc) => ({ orgs: readAll(qc.db.selectFrom('organizations').select('organizations.id')) }),
+          build: (found) => unit({ steps: [], events: [], decode: () => ({ actor_id: env.actor.id, organizations: found.all('orgs').length }) }),
+        }),
     })
 }
 const mkApp = (resolver: () => Kysely<Database> = () => db) =>
-  createApp({ db: resolver, registry: testRegistry(), userAuthenticator: fakeUserAuthenticator() })
+  createApp({ db: resolver, registry: testRegistry(), userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(db) })
 const agentHeaders = () => ({ authorization: `Bearer ${key}` })
 const userHeaders = (t: Tenant, organizationId: string | null = t.organizationId) => ({
   authorization: `Bearer ${mintTestUserToken({ userId: t.userId, organizationId, scopes: ['tasks:read', 'tasks:write'] })}`,
@@ -194,19 +195,12 @@ describe('context', () => {
   it('an account op works for a user with no organisation', async () => {
     const res = await mkApp().request('/account/whoami', { headers: userHeaders(A, null) })
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ actor_id: A.userId })
+    expect(await res.json()).toEqual({ actor_id: A.userId, organizations: 2 })
   })
   it('an account op refuses agents', async () => {
     const res = await mkApp().request('/account/whoami', { headers: agentHeaders() })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: { code: 'user_required', message: 'this operation requires a signed-in user' } })
-  })
-  it('an account op emits with an explicit organisation', async () => {
-    const res = await mkApp().request(`/account/whoami?emit=${B.organizationId}`, { headers: userHeaders(A, null) })
-    expect(res.status).toBe(200)
-    const ev = await owner.selectFrom('events').selectAll().execute()
-    expect(ev).toHaveLength(1)
-    expect(ev[0]).toMatchObject({ organization_id: B.organizationId, actor_id: A.userId })
   })
   it('a tenant op needs an organisation', async () => {
     const res = await mkApp().request('/tasks', { headers: userHeaders(A, null) })
@@ -327,9 +321,15 @@ describe('auth options and the account context ([[CORE3]])', () => {
       method: 'get',
       path: '/probe/ctx',
       response: { status: 200, schema: z.object({ org: z.string().nullable(), scopes: z.array(z.string()) }) },
-      handler: async (ctx) => ({ org: ctx.organizationId, scopes: ctx.scopes.toStrings() }),
+      prepare: (env) =>
+        defineOperation({
+          name: 'probe.ctx',
+          mutates: false,
+          reads: () => ({}),
+          build: () => unit({ steps: [], events: [], decode: () => ({ org: env.organizationId, scopes: env.scopes.toStrings() }) }),
+        }),
     })
-    const app = createApp({ db: () => db, registry, userAuthenticator: fakeUserAuthenticator() })
+    const app = createApp({ db: () => db, registry, userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(db) })
     const withOrg = await app.request('/probe/ctx', { headers: userHeaders(A) })
     expect(await withOrg.json()).toEqual({ org: A.organizationId, scopes: ['tasks:read', 'tasks:write'] })
     const without = await app.request('/probe/ctx', { headers: userHeaders(A, null) })

@@ -39,6 +39,7 @@ describe('import boundary (D14, D15)', () => {
     const root = sandbox({
       'api/src/x.integration.test.ts': "import { postgresBinding } from '@vault/storage-postgres'",
       'api/scripts/smoke-auth.ts': "import { postgresBinding } from '@vault/storage-postgres'",
+      'api/scripts/bootstrap.ts': "import { postgresBinding } from '@vault/storage-postgres'",
       'api/src/dev-server.ts': "import { postgresBinding } from '@vault/storage-postgres'",
       'storage/src/ok.ts': "import { Kysely } from 'kysely'",
     })

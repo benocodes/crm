@@ -2,17 +2,23 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { sql, type Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
+import { postgresBinding } from '@vault/storage-postgres'
+import type { StorageBinding } from '@vault/storage'
 import { ApiError } from '../errors.js'
+import { internalEnv } from '../storage/internal.js'
 import { clerkMembership, clerkOrganization, clerkUser, testClerkAdapter } from '../test/clerk.js'
 import { reconcileOrganization, refreshUser, repairMembership } from './sync.js'
 
 let db: Kysely<Database>
 let owner: Kysely<Database>
 let kit: Awaited<ReturnType<typeof testClerkAdapter>>
+let storage: StorageBinding
+const env = () => internalEnv({})
 
 beforeAll(() => {
   db = createTestDb({ max: 4 })
   owner = createOwnerTestDb()
+  storage = postgresBinding(db)
 })
 afterAll(async () => {
   await db.destroy()
@@ -47,7 +53,7 @@ describe('repairMembership', () => {
   it('a new organisation, from the fetch', async () => {
     const u = await knownUser('user_a')
     clerkOrg('org_a', 'Acme', [])
-    const id = await repairMembership(db, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: null } })
+    const id = await repairMembership(storage, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: null } }, env())
     const org = await linked('org_a')
     expect(org).toMatchObject({ id, name: 'Acme', auth_provider: 'clerk' })
     const m = await live(id)
@@ -61,7 +67,7 @@ describe('repairMembership', () => {
   it('a known organisation, a new member: no fetch', async () => {
     const o = await seedOrganization(db, { authOrgId: 'org_a' })
     const u = await knownUser('user_a')
-    await repairMembership(db, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'member', known: { organizationId: o.id } })
+    await repairMembership(storage, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'member', known: { organizationId: o.id } }, env())
     expect(await types()).toEqual(['membership.created'])
     expect(kit.fetch.calls).toHaveLength(0)
   })
@@ -69,7 +75,7 @@ describe('repairMembership', () => {
   it('a role change', async () => {
     const o = await seedOrganization(db, { authOrgId: 'org_a' })
     const u = await seedUser(db, { organizationId: o.id, role: 'member', authSubject: 'user_a' })
-    await repairMembership(db, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: o.id } })
+    await repairMembership(storage, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: o.id } }, env())
     const [ev] = await events()
     expect(ev).toMatchObject({ type: 'membership.updated', actor_id: await systemId() })
     expect((ev!.before as { role: string }).role).toBe('member')
@@ -79,7 +85,7 @@ describe('repairMembership', () => {
   it('an organisation Clerk no longer has', async () => {
     const u = await knownUser('user_a')
     const before = await count('organizations')
-    const err = await repairMembership(db, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: null } }).catch((e) => e)
+    const err = await repairMembership(storage, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: null } }, env()).catch((e) => e)
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ status: 403, code: 'organization_forbidden' })
     expect(await count('organizations')).toBe(before)
@@ -91,7 +97,7 @@ describe('repairMembership', () => {
     const b = await knownUser('user_b')
     clerkOrg('org_a', 'Acme', [])
     const args = (userId: string) => ({ userId, externalId: 'org_a', role: 'member' as const, known: { organizationId: null } })
-    const ids = await Promise.all([repairMembership(db, kit.adapter, args(a.id)), repairMembership(db, kit.adapter, args(b.id))])
+    const ids = await Promise.all([repairMembership(storage, kit.adapter, args(a.id), env()), repairMembership(storage, kit.adapter, args(b.id), env())])
     expect(ids[0]).toBe(ids[1])
     expect(await live(ids[0])).toHaveLength(2)
     expect((await types()).filter((t) => t === 'organization.created')).toHaveLength(1)
@@ -104,7 +110,7 @@ describe('reconcileOrganization', () => {
     const a = await knownUser('user_a')
     profile('user_b')
     clerkOrg('org_a', 'Acme', [['user_a', 'org:admin'], ['user_b', 'org:member']])
-    const s = await reconcileOrganization(db, kit.adapter, 'org_a')
+    const s = await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     expect(s).toMatchObject({ created: 2, updated: 0, deleted: 0 })
     const org = (await linked('org_a'))!
     expect(s.organizationId).toBe(org.id)
@@ -118,10 +124,10 @@ describe('reconcileOrganization', () => {
     const a = await knownUser('user_a')
     profile('user_b')
     clerkOrg('org_a', 'Acme', [['user_a', 'org:admin'], ['user_b', 'org:member']])
-    await reconcileOrganization(db, kit.adapter, 'org_a')
+    await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     const before = await count('events')
     clerkOrg('org_a', 'Acme', [['user_a', 'org:member']])
-    const s = await reconcileOrganization(db, kit.adapter, 'org_a')
+    const s = await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     expect(s).toMatchObject({ created: 0, updated: 1, deleted: 1 })
     const fresh = (await events()).slice(before)
     expect(fresh.map((e) => e.type).sort()).toEqual(['membership.deleted', 'membership.updated'])
@@ -134,9 +140,9 @@ describe('reconcileOrganization', () => {
   it('renames', async () => {
     await knownUser('user_a')
     clerkOrg('org_a', 'Acme', [['user_a', 'org:admin']])
-    await reconcileOrganization(db, kit.adapter, 'org_a')
+    await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     clerkOrg('org_a', 'Acme Ltd', [['user_a', 'org:admin']])
-    await reconcileOrganization(db, kit.adapter, 'org_a')
+    await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     const ev = (await events()).find((e) => e.type === 'organization.updated')!
     expect((ev.before as { name: string }).name).toBe('Acme')
     expect((ev.after as { name: string }).name).toBe('Acme Ltd')
@@ -145,9 +151,9 @@ describe('reconcileOrganization', () => {
   it('is idempotent', async () => {
     await knownUser('user_a')
     clerkOrg('org_a', 'Acme', [['user_a', 'org:admin']])
-    await reconcileOrganization(db, kit.adapter, 'org_a')
+    await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     const before = await count('events')
-    const s = await reconcileOrganization(db, kit.adapter, 'org_a')
+    const s = await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     expect(s).toMatchObject({ created: 0, updated: 0, deleted: 0 })
     expect(await count('events')).toBe(before)
   })
@@ -158,7 +164,7 @@ describe('reconcileOrganization', () => {
     profile('user_d')
     clerkOrg('org_a', 'Acme', [['user_c', 'org:member'], ['user_d', 'org:member']])
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const s = await reconcileOrganization(db, kit.adapter, 'org_a')
+    const s = await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     expect(s.created).toBe(1)
     const org = (await linked('org_a'))!
     const subs = await owner
@@ -175,7 +181,7 @@ describe('reconcileOrganization', () => {
     const o = await seedOrganization(db, { authOrgId: 'org_a' })
     const u1 = await seedUser(db, { organizationId: o.id, role: 'owner', authSubject: 'user_1' })
     const u2 = await seedUser(db, { organizationId: o.id, role: 'member', authSubject: 'user_2' })
-    const s = await reconcileOrganization(db, kit.adapter, 'org_a')
+    const s = await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     expect(s).toEqual({ organizationId: o.id, created: 0, updated: 0, deleted: 2 })
     expect(await live(o.id)).toEqual([])
     expect((await types()).filter((t) => t === 'membership.deleted')).toHaveLength(2)
@@ -184,7 +190,7 @@ describe('reconcileOrganization', () => {
   })
 
   it('unknown and gone: nothing written', async () => {
-    const s = await reconcileOrganization(db, kit.adapter, 'org_zzz')
+    const s = await reconcileOrganization(storage, kit.adapter, 'org_zzz', env())
     expect(s).toEqual({ organizationId: null, created: 0, updated: 0, deleted: 0 })
     expect(await count('events')).toBe(0)
     expect(await count('organizations')).toBe(0)
@@ -194,7 +200,7 @@ describe('reconcileOrganization', () => {
     await knownUser('user_a')
     clerkOrg('org_a', 'Acme', [['user_a', 'org:admin']])
     kit.fetch.fail.members = 500
-    await expect(reconcileOrganization(db, kit.adapter, 'org_a')).rejects.toThrow('clerk membership list failed: 500')
+    await expect(reconcileOrganization(storage, kit.adapter, 'org_a', env())).rejects.toThrow('clerk membership list failed: 500')
     expect(await linked('org_a')).toBeUndefined()
     expect(await count('events')).toBe(0)
   })
@@ -204,25 +210,25 @@ describe('refreshUser', () => {
   it('updates the profile, without an event', async () => {
     const u = await knownUser('user_a', 'old@x.test')
     kit.profiles.set('user_a', clerkUser({ id: 'user_a', email: 'new@x.test', verified: true, first: 'Grace', last: 'H' }))
-    expect(await refreshUser(db, kit.adapter, 'user_a')).toBe('updated')
+    expect(await refreshUser(storage, kit.adapter, 'user_a', env())).toBe('updated')
     const row = await owner.selectFrom('users').selectAll().where('id', '=', u.id).executeTakeFirstOrThrow()
     expect(row).toMatchObject({ email: 'new@x.test', name: 'Grace H' })
     expect(await count('events')).toBe(0)
   })
 
   it('unknown, unchanged, conflict', async () => {
-    expect(await refreshUser(db, kit.adapter, 'user_nobody')).toBe('unknown')
+    expect(await refreshUser(storage, kit.adapter, 'user_nobody', env())).toBe('unknown')
     expect(kit.fetch.calls).toHaveLength(0)
 
     await knownUser('user_a', 'a@x.test')
     kit.profiles.set('user_a', clerkUser({ id: 'user_a', email: 'a@x.test', verified: true, first: 'Ada', last: 'L' }))
     await owner.updateTable('users').set({ name: 'Ada L' }).where('auth_subject', '=', 'user_a').execute()
-    expect(await refreshUser(db, kit.adapter, 'user_a')).toBe('unchanged')
+    expect(await refreshUser(storage, kit.adapter, 'user_a', env())).toBe('unchanged')
 
     await knownUser('user_v', 'v@x.test')
     kit.profiles.set('user_a', clerkUser({ id: 'user_a', email: 'v@x.test', verified: true, first: 'Ada', last: 'L' }))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    expect(await refreshUser(db, kit.adapter, 'user_a')).toBe('conflict')
+    expect(await refreshUser(storage, kit.adapter, 'user_a', env())).toBe('conflict')
     expect(warn).toHaveBeenCalled()
     const row = await owner.selectFrom('users').select('email').where('auth_subject', '=', 'user_a').executeTakeFirstOrThrow()
     expect(row.email).toBe('a@x.test')

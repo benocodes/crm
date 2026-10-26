@@ -5,6 +5,7 @@ import { apiKeyAuthOperation } from './api-keys.js'
 import { firstSightOperation, firstSightRecheckOperation, lookupUserOperation } from './first-sight.js'
 import { reconcileOperation, refreshUserOperation, repairOperation } from '../directory/sync.js'
 import { bootstrapOperation } from '../bootstrap.js'
+import { SYSTEM_PRINCIPAL_READ } from '../directory/system-principal.js'
 import type { InternalEnv } from '../storage/internal.js'
 
 // Pure checks of the auth, directory and bootstrap programs (CORE41 Step 1.3): the statements each builds, in order,
@@ -215,7 +216,7 @@ describe('the directory programs (C6, P8-P11)', () => {
       ...Array.from({ length: add }, (_, i) => ({ subject: `new_${i}`, role: 'member' as const })),
     ]
     const users = [...live.filter((m) => m.subject.startsWith('up_')).map((m) => ({ id: m.user_id, auth_subject: m.subject })), ...Array.from({ length: add }, (_, i) => ({ id: userOf(80 + i), auth_subject: `new_${i}` }))]
-    return { found: { 'dir:org': orgRow, 'dir:live': live, 'dir:users': users, 'dir:system': { id: SYSTEM } }, members }
+    return { found: { 'dir:org': orgRow, 'dir:live': live, 'dir:users': users, [SYSTEM_PRINCIPAL_READ]: { id: SYSTEM } }, members }
   }
 
   it.each(dialects)('reconcile costs the same number of statements for 1 and for 10 changed members on %s', (dialect) => {
@@ -229,7 +230,7 @@ describe('the directory programs (C6, P8-P11)', () => {
 
   it.each(dialects)('reconcile with nothing to change builds no statement on %s', (dialect) => {
     const live = [mem(1, userOf(1), 'owner', 'u1')]
-    const found = { 'dir:org': orgRow, 'dir:live': live, 'dir:users': [{ id: userOf(1), auth_subject: 'u1' }], 'dir:system': null }
+    const found = { 'dir:org': orgRow, 'dir:live': live, 'dir:users': [{ id: userOf(1), auth_subject: 'u1' }], [SYSTEM_PRINCIPAL_READ]: null }
     const b = build(reconcileOperation(reconcileArgs([{ subject: 'u1', role: 'owner' }])), dialect, found)
     expect(b.steps).toEqual([])
     expect(b.unit.events).toEqual([])
@@ -238,7 +239,7 @@ describe('the directory programs (C6, P8-P11)', () => {
 
   it.each(dialects)('the system principal is created lazily: absent and a change inserts it first, then asserts it on %s', (dialect) => {
     const s = snapshot(0, 0, 1)
-    const found = { ...s.found, 'dir:system': null }
+    const found = { ...s.found, [SYSTEM_PRINCIPAL_READ]: null }
     const b = build(reconcileOperation(reconcileArgs(s.members)), dialect, found)
     expect(b.steps[0]!.sql).toMatch(/^insert into "principals"/i)
     expect(b.steps[0]!.sql).toMatch(/on conflict do nothing/i)
@@ -250,7 +251,7 @@ describe('the directory programs (C6, P8-P11)', () => {
   })
 
   it.each(dialects)('a unit that writes no event never inserts the system principal on %s', (dialect) => {
-    const found = { 'dir:org': orgRow, 'dir:live': [], 'dir:users': [], 'dir:system': null }
+    const found = { 'dir:org': orgRow, 'dir:live': [], 'dir:users': [], [SYSTEM_PRINCIPAL_READ]: null }
     const b = build(reconcileOperation(reconcileArgs([])), dialect, found)
     expect(sqls(b).some((q) => /principals/i.test(q))).toBe(false)
   })
@@ -258,13 +259,13 @@ describe('the directory programs (C6, P8-P11)', () => {
   it.each(dialects)('no statement gated on the previous one directly follows an assertion, in any directory program on %s', (dialect) => {
     const s = snapshot(2, 2, 2)
     const builds: Built[] = [
-      build(reconcileOperation(reconcileArgs(s.members)), dialect, { ...s.found, 'dir:system': null }),
+      build(reconcileOperation(reconcileArgs(s.members)), dialect, { ...s.found, [SYSTEM_PRINCIPAL_READ]: null }),
       build(reconcileOperation(reconcileArgs(s.members, { organization: { name: 'Renamed' } })), dialect, s.found),
-      build(reconcileOperation(reconcileArgs(s.members)), dialect, { ...s.found, 'dir:org': null, 'dir:system': null }),
+      build(reconcileOperation(reconcileArgs(s.members)), dialect, { ...s.found, 'dir:org': null, [SYSTEM_PRINCIPAL_READ]: null }),
       build(
         repairOperation({ provider: 'clerk', externalId: 'org_acme', userId: userOf(7), role: 'member', knownOrganizationId: null, fetchedName: 'Acme', newOrganizationId: id(61), env }),
         dialect,
-        { 'dir:org': null, 'dir:membership': null, 'dir:system': null },
+        { 'dir:org': null, 'dir:membership': null, [SYSTEM_PRINCIPAL_READ]: null },
       ),
     ]
     for (const b of builds) {
@@ -281,7 +282,7 @@ describe('the directory programs (C6, P8-P11)', () => {
     const b = build(
       repairOperation({ provider: 'clerk', externalId: 'org_acme', userId: userOf(7), role: 'member', knownOrganizationId: null, fetchedName: 'Acme', newOrganizationId: id(61), env }),
       dialect,
-      { 'dir:org': null, 'dir:membership': null, 'dir:system': null },
+      { 'dir:org': null, 'dir:membership': null, [SYSTEM_PRINCIPAL_READ]: null },
     )
     const q = sqls(b)
     const at = q.findIndex((s) => /^insert into "organizations"/i.test(s))
@@ -293,14 +294,14 @@ describe('the directory programs (C6, P8-P11)', () => {
   })
 
   it.each(dialects)('repair of a known organisation with a matching live membership builds no statement on %s', (dialect) => {
-    const found = { 'dir:org': orgRow, 'dir:membership': mem(1, userOf(7), 'member', 'x'), 'dir:system': null }
+    const found = { 'dir:org': orgRow, 'dir:membership': mem(1, userOf(7), 'member', 'x'), [SYSTEM_PRINCIPAL_READ]: null }
     const b = build(repairOperation({ provider: 'clerk', externalId: 'org_acme', userId: userOf(7), role: 'member', knownOrganizationId: ORG, fetchedName: null, newOrganizationId: id(61), env }), dialect, found)
     expect(b.steps).toEqual([])
     expect(decode(b, found)).toBe(ORG)
   })
 
   it.each(dialects)('repair re-roles with one guarded update and a membership.updated event whose before is the planned record on %s', (dialect) => {
-    const found = { 'dir:org': orgRow, 'dir:membership': mem(1, userOf(7), 'member', 'x'), 'dir:system': { id: SYSTEM } }
+    const found = { 'dir:org': orgRow, 'dir:membership': mem(1, userOf(7), 'member', 'x'), [SYSTEM_PRINCIPAL_READ]: { id: SYSTEM } }
     const b = build(repairOperation({ provider: 'clerk', externalId: 'org_acme', userId: userOf(7), role: 'owner', knownOrganizationId: ORG, fetchedName: null, newOrganizationId: id(61), env }), dialect, found)
     expect(b.steps[0]!.sql).toMatch(/^update "memberships"/i)
     expect(b.steps[0]!.expect).toBe('affected')
@@ -375,12 +376,12 @@ describe('no database clock anywhere (D2)', () => {
       build(
         reconcileOperation({ provider: 'clerk', externalId: 'o', organization: { name: 'N' }, members: s([{ subject: 'a', role: 'owner' }]), newOrganizationId: id(60), env }),
         dialect,
-        { 'dir:org': null, 'dir:live': [], 'dir:users': [{ id: USER, auth_subject: 'a' }], 'dir:system': null },
+        { 'dir:org': null, 'dir:live': [], 'dir:users': [{ id: USER, auth_subject: 'a' }], [SYSTEM_PRINCIPAL_READ]: null },
       ),
       build(
         repairOperation({ provider: 'clerk', externalId: 'o', userId: USER, role: 'member', knownOrganizationId: null, fetchedName: 'N', newOrganizationId: id(61), env }),
         dialect,
-        { 'dir:org': null, 'dir:membership': null, 'dir:system': null },
+        { 'dir:org': null, 'dir:membership': null, [SYSTEM_PRINCIPAL_READ]: null },
       ),
       build(refreshUserOperation({ provider: 'clerk', subject: 'u', email: 'b@x.test', name: null, emailVerified: true, env }), dialect, {
         'refresh:user': { id: USER, email: 'a@x.test', name: null, email_verified: false, __stamp: sec(5) },

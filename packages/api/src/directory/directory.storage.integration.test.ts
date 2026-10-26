@@ -1,6 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { sql } from 'kysely'
-import { uuidv7, type StorageBinding } from '@vault/storage'
+import { UnitDriftError, defineOperation, readMaybe, uuidv7, unit, type StorageBinding } from '@vault/storage'
 import { postgresBinding } from '@vault/storage-postgres'
 import { d1Binding } from '@vault/storage-d1'
 import { clearD1 } from '@vault/storage-d1/test'
@@ -10,6 +9,7 @@ import { openEngines, type Engine, type RawRow } from '../test/engines.js'
 import { openAuthKit, type AuthKit } from '../test/auth-kit.js'
 import { clerkMembership, clerkOrganization } from '../test/clerk.js'
 import { reconcileOrganization, refreshUser, repairMembership } from './sync.js'
+import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from './system-principal.js'
 
 // The directory on both engines (CORE41 Step 2.3): repair, reconcile, refresh, the system principal, the webhook and the
 // sign-in copy-newer rule, with the same assertions on Postgres and D1. Every event is attributed to the system principal.
@@ -86,7 +86,7 @@ describe.each(['postgres', 'd1'] as const)('the directory on %s', (name) => {
       expect(org).toMatchObject({ name: 'Fresh org', auth_provider: 'clerk', auth_org_id: ext, created_at: NOW.toISOString(), updated_at: NOW.toISOString() })
       const sys = (await system())!
       expect(sys.created_at).toBe(NOW.toISOString())
-      const m = await membershipOf(e.userId)
+      const m = (await e.rows('memberships')).find((x) => x.user_id === e.userId && x.organization_id === id)!
       expect(m).toMatchObject({ organization_id: id, role: 'owner', created_by: sys.id, created_at: NOW.toISOString(), updated_at: NOW.toISOString(), deleted_at: null })
       const evs = await events()
       expect(evs.map((x) => x.type)).toEqual(['organization.created', 'membership.created'])
@@ -299,8 +299,8 @@ describe.each(['postgres', 'd1'] as const)('the directory on %s', (name) => {
       expect(summary).toMatchObject({ created: 1, deleted: 1 }) // user_holder is not in the snapshot: removed
       const reasons = warn.mock.calls.filter((c) => c[0] === '[directory] member skipped').map((c) => (c[1] as { reason: string }).reason)
       expect(reasons.sort()).toEqual(['account_conflict', 'invalid_identity'])
-      const subjects = (await e.rows('users')).filter((u) => (live().then(() => true), ['user_u', 'user_t'].includes(u.auth_subject as string)))
-      expect(subjects).toEqual([])
+      expect((await e.rows('users')).filter((u) => ['user_u', 'user_t'].includes(u.auth_subject as string))).toEqual([])
+      expect((await live()).length).toBe(2 + 1) // the two seeded members and user_ok; user_holder was not in the snapshot
     })
 
     it('an organisation Clerk deleted loses its live memberships, not its row', async () => {
@@ -314,10 +314,16 @@ describe.each(['postgres', 'd1'] as const)('the directory on %s', (name) => {
       await expectSystemAuthored()
     })
 
-    it('an organisation neither side knows writes nothing', async () => {
+    it('an organisation neither side knows writes nothing (Postgres); another provider organisation is refused 403 before any fetch (D1)', async () => {
       const before = await state()
-      const summary = await reconcileOrganization(kit.binding, kit.clerk.adapter, 'org_nobody', kit.env())
-      expect(summary).toEqual({ organizationId: null, created: 0, updated: 0, deleted: 0 })
+      if (name === 'postgres') {
+        const summary = await reconcileOrganization(kit.binding, kit.clerk.adapter, 'org_nobody', kit.env())
+        expect(summary).toEqual({ organizationId: null, created: 0, updated: 0, deleted: 0 })
+      } else {
+        const err = await reconcileOrganization(kit.binding, kit.clerk.adapter, 'org_nobody', kit.env()).catch((x: unknown) => x)
+        expect(err).toMatchObject({ status: 403, code: 'organization_forbidden' })
+        expect(kit.clerk.fetch.calls).toEqual([])
+      }
       expect(await state()).toEqual(before)
     })
 
@@ -342,34 +348,19 @@ describe.each(['postgres', 'd1'] as const)('the directory on %s', (name) => {
     if (name === 'd1') {
       // Each case changes the live set between the plan and the commit; the unit must abort whole and change nothing.
       const drift = (label: string, hook: () => Promise<void>) =>
-        it(`drift: ${label} between plan and commit is 409 conflict and nothing changes (D1)`, async () => {
+        it(`drift: ${label} between plan and commit is 409 conflict and the aborted unit changes nothing (D1)`, async () => {
           kit.profile('user_new')
           clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], ['user_new', 'member']]) // plan: create user_new, delete user2
-          const hookBefore = { done: false }
+          let hooked: Awaited<ReturnType<typeof state>> | undefined
           kit.armOn('directory.reconcile', async () => {
-            hookBefore.done = true
             await hook()
+            hooked = await state() // everything the unit starts its commit against
           })
-          let snapshot: Awaited<ReturnType<typeof state>> | undefined
-          const arm = kit.binding.runtime.execute
-          // snapshot after the hook ran: the drifted unit must leave exactly that state
-          kit.binding.runtime.execute = async (identity, prepared) => {
-            try {
-              return await arm(identity, prepared)
-            } finally {
-              if (prepared.name === 'directory.reconcile') snapshot = await state()
-            }
-          }
-          const before = await state()
           const err = await reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env()).catch((x: unknown) => mapStorageError(x))
-          expect(hookBefore.done).toBe(true)
+          expect(hooked, 'the hook ran between plan and commit').toBeDefined()
           expect(err).toBeInstanceOf(ApiError)
           expect(err).toMatchObject({ status: 409, code: 'conflict' })
-          // the hook's own writes are the only difference from the state before the call
-          const after = await state()
-          expect(after.events).toEqual(before.events)
-          expect(after.memberships.map((m) => m.id).sort()).toEqual(snapshot!.memberships.map((m) => m.id).sort())
-          expect(after.memberships.filter((m) => m.deleted_at !== null).length).toBe(snapshot!.memberships.filter((m) => m.deleted_at !== null).length)
+          expect(await state()).toEqual(hooked)
         })
 
       drift('a live membership added', async () => {
@@ -386,6 +377,50 @@ describe.each(['postgres', 'd1'] as const)('the directory on %s', (name) => {
         await e.seedMember('member', { subject: 'user_swap', email: 'swap@x.test' })
       })
     }
+  })
+
+  describe('the system principal (P10)', () => {
+    /** A unit that only needs the system principal to exist: the read and the steps, nothing else. */
+    const needSystem = (mint: string) =>
+      defineOperation<string>({
+        name: 'test.system_principal',
+        mutates: true,
+        reads: (qc) => ({ [SYSTEM_PRINCIPAL_READ]: systemPrincipalRead(qc) }),
+        build: (found, qc) => {
+          const made = systemPrincipalSteps(qc, found.maybe(SYSTEM_PRINCIPAL_READ), mint, NOW.toISOString())
+          const steps = made.steps.map((st, i) => (i === 0 ? { ...st, label: 'first-mutation' as const } : st))
+          return unit({ steps, events: [], decode: () => made.id })
+        },
+      })
+    const internal = { kind: 'internal', organizationId: null } as const
+    const systemRows = async () => (await e.rows('principals')).filter((p) => p.kind === 'system')
+
+    it('is created once with the unit clock and found again', async () => {
+      const first = (await e.runAs(internal, needSystem(uuidv7()))).value
+      const second = await e.runAs(internal, needSystem(uuidv7()))
+      expect(second.value).toBe(first)
+      expect(second.stats.writes).toBe(0)
+      const rows = await systemRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ id: first, created_at: NOW.toISOString() })
+    })
+
+    it('has no user or agent row', async () => {
+      const id = (await e.runAs(internal, needSystem(uuidv7()))).value
+      expect((await e.rows('users')).some((u) => u.id === id)).toBe(false)
+      expect((await e.rows('agents')).some((a) => a.id === id)).toBe(false)
+    })
+
+    it('two first uses at once leave one row: the loser drifts and a retry finds the winner', async () => {
+      const run = () => e.runAs(internal, needSystem(uuidv7())).then((r) => r.value)
+      const settled = await Promise.allSettled([run(), run()])
+      expect(settled.some((r) => r.status === 'fulfilled')).toBe(true)
+      for (const r of settled) if (r.status === 'rejected') expect(r.reason).toBeInstanceOf(UnitDriftError)
+      const rows = await systemRows()
+      expect(rows).toHaveLength(1)
+      for (const r of settled) if (r.status === 'fulfilled') expect(r.value).toBe(rows[0]!.id)
+      expect((await e.runAs(internal, needSystem(uuidv7()))).value).toBe(rows[0]!.id)
+    })
   })
 
   describe('refresh', () => {
@@ -535,6 +570,3 @@ describe.each(['postgres', 'd1'] as const)('the directory on %s', (name) => {
     })
   })
 })
-
-// keep the raw SQL import used for typing the owner pool in editors
-void sql
