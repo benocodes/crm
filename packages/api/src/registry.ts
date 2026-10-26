@@ -220,7 +220,8 @@ export function preparedResourceOperations(def: PreparedResource<any, any>): Pre
       response: { status: 200, schema: z.object({ data: z.array(rec), next_cursor: z.uuid().nullable() }) },
       prepare: (env, input) => {
         const { after, limit, ...filters } = input.query
-        return listOperation(def, env, { after, limit, filters: filters as Record<string, string> })
+        const raw = { after, limit, filters: filters as Record<string, string> }
+        return def.override?.list ? def.override.list(env, raw) : listOperation(def, env, raw)
       },
     })
   }
@@ -234,7 +235,7 @@ export function preparedResourceOperations(def: PreparedResource<any, any>): Pre
       scope: { resource: s, action: 'read' },
       request: { params: idParams },
       response: { status: 200, schema: rec },
-      prepare: (env, input) => getOperation(def, env, input.params.id as string),
+      prepare: (env, input) => (def.override?.get ? def.override.get(env, input.params.id) : getOperation(def, env, input.params.id as string)),
     })
   }
   if (actions.has('create')) {
@@ -247,7 +248,7 @@ export function preparedResourceOperations(def: PreparedResource<any, any>): Pre
       scope: { resource: s, action: 'write' },
       request: { body: def.create },
       response: { status: 201, schema: rec },
-      prepare: (env, input) => createOperation(def, env, input.body),
+      prepare: (env, input) => (def.override?.create ? def.override.create(env, input.body) : createOperation(def, env, input.body)),
     })
   }
   if (actions.has('update')) {
@@ -260,7 +261,10 @@ export function preparedResourceOperations(def: PreparedResource<any, any>): Pre
       scope: { resource: s, action: 'write' },
       request: { params: idParams, body: def.update },
       response: { status: 200, schema: rec },
-      prepare: (env, input) => updateOperation(def, env, input.params.id as string, input.body),
+      prepare: (env, input) =>
+        def.override?.update
+          ? def.override.update(env, { id: input.params.id, body: input.body })
+          : updateOperation(def, env, input.params.id as string, input.body),
     })
   }
   if (actions.has('delete')) {
@@ -273,7 +277,7 @@ export function preparedResourceOperations(def: PreparedResource<any, any>): Pre
       scope: { resource: s, action: 'write' },
       request: { params: idParams },
       response: { status: 204 },
-      prepare: (env, input) => deleteOperation(def, env, input.params.id as string),
+      prepare: (env, input) => (def.override?.delete ? def.override.delete(env, input.params.id) : deleteOperation(def, env, input.params.id as string)),
     })
   }
   return ops

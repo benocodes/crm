@@ -101,3 +101,84 @@ definePreparedResource({
   // @ts-expect-error companies is not in scope of a tasks guard
   guards: (eb) => [eb('companies.name', '=', 'x')],
 })
+
+// --- CORE36: the identity-model tables ---------------------------------------------------------------
+
+const companiesRecord = z.object({ id: z.uuid(), name: z.string(), domain: z.string().nullable() })
+const contactsRecord = z.object({ id: z.uuid(), name: z.string().nullable(), company_id: z.uuid().nullable() })
+const identitiesRecord = z.object({ id: z.uuid(), kind: z.enum(['email', 'phone']), value: z.string(), contact_id: z.uuid().nullable(), own: z.boolean() })
+
+// positive siblings: the new tables, a live reference, an owner-rule-shaped prepare hook
+export const okCompanies = definePreparedResource({ name: 'companies', eventName: 'company', table: 'companies', record: companiesRecord })
+export const okContacts = definePreparedResource({
+  name: 'contacts',
+  eventName: 'contact',
+  table: 'contacts',
+  record: contactsRecord,
+  references: { company_id: { table: 'companies', live: true } },
+})
+export const okIdentities = definePreparedResource({
+  name: 'identities',
+  eventName: 'identity',
+  table: 'identities',
+  record: identitiesRecord,
+  references: { contact_id: { table: 'contacts', live: true } },
+  prepare: ({ values }) => ({ contact_id: (values.contact_id as string | undefined) ?? null, own: values.own === true }),
+})
+
+// 1. unknown record column on companies
+definePreparedResource({
+  name: 'companies',
+  eventName: 'company',
+  table: 'companies',
+  // @ts-expect-error 'industry' is not a column of companies
+  record: z.object({ id: z.uuid(), industry: z.string() }),
+})
+
+// 2. mistyped record column on contacts
+definePreparedResource({
+  name: 'contacts',
+  eventName: 'contact',
+  table: 'contacts',
+  // @ts-expect-error name is text or null, the record says number
+  record: z.object({ id: z.uuid(), name: z.number().nullable() }),
+})
+
+// 3. mistyped boolean on identities
+definePreparedResource({
+  name: 'identities',
+  eventName: 'identity',
+  table: 'identities',
+  // @ts-expect-error own is a boolean, the record says string
+  record: z.object({ id: z.uuid(), own: z.string() }),
+})
+
+// 4. a reference to a table that is not a portable table
+definePreparedResource({
+  name: 'contacts',
+  eventName: 'contact',
+  table: 'contacts',
+  record: contactsRecord,
+  // @ts-expect-error 'deals' is not a table a reference can name
+  references: { company_id: { table: 'deals' } },
+})
+
+// 5. a reference column that is not a column of the table
+definePreparedResource({
+  name: 'contacts',
+  eventName: 'contact',
+  table: 'contacts',
+  record: contactsRecord,
+  // @ts-expect-error 'bogus' is not a column of contacts
+  references: { bogus: { table: 'companies' } },
+})
+
+// 6. an async hook on companies
+definePreparedResource({
+  name: 'companies',
+  eventName: 'company',
+  table: 'companies',
+  record: companiesRecord,
+  // @ts-expect-error a prepare hook must be synchronous
+  prepare: async () => ({}),
+})

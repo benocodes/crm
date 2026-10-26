@@ -1,5 +1,5 @@
 // Test-only. Runs golden scenarios ([[CORE35]] D17) against any backend and turns them into transcripts.
-import { FIXED_IDS, type GoldenActor, type GoldenScenario, type GoldenStep } from './scenarios.js'
+import type { GoldenActor, GoldenScenario, GoldenStep } from './scenarios.js'
 
 export interface EventView {
   type: string
@@ -72,37 +72,6 @@ export async function runScenario(backend: GoldenBackend, scenario: GoldenScenar
     seen = events.length
   }
   return { name: scenario.name, about: scenario.about, steps }
-}
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-const SERVER_TIME = new Set(['created_at', 'updated_at', 'completed_at', 'deleted_at'])
-
-/**
- * The legacy oracle's comparison form: ids the service generated become `<id:n>` by first appearance and
- * server-stamped timestamps become `<ts>` (null stays null). Seed ids and client-supplied values stay exact.
- * Used only to compare against the transcript recorded from the pre-migration service, whose ids and clock
- * cannot be injected; the exact fixtures never go through it.
- */
-export function symbolic<T>(value: T): T {
-  const names = new Map<string, string>()
-  const walk = (v: unknown, key?: string): unknown => {
-    if (typeof v === 'string') {
-      if (key && SERVER_TIME.has(key)) return '<ts>'
-      if (UUID.test(v) && !FIXED_IDS.has(v)) {
-        if (!names.has(v)) names.set(v, `<id:${names.size + 1}>`)
-        return names.get(v)
-      }
-      return v.replaceAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, (m) => {
-        if (FIXED_IDS.has(m)) return m
-        if (!names.has(m)) names.set(m, `<id:${names.size + 1}>`)
-        return names.get(m)!
-      })
-    }
-    if (Array.isArray(v)) return v.map((x) => walk(x))
-    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, k)]))
-    return v
-  }
-  return walk(value) as T
 }
 
 /** Stable JSON text of a fixture file: two-space indent, trailing newline. */

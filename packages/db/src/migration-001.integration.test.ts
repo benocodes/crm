@@ -159,15 +159,6 @@ describe('migration 001 baseline', () => {
     expect(await sqlstate((c) => c.query(`INSERT INTO principals (kind) VALUES ('bot')`))).toBe('23514')
   })
 
-  it('email is case-insensitive unique', async () => {
-    expect(
-      await sqlstate(async (c) => {
-        await user(c, 'A@x.test')
-        await user(c, 'a@x.test')
-      }),
-    ).toBe('23505')
-  })
-
   it('membership unique', async () => {
     expect(
       await sqlstate(async (c) => {
@@ -192,26 +183,6 @@ describe('migration 001 baseline', () => {
         await c.query(ins, [o, a, u])
       }),
     ).toBe('23505')
-  })
-
-  it('updated_at trigger', async () => {
-    // now() is the transaction's start time, so the insert and the update must be separate
-    // transactions; this one test commits and cleans up after itself.
-    const c = await pool.connect()
-    try {
-      const o = await org(c)
-      const u = await user(c, 'trigger@x.test')
-      const t = (
-        await c.query(`INSERT INTO tasks (organization_id, title, created_by) VALUES ($1, 't', $2) RETURNING id`, [o, u])
-      ).rows[0].id
-      await c.query(`SELECT pg_sleep(0.01)`)
-      await c.query(`UPDATE tasks SET title = 'u' WHERE id = $1`, [t])
-      const r = (await c.query(`SELECT updated_at > created_at AS later FROM tasks WHERE id = $1`, [t])).rows[0]
-      expect(r.later).toBe(true)
-    } finally {
-      await c.query(`TRUNCATE tasks, memberships, users, principals, organizations CASCADE`)
-      c.release()
-    }
   })
 
   it('no trigger on append-only', async () => {

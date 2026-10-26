@@ -17,12 +17,21 @@ export type ContractActor = 'agent' | 'user'
 export type ContractGrant = 'full' | 'read' | 'none'
 /** What a fixture's `make` gets besides the context: the suite's pool (`vault_app`) and the tenant. */
 export type ContractSeed = { db: Kysely<Database>; tenant: ContractTenant }
+/**
+ * What a fixture's `input` and `patch` get (CORE36 P8): they run OUTSIDE any transaction, on every backend.
+ * `post` creates a prerequisite row through the public API as the tenant's user with every declared scope and
+ * throws on a non-2xx; `ctx` is the Postgres-only committed service context for legacy fixtures (the D1 backend's throws).
+ */
+export interface FixtureKit {
+  tenant: ContractTenant
+  post(path: string, body: unknown): Promise<{ id: string }>
+  ctx<T>(fn: (ctx: ServiceContext) => Promise<T>): Promise<T>
+}
 export interface ContractFixture {
-  /** A valid create body. Required iff the definition generates `create`. Runs in a committed
-   *  `withContext` as the tenant's owner user, so it may create prerequisite rows first. */
-  input?: (ctx: ServiceContext) => Promise<Record<string, unknown>>
+  /** A valid create body. Required iff the definition generates `create`. May create prerequisite rows through `kit`. */
+  input?: (kit: FixtureKit) => Promise<Record<string, unknown>>
   /** A valid, non-empty update body. Required iff the definition generates `update`. */
-  patch?: (ctx: ServiceContext) => Promise<Record<string, unknown>>
+  patch?: (kit: FixtureKit) => Promise<Record<string, unknown>>
   /** Creates one live row; returns its id. Default: `createResource(ctx, def, await input(ctx))`.
    *  Required when the definition does not generate `create` (read-only resources). */
   make?: (ctx: ServiceContext, seed: ContractSeed) => Promise<{ id: string }>
@@ -52,6 +61,8 @@ export interface ContractEnv {
   principalId(t: ContractTenant, actor: ContractActor, grant: ContractGrant): Promise<string>
   /** Runs fn in a committed context as the tenant's owner user, with the definition's read and write scopes. */
   as<T>(t: ContractTenant, def: AnyResource, fn: (ctx: ServiceContext) => Promise<T>): Promise<T>
+  /** The fixture kit of a tenant: prerequisite rows over the public API. */
+  kit(t: ContractTenant, def: AnyResource): FixtureKit
   eventsOf(resourceId: string): Promise<EventRow[]>
 }
 export type ContractCheck = (def: AnyResource, fixture: ContractFixture, env: () => ContractEnv) => void
@@ -218,12 +229,21 @@ export function runContractSuite(opts: {
             call,
             principalId: (t, actor, grant) => session.principalId(t, actor, scopeSets[grant]),
             as: session.as,
+            kit: (t, d) => ({
+              tenant: t,
+              async post(path, body) {
+                const res = await session.call(t, 'user', registry.declaredScopes(), 'POST', path, body)
+                if (res.status < 200 || res.status >= 300) throw new Error(`fixture post ${path} failed: ${res.status} ${await res.text()}`)
+                return (await res.json()) as { id: string }
+              },
+              ctx: (fn) => session.as(t, d, fn),
+            }),
             eventsOf: session.eventsOf,
             countEvents: session.countEvents,
             countRows: session.countRows,
             async make(t, d, fx) {
               if (fx.make) return session.as(t, d, (ctx) => fx.make!(ctx, { db, tenant: t }))
-              const input = await session.as(t, d, fx.input!)
+              const input = await fx.input!(env.kit(t, d))
               const res = await call(t, 'user', 'full', 'POST', pathOf(d, 'create'), input)
               if (res.status !== 201) throw new Error(`fixture create failed: ${res.status} ${await res.text()}`)
               return (await res.json()) as { id: string }
@@ -250,7 +270,7 @@ export function runContractSuite(opts: {
           describe(`as ${actor}`, () => {
             if (has('create')) {
               it('create', async () => {
-                const input = await env.as(a, def, fixture.input!)
+                const input = await fixture.input!(env.kit(a, def))
                 const res = await env.call(a, actor, 'full', 'POST', pathOf(def, 'create'), input)
                 expect(res.status).toBe(201)
                 const body = (await res.json()) as any
@@ -288,7 +308,7 @@ export function runContractSuite(opts: {
             if (has('update')) {
               it('update', async () => {
                 const row = await make(a)
-                const patch = await env.as(a, def, fixture.patch!)
+                const patch = await fixture.patch!(env.kit(a, def))
                 const res = await env.call(a, actor, 'full', 'PATCH', pathOf(def, 'update', row.id), patch)
                 expect(res.status).toBe(200)
                 const body = parse('update', await res.json())
@@ -321,7 +341,7 @@ export function runContractSuite(opts: {
               const eventsBefore = await env.eventsOf(row.id)
               if (has('get')) await error(await env.call(a, actor, 'full', 'GET', pathOf(def, 'get', row.id)), 404, 'not_found')
               if (has('update')) {
-                const patch = await env.as(a, def, fixture.patch!)
+                const patch = await fixture.patch!(env.kit(a, def))
                 await error(await env.call(a, actor, 'full', 'PATCH', pathOf(def, 'update', row.id), patch), 404, 'not_found')
               }
               if (has('delete')) await error(await env.call(a, actor, 'full', 'DELETE', pathOf(def, 'delete', row.id)), 404, 'not_found')
@@ -337,7 +357,7 @@ export function runContractSuite(opts: {
               it('unknown field', async () => {
                 const total = await eventCount()
                 if (has('create')) {
-                  const input = await env.as(a, def, fixture.input!)
+                  const input = await fixture.input!(env.kit(a, def))
                   const rows = async () => ({ n: await env.countRows(def.table) })
                   const n = (await rows()).n
                   await error(await env.call(a, actor, 'full', 'POST', pathOf(def, 'create'), { ...input, zz_unknown: 1 }), 400, 'validation_error')

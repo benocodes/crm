@@ -1,10 +1,8 @@
 import { z } from 'zod'
-import type { ServiceContext } from '../context.js'
+import { readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
-import { addressKey, lockKeys } from '../identity/locks.js'
 import { normalizeIdentityValue, type IdentityKind } from '../identity/normalize.js'
-import { emitResourceEvent } from './crud.js'
-import { defineResource, toRecord } from './define.js'
+import { definePreparedResource } from '../storage/definition.js'
 
 export type IdentityRecord = {
   id: string
@@ -49,23 +47,11 @@ function ownerColumns(input: Record<string, unknown>): { contact_id: string | nu
 }
 
 /**
- * Inserts a live identity, or returns null when the address is already taken (ON CONFLICT DO NOTHING on
- * the partial unique index). Does not emit: callers emit. Callers hold the address lock.
+ * Identities on the prepared path ([[CORE36]]). Pure preparation: the owner rule, then the normalised value (the
+ * ASCII rule included, P6); the contact must be live (plan read and commit guard); a live address refuses a create in
+ * the plan (`409 identity_exists`) and the partial unique index re-checks at commit. `kind` and `value` are immutable.
  */
-export async function insertIdentity(
-  ctx: ServiceContext,
-  v: { kind: IdentityKind; value: string; contact_id: string | null; own: boolean },
-): Promise<IdentityRecord | null> {
-  const row = await ctx.trx
-    .insertInto('identities')
-    .values({ ...v, organization_id: ctx.organizationId, created_by: ctx.actor.id })
-    .onConflict((oc) => oc.columns(['organization_id', 'kind', 'value']).where('deleted_at', 'is', null).doNothing())
-    .returning(Object.keys(record.shape) as never[])
-    .executeTakeFirst()
-  return row ? toRecord(identities, row as Record<string, unknown>) : null
-}
-
-export const identities = defineResource<IdentityRecord>({
+export const identities = definePreparedResource({
   name: 'identities',
   eventName: 'identity',
   table: 'identities',
@@ -87,30 +73,29 @@ export const identities = defineResource<IdentityRecord>({
     contact_id: { schema: z.uuid() },
     own: { schema: z.enum(['true', 'false']), normalize: (v) => v === 'true' },
   },
-  beforeWrite: (_ctx, { op, input }) => (op === 'update' ? { ...input, ...ownerColumns(input) } : input),
-  overrides: {
-    async create(ctx, input) {
-      const owner = ownerColumns(input)
-      const kind = input.kind as IdentityKind
-      const value = normalizeIdentityValue(kind, input.value as string)
-      await lockKeys(ctx.trx, [addressKey(ctx.organizationId, kind, value)])
-      const created = await insertIdentity(ctx, { kind, value, ...owner })
-      if (!created) {
-        const existing = await ctx.trx
-          .selectFrom('identities')
-          .select(['contact_id', 'own'])
-          .where('kind', '=', kind)
-          .where('value', '=', value)
-          .where('deleted_at', 'is', null)
-          .executeTakeFirstOrThrow()
-        throw new ApiError(
-          409,
-          'identity_exists',
-          existing.own ? 'the address is already an own identity' : `the address already belongs to contact ${existing.contact_id}`,
-        )
-      }
-      await emitResourceEvent(ctx, identities, 'created', null, created, created.id)
-      return created
-    },
+  prepare: ({ values, meta }) => {
+    if (meta.op === 'update') return Object.keys(values).length === 0 ? {} : ownerColumns(values)
+    const owner = ownerColumns(values)
+    return { value: normalizeIdentityValue(values.kind as IdentityKind, values.value as string), ...owner }
+  },
+  conflicts: ({ qc, env, op, values }) => {
+    if (op !== 'create') return []
+    const q = qc.db
+      .selectFrom('identities')
+      .select(['identities.contact_id', 'identities.own'])
+      .where('identities.organization_id', '=', env.organizationId)
+      .where('identities.kind', '=', values.kind as IdentityKind)
+      .where('identities.value', '=', values.value as string)
+      .where('identities.deleted_at', 'is', null)
+    return [
+      {
+        read: readMaybe(q.limit(1)),
+        refuse: (row) => {
+          if (!row) return
+          const own = row.own === true || row.own === 1
+          throw new ApiError(409, 'identity_exists', own ? 'the address is already an own identity' : `the address already belongs to contact ${String(row.contact_id)}`)
+        },
+      },
+    ]
   },
 })

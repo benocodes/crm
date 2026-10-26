@@ -1,7 +1,6 @@
 import { z } from 'zod'
-import { deleteResource } from './crud.js'
-import { defineResource } from './define.js'
-import { identities } from './identities.js'
+import { deleteContactOperation } from '../identity/cascades.js'
+import { definePreparedResource } from '../storage/definition.js'
 
 export type ContactRecord = {
   id: string
@@ -32,7 +31,8 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const contacts = defineResource<ContactRecord>({
+/** Contacts on the prepared path ([[CORE36]]): the company must be a live company of this organisation; delete tombstones the identities as a set. */
+export const contacts = definePreparedResource({
   name: 'contacts',
   eventName: 'contact',
   table: 'contacts',
@@ -41,17 +41,5 @@ export const contacts = defineResource<ContactRecord>({
   update,
   filters: { company_id: { schema: z.uuid() } },
   references: { company_id: { table: 'companies', live: true } },
-  overrides: {
-    async delete(ctx, id, generic) {
-      await generic(id)
-      const rows = await ctx.trx
-        .selectFrom('identities')
-        .select('id')
-        .where('contact_id', '=', id)
-        .where('deleted_at', 'is', null)
-        .orderBy('id')
-        .execute()
-      for (const row of rows) await deleteResource(ctx, identities, row.id)
-    },
-  },
+  override: { delete: (env, id) => deleteContactOperation(env, id as string) },
 })

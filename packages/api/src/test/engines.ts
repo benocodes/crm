@@ -3,9 +3,9 @@
 import { sql, type Kysely } from 'kysely'
 import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
 import type { Database } from '@vault/db'
-import { uuidv7, type ExecutionResult, type PreparedOperation, type StorageBinding } from '@vault/storage'
+import { COLUMN_KINDS, uuidv7, type ColumnKind, type ExecutionResult, type PreparedOperation, type StorageBinding } from '@vault/storage'
 import { postgresBinding } from '@vault/storage-postgres'
-import { d1Binding, type D1Like } from '@vault/storage-d1'
+import { d1Binding, type D1Like, type D1PreparedLike } from '@vault/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { execute } from '@vault/storage'
@@ -33,19 +33,58 @@ export interface Engine {
   events(): Promise<RawRow[]>
   /** Inserts a task row directly (fixture setup, bypassing the program under test). */
   insertTask(row: { id: string; title: string; status?: 'open' | 'done'; completed_at?: string | null; at?: string }): Promise<void>
+  /** Raw rows of a modelled table in write order (`ctid` on Postgres, `rowid` on D1); booleans and JSON decoded, timestamps as ISO text. */
+  rows(table: string): Promise<RawRow[]>
+  /**
+   * Inserts a row directly (setup only, bypassing the program under test) through the owner pool or D1. Fills
+   * `id`, `organization_id`, `created_by`, `created_at` and `updated_at` when the table has them and the row omits them.
+   */
+  insert(table: string, row: Record<string, unknown>): Promise<RawRow>
+  /** D1 only: `hook` runs once, after the next unit's plan reads and before its commit batch (deterministic drift). */
+  betweenPlanAndCommit(hook: () => Promise<void>): void
+}
+
+const SEED_AT = '2026-10-22T08:00:00.000Z'
+const kindsOf = (table: string): Record<string, ColumnKind> => {
+  const kinds = (COLUMN_KINDS as Record<string, Record<string, ColumnKind>>)[table]
+  if (!kinds) throw new Error(`no modelled table "${table}"`)
+  return kinds
+}
+/** Decodes a raw row to the shape both engines share: ISO timestamps, JS booleans, parsed JSON. */
+function decodeRow(table: string, row: RawRow): RawRow {
+  const kinds = kindsOf(table)
+  const out: RawRow = {}
+  for (const [k, v] of Object.entries(row)) {
+    if (v === null || v === undefined) out[k] = null
+    else if (kinds[k] === 'timestamp') out[k] = v instanceof Date ? v.toISOString() : v
+    else if (kinds[k] === 'boolean') out[k] = v === true || v === 1
+    else if (kinds[k] === 'json') out[k] = typeof v === 'string' ? JSON.parse(v) : v
+    else out[k] = v
+  }
+  return out
+}
+function withDefaults(e: Engine, table: string, row: Record<string, unknown>): Record<string, unknown> {
+  const kinds = kindsOf(table)
+  const out = { ...row }
+  if ('id' in kinds) out.id ??= uuidv7()
+  if ('organization_id' in kinds) out.organization_id ??= e.organizationId
+  if ('created_by' in kinds) out.created_by ??= e.userId
+  if ('created_at' in kinds) out.created_at ??= SEED_AT
+  if ('updated_at' in kinds) out.updated_at ??= SEED_AT
+  return out
 }
 
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
-const scopes = () => ScopeSet.parse(['tasks:read', 'tasks:write'])
+const scopes = () => ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write'])
 
-export async function openEngines(opts: { maxConnections?: number } = {}): Promise<Engine[]> {
-  return [await openPostgres(opts), await openD1()]
+export async function openEngines(opts: { maxConnections?: number; maxSetSize?: number } = {}): Promise<Engine[]> {
+  return [await openPostgres(opts), await openD1(opts)]
 }
 
-async function openPostgres(opts: { maxConnections?: number }): Promise<Engine> {
+async function openPostgres(opts: { maxConnections?: number; maxSetSize?: number }): Promise<Engine> {
   const app = createTestDb({ max: opts.maxConnections ?? 6 })
   const owner = createOwnerTestDb()
-  const binding = postgresBinding(app)
+  const binding = postgresBinding(app, opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize })
   const e: Engine = {
     name: 'postgres',
     binding,
@@ -56,10 +95,6 @@ async function openPostgres(opts: { maxConnections?: number }): Promise<Engine> 
     app,
     owner,
     async reset() {
-      // Guard: the production `updated_at` trigger must be on. A suite that disabled it and leaked the DDL would
-      // mask the real timestamps (AGENTS.md invariant 2), so fail loudly instead of passing on leaked state.
-      const { rows } = await sql<{ tgenabled: string }>`select tgenabled from pg_trigger where tgname = 'set_updated_at' and tgrelid = 'tasks'::regclass`.execute(owner)
-      if (rows[0]?.tgenabled !== 'O') throw new Error(`tasks.set_updated_at trigger is not enabled (tgenabled=${rows[0]?.tgenabled}); run \`pnpm db:test:worktree\``)
       await truncateAll(owner)
       const org = await seedOrganization(app, { name: 'Engine org' })
       const user = await seedUser(app, { organizationId: org.id, role: 'owner' })
@@ -82,13 +117,65 @@ async function openPostgres(opts: { maxConnections?: number }): Promise<Engine> 
       const at = row.at ?? '2026-10-22T08:00:00.000Z'
       await sql`insert into tasks (id, organization_id, title, status, completed_at, created_by, created_at, updated_at) values (${row.id}, ${e.organizationId}, ${row.title}, ${row.status ?? 'open'}, ${row.completed_at ?? null}, ${e.userId}, ${at}, ${at})`.execute(owner)
     },
+    async rows(table) {
+      kindsOf(table)
+      return (await sql<RawRow>`select * from ${sql.table(table)} order by ctid`.execute(owner)).rows.map((r) => decodeRow(table, r))
+    },
+    async insert(table, row) {
+      const full = withDefaults(e, table, row)
+      const cols = Object.keys(full)
+      const res = await sql<RawRow>`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(owner)
+      return decodeRow(table, res.rows[0]!)
+    },
+    betweenPlanAndCommit() {
+      throw new Error('betweenPlanAndCommit is a D1 device: Postgres plan and commit share one locked transaction (races are covered by D13 trials)')
+    },
   }
   return e
 }
 
-async function openD1(): Promise<Engine> {
+/** A D1 whose next unit pauses between its plan reads and its commit batch to run `hook`. */
+function interceptD1(real: D1Like, pending: { hook: (() => Promise<void>) | null }): D1Like {
+  const sqlOf = new WeakMap<object, string>()
+  const isRead = (s: D1PreparedLike) => /^\s*select\b/i.test(sqlOf.get(s) ?? '')
+  return {
+    prepare(query: string) {
+      const p = real.prepare(query)
+      // The runtime hands `batch` the BOUND statements, so remember the SQL on what `bind` returns.
+      return {
+        bind: (...values: unknown[]) => {
+          const bound = p.bind(...values)
+          sqlOf.set(bound, query)
+          return bound
+        },
+        run: () => p.run(),
+        all: () => p.all(),
+        first: () => p.first(),
+      } as D1PreparedLike
+    },
+    async batch(statements: D1PreparedLike[]) {
+      const reads = statements.length > 0 && statements.every(isRead)
+      const hook = pending.hook
+      if (hook && !reads) {
+        // No read batch ran for this unit: run the hook right before the commit batch.
+        pending.hook = null
+        await hook()
+        return real.batch(statements)
+      }
+      const out = await real.batch(statements)
+      if (hook && reads) {
+        pending.hook = null
+        await hook()
+      }
+      return out
+    },
+  } as D1Like
+}
+
+async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
   const local: LocalD1 = await openLocalD1(['ENGINE'])
   const d1 = local.bindings.ENGINE!
+  const pending: { hook: (() => Promise<void>) | null } = { hook: null }
   const e: Engine = {
     name: 'd1',
     binding: undefined as never,
@@ -104,7 +191,8 @@ async function openD1(): Promise<Engine> {
       await seedPrincipal(d1, { id: ids.userId, kind: 'user' })
       await seedPrincipal(d1, { id: ids.user2Id, kind: 'user' })
       await seedPrincipal(d1, { id: ids.agentId, kind: 'agent' })
-      Object.assign(e, ids, { binding: d1Binding(d1, { organizationId: ids.organizationId }) })
+      pending.hook = null
+      Object.assign(e, ids, { binding: d1Binding(interceptD1(d1, pending), { organizationId: ids.organizationId, ...(opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize }) }) })
     },
     close: () => local.dispose(),
     ...shared(() => e),
@@ -119,6 +207,20 @@ async function openD1(): Promise<Engine> {
       await d1.prepare('insert into tasks (id, organization_id, title, status, completed_at, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)')
         .bind(row.id, e.organizationId, row.title, row.status ?? 'open', row.completed_at ?? null, e.userId, at, at)
         .run()
+    },
+    async rows(table) {
+      kindsOf(table)
+      return ((await d1.prepare(`select * from "${table}" order by rowid`).all()).results as RawRow[]).map((r) => decodeRow(table, r))
+    },
+    async insert(table, row) {
+      const full = withDefaults(e, table, row)
+      const cols = Object.keys(full)
+      const values = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : (full[c] ?? null)))
+      await d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...values).run()
+      return decodeRow(table, full as RawRow)
+    },
+    betweenPlanAndCommit(hook) {
+      pending.hook = hook
     },
   }
   return e

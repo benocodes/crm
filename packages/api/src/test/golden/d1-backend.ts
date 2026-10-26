@@ -8,7 +8,7 @@ import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { createApp } from '../../rest/app.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../user-auth.js'
-import { goldenId } from './pg-backend.js'
+import { GOLDEN_SCOPES, goldenId } from './pg-backend.js'
 import type { EventView, GoldenBackend } from './runner.js'
 import { IDS, type GoldenActor } from './scenarios.js'
 
@@ -30,7 +30,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
     clock: () => now,
     newId: () => goldenId(++counter),
   })
-  const scopes = ['tasks:read', 'tasks:write']
+  const scopes = GOLDEN_SCOPES
   return {
     async reset() {
       await clearD1(d1)

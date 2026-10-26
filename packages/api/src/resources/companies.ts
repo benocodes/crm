@@ -1,10 +1,9 @@
 import { z } from 'zod'
+import { readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
-import { companyDomainKey, lockKeys } from '../identity/locks.js'
+import { deleteCompanyOperation } from '../identity/cascades.js'
 import { normalizeDomain } from '../identity/normalize.js'
-import { contacts } from './contacts.js'
-import { updateResource } from './crud.js'
-import { defineResource } from './define.js'
+import { definePreparedResource } from '../storage/definition.js'
 
 export type CompanyRecord = {
   id: string
@@ -33,7 +32,12 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const companies = defineResource<CompanyRecord>({
+/**
+ * Companies on the prepared path ([[CORE36]]). The domain is normalised in preparation; a live company with that
+ * domain refuses the write in the plan (`409 domain_exists`); the partial unique index is the commit-time re-check.
+ * Delete unlinks the company's live contacts as a set (`identity/cascades.ts`).
+ */
+export const companies = definePreparedResource({
   name: 'companies',
   eventName: 'company',
   table: 'companies',
@@ -41,27 +45,25 @@ export const companies = defineResource<CompanyRecord>({
   create,
   update,
   filters: { domain: { schema: z.string().max(253), normalize: (v) => normalizeDomain(v as string) } },
-  async beforeWrite(ctx, { input, before }) {
-    if (typeof input.domain !== 'string') return input
-    const domain = normalizeDomain(input.domain)
-    await lockKeys(ctx.trx, [companyDomainKey(ctx.organizationId, domain)])
-    let q = ctx.trx.selectFrom('companies').select('id').where('domain', '=', domain).where('deleted_at', 'is', null)
-    if (before) q = q.where('id', '!=', before.id)
-    const clash = await q.executeTakeFirst()
-    if (clash) throw new ApiError(409, 'domain_exists', `a company with domain ${domain} already exists (${clash.id})`)
-    return { ...input, domain }
+  prepare: ({ values }) => (typeof values.domain === 'string' ? { domain: normalizeDomain(values.domain) } : {}),
+  conflicts: ({ qc, env, id, values }) => {
+    const domain = values.domain
+    if (typeof domain !== 'string') return []
+    let q = qc.db
+      .selectFrom('companies')
+      .select('companies.id')
+      .where('companies.organization_id', '=', env.organizationId)
+      .where('companies.domain', '=', domain)
+      .where('companies.deleted_at', 'is', null)
+    if (id) q = q.where('companies.id', '!=', id)
+    return [
+      {
+        read: readMaybe(q.limit(1)),
+        refuse: (row) => {
+          if (row) throw new ApiError(409, 'domain_exists', `a company with domain ${domain} already exists (${String(row.id)})`)
+        },
+      },
+    ]
   },
-  overrides: {
-    async delete(ctx, id, generic) {
-      await generic(id)
-      const rows = await ctx.trx
-        .selectFrom('contacts')
-        .select('id')
-        .where('company_id', '=', id)
-        .where('deleted_at', 'is', null)
-        .orderBy('id')
-        .execute()
-      for (const row of rows) await updateResource(ctx, contacts, row.id, { company_id: null })
-    },
-  },
+  override: { delete: (env, id) => deleteCompanyOperation(env, id as string) },
 })

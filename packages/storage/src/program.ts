@@ -75,7 +75,7 @@ export function compileReads(reads: Readonly<Record<string, Read>>, qc: QueryCon
 
 // ---- units --------------------------------------------------------------------------------------------
 
-export function step(query: QueryLike, label?: StatementLabel, opts: { expect?: 'affected' } = {}): Step {
+export function step(query: QueryLike, label?: StatementLabel, opts: { expect?: Step['expect'] } = {}): Step {
   return { ...(label ? { label } : {}), query, ...(opts.expect ? { expect: opts.expect } : {}) }
 }
 
@@ -129,9 +129,9 @@ export async function planUnit<T>(
 const refOf = (path: string) => sql.ref(path)
 
 /** Binds `value` with the cast Postgres needs for an otherwise untyped parameter in INSERT...SELECT; D1 binds it plain. */
-export function bind(qc: QueryContext, kind: Exclude<ColumnKind, 'boolean' | 'string_array'>, value: string | null): RawBuilder<string> {
+export function bind(qc: QueryContext, kind: Exclude<ColumnKind, 'string_array'>, value: string | boolean | null): RawBuilder<string> {
   if (qc.dialect === 'd1') return sql<string>`${value}`
-  const type = { uuid: 'uuid', text: 'text', timestamp: 'timestamptz', json: 'jsonb' }[kind]
+  const type = { uuid: 'uuid', text: 'text', timestamp: 'timestamptz', json: 'jsonb', boolean: 'boolean' }[kind]
   return sql<string>`cast(${value} as ${sql.raw(type)})`
 }
 
@@ -160,7 +160,12 @@ export function recordJson(qc: QueryContext, table: PhysicalTable, columns: read
   const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
   const pairs = columns.map((c) => {
     const ref = `${table}.${c}`
-    const value = kinds[c] === 'timestamp' ? ts.iso(qc, ref) : sql`${refOf(ref)}`
+    const value =
+      kinds[c] === 'timestamp'
+        ? ts.iso(qc, ref)
+        : kinds[c] === 'boolean' && qc.dialect === 'd1'
+          ? sql`json(iif(${refOf(ref)}, 'true', 'false'))` // D1 stores 0/1; an event's `after` carries a JSON boolean on both engines
+          : sql`${refOf(ref)}`
     return sql`${sql.lit(c)}, ${value}`
   })
   return qc.dialect === 'postgres'
@@ -168,12 +173,12 @@ export function recordJson(qc: QueryContext, table: PhysicalTable, columns: read
     : sql<string>`json_object(${sql.join(pairs)})`
 }
 
-/** Selects a record's columns with timestamps rendered as public ISO text (same on both engines). */
-export function recordColumns(qc: QueryContext, table: PhysicalTable, columns: readonly string[]): AliasedExpression<unknown, string>[] {
+/** Selects a record's columns with timestamps rendered as public ISO text (same on both engines); `prefix` aliases them for a joined record. */
+export function recordColumns(qc: QueryContext, table: PhysicalTable, columns: readonly string[], prefix = ''): AliasedExpression<unknown, string>[] {
   const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
   return columns.map((c) => {
     const ref = `${table}.${c}`
-    return (kinds[c] === 'timestamp' ? ts.iso(qc, ref) : sql<unknown>`${refOf(ref)}`).as(c)
+    return (kinds[c] === 'timestamp' ? ts.iso(qc, ref) : sql<unknown>`${refOf(ref)}`).as(`${prefix}${c}`)
   })
 }
 

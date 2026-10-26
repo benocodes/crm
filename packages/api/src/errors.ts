@@ -32,7 +32,8 @@ export function mapStorageError(err: unknown): unknown {
   if (err instanceof StatementFailed && err.kind === 'foreign_key') {
     return new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
   }
-  if (err instanceof UnitDriftError) {
+  // Drift, and a unique-index failure inside a unit (only a racing D1 writer can cause it, CORE36 P4): both retryable.
+  if (err instanceof UnitDriftError || (err instanceof StatementFailed && err.kind === 'unique')) {
     return new ApiError(409, 'conflict', 'the record changed while the operation was running; retry')
   }
   if (err instanceof SetLimitExceeded) return new ApiError(400, 'set_limit_exceeded', err.message)

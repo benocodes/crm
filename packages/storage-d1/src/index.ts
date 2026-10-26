@@ -5,6 +5,7 @@ import {
   ForeignOrganizationError,
   StatementFailed,
   StorageError,
+  UNIT_ASSERTION_CONSTRAINT,
   UnitDriftError,
   planUnit,
   queryContext,
@@ -41,8 +42,10 @@ const CONSTRAINT: Array<[RegExp, ConstraintKind]> = [
  * Tells a statement failure (D1 rejected the batch and rolled it back) from a lost transport (the commit may or
  * may not have happened). A SQLite error token means the database answered; anything else is unknown.
  */
-export function classifyD1Error(err: unknown): { statement: true; kind: ConstraintKind } | { statement: false } {
+export function classifyD1Error(err: unknown): { drift: true } | { statement: true; kind: ConstraintKind } | { statement: false } {
   const message = `${(err as Error | null)?.message ?? ''} ${((err as Error | null)?.cause as Error | undefined)?.message ?? ''}`
+  // A failed commit-time assertion (CORE36 D4) is drift, tested before the generic CHECK pattern: the batch rolled back.
+  if (message.includes(`CHECK constraint failed: ${UNIT_ASSERTION_CONSTRAINT}`)) return { drift: true }
   for (const [pattern, kind] of CONSTRAINT) if (pattern.test(message)) return { statement: true, kind }
   if (/SQLITE_[A-Z_]+|no such (table|column)|syntax error/i.test(message)) return { statement: true, kind: 'other' }
   return { statement: false }
@@ -95,6 +98,7 @@ export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime 
           results = await d1.batch(statements)
         } catch (err) {
           const c = classifyD1Error(err)
+          if ('drift' in c) throw new UnitDriftError(prepared.name)
           if (c.statement) throw new StatementFailed(prepared.name, c.kind, err)
           throw new CommitOutcomeUnknown(prepared.name, err)
         }

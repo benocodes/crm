@@ -11,6 +11,8 @@ export type Timestamp = ColumnType<Date | string, string, string>
 export type NullableTimestamp = ColumnType<Date | string | null, string | null, string | null>
 /** JSON as read: an object (Postgres jsonb) or text (D1); written as JSON text. */
 export type JsonValue = ColumnType<unknown, string | null, string | null>
+/** A boolean as read: `boolean` (Postgres) or 0/1 (D1); written as a boolean (the D1 runtime encodes it 1/0). */
+export type BooleanColumn = ColumnType<boolean | number, boolean, boolean>
 
 export interface OrganizationsTable {
   id: string
@@ -50,8 +52,41 @@ export interface TasksTable {
   created_by: string
   deleted_at: NullableTimestamp
 }
+export interface CompaniesTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  name: string
+  domain: string | null
+}
+export interface ContactsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  name: string | null
+  company_id: string | null
+  merged_into_id: string | null
+}
+export interface IdentitiesTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  kind: 'email' | 'phone'
+  value: string
+  contact_id: string | null
+  own: BooleanColumn
+}
 /**
- * TYPE ONLY until [[CORE36]] migrates api_keys (no physical D1 table yet): it exists so the secret-column
+ * TYPE ONLY until [[CORE40]] migrates api_keys (no physical D1 table yet): it exists so the secret-column
  * negative type tests run against a real secret (`key_hash`).
  */
 export interface ApiKeysTable {
@@ -68,6 +103,9 @@ export interface StorageDatabase {
   principals: PrincipalsTable
   events: EventsTable
   tasks: TasksTable
+  companies: CompaniesTable
+  contacts: ContactsTable
+  identities: IdentitiesTable
   api_keys: ApiKeysTable
 }
 
@@ -84,7 +122,7 @@ export interface SecretColumns {
 export type PublicColumn<T extends Table> = Exclude<ColumnOf<T>, T extends keyof SecretColumns ? SecretColumns[T] : never>
 
 export type ColumnKind = 'uuid' | 'text' | 'timestamp' | 'json' | 'boolean' | 'string_array'
-/** Tables that exist physically on both engines in this cycle (api_keys is type-only). */
+/** Tables that exist physically on both engines (api_keys is type-only until CORE40). */
 export type PhysicalTable = Exclude<Table, 'api_keys'>
 
 /**
@@ -119,5 +157,38 @@ export const COLUMN_KINDS = {
     assignee_id: 'uuid',
     created_by: 'uuid',
     deleted_at: 'timestamp',
+  },
+  companies: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    name: 'text',
+    domain: 'text',
+  },
+  contacts: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    name: 'text',
+    company_id: 'uuid',
+    merged_into_id: 'uuid',
+  },
+  identities: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    kind: 'text',
+    value: 'text',
+    contact_id: 'uuid',
+    own: 'boolean',
   },
 } as const satisfies { [T in PhysicalTable]: { [C in ColumnOf<T>]: ColumnKind } }

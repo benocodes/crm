@@ -1,0 +1,3501 @@
+{
+  "format": 1,
+  "resource": "identity-model",
+  "generated_by": "packages/api/scripts/golden.ts (postgres path)",
+  "named_differences": [],
+  "scenarios": [
+    {
+      "name": "companies-crud",
+      "about": "domains are normalised and unique per live company (409 domain_exists names the other company); a company may keep its own domain; the domain filter normalises; a deleted company frees its domain",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "Acme",
+            "domain": " Acme.COM "
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme",
+            "domain": "acme.com",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Acme",
+                "domain": "acme.com",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "Other",
+            "domain": "other.com"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Other",
+            "domain": "other.com",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Other",
+                "domain": "other.com",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "Clash",
+            "domain": "ACME.com"
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "domain_exists",
+              "message": "a company with domain acme.com already exists (0190b2c4-0000-7000-8000-000001000001)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "PATCH",
+          "path": "/companies/{b}",
+          "request": {
+            "domain": "acme.com"
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "domain_exists",
+              "message": "a company with domain acme.com already exists (0190b2c4-0000-7000-8000-000001000001)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "PATCH",
+          "path": "/companies/{a}",
+          "request": {
+            "domain": "ACME.COM",
+            "name": "Acme Inc"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme Inc",
+            "domain": "acme.com",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:04:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.updated",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:04:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Acme",
+                "domain": "acme.com",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Acme Inc",
+                "domain": "acme.com",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "Bad",
+            "domain": "https://acme.com"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "domain: invalid domain"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "No domain"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000009",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "No domain",
+            "domain": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+            "created_at": "2026-10-22T09:06:00.000Z",
+            "updated_at": "2026-10-22T09:06:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:06:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "name": "No domain",
+                "domain": null,
+                "created_at": "2026-10-22T09:06:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:06:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/companies?domain=ACME.com",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Acme Inc",
+                "domain": "acme.com",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "updated_at": "2026-10-22T09:04:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "PATCH",
+          "path": "/companies/{c}",
+          "request": {
+            "domain": null,
+            "name": "Renamed"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000009",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Renamed",
+            "domain": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+            "created_at": "2026-10-22T09:06:00.000Z",
+            "updated_at": "2026-10-22T09:08:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.updated",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:08:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "name": "No domain",
+                "domain": null,
+                "created_at": "2026-10-22T09:06:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:06:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "name": "Renamed",
+                "domain": null,
+                "created_at": "2026-10-22T09:06:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:08:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "DELETE",
+          "path": "/companies/{a}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "company.deleted",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Acme Inc",
+                "domain": "acme.com",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "Acme again",
+            "domain": "acme.com"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme again",
+            "domain": "acme.com",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:10:00.000Z",
+            "updated_at": "2026-10-22T09:10:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:10:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme again",
+                "domain": "acme.com",
+                "created_at": "2026-10-22T09:10:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:10:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "GET",
+          "path": "/companies/{a}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "company not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:12:00.000Z",
+          "method": "GET",
+          "path": "/companies",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Other",
+                "domain": "other.com",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Renamed",
+                "domain": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "created_at": "2026-10-22T09:06:00.000Z",
+                "updated_at": "2026-10-22T09:08:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Acme again",
+                "domain": "acme.com",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:10:00.000Z",
+                "updated_at": "2026-10-22T09:10:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "company-delete-unlinks",
+      "about": "deleting a company unlinks its LIVE contacts in one set (company.deleted, then contact.updated per contact in id order); a deleted contact is untouched",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "Acme",
+            "domain": "acme.com"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme",
+            "domain": "acme.com",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Acme",
+                "domain": "acme.com",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "One",
+            "company_id": "{co}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "One",
+            "company_id": "0190b2c4-0000-7000-8000-000001000001",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "One",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "Two",
+            "company_id": "{co}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Two",
+            "company_id": "0190b2c4-0000-7000-8000-000001000001",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": "Two",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "Gone",
+            "company_id": "{co}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000007",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Gone",
+            "company_id": "0190b2c4-0000-7000-8000-000001000001",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "name": "Gone",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "DELETE",
+          "path": "/contacts/{k3}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "contact.deleted",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:04:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "name": "Gone",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "DELETE",
+          "path": "/companies/{co}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "company.deleted",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Acme",
+                "domain": "acme.com",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            },
+            {
+              "type": "contact.updated",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "One",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "One",
+                "company_id": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "contact.updated",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": "Two",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": "Two",
+                "company_id": null,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/contacts/{k1}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "One",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/contacts?company_id={co}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "DELETE",
+          "path": "/companies/{co}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "company not found"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "contacts-crud",
+      "about": "a contact may be empty; its company must be a live company of this organisation (invalid_reference otherwise); merged_into_id is not writable; the company_id filter lists members",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {},
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": null,
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": null,
+                "company_id": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "Acme"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme",
+            "domain": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Acme",
+                "domain": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "  Padded  ",
+            "company_id": "{co}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Padded",
+            "company_id": "0190b2c4-0000-7000-8000-000001000003",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": "Padded",
+                "company_id": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "company_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "PATCH",
+          "path": "/contacts/{a}",
+          "request": {
+            "company_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "PATCH",
+          "path": "/contacts/{a}",
+          "request": {
+            "merged_into_id": "{b}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Unrecognized key: \"merged_into_id\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "PATCH",
+          "path": "/contacts/{a}",
+          "request": {
+            "name": "Named",
+            "company_id": "{co}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Named",
+            "company_id": "0190b2c4-0000-7000-8000-000001000003",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:06:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.updated",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:06:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": null,
+                "company_id": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Named",
+                "company_id": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:06:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "PATCH",
+          "path": "/contacts/{b}",
+          "request": {},
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Padded",
+            "company_id": "0190b2c4-0000-7000-8000-000001000003",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "PATCH",
+          "path": "/contacts/{b}",
+          "request": {
+            "name": null,
+            "company_id": null
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": null,
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:08:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.updated",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:08:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": "Padded",
+                "company_id": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": null,
+                "company_id": null,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:08:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "GET",
+          "path": "/contacts?company_id={co}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Named",
+                "company_id": "0190b2c4-0000-7000-8000-000001000003",
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "updated_at": "2026-10-22T09:06:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "DELETE",
+          "path": "/companies/{co}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "company.deleted",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:10:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Acme",
+                "domain": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            },
+            {
+              "type": "contact.updated",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:10:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Named",
+                "company_id": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:06:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Named",
+                "company_id": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:10:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "company_id": "{co}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:12:00.000Z",
+          "method": "GET",
+          "path": "/contacts",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Named",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "updated_at": "2026-10-22T09:10:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": null,
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:08:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "contact-delete-cascade",
+      "about": "deleting a contact tombstones its live identities in one set (contact.deleted, then identity.deleted per identity in id order); the addresses become reusable",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "Ori"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Ori",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Ori",
+                "company_id": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "ori@example.com",
+            "contact_id": "{k}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "ori@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "phone",
+            "value": "+14155550100",
+            "contact_id": "{k}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "phone",
+            "value": "+14155550100",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "phone",
+                "value": "+14155550100",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "old@example.com",
+            "contact_id": "{k}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000007",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "old@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "own": false,
+                "kind": "email",
+                "value": "old@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "DELETE",
+          "path": "/identities/{i3}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "identity.deleted",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:04:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "own": false,
+                "kind": "email",
+                "value": "old@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "DELETE",
+          "path": "/contacts/{k}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "contact.deleted",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Ori",
+                "company_id": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            },
+            {
+              "type": "identity.deleted",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            },
+            {
+              "type": "identity.deleted",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "phone",
+                "value": "+14155550100",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/identities/{i1}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "identity not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {},
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": null,
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:07:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:07:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": null,
+                "company_id": null,
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:07:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "ORI@example.com",
+            "contact_id": "{k2}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000015",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "ori@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000013",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:08:00.000Z",
+            "updated_at": "2026-10-22T09:08:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000015",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:08:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000015",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000013",
+                "created_at": "2026-10-22T09:08:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:08:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "DELETE",
+          "path": "/contacts/{k}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "contact not found"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "identities-crud",
+      "about": "exactly one of contact_id or own: true; the value is normalised; a live address is unique (identity_exists names the contact or says own); kind and value are immutable; an empty patch writes nothing; filters",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "X"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "X",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "X",
+                "company_id": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "Y"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Y",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Y",
+                "company_id": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": " Ori@Example.com ",
+            "contact_id": "{x}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "ori@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "me@us.com",
+            "own": true
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000007",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "me@us.com",
+            "contact_id": null,
+            "own": true,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "own": true,
+                "kind": "email",
+                "value": "me@us.com",
+                "contact_id": null,
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "a@b.com"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "exactly one of contact_id or own: true is required"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "a@b.com",
+            "contact_id": "{x}",
+            "own": true
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "exactly one of contact_id or own: true is required"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "phone",
+            "value": "020 7946 0958",
+            "contact_id": "{x}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_identity",
+              "message": "invalid phone number (E.164 required)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "ORI@example.com",
+            "contact_id": "{y}"
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "identity_exists",
+              "message": "the address already belongs to contact 0190b2c4-0000-7000-8000-000001000001"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "me@us.com",
+            "contact_id": "{y}"
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "identity_exists",
+              "message": "the address is already an own identity"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "z@z.com",
+            "contact_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "PATCH",
+          "path": "/identities/{i}",
+          "request": {
+            "contact_id": "{y}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "ori@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000003",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:10:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.updated",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:10:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:10:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "PATCH",
+          "path": "/identities/{i}",
+          "request": {
+            "own": true
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "ori@example.com",
+            "contact_id": null,
+            "own": true,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:11:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.updated",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:11:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:10:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": true,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": null,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:11:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:12:00.000Z",
+          "method": "PATCH",
+          "path": "/identities/{i}",
+          "request": {
+            "contact_id": "{x}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "ori@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:12:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.updated",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:12:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": true,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": null,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:11:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:12:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:13:00.000Z",
+          "method": "PATCH",
+          "path": "/identities/{i}",
+          "request": {},
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "ori@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:12:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:14:00.000Z",
+          "method": "PATCH",
+          "path": "/identities/{i}",
+          "request": {
+            "contact_id": "{x}",
+            "own": true
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "exactly one of contact_id or own: true is required"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:15:00.000Z",
+          "method": "PATCH",
+          "path": "/identities/{i}",
+          "request": {
+            "value": "other@example.com"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Unrecognized key: \"value\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:16:00.000Z",
+          "method": "GET",
+          "path": "/identities?kind=email&value=Ori%40Example.COM",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "own": false,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:12:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:17:00.000Z",
+          "method": "GET",
+          "path": "/identities?value=ori@example.com",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "filter value requires kind"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:18:00.000Z",
+          "method": "GET",
+          "path": "/identities?own=true",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "kind": "email",
+                "value": "me@us.com",
+                "contact_id": null,
+                "own": true,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "updated_at": "2026-10-22T09:03:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:19:00.000Z",
+          "method": "GET",
+          "path": "/identities?contact_id={x}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "own": false,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:12:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:20:00.000Z",
+          "method": "DELETE",
+          "path": "/identities/{i}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "identity.deleted",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:20:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:12:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "identities-ascii",
+      "about": "emails are lowercase ASCII on both engines (D7): a non-ASCII address is invalid_identity before any write, in create, resolve (with its index) and the value filter; phones are unaffected",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {},
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": null,
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": null,
+                "company_id": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "Jürgen@Example.com",
+            "contact_id": "{k}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_identity",
+              "message": "non-ASCII email addresses are not supported"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "ö",
+            "contact_id": "{k}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_identity",
+              "message": "non-ASCII email addresses are not supported"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/identities/resolve",
+          "request": {
+            "identities": [
+              {
+                "kind": "email",
+                "value": "ok@example.com"
+              },
+              {
+                "kind": "email",
+                "value": "bücher@example.com"
+              }
+            ]
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_identity",
+              "message": "identities[1]: non-ASCII email addresses are not supported"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/identities?kind=email&value=jürgen@example.com",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_identity",
+              "message": "non-ASCII email addresses are not supported"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "phone",
+            "value": "+44 20 7946 0958",
+            "contact_id": "{k}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "phone",
+            "value": "+442079460958",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:05:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "own": false,
+                "kind": "phone",
+                "value": "+442079460958",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:05:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/identities",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "kind": "phone",
+                "value": "+442079460958",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "own": false,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:05:00.000Z",
+                "updated_at": "2026-10-22T09:05:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "resolve",
+      "about": "resolve creates one contact and identity per new normalised address in first-occurrence order (events: every contact.created, then every identity.created); existing addresses are never renamed; an own address has no contact; an invalid entry fails the whole call",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/identities/resolve",
+          "request": {
+            "identities": [
+              {
+                "kind": "email",
+                "value": " Ori@Example.com ",
+                "name": "  Ori  "
+              }
+            ]
+          },
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "identity": {
+                  "id": "0190b2c4-0000-7000-8000-000001000002",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "kind": "email",
+                  "value": "ori@example.com",
+                  "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                  "own": false,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                  "created_at": "2026-10-22T09:00:00.000Z",
+                  "updated_at": "2026-10-22T09:00:00.000Z"
+                },
+                "contact": {
+                  "id": "0190b2c4-0000-7000-8000-000001000001",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "name": "Ori",
+                  "company_id": null,
+                  "merged_into_id": null,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                  "created_at": "2026-10-22T09:00:00.000Z",
+                  "updated_at": "2026-10-22T09:00:00.000Z"
+                },
+                "created": true
+              }
+            ]
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Ori",
+                "company_id": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000002",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000002",
+                "own": false,
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/identities/resolve",
+          "request": {
+            "identities": [
+              {
+                "kind": "email",
+                "value": "new@example.com"
+              },
+              {
+                "kind": "email",
+                "value": "ORI@example.com",
+                "name": "Renamed?"
+              },
+              {
+                "kind": "phone",
+                "value": "+44 20 7946 0958",
+                "name": "Phone"
+              },
+              {
+                "kind": "email",
+                "value": "NEW@example.com",
+                "name": "Again"
+              }
+            ]
+          },
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "identity": {
+                  "id": "0190b2c4-0000-7000-8000-000001000006",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "kind": "email",
+                  "value": "new@example.com",
+                  "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+                  "own": false,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                  "created_at": "2026-10-22T09:01:00.000Z",
+                  "updated_at": "2026-10-22T09:01:00.000Z"
+                },
+                "contact": {
+                  "id": "0190b2c4-0000-7000-8000-000001000005",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "name": null,
+                  "company_id": null,
+                  "merged_into_id": null,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                  "created_at": "2026-10-22T09:01:00.000Z",
+                  "updated_at": "2026-10-22T09:01:00.000Z"
+                },
+                "created": true
+              },
+              {
+                "identity": {
+                  "id": "0190b2c4-0000-7000-8000-000001000002",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "kind": "email",
+                  "value": "ori@example.com",
+                  "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                  "own": false,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                  "created_at": "2026-10-22T09:00:00.000Z",
+                  "updated_at": "2026-10-22T09:00:00.000Z"
+                },
+                "contact": {
+                  "id": "0190b2c4-0000-7000-8000-000001000001",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "name": "Ori",
+                  "company_id": null,
+                  "merged_into_id": null,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                  "created_at": "2026-10-22T09:00:00.000Z",
+                  "updated_at": "2026-10-22T09:00:00.000Z"
+                },
+                "created": false
+              },
+              {
+                "identity": {
+                  "id": "0190b2c4-0000-7000-8000-000001000008",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "kind": "phone",
+                  "value": "+442079460958",
+                  "contact_id": "0190b2c4-0000-7000-8000-000001000007",
+                  "own": false,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                  "created_at": "2026-10-22T09:01:00.000Z",
+                  "updated_at": "2026-10-22T09:01:00.000Z"
+                },
+                "contact": {
+                  "id": "0190b2c4-0000-7000-8000-000001000007",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "name": "Phone",
+                  "company_id": null,
+                  "merged_into_id": null,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                  "created_at": "2026-10-22T09:01:00.000Z",
+                  "updated_at": "2026-10-22T09:01:00.000Z"
+                },
+                "created": true
+              },
+              {
+                "identity": {
+                  "id": "0190b2c4-0000-7000-8000-000001000006",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "kind": "email",
+                  "value": "new@example.com",
+                  "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+                  "own": false,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                  "created_at": "2026-10-22T09:01:00.000Z",
+                  "updated_at": "2026-10-22T09:01:00.000Z"
+                },
+                "contact": {
+                  "id": "0190b2c4-0000-7000-8000-000001000005",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "name": null,
+                  "company_id": null,
+                  "merged_into_id": null,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                  "created_at": "2026-10-22T09:01:00.000Z",
+                  "updated_at": "2026-10-22T09:01:00.000Z"
+                },
+                "created": false
+              }
+            ]
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": null,
+                "company_id": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "name": "Phone",
+                "company_id": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000006",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000006",
+                "own": false,
+                "kind": "email",
+                "value": "new@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000008",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000008",
+                "own": false,
+                "kind": "phone",
+                "value": "+442079460958",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000007",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "me@us.com",
+            "own": true
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "me@us.com",
+            "contact_id": null,
+            "own": true,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "own": true,
+                "kind": "email",
+                "value": "me@us.com",
+                "contact_id": null,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/identities/resolve",
+          "request": {
+            "identities": [
+              {
+                "kind": "email",
+                "value": "me@us.com"
+              }
+            ]
+          },
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "identity": {
+                  "id": "0190b2c4-0000-7000-8000-000001000013",
+                  "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                  "kind": "email",
+                  "value": "me@us.com",
+                  "contact_id": null,
+                  "own": true,
+                  "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                  "created_at": "2026-10-22T09:02:00.000Z",
+                  "updated_at": "2026-10-22T09:02:00.000Z"
+                },
+                "contact": null,
+                "created": false
+              }
+            ]
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/identities/resolve",
+          "request": {
+            "identities": [
+              {
+                "kind": "email",
+                "value": "fine@example.com"
+              },
+              {
+                "kind": "phone",
+                "value": "abc"
+              }
+            ]
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_identity",
+              "message": "identities[1]: invalid phone number (E.164 required)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/identities/resolve",
+          "request": {
+            "identities": []
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Too small: expected array to have >=1 items"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/contacts",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Ori",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "updated_at": "2026-10-22T09:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": null,
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Phone",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "merge",
+      "about": "merge moves the live identities (identity.updated per identity), fills the survivor empty fields without overwriting (contact.updated), tombstones the source (contact.merged, never contact.deleted); self-merge, unknown and already merged sources are refused",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/companies",
+          "request": {
+            "name": "Acme"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme",
+            "domain": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Acme",
+                "domain": null,
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "Survivor"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Survivor",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Survivor",
+                "company_id": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "company_id": "{co}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": null,
+            "company_id": "0190b2c4-0000-7000-8000-000001000001",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": null,
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/contacts",
+          "request": {
+            "name": "Third"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000007",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Third",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "name": "Third",
+                "company_id": null,
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "r1@example.com",
+            "contact_id": "{r}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000009",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "r1@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:04:00.000Z",
+            "updated_at": "2026-10-22T09:04:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:04:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "own": false,
+                "kind": "email",
+                "value": "r1@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/identities",
+          "request": {
+            "kind": "email",
+            "value": "r2@example.com",
+            "contact_id": "{r}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000011",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "r2@example.com",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:05:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.created",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000011",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000011",
+                "own": false,
+                "kind": "email",
+                "value": "r2@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+                "created_at": "2026-10-22T09:05:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "DELETE",
+          "path": "/identities/{i2}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "identity.deleted",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000011",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:06:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000011",
+                "own": false,
+                "kind": "email",
+                "value": "r2@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+                "created_at": "2026-10-22T09:05:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "POST",
+          "path": "/contacts/{s}/merge",
+          "request": {
+            "source_id": "{s}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "merge_into_self",
+              "message": "a contact cannot be merged into itself"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "POST",
+          "path": "/contacts/{s}/merge",
+          "request": {
+            "source_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "contact not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "POST",
+          "path": "/contacts/{s}/merge",
+          "request": {
+            "source_id": "{r}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Survivor",
+            "company_id": "0190b2c4-0000-7000-8000-000001000001",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:09:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.updated",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "own": false,
+                "kind": "email",
+                "value": "r1@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000005",
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "own": false,
+                "kind": "email",
+                "value": "r1@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "contact.updated",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Survivor",
+                "company_id": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Survivor",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "contact.merged",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": null,
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": null,
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "merged_into_id": "0190b2c4-0000-7000-8000-000001000003",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "GET",
+          "path": "/contacts/{r}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "contact not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "GET",
+          "path": "/identities?contact_id={s}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "kind": "email",
+                "value": "r1@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000003",
+                "own": false,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "updated_at": "2026-10-22T09:09:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:12:00.000Z",
+          "method": "POST",
+          "path": "/contacts/{t}/merge",
+          "request": {
+            "source_id": "{r}"
+          },
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "contact not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:13:00.000Z",
+          "method": "POST",
+          "path": "/contacts/{t}/merge",
+          "request": {
+            "source_id": "{s}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000007",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Third",
+            "company_id": "0190b2c4-0000-7000-8000-000001000001",
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:13:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.updated",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:13:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "own": false,
+                "kind": "email",
+                "value": "r1@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000003",
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "own": false,
+                "kind": "email",
+                "value": "r1@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000007",
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:13:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "contact.updated",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:13:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "name": "Third",
+                "company_id": null,
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "name": "Third",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:13:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            },
+            {
+              "type": "contact.merged",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:13:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Survivor",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "name": "Survivor",
+                "company_id": "0190b2c4-0000-7000-8000-000001000001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:13:00.000Z",
+                "merged_into_id": "0190b2c4-0000-7000-8000-000001000007",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:14:00.000Z",
+          "method": "GET",
+          "path": "/identities?contact_id={t}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "kind": "email",
+                "value": "r1@example.com",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000007",
+                "own": false,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "updated_at": "2026-10-22T09:13:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    }
+  ]
+}
