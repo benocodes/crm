@@ -31,6 +31,8 @@ skill is what the coder follows while writing them.
   never `not.toBe(someoneElse)`, which passes for almost any value ([[CORE15]] review). When a spec
   attributes a write to a principal, *every* path that writes it asserts the attribution on each event, not
   only one ([[CORE29]]: repair tests checked `actor_id`, reconcile tests checked only event types).
+- **A refusal titled "writes nothing" snapshots after every refusal it makes**, not only the last one. A
+  check of the state from before the call proves nothing ([[CORE40]] review).
 - **A rule that compares against stored state gets a test for "no stored state"** (rule 15): a guard that
   is silent when there is no row to compare is where it leaks.
 - **A pinned behaviour is a spec decision.** Tests assert the contract the spec writes down (statuses,
@@ -51,6 +53,9 @@ When the contract is a compile-time one (a typed storage or definition API), tes
   directive removed it reports the real diagnostic (TS2322, TS2353, TS2345). Keep both outputs.
 - A cast that erases the check (`as never`, `any`) defeats the test; a cast needs one commented, reviewed
   boundary.
+- **Type a column by its decoded value, not by the union of engine representations.** With
+  `string[] | string` (Postgres array or D1 JSON text), `scopes: z.string()` is assignable and the negative can
+  never go red. `StringArrayColumn` is `string[]`, because only `toRecord` sees the raw text ([[CORE40]]).
 
 ## 3. Tests across storage engines
 
@@ -69,13 +74,20 @@ One program, two engines: the same assertions run on Postgres and D1.
   clock-parity case in `src/storage/identity-model.storage.integration.test.ts`).
 - Golden fixtures pin behaviour across engines and across refactors. Name every deliberate difference in the
   fixture (`named_differences`; empty until [[CORE41]]'s D1 admission). Ids come from `goldenId(n)`, a
-  four-digit counter that throws above 9999. One file per area (`tasks.json`, `identity-model.json`, listed in
+  four-digit counter that throws above 9999. Every seeded row a read can return gets a fixed id and the
+  fixed `GOLDEN_SEED_AT` stamp on both engines, never a database default. A unit that mints a secret takes
+  `env.randomBytes`, which golden backends inject as `goldenRandomBytes` (the n-th call fills with n)
+  ([[CORE40]] P12). One file per area (`tasks.json`, `identity-model.json`, `administration.json`, listed in
   `scripts/golden.ts` `FIXTURES`).
 - **D1 drift is tested deterministically, not by racing.** `engine.betweenPlanAndCommit(hook)` (D1 only) runs
   `hook` after the next unit's read batch and before its commit batch, so a test can delete, merge, insert or
   swap rows between plan and commit and assert `409 conflict` with nothing changed. For every set write, cover
   a row added, a row removed and **a swap that keeps the count** (the swap case caught a real gap in the
-  [[CORE36]] review). On Postgres, plan and commit share one locked transaction, so cover its races with
+  [[CORE36]] review). **When a write carries two guards and one subsumes the other on the common path**
+  (a revoke guarded on `revoked_at IS NULL` and on the `updated_at` stamp, where every real revoke also moves
+  the stamp), give each guard a drift case of its own. Use `engine.update(table, id, patch)` to move only the
+  column that guard reads (`revoked_at` without `updated_at`). Otherwise dropping that guard leaves every test
+  green ([[CORE40]] absence mutation 1). On Postgres, plan and commit share one locked transaction, so cover its races with
   coordinated trials instead.
 - Atomicity, isolation and concurrency suites run on both engines. On D1 a double submit lets exactly one
   write land and the loser gets `409 conflict`; on Postgres run enough trials (20) to see a race, and report

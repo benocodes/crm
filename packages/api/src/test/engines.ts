@@ -7,7 +7,7 @@ import { COLUMN_KINDS, uuidv7, type ColumnKind, type ExecutionResult, type Prepa
 import { postgresBinding } from '@vault/storage-postgres'
 import { d1Binding, type D1Like, type D1PreparedLike } from '@vault/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
-import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
+import { seedAgent as seedD1Agent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { execute } from '@vault/storage'
 import { ScopeSet } from '../scopes.js'
 import type { PreparedEnv } from '../storage/definition.js'
@@ -40,6 +40,13 @@ export interface Engine {
    * `id`, `organization_id`, `created_by`, `created_at` and `updated_at` when the table has them and the row omits them.
    */
   insert(table: string, row: Record<string, unknown>): Promise<RawRow>
+  /**
+   * Seeds a user with a live membership in the engine's organisation (setup only). Postgres: `seedUser`; D1: principal,
+   * user and membership rows. Returns both ids.
+   */
+  seedMember(role?: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
+  /** Updates a row directly by id (setup only, bypassing the program under test): the device for a concurrent writer. */
+  update(table: string, id: string, patch: Record<string, unknown>): Promise<void>
   /** D1 only: `hook` runs once, after the next unit's plan reads and before its commit batch (deterministic drift). */
   betweenPlanAndCommit(hook: () => Promise<void>): void
 }
@@ -59,6 +66,7 @@ function decodeRow(table: string, row: RawRow): RawRow {
     else if (kinds[k] === 'timestamp') out[k] = v instanceof Date ? v.toISOString() : v
     else if (kinds[k] === 'boolean') out[k] = v === true || v === 1
     else if (kinds[k] === 'json') out[k] = typeof v === 'string' ? JSON.parse(v) : v
+    else if (kinds[k] === 'string_array') out[k] = typeof v === 'string' ? JSON.parse(v) : v
     else out[k] = v
   }
   return out
@@ -75,7 +83,8 @@ function withDefaults(e: Engine, table: string, row: Record<string, unknown>): R
 }
 
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
-const scopes = () => ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write'])
+const scopes = () =>
+  ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read'])
 
 export async function openEngines(opts: { maxConnections?: number; maxSetSize?: number } = {}): Promise<Engine[]> {
   return [await openPostgres(opts), await openD1(opts)]
@@ -126,6 +135,16 @@ async function openPostgres(opts: { maxConnections?: number; maxSetSize?: number
       const cols = Object.keys(full)
       const res = await sql<RawRow>`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(owner)
       return decodeRow(table, res.rows[0]!)
+    },
+    async seedMember(role = 'member') {
+      const u = await seedUser(app, { organizationId: e.organizationId, role })
+      const m = await sql<{ id: string }>`select id from memberships where user_id = ${u.id}`.execute(owner)
+      return { userId: u.id, membershipId: m.rows[0]!.id }
+    },
+    async update(table, id, patch) {
+      kindsOf(table)
+      const cols = Object.keys(patch)
+      await sql`update ${sql.table(table)} set ${sql.join(cols.map((c) => sql`${sql.ref(c)} = ${patch[c]}`))} where id = ${id}`.execute(owner)
     },
     betweenPlanAndCommit() {
       throw new Error('betweenPlanAndCommit is a D1 device: Postgres plan and commit share one locked transaction (races are covered by D13 trials)')
@@ -190,7 +209,9 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
       await seedDeployment(d1, { organizationId: ids.organizationId })
       await seedPrincipal(d1, { id: ids.userId, kind: 'user' })
       await seedPrincipal(d1, { id: ids.user2Id, kind: 'user' })
-      await seedPrincipal(d1, { id: ids.agentId, kind: 'agent' })
+      await seedMembership(d1, { organizationId: ids.organizationId, userId: ids.userId, role: 'owner' })
+      await seedMembership(d1, { organizationId: ids.organizationId, userId: ids.user2Id, role: 'member' })
+      await seedD1Agent(d1, { id: ids.agentId, organizationId: ids.organizationId, createdBy: ids.userId })
       pending.hook = null
       Object.assign(e, ids, { binding: d1Binding(interceptD1(d1, pending), { organizationId: ids.organizationId, ...(opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize }) }) })
     },
@@ -219,6 +240,18 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
       await d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...values).run()
       return decodeRow(table, full as RawRow)
     },
+    async seedMember(role = 'member') {
+      const userId = uuidv7()
+      await seedPrincipal(d1, { id: userId, kind: 'user' })
+      const membershipId = await seedMembership(d1, { organizationId: e.organizationId, userId, role })
+      return { userId, membershipId }
+    },
+    async update(table, id, patch) {
+      kindsOf(table)
+      const cols = Object.keys(patch)
+      const values = cols.map((c) => (typeof patch[c] === 'boolean' ? (patch[c] ? 1 : 0) : (patch[c] ?? null)))
+      await d1.prepare(`update "${table}" set ${cols.map((c) => `"${c}" = ?`).join(', ')} where id = ?`).bind(...values, id).run()
+    },
     betweenPlanAndCommit(hook) {
       pending.hook = hook
     },
@@ -239,6 +272,7 @@ function shared(self: () => Engine): Pick<Engine, 'env' | 'run'> {
         scopes: scopes(),
         now,
         newId: () => uuidv7(now),
+        randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
         ...rest,
       }
     },

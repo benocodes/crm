@@ -1,19 +1,21 @@
 import { z } from 'zod'
-import type { TenantOperation } from '../registry.js'
+import { generateApiKey } from '../auth/api-keys.js'
+import type { PreparedTenantOperation } from '../registry.js'
 import { apiKeyRecord } from '../resources/api-keys.js'
-import { issueApiKey, revokeApiKey } from './api-keys.js'
-import { getUser, listUsers, listUsersQuery, userRecord } from './users.js'
+import { issueApiKeyOperation, revokeApiKeyOperation } from './api-keys.js'
+import { getUserOperation, listUsersOperation, listUsersQuery, userRecord } from './users.js'
 
 const createKeyBody = z.strictObject({
   agent_id: z.uuid(),
   expires_at: z.iso.datetime({ offset: true }).nullable().optional(),
 })
 
-/** Hand-written administration operations: `users` has no organization_id, and key secrets must not reach reads or events. */
-export function adminOperations(): TenantOperation[] {
+/** Hand-written administration operations: `users` has no organization_id, and key secrets must not reach reads or events. All prepared ([[CORE40]]). */
+export function adminOperations(): PreparedTenantOperation[] {
+  const base = { kind: 'tenant' as const, executor: 'prepared' as const }
   return [
     {
-      kind: 'tenant',
+      ...base,
       name: 'users.list',
       summary: "List the organisation's members as users",
       tags: ['users'],
@@ -23,10 +25,10 @@ export function adminOperations(): TenantOperation[] {
       validation: 'adapter',
       request: { query: listUsersQuery },
       response: { status: 200, schema: z.object({ data: z.array(userRecord), next_cursor: z.uuid().nullable() }) },
-      handler: (ctx, input) => listUsers(ctx, input.query as z.infer<typeof listUsersQuery>),
+      prepare: (env, input) => listUsersOperation(env, input.query as z.infer<typeof listUsersQuery>),
     },
     {
-      kind: 'tenant',
+      ...base,
       name: 'users.get',
       summary: 'Get a user',
       tags: ['users'],
@@ -36,10 +38,10 @@ export function adminOperations(): TenantOperation[] {
       validation: 'handler',
       request: { params: z.object({ id: z.uuid() }) },
       response: { status: 200, schema: userRecord },
-      handler: (ctx, input) => getUser(ctx, input.params.id as string),
+      prepare: (env, input) => getUserOperation(env, input.params.id as string),
     },
     {
-      kind: 'tenant',
+      ...base,
       name: 'api_keys.create',
       summary: 'Issue an API key for an agent; the key is shown once',
       tags: ['api_keys'],
@@ -49,10 +51,11 @@ export function adminOperations(): TenantOperation[] {
       validation: 'adapter',
       request: { body: createKeyBody },
       response: { status: 201, schema: apiKeyRecord.extend({ key: z.string() }) },
-      handler: (ctx, input) => issueApiKey(ctx, input.body as z.infer<typeof createKeyBody>),
+      // The only async prepare: the key is hashed (Web Crypto) before the unit is built, from the injected random source.
+      prepare: async (env, input) => issueApiKeyOperation(env, input.body as z.infer<typeof createKeyBody>, await generateApiKey(env.randomBytes)),
     },
     {
-      kind: 'tenant',
+      ...base,
       name: 'api_keys.revoke',
       summary: 'Revoke an API key',
       tags: ['api_keys'],
@@ -62,7 +65,7 @@ export function adminOperations(): TenantOperation[] {
       validation: 'adapter',
       request: { params: z.object({ id: z.uuid() }) },
       response: { status: 200, schema: apiKeyRecord },
-      handler: (ctx, input) => revokeApiKey(ctx, input.params.id as string),
+      prepare: (env, input) => revokeApiKeyOperation(env, input.params.id as string),
     },
   ]
 }

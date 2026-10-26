@@ -4,7 +4,7 @@ import { postgresBinding } from '@vault/storage-postgres'
 import { d1GoldenBackend, type D1GoldenBackend } from '../test/golden/d1-backend.js'
 import { pgGoldenBackend, type PgGoldenBackend } from '../test/golden/pg-backend.js'
 import { runScenario } from '../test/golden/runner.js'
-import { identityModelScenarios, taskScenarios, type GoldenScenario } from '../test/golden/scenarios.js'
+import { administrationScenarios, identityModelScenarios, taskScenarios, type GoldenScenario } from '../test/golden/scenarios.js'
 
 // Golden fixtures (CORE35 D17, CORE36 D12): recorded through the Postgres prepared path only, replayed exactly on
 // D1. No legacy oracle, no symbolic comparison, no named engine difference.
@@ -12,6 +12,7 @@ const read = (name: string) => JSON.parse(readFileSync(new URL(`../../fixtures/g
 const SETS: Array<[string, string, readonly GoldenScenario[]]> = [
   ['tasks', 'tasks.json', taskScenarios],
   ['identity model', 'identity-model.json', identityModelScenarios],
+  ['administration', 'administration.json', administrationScenarios],
 ]
 
 describe.each(SETS)('golden fixtures: %s', (_label, file, scenarios) => {
@@ -25,7 +26,7 @@ describe.each(SETS)('golden fixtures: %s', (_label, file, scenarios) => {
   describe('postgres path', () => {
     let pg: PgGoldenBackend
     beforeAll(() => {
-      pg = pgGoldenBackend({ extra: ({ db, clock, newId }) => ({ storage: () => postgresBinding(db), clock, newId }) })
+      pg = pgGoldenBackend({ extra: ({ db, clock, newId, randomBytes }) => ({ storage: () => postgresBinding(db), clock, newId, randomBytes }) })
     })
     afterAll(() => pg.close())
 

@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { withFault } from './test/index.js'
 import {
+  COLUMN_KINDS,
   bind,
   compileOperation,
   defineOperation,
   eq,
   queryContext,
   readMaybe,
+  recordJson,
   selectColumns,
   step,
   unit,
@@ -104,5 +106,36 @@ describe('program composition', () => {
   it('reads that need no rows can be absent', () => {
     const op = defineOperation<null>({ name: 'noop', mutates: false, reads: () => ({ a: readMaybe(selectColumns(queryContext('d1'), 'tasks', ['id'])) }), build: () => unit({ steps: [], events: [], decode: () => null }) })
     expect(compileOperation(op, 'd1', { a: null }).statements).toEqual([])
+  })
+})
+
+describe('administration columns (CORE40 C1)', () => {
+  const scopes = ['tasks:read', 'tasks:write']
+
+  it('binds a string_array with a text[] cast on Postgres', () => {
+    const c = queryContext('postgres').db.selectNoFrom(bind(queryContext('postgres'), 'string_array', scopes).as('scopes')).compile()
+    expect(c.sql).toContain('cast($1 as text[])')
+    expect(c.parameters).toEqual([scopes])
+  })
+
+  it('binds a string_array plain on D1 (the runtime encodes it as JSON text)', () => {
+    const c = queryContext('d1').db.selectNoFrom(bind(queryContext('d1'), 'string_array', scopes).as('scopes')).compile()
+    expect(c.sql).toBe('select ? as "scopes"')
+    expect(c.parameters).toEqual([scopes])
+  })
+
+  it('renders a string_array record column as json(...) on D1 and unchanged on Postgres', () => {
+    const d1 = recordJson(queryContext('d1'), 'agents', ['name', 'scopes']).compile(queryContext('d1').db)
+    expect(d1.sql).toContain('json("agents"."scopes")')
+    expect(d1.sql).not.toContain('json("agents"."name")')
+    const pg = recordJson(queryContext('postgres'), 'agents', ['name', 'scopes']).compile(queryContext('postgres').db)
+    expect(pg.sql).toContain('"agents"."scopes"')
+    expect(pg.sql).not.toContain('json(')
+  })
+
+  it('models the administration tables', () => {
+    expect(Object.keys(COLUMN_KINDS)).toEqual(expect.arrayContaining(['users', 'memberships', 'agents', 'api_keys']))
+    expect((COLUMN_KINDS as Record<string, Record<string, string>>).agents?.scopes).toBe('string_array')
+    expect((COLUMN_KINDS as Record<string, Record<string, string>>).api_keys?.key_hash).toBe('text')
   })
 })

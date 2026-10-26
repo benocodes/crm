@@ -47,9 +47,12 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`
     equals `SMOKE_EXPECT_DATABASE`, because an exported `DATABASE_URL` overrides `--env-file` ([[CORE36]]).
 - **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
-  - definitions `src/resources/{memberships,agents,api-keys}.ts` (`memberships` is read-only, written only
-    by the directory sync; `agents` validates scopes with `normalizeAgentScopes`; `api_keys` is read-only, `softDelete: false`);
-  - `src/admin/` (`users.list`, `users.get`, `api_keys.create`, `api_keys.revoke`: `adminOperations()`);
+  - prepared definitions `src/resources/{memberships,agents,api-keys}.ts` since [[CORE40]] (`memberships` is
+    read-only, written only by the directory sync; `agents` normalises scopes with `normalizeAgentScopes` in
+    `prepare`, and its create is the concrete `createAgentOperation`; `api_keys` is read-only, its writes are
+    hand-written);
+  - `src/admin/` (`users.list`, `users.get`, `api_keys.create`, `api_keys.revoke`: `adminOperations()`, all
+    prepared since [[CORE40]]; `issueApiKeyOperation`, `revokeApiKeyOperation`, `listUsersOperation`, `getUserOperation`);
   - `src/directory/` ([[CORE29]]): `repairMembership` (the token claim repairs one user's membership),
     `reconcileOrganization` (fetch-and-reconcile one Clerk organisation), `refreshUser`, `systemPrincipalId`
     (created on first use) and `clerkWebhookHandler`, mounted as `POST /webhooks/clerk` by `createApp` only
@@ -58,8 +61,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - admin-kit (`src/test/admin-kit.ts`): `call(path, sub, { org })` mints the organisation claim from the copy
     (`claim` overrides, `header` sends `x-organization-id`), `webhook(payload)` posts a signed delivery,
     `seedOrg` links the organisation and mirrors it in the fake Clerk (`k.clerk.organizations`, `.members`);
-  - `scripts/smoke-admin.ts` (`pnpm -C packages/api smoke:admin`, same scaffolding as `smoke-auth.ts`, without the
-    database guard yet: confirm the database it prints before trusting it).
+  - `scripts/smoke-admin.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:admin`, same scaffolding
+    as `smoke-auth.ts`, with the same `SMOKE_EXPECT_DATABASE` guard since [[CORE40]]).
 - **Test helpers** in `src/test/`:
   - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);
   - `keys.ts` (`seedApiKey`);
@@ -145,7 +148,7 @@ handler); a generic layer that tries to express every behavior turns into a fram
 Adding a resource also means adding it to the **contract suite** (see Testing); don't hand-write those
 tests.
 
-**The definition** (`defineResource` in `src/resources/define.ts`; `agents.ts` is a worked example. `tasks`, `companies`, `contacts` and `identities` have moved to the prepared path below):
+**The definition** (`defineResource` in `src/resources/define.ts`; only `src/test/legacy-tasks.ts` (the contract suite's self-test) still uses it, until [[CORE41]] deletes it. Every product resource, administration included since [[CORE40]], is on the prepared path below):
 `name` (plural, scope resource), `eventName` (singular, event prefix), `table`, `record` (read schema, a
 plain `z.object` so unlisted columns are stripped), `create`/`update` (`z.strictObject`, so unknown keys and
 `organization_id`/`created_by` are `validation_error`), optional `agentWritable`, `filters` (each with a
@@ -160,9 +163,8 @@ escape hatches:
 | `overrides.update(ctx, id, input, generic)` | after validation and the agent-field check, **before** the row lock | locking other rows before the target (`memberships`' last-owner guard) |
 | `overrides.delete(ctx, id, generic)` | instead of the generic soft delete | cascading soft deletes, guards that lock other rows first |
 
-- **`softDelete: false`** marks a table with no `deleted_at` (`agents`, `api_keys`: disabled or revoked,
-  never deleted). List, get and the row lock drop the live-row condition, and `defineResource` refuses such
-  a definition if it generates `delete` ([[CORE27]] P1). Don't add a never-set `deleted_at` column instead.
+- **`softDelete: false`** (legacy only) marks a table with no `deleted_at`; the prepared path derives the
+  same fact from the schema (below). Don't add a never-set `deleted_at` column instead ([[CORE27]] P1).
 - **A guard that locks more rows than the target must lock them before the target.** `beforeWrite` runs
   inside the target's lock, so a guard there that also locks siblings takes the locks in the wrong order:
   two owners demoting each other at once each hold their own row and wait on the other's (`40P01`, an
@@ -210,6 +212,21 @@ cascades) followed in [[CORE36]]. Until [[CORE41]] (the cutover), both paths coe
   over the stored row, e.g. the completion CASE) and `prepare` return values keyed and typed by column.
   Every hook is synchronous and DB-free. Prove each new call-site rule in
   `src/storage/definition.typecheck.ts`: an `@ts-expect-error` with a positive sibling, seen red.
+  - **A table without `deleted_at` is hard-lived** ([[CORE40]] P4: `agents`, `api_keys`): the core adds no
+    `deleted_at IS NULL`, the default operations are `list, get, create, update`, and listing `delete` throws.
+    There is no `softDelete` flag on this path; the schema decides.
+  - **A write field that is not a column is a hook input only** (P5): the core writes only `COLUMN_KINDS`
+    keys, so `agents`' `disabled` drives `disabled_at` in `computed` and is never stored.
+  - **`string_array` is a full column kind** (P6): Postgres binds `cast($n as text[])`; D1 stores JSON text
+    (the runtime encodes a JS array) and `recordJson` renders it as `json(col)`, so an event's `after` holds a
+    JSON array on both engines. Its column type is the decoded `string[]`, so a record typing it `z.string()`
+    does not compile.
+- **`PreparedTenantOperation.prepare` may be async** ([[CORE40]] P8): `run()` awaits it inside the try that
+  maps errors. Use it only for work that cannot be a hook, such as hashing a minted secret.
+  `PreparedEnv.randomBytes(n)` is the injected random source beside `now` and `newId()`
+  (`AppOptions.randomBytes`, default `crypto.getRandomValues`), so a unit that mints a secret is
+  deterministic in golden runs. The plaintext rides only in the result's `decode`, never in a statement, an
+  event or a log.
 - **The registry marks prepared operations `executor: 'prepared'`.** `run()` in `src/rest/app.ts` executes
   them through the binding from `createApp({ storage })` and never wraps them in `withContext`. **Every
   composition (`dev-server.ts`, the smoke scripts, test apps) must pass `storage`**; a prepared operation

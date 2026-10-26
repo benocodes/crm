@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { postgresBinding } from '@vault/storage-postgres'
 import { pgGoldenBackend } from '../src/test/golden/pg-backend.js'
 import { fixtureText, runScenario } from '../src/test/golden/runner.js'
-import { identityModelScenarios, taskScenarios, type GoldenScenario } from '../src/test/golden/scenarios.js'
+import { administrationScenarios, identityModelScenarios, taskScenarios, type GoldenScenario } from '../src/test/golden/scenarios.js'
 
 /** The engine differences a fixture names. Empty until D1 fixed-organisation admission ([[CORE41]] D19). */
 export const NAMED_DIFFERENCES: Array<{ engine: string; what: string; why: string }> = []
@@ -19,10 +19,11 @@ export const NAMED_DIFFERENCES: Array<{ engine: string; what: string; why: strin
 export const FIXTURES = [
   { file: 'tasks.json', resource: 'tasks', scenarios: taskScenarios },
   { file: 'identity-model.json', resource: 'identity-model', scenarios: identityModelScenarios },
+  { file: 'administration.json', resource: 'administration', scenarios: administrationScenarios },
 ] as const
 
 export async function generate(resource: string, scenarios: readonly GoldenScenario[]): Promise<string> {
-  const backend = pgGoldenBackend({ extra: ({ db, clock, newId }) => ({ storage: () => postgresBinding(db), clock, newId }) })
+  const backend = pgGoldenBackend({ extra: ({ db, clock, newId, randomBytes }) => ({ storage: () => postgresBinding(db), clock, newId, randomBytes }) })
   try {
     const transcripts = []
     for (const s of scenarios) transcripts.push(await runScenario(backend, s))

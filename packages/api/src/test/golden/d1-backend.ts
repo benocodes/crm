@@ -5,10 +5,10 @@ import type { Database } from '@vault/db'
 import { coldDb } from '@vault/storage'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
-import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
+import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { createApp } from '../../rest/app.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../user-auth.js'
-import { GOLDEN_SCOPES, goldenId } from './pg-backend.js'
+import { GOLDEN_SCOPES, GOLDEN_SEED_AT, goldenId, goldenRandomBytes } from './pg-backend.js'
 import type { EventView, GoldenBackend } from './runner.js'
 import { IDS, type GoldenActor } from './scenarios.js'
 
@@ -21,6 +21,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
   const d1: D1Like = local.bindings.GOLDEN!
   let now = new Date(0)
   let counter = 0
+  const random = { n: 0 }
   const unusedDb = coldDb('d1') as unknown as Kysely<Database>
   const binding = d1Binding(d1, { organizationId: IDS.org })
   const app = createApp({
@@ -29,16 +30,20 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
     storage: () => binding,
     clock: () => now,
     newId: () => goldenId(++counter),
+    randomBytes: goldenRandomBytes(random),
   })
   const scopes = GOLDEN_SCOPES
   return {
     async reset() {
       await clearD1(d1)
       counter = 0
+      random.n = 0
       await seedDeployment(d1, { organizationId: IDS.org })
       await seedPrincipal(d1, { id: IDS.user, kind: 'user', email: `${IDS.user.slice(-4)}@golden.test` })
       await seedPrincipal(d1, { id: IDS.user2, kind: 'user', email: `${IDS.user2.slice(-4)}@golden.test` })
-      await seedPrincipal(d1, { id: IDS.agent, kind: 'agent' })
+      await seedMembership(d1, { id: IDS.membership, organizationId: IDS.org, userId: IDS.user, role: 'owner', at: GOLDEN_SEED_AT })
+      await seedMembership(d1, { id: IDS.membership2, organizationId: IDS.org, userId: IDS.user2, role: 'member', at: GOLDEN_SEED_AT })
+      await seedAgent(d1, { id: IDS.agent, organizationId: IDS.org, createdBy: IDS.user, name: 'golden-agent', scopes, at: GOLDEN_SEED_AT })
     },
     async send(actor: GoldenActor, method, path, body, clock) {
       now = new Date(clock)

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { seedUser } from '@vault/db/test'
 import { createApp } from '../rest/app.js'
 import { Registry } from '../registry.js'
 import { createResource } from '../resources/crud.js'
@@ -14,7 +13,7 @@ const assignedTasks = { ...tasks, name: 'assigned_tasks', scopeResource: 'tasks'
 
 // A read-only definition whose create is served by a hand-written operation (api_keys' shape).
 const postedViews = { ...tasks, name: 'posted_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
-// A read-only definition whose rows need a second user, seeded through the suite's db.
+// A read-only definition whose rows need a second user, seeded through the kit.
 const seededViews = { ...tasks, name: 'seeded_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
 
 const registry = new Registry()
@@ -35,19 +34,22 @@ const registry = new Registry()
   })
 const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
-  task_views: { make: (ctx) => createResource(ctx, tasks, { title: 'v' }) },
+  task_views: { make: (kit) => kit.ctx((ctx) => createResource(ctx, tasks, { title: 'v' })) },
   assigned_tasks: {
     // The builder names the tenant's own user: the reference check only passes in the right org.
     input: async (kit) => ({ title: 'x', assignee_id: kit.tenant.userId }),
     patch: async () => ({ title: 'Renamed' }),
   },
-  posted_views: { make: (ctx) => createResource(ctx, tasks, { title: 'p' }), handwritten: ['create'] },
+  posted_views: { make: (kit) => kit.ctx((ctx) => createResource(ctx, tasks, { title: 'p' })), handwritten: ['create'] },
   seeded_views: {
-    async make(ctx, seed) {
-      expect(seed.tenant.organizationId).toBe(ctx.organizationId)
-      const u = await seedUser(seed.db, { organizationId: seed.tenant.organizationId })
-      expect(u.id).toMatch(/^[0-9a-f-]{36}$/)
-      return createResource(ctx, tasks, { title: 's' })
+    async make(kit) {
+      const m = await kit.seedMember()
+      expect(m.userId).toMatch(/^[0-9a-f-]{36}$/)
+      expect(m.membershipId).toMatch(/^[0-9a-f-]{36}$/)
+      return kit.ctx((ctx) => {
+        expect(kit.tenant.organizationId).toBe(ctx.organizationId)
+        return createResource(ctx, tasks, { title: 's' })
+      })
     },
   },
 }

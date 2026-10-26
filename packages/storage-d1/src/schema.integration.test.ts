@@ -291,3 +291,103 @@ describe('the identity model slice (CORE36 C3)', () => {
     expect((await all<{ n: number }>('SELECT count(*) AS n FROM unit_assertion'))[0]!.n).toBe(0)
   })
 })
+
+describe('the administration slice (CORE40 C2)', () => {
+  const id = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')}`
+  const AGENT = id(601)
+  const insertInto = (table: string, row: Record<string, unknown>) =>
+    fails(`INSERT INTO ${table} (${Object.keys(row).join(', ')}) VALUES (${Object.keys(row).map(() => '?').join(', ')})`, ...Object.values(row))
+  const insertOk = async (table: string, row: Record<string, unknown>) => {
+    await d1
+      .prepare(`INSERT INTO ${table} (${Object.keys(row).join(', ')}) VALUES (${Object.keys(row).map(() => '?').join(', ')})`)
+      .bind(...Object.values(row))
+      .run()
+  }
+  const base = (n: number, over: Record<string, unknown> = {}) => ({ id: id(n), organization_id: ORG, created_by: USER, created_at: AT, updated_at: AT, ...over })
+  const membership = (n: number, userId: string, over: Record<string, unknown> = {}) => base(n, { user_id: userId, role: 'member', ...over })
+  const agent = (n: number, over: Record<string, unknown> = {}) => base(n, { name: 'a', ...over })
+  const key = (n: number, over: Record<string, unknown> = {}) => base(n, { agent_id: AGENT, key_hash: `hash-${n}`, prefix: 'vk_xxxxxxxx', ...over })
+  const count = async (table: string) => (await all<{ n: number }>(`SELECT count(*) AS n FROM ${table}`))[0]!.n
+
+  beforeEach(async () => {
+    await seedDeployment(d1, { organizationId: ORG })
+    await seedPrincipal(d1, { id: USER, kind: 'user' })
+    await seedPrincipal(d1, { id: AGENT, kind: 'agent' })
+  })
+
+  it('creates the tables', async () => {
+    const names = (await all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'")).map((r) => r.name)
+    expect(names).toEqual(expect.arrayContaining(['memberships', 'agents', 'api_keys']))
+  })
+
+  it('has the columns and nullability of the Postgres tables', async () => {
+    const shape = async (table: string) =>
+      Object.fromEntries((await all<{ name: string; notnull: number }>(`PRAGMA table_info(${table})`)).map((c) => [c.name, c.notnull === 1]))
+    const common = { id: true, created_at: true, updated_at: true, organization_id: true, created_by: true }
+    expect(await shape('memberships')).toEqual({ ...common, user_id: true, role: true, deleted_at: false })
+    expect(await shape('agents')).toEqual({ ...common, name: true, scopes: true, disabled_at: false })
+    expect(await shape('api_keys')).toEqual({ ...common, agent_id: true, key_hash: true, prefix: true, last_used_at: false, revoked_at: false, expires_at: false })
+  })
+
+  it('keeps the plain foreign keys, all cascading where Postgres cascades', async () => {
+    const fks = async (table: string) =>
+      (await all<{ table: string; from: string; to: string; on_delete: string }>(`PRAGMA foreign_key_list(${table})`)).map((f) => `${f.from}->${f.table}.${f.to}:${f.on_delete}`).sort()
+    expect(await fks('memberships')).toEqual(['created_by->principals.id:NO ACTION', 'organization_id->organizations.id:CASCADE', 'user_id->users.id:CASCADE'])
+    expect(await fks('agents')).toEqual(['created_by->principals.id:NO ACTION', 'id->principals.id:CASCADE', 'organization_id->organizations.id:CASCADE'])
+    expect(await fks('api_keys')).toEqual(['agent_id->agents.id:CASCADE', 'created_by->principals.id:NO ACTION', 'organization_id->organizations.id:CASCADE'])
+  })
+
+  it('allows one live membership per user, and another after the first is soft-deleted', async () => {
+    await insertOk('memberships', membership(1, USER))
+    expect(await insertInto('memberships', membership(2, USER))).toMatch(/UNIQUE/i)
+    await d1.prepare('UPDATE memberships SET deleted_at = ? WHERE id = ?').bind(AT, id(1)).run()
+    await insertOk('memberships', membership(3, USER))
+  })
+
+  it('checks the membership role', async () => {
+    expect(await insertInto('memberships', membership(1, USER, { role: 'admin' }))).toMatch(/CHECK/i)
+    await insertOk('memberships', membership(2, USER, { role: 'owner' }))
+  })
+
+  it('stores agent scopes only as a JSON array', async () => {
+    expect(await insertInto('agents', agent(1, { id: AGENT, scopes: 'x' }))).toMatch(/CHECK/i)
+    expect(await insertInto('agents', agent(1, { id: AGENT, scopes: '{}' }))).toMatch(/CHECK/i)
+    await insertOk('agents', agent(1, { id: AGENT, scopes: '["tasks:read"]' }))
+    await d1.prepare("UPDATE agents SET scopes = '[]' WHERE id = ?").bind(AGENT).run()
+    expect(((await all<{ scopes: string }>('SELECT scopes FROM agents'))[0]!).scopes).toBe('[]')
+  })
+
+  it('defaults agent scopes to an empty array', async () => {
+    await insertOk('agents', agent(1, { id: AGENT }))
+    expect((await all<{ scopes: string }>('SELECT scopes FROM agents'))[0]!.scopes).toBe('[]')
+  })
+
+  it('keeps key hashes unique', async () => {
+    await insertOk('agents', agent(1, { id: AGENT }))
+    await insertOk('api_keys', key(2, { key_hash: 'same' }))
+    expect(await insertInto('api_keys', key(3, { key_hash: 'same' }))).toMatch(/UNIQUE/i)
+  })
+
+  it('checks the shape of the optional timestamps', async () => {
+    await insertOk('agents', agent(1, { id: AGENT }))
+    await seedPrincipal(d1, { id: id(602), kind: 'agent' })
+    expect(await insertInto('agents', agent(9, { id: id(602), disabled_at: '2026-10-22' }))).toMatch(/CHECK/i)
+    expect(await insertInto('api_keys', key(2, { revoked_at: 'yesterday' }))).toMatch(/CHECK/i)
+    expect(await insertInto('api_keys', key(3, { expires_at: '2026-10-22 09:00:00' }))).toMatch(/CHECK/i)
+    expect(await insertInto('api_keys', key(4, { last_used_at: '2026' }))).toMatch(/CHECK/i)
+    await insertOk('api_keys', key(5, { revoked_at: AT, expires_at: AT, last_used_at: AT }))
+  })
+
+  it('refuses a key for an agent that does not exist, and a membership for a user that does not exist', async () => {
+    expect(await insertInto('api_keys', key(1, { agent_id: id(699) }))).toMatch(/FOREIGN KEY/i)
+    expect(await insertInto('memberships', membership(2, id(698)))).toMatch(/FOREIGN KEY/i)
+  })
+
+  it('deleting a principal removes its agent row and that agent\'s keys', async () => {
+    await insertOk('agents', agent(1, { id: AGENT }))
+    await insertOk('api_keys', key(2))
+    await d1.prepare('DELETE FROM principals WHERE id = ?').bind(AGENT).run()
+    expect(await count('agents')).toBe(0)
+    expect(await count('api_keys')).toBe(0)
+  })
+})

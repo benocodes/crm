@@ -1,5 +1,11 @@
-// End-to-end smoke for [[CORE3]] administration (the directory sync by webhook, members, agents, API keys). Needs no Clerk account: it generates an RS256 key pair,
-// runs a fake Clerk Backend API locally and serves the real app over HTTP against DATABASE_URL.
+// End-to-end smoke for [[CORE3]] administration (the directory sync by webhook, members, agents, API keys), served by the
+// prepared operations since [[CORE40]]. Needs no Clerk account: it generates an RS256 key pair, runs a fake Clerk Backend API
+// locally and serves the real app over HTTP against DATABASE_URL.
+//
+//   SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:admin
+//
+// It refuses to run unless `current_database()` equals SMOKE_EXPECT_DATABASE: an exported DATABASE_URL overrides --env-file,
+// so printing the database name is not enough (CORE36 retro, CORE40 P14).
 import { createHmac, randomBytes } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -81,6 +87,12 @@ const adapter = createAuthAdapter({
 const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhost/vault_dev', { max: 4 })
 const dbName = (await sql<{ current_database: string }>`SELECT current_database()`.execute(db)).rows[0]!.current_database
 console.log(`database ${dbName}`)
+const expectedDb = process.env.SMOKE_EXPECT_DATABASE
+if (!expectedDb || dbName !== expectedDb) {
+  console.error(`refusing to run: connected to "${dbName}", expected SMOKE_EXPECT_DATABASE="${expectedDb ?? ''}"`)
+  await db.destroy()
+  process.exit(1)
+}
 
 const storage = postgresBinding(db)
 const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
@@ -176,6 +188,10 @@ try {
   await webhook('organizationMembership.created (member who never signed in)', 'organizationMembership.created', membershipData(), 200, { id: created })
   await check('GET /memberships (owner)', { path: '/memberships', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
   await check('GET /users (owner)', { path: '/users', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
+  const users = await check('GET /users (owner, to find the member)', { path: '/users', token: tokO }, 200)
+  const memberUser = users.data.find((u: { email: string }) => u.email === member.email)
+  await check('GET /users/{id} (member who never signed in)', { path: `/users/${memberUser?.id}`, token: tokO }, 200, (j) => eq(j.email, member.email, 'email'))
+  await check('GET /users/nope', { path: '/users/nope', token: tokO }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
   await check('GET /memberships (member, first sign-in)', { path: '/memberships', token: tokM }, 200, (j) => eq(j.data.length, 2, 'count'))
   const before = await events(orgId)
   await webhook('replayed delivery', 'organizationMembership.created', membershipData(), 200, { id: created })
@@ -202,6 +218,9 @@ try {
   await check('PATCH /agents/{id} (enable)', { path: `/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: false } }, 200)
   await check('GET /tasks (agent key, enabled)', { path: '/tasks', token: made.key }, 200)
   const revoked = await check('POST /api-keys/{id}/revoke', { path: `/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => (j.revoked_at ? undefined : 'revoked_at unset'))
+  const stamped = eq(revoked.updated_at, revoked.revoked_at, 'updated_at moves with revoked_at')
+  if (stamped) failures++
+  console.log(`${stamped ? 'FAIL' : 'ok  '} revoke stamps updated_at with revoked_at${stamped ? ` (${stamped})` : ''}`)
   await check('GET /tasks (agent key, revoked)', { path: '/tasks', token: made.key }, 401)
   await check('POST /api-keys/{id}/revoke (again)', { path: `/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => eq(j.revoked_at, revoked.revoked_at, 'revoked_at'))
 

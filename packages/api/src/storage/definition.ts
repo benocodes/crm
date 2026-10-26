@@ -19,6 +19,8 @@ export interface PreparedEnv {
   readonly scopes: ScopeSet
   readonly now: Date
   newId(): string
+  /** The injected random source (CORE40 P8), beside the clock and ids, so golden runs can record a key. */
+  randomBytes(n: number): Uint8Array
 }
 
 export type WriteMeta = { readonly op: 'create' | 'update'; readonly now: Date }
@@ -104,6 +106,11 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
   const NAME = /^[a-z][a-z0-9_]*$/
   if (!NAME.test(full.name)) throw new Error(`invalid resource name "${full.name}"`)
   if (!(full.table in COLUMN_KINDS)) throw new Error(`table "${full.table}" has no physical schema yet (${full.name})`)
+  // A table without `deleted_at` is hard-lived (agents, api_keys): it has no delete, and the generic core adds no live-row condition (CORE40 P4).
+  if (!softDeletes(full)) {
+    if (full.operations?.includes('delete')) throw new Error(`${full.name}: delete needs a deleted_at column on "${full.table}"`)
+    if (!full.operations) (full as { operations?: readonly CrudAction[] }).operations = ['list', 'get', 'create', 'update']
+  }
   for (const [column, ref] of Object.entries(full.references ?? {}) as Array<[string, ReferenceTarget | undefined]>) {
     if (!ref) continue
     const kinds = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[ref.table]
@@ -116,6 +123,9 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
   }
   return full
 }
+
+/** Whether rows of the definition's table are soft-deleted: it has a `deleted_at` column (CORE40 P4). */
+export const softDeletes = (def: { table: Table }): boolean => 'deleted_at' in (COLUMN_KINDS as Record<string, Record<string, unknown>>)[def.table]!
 
 /** The definition's table as a physical table: `definePreparedResource` rejected any other at creation. */
 export const physicalTable = (def: { table: Table }): PhysicalTable => def.table as PhysicalTable

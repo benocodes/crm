@@ -6,7 +6,7 @@ import type { Database } from '@vault/db'
 import { coldDb, uuidv7 } from '@vault/storage'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { clearD1, openLocalD1 } from '@vault/storage-d1/test'
-import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
+import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
 import type { ServiceContext } from '../context.js'
 import { Registry } from '../registry.js'
 import { scopeResourceOf } from '../resources/define.js'
@@ -41,7 +41,8 @@ export function d1Backend(): ContractBackend {
             const t: ContractTenant = { organizationId: uuidv7(), userId: uuidv7(), agentId: uuidv7() }
             await seedDeployment(d1, { organizationId: t.organizationId })
             await seedPrincipal(d1, { id: t.userId, kind: 'user' })
-            await seedPrincipal(d1, { id: t.agentId, kind: 'agent' })
+            await seedMembership(d1, { organizationId: t.organizationId, userId: t.userId, role: 'owner' })
+            await seedAgent(d1, { id: t.agentId, organizationId: t.organizationId, createdBy: t.userId })
             const binding = d1Binding(d1, { organizationId: t.organizationId })
             const app = createApp({ db: () => unusedDb, registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
             byOrg.set(t.organizationId, { d1, app })
@@ -80,6 +81,12 @@ export function d1Backend(): ContractBackend {
             },
           } as unknown as ServiceContext
           return fn(ctx)
+        },
+        async seedMember(t, role) {
+          const d1 = byOrg.get(t.organizationId)!.d1
+          const userId = uuidv7()
+          await seedPrincipal(d1, { id: userId, kind: 'user' })
+          return { userId, membershipId: await seedMembership(d1, { organizationId: t.organizationId, userId, role }) }
         },
         async eventsOf(id): Promise<EventRow[]> {
           const rows: EventRow[] = []

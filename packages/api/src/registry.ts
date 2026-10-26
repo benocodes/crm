@@ -43,7 +43,7 @@ export interface LegacyTenantOperation extends TenantOperationBase {
  */
 export interface PreparedTenantOperation extends TenantOperationBase {
   executor: 'prepared'
-  prepare: (env: PreparedEnv, input: OperationInput) => PreparedOperation<unknown>
+  prepare: (env: PreparedEnv, input: OperationInput) => PreparedOperation<unknown> | Promise<PreparedOperation<unknown>>
 }
 export type TenantOperation = LegacyTenantOperation | PreparedTenantOperation
 export interface AccountOperation extends OperationBase {

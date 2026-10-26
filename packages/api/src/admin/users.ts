@@ -1,6 +1,8 @@
+import { sql, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import type { ServiceContext } from '../context.js'
+import { defineOperation, readAll, readMaybe, ts, unit, type PreparedOperation, type QueryContext } from '@vault/storage'
 import { ApiError } from '../errors.js'
+import type { PreparedEnv } from '../storage/definition.js'
 
 export const userRecord = z.object({
   id: z.uuid(),
@@ -17,35 +19,69 @@ export const listUsersQuery = z.strictObject({
 })
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const COLUMNS = ['users.id', 'users.email', 'users.name', 'users.created_at', 'users.updated_at'] as const
 
-type Row = { id: string; email: string; name: string | null; created_at: Date | string; updated_at: Date | string }
-const iso = (d: Date | string): string => (d instanceof Date ? d.toISOString() : d)
-const toUser = (r: Row): UserRecord => userRecord.parse({ ...r, created_at: iso(r.created_at), updated_at: iso(r.updated_at) })
-
-/** Users with a live membership in the organisation (P8). */
-export async function listUsers(
-  ctx: ServiceContext,
-  query: { after?: string; limit?: number },
-): Promise<{ data: UserRecord[]; next_cursor: string | null }> {
-  const limit = query.limit ?? 50
-  let q = ctx.trx
+/** `users` has no organization_id, so the membership predicate is the only filter on D1 (and repeats RLS on Postgres, harmlessly): D11. */
+function users(qc: QueryContext, env: PreparedEnv, opts: { liveOnly: boolean }) {
+  return qc.db
     .selectFrom('users')
-    .innerJoin('memberships as m', (j) =>
-      j.onRef('m.user_id', '=', 'users.id').on('m.organization_id', '=', ctx.organizationId).on('m.deleted_at', 'is', null),
+    .select([
+      'users.id',
+      'users.email',
+      'users.name',
+      ts.iso(qc, 'users.created_at').as('created_at'),
+      ts.iso(qc, 'users.updated_at').as('updated_at'),
+    ])
+    .where(
+      sql<SqlBool>`exists (select 1 from "memberships" where "memberships"."user_id" = "users"."id" and "memberships"."organization_id" = ${env.organizationId}${opts.liveOnly ? sql` and "memberships"."deleted_at" is null` : sql``})`,
     )
-    .select(COLUMNS)
-  if (query.after) q = q.where('users.id', '>', query.after.toLowerCase())
-  const rows = await q.orderBy('users.id').limit(limit + 1).execute()
-  const page = rows.slice(0, limit)
-  return { data: page.map(toUser), next_cursor: rows.length > limit ? page[page.length - 1]!.id : null }
 }
 
-/** Any user the RLS policy shows: a removed member still resolves, so `created_by` and `actor_id` do (D13). */
-export async function getUser(ctx: ServiceContext, id: string): Promise<UserRecord> {
+/** Users with a LIVE membership in the organisation ([[CORE27]] P8), keyset by id (P9). */
+export function listUsersOperation(
+  env: PreparedEnv,
+  query: { after?: string; limit?: number },
+): PreparedOperation<{ data: UserRecord[]; next_cursor: string | null }> {
+  const limit = query.limit ?? 50
+  const after = query.after?.toLowerCase()
+  return defineOperation({
+    name: 'users.list',
+    mutates: false,
+    reads: (qc) => {
+      let q = users(qc, env, { liveOnly: true })
+      if (after) q = q.where('users.id', '>', after)
+      return { page: readAll(q.orderBy('users.id').limit(limit + 1)) }
+    },
+    build: (found) =>
+      unit({
+        steps: [],
+        events: [],
+        decode: () => {
+          const rows = found.all('page')
+          const page = rows.slice(0, limit)
+          return { data: page.map((r) => userRecord.parse(r)), next_cursor: rows.length > limit ? (page[page.length - 1]!.id as string) : null }
+        },
+      }),
+  })
+}
+
+/** A user with ANY membership row in the organisation, live or removed, so `created_by` and `actor_id` keep resolving (D13, [[CORE27]] P8). */
+export function getUserOperation(env: PreparedEnv, rawId: string): PreparedOperation<UserRecord> {
   const notFound = () => new ApiError(404, 'not_found', 'user not found')
-  if (!UUID.test(id)) throw notFound()
-  const row = await ctx.trx.selectFrom('users').select(COLUMNS).where('users.id', '=', id.toLowerCase()).executeTakeFirst()
-  if (!row) throw notFound()
-  return toUser(row)
+  if (!UUID.test(rawId)) throw notFound()
+  const id = rawId.toLowerCase()
+  return defineOperation({
+    name: 'users.get',
+    mutates: false,
+    reads: (qc) => ({ row: readMaybe(users(qc, env, { liveOnly: false }).where('users.id', '=', id)) }),
+    build: (found) =>
+      unit({
+        steps: [],
+        events: [],
+        decode: () => {
+          const row = found.maybe('row')
+          if (!row) throw notFound()
+          return userRecord.parse(row)
+        },
+      }),
+  })
 }
