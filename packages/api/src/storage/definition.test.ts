@@ -61,6 +61,11 @@ describe('the agent-field rule of the prepared write', () => {
     expect(prepareCreate(restricted, user, { title: 'a', notes: 'n' })).toEqual({ title: 'a', notes: 'n' })
     expect(prepareUpdate(restricted, user, { notes: 'n' })).toEqual({ notes: 'n' })
   })
+  it('a definition without write schemas refuses to prepare a write', () => {
+    const readOnly = definePreparedResource(base({ name: 'ro', operations: ['list', 'get'], create: undefined, update: undefined }))
+    expect(() => prepareCreate(readOnly, user, { title: 'x' })).toThrow('ro has no create schema')
+    expect(() => prepareUpdate(readOnly, user, { title: 'x' })).toThrow('ro has no update schema')
+  })
   it('without agentWritable an agent may write every field of the schemas', () => {
     expect(prepareCreate(tasks, agent, { title: 'a', notes: 'n' })).toMatchObject({ title: 'a', notes: 'n' })
   })
