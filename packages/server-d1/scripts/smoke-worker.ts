@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
-import { Log, LogLevel, Miniflare } from 'miniflare'
+import { Miniflare } from 'miniflare'
 import { hashApiKey } from '@vault/api'
 import { applyMigrations } from '@vault/storage-d1/test'
 import type { D1Like } from '@vault/storage-d1'
@@ -35,15 +35,16 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${ok || detail === undefined ? '' : ` -> ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`}`)
 }
 
-/** Captures every line Miniflare prints, which includes the Worker's own console output. */
-class CaptureLog extends Log {
-  readonly lines: string[] = []
-  constructor() {
-    super(LogLevel.DEBUG)
-  }
-  override logWithLevel(_level: LogLevel, message: string): void {
-    this.lines.push(message)
-  }
+/** Every line Miniflare and the Worker's console print (workerd's stdout and stderr), kept for the secret-absence check. */
+const logLines: string[] = []
+const capture = (stream: NodeJS.ReadableStream) => {
+  let rest = ''
+  stream.on('data', (chunk: Buffer) => {
+    const parts = (rest + chunk.toString()).split('\n')
+    rest = parts.pop() ?? ''
+    logLines.push(...parts)
+  })
+  stream.on('end', () => rest && logLines.push(rest))
 }
 
 const workerDir = mkdtempSync(join(tmpdir(), 'vault-d1-worker-'))
@@ -56,7 +57,6 @@ const organizations = new Map([['org_smoke', clerkOrganization({ id: 'org_smoke'
 const members = new Map([['org_smoke', [clerkMembership({ organizationId: 'org_smoke', userId: 'user_owner', role: 'org:admin' })]]])
 const clerk = fakeClerkFetch(profiles, { organizations, members })
 const hostsSeen = new Set<string>()
-const log = new CaptureLog()
 let mf: Miniflare | undefined
 
 try {
@@ -79,7 +79,10 @@ try {
     compatibilityDate: '2026-07-30',
     d1Databases: { DB: `smoke-${crypto.randomUUID()}` },
     d1Persist: false,
-    log,
+    handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
+      capture(stdout)
+      capture(stderr)
+    },
     bindings: {
       AUTH_PROVIDER: 'clerk',
       CLERK_JWT_KEY: issuer.pem,
@@ -222,8 +225,12 @@ try {
   // 15: secret absence
   const keyHash = await hashApiKey(key)
   const eventText = JSON.stringify(await rows('select * from events'))
-  const logText = log.lines.join('\n')
-  check('15 no event row and no Worker log line contains the key or its hash', !eventText.includes(key) && !eventText.includes(keyHash) && !logText.includes(key) && !logText.includes(keyHash), {
+  const logText = logLines.join('\n')
+  // The capture must be live, or the absence below proves nothing: check 14's Worker log line has to be in it.
+  const captured = logText.includes('[directory] snapshot over the set limit')
+  check('15 no event row and no Worker log line contains the key or its hash (capture seen live)', captured && !eventText.includes(key) && !eventText.includes(keyHash) && !logText.includes(key) && !logText.includes(keyHash), {
+    captureLive: captured,
+    lines: logLines.length,
     inEvents: eventText.includes(key) || eventText.includes(keyHash),
     inLog: logText.includes(key) || logText.includes(keyHash),
   })

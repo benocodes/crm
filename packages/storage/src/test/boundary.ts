@@ -26,6 +26,9 @@ export const RULES: readonly Rule[] = [
   // ([[CORE36]] D22): the Postgres composition lives in @vault/server-postgres. `api/scripts` is empty and the rule guards it.
   { dir: 'api/src', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'], skipTests: true },
   { dir: 'api/scripts', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'] },
+  // The open D1 Worker composition ([[CORE38]] D1): it composes @vault/api (allowed) and never the enterprise runtime or `pg`.
+  { dir: 'server-d1/src', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'], skipTests: true },
+  { dir: 'server-d1/scripts', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'] },
 ]
 
 const SPECIFIER = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g
