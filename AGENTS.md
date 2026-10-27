@@ -131,6 +131,10 @@ pnpm db:migrate       # dev database
 pnpm db:test:reset    # rebuild the test database (refuses names without "test")
 pnpm db:test:worktree # private test database for this worktree
 pnpm db:codegen
+pnpm -C packages/server-postgres dev               # Postgres dev server (DATABASE_URL, AUTH_PROVIDER)
+pnpm -C packages/server-postgres bootstrap -- --org <n> --email <e> --agent <a>
+pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need SMOKE_EXPECT_DATABASE
+pnpm -C packages/server-postgres golden:generate   # and golden:check
 ```
 
 The `db:*` scripts are the contract the skills assume; they arrive with the first CORE cycle.
@@ -162,8 +166,9 @@ Carried over from the predecessor product, where each cost real time. Add new on
 3. **Catching `23505` inside a transaction does not save it**: the transaction is already aborted. Use
    `ON CONFLICT` instead.
 4. **Agents never send.** Agents submit action requests; the vault executes them with credentials it holds.
-5. **Every write emits an event** to the outbox in the same transaction. Nothing else inserts into a
-   resource's table except its service layer. The rule covers *resources* (anything tenant-visible).
+5. **Every write emits an event** to the outbox in the same unit. Nothing else inserts into a
+   resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
+   inserts into `events`. The rule covers *resources* (anything tenant-visible).
    Writes that skip events are allowed only when they are not resources and a spec decision names them.
    Today that means four: identity bookkeeping (`principals`, `users` on first sight and on a provider
    profile refresh, [[CORE3]] D12, [[CORE41]] P11), channel machinery tables (credentials, subscriptions,
@@ -176,8 +181,10 @@ Carried over from the predecessor product, where each cost real time. Add new on
    Node. Return plain data, never class instances (see `cloudflare-workflows`).
 8. **A migration's number can go stale** between plan and implementation; re-check before creating it.
 9. **Resolve an approval's anchor at approval time, not draft time.**
-10. **Open packages never import enterprise code** (`@vault/storage-postgres`, `@vault/db`, `pg`); a test
-    enforces it, and its allow-list records the temporary exceptions ([[CORE35]] D14/D15).
+10. **Open packages never import enterprise code** (`@vault/storage-postgres`, `@vault/server-postgres`,
+    `@vault/db`, `pg`); `packages/storage/src/import-boundary.test.ts` enforces it, with no allow-list entries for
+    `packages/api` ([[CORE35]] D14/D15, [[CORE36]] D22). Postgres composition (dev server, bootstrap, smokes, golden
+    generator) lives in `@vault/server-postgres`.
 
 ## Knowledge hygiene
 

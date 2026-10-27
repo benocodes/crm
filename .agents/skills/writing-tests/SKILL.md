@@ -73,6 +73,12 @@ One program, two engines: the same assertions run on Postgres and D1.
     tenant, never two tenants in one D1.
   - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
     behaviour change, run `pnpm -C packages/server-postgres golden:generate`; `golden:check` fails on drift.
+    The generator lives in the enterprise package and reads the open fixture list, scenarios and Postgres
+    backend through `@vault/api/test/golden` ([[CORE44]] P12).
+  - Apps that must run no unit (openapi, CORS, option checks) pass `coldStorage()`; probe operations in routing and
+    auth suites return their value through `probeUnit(value)` (`src/test/storage.ts`). There is no legacy
+    `withContext`, `asUser`/`asAgent` or contract `kit.ctx`: fixtures make prerequisite rows through `kit.post`
+    or `kit.seedMember` ([[CORE44]] P9).
   - Suites written after the vertical exists prove their strength with absence mutations (break the
     runtime, see the target test fail), recorded in RESULT.md.
 - Assert engine differences explicitly, never hide them. Since [[CORE36]] D2 there is no timestamp
