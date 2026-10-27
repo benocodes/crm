@@ -22,6 +22,13 @@ skill is what the coder follows while writing them.
   from [[CORE35]]: replace the D1 batch with autocommit statements (7 atomicity tests fail); put the event in
   its own Postgres transaction (6 fail); emit `after` values as `before` (8 fail); hard-code the set cap; add
   a `pg` import to an open package; erase a type with `any`; drop the writer lock.
+- **An absence mutation is per engine: drop every guard that engine has for the property.** The same property can be
+  held by different guards on each engine. Removing one guard proves nothing on an engine where another still holds.
+  [[CORE41]]: dropping first sight's `assertStep` turns the D1 drift case red (D1 decodes after the batch commits, so
+  the assertion is the only guard). The Postgres trial stays green, because decode runs **before** commit there and
+  the empty `result` select throws `UnitDriftError`, rolling the unit back. On Postgres that mutation must drop both
+  guards. When a plan writes the mutation table, name the engine each row turns red on, and list each engine's guards
+  for the property.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
 - **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row passes
@@ -73,12 +80,23 @@ One program, two engines: the same assertions run on Postgres and D1.
   stored row and every event's `created_at`/`after` against the clock exactly, with no engine branch (the
   clock-parity case in `src/storage/identity-model.storage.integration.test.ts`).
 - Golden fixtures pin behaviour across engines and across refactors. Name every deliberate difference in the
-  fixture (`named_differences`; empty until [[CORE41]]'s D1 admission). Ids come from `goldenId(n)`, a
+  fixture (`named_differences`, filtered per file from `NAMED_DIFFERENCES` in `scripts/golden.ts`). The one entry
+  is D1 fixed-organisation admission (scenario `foreign-organisation-claim`, [[CORE41]] P15). For a named scenario,
+  the D1 replay asserts the D1 outcome (every step `403 organization_forbidden`, no events, row counts unchanged)
+  instead of equality. Ids come from `goldenId(n)`, a
   four-digit counter that throws above 9999. Every seeded row a read can return gets a fixed id and the
   fixed `GOLDEN_SEED_AT` stamp on both engines, never a database default. A unit that mints a secret takes
   `env.randomBytes`, which golden backends inject as `goldenRandomBytes` (the n-th call fills with n)
-  ([[CORE40]] P12). One file per area (`tasks.json`, `identity-model.json`, `administration.json`, listed in
-  `scripts/golden.ts` `FIXTURES`).
+  ([[CORE40]] P12). One file per area (`tasks.json`, `identity-model.json`, `administration.json`, `auth.json`,
+  `directory.json`, listed in `scripts/golden.ts` `FIXTURES`).
+  - Golden actors ([[CORE41]] P15): `'agent-key'` (a fixed seeded key), `{ clerk: subject, claim? }` (a real
+    Clerk-signed token for the scenario's `clerk` fixtures) and `'webhook'` (a Svix-signed delivery of `body`). An
+    `alg: none` token still goes to the fake authenticator, so older scenarios keep their actors and fixtures.
+- **Auth and directory suites run on both engines through `openAuthKit(engine)`** (`src/test/auth-kit.ts`): the real
+  authenticator and webhook over the fake Clerk, on the engine's binding. `kit.ran` records each unit (name,
+  identity, stats), so you can assert "no unit ran" or `stats.writes`. `kit.armOn(name, hook)` arms D1 drift for one
+  named unit. Both engines link the organisation (`clerk`, `org_engine`) and the two users (`user_engine_1`/`_2`) on
+  `reset`. `engine.runAs(identity, op)` runs an `account` or `internal` unit.
 - **D1 drift is tested deterministically, not by racing.** `engine.betweenPlanAndCommit(hook)` (D1 only) runs
   `hook` after the next unit's read batch and before its commit batch, so a test can delete, merge, insert or
   swap rows between plan and commit and assert `409 conflict` with nothing changed. For every set write, cover
@@ -87,8 +105,10 @@ One program, two engines: the same assertions run on Postgres and D1.
   (a revoke guarded on `revoked_at IS NULL` and on the `updated_at` stamp, where every real revoke also moves
   the stamp), give each guard a drift case of its own. Use `engine.update(table, id, patch)` to move only the
   column that guard reads (`revoked_at` without `updated_at`). Otherwise dropping that guard leaves every test
-  green ([[CORE40]] absence mutation 1). On Postgres, plan and commit share one locked transaction, so cover its races with
-  coordinated trials instead.
+  green ([[CORE40]] absence mutation 1). On Postgres, cover races with coordinated trials instead. A tenant unit's plan
+  and commit share one locked transaction. An internal unit with no organisation takes **no** lock, and its plan reads
+  are separate READ COMMITTED statements: a trial is the only test of its read order ([[CORE41]]: two same-subject
+  first sights misreported as `account_conflict` until the email was read first).
 - Atomicity, isolation and concurrency suites run on both engines. On D1 a double submit lets exactly one
   write land and the loser gets `409 conflict`; on Postgres run enough trials (20) to see a race, and report
   trial counts.
