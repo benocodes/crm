@@ -15,30 +15,17 @@ export interface Rule {
   skipTests?: boolean
 }
 
-const ENTERPRISE = ['pg', '@vault/db', '@vault/storage-postgres', '@vault/api']
+const ENTERPRISE = ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres', '@vault/api']
 
 export const RULES: readonly Rule[] = [
   // The portable core: no driver, no enterprise code, no runtime, no API.
   { dir: 'storage/src', forbid: [...ENTERPRISE, '@vault/storage-d1'], allow: { 'import-boundary.test.ts': 'holds forbidden imports as test data' } },
   // The D1 runtime is open: no `pg`, no enterprise runtime, no Postgres tenancy package, no API barrel.
   { dir: 'storage-d1/src', forbid: ENTERPRISE },
-  // The domain programs (open): production code never imports the enterprise runtime or `pg`.
-  {
-    dir: 'api/src',
-    forbid: ['pg', '@vault/storage-postgres'],
-    skipTests: true,
-    allow: { 'dev-server.ts': 'composition entry point: picks the Postgres runtime; moves out at the CORE37 cutover (spec D21)' },
-  },
-  {
-    dir: 'api/scripts',
-    forbid: ['pg', '@vault/storage-postgres'],
-    allow: {
-      'golden.ts': 'enterprise-side fixture generator: runs the Postgres path by design (D17)',
-      'smoke-auth.ts': 'smoke entry point composing the Postgres runtime; moves at the CORE37 cutover (D21)',
-      'smoke-admin.ts': 'smoke entry point composing the Postgres runtime; moves at the CORE37 cutover (D21)',
-      'bootstrap.ts': 'bootstrap CLI composing the Postgres runtime; TEMPORARY: moves to @vault/server-postgres in CORE44 (CORE41 P14)',
-    },
-  },
+  // The domain programs (open): production code and scripts never import enterprise code or `pg`, and the rules have no allow-list
+  // ([[CORE36]] D22): the Postgres composition lives in @vault/server-postgres. `api/scripts` is empty and the rule guards it.
+  { dir: 'api/src', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'], skipTests: true },
+  { dir: 'api/scripts', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'] },
 ]
 
 const SPECIFIER = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g

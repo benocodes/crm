@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { checkBoundary } from './test/boundary.js'
+import { checkBoundary, RULES } from './test/boundary.js'
 
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url))
 
 describe('import boundary (D14, D15)', () => {
-  it('the repository passes: open packages import nothing enterprise', () => {
+  it('the repository passes: open packages import nothing enterprise, and the api rules have no allow-list', () => {
     expect(checkBoundary(PACKAGES)).toEqual([])
   })
 
@@ -29,18 +29,25 @@ describe('import boundary (D14, D15)', () => {
     ['the D1 runtime importing pg', { 'storage-d1/src/a.ts': "const pg = await import('pg')" }, 'pg'],
     ['the D1 runtime importing the API barrel', { 'storage-d1/src/a.ts': "import { createApp } from '@vault/api'" }, '@vault/api'],
     ['the D1 runtime importing the Postgres runtime', { 'storage-d1/src/a.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
-    ['an unlisted API script importing the Postgres runtime', { 'api/scripts/other.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
+    ['an API script importing the Postgres runtime', { 'api/scripts/smoke-auth.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
+    ['the dev server in the API', { 'api/src/dev-server.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
     ['an API source importing the Postgres runtime', { 'api/src/a.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
+    ['an API source importing @vault/db', { 'api/src/a.ts': "import type { Database } from '@vault/db'" }, '@vault/db'],
+    ['an API source importing the server package', { 'api/src/a.ts': "import '@vault/server-postgres'" }, '@vault/server-postgres'],
+    ['the D1 runtime importing the server package', { 'storage-d1/src/a.ts': "import '@vault/server-postgres'" }, '@vault/server-postgres'],
   ])('fails on %s', (_name, files, specifier) => {
     expect(checkBoundary(sandbox(files)).map((v) => v.specifier)).toEqual([specifier])
   })
 
-  it('allows what is allowed: API tests and the named composition entry point', () => {
+  it('the API rules have no allow-list', () => {
+    const api = RULES.filter((r) => r.dir.startsWith('api/'))
+    expect(api.map((r) => r.dir)).toEqual(['api/src', 'api/scripts'])
+    for (const r of api) expect(r.allow).toBeUndefined()
+  })
+
+  it('allows what is allowed: API tests and the core kysely import', () => {
     const root = sandbox({
       'api/src/x.integration.test.ts': "import { postgresBinding } from '@vault/storage-postgres'",
-      'api/scripts/smoke-auth.ts': "import { postgresBinding } from '@vault/storage-postgres'",
-      'api/scripts/bootstrap.ts': "import { postgresBinding } from '@vault/storage-postgres'",
-      'api/src/dev-server.ts': "import { postgresBinding } from '@vault/storage-postgres'",
       'storage/src/ok.ts': "import { Kysely } from 'kysely'",
     })
     expect(checkBoundary(root)).toEqual([])

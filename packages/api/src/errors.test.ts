@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, mapDatabaseError } from './errors.js'
+import { StatementFailed } from '@vault/storage'
+import { ApiError, mapStorageError } from './errors.js'
 
 describe('errors', () => {
   it('body shape', () => {
@@ -8,8 +9,8 @@ describe('errors', () => {
     expect(e.status).toBe(404)
     expect(e).toBeInstanceOf(Error)
   })
-  it('maps 23503', () => {
-    const mapped = mapDatabaseError({ code: '23503', detail: 'Key (assignee_id)=(abc) is not present' })
+  it('maps a storage foreign-key failure to invalid_reference without leaking the detail', () => {
+    const mapped = mapStorageError(new StatementFailed('tasks.create', 'foreign_key', new Error('Key (assignee_id)=(abc) is not present')))
     expect(mapped).toBeInstanceOf(ApiError)
     const e = mapped as ApiError
     expect(e.status).toBe(400)
@@ -17,9 +18,11 @@ describe('errors', () => {
     expect(e.message).toBe('a referenced record does not exist')
     expect(e.message).not.toContain('abc')
   })
-  it('passes others through', () => {
-    for (const x of [{ code: '23505' }, new Error('x'), new ApiError(409, 'c', 'm')]) {
-      expect(mapDatabaseError(x)).toBe(x)
-    }
+  it('passes a non-storage error through unchanged', () => {
+    for (const x of [new Error('x'), new ApiError(409, 'c', 'm')]) expect(mapStorageError(x)).toBe(x)
+  })
+  it('passes a raw driver error object through: no raw 23503 reaches the app, so none is mapped', () => {
+    const raw = { code: '23503' }
+    expect(mapStorageError(raw)).toBe(raw)
   })
 })
