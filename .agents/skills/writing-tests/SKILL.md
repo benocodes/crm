@@ -29,6 +29,10 @@ skill is what the coder follows while writing them.
   the empty `result` select throws `UnitDriftError`, rolling the unit back. On Postgres that mutation must drop both
   guards. When a plan writes the mutation table, name the engine each row turns red on, and list each engine's guards
   for the property.
+- **Deleting tests needs a title-by-title map, not a count.** When a cycle deletes a suite with the code it tested, list
+  every deleted test title in RESULT.md beside its surviving counterpart (file and test name), or the reason it was
+  only about the deleted mechanism. A falling test count hides lost coverage. [[CORE44]]'s map found three live
+  behaviours that only the legacy suite had ever tested, and they got tests of their own.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
 - **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row passes
@@ -127,6 +131,9 @@ One program, two engines: the same assertions run on Postgres and D1.
   ([[CORE35]] F5). Restore the state in `close()`/`afterAll`/`finally`. When a suite must alter production
   state, make the harness assert that state before every suite (CORE35's `tgenabled` guard did this; it went
   with the trigger in [[CORE36]]). If such a guard trips, run `pnpm db:test:worktree`.
+- **Test support lives under `src/test/`.** The import-boundary checker treats a file as test code only by its
+  `*.test.ts` suffix or a `/test/` path segment. A setup file such as `src/test-setup.ts` is production code to it,
+  and fails the rule that forbids `@vault/db` in `api/src` ([[CORE44]] P13: it moved to `src/test/setup.ts`).
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
 - Clean up in `afterEach`, delete only the exact rows this test seeded by their own ids, never a "nothing
