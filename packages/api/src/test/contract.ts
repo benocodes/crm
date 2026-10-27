@@ -4,11 +4,9 @@ import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } from '@vault/db/test'
 import { postgresBinding } from '@vault/storage-postgres'
-import { withContext, type ServiceContext } from '../context.js'
 import type { AnyResource, Registry } from '../registry.js'
 import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudAction } from '../resources/define.js'
 import { createApp, type AppEnv } from '../rest/app.js'
-import { ScopeSet } from '../scopes.js'
 import { seedApiKey } from './keys.js'
 import { seedTenant, type Tenant } from './tenant.js'
 import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
@@ -19,14 +17,12 @@ export type ContractGrant = 'full' | 'read' | 'none'
  * What a fixture's `input`, `patch` and `make` get (CORE36 P8, CORE40 P10): they run OUTSIDE any transaction, on every
  * backend. `post` creates a prerequisite row through the public API as the tenant's user with every declared scope and
  * throws on a non-2xx; `seedMember` seeds a user with a live membership in the tenant's organisation (memberships have
- * no public writer: Clerk is the source, CORE3 D1); `ctx` is the Postgres-only committed service context, kept only for
- * the contract suite's own self-test over the legacy tasks (the D1 backend's throws).
+ * no public writer: Clerk is the source, CORE3 D1);
  */
 export interface FixtureKit {
   tenant: ContractTenant
   post(path: string, body: unknown): Promise<{ id: string }>
   seedMember(role?: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
-  ctx<T>(fn: (ctx: ServiceContext) => Promise<T>): Promise<T>
 }
 export interface ContractFixture {
   /** A valid create body. Required iff the definition generates `create`. May create prerequisite rows through `kit`. */
@@ -60,8 +56,6 @@ export interface ContractEnv {
   call(t: ContractTenant, actor: ContractActor, grant: ContractGrant, method: string, path: string, body?: unknown): Promise<Response>
   /** The id of the principal `call` uses for this actor and grant (what events record as `actor_id`). */
   principalId(t: ContractTenant, actor: ContractActor, grant: ContractGrant): Promise<string>
-  /** Runs fn in a committed context as the tenant's owner user, with the definition's read and write scopes. */
-  as<T>(t: ContractTenant, def: AnyResource, fn: (ctx: ServiceContext) => Promise<T>): Promise<T>
   /** The fixture kit of a tenant: prerequisite rows over the public API. */
   kit(t: ContractTenant, def: AnyResource): FixtureKit
   eventsOf(resourceId: string): Promise<EventRow[]>
@@ -81,7 +75,6 @@ export interface ContractSession {
   close(): Promise<void>
   call(t: ContractTenant, actor: ContractActor, scopes: string[], method: string, path: string, body?: unknown): Promise<Response>
   principalId(t: ContractTenant, actor: ContractActor, scopes: string[]): Promise<string>
-  as: ContractEnv['as']
   /** Seeds a user with a live membership in the tenant's organisation. */
   seedMember(t: ContractTenant, role: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
   eventsOf: ContractEnv['eventsOf']
@@ -101,7 +94,7 @@ export function postgresBackend(): ContractBackend {
       const db = createTestDb()
       const owner = createOwnerTestDb()
       const storage = postgresBinding(db)
-      const app = createApp({ db: () => db, registry, userAuthenticator: fakeUserAuthenticator(), storage: () => storage })
+      const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => storage })
       const agents = new Map<string, { id: string; key: string }>()
       const agentFor = async (t: ContractTenant, scopes: string[]) => {
         const k = `${t.organizationId}:${scopes.join(',')}`
@@ -143,16 +136,6 @@ export function postgresBackend(): ContractBackend {
           const m = await owner.selectFrom('memberships').select('id').where('user_id', '=', u.id).executeTakeFirstOrThrow()
           return { userId: u.id, membershipId: m.id }
         },
-        as: (t, d, fn) =>
-          withContext(
-            db,
-            {
-              actor: { id: t.userId, kind: 'user' },
-              organizationId: t.organizationId,
-              scopes: ScopeSet.parse([`${scopeResourceOf(d)}:read`, `${scopeResourceOf(d)}:write`]),
-            },
-            fn,
-          ),
         eventsOf: (id) => owner.selectFrom('events').selectAll().where('resource_id', '=', id).orderBy('id').execute(),
         countEvents: async () => Number((await owner.selectFrom('events').select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
         countRows: async (table) =>
@@ -236,7 +219,6 @@ export function runContractSuite(opts: {
             b,
             call,
             principalId: (t, actor, grant) => session.principalId(t, actor, scopeSets[grant]),
-            as: session.as,
             kit: (t, d) => ({
               tenant: t,
               async post(path, body) {
@@ -245,7 +227,6 @@ export function runContractSuite(opts: {
                 return (await res.json()) as { id: string }
               },
               seedMember: (role = 'member') => session.seedMember(t, role),
-              ctx: (fn) => session.as(t, d, fn),
             }),
             eventsOf: session.eventsOf,
             countEvents: session.countEvents,

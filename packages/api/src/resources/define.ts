@@ -1,93 +1,16 @@
 import { z } from 'zod'
-import type { Database } from '@vault/db'
-import type { ServiceContext } from '../context.js'
 import { ApiError } from '../errors.js'
 
-export type Reference = { table: keyof Database & string; live?: boolean }
 export type Filter = {
   schema: z.ZodType
   normalize?: (value: unknown, filters: Record<string, unknown>) => unknown
 }
 export type CrudAction = 'list' | 'get' | 'create' | 'update' | 'delete'
 export const CRUD_ACTIONS: readonly CrudAction[] = ['list', 'get', 'create', 'update', 'delete']
-export interface ResourceDefinition<R extends { id: string } = { id: string }> {
-  name: string
-  eventName: string
-  table: keyof Database & string
-  record: z.ZodObject
-  create?: z.ZodObject
-  update?: z.ZodObject
-  operations?: readonly CrudAction[]
-  scopeResource?: string
-  /** Extra equality conditions for list, get, update and delete (not create); null = none. [[API7]]. */
-  rowFilter?: (ctx: ServiceContext) => Record<string, unknown> | null
-  agentWritable?: readonly string[]
-  /** false: the table has no deleted_at (P1). List, get and the row lock skip the live-row condition; `delete` cannot be generated. Default true. */
-  softDelete?: false
-  filters?: Record<string, Filter>
-  references?: Record<string, Reference>
-  inputSchema?: (ctx: ServiceContext, op: 'create' | 'update') => z.ZodObject
-  beforeWrite?: (
-    ctx: ServiceContext,
-    args: { op: 'create' | 'update'; input: Record<string, unknown>; before: R | null },
-  ) => Record<string, unknown> | Promise<Record<string, unknown>>
-  overrides?: {
-    create?: (
-      ctx: ServiceContext,
-      input: Record<string, unknown>,
-      generic: (input: Record<string, unknown>) => Promise<R>,
-    ) => Promise<R>
-    /** P2. Runs after validation and the agent-field check, instead of the generic update; `generic` locks, writes and emits. */
-    update?: (
-      ctx: ServiceContext,
-      id: string,
-      input: Record<string, unknown>,
-      generic: (id: string, input: Record<string, unknown>) => Promise<R>,
-    ) => Promise<R>
-    delete?: (ctx: ServiceContext, id: string, generic: (id: string) => Promise<void>) => Promise<void>
-  }
-}
-
 type Named = { name: string; operations?: readonly CrudAction[]; scopeResource?: string }
 export const crudActions = (def: Named): readonly CrudAction[] => def.operations ?? CRUD_ACTIONS
 export const scopeResourceOf = (def: Named): string => def.scopeResource ?? def.name
 export const resourcePath = (def: Named): string => '/' + def.name.replaceAll('_', '-')
-export const readColumns = (def: ResourceDefinition<any>): string[] => Object.keys(def.record.shape)
-
-const NAME = /^[a-z][a-z0-9_]*$/
-
-/** Validates a definition at module load. Throws a plain Error: this is a programming mistake. */
-export function defineResource<R extends { id: string }>(def: ResourceDefinition<R>): ResourceDefinition<R> {
-  if (!NAME.test(def.name)) throw new Error(`invalid resource name "${def.name}" (must match ${NAME})`)
-  for (const schema of [def.record, def.create, def.update]) {
-    if (schema && 'custom' in schema.shape) throw new Error(`"custom" is a reserved field name (${def.name})`)
-  }
-  if (def.scopeResource !== undefined && !NAME.test(def.scopeResource)) {
-    throw new Error(`invalid scopeResource "${def.scopeResource}" (${def.name})`)
-  }
-  const ops = crudActions(def)
-  if (ops.length === 0 || new Set(ops).size !== ops.length || ops.some((o) => !CRUD_ACTIONS.includes(o))) {
-    throw new Error(`invalid operations (${def.name})`)
-  }
-  if (ops.includes('create') && !def.create) throw new Error(`create schema required (${def.name})`)
-  if (ops.includes('update') && !def.update) throw new Error(`update schema required (${def.name})`)
-  if (def.softDelete === false && ops.includes('delete')) throw new Error(`delete requires soft delete (${def.name})`)
-  if (def.agentWritable) {
-    const known = new Set([...Object.keys(def.create?.shape ?? {}), ...Object.keys(def.update?.shape ?? {})])
-    for (const f of def.agentWritable) {
-      if (!known.has(f)) throw new Error(`agentWritable names unknown field "${f}" (${def.name})`)
-    }
-  }
-  return def
-}
-
-/** Converts Date values to ISO strings, then parses with the read schema (which strips other columns). */
-export function toRecord<R extends { id: string }>(def: ResourceDefinition<R>, row: Record<string, unknown>): R {
-  const converted: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(row)) converted[k] = v instanceof Date ? v.toISOString() : v
-  return def.record.parse(converted) as R
-}
-
 const issues = (e: z.ZodError) => e.issues.map((i) => i.message).join('; ')
 
 /** Parses `input` with a schema, turning a zod failure into `validation_error`. */

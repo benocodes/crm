@@ -114,7 +114,7 @@ describe('POST /webhooks/clerk', () => {
   })
 
   it('does not exist without an adapter', async () => {
-    const app = createApp({ db: () => k.db, userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(k.db) })
+    const app = createApp({ userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(k.db) })
     const res = await app.request('/webhooks/clerk', { method: 'POST', body: '{}' })
     expect(res.status).toBe(404)
     expect((await res.json()).error.code).toBe('not_found')

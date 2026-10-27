@@ -2,7 +2,7 @@ import type { Expression, ExpressionBuilder, SelectType, SqlBool } from 'kysely'
 import type { z } from 'zod'
 import { COLUMN_KINDS } from '@vault/storage'
 import type { ColumnOf, PreparedOperation, PublicColumn, PhysicalTable, QueryContext, Read, RowOf, Step, StorageDatabase, SyncHook, Table, ValueOf, Row } from '@vault/storage'
-import type { Actor } from '../context.js'
+import type { Actor } from '../auth/types.js'
 import type { CrudAction, Filter } from '../resources/define.js'
 import type { ScopeSet } from '../scopes.js'
 
@@ -57,7 +57,6 @@ export type RecordShape<T extends Table, S> = {
  * Extension points are synchronous and DB-free: they return values or Kysely fragments and never run a query.
  */
 export interface PreparedResource<T extends CrudTable = CrudTable, R extends { id: string } = { id: string }> {
-  readonly executor: 'prepared'
   readonly name: string
   readonly eventName: string
   readonly table: T
@@ -83,7 +82,7 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   /** Extension 3: extra statements after the main write (cascades, tombstones). Synchronous. */
   readonly after?: (c: { qc: QueryContext; env: PreparedEnv; op: CrudAction; id: string }) => Step[]
   /**
-   * Extension 4: whole-operation override. `preparedResourceOperations` uses it instead of the generic operation; the
+   * Extension 4: whole-operation override. `resourceOperations` uses it instead of the generic operation; the
    * input is `{ after, limit, filters }` for list, the id for get and delete, the body for create and `{ id, body }` for update.
    */
   readonly override?: Partial<Record<CrudAction, (env: PreparedEnv, input: unknown) => PreparedOperation<unknown>>>
@@ -98,11 +97,11 @@ type Output<S extends z.ZodRawShape> = z.output<z.ZodObject<S>> extends infer O 
 
 /** Validates a definition. The record's shape is checked against the table at the call site (`RecordShape`). */
 export function definePreparedResource<T extends Table, S extends z.ZodRawShape & RecordShape<T, S> & { id: z.ZodType<string> }>(
-  def: Omit<PreparedResource<T, Output<S>>, 'executor' | 'record'> & { readonly record: z.ZodObject<S> },
+  def: Omit<PreparedResource<T, Output<S>>, 'record'> & { readonly record: z.ZodObject<S> },
 ): PreparedResource<T, Output<S>> {
   // The ONE reviewed cast of the definition layer: zod's conditional output type cannot be related to `Output<S>`
   // inside the generic body. Call sites are checked by `RecordShape` and proven by definition.typecheck.ts.
-  const full = { executor: 'prepared' as const, ...def } as unknown as PreparedResource<T, Output<S>>
+  const full = { ...def } as unknown as PreparedResource<T, Output<S>>
   const NAME = /^[a-z][a-z0-9_]*$/
   if (!NAME.test(full.name)) throw new Error(`invalid resource name "${full.name}"`)
   if (!(full.table in COLUMN_KINDS)) throw new Error(`table "${full.table}" has no physical schema yet (${full.name})`)
@@ -130,5 +129,4 @@ export const softDeletes = (def: { table: Table }): boolean => 'deleted_at' in (
 /** The definition's table as a physical table: `definePreparedResource` rejected any other at creation. */
 export const physicalTable = (def: { table: Table }): PhysicalTable => def.table as PhysicalTable
 
-export const isPrepared = (def: unknown): def is PreparedResource<any, any> => (def as { executor?: unknown } | null)?.executor === 'prepared'
 export type { PublicColumn }

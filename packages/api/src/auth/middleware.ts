@@ -35,19 +35,14 @@ export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator; en
     if (!token) throw unauthenticated(method, path, undefined, 'missing bearer credentials')
     const organizationHeader = c.req.header('x-organization-id')
 
-    // A request that authenticates needs storage; an app composed without a binding is a programming mistake (500), as in `run`.
-    const need = () => {
-      const storage = c.var.storage
-      if (!storage) throw new Error('createApp was given no storage binding, which authentication needs')
-      return storage
-    }
+    const storage = c.var.storage
     const env = opts.env(c)
 
     let principal: Principal
     if (JWT_SHAPE.test(token)) {
       if (!opts.userAuthenticator) throw unauthenticated(method, path, token, 'invalid or expired credentials')
       try {
-        principal = await opts.userAuthenticator.authenticate(token, { storage: need(), organizationHeader, env })
+        principal = await opts.userAuthenticator.authenticate(token, { storage, organizationHeader, env })
       } catch (err) {
         // Log each authenticator 401 once; other failures (409, 500) are not the middleware's to log.
         if (err instanceof ApiError && err.status === 401) {
@@ -56,7 +51,7 @@ export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator; en
         throw err
       }
     } else {
-      const found = await authenticateApiKey(need(), token, env)
+      const found = await authenticateApiKey(storage, token, env)
       if (!found) throw unauthenticated(method, path, token, 'invalid or expired credentials')
       if (organizationHeader !== undefined && organizationHeader.toLowerCase() !== found.organizationId?.toLowerCase()) {
         throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')

@@ -1,5 +1,5 @@
 // Test-only. The D1 backend of the shared contract suite ([[CORE35]] D16/D18): one local Miniflare D1 binding
-// PER TENANT (never two tenants in one D1), the real app and the prepared executor, the injected-principal
+// PER TENANT (never two tenants in one D1), the real app and the prepared path, the injected-principal
 // authentication stand-in. Nothing reaches a remote database.
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
@@ -7,12 +7,10 @@ import { coldDb, uuidv7 } from '@vault/storage'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { clearD1, openLocalD1 } from '@vault/storage-d1/test'
 import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
-import type { ServiceContext } from '../context.js'
 import { Registry } from '../registry.js'
-import { scopeResourceOf } from '../resources/define.js'
 import { createApp } from '../rest/app.js'
-import { ScopeSet } from '../scopes.js'
 import type { ContractBackend, ContractSession, ContractTenant, EventRow } from './contract.js'
+import { coldStorage } from './storage.js'
 import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 
 /** The contract suite's D1 tenants share one provider link (a link is unique per database, and each tenant has its own D1). */
@@ -26,12 +24,12 @@ export function d1Backend(): ContractBackend {
       const local = await openLocalD1(['A', 'B'])
       const names = ['A', 'B'] as const
       const byOrg = new Map<string, { d1: D1Like; app: ReturnType<typeof createApp> }>()
-      // The relational Kysely is never reached by a prepared operation; a cold one proves it (it cannot execute).
+      // The relational Kysely of a ContractSession is Postgres-only; a cold one stands in on D1 (it cannot execute).
       const unusedDb = coldDb('d1') as unknown as Kysely<Database>
       const all = () => [...byOrg.values()]
       return {
         // Routes without a credential or a database: the document and the 401 cases.
-        app: createApp({ db: () => unusedDb, registry, userAuthenticator: fakeUserAuthenticator() }),
+        app: createApp({ storage: coldStorage(), registry, userAuthenticator: fakeUserAuthenticator() }),
         db: unusedDb,
         owner: unusedDb,
         async reset() {
@@ -46,7 +44,7 @@ export function d1Backend(): ContractBackend {
             await seedMembership(d1, { organizationId: t.organizationId, userId: t.userId, role: 'owner' })
             await seedAgent(d1, { id: t.agentId, organizationId: t.organizationId, createdBy: t.userId })
             const binding = d1Binding(d1, { organizationId: t.organizationId, authProvider: 'clerk', authOrgId: CONTRACT_ORG_LINK })
-            const app = createApp({ db: () => unusedDb, registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
+            const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
             byOrg.set(t.organizationId, { d1, app })
             tenants.push(t)
           }
@@ -68,21 +66,6 @@ export function d1Backend(): ContractBackend {
         },
         async principalId(t, actor) {
           return actor === 'agent' ? t.agentId : t.userId
-        },
-        async as(t, d, fn) {
-          const ctx = {
-            actor: { id: t.userId, kind: 'user' as const },
-            organizationId: t.organizationId,
-            scopes: ScopeSet.parse([`${scopeResourceOf(d)}:read`, `${scopeResourceOf(d)}:write`]),
-            // Fixtures that need a relational transaction are Postgres-only; here it fails loudly.
-            get trx(): never {
-              throw new Error('this fixture needs a Postgres transaction; it cannot run on the D1 backend')
-            },
-            emit: async () => {
-              throw new Error('legacy emit is not available on D1')
-            },
-          } as unknown as ServiceContext
-          return fn(ctx)
         },
         async seedMember(t, role) {
           const d1 = byOrg.get(t.organizationId)!.d1

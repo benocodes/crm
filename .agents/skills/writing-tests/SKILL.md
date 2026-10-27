@@ -29,6 +29,10 @@ skill is what the coder follows while writing them.
   the empty `result` select throws `UnitDriftError`, rolling the unit back. On Postgres that mutation must drop both
   guards. When a plan writes the mutation table, name the engine each row turns red on, and list each engine's guards
   for the property.
+- **Deleting tests needs a title-by-title map, not a count.** When a cycle deletes a suite with the code it tested, list
+  every deleted test title in RESULT.md beside its surviving counterpart (file and test name), or the reason it was
+  only about the deleted mechanism. A falling test count hides lost coverage. [[CORE44]]'s map found three live
+  behaviours that only the legacy suite had ever tested, and they got tests of their own.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
 - **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row passes
@@ -72,7 +76,13 @@ One program, two engines: the same assertions run on Postgres and D1.
   - `runContractSuite({ backend: d1Backend() })` runs the same assertions on D1, with one binding per
     tenant, never two tenants in one D1.
   - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
-    behaviour change, run `pnpm -C packages/api golden:generate`; `golden:check` fails on drift.
+    behaviour change, run `pnpm -C packages/server-postgres golden:generate`; `golden:check` fails on drift.
+    The generator lives in the enterprise package and reads the open fixture list, scenarios and Postgres
+    backend through `@vault/api/test/golden` ([[CORE44]] P12).
+  - Apps that must run no unit (openapi, CORS, option checks) pass `coldStorage()`; probe operations in routing and
+    auth suites return their value through `probeUnit(value)` (`src/test/storage.ts`). There is no legacy
+    `withContext`, `asUser`/`asAgent` or contract `kit.ctx`: fixtures make prerequisite rows through `kit.post`
+    or `kit.seedMember` ([[CORE44]] P9).
   - Suites written after the vertical exists prove their strength with absence mutations (break the
     runtime, see the target test fail), recorded in RESULT.md.
 - Assert engine differences explicitly, never hide them. Since [[CORE36]] D2 there is no timestamp
@@ -80,7 +90,7 @@ One program, two engines: the same assertions run on Postgres and D1.
   stored row and every event's `created_at`/`after` against the clock exactly, with no engine branch (the
   clock-parity case in `src/storage/identity-model.storage.integration.test.ts`).
 - Golden fixtures pin behaviour across engines and across refactors. Name every deliberate difference in the
-  fixture (`named_differences`, filtered per file from `NAMED_DIFFERENCES` in `scripts/golden.ts`). The one entry
+  fixture (`named_differences`, filtered per file from `NAMED_DIFFERENCES` in `packages/api/src/test/golden/fixtures.ts`). The one entry
   is D1 fixed-organisation admission (scenario `foreign-organisation-claim`, [[CORE41]] P15). For a named scenario,
   the D1 replay asserts the D1 outcome (every step `403 organization_forbidden`, no events, row counts unchanged)
   instead of equality. Ids come from `goldenId(n)`, a
@@ -88,7 +98,7 @@ One program, two engines: the same assertions run on Postgres and D1.
   fixed `GOLDEN_SEED_AT` stamp on both engines, never a database default. A unit that mints a secret takes
   `env.randomBytes`, which golden backends inject as `goldenRandomBytes` (the n-th call fills with n)
   ([[CORE40]] P12). One file per area (`tasks.json`, `identity-model.json`, `administration.json`, `auth.json`,
-  `directory.json`, listed in `scripts/golden.ts` `FIXTURES`).
+  `directory.json`, listed in `packages/api/src/test/golden/fixtures.ts` `FIXTURES`).
   - Golden actors ([[CORE41]] P15): `'agent-key'` (a fixed seeded key), `{ clerk: subject, claim? }` (a real
     Clerk-signed token for the scenario's `clerk` fixtures) and `'webhook'` (a Svix-signed delivery of `body`). An
     `alg: none` token still goes to the fake authenticator, so older scenarios keep their actors and fixtures.
@@ -121,6 +131,9 @@ One program, two engines: the same assertions run on Postgres and D1.
   ([[CORE35]] F5). Restore the state in `close()`/`afterAll`/`finally`. When a suite must alter production
   state, make the harness assert that state before every suite (CORE35's `tgenabled` guard did this; it went
   with the trigger in [[CORE36]]). If such a guard trips, run `pnpm db:test:worktree`.
+- **Test support lives under `src/test/`.** The import-boundary checker treats a file as test code only by its
+  `*.test.ts` suffix or a `/test/` path segment. A setup file such as `src/test-setup.ts` is production code to it,
+  and fails the rule that forbids `@vault/db` in `api/src` ([[CORE44]] P13: it moved to `src/test/setup.ts`).
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
 - Clean up in `afterEach`, delete only the exact rows this test seeded by their own ids, never a "nothing

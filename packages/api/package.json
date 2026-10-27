@@ -4,21 +4,15 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./test/golden": "./src/test/golden/index.ts"
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "dev": "tsx src/dev-server.ts",
-    "bootstrap": "tsx scripts/bootstrap.ts",
-    "smoke:auth": "tsx scripts/smoke-auth.ts",
-    "smoke:admin": "tsx scripts/smoke-admin.ts",
-    "golden:generate": "tsx scripts/golden.ts generate",
-    "golden:check": "tsx scripts/golden.ts check"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
-    "@vault/db": "workspace:*",
     "hono": "4.13.12",
     "jose": "6.2.12",
     "kysely": "0.29.6",
@@ -26,12 +20,11 @@
     "@vault/storage": "workspace:*"
   },
   "devDependencies": {
-    "@hono/node-server": "2.1.3",
     "@types/node": "^22",
-    "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vitest": "5.0.3",
     "@vault/storage-postgres": "workspace:*",
-    "@vault/storage-d1": "workspace:*"
+    "@vault/storage-d1": "workspace:*",
+    "@vault/db": "workspace:*"
   }
 }

@@ -1,14 +1,11 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
-import type { Kysely } from 'kysely'
 import { execute, uuidv7, type StorageBinding } from '@vault/storage'
-import type { Database } from '@vault/db'
 import type { AuthAdapter } from '../auth/adapter.js'
 import { authMiddleware } from '../auth/middleware.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
-import { withContext } from '../context.js'
 import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
@@ -19,20 +16,18 @@ import { internalEnv } from '../storage/internal.js'
 import { renderError, renderNotFound } from './errors.js'
 import { documentOperation, honoPath, registerSecurityScheme } from './openapi.js'
 
-export type AppEnv = { Variables: { db: Kysely<Database>; principal: Principal; storage?: StorageBinding } }
+export type AppEnv = { Variables: { principal: Principal; storage: StorageBinding } }
 export interface AppOptions {
-  /** Resolves the request's database. Called once per request, never at construction. */
-  db: (c: Context) => Kysely<Database>
+  /**
+   * The storage binding for this request, chosen by trusted composition code, never by request input. Resolved once
+   * per request, before auth, and reused by auth, the operation and the webhook handlers ([[CORE36]] D16).
+   */
+  storage: (c: Context) => StorageBinding
   registry?: Registry
   /** Custom or test setups. Absent (and no `authAdapter`) means JWT-shaped tokens are 401. */
   userAuthenticator?: UserAuthenticator
   /** [[CORE3]]: builds the real authenticator over this registry's declared scopes. Exclusive with `userAuthenticator`. */
   authAdapter?: AuthAdapter
-  /**
-   * The storage binding that serves prepared operations ([[CORE35]]), chosen by trusted composition code,
-   * never by request input. Required once the registry has a prepared operation.
-   */
-  storage?: (c: Context) => StorageBinding
   /** Injected clock and id source for prepared units (tests and golden fixtures). Default: real time, UUIDv7. */
   clock?: () => Date
   newId?: () => string
@@ -74,7 +69,6 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
       throw new ApiError(403, 'user_required', 'this operation requires a signed-in user')
     }
     const storage = c.var.storage
-    if (!storage) throw new Error(`operation ${op.name} is an account operation but createApp was given no storage binding`)
     // Scopes only mean something inside an organisation; an unusable claim or a contradicted header is no organisation here.
     const organizationId = principal.organizationForbidden ? null : principal.organizationId
     const env = {
@@ -99,27 +93,23 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
     throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}`)
   }
   const { actor, organizationId, scopes } = principal
-  if (op.executor === 'prepared') {
-    const storage = c.var.storage
-    if (!storage) throw new Error(`operation ${op.name} is prepared but createApp was given no storage binding`)
-    const clock = injected.clock ?? (() => new Date())
-    const now = clock()
-    const env = {
-      actor,
-      organizationId,
-      scopes,
-      now,
-      newId: injected.newId ?? (() => uuidv7(now)),
-      randomBytes: injected.randomBytes ?? ((n: number) => crypto.getRandomValues(new Uint8Array(n))),
-    }
-    try {
-      // `prepare` may be async (it can hash a secret) and may refuse with an ApiError: both map like a storage error.
-      return (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, await op.prepare(env, input))).value
-    } catch (err) {
-      throw mapStorageError(err)
-    }
+  const storage = c.var.storage
+  const clock = injected.clock ?? (() => new Date())
+  const now = clock()
+  const env = {
+    actor,
+    organizationId,
+    scopes,
+    now,
+    newId: injected.newId ?? (() => uuidv7(now)),
+    randomBytes: injected.randomBytes ?? ((n: number) => crypto.getRandomValues(new Uint8Array(n))),
   }
-  return withContext(c.var.db, { actor, organizationId, scopes }, (ctx) => op.handler(ctx, input))
+  try {
+    // `prepare` may be async (it can hash a secret) and may refuse with an ApiError: both map like a storage error.
+    return (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, await op.prepare(env, input))).value
+  } catch (err) {
+    throw mapStorageError(err)
+  }
 }
 
 export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
@@ -148,8 +138,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     )
   }
   app.use('*', async (c, next) => {
-    c.set('db', options.db(c))
-    if (options.storage) c.set('storage', options.storage(c))
+    c.set('storage', options.storage(c))
     await next()
   })
 

@@ -1,6 +1,6 @@
 ---
 name: api-routes
-description: Patterns for the vault's backend in packages/api — the operation registry (zod in/out, scope, handler), resource definitions with generic CRUD, commands, the service context, the events outbox, Hono + Kysely routes, and integration tests on a production-like tenancy pool. Use when adding or changing an operation, a resource, a command, a route, middleware, or writing tests against the backend.
+description: Patterns for the vault's backend in packages/api — the operation registry (zod in/out, scope, prepare), prepared resource definitions with generic CRUD, commands, storage identities and bindings (Postgres or D1), the events outbox, Hono + Kysely routes, and integration tests on a production-like tenancy pool. Use when adding or changing an operation, a resource, a command, a route, middleware, or writing tests against the backend.
 ---
 
 # API: operations, resources, routes
@@ -14,32 +14,38 @@ The shape, top down:
 ```
 REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
           \                    |                   /
-           +--- operation registry (zod in/out, scope, handler) ---+
+           +--- operation registry (zod in/out, scope, prepare) ---+
                           |
      resources (generic CRUD from a definition) + commands (merge, send, accept…)
                           |
-       service context: transaction, actor, scopes, tenancy
+   prepared unit: plan reads → typed statements, run by the storage binding as one identity
                           |
-          Postgres (Hyperdrive) ── outbox: events table (same transaction)
+     Postgres (Hyperdrive, @vault/storage-postgres) or D1 (@vault/storage-d1) ── outbox: events (same unit)
 ```
 
 **What exists:**
-- **Service layer** ([[CORE12]]):
-  - `src/errors.ts` (`ApiError`, `mapDatabaseError`);
+- **Service layer** ([[CORE12]]; prepared-only since [[CORE44]], the interactive `withContext` path is deleted):
+  - `src/errors.ts` (`ApiError`, `mapStorageError`);
   - `src/scopes.ts` (`ScopeSet`);
-  - `src/outbox.ts` (`writeEvent`);
-  - `src/context.ts` (`withContext`, legacy tenant path until [[CORE44]]);
+  - `src/outbox.ts` (`eventStatement`, `eventSetStatement`: the only code that inserts into `events`);
   - `src/storage/internal.ts` (`InternalEnv { now, newId }`, `internalEnv(opts)`: built per request from
     `AppOptions.clock`/`newId`, handed to auth, first sight, the directory and the webhook, [[CORE41]] P5);
-  - `src/resources/{define,crud,tasks}.ts`.
+  - `src/resources/define.ts` (shared helpers only: `crudActions`, `scopeResourceOf`, `resourcePath`, `parseInput`,
+    `parseListQuery`); `src/storage/{definition,prepare,crud}.ts` (the prepared core); `src/resources/*.ts` (definitions).
 - **Registry and HTTP** ([[CORE15]]):
   - `src/registry.ts` (`Registry`, `resourceOperations`, `toolName`);
   - `src/operations.ts` (`createVaultRegistry`, where new resources and operations are added);
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
-  - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events) and
-    `scripts/bootstrap.ts` (composes `postgresBinding`; a temporary import-boundary allow entry until [[CORE44]]);
-  - `src/dev-server.ts`.
+  - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events).
+- **Postgres composition** (`@vault/server-postgres`, enterprise, [[CORE36]] D22, since [[CORE44]]): every entry point
+  that picks the Postgres runtime lives here, importing the app from the `@vault/api` barrel.
+  `packages/api` production code imports none of `pg`, `@vault/db`, `@vault/storage-postgres` or
+  `@vault/server-postgres` (AGENTS.md invariant 10):
+  - `src/dev-server.ts` (`pnpm -C packages/server-postgres dev`; `AUTH_PROVIDER` empty runs agent-only);
+  - `scripts/bootstrap.ts` (`pnpm -C packages/server-postgres bootstrap -- --org … --email … --agent …`);
+  - `scripts/smoke-auth.ts`, `scripts/smoke-admin.ts` (below);
+  - `scripts/golden.ts` (`golden:generate`, `golden:check`), reading `@vault/api/test/golden`.
 - **Human auth** ([[CORE3]] cycle 1):
   - `src/auth/adapter.ts` (`AuthAdapter`, `createAuthAdapter(env)`, `parseOriginList`), `src/auth/clerk.ts`;
   - `src/auth/first-sight.ts` (`lookupUserOperation`, `firstSightOperation`, `firstSightRecheckOperation`, and the
@@ -48,7 +54,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `src/auth/user-authenticator.ts` (`createUserAuthenticator`); `AuthFailure` lives in `src/auth/adapter.ts`;
   - `src/account/` (`me.get` only, a prepared account operation `meOperation(env)`; organisations and memberships
     come from Clerk, [[CORE29]]);
-  - `scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:auth`: local key pair, fake
+  - `packages/server-postgres/scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:auth`: local key pair, fake
     Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`
     equals `SMOKE_EXPECT_DATABASE`, because an exported `DATABASE_URL` overrides `--env-file` ([[CORE36]]).
 - **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
@@ -69,10 +75,12 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - admin-kit (`src/test/admin-kit.ts`): `call(path, sub, { org })` mints the organisation claim from the copy
     (`claim` overrides, `header` sends `x-organization-id`), `webhook(payload)` posts a signed delivery,
     `seedOrg` links the organisation and mirrors it in the fake Clerk (`k.clerk.organizations`, `.members`);
-  - `scripts/smoke-admin.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:admin`, same scaffolding
+  - `packages/server-postgres/scripts/smoke-admin.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:admin`, same scaffolding
     as `smoke-auth.ts`, with the same `SMOKE_EXPECT_DATABASE` guard since [[CORE40]]).
 - **Test helpers** in `src/test/`:
-  - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);
+  - `tenant.ts` (`seedTenant`: a Postgres organisation with an owner and an agent);
+  - `storage.ts` (`pgStorage(db)`, `coldStorage()`: a binding whose `execute` throws, for apps that must run no
+    unit; `probeUnit(value)`: a statement-free read unit for probe operations in routing and auth suites);
   - `keys.ts` (`seedApiKey`: a direct insert under `withServiceRole`, not the production path);
   - `auth-kit.ts` (`openAuthKit(engine)`, [[CORE41]]): the real authenticator and webhook over the fake Clerk on
     either engine's binding, a spy that records every unit (`ran`: name, identity, stats) and `armOn(name, hook)`
@@ -93,7 +101,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 ## The registry and the REST adapter ([[CORE15]])
 
 - **An operation** is `{ kind: 'tenant' | 'account', name, summary, method, path, request?, validation?,
-  response, handler | prepare }`. `scope` is required on tenant operations; account operations take none and are
+  response, prepare }`. `scope` is required on tenant operations; account operations take none and are
   for users only (`403 user_required`). An account operation is `prepare(env: AccountEnv, input)` returning a
   **read-only** prepared operation, run with the `account` storage identity ([[CORE41]] P12). One that must write
   becomes an internal unit with an explicit organisation instead.
@@ -113,33 +121,33 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   1. parse the input;
   2. tenant operations: `organization_forbidden` (the principal's flag), then `organization_required`,
      then the one scope check (`403 insufficient_scope`, `requires <scope>`). Account operations ignore
-     both organisation flags and see `ctx.organizationId: null` instead;
-  3. `execute` with the operation's storage identity (`tenant` or `account`; legacy tenant operations: `withContext`);
+     both organisation flags and see `env.organizationId: null` instead;
+  3. `prepare(env, input)`, then `execute` with the operation's storage identity (`tenant` or `account`), errors
+     through `mapStorageError`;
   4. respond with `c.json(result, status)`, or an empty 204.
   Any new transport (MCP) must apply the same order.
-- **`createApp({ db: (c) => Kysely, registry?, authAdapter? | userAuthenticator?, corsOrigins?, version? })`.**
+- **`createApp({ storage: (c) => StorageBinding, registry?, authAdapter? | userAuthenticator?, clock?, newId?, randomBytes?, corsOrigins?, version? })`** ([[CORE44]] C1: `storage` is required, there is no `db`).
   - `authAdapter` builds the real authenticator over the registry's declared scopes; `userAuthenticator`
     is for tests and custom setups. Passing both throws, so a test can't silently run the fake.
   - `corsOrigins` empty or absent: no CORS middleware and no `Access-Control-*` header.
-  - The db resolver runs once per request, in `app.use('*')`, and never at construction.
+  - The storage resolver runs once per request, in `app.use('*')` before auth, and never at construction. Auth,
+    the operation and the webhook reuse that binding (`c.var.storage`).
   - Auth is mounted on each registry route, never on `*`. A plain route the caller adds to the returned
-    app (`/health`, a webhook receiver) gets `c.var.db`, no auth, and no OpenAPI entry.
+    app (`/health`, a webhook receiver) gets `c.var.storage`, no auth, and no OpenAPI entry.
   - `GET /openapi.json` is unauthenticated.
-- **Errors.** `renderError` turns an `ApiError` into its own status and body, and
-  `TenancyContextError(missing_organization)` into `403 organization_required`. Anything else is
+- **Errors.** `renderError` turns an `ApiError` into its own status and body. `run()` refuses a tenant operation
+  with no organisation (`403 organization_required`) before any unit, so no tenancy error reaches it. Anything else is
   logged (`[api] unhandled`) and masked as `500 internal`. Unmatched routes and methods return
   `404 not_found`, `no such route`.
 - **Resource definition knobs:**
   - `operations` (a CRUD subset; read-only definitions omit `create`/`update`);
-  - `scopeResource` (share a scope, e.g. identities use `contacts:*`);
-  - `rowFilter(ctx)` (extra equality conditions on list, get, update and delete; rows outside the
-    filter are 404).
+  - `scopeResource` (share a scope, e.g. identities use `contacts:*`).
   - Routes are `resourcePath(def)`: `_` becomes `-`, so `api_keys` routes at `/api-keys`.
 
 ## Operations: define once, expose everywhere
 
 Every operation is one registry entry: a name, input and output zod schemas, the **scope** it requires, and
-a handler that receives the service context. REST routes and MCP tools are generated from the registry by
+a `prepare(env, input)` that builds a prepared unit from the trusted environment and the input. REST routes and MCP tools are generated from the registry by
 thin adapters, so the surfaces cannot drift apart and OpenAPI comes from the same schemas. Do not hand-write
 a route or an MCP tool that bypasses the registry.
 
@@ -161,63 +169,29 @@ handler); a generic layer that tries to express every behavior turns into a fram
 Adding a resource also means adding it to the **contract suite** (see Testing); don't hand-write those
 tests.
 
-**The definition** (`defineResource` in `src/resources/define.ts`; only `src/test/legacy-tasks.ts` (the contract suite's self-test) still uses it, until [[CORE41]] deletes it. Every product resource, administration included since [[CORE40]], is on the prepared path below):
-`name` (plural, scope resource), `eventName` (singular, event prefix), `table`, `record` (read schema, a
-plain `z.object` so unlisted columns are stripped), `create`/`update` (`z.strictObject`, so unknown keys and
-`organization_id`/`created_by` are `validation_error`), optional `agentWritable`, `filters` (each with a
-`schema` and an optional `normalize(value, parsedFilters)`), `references` (`{ table, live? }`), and the
-escape hatches:
+The definition is `definePreparedResource` (next section). Rules that hold for every definition:
 
-| Hook | When it runs | Use it for |
-|---|---|---|
-| `inputSchema(ctx, op)` | instead of `create`/`update`, per request | custom fields ([[CORE10]]) |
-| `beforeWrite(ctx, { op, input, before })` | after validation, agent and reference checks, inside the lock on update | derived columns (`completed_at`), invariants that read `before` or lock other rows, throwing an `ApiError` (409s) |
-| `overrides.create(ctx, input, generic)` | after validation, agent and reference checks | `ON CONFLICT` inserts, multi-row creates, minting a parent row first (`agents`' principal) |
-| `overrides.update(ctx, id, input, generic)` | after validation and the agent-field check, **before** the row lock | locking other rows before the target (`memberships`' last-owner guard) |
-| `overrides.delete(ctx, id, generic)` | instead of the generic soft delete | cascading soft deletes, guards that lock other rows first |
-
-- **`softDelete: false`** (legacy only) marks a table with no `deleted_at`; the prepared path derives the
-  same fact from the schema (below). Don't add a never-set `deleted_at` column instead ([[CORE27]] P1).
-- **A guard that locks more rows than the target must lock them before the target.** `beforeWrite` runs
-  inside the target's lock, so a guard there that also locks siblings takes the locks in the wrong order:
-  two owners demoting each other at once each hold their own row and wait on the other's (`40P01`, an
-  unmapped 500). Use `overrides.update`/`overrides.delete`: lock the sibling set `FOR UPDATE ORDER BY id`
-  first, decide, then call `generic`. The second transaction waits, re-reads and gets the `409`
-  (`guardLastOwner`, `src/resources/memberships.ts`, [[CORE27]] P2).
 - **A response that carries a secret is a hand-written operation over a read-only definition.** The
-  generic create emits its return value as the event's `after`, so a create that returns a plaintext key
-  would put it in the outbox. `api_keys` generates only `list`/`get`; `api_keys.create` inserts, reads the
-  record back through `getResource`, emits that, and returns `{ ...record, key }` ([[CORE27]] P6). The
-  contract fixture names the route in `handwritten: ['create']`, so the suite's "not generated" case
-  skips it.
-
-- **An override that writes without calling `generic` must emit** with `emitResourceEvent(ctx, def, action,
-  before, after, id)`.
-- **References are checked on the parsed input, before `overrides.create` runs.** If an override changes a
-  reference field before calling `generic` (or inserts itself), the new value is not checked: only the
-  foreign key catches it, and a plain FK accepts another organisation's id (Postgres checks FKs without
-  RLS). Re-check with a `SELECT` on `ctx.trx`, or rely on a composite `(organization_id, id)` FK.
-- `defineResource` throws at module load on any of these:
-  - a key named `custom` (reserved);
-  - an unknown `agentWritable` field;
-  - a bad `name` or `scopeResource`;
-  - empty, repeated or unknown `operations`;
-  - a generated create or update without its schema;
-  - `softDelete: false` with a generated `delete`.
-- **Generic reads and writes name their columns** (`readColumns(def)` = the keys of `record`). A column
-  left out of `record` (`api_keys.key_hash`, `content_key`) is never selected, never returned and never
-  in an event, so column-level grants work ([[CORE15]]). Never reintroduce `selectAll()` or
-  `returningAll()` in `crud.ts`.
+  generic create renders its event `after` from the stored record, so a create that returned a plaintext key
+  would leak it into the outbox if the key were a column. `api_keys` generates only `list`/`get`;
+  `api_keys.create` is `issueApiKeyOperation`, which adds the plaintext only to the successful result's
+  `decode` ([[CORE27]] P6, [[CORE40]]). The contract fixture names the route in `handwritten: ['create']`,
+  so the suite's "not generated" case skips it.
+- **Generic reads and writes name their columns** (the keys of `record`). A column left out of `record`
+  (`api_keys.key_hash`, `content_key`) is never selected, never returned and never in an event, so
+  column-level grants work ([[CORE15]]). Never select or return a whole row in `src/storage/crud.ts`.
+- `definePreparedResource` throws at load on a bad `name`, a table with no physical schema, an unknown
+  `agentWritable` field, and `delete` on a table without `deleted_at` (`src/storage/definition.test.ts`).
 - **Known limits, owed by later plans:** filters are column equality only, and `toRecord` maps one flat
   row. Join filters and embedded child rows need definition hooks ([[CHN5]]).
 
 ## Prepared resources: the storage seam ([[CORE35]])
 
-Resources are moving from the interactive layer above to **prepared operations**: a bounded program of
-typed Kysely statements that runs as one atomic unit on Postgres (`@vault/storage-postgres`, enterprise)
-or D1 (`@vault/storage-d1`, open). `tasks` is the first, and the worked example is
-`src/resources/tasks.ts`; the identity model (`companies`, `contacts`, `identities`, resolve, merge, the
-cascades) followed in [[CORE36]]. Until [[CORE41]] (the cutover), both paths coexist.
+Every operation is a **prepared operation**: a bounded program of typed Kysely statements that runs as one
+atomic unit on Postgres (`@vault/storage-postgres`, enterprise) or D1 (`@vault/storage-d1`, open). The worked
+example is `src/resources/tasks.ts`; the identity model, administration, auth, the directory and bootstrap
+followed in [[CORE36]], [[CORE40]] and [[CORE41]]. Since [[CORE44]] it is the only path: there is no
+interactive transaction, no `withContext` and no `executor` marker.
 
 - **`definePreparedResource({ table, record, ... })`** (`src/storage/definition.ts`) infers the table from
   `table`. `RecordShape` makes every `record` key a public column of that table with a compatible type,
@@ -234,16 +208,15 @@ cascades) followed in [[CORE36]]. Until [[CORE41]] (the cutover), both paths coe
     (the runtime encodes a JS array) and `recordJson` renders it as `json(col)`, so an event's `after` holds a
     JSON array on both engines. Its column type is the decoded `string[]`, so a record typing it `z.string()`
     does not compile.
-- **`PreparedTenantOperation.prepare` may be async** ([[CORE40]] P8): `run()` awaits it inside the try that
+- **`TenantOperation.prepare` may be async** ([[CORE40]] P8): `run()` awaits it inside the try that
   maps errors. Use it only for work that cannot be a hook, such as hashing a minted secret.
   `PreparedEnv.randomBytes(n)` is the injected random source beside `now` and `newId()`
   (`AppOptions.randomBytes`, default `crypto.getRandomValues`), so a unit that mints a secret is
   deterministic in golden runs. The plaintext rides only in the result's `decode`, never in a statement, an
   event or a log.
-- **The registry marks prepared operations `executor: 'prepared'`.** `run()` in `src/rest/app.ts` executes
-  them through the binding from `createApp({ storage })` and never wraps them in `withContext`. **Every
-  composition (`dev-server.ts`, the smoke scripts, test apps) must pass `storage`**; a prepared operation
-  without one throws. Storage errors go through `mapStorageError`:
+- **There is one tenant operation shape** ([[CORE44]] P4). `run()` in `src/rest/app.ts` executes it through the
+  binding from `createApp({ storage })`, which every composition must pass (the type requires it). Storage errors
+  go through `mapStorageError`; anything it does not recognise passes through and is masked as `500`:
   - a foreign-key failure is `invalid_reference`;
   - drift, and a unique-index failure inside a unit (only a racing D1 writer can cause it), are `409 conflict`;
   - the cap is `set_limit_exceeded`;
@@ -316,8 +289,8 @@ cascades) followed in [[CORE36]]. Until [[CORE41]] (the cutover), both paths coe
 
 ## The service context and tenancy
 
-Every operation runs inside the service context, which carries the transaction, the actor (user or agent
-principal), the granted scopes and the tenant. Tenancy is the **organisation**. The scoping wrappers in
+Every operation runs as one prepared unit under a storage identity carrying the actor (user or agent principal),
+and, for tenant units, the organisation. The granted scopes are checked by `run()` before the unit. Tenancy is the **organisation**. The scoping wrappers in
 `packages/db/src/tenancy.ts` (exported from `@vault/db`) are the only code that sets role or session config:
 
 | Wrapper | Use |
@@ -330,25 +303,16 @@ a query outside a wrapper fails with `42501`. `vault_authenticated` has no `DELE
 only `SELECT, INSERT` on `events`, and nothing on `api_keys`. `vault_service` has `SELECT, INSERT, UPDATE`
 (events `SELECT, INSERT`), no `DELETE`, and nothing on Kysely's tables.
 
-Operations don't call the wrappers directly; they run in a service context (`src/context.ts`):
+Programs never call the wrappers or touch a transaction. The Postgres runtime picks the wrapper from the unit's
+`StorageIdentity`: `withOrganization` for `tenant`, `withServiceRole` for `account` and `internal`. Only enterprise
+packages and tests import `@vault/db` (invariant 10); seeds run under `withServiceRole`.
 
-- `withContext(db, { actor, organizationId, scopes }, ctx => …)`: tenant operations. `ctx` has `trx`,
-  `actor`, `organizationId`, `scopes` and `emit(event)`, and deliberately **no `db`**. Usable outside a
-  request (a Workflow step) with an explicit principal.
-- It maps a `23503` to `400 invalid_reference` **after** the transaction rolled back (in `.catch` on the
-  wrapper), never inside it; everything else, including `TenancyContextError`, passes through unchanged.
-
-- **Handlers never import `db` directly.** They use the transaction from the context. Plain `db` is for
-  auth lookups and test fixtures.
 - **Do not use a plain `db.transaction()` because "RLS isn't wired yet".** The role and gate exist; bypasses
   that rely on future-you remembering to switch back are dead on arrival.
-- **Org-required operations guard first, then wrap.** Return one consistent error shape and status for "no
+- **Org-required operations guard first, then execute.** Return one consistent error shape and status for "no
   active organisation" across the whole API (decide it once in the first API cycle; the predecessor ended up with two
   shapes by route family and regretted it).
 - **Keep tenancy transactions short** and never hold one across a storage call (see `hyperdrive-pg-rls`).
-- **TS gotcha:** if you re-run a helper through a second wrapper call, don't type the callback's `trx` as
-  `any`. That erases the wrapper's `Transaction<Database>` generic and its return type collapses to `{}`.
-  Cast the callback's *return value* instead.
 
 ### Tenancy per engine ([[CORE35]] D6, D18)
 
@@ -499,7 +463,7 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
 
 ## Things to avoid
 
-- Importing `db` in a handler instead of using the service context.
+- Importing `db`, `@vault/db` or a runtime package in `packages/api` production code (the boundary test fails).
 - Inserting into a resource's table from anywhere but its service layer.
 - A route or MCP tool that bypasses the registry.
 - Re-declaring middleware-set context variables on a route's `Hono<{ Variables }>`.

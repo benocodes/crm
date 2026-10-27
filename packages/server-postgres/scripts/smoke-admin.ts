@@ -2,7 +2,7 @@
 // prepared operations since [[CORE40]]. Needs no Clerk account: it generates an RS256 key pair, runs a fake Clerk Backend API
 // locally and serves the real app over HTTP against DATABASE_URL.
 //
-//   SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:admin
+//   SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:admin
 //
 // It refuses to run unless `current_database()` equals SMOKE_EXPECT_DATABASE: an exported DATABASE_URL overrides --env-file,
 // so printing the database name is not enough (CORE36 retro, CORE40 P14).
@@ -13,10 +13,8 @@ import { serve } from '@hono/node-server'
 import { SignJWT, exportSPKI, generateKeyPair } from 'jose'
 import { sql } from 'kysely'
 import { createDb, withServiceRole } from '@vault/db'
-import { createAuthAdapter } from '../src/auth/adapter.js'
-import { createVaultRegistry } from '../src/operations.js'
 import { postgresBinding } from '@vault/storage-postgres'
-import { createApp } from '../src/rest/app.js'
+import { createApp, createAuthAdapter, createVaultRegistry } from '@vault/api'
 
 const ISSUER = 'https://smoke.clerk.test'
 const rand = randomBytes(4).toString('hex')
@@ -95,7 +93,7 @@ if (!expectedDb || dbName !== expectedDb) {
 }
 
 const storage = postgresBinding(db)
-const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
+const app = createApp({ authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
 const server = serve({ fetch: app.fetch, port: appPort, hostname: '127.0.0.1' })
 const base = `http://127.0.0.1:${appPort}`
 const declared = createVaultRegistry().declaredScopes()

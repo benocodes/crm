@@ -28,7 +28,7 @@ beforeEach(async () => {
   await truncateAll(owner)
   profiles = new Map()
   kit = await testClerkAdapter({ profiles })
-  app = createApp({ db: () => db, authAdapter: kit.adapter, storage: pgStorage(db) })
+  app = createApp({ authAdapter: kit.adapter, storage: pgStorage(db) })
 })
 
 /** `claim`: the Clerk organisation id (and role) the token names. */

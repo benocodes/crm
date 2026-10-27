@@ -4,7 +4,7 @@
 //
 // SMOKE_EXPECT_DATABASE is required: the script refuses to run unless current_database() equals it (an exported
 // DATABASE_URL overrides --env-file). Example, from the repo root, against a worktree's private test database:
-//   SMOKE_EXPECT_DATABASE=vault_test_<worktree> pnpm -C packages/api smoke:auth
+//   SMOKE_EXPECT_DATABASE=vault_test_<worktree> pnpm -C packages/server-postgres smoke:auth
 import { randomBytes, randomUUID } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -12,10 +12,8 @@ import { serve } from '@hono/node-server'
 import { SignJWT, exportSPKI, generateKeyPair } from 'jose'
 import { sql } from 'kysely'
 import { createDb, withOrganization } from '@vault/db'
-import { createAuthAdapter } from '../src/auth/adapter.js'
-import { createVaultRegistry } from '../src/operations.js'
 import { postgresBinding } from '@vault/storage-postgres'
-import { createApp } from '../src/rest/app.js'
+import { createApp, createAuthAdapter, createVaultRegistry } from '@vault/api'
 
 const ISSUER = 'https://smoke.clerk.test'
 const rand = randomBytes(4).toString('hex')
@@ -85,7 +83,7 @@ if (!expectedDb || dbName !== expectedDb) {
 }
 
 const storage = postgresBinding(db)
-const app = createApp({ db: () => db, authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
+const app = createApp({ authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
 const server = serve({ fetch: app.fetch, port: appPort, hostname: '127.0.0.1' })
 const base = `http://127.0.0.1:${appPort}`
 const declared = createVaultRegistry().declaredScopes()
@@ -152,7 +150,7 @@ try {
   const org1 = { id: me.active_organization.id as string }
   const title = `smoke task ${rand}`
   await check('POST /tasks (claim)', { path: '/tasks', method: 'POST', token: tokOrg, body: { title } }, 201)
-  // [[CORE35]]: the task lifecycle through the prepared executor on Postgres, over HTTP.
+  // [[CORE35]]: the task lifecycle through the prepared path on Postgres, over HTTP.
   const created = await check('POST /tasks (lifecycle)', { path: '/tasks', method: 'POST', token: tokOrg, body: { title: `${title} lifecycle` } }, 201, (j) =>
     eq(j.status, 'open', 'status') ?? eq(j.completed_at, null, 'completed_at'),
   )

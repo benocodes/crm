@@ -24,7 +24,6 @@ export function clerkWebhookHandler(
     const { change } = parsed
     if (change.kind === 'ignored') return c.json({ received: true }, 200)
     const storage = c.var.storage
-    if (!storage) throw new Error('POST /webhooks/clerk needs a storage binding, but createApp was given none')
     const env = internalEnv(deps)
     if (change.kind === 'organization') {
       if (storage.kind === 'd1' && (adapter.provider !== storage.authProvider || change.externalId !== storage.authOrgId)) {

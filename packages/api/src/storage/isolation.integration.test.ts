@@ -76,7 +76,7 @@ describe('isolation on D1: one organisation per database (D18)', () => {
   it('through the app a token for another organisation is refused 403 and touches no data', async () => {
     const registry = new Registry().registerResource(tasks)
     const binding = d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId })
-    const app = createApp({ db: () => undefined as never, registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
+    const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
     const token = mintTestUserToken({ userId: e.userId, organizationId: uuidv7(), scopes: ['tasks:read', 'tasks:write'] })
     const res = await app.request('/tasks', { headers: { authorization: `Bearer ${token}` } })
     expect(res.status).toBe(403)
@@ -97,7 +97,7 @@ describe('isolation on D1: one organisation per database (D18)', () => {
     ).toMatch(/FOREIGN KEY/i)
   })
 
-  it('the executor identity comes only from the trusted context: a foreign ApiError is never produced by request input', async () => {
+  it('the storage identity comes only from the trusted context: a foreign ApiError is never produced by request input', async () => {
     const err = await settle(e.run(getOperation(tasks, e.env(), uuidv7())))
     expect(err).toBeInstanceOf(ApiError)
     expect((err as ApiError).status).toBe(404)

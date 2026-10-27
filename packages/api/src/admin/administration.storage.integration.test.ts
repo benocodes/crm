@@ -5,7 +5,7 @@ import { seedAgent, seedOrganization, seedUser } from '@vault/db/test'
 import { hashApiKey } from '../auth/api-keys.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
-import type { PreparedTenantOperation } from '../registry.js'
+import type { TenantOperation } from '../registry.js'
 import { seedApiKey } from '../test/keys.js'
 import { seedPrincipal } from '@vault/storage-d1/test/seed'
 import { openEngines, type Engine } from '../test/engines.js'
@@ -44,7 +44,7 @@ describe.each(['postgres', 'd1'] as const)('administration storage behaviour on 
 
   /** One registry operation exactly as the REST adapter runs it: async prepare, then execute, storage errors mapped. */
   const prepareOp = async (op: string, call: Call, opts: Opts = {}): Promise<PreparedOperation<unknown>> => {
-    const operation = registry.get(op) as PreparedTenantOperation
+    const operation = registry.get(op) as TenantOperation
     return operation.prepare(e.env({ now: opts.now ?? at(++tick), ...(opts.as ? { as: opts.as } : {}) }), { params: {}, query: {}, body: undefined, ...call })
   }
   const run = async (op: string, call: Call = {}, opts: Opts = {}): Promise<ExecutionResult<any>> => {

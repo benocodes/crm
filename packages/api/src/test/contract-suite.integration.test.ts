@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createApp } from '../rest/app.js'
 import { Registry } from '../registry.js'
-import { createResource } from '../resources/crud.js'
-import { legacyTasks as tasks } from './legacy-tasks.js'
+import { tasks } from '../resources/tasks.js'
+import { createOperation } from '../storage/crud.js'
+import { coldStorage } from './storage.js'
 import { assertFixturesCoverRegistry, runContractSuite, type ContractCheck, type ContractFixture } from './contract.js'
-import type { Kysely } from 'kysely'
-import type { Database } from '@vault/db'
 
+// The one-definition variants are spread from the prepared `tasks` and renamed (CORE44 P9).
 const taskViews = { ...tasks, name: 'task_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
 const assignedTasks = { ...tasks, name: 'assigned_tasks', scopeResource: 'tasks' } as never
 
@@ -30,26 +30,23 @@ const registry = new Registry()
     path: '/posted-views',
     scope: { resource: 'tasks', action: 'write' },
     response: { status: 201, schema: z.object({ id: z.string() }) },
-    handler: async (ctx) => createResource(ctx, tasks, { title: 'posted' }),
+    prepare: (env) => createOperation(tasks, env, { title: 'posted' }),
   })
 const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
-  task_views: { make: (kit) => kit.ctx((ctx) => createResource(ctx, tasks, { title: 'v' })) },
+  task_views: { make: (kit) => kit.post('/tasks', { title: 'v' }) },
   assigned_tasks: {
     // The builder names the tenant's own user: the reference check only passes in the right org.
     input: async (kit) => ({ title: 'x', assignee_id: kit.tenant.userId }),
     patch: async () => ({ title: 'Renamed' }),
   },
-  posted_views: { make: (kit) => kit.ctx((ctx) => createResource(ctx, tasks, { title: 'p' })), handwritten: ['create'] },
+  posted_views: { make: (kit) => kit.post('/tasks', { title: 'p' }), handwritten: ['create'] },
   seeded_views: {
     async make(kit) {
       const m = await kit.seedMember()
       expect(m.userId).toMatch(/^[0-9a-f-]{36}$/)
       expect(m.membershipId).toMatch(/^[0-9a-f-]{36}$/)
-      return kit.ctx((ctx) => {
-        expect(kit.tenant.organizationId).toBe(ctx.organizationId)
-        return createResource(ctx, tasks, { title: 's' })
-      })
+      return kit.post('/tasks', { title: 's' })
     },
   },
 }
@@ -69,7 +66,7 @@ describe('suite shape', () => {
     expect(seen).toEqual(['tasks', 'task_views', 'assigned_tasks', 'posted_views', 'seeded_views'])
   })
   it('documents read-only definitions without write routes', async () => {
-    const app = createApp({ db: () => ({}) as Kysely<Database>, registry })
+    const app = createApp({ storage: coldStorage(), registry })
     const d = (await (await app.request('/openapi.json')).json()) as any
     expect(Object.keys(d.paths['/task-views'])).toEqual(['get'])
     expect(Object.keys(d.paths['/task-views/{id}'])).toEqual(['get'])

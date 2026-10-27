@@ -1,11 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { postgresBinding } from '@vault/storage-postgres'
 import { d1GoldenBackend, type D1GoldenBackend } from '../test/golden/d1-backend.js'
 import { pgGoldenBackend, type PgGoldenBackend } from '../test/golden/pg-backend.js'
 import { runScenario } from '../test/golden/runner.js'
 import { administrationScenarios, authScenarios, directoryScenarios, identityModelScenarios, taskScenarios, type GoldenScenario } from '../test/golden/scenarios.js'
-import { NAMED_DIFFERENCES } from '../../scripts/golden.js'
+import { NAMED_DIFFERENCES } from '../test/golden/fixtures.js'
 
 // Golden fixtures (CORE35 D17, CORE36 D12): recorded through the Postgres prepared path only, replayed exactly on
 // D1. No legacy oracle and no symbolic comparison. The one named engine difference is D1 fixed-organisation admission (CORE41 D19).
@@ -34,7 +33,7 @@ describe.each(SETS)('golden fixtures: %s', (_label, file, scenarios) => {
   describe('postgres path', () => {
     let pg: PgGoldenBackend
     beforeAll(() => {
-      pg = pgGoldenBackend({ extra: ({ db, clock, newId, randomBytes }) => ({ storage: () => postgresBinding(db), clock, newId, randomBytes }) })
+      pg = pgGoldenBackend()
     })
     afterAll(() => pg.close())
 

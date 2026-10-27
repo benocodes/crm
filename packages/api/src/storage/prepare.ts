@@ -1,5 +1,5 @@
 import { COLUMN_KINDS, codecs, type ColumnKind } from '@vault/storage'
-import type { Actor } from '../context.js'
+import type { Actor } from '../auth/types.js'
 import { ApiError } from '../errors.js'
 import { parseInput, parseListQuery } from '../resources/define.js'
 import { physicalTable, type PreparedResource, type Values } from './definition.js'
