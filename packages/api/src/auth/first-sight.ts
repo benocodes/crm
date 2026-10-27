@@ -105,8 +105,11 @@ const EMAIL = 'auth:email'
 
 function loginReads(provider: string, subject: string, email: string) {
   return (qc: Parameters<PreparedOperation<unknown>['reads']>[0]): Record<string, Read> => ({
-    [SUBJECT]: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', provider).where('users.auth_subject', '=', subject)),
+    // ORDER MATTERS (READ COMMITTED, no lock): the email is read BEFORE the subject. A winner commits its subject and email together, so an
+    // email seen as held by a winner implies the later subject read sees it too; reading the subject first could see 'absent' then 'email held'
+    // and misreport the race as a conflict.
     [EMAIL]: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.email', '=', email)),
+    [SUBJECT]: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', provider).where('users.auth_subject', '=', subject)),
   })
 }
 
