@@ -1,7 +1,8 @@
 import type { StorageBinding } from '@vault/storage'
-import type { Actor } from '../context.js'
 import type { ScopeSet } from '../scopes.js'
 import type { InternalEnv } from '../storage/internal.js'
+
+export type Actor = { id: string; kind: 'user' | 'agent' }
 
 export type Principal = {
   actor: Actor

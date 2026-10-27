@@ -21,7 +21,6 @@ import {
 } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
-import type { ListResult } from '../resources/crud.js'
 import { physicalTable, softDeletes, type Conflict, type PreparedEnv, type PreparedResource, type ReferenceTarget } from './definition.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 
@@ -34,6 +33,8 @@ import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './p
 // typed by `PreparedResource<T>`, and the type fixtures prove the public helpers still reject bad input.
 type Loose = Kysely<Record<string, Record<string, unknown>>>
 const loose = (qc: QueryContext): Loose => qc.db as unknown as Loose
+
+export type ListResult<R> = { data: R[]; next_cursor: string | null }
 
 export const columnsOf = (def: PreparedResource): string[] => Object.keys(def.record.shape)
 const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>

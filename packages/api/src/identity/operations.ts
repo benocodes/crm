@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { PreparedTenantOperation } from '../registry.js'
+import type { TenantOperation } from '../registry.js'
 import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
 import { mergeOperation } from './merge.js'
@@ -19,11 +19,10 @@ const resolveBody = z.strictObject({
 })
 
 /** The identity commands on the prepared path ([[CORE36]]): same paths, scopes, schemas and statuses. */
-export function identityOperations(): PreparedTenantOperation[] {
+export function identityOperations(): TenantOperation[] {
   return [
     {
       kind: 'tenant',
-      executor: 'prepared',
       name: 'identities.resolve',
       summary: 'Resolve addresses to identities, creating contacts for new ones',
       tags: ['identities'],
@@ -52,7 +51,6 @@ export function identityOperations(): PreparedTenantOperation[] {
     },
     {
       kind: 'tenant',
-      executor: 'prepared',
       name: 'contacts.merge',
       summary: 'Merge another contact into this one',
       tags: ['contacts'],

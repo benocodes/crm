@@ -15,14 +15,6 @@ export class ApiError extends Error {
   }
 }
 
-/** Maps a foreign-key violation to `invalid_reference`; never leaks the constraint detail. */
-export function mapDatabaseError(err: unknown): unknown {
-  if ((err as { code?: unknown } | null)?.code === '23503') {
-    return new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
-  }
-  return err
-}
-
 /**
  * Maps a storage-layer failure to the public error. Business refusals already are ApiErrors; this covers
  * what the runtimes raise: a foreign-key failure is `invalid_reference`, drift is a retryable conflict, an
@@ -38,5 +30,5 @@ export function mapStorageError(err: unknown): unknown {
   }
   if (err instanceof SetLimitExceeded) return new ApiError(400, 'set_limit_exceeded', err.message)
   if (err instanceof ForeignOrganizationError) return new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
-  return mapDatabaseError(err)
+  return err
 }

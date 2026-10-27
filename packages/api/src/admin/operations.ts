@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { generateApiKey } from '../auth/api-keys.js'
-import type { PreparedTenantOperation } from '../registry.js'
+import type { TenantOperation } from '../registry.js'
 import { apiKeyRecord } from '../resources/api-keys.js'
 import { issueApiKeyOperation, revokeApiKeyOperation } from './api-keys.js'
 import { getUserOperation, listUsersOperation, listUsersQuery, userRecord } from './users.js'
@@ -11,8 +11,8 @@ const createKeyBody = z.strictObject({
 })
 
 /** Hand-written administration operations: `users` has no organization_id, and key secrets must not reach reads or events. All prepared ([[CORE40]]). */
-export function adminOperations(): PreparedTenantOperation[] {
-  const base = { kind: 'tenant' as const, executor: 'prepared' as const }
+export function adminOperations(): TenantOperation[] {
+  const base = { kind: 'tenant' as const }
   return [
     {
       ...base,
