@@ -7,11 +7,11 @@ import { createOwnerTestDb, createTestDb, seedAgent, truncateAll } from '@vault/
 import { defineOperation, unit } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { Registry } from '../registry.js'
-import { legacyTasks as tasks } from '../test/legacy-tasks.js'
+import { tasks } from '../resources/tasks.js'
 import { createApp } from '../rest/app.js'
 import { ScopeSet, parseScope } from '../scopes.js'
 import { seedApiKey } from '../test/keys.js'
-import { pgStorage } from '../test/storage.js'
+import { pgStorage, probeUnit } from '../test/storage.js'
 import { seedTenant, type Tenant } from '../test/tenant.js'
 import { AuthFailure } from './adapter.js'
 import type { Principal, UserAuthenticator } from './types.js'
@@ -32,11 +32,11 @@ const whoamiRegistry = () =>
     path: '/probe/whoami',
     scope: parseScope('tasks:read'),
     response: { status: 200, schema: z.object({ actor_id: z.string(), kind: z.string(), organization_id: z.string() }) },
-    handler: async (ctx) => ({ actor_id: ctx.actor.id, kind: ctx.actor.kind, organization_id: ctx.organizationId }),
+    prepare: (env) => probeUnit({ actor_id: env.actor.id, kind: env.actor.kind, organization_id: env.organizationId }, 'probe.whoami'),
   })
 
 const mkApp = (withAuth = true) =>
-  createApp({ db: () => db, registry: whoamiRegistry(), userAuthenticator: withAuth ? { authenticate } : undefined, storage: pgStorage(db) })
+  createApp({ registry: whoamiRegistry(), userAuthenticator: withAuth ? { authenticate } : undefined, storage: pgStorage(db) })
 const get = (app: ReturnType<typeof mkApp>, path: string, headers: Record<string, string> = {}) => app.request(path, { headers })
 const bearer = (key: string, extra: Record<string, string> = {}) => ({ authorization: `Bearer ${key}`, ...extra })
 
@@ -252,7 +252,7 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
       response: { status: 200, schema: z.object({ ok: z.boolean() }) },
       prepare: () => defineOperation({ name: 'probe.acct', mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => ({ ok: true }) }) }),
     })
-    const app = createApp({ db: () => db, registry, userAuthenticator: { authenticate }, storage: pgStorage(db) })
+    const app = createApp({ registry, userAuthenticator: { authenticate }, storage: pgStorage(db) })
     expect((await get(app, '/probe/acct', bearer('a.b.c'))).status).toBe(200)
   })
 })

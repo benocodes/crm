@@ -15,7 +15,7 @@ import { d1Backend } from './test/d1-backend.js'
 // The whole current surface, on Postgres (the behaviour oracle).
 runContractSuite({ registry: createVaultRegistry(), fixtures })
 
-// The prepared resources through the same prepared executor on a local D1 binding per tenant: the SAME assertions
+// The prepared resources through the same prepared path on a local D1 binding per tenant: the SAME assertions
 // ([[CORE35]] D16, [[CORE36]] rule 9).
 // Administration joins the D1 run in CORE40 (P10); api_keys' hand-written create must be routable for its fixture.
 runContractSuite({

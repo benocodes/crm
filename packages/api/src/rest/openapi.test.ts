@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { Kysely } from 'kysely'
-import type { Database } from '@vault/db'
+import { coldStorage } from '../test/storage.js'
 import { createApp } from './app.js'
 
-const mk = (version?: string) => createApp({ db: () => ({}) as Kysely<Database>, version })
+const mk = (version?: string) => createApp({ storage: coldStorage(), version })
 const doc = async (app = mk()) => {
   const res = await app.request('/openapi.json')
   expect(res.status).toBe(200)

@@ -79,7 +79,7 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
     k.profiles = new Map()
     const kit = await testClerkAdapter({ profiles: k.profiles })
     k.clerk = kit
-    k.app = createApp({ db: () => k.db, authAdapter: kit.adapter, storage: pgStorage(k.db) })
+    k.app = createApp({ authAdapter: kit.adapter, storage: pgStorage(k.db) })
     const request = (path: string, token: string, init: CallInit = {}) =>
       k.app.request(path, {
         method: init.method ?? 'GET',

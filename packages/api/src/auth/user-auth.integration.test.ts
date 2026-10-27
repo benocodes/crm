@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { pgStorage } from '../test/storage.js'
+import { pgStorage, probeUnit } from '../test/storage.js'
 import { z } from 'zod'
 import { sql, type Kysely } from 'kysely'
 import { withServiceRole, type Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedMembership, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
 import { createVaultRegistry } from '../operations.js'
 import { Registry } from '../registry.js'
-import { legacyTasks as tasks } from '../test/legacy-tasks.js'
+import { tasks } from '../resources/tasks.js'
 import { createApp } from '../rest/app.js'
 import { parseScope } from '../scopes.js'
 import { clerkMembership, clerkOrganization, clerkUser, mintClerkToken, orgClaim, signClerkWebhook, clerkWebhook, testClerkAdapter, type ClerkUserJson } from '../test/clerk.js'
@@ -33,7 +33,7 @@ beforeEach(async () => {
   await truncateAll(owner)
   profiles = new Map()
   adapterKit = await testClerkAdapter({ profiles })
-  app = createApp({ db: () => db, authAdapter: adapterKit.adapter, storage: pgStorage(db) })
+  app = createApp({ authAdapter: adapterKit.adapter, storage: pgStorage(db) })
 })
 
 type Claim = { id: string; rol?: string }
@@ -115,7 +115,7 @@ describe('first sight', () => {
         return a.result
       },
     })
-    const watchedApp = createApp({ db: () => watched, authAdapter: adapterKit.adapter, storage: pgStorage(watched) })
+    const watchedApp = createApp({ authAdapter: adapterKit.adapter, storage: pgStorage(watched) })
     const org = await linkedOrg()
     const claim = { id: org.ext, rol: 'admin' }
     const u = await seedUser(db, { organizationId: org.id, role: 'owner', authSubject: 'user_known' })
@@ -144,7 +144,7 @@ describe('first sight', () => {
         if (++pending === 2) release()
       },
     })
-    const raceApp = createApp({ db: () => db, authAdapter: kit.adapter, storage: pgStorage(db) })
+    const raceApp = createApp({ authAdapter: kit.adapter, storage: pgStorage(db) })
     profile('user_race')
     const t = await mintClerkToken(kit.issuer, { sub: 'user_race' })
     const req = () => raceApp.request('/me', { headers: { authorization: `Bearer ${t}` } })
@@ -395,9 +395,9 @@ describe('scopes and attribution', () => {
       path: '/probe',
       scope: parseScope('probe:write'),
       response: { status: 200, schema: z.object({ ok: z.boolean() }) },
-      handler: async () => ({ ok: true }),
+      prepare: () => probeUnit({ ok: true }, 'probe.write'),
     })
-    const probeApp = createApp({ db: () => db, registry, authAdapter: adapterKit.adapter, storage: pgStorage(db) })
+    const probeApp = createApp({ registry, authAdapter: adapterKit.adapter, storage: pgStorage(db) })
     const A = await linkedOrg()
     await linkedUser('owner1', [{ id: A.id, role: 'owner' }])
     await linkedUser('member1', [{ id: A.id, role: 'member' }])

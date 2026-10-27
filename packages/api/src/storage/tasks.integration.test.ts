@@ -17,7 +17,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('tasks through the prepared executor on %s', (name) => {
+describe.each(['postgres', 'd1'] as const)('tasks through the prepared path on %s', (name) => {
   let e: Engine
   beforeAll(() => {
     e = engines.find((x) => x.name === name)!

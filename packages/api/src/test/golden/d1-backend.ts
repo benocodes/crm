@@ -1,8 +1,5 @@
 // Test-only. The D1 golden backend: one local Miniflare D1, the same fixed principals as the Postgres backend,
-// the real app and prepared executor, the clock and ids injected. Replays the committed fixtures.
-import type { Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { coldDb } from '@vault/storage'
+// the real app and the prepared path, the clock and ids injected. Replays the committed fixtures.
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
@@ -25,13 +22,11 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
   let now = new Date(0)
   let counter = 0
   const random = { n: 0 }
-  const unusedDb = coldDb('d1') as unknown as Kysely<Database>
   const binding = d1Binding(d1, { organizationId: IDS.org, authProvider: 'clerk', authOrgId: GOLDEN_ORG_LINK })
   const clock = () => now
   const newId = () => goldenId(++counter)
   const clerk = await goldenClerk(clock)
   const app = createApp({
-    db: () => unusedDb,
     userAuthenticator: goldenAuthenticator(clerk),
     storage: () => binding,
     clock,

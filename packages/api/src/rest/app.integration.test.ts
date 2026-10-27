@@ -3,10 +3,10 @@ import { z } from 'zod'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, truncateAll } from '@vault/db/test'
-import { pgStorage } from '../test/storage.js'
-import { defineOperation, readAll, unit } from '@vault/storage'
+import { coldStorage, pgStorage, probeUnit } from '../test/storage.js'
+import { defineOperation, readAll, unit, type StorageBinding } from '@vault/storage'
 import { Registry } from '../registry.js'
-import { legacyTasks as tasks } from '../test/legacy-tasks.js'
+import { tasks } from '../resources/tasks.js'
 import { parseScope } from '../scopes.js'
 import { seedApiKey } from '../test/keys.js'
 import { seedTenant, type Tenant } from '../test/tenant.js'
@@ -38,25 +38,16 @@ function testRegistry() {
         body: z.strictObject({ msg: z.string() }),
       },
       response: { status: 201, schema: z.object({ id: z.string(), n: z.number().optional(), msg: z.string(), org: z.string() }) },
-      handler: async (ctx, input) => ({
-        id: (input.params as { id: string }).id,
-        n: (input.query as { n?: number }).n,
-        msg: (input.body as { msg: string }).msg,
-        org: ctx.organizationId,
-      }),
-    })
-    .register({
-      kind: 'tenant',
-      name: 'probe.emit',
-      summary: 'Emit',
-      method: 'post',
-      path: '/probe/emit',
-      scope: parseScope('tasks:write'),
-      response: { status: 200, schema: z.object({ ok: z.boolean() }) },
-      handler: async (ctx) => {
-        await ctx.emit({ type: 'probe.emitted', resourceType: 'probe', resourceId: ctx.actor.id, before: null, after: { x: 1 } })
-        return { ok: true }
-      },
+      prepare: (env, input) =>
+        probeUnit(
+          {
+            id: (input.params as { id: string }).id,
+            n: (input.query as { n?: number }).n,
+            msg: (input.body as { msg: string }).msg,
+            org: env.organizationId,
+          },
+          'probe.echo',
+        ),
     })
     .register({
       kind: 'tenant',
@@ -66,7 +57,7 @@ function testRegistry() {
       path: '/probe/boom',
       scope: parseScope('tasks:write'),
       response: { status: 200, schema: empty },
-      handler: async () => {
+      prepare: () => {
         throw new Error('secret detail')
       },
     })
@@ -87,8 +78,8 @@ function testRegistry() {
         }),
     })
 }
-const mkApp = (resolver: () => Kysely<Database> = () => db) =>
-  createApp({ db: resolver, registry: testRegistry(), userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(db) })
+const mkApp = (resolver: () => StorageBinding = pgStorage(db)) =>
+  createApp({ registry: testRegistry(), userAuthenticator: fakeUserAuthenticator(), storage: resolver })
 const agentHeaders = () => ({ authorization: `Bearer ${key}` })
 const userHeaders = (t: Tenant, organizationId: string | null = t.organizationId) => ({
   authorization: `Bearer ${mintTestUserToken({ userId: t.userId, organizationId, scopes: ['tasks:read', 'tasks:write'] })}`,
@@ -183,15 +174,7 @@ describe('generic routes', () => {
   })
 })
 
-describe('context', () => {
-  it('events through REST carry the agent and organisation', async () => {
-    const res = await post(mkApp(), '/probe/emit')
-    expect(res.status).toBe(200)
-    const ev = await owner.selectFrom('events').selectAll().execute()
-    expect(ev).toHaveLength(1)
-    expect(ev[0]).toMatchObject({ organization_id: A.organizationId, type: 'probe.emitted' })
-    expect(ev[0]!.actor_id).toBe(agentId)
-  })
+describe('principal and organisation', () => {
   it('an account op works for a user with no organisation', async () => {
     const res = await mkApp().request('/account/whoami', { headers: userHeaders(A, null) })
     expect(res.status).toBe(200)
@@ -232,19 +215,19 @@ describe('errors', () => {
   })
 })
 
-describe('per-request database', () => {
-  it('resolves the db on every request, not at construction', async () => {
-    const resolver = vi.fn(() => db)
+describe('per-request storage', () => {
+  it('resolves the binding on every request, not at construction', async () => {
+    const resolver = vi.fn(pgStorage(db))
     const app = mkApp(resolver)
     expect(resolver).not.toHaveBeenCalled()
     for (let i = 0; i < 3; i++) await app.request('/tasks', { headers: agentHeaders() })
     expect(resolver).toHaveBeenCalledTimes(3)
   })
-  it('two apps use their own databases', async () => {
+  it('two apps use their own bindings', async () => {
     const other = createTestDb()
     try {
-      const rx = vi.fn(() => db)
-      const ry = vi.fn(() => other)
+      const rx = vi.fn(pgStorage(db))
+      const ry = vi.fn(pgStorage(other))
       await mkApp(rx).request('/tasks', { headers: agentHeaders() })
       await mkApp(ry).request('/tasks', { headers: agentHeaders() })
       expect(rx).toHaveBeenCalledTimes(1)
@@ -269,12 +252,12 @@ describe('CORS ([[CORE3]] C4)', () => {
     })
 
   it('sends no CORS headers by default', async () => {
-    const res = await createApp({ db: () => db }).request('/openapi.json', { headers: { origin: ORIGIN } })
+    const res = await createApp({ storage: coldStorage() }).request('/openapi.json', { headers: { origin: ORIGIN } })
     expect(res.headers.get('access-control-allow-origin')).toBeNull()
   })
 
   it('answers an allowed preflight', async () => {
-    const res = await preflight(createApp({ db: () => db, corsOrigins: [ORIGIN] }), ORIGIN)
+    const res = await preflight(createApp({ storage: coldStorage(), corsOrigins: [ORIGIN] }), ORIGIN)
     expect(res.status).toBe(204)
     expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN)
     const allowed = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase()
@@ -284,12 +267,12 @@ describe('CORS ([[CORE3]] C4)', () => {
   })
 
   it('does not allow another origin', async () => {
-    const res = await preflight(createApp({ db: () => db, corsOrigins: [ORIGIN] }), 'https://evil.example')
+    const res = await preflight(createApp({ storage: coldStorage(), corsOrigins: [ORIGIN] }), 'https://evil.example')
     expect(res.headers.get('access-control-allow-origin')).toBeNull()
   })
 
   it('allows an extension origin', async () => {
-    const res = await preflight(createApp({ db: () => db, corsOrigins: [EXT] }), EXT)
+    const res = await preflight(createApp({ storage: coldStorage(), corsOrigins: [EXT] }), EXT)
     expect(res.status).toBe(204)
     expect(res.headers.get('access-control-allow-origin')).toBe(EXT)
   })
@@ -299,7 +282,7 @@ describe('auth options and the account context ([[CORE3]])', () => {
   it('refuses both userAuthenticator and authAdapter', () => {
     expect(() =>
       createApp({
-        db: () => db,
+        storage: coldStorage(),
         userAuthenticator: fakeUserAuthenticator(),
         authAdapter: {
           provider: 'x',
@@ -329,7 +312,7 @@ describe('auth options and the account context ([[CORE3]])', () => {
           build: () => unit({ steps: [], events: [], decode: () => ({ org: env.organizationId, scopes: env.scopes.toStrings() }) }),
         }),
     })
-    const app = createApp({ db: () => db, registry, userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(db) })
+    const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(db) })
     const withOrg = await app.request('/probe/ctx', { headers: userHeaders(A) })
     expect(await withOrg.json()).toEqual({ org: A.organizationId, scopes: ['tasks:read', 'tasks:write'] })
     const without = await app.request('/probe/ctx', { headers: userHeaders(A, null) })

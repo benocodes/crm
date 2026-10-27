@@ -1,19 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
-import { defineResource, parseListQuery, readColumns, resourcePath, toRecord, type ResourceDefinition } from './define.js'
-import { legacyTasks as tasks } from '../test/legacy-tasks.js'
+import { parseListQuery, resourcePath } from './define.js'
+import { tasks } from './tasks.js'
 
-const record = z.object({ id: z.string(), title: z.string() })
-const base = (over: Partial<ResourceDefinition<any>> = {}): ResourceDefinition<any> => ({
-  name: 'widgets',
-  eventName: 'widget',
-  table: 'tasks',
-  record,
-  create: z.strictObject({ title: z.string() }),
-  update: z.strictObject({ title: z.string().optional() }),
-  ...over,
-})
+const base = (over: { filters?: Record<string, { schema: z.ZodType; normalize?: (v: unknown, f: Record<string, unknown>) => unknown }> } = {}) => ({ ...over })
 
 async function code(fn: () => unknown): Promise<{ status?: number; code?: string; message: string }> {
   try {
@@ -24,62 +15,6 @@ async function code(fn: () => unknown): Promise<{ status?: number; code?: string
   }
   throw new Error('did not throw')
 }
-
-describe('defineResource', () => {
-  it('reserves custom in each schema', () => {
-    expect(() => defineResource(base({ create: z.strictObject({ title: z.string(), custom: z.any() }) }))).toThrow(
-      '"custom" is a reserved field name (widgets)',
-    )
-    expect(() => defineResource(base({ update: z.strictObject({ custom: z.any().optional() }) }))).toThrow(
-      '"custom" is a reserved field name (widgets)',
-    )
-    expect(() => defineResource(base({ record: z.object({ id: z.string(), custom: z.any() }) }))).toThrow(
-      '"custom" is a reserved field name (widgets)',
-    )
-  })
-  it('agentWritable must name fields', () => {
-    expect(() => defineResource(base({ agentWritable: ['nope'] }))).toThrow(
-      'agentWritable names unknown field "nope" (widgets)',
-    )
-  })
-  it('name shape', () => {
-    expect(() => defineResource(base({ name: 'Tasks' }))).toThrow()
-  })
-  it('accepts softDelete false without delete', () => {
-    expect(() => defineResource(base({ softDelete: false, operations: ['list', 'get'] }))).not.toThrow()
-  })
-  it('softDelete false refuses delete', () => {
-    expect(() => defineResource(base({ softDelete: false, operations: ['list', 'get', 'delete'] }))).toThrow(
-      'delete requires soft delete (widgets)',
-    )
-    expect(() => defineResource(base({ softDelete: false }))).toThrow('delete requires soft delete (widgets)')
-  })
-  it('accepts a valid definition', () => {
-    expect(() => defineResource(base({ agentWritable: ['title'] }))).not.toThrow()
-  })
-})
-
-describe('toRecord', () => {
-  it('converts dates and strips unlisted columns', () => {
-    const r = toRecord(tasks, {
-      id: '0190b2c4-0000-7000-8000-000000000001',
-      organization_id: '0190b2c4-0000-7000-8000-000000000002',
-      title: 't',
-      notes: null,
-      status: 'open',
-      due_at: null,
-      completed_at: null,
-      assignee_id: null,
-      created_by: '0190b2c4-0000-7000-8000-000000000003',
-      created_at: new Date('2026-10-17T10:00:00Z'),
-      updated_at: new Date('2026-10-17T10:00:00Z'),
-      deleted_at: null,
-    }) as Record<string, unknown>
-    expect(r.created_at).toBe('2026-10-17T10:00:00.000Z')
-    expect(r.due_at).toBeNull()
-    expect('deleted_at' in r).toBe(false)
-  })
-})
 
 describe('parseListQuery', () => {
   it('defaults', () => {
@@ -132,26 +67,5 @@ describe('parseListQuery', () => {
 })
 
 describe('definition helpers (CORE15)', () => {
-  it('readColumns', () => {
-    expect(readColumns(tasks)).toEqual([
-      'id', 'organization_id', 'title', 'notes', 'status', 'due_at', 'completed_at', 'assignee_id', 'created_by', 'created_at', 'updated_at',
-    ])
-    expect(readColumns(tasks)).not.toContain('deleted_at')
-  })
-  it('resourcePath', () => expect(resourcePath(base({ name: 'api_keys' }))).toBe('/api-keys'))
-  it('requires create and update schemas when generated', () => {
-    expect(() => defineResource(base({ create: undefined }))).toThrow('create schema required (widgets)')
-    expect(() => defineResource(base({ update: undefined }))).toThrow('update schema required (widgets)')
-  })
-  it('read-only needs no write schemas', () => {
-    expect(() => defineResource(base({ operations: ['list', 'get'], create: undefined, update: undefined }))).not.toThrow()
-  })
-  it('rejects bad operations', () => {
-    for (const operations of [[], ['list', 'list'], ['purge']] as never[]) {
-      expect(() => defineResource(base({ operations }))).toThrow('invalid operations (widgets)')
-    }
-  })
-  it('rejects a bad scopeResource', () => {
-    expect(() => defineResource(base({ scopeResource: 'Contacts' }))).toThrow()
-  })
+  it('resourcePath', () => expect(resourcePath({ name: 'api_keys' })).toBe('/api-keys'))
 })

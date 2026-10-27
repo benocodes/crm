@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineOperation, unit } from '@vault/storage'
 import { Registry, resourceOperations, toolName, type Operation } from './registry.js'
-import { legacyTasks as tasks } from './test/legacy-tasks.js'
+import { tasks } from './resources/tasks.js'
+import { probeUnit } from './test/storage.js'
 import { parseScope } from './scopes.js'
 
 const op = (over: Partial<Operation> = {}): Operation =>
@@ -14,7 +15,7 @@ const op = (over: Partial<Operation> = {}): Operation =>
     path: '/x',
     scope: parseScope('tasks:read'),
     response: { status: 200, schema: z.object({}) },
-    handler: async () => ({}),
+    prepare: () => probeUnit({}),
     ...over,
   }) as Operation
 

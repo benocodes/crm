@@ -4,7 +4,8 @@ import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
 import { withServiceRole, type Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
-import { createApp, type AppOptions } from '../../rest/app.js'
+import { postgresBinding } from '@vault/storage-postgres'
+import { createApp } from '../../rest/app.js'
 import { hashApiKey } from '../../auth/api-keys.js'
 import { goldenAuthenticator, goldenClerk, goldenSend, loadGoldenClerk, mountGoldenWebhook, type GoldenClerkKit } from './kit.js'
 import type { EventView, GoldenBackend } from './runner.js'
@@ -26,11 +27,8 @@ export interface PgGoldenBackend extends GoldenBackend {
   close(): Promise<void>
 }
 
-/** `extra(state)` adds app options that take the injected clock and ids. The application owns every timestamp (CORE36 D2): nothing is frozen or disabled. */
-export function pgGoldenBackend(opts: {
-  extra?: (state: { db: Kysely<Database>; clock: () => Date; newId: () => string; randomBytes: (n: number) => Uint8Array }) => Partial<AppOptions>
-  pauseMs?: number
-} = {}): PgGoldenBackend {
+/** The app runs on the Postgres binding with the injected clock, ids and random source. The application owns every timestamp (CORE36 D2): nothing is frozen or disabled. */
+export function pgGoldenBackend(opts: { pauseMs?: number } = {}): PgGoldenBackend {
   const db = createTestDb()
   const owner = createOwnerTestDb()
   let now = new Date(0)
@@ -38,7 +36,8 @@ export function pgGoldenBackend(opts: {
   const random = { n: 0 }
   const clock = () => now
   const newId = () => goldenId(++counter)
-  const extra = opts.extra?.({ db, clock, newId, randomBytes: goldenRandomBytes(random) }) ?? {}
+  const binding = postgresBinding(db)
+  const randomBytes = goldenRandomBytes(random)
   const scopes = GOLDEN_SCOPES
   // The fake Clerk and the app over it are made on the first reset: the issuer's key pair is async.
   let clerk: GoldenClerkKit | undefined
@@ -47,7 +46,7 @@ export function pgGoldenBackend(opts: {
     async reset() {
       if (!clerk) {
         clerk = await goldenClerk(clock)
-        app = createApp({ db: () => db, userAuthenticator: goldenAuthenticator(clerk), ...extra })
+        app = createApp({ userAuthenticator: goldenAuthenticator(clerk), storage: () => binding, clock, newId, randomBytes })
         mountGoldenWebhook(app, clerk, { clock, newId })
       }
       await truncateAll(owner)

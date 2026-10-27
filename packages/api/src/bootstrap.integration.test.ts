@@ -26,7 +26,7 @@ afterAll(async () => {
 })
 beforeEach(() => truncateAll(owner))
 
-const app = () => createApp({ db: () => db, storage: pgStorage(db) })
+const app = () => createApp({ storage: pgStorage(db) })
 const call = (key: string, method = 'GET', body?: unknown) =>
   app().request('/tasks', { method, headers: { authorization: `Bearer ${key}` }, body: body ? JSON.stringify(body) : undefined })
 
@@ -120,7 +120,7 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
   it('a bootstrapped user signs in', async () => {
     await bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_b' })
     const kit = await testClerkAdapter({ profiles: new Map([['user_b', clerkUser({ id: 'user_b', email: 'b@x.test' })]]) })
-    const authed = createApp({ db: () => db, authAdapter: kit.adapter, storage: pgStorage(db) })
+    const authed = createApp({ authAdapter: kit.adapter, storage: pgStorage(db) })
     // No organisation claim: a bootstrapped organisation is not linked to the provider, so /me is the check.
     const res = await authed.request('/me', { headers: { authorization: `Bearer ${await mintClerkToken(kit.issuer, { sub: 'user_b' })}` } })
     expect(res.status).toBe(200)

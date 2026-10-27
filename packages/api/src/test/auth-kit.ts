@@ -1,7 +1,7 @@
 // Test-only. A real authenticator and webhook over the fake Clerk, on either engine's binding (CORE41 P17): one
 // `call` per Clerk subject, one `keyCall` per API key, a spy over the binding that records every unit it ran
 // (name, identity, stats) and can arm D1's between-plan-and-commit hook for ONE named unit.
-import { coldDb, uuidv7, type ExecutionStats, type StorageBinding, type StorageIdentity } from '@vault/storage'
+import { uuidv7, type ExecutionStats, type StorageBinding, type StorageIdentity } from '@vault/storage'
 import { createApp } from '../rest/app.js'
 import { internalEnv, type InternalEnv } from '../storage/internal.js'
 import { clerkUser, mintClerkToken, orgClaim, signClerkWebhook, testClerkAdapter, type ClerkUserJson } from './clerk.js'
@@ -56,9 +56,7 @@ export async function openAuthKit(e: Engine, opts: { now?: Date; binding?: Stora
       },
     },
   } as StorageBinding
-  const unusedDb = coldDb('d1') as never
   const app = createApp({
-    db: () => (e.app ?? unusedDb) as never,
     authAdapter: clerk.adapter,
     storage: () => binding,
     clock: () => clock.now,

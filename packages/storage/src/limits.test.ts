@@ -45,7 +45,7 @@ const cascade = defineOperation<number>({
   },
 })
 
-/** A read executor that answers the set read with `n` rows and records what ran. */
+/** A read runner that answers the set read with `n` rows and records what ran. */
 function fakeReads(n: number) {
   const ran: string[] = []
   return {
