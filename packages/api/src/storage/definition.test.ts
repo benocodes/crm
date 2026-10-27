@@ -8,7 +8,7 @@ import { getOperation, listOperation } from './crud.js'
 import { prepareCreate, prepareUpdate } from './prepare.js'
 
 // Pure checks of the prepared definition layer (CORE44 P10): the guards `definePreparedResource` enforces at load, the
-// agent-field rule of the prepared write, and the column projection. They stand in for the legacy `defineResource`
+// agent-field rule of the prepared write, and the column projection. They stand in for the legacy resource-definition function
 // and `crud.integration.test.ts` cases (agentWritable, column grants) that went with the interactive path.
 
 const record = z.object({ id: z.uuid(), organization_id: z.uuid(), title: z.string() })
