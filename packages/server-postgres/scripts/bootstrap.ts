@@ -1,11 +1,11 @@
 import { parseArgs } from 'node:util'
 import { createDb } from '@vault/db'
 import { postgresBinding } from '@vault/storage-postgres'
-import { bootstrap } from '../src/bootstrap.js'
+import { bootstrap } from '@vault/api'
 
 function usage(message: string): never {
   console.error(`bootstrap: ${message}`)
-  console.error('usage: pnpm -C packages/api bootstrap -- --org <name> --email <email> --agent <name> [--scopes a:read,b:write] [--name <user name>] [--auth-provider clerk] [--auth-subject <provider user id>]')
+  console.error('usage: pnpm -C packages/server-postgres bootstrap -- --org <name> --email <email> --agent <name> [--scopes a:read,b:write] [--name <user name>] [--auth-provider clerk] [--auth-subject <provider user id>]')
   process.exit(1)
 }
 

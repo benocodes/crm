@@ -38,8 +38,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
   - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events) and
-    `scripts/bootstrap.ts` (composes `postgresBinding`; a temporary import-boundary allow entry until [[CORE44]]);
-  - `src/dev-server.ts`.
+    `packages/server-postgres/scripts/bootstrap.ts` (composes `postgresBinding`);
+  - `packages/server-postgres/src/dev-server.ts`.
 - **Human auth** ([[CORE3]] cycle 1):
   - `src/auth/adapter.ts` (`AuthAdapter`, `createAuthAdapter(env)`, `parseOriginList`), `src/auth/clerk.ts`;
   - `src/auth/first-sight.ts` (`lookupUserOperation`, `firstSightOperation`, `firstSightRecheckOperation`, and the
@@ -48,7 +48,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `src/auth/user-authenticator.ts` (`createUserAuthenticator`); `AuthFailure` lives in `src/auth/adapter.ts`;
   - `src/account/` (`me.get` only, a prepared account operation `meOperation(env)`; organisations and memberships
     come from Clerk, [[CORE29]]);
-  - `scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:auth`: local key pair, fake
+  - `packages/server-postgres/scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:auth`: local key pair, fake
     Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`
     equals `SMOKE_EXPECT_DATABASE`, because an exported `DATABASE_URL` overrides `--env-file` ([[CORE36]]).
 - **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
@@ -69,7 +69,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - admin-kit (`src/test/admin-kit.ts`): `call(path, sub, { org })` mints the organisation claim from the copy
     (`claim` overrides, `header` sends `x-organization-id`), `webhook(payload)` posts a signed delivery,
     `seedOrg` links the organisation and mirrors it in the fake Clerk (`k.clerk.organizations`, `.members`);
-  - `scripts/smoke-admin.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:admin`, same scaffolding
+  - `packages/server-postgres/scripts/smoke-admin.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:admin`, same scaffolding
     as `smoke-auth.ts`, with the same `SMOKE_EXPECT_DATABASE` guard since [[CORE40]]).
 - **Test helpers** in `src/test/`:
   - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);

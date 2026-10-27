@@ -72,7 +72,7 @@ One program, two engines: the same assertions run on Postgres and D1.
   - `runContractSuite({ backend: d1Backend() })` runs the same assertions on D1, with one binding per
     tenant, never two tenants in one D1.
   - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
-    behaviour change, run `pnpm -C packages/api golden:generate`; `golden:check` fails on drift.
+    behaviour change, run `pnpm -C packages/server-postgres golden:generate`; `golden:check` fails on drift.
   - Suites written after the vertical exists prove their strength with absence mutations (break the
     runtime, see the target test fail), recorded in RESULT.md.
 - Assert engine differences explicitly, never hide them. Since [[CORE36]] D2 there is no timestamp
@@ -80,7 +80,7 @@ One program, two engines: the same assertions run on Postgres and D1.
   stored row and every event's `created_at`/`after` against the clock exactly, with no engine branch (the
   clock-parity case in `src/storage/identity-model.storage.integration.test.ts`).
 - Golden fixtures pin behaviour across engines and across refactors. Name every deliberate difference in the
-  fixture (`named_differences`, filtered per file from `NAMED_DIFFERENCES` in `scripts/golden.ts`). The one entry
+  fixture (`named_differences`, filtered per file from `NAMED_DIFFERENCES` in `packages/api/src/test/golden/fixtures.ts`). The one entry
   is D1 fixed-organisation admission (scenario `foreign-organisation-claim`, [[CORE41]] P15). For a named scenario,
   the D1 replay asserts the D1 outcome (every step `403 organization_forbidden`, no events, row counts unchanged)
   instead of equality. Ids come from `goldenId(n)`, a
@@ -88,7 +88,7 @@ One program, two engines: the same assertions run on Postgres and D1.
   fixed `GOLDEN_SEED_AT` stamp on both engines, never a database default. A unit that mints a secret takes
   `env.randomBytes`, which golden backends inject as `goldenRandomBytes` (the n-th call fills with n)
   ([[CORE40]] P12). One file per area (`tasks.json`, `identity-model.json`, `administration.json`, `auth.json`,
-  `directory.json`, listed in `scripts/golden.ts` `FIXTURES`).
+  `directory.json`, listed in `packages/api/src/test/golden/fixtures.ts` `FIXTURES`).
   - Golden actors ([[CORE41]] P15): `'agent-key'` (a fixed seeded key), `{ clerk: subject, claim? }` (a real
     Clerk-signed token for the scenario's `clerk` fixtures) and `'webhook'` (a Svix-signed delivery of `body`). An
     `alg: none` token still goes to the fake authenticator, so older scenarios keep their actors and fixtures.

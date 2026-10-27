@@ -1,7 +1,7 @@
 {
   "format": 1,
   "resource": "directory",
-  "generated_by": "packages/api/scripts/golden.ts (postgres path)",
+  "generated_by": "packages/server-postgres/scripts/golden.ts (postgres path)",
   "named_differences": [],
   "scenarios": [
     {
