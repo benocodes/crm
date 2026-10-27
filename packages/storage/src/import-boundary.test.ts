@@ -34,15 +34,21 @@ describe('import boundary (D14, D15)', () => {
     ['an API source importing the Postgres runtime', { 'api/src/a.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
     ['an API source importing @vault/db', { 'api/src/a.ts': "import type { Database } from '@vault/db'" }, '@vault/db'],
     ['an API source importing the server package', { 'api/src/a.ts': "import '@vault/server-postgres'" }, '@vault/server-postgres'],
+    ['the D1 server importing the Postgres runtime', { 'server-d1/src/a.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
+    ['a D1 server script importing @vault/db', { 'server-d1/scripts/x.ts': "import { createDb } from '@vault/db'" }, '@vault/db'],
     ['the D1 runtime importing the server package', { 'storage-d1/src/a.ts': "import '@vault/server-postgres'" }, '@vault/server-postgres'],
   ])('fails on %s', (_name, files, specifier) => {
     expect(checkBoundary(sandbox(files)).map((v) => v.specifier)).toEqual([specifier])
   })
 
-  it('the API rules have no allow-list', () => {
-    const api = RULES.filter((r) => r.dir.startsWith('api/'))
-    expect(api.map((r) => r.dir)).toEqual(['api/src', 'api/scripts'])
-    for (const r of api) expect(r.allow).toBeUndefined()
+  it('the composition rules have no allow-list', () => {
+    const composition = RULES.filter((r) => r.dir.startsWith('api/') || r.dir.startsWith('server-d1/'))
+    expect(composition.map((r) => r.dir)).toEqual(['api/src', 'api/scripts', 'server-d1/src', 'server-d1/scripts'])
+    for (const r of composition) expect(r.allow).toBeUndefined()
+  })
+
+  it('allows the D1 server to import the API', () => {
+    expect(checkBoundary(sandbox({ 'server-d1/src/a.ts': "import { createApp } from '@vault/api'" }))).toEqual([])
   })
 
   it('allows what is allowed: API tests and the core kysely import', () => {

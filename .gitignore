@@ -14,3 +14,7 @@ knowledge/
 # Third-party source kept for reference (AGPL etc.), never committed
 vendor/
 .neon
+
+# Wrangler local state and local secrets (CORE38)
+.wrangler/
+.dev.vars
