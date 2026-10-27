@@ -1,3 +1,4 @@
+import { ApiError } from '../errors.js'
 import { ScopeSet } from '../scopes.js'
 import { repairMembership } from '../directory/sync.js'
 import { AuthFailure, type AuthAdapter } from './adapter.js'
@@ -24,14 +25,19 @@ const NO_ORGANIZATION = (actor: Principal['actor'], forbidden: boolean): Princip
 export function createUserAuthenticator(opts: { adapter: AuthAdapter; declaredScopes: readonly string[] }): UserAuthenticator {
   const { adapter, declaredScopes } = opts
   return {
-    async authenticate(token, { db, organizationHeader }) {
+    async authenticate(token, { storage, organizationHeader, env }) {
       const verified = await adapter.verify(token)
       if (!verified.ok) throw new AuthFailure(verified.reason)
       const claim = verified.organization
+      // D19: a D1 serves ONE provider organisation. A claim for another is refused before any lookup, fetch or SQL. This is
+      // the one place the authenticator throws for an organisation problem: the decision is about the deployment, not the operation.
+      if (storage.kind === 'd1' && claim && (adapter.provider !== storage.authProvider || claim.externalId !== storage.authOrgId)) {
+        throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
+      }
 
       const login =
-        (await lookupUser(db, adapter.provider, verified.subject, claim?.externalId ?? null)) ??
-        (await provisionUser(db, adapter, verified.subject))
+        (await lookupUser(storage, { provider: adapter.provider, subject: verified.subject, organizationExternalId: claim?.externalId ?? null })) ??
+        (await provisionUser(storage, adapter, verified.subject, env))
       const actor = { id: login.userId, kind: 'user' as const }
 
       let active: { organizationId: string; role: Role } | null = null
@@ -48,12 +54,12 @@ export function createUserAuthenticator(opts: { adapter: AuthAdapter; declaredSc
         } else if (login.linkedOrganizationId !== null && latest && latest.deletedAt === null && latest.role === claim.role) {
           active = { organizationId: login.linkedOrganizationId, role: claim.role }
         } else {
-          const organizationId = await repairMembership(db, adapter, {
-            userId: login.userId,
-            externalId: claim.externalId,
-            role: claim.role,
-            known: { organizationId: login.linkedOrganizationId },
-          })
+          const organizationId = await repairMembership(
+            storage,
+            adapter,
+            { userId: login.userId, externalId: claim.externalId, role: claim.role, known: { organizationId: login.linkedOrganizationId } },
+            env,
+          )
           active = { organizationId, role: claim.role }
         }
       }

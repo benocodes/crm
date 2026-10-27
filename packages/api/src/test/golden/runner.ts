@@ -14,6 +14,8 @@ export interface EventView {
 export interface GoldenBackend {
   /** Empties the store, seeds the fixed principals and restarts the injected id source. */
   reset(): Promise<void>
+  /** Per scenario, after `reset`: replaces the fake Clerk's users, organisations and members and seeds the fixed API keys when asked (CORE41 P15). */
+  load(scenario: GoldenScenario): Promise<void>
   /** One request as `actor`; the backend injects `clock` into the unit it runs. */
   send(actor: GoldenActor, method: string, path: string, body: unknown, clock: string): Promise<{ status: number; body: unknown }>
   /** Every event in write order. */
@@ -50,6 +52,7 @@ const fillDeep = (value: unknown, saved: Map<string, string>): unknown => {
 
 export async function runScenario(backend: GoldenBackend, scenario: GoldenScenario): Promise<Transcript> {
   await backend.reset()
+  await backend.load(scenario)
   const saved = new Map<string, string>()
   const steps: TranscriptStep[] = []
   let seen = 0

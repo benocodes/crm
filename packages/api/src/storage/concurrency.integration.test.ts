@@ -11,6 +11,12 @@ import { generateApiKey } from '../auth/api-keys.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createOperation, deleteOperation, updateOperation } from './crud.js'
 import { openEngines, type Engine, type RawRow } from '../test/engines.js'
+import { openAuthKit } from '../test/auth-kit.js'
+import { clerkMembership, clerkOrganization } from '../test/clerk.js'
+import { provisionUser } from '../auth/first-sight.js'
+import { reconcileOrganization, repairMembership } from '../directory/sync.js'
+import { clearD1 } from '@vault/storage-d1/test'
+import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
 
 // Coordinated starts, no sleeps, no retries masking failures ([[CORE35]] D16). Assertions are on the final
 // state and a valid event chain, never on which contender won.
@@ -264,5 +270,109 @@ describe.each(['postgres', 'd1'] as const)('concurrent administration writes on 
       ok.length === 2 ? tally.bothOk++ : tally.conflict++
     }
     console.log(`[concurrency] ${name} double revoke: both 200 ${tally.bothOk}, one conflicted ${tally.conflict} of ${TRIALS}`)
+  })
+})
+
+// ---- auth and directory (CORE41 D13, Step 2.6) ------------------------------------------------------------------
+describe.each(['postgres', 'd1'] as const)('concurrent auth and directory writes on %s', (name) => {
+  let e: Engine
+  const TRIALS = name === 'postgres' ? 20 : 5
+  beforeAll(() => {
+    e = engines.find((x) => x.name === name)!
+  })
+
+  const orgRoles = (rows: RawRow[], org: string) => Object.fromEntries(rows.filter((m) => m.organization_id === org && m.deleted_at === null).map((m) => [m.user_id as string, m.role as string]))
+
+  it(`two first sights of one subject leave one principal and one user, and both callers get the same login (${TRIALS} trials)`, async () => {
+    const tally = { sameLogin: 0 }
+    for (let i = 0; i < TRIALS; i++) {
+      await e.reset()
+      const kit = await openAuthKit(e)
+      kit.profile('user_race', { email: 'race@x.test' })
+      const before = (await e.rows('principals')).filter((p) => p.kind === 'user').length
+      const settled = await together([
+        () => mapped(provisionUser(kit.binding, kit.clerk.adapter, 'user_race', kit.env())),
+        () => mapped(provisionUser(kit.binding, kit.clerk.adapter, 'user_race', kit.env())),
+      ])
+      // The loser's drift is retried once by provisionUser and finds the winner: no 409 surfaces.
+      expect(settled.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled'])
+      const [a, b] = settled.map((r) => (r as PromiseFulfilledResult<{ userId: string }>).value.userId)
+      expect(a).toBe(b)
+      const users = (await e.rows('users')).filter((u) => u.auth_subject === 'user_race')
+      expect(users).toHaveLength(1)
+      expect(users[0]!.id).toBe(a)
+      const userPrincipals = (await e.rows('principals')).filter((p) => p.kind === 'user')
+      expect(userPrincipals).toHaveLength(before + 1) // no orphan principal
+      expect(await e.rows('events')).toEqual([])
+      tally.sameLogin++
+    }
+    console.log(`[concurrency] ${name} double first sight: same login ${tally.sameLogin} of ${TRIALS}`)
+  })
+
+  it(`two reconciles of one existing organisation land once: the final state is the snapshot and each event appears once (${TRIALS} trials)`, async () => {
+    const tally = { bothOk: 0, conflict: 0 }
+    for (let i = 0; i < TRIALS; i++) {
+      await e.reset()
+      const kit = await openAuthKit(e)
+      kit.profile('user_new', { email: 'new@x.test' })
+      const orgName = (await e.rows('organizations'))[0]!.name as string
+      kit.clerk.organizations.set(e.authOrgId, clerkOrganization({ id: e.authOrgId, name: orgName }))
+      kit.clerk.members.set(e.authOrgId, [
+        clerkMembership({ organizationId: e.authOrgId, userId: e.userSubject, role: 'org:admin' }),
+        clerkMembership({ organizationId: e.authOrgId, userId: e.user2Subject, role: 'org:admin' }), // re-role
+        clerkMembership({ organizationId: e.authOrgId, userId: 'user_new', role: 'org:member' }), // create
+      ])
+      const settled = await together([
+        () => mapped(reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())),
+        () => mapped(reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())),
+      ])
+      for (const r of settled) if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
+      const ok = settled.filter((r) => r.status === 'fulfilled').length
+      expect(ok).toBeGreaterThanOrEqual(1)
+      if (name === 'postgres') expect(ok).toBe(2) // the writer lock serialises the units: the second finds nothing to change
+      const newUser = (await e.rows('users')).find((u) => u.auth_subject === 'user_new')!
+      expect(orgRoles(await e.rows('memberships'), e.organizationId)).toEqual({ [e.userId]: 'owner', [e.user2Id]: 'owner', [newUser.id as string]: 'member' })
+      const types = (await e.rows('events')).map((x) => x.type as string)
+      expect(types.filter((t) => t === 'membership.created')).toHaveLength(1)
+      expect(types.filter((t) => t === 'membership.updated')).toHaveLength(1)
+      ok === 2 ? tally.bothOk++ : tally.conflict++
+    }
+    console.log(`[concurrency] ${name} double reconcile: both ok ${tally.bothOk}, one conflicted ${tally.conflict} of ${TRIALS}`)
+  })
+
+  it(`two repairs of one new organisation create it once, apply both memberships and surface no conflict (${TRIALS} trials)`, async () => {
+    const tally = { bothOk: 0 }
+    for (let i = 0; i < TRIALS; i++) {
+      await e.reset()
+      let ext = 'org_fresh'
+      if (name === 'd1') {
+        // D1 serves one organisation: the new one is the deployment's own, whose row does not exist yet.
+        await clearD1(e.d1!)
+        await seedDeployment(e.d1!, { organizationId: e.organizationId, externalId: e.authOrgId, organization: false })
+        await seedPrincipal(e.d1!, { id: e.userId, kind: 'user', authSubject: e.userSubject })
+        await seedPrincipal(e.d1!, { id: e.user2Id, kind: 'user', authSubject: e.user2Subject })
+        ext = e.authOrgId
+      }
+      const kit = await openAuthKit(e)
+      kit.clerk.organizations.set(ext, clerkOrganization({ id: ext, name: 'Fresh org' }))
+      const args = (userId: string) => ({ userId, externalId: ext, role: 'member' as const, known: { organizationId: null } })
+      const settled = await together([
+        () => mapped(repairMembership(kit.binding, kit.clerk.adapter, args(e.userId), kit.env())),
+        () => mapped(repairMembership(kit.binding, kit.clerk.adapter, args(e.user2Id), kit.env())),
+      ])
+      // Repair runs inside sign-in, so its drift is retried once: no 409 surfaces (P8).
+      expect(settled.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled'])
+      const [a, b] = settled.map((r) => (r as PromiseFulfilledResult<string>).value)
+      expect(a).toBe(b)
+      const orgs = (await e.rows('organizations')).filter((o) => o.auth_org_id === ext)
+      expect(orgs).toHaveLength(1)
+      expect(Object.keys(orgRoles(await e.rows('memberships'), a!)).sort()).toEqual([e.userId, e.user2Id].sort())
+      const types = (await e.rows('events')).map((x) => x.type as string)
+      expect(types.filter((t) => t === 'organization.created')).toHaveLength(1)
+      expect(types.filter((t) => t === 'membership.created')).toHaveLength(2)
+      expect((await e.rows('principals')).filter((p) => p.kind === 'system')).toHaveLength(1)
+      tally.bothOk++
+    }
+    console.log(`[concurrency] ${name} double repair of a new organisation: both ok ${tally.bothOk} of ${TRIALS}`)
   })
 })

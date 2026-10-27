@@ -39,12 +39,12 @@ describe('isolation on postgres: RLS and the vault_app role (invariants 1 and 2)
   it('another organisation sees nothing: wrong org with the right actor, and right org with the wrong actor', async () => {
     const created = (await e.run(createOperation(tasks, e.env(), { title: 'mine' }))).value
     const other = await seedTenant(e.app!, 'other')
-    const foreignOrg = { actorId: e.userId, organizationId: other.organizationId }
+    const foreignOrg = { kind: 'tenant' as const, actorId: e.userId, organizationId: other.organizationId }
     expect(await settle(execute(e.binding, foreignOrg, getOperation(tasks, { ...e.env(), organizationId: other.organizationId }, created.id)))).toMatchObject({ status: 404 })
     const list = await execute(e.binding, foreignOrg, listOperation(tasks, { ...e.env(), organizationId: other.organizationId }, {}))
     expect(list.value.data).toEqual([])
     // The caller's own org but another organisation's actor: RLS still scopes by the organisation.
-    const wrongActor = await execute(e.binding, { actorId: other.userId, organizationId: e.organizationId }, listOperation(tasks, e.env(), {}))
+    const wrongActor = await execute(e.binding, { kind: 'tenant', actorId: other.userId, organizationId: e.organizationId }, listOperation(tasks, e.env(), {}))
     expect(wrongActor.value.data.map((t) => t.id)).toEqual([created.id])
     // A principal of another organisation is not a valid assignee here (the reference is invisible).
     expect(await settle(e.run(createOperation(tasks, e.env(), { title: 'x', assignee_id: other.userId })))).toMatchObject({ code: 'invalid_reference' })
@@ -66,16 +66,16 @@ describe('isolation on D1: one organisation per database (D18)', () => {
       prepare: (q) => (calls.push(q), e.d1!.prepare(q)),
       batch: (s) => (calls.push('batch'), e.d1!.batch(s)),
     }
-    const binding = d1Binding(spy, { organizationId: e.organizationId })
+    const binding = d1Binding(spy, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId })
     const foreign = uuidv7()
-    const err = await settle(execute(binding, { actorId: e.userId, organizationId: foreign }, listOperation(tasks, { ...e.env(), organizationId: foreign }, {})))
+    const err = await settle(execute(binding, { kind: 'tenant', actorId: e.userId, organizationId: foreign }, listOperation(tasks, { ...e.env(), organizationId: foreign }, {})))
     expect(err).toBeInstanceOf(ForeignOrganizationError)
     expect(calls).toEqual([])
   })
 
   it('through the app a token for another organisation is refused 403 and touches no data', async () => {
     const registry = new Registry().registerResource(tasks)
-    const binding = d1Binding(e.d1!, { organizationId: e.organizationId })
+    const binding = d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId })
     const app = createApp({ db: () => undefined as never, registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
     const token = mintTestUserToken({ userId: e.userId, organizationId: uuidv7(), scopes: ['tasks:read', 'tasks:write'] })
     const res = await app.request('/tasks', { headers: { authorization: `Bearer ${token}` } })

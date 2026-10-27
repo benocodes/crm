@@ -65,11 +65,17 @@ export interface PreparedOperation<T> {
   readonly build: (found: Found, qc: QueryContext) => Unit<T>
 }
 
-/** Trusted tenant identity ([[CORE35]] C1). Account and internal variants arrive in CORE37. */
-export interface StorageIdentity {
-  readonly actorId: string
-  readonly organizationId: string
-}
+/**
+ * Trusted identity of a unit ([[CORE35]] C1, [[CORE41]] C1), chosen by composition code, never by request input.
+ * `tenant`: an actor inside one organisation (Postgres: RLS role; D1: must be the configured organisation).
+ * `account`: a signed-in user's own cross-organisation READS (Postgres: service role); a mutating unit is refused.
+ * `internal`: authentication, first sight, the directory and bootstrap (Postgres: service role; the organisation writer
+ * lock only when the unit mutates and names an organisation; D1: its configured organisation or none).
+ */
+export type StorageIdentity =
+  | { readonly kind: 'tenant'; readonly actorId: string; readonly organizationId: string }
+  | { readonly kind: 'account'; readonly actorId: string }
+  | { readonly kind: 'internal'; readonly organizationId: string | null }
 
 export interface ExecutionStats {
   /** Plan-phase reads executed. */
@@ -107,6 +113,9 @@ export interface D1Binding {
   readonly runtime: Runtime
   /** The one organisation this D1 database serves. */
   readonly organizationId: string
+  /** The deployment's auth link (the deployment marker's provider and external organisation id): D19 admission needs no SQL. */
+  readonly authProvider: string
+  readonly authOrgId: string
 }
 export type StorageBinding = PostgresBinding | D1Binding
 

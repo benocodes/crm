@@ -28,21 +28,26 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/errors.ts` (`ApiError`, `mapDatabaseError`);
   - `src/scopes.ts` (`ScopeSet`);
   - `src/outbox.ts` (`writeEvent`);
-  - `src/context.ts` (`withContext`, `withAccountContext`);
+  - `src/context.ts` (`withContext`, legacy tenant path until [[CORE44]]);
+  - `src/storage/internal.ts` (`InternalEnv { now, newId }`, `internalEnv(opts)`: built per request from
+    `AppOptions.clock`/`newId`, handed to auth, first sight, the directory and the webhook, [[CORE41]] P5);
   - `src/resources/{define,crud,tasks}.ts`.
 - **Registry and HTTP** ([[CORE15]]):
   - `src/registry.ts` (`Registry`, `resourceOperations`, `toolName`);
   - `src/operations.ts` (`createVaultRegistry`, where new resources and operations are added);
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
-  - `src/bootstrap.ts` and `scripts/bootstrap.ts`;
+  - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events) and
+    `scripts/bootstrap.ts` (composes `postgresBinding`; a temporary import-boundary allow entry until [[CORE44]]);
   - `src/dev-server.ts`.
 - **Human auth** ([[CORE3]] cycle 1):
   - `src/auth/adapter.ts` (`AuthAdapter`, `createAuthAdapter(env)`, `parseOriginList`), `src/auth/clerk.ts`;
-  - `src/auth/first-sight.ts` (`lookupUser`, `provisionUser`), `src/auth/organization.ts`
+  - `src/auth/first-sight.ts` (`lookupUserOperation`, `firstSightOperation`, `firstSightRecheckOperation`, and the
+    wrappers `lookupUser(storage, …)`, `provisionUser(storage, adapter, subject, env)`), `src/auth/organization.ts`
     (`resolveActiveOrganization`), `src/auth/roles.ts` (`SCOPE_POLICY`, `scopesForRole`, `grantableScopes`),
     `src/auth/user-authenticator.ts` (`createUserAuthenticator`); `AuthFailure` lives in `src/auth/adapter.ts`;
-  - `src/account/` (`me.get` only; organisations and memberships come from Clerk, [[CORE29]]);
+  - `src/account/` (`me.get` only, a prepared account operation `meOperation(env)`; organisations and memberships
+    come from Clerk, [[CORE29]]);
   - `scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/api smoke:auth`: local key pair, fake
     Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`
     equals `SMOKE_EXPECT_DATABASE`, because an exported `DATABASE_URL` overrides `--env-file` ([[CORE36]]).
@@ -53,11 +58,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     hand-written);
   - `src/admin/` (`users.list`, `users.get`, `api_keys.create`, `api_keys.revoke`: `adminOperations()`, all
     prepared since [[CORE40]]; `issueApiKeyOperation`, `revokeApiKeyOperation`, `listUsersOperation`, `getUserOperation`);
-  - `src/directory/` ([[CORE29]]): `repairMembership` (the token claim repairs one user's membership),
-    `reconcileOrganization` (fetch-and-reconcile one Clerk organisation), `refreshUser`, `systemPrincipalId`
-    (created on first use) and `clerkWebhookHandler`, mounted as `POST /webhooks/clerk` by `createApp` only
-    when an `authAdapter` is given. It is the first plain route: no auth middleware (the Svix signature is
-    its credential), not in OpenAPI, `c.var.db` only. Directory events are attributed to the system principal;
+  - `src/directory/` ([[CORE29]], on storage since [[CORE41]]): `repairMembership` (the token claim repairs one
+    user's membership; `repairOperation`), `reconcileOrganization` (fetch-and-reconcile one Clerk organisation;
+    `reconcilePlanOperation` then `reconcileOperation`, one unit with a constant statement count), `refreshUser`
+    (`refreshUserOperation`, outcomes `updated | unchanged | unknown | conflict | unsupported`),
+    `system-principal.ts` (`systemPrincipalRead`, `systemPrincipalSteps`: created lazily inside a unit that writes an
+    event) and `clerkWebhookHandler(adapter, { clock?, newId? })`, mounted as `POST /webhooks/clerk` by `createApp`
+    only when an `authAdapter` is given. It is the first plain route: no auth middleware (the Svix signature is
+    its credential), not in OpenAPI, `c.var.storage` only. Directory events are attributed to the system principal;
   - admin-kit (`src/test/admin-kit.ts`): `call(path, sub, { org })` mints the organisation claim from the copy
     (`claim` overrides, `header` sends `x-organization-id`), `webhook(payload)` posts a signed delivery,
     `seedOrg` links the organisation and mirrors it in the fake Clerk (`k.clerk.organizations`, `.members`);
@@ -65,7 +73,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     as `smoke-auth.ts`, with the same `SMOKE_EXPECT_DATABASE` guard since [[CORE40]]).
 - **Test helpers** in `src/test/`:
   - `tenant.ts` (`seedTenant`, `asUser`, `asAgent`);
-  - `keys.ts` (`seedApiKey`);
+  - `keys.ts` (`seedApiKey`: a direct insert under `withServiceRole`, not the production path);
+  - `auth-kit.ts` (`openAuthKit(engine)`, [[CORE41]]): the real authenticator and webhook over the fake Clerk on
+    either engine's binding, a spy that records every unit (`ran`: name, identity, stats) and `armOn(name, hook)`
+    for D1 drift in one named unit;
   - `user-auth.ts` (`mintTestUserToken`, `fakeUserAuthenticator`: a stand-in for the contract suite);
   - `clerk.ts` (`testIssuer`, `mintClerkToken`, `fakeClerkFetch`, `testClerkAdapter`: real verification
     with a locally generated RS256 key pair; no test calls Clerk);
@@ -82,8 +93,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 ## The registry and the REST adapter ([[CORE15]])
 
 - **An operation** is `{ kind: 'tenant' | 'account', name, summary, method, path, request?, validation?,
-  response, handler }`. `scope` is required on tenant operations; account operations take none and are for
-  users only (`403 user_required`).
+  response, handler | prepare }`. `scope` is required on tenant operations; account operations take none and are
+  for users only (`403 user_required`). An account operation is `prepare(env: AccountEnv, input)` returning a
+  **read-only** prepared operation, run with the `account` storage identity ([[CORE41]] P12). One that must write
+  becomes an internal unit with an explicit organisation instead.
   - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
     derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
   - `path` uses OpenAPI form (`/contacts/{id}/merge`).
@@ -101,7 +114,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   2. tenant operations: `organization_forbidden` (the principal's flag), then `organization_required`,
      then the one scope check (`403 insufficient_scope`, `requires <scope>`). Account operations ignore
      both organisation flags and see `ctx.organizationId: null` instead;
-  3. `withContext` / `withAccountContext`;
+  3. `execute` with the operation's storage identity (`tenant` or `account`; legacy tenant operations: `withContext`);
   4. respond with `c.json(result, status)`, or an empty 204.
   Any new transport (MCP) must apply the same order.
 - **`createApp({ db: (c) => Kysely, registry?, authAdapter? | userAuthenticator?, corsOrigins?, version? })`.**
@@ -278,6 +291,27 @@ cascades) followed in [[CORE36]]. Until [[CORE41]] (the cutover), both paths coe
 - **Concrete programs are `Program<T>` plan/build pairs** (`src/identity/program.ts`) with namespaced read
   keys (`resolve:`, `own:`, `merge:`), so [[CORE25]] can compose them later. `resolveProgram`,
   `ensureOwnProgram` and `mergeOperation` are the worked examples.
+- **Every unit runs as a `StorageIdentity` with a required `kind`** ([[CORE41]] C1). Composition code picks it, never
+  request input:
+  - `tenant` (`actorId`, `organizationId`): Postgres RLS role plus the org writer lock when it mutates; D1 refuses a
+    foreign organisation before SQL;
+  - `account` (`actorId`): a signed-in user's own cross-organisation **reads** (`me.get`). Postgres service role; a
+    mutating account unit is refused with `StorageError` before SQL on both engines;
+  - `internal` (`organizationId: string | null`): API-key auth, lookup, first sight, the directory, bootstrap.
+    Postgres service role; the writer lock only when it mutates **and** names an organisation (a non-UUID is refused
+    before SQL). D1 admits its own organisation or `null`, nothing else.
+- **On Postgres the plan reads of an unlocked internal unit are not one snapshot** ([[CORE41]] review). With no writer
+  lock (`organizationId: null`), each plan read is its own READ COMMITTED statement, run one at a time in insertion
+  order. A concurrent commit can land between two reads. So order them so that every interleaving reads as a
+  consistent state: first sight reads the **email before the subject**, because a winner commits both together, so
+  "email held" implies a later subject read sees the winner. Reading the subject first misreported a same-subject race
+  as `409 account_conflict` (found by the 20-trial concurrency suite). The commit-time guards (an `assertStep` on the
+  row you meant to create, `expect`, `exactly`) are what make such a unit safe; the plan is only a hint. If two reads
+  cannot be ordered safely, make them one statement.
+- **A unit that runs inside sign-in retries drift once; webhook units do not** ([[CORE41]] P7, P8). First sight
+  reruns as a read-only recheck (winner → login; email held → `409 account_conflict`; neither → `409 conflict`),
+  and repair reruns the same unit with a fresh plan. A recheck that cannot write cannot loop. Reconcile and refresh
+  map drift to `409 conflict` and let Svix redeliver.
 - **Testing on both engines:** see `writing-tests` section 3.
 
 ## The service context and tenancy
@@ -301,9 +335,7 @@ Operations don't call the wrappers directly; they run in a service context (`src
 - `withContext(db, { actor, organizationId, scopes }, ctx => …)`: tenant operations. `ctx` has `trx`,
   `actor`, `organizationId`, `scopes` and `emit(event)`, and deliberately **no `db`**. Usable outside a
   request (a Workflow step) with an explicit principal.
-- `withAccountContext(db, { actor }, ctx => …)`: account operations with no organisation ([[CORE3]]):
-  service role, `ctx.emitFor(organizationId, event)`.
-- Both map a `23503` to `400 invalid_reference` **after** the transaction rolled back (in `.catch` on the
+- It maps a `23503` to `400 invalid_reference` **after** the transaction rolled back (in `.catch` on the
   wrapper), never inside it; everything else, including `TenancyContextError`, passes through unchanged.
 
 - **Handlers never import `db` directly.** They use the transaction from the context. Plain `db` is for
@@ -346,11 +378,16 @@ service context enforces it, so scope checks are written once.
   - **The authenticator never throws for organisation problems**: it cannot know the operation kind. It
     returns `organizationId: null`, and sets `organizationForbidden` when the token's organisation claim is
     unusable (unmapped role, a newer soft-deletion in the copy) or the header contradicts it. `run` turns that
-    into the 403 (see the order above).
+    into the 403 (see the order above). **One exception, D1 only** ([[CORE36]] D19, [[CORE41]] P13): a D1 serves
+    one provider organisation, so a token claiming another `(provider, externalId)` than the binding's
+    `authProvider`/`authOrgId` is `403 organization_forbidden` right after `verify`: no lookup, no fetch, no SQL.
+    That decision is about the deployment, not the operation. The webhook acknowledges a D1 delivery for another
+    organisation `200` with no fetch. Golden names it as the one engine difference.
   - A user's active organisation is the token's `o` claim; `X-Organization-Id` is only a cross-check, compared
     case-insensitively for users and agents (the [[CORE2]] upper-case-UUID lesson).
   - Anything else is an API key: `vk_` plus 32 random bytes in base64url, stored as SHA-256 hex, looked up
-    under `withServiceRole` together with its agent. Revoked keys, expired keys and disabled agents all
+    in one internal unit (`apiKeyAuthOperation`, hashed before the unit) together with its agent. Revoked keys,
+    expired keys (`expires_at <= now`, compared in the program against the injected clock) and disabled agents all
     return the same `401 invalid or expired credentials`.
   - An agent that sends an `X-Organization-Id` other than its own gets `403 organization_forbidden`.
   - A 401 logs at most an 8-character token prefix, once (the middleware logs an authenticator's 401;
@@ -363,11 +400,11 @@ service context enforces it, so scope checks are written once.
   - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
 - **Agents never get send rights.** An agent's write surface is "submit a suggestion"; sending is performed
   by the vault's execution rail with credentials it holds.
-- A provisioner that creates the user or organisation row on first sight must SELECT first and INSERT only
-  on a miss. In order (`src/auth/first-sight.ts`): any network call (the profile fetch) **before** the
-  transaction opens. Then lock every unique key the insert can collide on (subject and email), re-select,
-  insert with `ON CONFLICT DO NOTHING` as the backstop, and throw on an empty `RETURNING` so the parent
-  `principals` row rolls back.
+- **A provisioner that creates a parent and a child on first sight** (`src/auth/first-sight.ts`, [[CORE41]] P7): any
+  network call (the profile fetch) and normalisation **before** the unit. Then plan-read every unique key the insert
+  can collide on, insert the parent with an app-minted id, the child with `ON CONFLICT DO NOTHING`, and
+  `assertStep` that the child row for the natural key carries **this** parent's id. A race loser inserts nothing,
+  fails the assertion and drifts; the whole unit rolls back, so no orphan parent remains on either engine. No key lock.
 - **Error classes live in a leaf module** (`errors.ts`, or the seam's own module such as `auth/adapter.ts`),
   never next to their main thrower. `AuthFailure` once sat in `user-authenticator.ts`, and `first-sight.ts`
   imported it back, an import cycle; it now lives in `auth/adapter.ts` beside `VerifyFailure` ([[CORE27]] P12).
@@ -444,25 +481,17 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
 - **No fire-and-forget queries in a request.** A query that outlives the response needs `waitUntil` in a
   Worker, races the per-request pool teardown, and interleaves with the next test's truncate.
   - Throttle an observability write and await it instead. For example, `last_used_at` is updated at most
-    once a minute, in the lookup transaction ([[CORE15]]).
+    once a minute, in the key-auth unit, guarded `last_used_at IS NULL OR < cutoff`, with no `expect` (a racer may
+    have stamped it), no event and no `updated_at` ([[CORE15]], [[CORE36]] D17).
 - `sql.ref(alias)` emits a quoted identifier; if the surrounding raw SQL declares an unquoted alias, pass its
   folded lowercase spelling or Postgres says `42P01`.
 - **Kysely 0.27's `JoinBuilder` has no `orOn`.** An OR inside a join needs `.on((eb) => eb.or([...]))`.
   (The vault has no canonical-contact alias to join across: contacts are people and identities are
   addresses, [[CORE2]] D1.)
-- **On the prepared path, find-or-create needs no key lock** ([[CORE36]] D3). On Postgres the org writer lock
-  serialises all writers; on D1 the atomic batch plus the partial unique index makes a racing loser abort
-  whole (`409 conflict`, no orphan parent). The paragraph below applies only to the legacy writers left
-  until [[CORE41]] (first sight and the directory).
-- **Legacy path: find-or-create of a parent plus child needs a lock before the select, not just `ON CONFLICT`.** An
-  `ON CONFLICT DO NOTHING` on the child alone leaves the losing transaction's parent row (and its
-  `*.created` event) orphaned. Take `lockKeys(ctx.trx, keys)` (`src/identity/locks.ts`: one statement,
-  `pg_advisory_xact_lock` over distinct `hashtextextended` keys in ascending hash order, so overlapping
-  batches cannot deadlock), then select, then insert with `ON CONFLICT DO NOTHING` as the backstop. Every
-  insert path for that key must take the same lock ([[CORE2]] D16; `first-sight.ts`). `lockKeys(trx, keys)`
-  takes a `Transaction<Database>`, so service-role code (`first-sight.ts`) and tenant code (`ctx.trx`) share
-  it; type every shared transaction helper that way ([[CORE27]] P12). Key builders live beside it
-  (`directoryOrgKey(provider, externalId)`).
+- **Find-or-create needs no key lock** ([[CORE36]] D3, [[CORE41]]: `lockKeys` is deleted). On Postgres the org
+  writer lock serialises tenant writers; an internal unit with no organisation has no lock, and its commit-time
+  assertion makes a racing loser abort whole (see "A provisioner …" above). On D1 the atomic batch plus the unique
+  index does the same (`409 conflict` or the sign-in retry, no orphan parent).
 - **Canonicalise ids before comparing or sorting them in JS.** `z.uuid()` accepts upper case, Postgres
   treats both cases as one uuid, JS string comparison does not. An upper-cased self-merge got past an
   `===` guard into a CHECK violation (an unmapped 500), and a case-sensitive sort can invert a lock order

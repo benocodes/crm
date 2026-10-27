@@ -12,11 +12,13 @@ import { createApp } from './rest/app.js'
 
 let db: Kysely<Database>
 let owner: Kysely<Database>
+let storage: ReturnType<ReturnType<typeof pgStorage>>
 const base = { organizationName: 'Acme', email: 'ori@example.test', agentName: 'dev' }
 
 beforeAll(() => {
   db = createTestDb()
   owner = createOwnerTestDb()
+  storage = pgStorage(db)()
 })
 afterAll(async () => {
   await db.destroy()
@@ -30,7 +32,7 @@ const call = (key: string, method = 'GET', body?: unknown) =>
 
 describe('bootstrap', () => {
   it('creates and authenticates', async () => {
-    const r = await bootstrap(db, base)
+    const r = await bootstrap(storage, base)
     expect(r.key).toMatch(/^vk_/)
     const res = await call(r.key)
     expect(res.status).toBe(200)
@@ -42,30 +44,30 @@ describe('bootstrap', () => {
     expect(agent.created_by).toBe(r.userId)
   })
   it('stores the key hashed', async () => {
-    const r = await bootstrap(db, base)
+    const r = await bootstrap(storage, base)
     const row = await owner.selectFrom('api_keys').selectAll().where('id', '=', r.apiKeyId).executeTakeFirstOrThrow()
     expect(row.key_hash).toBe(await hashApiKey(r.key))
     expect(JSON.stringify(row)).not.toContain(r.key)
   })
   it('a re-run reuses the user', async () => {
-    const r1 = await bootstrap(db, base)
-    const r2 = await bootstrap(db, { ...base, organizationName: 'Beta' })
+    const r1 = await bootstrap(storage, base)
+    const r2 = await bootstrap(storage, { ...base, organizationName: 'Beta' })
     expect(r2.userId).toBe(r1.userId)
     expect(r2.organizationId).not.toBe(r1.organizationId)
     expect(r2.key).not.toBe(r1.key)
     expect(await owner.selectFrom('users').selectAll().where('email', '=', base.email).execute()).toHaveLength(1)
   })
   it('honours explicit scopes', async () => {
-    const r = await bootstrap(db, { ...base, scopes: ['tasks:read'] })
+    const r = await bootstrap(storage, { ...base, scopes: ['tasks:read'] })
     expect((await call(r.key, 'POST', { title: 'x' })).status).toBe(403)
   })
   it('writes nothing on a bad scope', async () => {
-    await expect(bootstrap(db, { ...base, scopes: ['tasks:delete'] })).rejects.toThrow('invalid scope')
-    await expect(bootstrap(db, { ...base, scopes: ['widgets:read'] })).rejects.toThrow('unknown scope: widgets:read')
+    await expect(bootstrap(storage, { ...base, scopes: ['tasks:delete'] })).rejects.toThrow('invalid scope')
+    await expect(bootstrap(storage, { ...base, scopes: ['widgets:read'] })).rejects.toThrow('unknown scope: widgets:read')
     expect(await owner.selectFrom('organizations').selectAll().execute()).toHaveLength(0)
   })
   it('emits no events', async () => {
-    await bootstrap(db, base)
+    await bootstrap(storage, base)
     expect(await owner.selectFrom('events').selectAll().execute()).toHaveLength(0)
   })
 })
@@ -74,14 +76,14 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
   const linked = (email: string) => owner.selectFrom('users').selectAll().where('email', '=', email).execute()
 
   it('links a new user', async () => {
-    await bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })
+    await bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_b' })
     expect(await linked('b@x.test')).toMatchObject([{ auth_provider: 'clerk', auth_subject: 'user_b' }])
   })
 
   it('links an existing unlinked user', async () => {
     const org = await seedOrganization(db)
     const u = await seedUser(db, { organizationId: org.id, email: 'b@x.test' })
-    await bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })
+    await bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_b' })
     const rows = await linked('b@x.test')
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ id: u.id, auth_provider: 'clerk', auth_subject: 'user_b' })
@@ -91,21 +93,21 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
     const org = await seedOrganization(db)
     await seedUser(db, { organizationId: org.id, email: 'b@x.test', authSubject: 'user_a' })
     const orgs = (await owner.selectFrom('organizations').selectAll().execute()).length
-    await expect(bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_z' })).rejects.toThrow('user b@x.test is linked to another login')
+    await expect(bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_z' })).rejects.toThrow('user b@x.test is linked to another login')
     expect((await owner.selectFrom('organizations').selectAll().execute()).length).toBe(orgs)
   })
 
   it('refuses a subject held by another user', async () => {
     const org = await seedOrganization(db)
     await seedUser(db, { organizationId: org.id, email: 'other@x.test', authSubject: 'user_b' })
-    await expect(bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })).rejects.toThrow(
+    await expect(bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_b' })).rejects.toThrow(
       'login clerk:user_b belongs to another user',
     )
   })
 
   it('default agent scopes are the grantable ones', async () => {
     const declared = createVaultRegistry().declaredScopes()
-    const r = await bootstrap(db, base)
+    const r = await bootstrap(storage, base)
     const agent = await owner.selectFrom('agents').selectAll().where('id', '=', r.agentId).executeTakeFirstOrThrow()
     expect(agent.scopes).toEqual(grantableScopes(declared))
   })
@@ -116,7 +118,7 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
   })
 
   it('a bootstrapped user signs in', async () => {
-    await bootstrap(db, { ...base, email: 'b@x.test', authSubject: 'user_b' })
+    await bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_b' })
     const kit = await testClerkAdapter({ profiles: new Map([['user_b', clerkUser({ id: 'user_b', email: 'b@x.test' })]]) })
     const authed = createApp({ db: () => db, authAdapter: kit.adapter, storage: pgStorage(db) })
     // No organisation claim: a bootstrapped organisation is not linked to the provider, so /me is the check.

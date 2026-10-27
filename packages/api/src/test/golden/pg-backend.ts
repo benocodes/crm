@@ -5,9 +5,10 @@ import { sql } from 'kysely'
 import { withServiceRole, type Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
 import { createApp, type AppOptions } from '../../rest/app.js'
-import { fakeUserAuthenticator, mintTestUserToken } from '../user-auth.js'
+import { hashApiKey } from '../../auth/api-keys.js'
+import { goldenAuthenticator, goldenClerk, goldenSend, loadGoldenClerk, mountGoldenWebhook, type GoldenClerkKit } from './kit.js'
 import type { EventView, GoldenBackend } from './runner.js'
-import { IDS, type GoldenActor } from './scenarios.js'
+import { GOLDEN_AGENT_KEY, GOLDEN_EXPIRED_KEY, GOLDEN_FOREIGN_LINK, GOLDEN_ORG_LINK, GOLDEN_SUBJECTS, IDS, type GoldenActor } from './scenarios.js'
 
 export const GOLDEN_ID_PREFIX = '0190b2c4-0000-7000-8000-00000100'
 /** The n-th id a scenario mints: a four-digit counter, refused above 9999 (a longer one would not be a UUID). */
@@ -35,17 +36,26 @@ export function pgGoldenBackend(opts: {
   let now = new Date(0)
   let counter = 0
   const random = { n: 0 }
-  const extra = opts.extra?.({ db, clock: () => now, newId: () => goldenId(++counter), randomBytes: goldenRandomBytes(random) }) ?? {}
-  const app = createApp({ db: () => db, userAuthenticator: fakeUserAuthenticator(), ...extra })
+  const clock = () => now
+  const newId = () => goldenId(++counter)
+  const extra = opts.extra?.({ db, clock, newId, randomBytes: goldenRandomBytes(random) }) ?? {}
   const scopes = GOLDEN_SCOPES
+  // The fake Clerk and the app over it are made on the first reset: the issuer's key pair is async.
+  let clerk: GoldenClerkKit | undefined
+  let app: ReturnType<typeof createApp> | undefined
   return {
     async reset() {
+      if (!clerk) {
+        clerk = await goldenClerk(clock)
+        app = createApp({ db: () => db, userAuthenticator: goldenAuthenticator(clerk), ...extra })
+        mountGoldenWebhook(app, clerk, { clock, newId })
+      }
       await truncateAll(owner)
       counter = 0
       random.n = 0
       await withServiceRole(db, async (trx) => {
-        for (const id of [IDS.org, IDS.foreignOrg]) {
-          await trx.insertInto('organizations').values({ id, name: `Golden ${id.slice(-4)}` }).execute()
+        for (const [id, link] of [[IDS.org, GOLDEN_ORG_LINK], [IDS.foreignOrg, GOLDEN_FOREIGN_LINK]] as const) {
+          await trx.insertInto('organizations').values({ id, name: `Golden ${id.slice(-4)}`, auth_provider: 'clerk', auth_org_id: link, created_at: GOLDEN_SEED_AT, updated_at: GOLDEN_SEED_AT }).execute()
         }
         const at = { created_at: GOLDEN_SEED_AT, updated_at: GOLDEN_SEED_AT }
         // [id, kind, organisation, membership id, role]
@@ -58,7 +68,8 @@ export function pgGoldenBackend(opts: {
         for (const [id, kind, org, membership, role] of people) {
           await trx.insertInto('principals').values({ id, kind, created_at: GOLDEN_SEED_AT }).execute()
           if (kind === 'user') {
-            await trx.insertInto('users').values({ id, email: `${id.slice(-4)}@golden.test`, ...at }).execute()
+            const subject = id === IDS.user ? GOLDEN_SUBJECTS.user : id === IDS.user2 ? GOLDEN_SUBJECTS.user2 : undefined
+            await trx.insertInto('users').values({ id, email: `${id.slice(-4)}@golden.test`, ...(subject ? { auth_provider: 'clerk', auth_subject: subject } : {}), ...at }).execute()
             await trx.insertInto('memberships').values({ ...(membership ? { id: membership } : {}), organization_id: org, user_id: id, role, created_by: id, ...at }).execute()
           } else {
             await trx.insertInto('agents').values({ id, organization_id: org, name: 'golden-agent', scopes, created_by: IDS.user, ...at }).execute()
@@ -66,17 +77,23 @@ export function pgGoldenBackend(opts: {
         }
       })
     },
-    async send(actor: GoldenActor, method, path, body, clock) {
-      now = new Date(clock)
-      if (opts.pauseMs) await new Promise((r) => setTimeout(r, opts.pauseMs))
-      const token = mintTestUserToken({ userId: actor === 'agent' ? IDS.agent : IDS.user, organizationId: IDS.org, scopes, kind: actor })
-      const res = await app.request(path, {
-        method,
-        headers: { authorization: `Bearer ${token}` },
-        body: body === undefined || body === null ? undefined : JSON.stringify(body),
+    async load(scenario) {
+      loadGoldenClerk(clerk!, scenario.clerk)
+      if (!scenario.keys) return
+      // The agent's two fixed keys (CORE41 P15): one valid, one that expired half an hour after the seed instant.
+      await withServiceRole(db, async (trx) => {
+        for (const [id, key, expires] of [[IDS.agentKey, GOLDEN_AGENT_KEY, null], [IDS.expiredKey, GOLDEN_EXPIRED_KEY, '2026-10-22T08:30:00.000Z']] as const) {
+          await trx
+            .insertInto('api_keys')
+            .values({ id, organization_id: IDS.org, agent_id: IDS.agent, key_hash: await hashApiKey(key), prefix: 'vk_golden-ag', expires_at: expires, created_by: IDS.user, created_at: GOLDEN_SEED_AT, updated_at: GOLDEN_SEED_AT })
+            .execute()
+        }
       })
-      const text = await res.text()
-      return { status: res.status, body: text === '' ? null : JSON.parse(text) }
+    },
+    async send(actor: GoldenActor, method, path, body, at) {
+      now = new Date(at)
+      if (opts.pauseMs) await new Promise((r) => setTimeout(r, opts.pauseMs))
+      return goldenSend({ app: app!, clerk: clerk!, scopes }, actor, method, path, body, now)
     },
     async events() {
       const rows = await owner.selectFrom('events').selectAll().orderBy(sql`ctid`).execute()

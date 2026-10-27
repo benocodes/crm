@@ -3,7 +3,7 @@
 import { sql, type Kysely } from 'kysely'
 import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
 import type { Database } from '@vault/db'
-import { COLUMN_KINDS, uuidv7, type ColumnKind, type ExecutionResult, type PreparedOperation, type StorageBinding } from '@vault/storage'
+import { COLUMN_KINDS, uuidv7, type ColumnKind, type ExecutionResult, type PreparedOperation, type StorageBinding, type StorageIdentity } from '@vault/storage'
 import { postgresBinding } from '@vault/storage-postgres'
 import { d1Binding, type D1Like, type D1PreparedLike } from '@vault/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
@@ -20,6 +20,11 @@ export interface Engine {
   userId: string
   user2Id: string
   agentId: string
+  /** The organisation's provider link and the two seeded users' login subjects (CORE41 P17): both engines link them on reset. */
+  authProvider: 'clerk'
+  authOrgId: 'org_engine'
+  userSubject: 'user_engine_1'
+  user2Subject: 'user_engine_2'
   /** Postgres only: the `vault_app` pool (unwrapped queries must fail with 42501) and the owner pool. */
   app?: Kysely<Database>
   owner?: Kysely<Database>
@@ -29,6 +34,8 @@ export interface Engine {
   /** A unit environment for the tenant's user (or the agent) with an injected clock and a fresh id source. */
   env(over?: Partial<PreparedEnv> & { as?: 'user' | 'agent' }): PreparedEnv
   run<T>(op: PreparedOperation<T>, as?: 'user' | 'agent'): Promise<ExecutionResult<T>>
+  /** Runs `op` as an explicit storage identity (account or internal units, CORE41). */
+  runAs<T>(identity: StorageIdentity, op: PreparedOperation<T>): Promise<ExecutionResult<T>>
   tasks(): Promise<RawRow[]>
   events(): Promise<RawRow[]>
   /** Inserts a task row directly (fixture setup, bypassing the program under test). */
@@ -42,9 +49,9 @@ export interface Engine {
   insert(table: string, row: Record<string, unknown>): Promise<RawRow>
   /**
    * Seeds a user with a live membership in the engine's organisation (setup only). Postgres: `seedUser`; D1: principal,
-   * user and membership rows. Returns both ids.
+   * user and membership rows. `subject` links the login (provider `clerk`). Returns both ids.
    */
-  seedMember(role?: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
+  seedMember(role?: 'owner' | 'member', opts?: { subject?: string; email?: string }): Promise<{ userId: string; membershipId: string }>
   /** Updates a row directly by id (setup only, bypassing the program under test): the device for a concurrent writer. */
   update(table: string, id: string, patch: Record<string, unknown>): Promise<void>
   /** D1 only: `hook` runs once, after the next unit's plan reads and before its commit batch (deterministic drift). */
@@ -52,6 +59,7 @@ export interface Engine {
 }
 
 const SEED_AT = '2026-10-22T08:00:00.000Z'
+const LINK = { authProvider: 'clerk', authOrgId: 'org_engine', userSubject: 'user_engine_1', user2Subject: 'user_engine_2' } as const
 const kindsOf = (table: string): Record<string, ColumnKind> => {
   const kinds = (COLUMN_KINDS as Record<string, Record<string, ColumnKind>>)[table]
   if (!kinds) throw new Error(`no modelled table "${table}"`)
@@ -101,14 +109,20 @@ async function openPostgres(opts: { maxConnections?: number; maxSetSize?: number
     userId: '',
     user2Id: '',
     agentId: '',
+    ...LINK,
     app,
     owner,
     async reset() {
       await truncateAll(owner)
-      const org = await seedOrganization(app, { name: 'Engine org' })
-      const user = await seedUser(app, { organizationId: org.id, role: 'owner' })
-      const user2 = await seedUser(app, { organizationId: org.id })
+      const org = await seedOrganization(app, { name: 'Engine org', authProvider: LINK.authProvider, authOrgId: LINK.authOrgId })
+      const user = await seedUser(app, { organizationId: org.id, role: 'owner', authSubject: LINK.userSubject })
+      const user2 = await seedUser(app, { organizationId: org.id, authSubject: LINK.user2Subject })
       const agent = await seedAgent(app, { organizationId: org.id, createdBy: user.id })
+      // The seeds' defaults are the database clock; stamp them like D1's seeds so both engines start from the same instant (CORE41 P17).
+      for (const t of ['organizations', 'users', 'memberships', 'agents']) {
+        await sql`update ${sql.table(t)} set created_at = ${SEED_AT}, updated_at = ${SEED_AT}`.execute(owner)
+      }
+      await sql`update principals set created_at = ${SEED_AT}`.execute(owner)
       Object.assign(e, { organizationId: org.id, userId: user.id, user2Id: user2.id, agentId: agent.id })
     },
     async close() {
@@ -136,8 +150,8 @@ async function openPostgres(opts: { maxConnections?: number; maxSetSize?: number
       const res = await sql<RawRow>`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(owner)
       return decodeRow(table, res.rows[0]!)
     },
-    async seedMember(role = 'member') {
-      const u = await seedUser(app, { organizationId: e.organizationId, role })
+    async seedMember(role = 'member', opts = {}) {
+      const u = await seedUser(app, { organizationId: e.organizationId, role, ...(opts.subject ? { authSubject: opts.subject } : {}), ...(opts.email ? { email: opts.email } : {}) })
       const m = await sql<{ id: string }>`select id from memberships where user_id = ${u.id}`.execute(owner)
       return { userId: u.id, membershipId: m.rows[0]!.id }
     },
@@ -202,18 +216,19 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
     userId: '',
     user2Id: '',
     agentId: '',
+    ...LINK,
     d1,
     async reset() {
       await clearD1(d1)
       const ids = { organizationId: uuidv7(), userId: uuidv7(), user2Id: uuidv7(), agentId: uuidv7() }
-      await seedDeployment(d1, { organizationId: ids.organizationId })
-      await seedPrincipal(d1, { id: ids.userId, kind: 'user' })
-      await seedPrincipal(d1, { id: ids.user2Id, kind: 'user' })
+      await seedDeployment(d1, { organizationId: ids.organizationId, provider: LINK.authProvider, externalId: LINK.authOrgId })
+      await seedPrincipal(d1, { id: ids.userId, kind: 'user', authSubject: LINK.userSubject })
+      await seedPrincipal(d1, { id: ids.user2Id, kind: 'user', authSubject: LINK.user2Subject })
       await seedMembership(d1, { organizationId: ids.organizationId, userId: ids.userId, role: 'owner' })
       await seedMembership(d1, { organizationId: ids.organizationId, userId: ids.user2Id, role: 'member' })
       await seedD1Agent(d1, { id: ids.agentId, organizationId: ids.organizationId, createdBy: ids.userId })
       pending.hook = null
-      Object.assign(e, ids, { binding: d1Binding(interceptD1(d1, pending), { organizationId: ids.organizationId, ...(opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize }) }) })
+      Object.assign(e, ids, { binding: d1Binding(interceptD1(d1, pending), { organizationId: ids.organizationId, authProvider: LINK.authProvider, authOrgId: LINK.authOrgId, ...(opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize }) }) })
     },
     close: () => local.dispose(),
     ...shared(() => e),
@@ -236,20 +251,20 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
     async insert(table, row) {
       const full = withDefaults(e, table, row)
       const cols = Object.keys(full)
-      const values = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : (full[c] ?? null)))
+      const values = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : Array.isArray(full[c]) ? JSON.stringify(full[c]) : (full[c] ?? null)))
       await d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...values).run()
       return decodeRow(table, full as RawRow)
     },
-    async seedMember(role = 'member') {
+    async seedMember(role = 'member', opts = {}) {
       const userId = uuidv7()
-      await seedPrincipal(d1, { id: userId, kind: 'user' })
+      await seedPrincipal(d1, { id: userId, kind: 'user', ...(opts.subject ? { authSubject: opts.subject } : {}), ...(opts.email ? { email: opts.email } : {}) })
       const membershipId = await seedMembership(d1, { organizationId: e.organizationId, userId, role })
       return { userId, membershipId }
     },
     async update(table, id, patch) {
       kindsOf(table)
       const cols = Object.keys(patch)
-      const values = cols.map((c) => (typeof patch[c] === 'boolean' ? (patch[c] ? 1 : 0) : (patch[c] ?? null)))
+      const values = cols.map((c) => (typeof patch[c] === 'boolean' ? (patch[c] ? 1 : 0) : Array.isArray(patch[c]) ? JSON.stringify(patch[c]) : (patch[c] ?? null)))
       await d1.prepare(`update "${table}" set ${cols.map((c) => `"${c}" = ?`).join(', ')} where id = ?`).bind(...values, id).run()
     },
     betweenPlanAndCommit(hook) {
@@ -259,7 +274,7 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
   return e
 }
 
-function shared(self: () => Engine): Pick<Engine, 'env' | 'run'> {
+function shared(self: () => Engine): Pick<Engine, 'env' | 'run' | 'runAs'> {
   return {
     env(over = {}) {
       const e = self()
@@ -278,7 +293,10 @@ function shared(self: () => Engine): Pick<Engine, 'env' | 'run'> {
     },
     run(op, as = 'user') {
       const e = self()
-      return execute(e.binding, { actorId: as === 'agent' ? e.agentId : e.userId, organizationId: e.organizationId }, op)
+      return execute(e.binding, { kind: 'tenant', actorId: as === 'agent' ? e.agentId : e.userId, organizationId: e.organizationId }, op)
+    },
+    runAs(identity, op) {
+      return execute(self().binding, identity, op)
     },
   }
 }

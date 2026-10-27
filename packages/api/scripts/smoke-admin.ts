@@ -205,7 +205,12 @@ try {
   await check('POST /agents (unknown scope)', { path: '/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['nope:read'] } }, 400, (j) => eq(j.error.code, 'unknown_scope', 'code'))
   const agent = await check('POST /agents', { path: '/agents', method: 'POST', token: tokO, body: { name: `Bot ${rand}`, scopes: ['tasks:read', 'tasks:write'] } }, 201)
   const made = await check('POST /api-keys', { path: '/api-keys', method: 'POST', token: tokO, body: { agent_id: agent.id } }, 201, (j) => (typeof j.key === 'string' && j.key.startsWith('vk_') ? undefined : 'no key'))
+  // CORE41 D17: the key's own use stamps last_used_at (through authenticateApiKey on storage) and leaves updated_at alone.
+  const unused = await check('GET /api-keys/{id} (before use)', { path: `/api-keys/${made.id}`, token: tokO }, 200, (j) => (j.last_used_at === null ? undefined : 'last_used_at already set'))
   await check('GET /tasks (agent key)', { path: '/tasks', token: made.key }, 200)
+  await check('GET /api-keys/{id} (after use: last_used_at set, updated_at unchanged)', { path: `/api-keys/${made.id}`, token: tokO }, 200, (j) =>
+    j.last_used_at ? eq(j.updated_at, unused.updated_at, 'updated_at') : 'last_used_at unset',
+  )
   await check('GET /agents (agent key)', { path: '/agents', token: made.key }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
   const keyBody = await fetch(`${base}/api-keys?agent_id=${agent.id}`, { headers: { authorization: `Bearer ${tokO}` } })
   const keyText = await keyBody.text()

@@ -62,6 +62,9 @@ const encode = (value: unknown): unknown => {
 export interface D1RuntimeOptions {
   /** The one organisation this database serves (D18). */
   organizationId: string
+  /** The deployment's auth link, matching the deployment marker (CORE41 D19, P4). */
+  authProvider: string
+  authOrgId: string
   /** The cap on any bounded set (D7). See RESULT.md for the verified D1 limits behind the default. Default 100. */
   maxSetSize?: number
 }
@@ -77,7 +80,11 @@ export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime 
     maxSetSize,
     async execute<T>(identity: StorageIdentity, prepared: PreparedOperation<T>): Promise<ExecutionResult<T>> {
       // Admission before any SQL: a D1 serves one organisation, and the context cannot reach another database.
-      if (identity.organizationId !== options.organizationId) throw new ForeignOrganizationError()
+      if (identity.kind === 'account') {
+        if (prepared.mutates) throw new StorageError(`account units are read-only (${prepared.name})`)
+      } else if (identity.organizationId !== null && identity.organizationId !== options.organizationId) {
+        throw new ForeignOrganizationError()
+      }
       const qc = queryContext('d1', maxSetSize)
       const meta: unknown[] = []
       const planned = await planUnit(prepared, qc, async (reads) => {
@@ -131,5 +138,5 @@ export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime 
 }
 
 export function d1Binding(d1: D1Like, options: D1RuntimeOptions): D1Binding {
-  return { kind: 'd1', runtime: createD1Runtime(d1, options), organizationId: options.organizationId }
+  return { kind: 'd1', runtime: createD1Runtime(d1, options), organizationId: options.organizationId, authProvider: options.authProvider, authOrgId: options.authOrgId }
 }

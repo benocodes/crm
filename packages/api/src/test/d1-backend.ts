@@ -15,6 +15,8 @@ import { ScopeSet } from '../scopes.js'
 import type { ContractBackend, ContractSession, ContractTenant, EventRow } from './contract.js'
 import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 
+/** The contract suite's D1 tenants share one provider link (a link is unique per database, and each tenant has its own D1). */
+const CONTRACT_ORG_LINK = 'org_contract'
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 
 export function d1Backend(): ContractBackend {
@@ -39,11 +41,11 @@ export function d1Backend(): ContractBackend {
             const d1 = local.bindings[name]!
             await clearD1(d1)
             const t: ContractTenant = { organizationId: uuidv7(), userId: uuidv7(), agentId: uuidv7() }
-            await seedDeployment(d1, { organizationId: t.organizationId })
+            await seedDeployment(d1, { organizationId: t.organizationId, externalId: CONTRACT_ORG_LINK })
             await seedPrincipal(d1, { id: t.userId, kind: 'user' })
             await seedMembership(d1, { organizationId: t.organizationId, userId: t.userId, role: 'owner' })
             await seedAgent(d1, { id: t.agentId, organizationId: t.organizationId, createdBy: t.userId })
-            const binding = d1Binding(d1, { organizationId: t.organizationId })
+            const binding = d1Binding(d1, { organizationId: t.organizationId, authProvider: 'clerk', authOrgId: CONTRACT_ORG_LINK })
             const app = createApp({ db: () => unusedDb, registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
             byOrg.set(t.organizationId, { d1, app })
             tenants.push(t)

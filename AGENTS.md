@@ -165,9 +165,10 @@ Carried over from the predecessor product, where each cost real time. Add new on
 5. **Every write emits an event** to the outbox in the same transaction. Nothing else inserts into a
    resource's table except its service layer. The rule covers *resources* (anything tenant-visible).
    Writes that skip events are allowed only when they are not resources and a spec decision names them.
-   Today that means three: identity bookkeeping (`principals`, `users` on first sight, [[CORE3]] D12),
-   channel machinery tables (credentials, subscriptions, sync state and cursors, [[CHN5]] D22) and the
-   dev/ops `bootstrap` script ([[CORE15]]). If such a write has a tenant-visible consequence (a
+   Today that means four: identity bookkeeping (`principals`, `users` on first sight and on a provider
+   profile refresh, [[CORE3]] D12, [[CORE41]] P11), channel machinery tables (credentials, subscriptions,
+   sync state and cursors, [[CHN5]] D22), the dev/ops `bootstrap` script ([[CORE15]]), and the API-key
+   usage stamp (`api_keys.last_used_at` only, at most once a minute, never `updated_at`, [[CORE36]] D17). If such a write has a tenant-visible consequence (a
    membership, a connection's status), that consequence must still emit its event. Add a new exception
    through a spec decision, never ad hoc.
 6. **Raw bodies stay out of the database**, Postgres and D1 alike (R2 behind `ObjectStore`).

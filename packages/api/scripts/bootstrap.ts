@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util'
 import { createDb } from '@vault/db'
+import { postgresBinding } from '@vault/storage-postgres'
 import { bootstrap } from '../src/bootstrap.js'
 
 function usage(message: string): never {
@@ -33,7 +34,7 @@ if (!org || !email || !agent) usage('--org, --email and --agent are required')
 
 const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhost/vault_dev', { max: 1 })
 try {
-  const r = await bootstrap(db, {
+  const r = await bootstrap(postgresBinding(db), {
     organizationName: org!,
     email: email!,
     userName: name,

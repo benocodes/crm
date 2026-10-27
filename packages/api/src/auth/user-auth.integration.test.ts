@@ -397,7 +397,7 @@ describe('scopes and attribution', () => {
       response: { status: 200, schema: z.object({ ok: z.boolean() }) },
       handler: async () => ({ ok: true }),
     })
-    const probeApp = createApp({ db: () => db, registry, authAdapter: adapterKit.adapter })
+    const probeApp = createApp({ db: () => db, registry, authAdapter: adapterKit.adapter, storage: pgStorage(db) })
     const A = await linkedOrg()
     await linkedUser('owner1', [{ id: A.id, role: 'owner' }])
     await linkedUser('member1', [{ id: A.id, role: 'member' }])

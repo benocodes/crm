@@ -2,7 +2,7 @@
 // Vitest file (never discovered); `pnpm typecheck` includes it. Every `@ts-expect-error` sits on the exact
 // offending expression and has a positive sibling; no `any` is involved around a call.
 import { type Expression, type ExpressionBuilder, type SqlBool } from 'kysely'
-import { eq, projectAs, publicSelect, selectColumns, type ColumnOf, type PublicColumn, type QueryContext, type StorageDatabase, type SyncHook, type Table, type ValueOf } from './index.js'
+import { eq, projectAs, publicSelect, selectColumns, type ColumnOf, type PublicColumn, type QueryContext, type StorageDatabase, type StorageIdentity, type SyncHook, type Table, type ValueOf } from './index.js'
 
 declare const qc: QueryContext
 
@@ -77,4 +77,19 @@ guard('tasks', (eb) => eb('companies.name', '=', 'x'))
 // @ts-expect-error a tasks guard may not read api_keys.key_hash
 guard('tasks', (eb) => eb('api_keys.key_hash', '=', 'x'))
 
+// --- storage identities (CORE41 C1) ---------------------------------------------------------------------
+
+const okTenantIdentity: StorageIdentity = { kind: 'tenant', actorId: 'a', organizationId: 'o' }
+const okAccountIdentity: StorageIdentity = { kind: 'account', actorId: 'a' }
+const okInternalIdentity: StorageIdentity = { kind: 'internal', organizationId: null }
+const okInternalOrganisation: StorageIdentity = { kind: 'internal', organizationId: 'o' }
+
+// a tenant identity must say which boundary it crosses
+// @ts-expect-error `kind` is required
+const noKind: StorageIdentity = { actorId: 'a', organizationId: 'o' }
+// an account identity names no organisation
+// @ts-expect-error an account identity has no organizationId
+const accountWithOrganisation: StorageIdentity = { kind: 'account', actorId: 'a', organizationId: 'o' }
+
+export { okTenantIdentity, okAccountIdentity, okInternalIdentity, okInternalOrganisation, noKind, accountWithOrganisation }
 export { inferred, okFilter, okNullable, okProjection, okPublic, publicColumns, status, columns }
