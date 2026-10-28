@@ -135,6 +135,14 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     for (const k of SCENARIOS) expect(measures.get(k)?.status, k).toBe(EXPECTED_STATUS[k])
   })
 
+  it('every Free-plan exception names a scenario that still exceeds a Free bound', () => {
+    for (const k of Object.keys(FREE_PLAN_EXCEPTIONS)) {
+      const m = measures.get(k)
+      expect(m, `${k} is not a scenario`).toBeDefined()
+      expect(m!.queries > FREE.queries || m!.queries + m!.outbound > FREE.subrequests, `${k} no longer exceeds a Free bound: drop its exception`).toBe(true)
+    }
+  })
+
   it.each(SCENARIOS)('%s is within the Workers Free limits (or its named Paid exception)', (k) => {
     const m = measures.get(k)!
     const paid = k in FREE_PLAN_EXCEPTIONS

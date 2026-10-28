@@ -112,10 +112,14 @@ Against Cloudflare's documented limits (fetched 2026-10-28):
 | CPU time per invocation | 10 ms / 30 s default (5 min max) | same (not measured locally) |
 | Memory | 128 MB | same |
 
-Every scenario is within the Workers Free bounds **except the 100-member directory snapshot**: it sends 201 D1 queries
-and, with its 101 outbound Clerk fetches, 302 subrequests, so a directory that large needs **Workers Paid**. A
-snapshot of 5 members (11 queries, 17 with fetches) is well inside Free. The test pins each scenario's exact query
-count, so a new round trip is a visible, reviewed change.
+Every scenario is within the Workers Free bounds **except the 100-member directory snapshot** (201 D1 queries and,
+with its 101 outbound Clerk fetches, 302 subrequests). The cost of a directory delivery grows with the number of
+**first-seen members** k: 2k+3 D1 queries and 3k+5 subrequests (the members page, the organisation fetch, one profile
+fetch per new member, plus the D1 queries). On Workers Free (50) **one delivery with more than about 15 new members
+exceeds the limit**; a directory that large needs **Workers Paid**. Members already provisioned stay written, and later
+redeliveries of the webhook should finish the job (this is not measured). A snapshot of 5 members (11 queries, 17 with
+fetches) is well inside Free. The test pins each scenario's exact query count, so a new round trip is a visible,
+reviewed change.
 
 ## Golden regeneration
 
@@ -134,7 +138,7 @@ The check below proves it by copying only the open packages into a temporary wor
 pnpm -C packages/server-d1 open:check
 ```
 
-It prints `not covered: packages/api's test suites (the Postgres-backed oracle)`: those suites run against Postgres.
+It prints `not covered: packages/api's test suites (the Postgres-backed oracle, spec D14)`: those suites run against Postgres.
 
 ## Not here yet
 
