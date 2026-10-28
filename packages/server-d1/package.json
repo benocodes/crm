@@ -9,7 +9,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "bootstrap": "tsx scripts/bootstrap.ts",
-    "smoke:worker": "tsx scripts/smoke-worker.ts"
+    "smoke:worker": "tsx scripts/smoke-worker.ts",
+    "open:check": "tsx scripts/open-check.ts"
   },
   "dependencies": {
     "@vault/api": "workspace:*",

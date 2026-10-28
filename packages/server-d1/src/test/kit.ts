@@ -106,3 +106,94 @@ export const NOW = new Date('2026-10-27T10:00:00.000Z')
 let counter = 0
 /** Deterministic UUID-shaped ids, unique within the process. */
 export const testId = () => `0190b2c4-0000-7000-8000-${String(++counter).padStart(12, '0')}`
+
+export interface InvocationMeasure {
+  /** D1 round trips: batch() = 1, run()/all()/first() = 1 (CORE47 P7, Cloudflare's documented rule). */
+  queries: number
+  /** Statements inside batches plus single calls. */
+  statements: number
+  /** UTF-8 bytes of the longest SQL text. */
+  maxStatementBytes: number
+  maxParameters: number
+  /** UTF-8 bytes of the longest bound text value. */
+  maxBoundTextBytes: number
+  /** Sums of `meta`; 0 when the binding reports none. */
+  rowsRead: number
+  rowsWritten: number
+  d1DurationMs: number
+}
+
+export interface D1Meter {
+  readonly d1: D1Like
+  /** Starts a new invocation window; `take()` returns and closes it. */
+  start(): void
+  take(): InvocationMeasure
+}
+
+const zeroMeasure = (): InvocationMeasure => ({ queries: 0, statements: 0, maxStatementBytes: 0, maxParameters: 0, maxBoundTextBytes: 0, rowsRead: 0, rowsWritten: 0, d1DurationMs: 0 })
+
+/** A D1Like that counts what one invocation sends to D1 (CORE47 P6): queries, statement sizes, bound values, and `meta`. */
+export function meterD1(real: D1Like): D1Meter {
+  const enc = new TextEncoder()
+  let m = zeroMeasure()
+  const info = new WeakMap<object, { sql: string; params: unknown[]; real: D1PreparedLike }>()
+  const note = (sqlText: string, params: unknown[]) => {
+    m.statements++
+    m.maxStatementBytes = Math.max(m.maxStatementBytes, enc.encode(sqlText).length)
+    m.maxParameters = Math.max(m.maxParameters, params.length)
+    for (const p of params) if (typeof p === 'string') m.maxBoundTextBytes = Math.max(m.maxBoundTextBytes, enc.encode(p).length)
+  }
+  const meta = (r: { meta?: { rows_read?: number; rows_written?: number; duration?: number } } | null | undefined) => {
+    m.rowsRead += r?.meta?.rows_read ?? 0
+    m.rowsWritten += r?.meta?.rows_written ?? 0
+    m.d1DurationMs += r?.meta?.duration ?? 0
+  }
+  const wrap = (sqlText: string, params: unknown[], inner: D1PreparedLike): D1PreparedLike => {
+    const w: D1PreparedLike = {
+      bind: (...values: unknown[]) => wrap(sqlText, values, inner.bind(...values)),
+      async run() {
+        m.queries++
+        note(sqlText, params)
+        const r = await inner.run()
+        meta(r)
+        return r
+      },
+      async all() {
+        m.queries++
+        note(sqlText, params)
+        const r = await inner.all()
+        meta(r)
+        return r
+      },
+      async first() {
+        m.queries++
+        note(sqlText, params)
+        return inner.first()
+      },
+    }
+    info.set(w, { sql: sqlText, params, real: inner })
+    return w
+  }
+  const d1: D1Like = {
+    prepare: (query: string) => wrap(query, [], real.prepare(query)),
+    async batch(statements: D1PreparedLike[]) {
+      m.queries++
+      for (const s of statements) {
+        const i = info.get(s)
+        if (i) note(i.sql, i.params)
+      }
+      const results = await real.batch(statements.map((s) => info.get(s)?.real ?? s))
+      for (const r of results) meta(r)
+      return results
+    },
+  }
+  return {
+    d1,
+    start: () => void (m = zeroMeasure()),
+    take: () => {
+      const out = m
+      m = zeroMeasure()
+      return out
+    },
+  }
+}

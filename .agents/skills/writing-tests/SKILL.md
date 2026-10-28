@@ -108,6 +108,12 @@ One program, two engines: the same assertions run on Postgres and D1.
   - Golden actors ([[CORE41]] P15): `'agent-key'` (a fixed seeded key), `{ clerk: subject, claim? }` (a real
     Clerk-signed token for the scenario's `clerk` fixtures) and `'webhook'` (a Svix-signed delivery of `body`). An
     `alg: none` token still goes to the fake authenticator, so older scenarios keep their actors and fixtures.
+- **Every list of named exceptions is exact in both directions.** An unlisted difference fails, and so does a
+  listed one that no longer holds (stale), so an exception can never quietly keep a looser bound. This covers
+  golden `NAMED_DIFFERENCES`, the engine schema audit's `ENGINE_DIFFERENCES`
+  (`packages/storage-postgres/src/test/schema-audit.ts`: Postgres `pg_catalog` against D1 pragmas, so a D1
+  migration that drifts a key, FK action or partial predicate fails) and `FREE_PLAN_EXCEPTIONS` in
+  `packages/server-d1/src/measured-limits.test.ts`, whose stale check came only in review ([[CORE47]]).
 - **Auth and directory suites run on both engines through `openAuthKit(engine)`** (`src/test/auth-kit.ts`): the real
   authenticator and webhook over the fake Clerk, on the engine's binding. `kit.ran` records each unit (name,
   identity, stats), so you can assert "no unit ran" or `stats.writes`. `kit.armOn(name, hook)` arms D1 drift for one
