@@ -135,6 +135,8 @@ pnpm -C packages/server-postgres dev               # Postgres dev server (DATABA
 pnpm -C packages/server-postgres bootstrap -- --org <n> --email <e> --agent <a>
 pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need SMOKE_EXPECT_DATABASE
 pnpm -C packages/server-postgres golden:generate   # and golden:check
+pnpm -C packages/server-d1 bootstrap -- --org <n> --email <e> --agent <a> --auth-org-id <org_…>  # local D1 only
+pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network
 ```
 
 The `db:*` scripts are the contract the skills assume; they arrive with the first CORE cycle.

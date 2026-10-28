@@ -46,6 +46,22 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `scripts/bootstrap.ts` (`pnpm -C packages/server-postgres bootstrap -- --org … --email … --agent …`);
   - `scripts/smoke-auth.ts`, `scripts/smoke-admin.ts` (below);
   - `scripts/golden.ts` (`golden:generate`, `golden:check`), reading `@vault/api/test/golden`.
+- **D1 composition** (`@vault/server-d1`, open, [[CORE38]]): the self-hosted module Worker on one D1 binding `DB`.
+  Its boundary rules (`server-d1/src`, `server-d1/scripts`) forbid every enterprise import with no allow-list.
+  - `src/compose.ts` (`composeD1Worker(env, deps?)`, Node-testable): the organisation comes from the **deployment
+    marker** (`readDeployment`), never from Worker vars. Only success is cached per isolate: an absent marker answers
+    `503 not_initialised` and is re-read on the next request, so a bootstrap takes effect without a restart. A bad auth
+    or CORS configuration fails closed (`500 internal` on every non-health route) and logs one line naming the variable,
+    never its value. `GET /health` is outside the registry and reads the marker live.
+  - `src/init-deployment.ts` (`initDeploymentOperation`: marker insert `ON CONFLICT DO NOTHING` plus `assertStep`, no
+    events) and `src/bootstrap-d1.ts` (`bootstrapD1`: marker unit, then [[CORE41]]'s `bootstrap`; resumable).
+  - `scripts/bootstrap.ts` (`pnpm -C packages/server-d1 bootstrap -- …`): local only. `getPlatformProxy` defaults
+    `remoteBindings` to **`true`**, so the CLI always passes `false`; `scripts/bootstrap.test.ts` pins it.
+  - `scripts/smoke-worker.ts` (`pnpm -C packages/server-d1 smoke:worker`): esbuild bundle run in workerd through
+    Miniflare. `outboundService` is the fake Clerk and fails on any other host, which proves no real network call.
+  - The bundle needs **no `nodejs_compat`** (Web Crypto only). Keep Node built-ins out of `@vault/api` production
+    code; the smoke is the check.
+  - Test D1s come from `src/test/kit.ts` (a fresh in-memory D1 per test), so no clearing helper is needed.
 - **Human auth** ([[CORE3]] cycle 1):
   - `src/auth/adapter.ts` (`AuthAdapter`, `createAuthAdapter(env)`, `parseOriginList`), `src/auth/clerk.ts`;
   - `src/auth/first-sight.ts` (`lookupUserOperation`, `firstSightOperation`, `firstSightRecheckOperation`, and the

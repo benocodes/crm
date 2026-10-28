@@ -15,13 +15,19 @@ skill is what the coder follows while writing them.
 - **Red first, per file.** Run each new test file alone before the code it tests exists and record the run
   (N failed, and why) in the completion report's `Red runs` line. A file never seen failing is the same gap
   as an absence test never seen failing ([[CORE27]] review). A missing-module error is not a useful red:
-  stub the module so the assertion itself fails.
+  stub the module so the assertion itself fails. **Paste the red run into the cycle's RESULT.md when you
+  make the red commit**, not only into the final report: a report can be lost with its agent, and
+  [[CORE38]] then had red commits but no red output, so review had to accept the commit order plus the
+  absence mutations instead.
 - **A suite that needs the whole vertical (contract, parity, atomicity, concurrency, golden replay) cannot
   fail meaningfully first.** Prove its strength with **absence mutations**: inject one fault into the
   implementation, see the named test turn red, restore it, and keep the raw output in RESULT.md. Examples
   from [[CORE35]]: replace the D1 batch with autocommit statements (7 atomicity tests fail); put the event in
   its own Postgres transaction (6 fail); emit `after` values as `before` (8 fail); hard-code the set cap; add
   a `pg` import to an open package; erase a type with `any`; drop the writer lock.
+- **A mutation that stays green is suspect before the test is.** Check `git diff` shows an executable line
+  changed: [[CORE38]]'s mutation 7 (`remoteBindings: true`) first replaced the word in a code comment and
+  stayed green; applied to the `return` line it turned red. Record which attempt counted.
 - **An absence mutation is per engine: drop every guard that engine has for the property.** The same property can be
   held by different guards on each engine. Removing one guard proves nothing on an engine where another still holds.
   [[CORE41]]: dropping first sight's `assertStep` turns the D1 drift case red (D1 decodes after the batch commits, so
