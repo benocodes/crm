@@ -43,6 +43,8 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
 
   it('the smoked1 database id is a uuid', () => {
     const c = unstable_readConfig({ config: CONFIG, env: 'smoked1' })
-    expect(c.d1_databases[0]!.database_id).toMatch(UUID)
+    const id = c.d1_databases[0]!.database_id
+    expect(id).toMatch(UUID)
+    expect(id).not.toBe(PLACEHOLDER)
   })
 })

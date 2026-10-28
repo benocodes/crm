@@ -33,8 +33,7 @@
         {
           "binding": "DB",
           "database_name": "vault-smoked1",
-          // Placeholder until the database is created (OPS4 Step 3.9); the remote scripts refuse it.
-          "database_id": "00000000-0000-0000-0000-000000000000",
+          "database_id": "13f7fb64-d909-44e7-9ce7-cc3c753bb3bc",
           "migrations_dir": "../storage-d1/migrations",
           "remote": true
         }
