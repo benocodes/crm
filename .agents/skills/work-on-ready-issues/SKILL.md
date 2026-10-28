@@ -1,6 +1,6 @@
 ---
 name: work-on-ready-issues
-description: Work the delivery queue on the orivibes/crm project board for features and tasks (bug fixes have their own skill, /fix-bugs). Reads non-bug issues that are marked Ready, ranks them by Priority then Size, then claims, implements, and opens a PR for the top item (or one the user names), flagging any spec the change may have made stale. Use when the user says /work-on-ready-issues, "work the issue queue", "pick up the next issue", or "what's ready to build".
+description: Work the delivery queue on the benocodes/crm project board for features and tasks (bug fixes have their own skill, /fix-bugs). Reads non-bug issues that are marked Ready, ranks them by Priority then Size, then claims, implements, and opens a PR for the top item (or one the user names), flagging any spec the change may have made stale. Use when the user says /work-on-ready-issues, "work the issue queue", "pick up the next issue", or "what's ready to build".
 ---
 
 # Work On Ready Issues
@@ -10,7 +10,7 @@ Ready item labeled `bug` belongs there. Intake and triage happen upstream ([[tri
 drains the queue: pick the top *Ready*, non-bug item, read its spec, build it, open a PR. The board is
 the contract; read what triage wrote and never guess at scope.
 
-There is one code repo, **`orivibes/crm`**, and issues, branches and PRs all live in it.
+There is one code repo, **`benocodes/crm`**, and issues, branches and PRs all live in it.
 Board IDs and queries: the [`board`](../board/SKILL.md) skill.
 
 ## The board is the contract
@@ -37,7 +37,7 @@ If these are missing the item isn't really Ready; flag it back instead of invent
    `#N title · Priority/Size · Spec`.
 2. **Pick.** Default to the top item; if the user named one, use it (still require Ready unless they
    override). Announce the choice.
-3. **Read context.** `gh issue view <N> -R orivibes/crm`. Parse Acceptance criteria, Pointers, Blocked
+3. **Read context.** `gh issue view <N> -R benocodes/crm`. Parse Acceptance criteria, Pointers, Blocked
    by. **If Blocked by has an open issue, stop** and report the blocker. If **Spec** is set, read
    `knowledge/specs/*/<ID>.md` (after `git -C knowledge pull --rebase`). If the change spans more than one
    package or needs a migration and there is no spec, flag it back rather than guess: label it
@@ -73,7 +73,7 @@ If these are missing the item isn't really Ready; flag it back instead of invent
 8. **Ship.** Commit, push the branch, open the PR:
    ```bash
    git push -u origin <type>/<N>-<slug>
-   gh pr create -R orivibes/crm --base main --title "<type>: …" --body "Closes orivibes/crm#<N>
+   gh pr create -R benocodes/crm --base main --title "<type>: …" --body "Closes benocodes/crm#<N>
 
    …"
    ```
@@ -94,7 +94,7 @@ coding agent runs unattended with only the bot identity, it does everything as z
 and PR.
 
 ```bash
-scripts/gh-zooidbot issue edit <N> -R orivibes/crm --add-assignee @me
+scripts/gh-zooidbot issue edit <N> -R benocodes/crm --add-assignee @me
 # board field edits: GraphQL snippet in the `board` skill
 ```
 

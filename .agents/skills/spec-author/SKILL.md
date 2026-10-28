@@ -5,7 +5,7 @@ description: Conventions for authoring and revising specs under knowledge/specs/
 
 # Spec Authoring
 
-Conventions for everything under `knowledge/specs/` (the specs live in the nested `orivibes/crm-knowledge` repo). These exist so cycles can be reordered, renamed, and revised without rotting cross-references between them.
+Conventions for everything under `knowledge/specs/` (the specs live in the nested `benocodes/crm-knowledge` repo). These exist so cycles can be reordered, renamed, and revised without rotting cross-references between them.
 
 ---
 
@@ -49,16 +49,16 @@ The folder name follows the pattern:
 | `DX`   | CLI, starter template, docs for consultants                           |
 | `OPS`  | infrastructure, deploy, CI, tooling, skills                           |
 
-**Assigning `<ID>`.** The number is the **GitHub issue number** of the issue that spawned the spec, not a locally scanned "next free number". Every area code mints from the same pool: **`orivibes/crm`'s issue numbers**. The prefix is a triage classification, not a repo pointer. There is a single code repo, so there is a single rule and no per-area table to keep straight.
+**Assigning `<ID>`.** The number is the **GitHub issue number** of the issue that spawned the spec, not a locally scanned "next free number". Every area code mints from the same pool: **`benocodes/crm`'s issue numbers**. The prefix is a triage classification, not a repo pointer. There is a single code repo, so there is a single rule and no per-area table to keep straight.
 
-Mint the ID when triage decides the issue graduates to a spec (not at issue-creation time; most issues never need one): take the issue's number and prefix it with the area code, e.g. issue `orivibes/crm#142` classified as an agent-surface concern becomes `AGT142`.
+Mint the ID when triage decides the issue graduates to a spec (not at issue-creation time; most issues never need one): take the issue's number and prefix it with the area code, e.g. issue `benocodes/crm#142` classified as an agent-surface concern becomes `AGT142`.
 
-Never transfer an issue between repos to mint from it; there is only one repo. If a spec is authored without a preceding issue at all (rare; nearly all spec-worthy work starts with `open-issue`), open one in `orivibes/crm` purely to mint the number, and **label it `self-triaged`** (`--label self-triaged`) so `triage-issues` doesn't also pick it up and a second spec for the same ID doesn't get drafted. The same rule applies whenever you file an issue that you, not triage, will spec. If one spec consolidates two related issues (e.g. a duplicate), mint from whichever one triage was acting on and cross-link the other on GitHub; don't invent a rule for picking the "right" one.
+Never transfer an issue between repos to mint from it; there is only one repo. If a spec is authored without a preceding issue at all (rare; nearly all spec-worthy work starts with `open-issue`), open one in `benocodes/crm` purely to mint the number, and **label it `self-triaged`** (`--label self-triaged`) so `triage-issues` doesn't also pick it up and a second spec for the same ID doesn't get drafted. The same rule applies whenever you file an issue that you, not triage, will spec. If one spec consolidates two related issues (e.g. a duplicate), mint from whichever one triage was acting on and cross-link the other on GitHub; don't invent a rule for picking the "right" one.
 
 **The `needs-spec` label is the queue.** `triage-issues` labels design-significant issues with no spec
-`needs-spec` (`gh issue list -R orivibes/crm --label needs-spec`). When you create the spec for one, remove
+`needs-spec` (`gh issue list -R benocodes/crm --label needs-spec`). When you create the spec for one, remove
 the label and set the board's **Spec** field to the new `[[ID]]` (field IDs in `.agents/board.md`):
-`scripts/gh-zooidbot issue edit <N> -R orivibes/crm --remove-label needs-spec`. If you decide the issue
+`scripts/gh-zooidbot issue edit <N> -R benocodes/crm --remove-label needs-spec`. If you decide the issue
 needs no spec after all, remove the label and say why in a comment.
 
 Never mint from a PR number; that is a different number sequence and has nothing to do with the ID.
@@ -93,7 +93,7 @@ A **spec** is a design artifact: the *what and why*. A **cycle** is a unit of wo
 **Conventions:**
 
 - The spec-owning folder keeps its ID and slug forever, even after subsequent cycles ship in other folders. The slug should describe the spec, not just cycle 1 (e.g. `observability`, not `observability-floor`).
-- A plan-only cycle gets its own ID like any other: the number of the GitHub issue that tracks that cycle's work (open one in `orivibes/crm` if none exists). They are NOT given suffixed IDs (`CORE36b` is wrong; `CORE37` is right). The link to the spec is the `implements` frontmatter reference, not the ID itself.
+- A plan-only cycle gets its own ID like any other: the number of the GitHub issue that tracks that cycle's work (open one in `benocodes/crm` if none exists). They are NOT given suffixed IDs (`CORE36b` is wrong; `CORE37` is right). The link to the spec is the `implements` frontmatter reference, not the ID itself.
 - Plan-only cycle slugs should describe their *cycle's* scope, not the spec (e.g. `observability-bridge` for the second cycle of `[[CORE36]]`).
 - Place plan-only cycles at a seq that puts them next to (often sharing) their predecessor's seq prefix.
 - The spec's `**Implementation cycles:**` block (see §2) lists every cycle folder that implements it, in implementation order. Add an entry when a new plan-only cycle is created.

@@ -1,11 +1,11 @@
 ---
 name: board
-description: The delivery board for orivibes/crm (GitHub project 2) - its project, field and option IDs, and the commands to read the queue, add an issue, and set Status, Priority, Size or Spec. Use whenever a skill or task reads or changes the board; triage-issues, work-on-ready-issues and fix-bugs all depend on it.
+description: The delivery board for benocodes/crm (GitHub project 2) - its project, field and option IDs, and the commands to read the queue, add an issue, and set Status, Priority, Size or Spec. Use whenever a skill or task reads or changes the board; triage-issues, work-on-ready-issues and fix-bugs all depend on it.
 ---
 
 # Project board
 
-The delivery board for `orivibes/crm`: **https://github.com/users/orivibes/projects/2** (owner `orivibes`,
+The delivery board for `benocodes/crm`: **https://github.com/users/benocodes/projects/2** (owner `benocodes`,
 a user project, number **2**). Skills read and write it with `gh project …` and GraphQL. Keep this file
 current; `wiki-lint` check 9 compares it with the live board. Other skills link here instead of
 copying IDs or queries.
@@ -48,7 +48,7 @@ gh api graphql -f query='
 ## Add an issue
 
 ```bash
-scripts/gh-zooidbot project item-add 2 --owner orivibes --url https://github.com/orivibes/crm/issues/<N>
+scripts/gh-zooidbot project item-add 2 --owner benocodes --url https://github.com/benocodes/crm/issues/<N>
 ```
 
 ## Set a field (Status, Priority, Size, Spec)
@@ -64,7 +64,7 @@ For the `Spec` text field use `value:{text:$t}` and `-f t='[[CORE12]]'` (declare
 ## Re-derive the IDs
 
 ```bash
-gh project field-list 2 --owner orivibes --format json
+gh project field-list 2 --owner benocodes --format json
 ```
 
 If a field or option was renamed or recreated, update the block above in the same change.

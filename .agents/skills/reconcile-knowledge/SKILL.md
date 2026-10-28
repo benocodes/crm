@@ -1,6 +1,6 @@
 ---
 name: reconcile-knowledge
-description: Drain the knowledge-reconciliation queue — merged PRs that closed a GitHub issue without a spec cycle. For each, decide whether a shipped spec went stale, whether the issue left a design gap worth a discussions/ note, and whether project-state.md's capability summary is now wrong; then open a PR against orivibes/crm-knowledge. Use when the user says /reconcile-knowledge, "reconcile the knowledge", "did any specs go stale", or after a batch of issue PRs merge.
+description: Drain the knowledge-reconciliation queue — merged PRs that closed a GitHub issue without a spec cycle. For each, decide whether a shipped spec went stale, whether the issue left a design gap worth a discussions/ note, and whether project-state.md's capability summary is now wrong; then open a PR against benocodes/crm-knowledge. Use when the user says /reconcile-knowledge, "reconcile the knowledge", "did any specs go stale", or after a batch of issue PRs merge.
 ---
 
 # Reconcile Knowledge
@@ -22,9 +22,9 @@ the writing.
 
 ## The queue
 
-`orivibes/crm-knowledge` runs `.github/workflows/knowledge-reconciliation.yml` daily. It polls
-`orivibes/crm` for merged PRs whose `closingIssuesReferences` is non-empty and opens one issue per merged
-PR in `orivibes/crm-knowledge`, labeled `reconciliation`, carrying the PR link, the closed issue(s), the
+`benocodes/crm-knowledge` runs `.github/workflows/knowledge-reconciliation.yml` daily. It polls
+`benocodes/crm` for merged PRs whose `closingIssuesReferences` is non-empty and opens one issue per merged
+PR in `benocodes/crm-knowledge`, labeled `reconciliation`, carrying the PR link, the closed issue(s), the
 changed files and the PR body's **Knowledge impact** line.
 
 > **Why the workflow lives in the knowledge repo and polls, rather than firing from the code repo on
@@ -37,7 +37,7 @@ changed files and the PR body's **Knowledge impact** line.
 Read the queue:
 
 ```bash
-gh issue list -R orivibes/crm-knowledge --label reconciliation --state open \
+gh issue list -R benocodes/crm-knowledge --label reconciliation --state open \
   --json number,title,body,createdAt
 ```
 
@@ -50,8 +50,8 @@ the same spec lines twice.
    the merged PR, the closed issue(s) and the **Knowledge impact** hint.
 2. **Read what actually shipped**, not what the PR body claimed:
    ```bash
-   gh pr diff <PR> -R orivibes/crm
-   gh pr view <PR> -R orivibes/crm --json title,body,files,mergedAt
+   gh pr diff <PR> -R benocodes/crm
+   gh pr view <PR> -R benocodes/crm --json title,body,files,mergedAt
    ```
    The hint is a lead, not a verdict; its author wrote it before review. Trust the diff.
 3. **Ask the three questions, in order.** **"Nothing to update" is the normal answer to all three.** Say
@@ -81,7 +81,7 @@ the same spec lines twice.
    git -C knowledge checkout -b docs/reconcile-<N>
    # …edits…
    git -C knowledge push -u origin docs/reconcile-<N>
-   gh pr create -R orivibes/crm-knowledge --base main \
+   gh pr create -R benocodes/crm-knowledge --base main \
      --title "docs: reconcile knowledge for crm#<N>" \
      --body "Follows <link to the merged code PR>. …"
    ```
