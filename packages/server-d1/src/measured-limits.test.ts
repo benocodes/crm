@@ -15,10 +15,24 @@ const FREE = { queries: 50, subrequests: 50, statementBytes: 100_000, parameters
 const PAID = { queries: 1_000, subrequests: 10_000 }
 
 /** Scenarios that exceed a Workers Free bound, with the measured value; they are held to the Paid bound instead (P8). */
-const FREE_PLAN_EXCEPTIONS: Record<string, string> = {}
+const FREE_PLAN_EXCEPTIONS: Record<string, string> = {
+  // 1 outbound page of 100 members + 99 profile fetches, and two D1 queries (read, write) per first-seen user: 201 queries, 302 subrequests.
+  'directory-snapshot-100': 'measured 201 D1 queries and 302 subrequests: needs Workers Paid',
+}
 
 /** The exact D1 query count of each scenario, pinned from the first green run: a new round trip is a reviewed change. */
-const EXPECTED_QUERIES: Record<string, number> = {}
+const EXPECTED_QUERIES: Record<string, number> = {
+  'cold-first-request': 4, // marker read, auth read, auth stamp, operation read
+  'key-auth-stamp': 3, // auth read, auth stamp, operation read
+  'key-auth-read': 2, // auth read, operation read
+  'task-patch': 3, // auth read, operation read, operation write
+  'resolve-100-new': 3,
+  'resolve-100-existing': 2,
+  'company-delete-100': 3,
+  'contact-delete-100': 3,
+  'directory-snapshot-5': 11, // 4 first-seen users, two queries each, plus the snapshot's own three
+  'directory-snapshot-100': 201, // 99 first-seen users
+}
 
 let w: WorkerD1
 let kit: ClerkKit

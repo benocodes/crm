@@ -54,7 +54,10 @@ describe.each(SETS)('golden fixtures: %s', (_label, file, scenarios) => {
       const seededCounts = await d1.rowCounts()
       const transcript = await runScenario(d1, scenario)
       if (!differs(scenario.name)) {
-        expect(transcript).toEqual(fixture.scenarios.find((s) => s.name === scenario.name))
+        expect(
+          transcript,
+          'D1 replay differs from the committed golden fixture. Fixtures are regenerated only on the enterprise side: ask a maintainer to run pnpm -C packages/server-postgres golden:generate',
+        ).toEqual(fixture.scenarios.find((s) => s.name === scenario.name))
         return
       }
       // D19: every step is refused 403 organization_forbidden before any SQL: no event and no new row.

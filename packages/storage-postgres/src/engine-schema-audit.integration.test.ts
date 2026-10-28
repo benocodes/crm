@@ -7,9 +7,15 @@ import { ENGINE_DIFFERENCES, NOT_COMPARED, d1Shape, diffShapes, postgresShape, t
 // Spec CORE38 D10: the physical constraints of the two engines are bound to each other, and every difference is
 // named. Only the enterprise side may import both engines (invariant 10), hence this file lives here.
 //
-// Not compared (stated, not hidden):
-//   see NOT_COMPARED in ./test/schema-audit.ts
-void NOT_COMPARED
+// Not compared (stated, not hidden), from NOT_COMPARED in ./test/schema-audit.ts:
+//   - column types: citext vs lower-case ASCII text, uuid vs checked text, timestamptz vs strftime text, boolean vs 0/1,
+//     jsonb vs json_valid text, text[] vs JSON array (bound by the parity tests and COLUMN_KINDS);
+//   - row-level security (Postgres only; packages/db schema-invariants asserts it);
+//   - D1's unnamed representation CHECKs.
+it('states what it does not compare', () => {
+  expect(NOT_COMPARED.length).toBe(3)
+  for (const n of NOT_COMPARED) expect(n.why).not.toBe('')
+})
 
 const owner = createOwnerTestDb()
 let local: LocalD1

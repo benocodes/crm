@@ -15,8 +15,9 @@ describe('open-check pure parts', () => {
     expect(() => classifyPackages([...REPO, 'cli'])).toThrow('unclassified package: cli')
   })
   it('strips enterprise devDependencies', () => {
-    const before = apiManifest()
-    expect(before.devDependencies).toHaveProperty('@vault/db')
+    // In the open-check copy the api manifest is already stripped, so the enterprise entries are added explicitly.
+    const real = apiManifest()
+    const before: PackageJson = { ...real, devDependencies: { ...real.devDependencies, '@vault/db': 'workspace:*', '@vault/storage-postgres': 'workspace:*' } }
     const after = openManifest(before)
     expect(after.devDependencies).not.toHaveProperty('@vault/db')
     expect(after.devDependencies).not.toHaveProperty('@vault/storage-postgres')
