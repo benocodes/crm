@@ -124,8 +124,7 @@ sequential work. One organisation per database; a second organisation cannot be 
 
 One request is one Worker invocation. These numbers come from `src/measured-limits.test.ts`, which drives the real
 composition against a **local Miniflare** D1 (not remote), counting what the invocation sends to D1. A `db.batch()` call
-counts as one query, as Cloudflare documents. CPU time is not measured. The deploy smoke records the first remote
-latency numbers (see Deploy).
+counts as one query, as Cloudflare documents. CPU time is not measured.
 
 | Scenario (one request) | D1 queries | Statements | Outbound fetches | Rows read | Rows written | Longest statement (bytes) | Most bound parameters |
 |---|---|---|---|---|---|---|---|
@@ -171,6 +170,12 @@ adds more than about 15 new members at once, for example on first connection of 
 Paid** for that delivery. Members already provisioned stay written, and later redeliveries of the webhook should finish
 the job (this is not measured). The test pins each scenario's exact query count, so a new round trip is a visible,
 reviewed change.
+
+**Remote latency (one measurement).** The first deploy smoke of `smoked1` ([[OPS4]], 2026-10-28) sent 200 authenticated
+`GET /tasks` requests at concurrency 20 to `https://api.smoked1.vibase.ai` from a developer machine: **p50 158 ms, p95
+326 ms**, zero non-2xx. That is end-to-end time seen by the client (network, TLS, the Worker and its two or three D1
+queries per request), on an empty database; it is one sample, not a guarantee. `smoke:remote --phase after` prints the
+same numbers for your instance.
 
 ## Golden regeneration
 

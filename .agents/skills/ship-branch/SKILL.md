@@ -82,6 +82,10 @@ The D1 Worker (`packages/server-d1`, [[OPS4]]) deploys separately from the main 
 
 After the OPS4 cycle these are hard stops again for agents unless the user extends OPS4 spec D2 (U4).
 
+To watch it: `pnpm -C packages/server-d1 exec wrangler tail --env smoked1 --format pretty`. With `--env`, pass **no**
+Worker name: wrangler appends the env to a given name (`vault-smoked1` becomes `vault-smoked1-smoked1`, error `10007`
+"Worker does not exist"). Rollback is `wrangler rollback --env smoked1`, Worker only; the database is never rolled back.
+
 ## 4. Verify
 
 - **Migration:** query `information_schema.columns` (via the Neon tooling) for the new column or table.
