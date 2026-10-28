@@ -1,0 +1,22 @@
+// The open D1 Worker ([[CORE38]]). Everything here is local-first: `wrangler dev` and `wrangler d1 migrations apply DB --local`
+// run against .wrangler/state. There is deliberately no account_id: a fork that deploys replaces database_id with its own
+// D1 database id (wrangler d1 create) and sets the secrets with `wrangler secret put` (see the CORE47 README).
+{
+  "name": "vault",
+  "main": "src/worker.ts",
+  // No nodejs_compat: the app uses Web Crypto only. Keep this date at or below the workerd that Miniflare and wrangler bundle.
+  "compatibility_date": "2026-07-30",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vault",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../storage-d1/migrations"
+    }
+  ],
+  // Secrets (CLERK_JWT_KEY, CLERK_SECRET_KEY, CLERK_WEBHOOK_SECRET) are never put here: .dev.vars locally, wrangler secret put when deployed.
+  "vars": {
+    "AUTH_PROVIDER": "",
+    "CORS_ALLOWED_ORIGINS": ""
+  }
+}

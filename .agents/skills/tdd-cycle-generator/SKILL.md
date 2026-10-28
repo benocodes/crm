@@ -408,7 +408,9 @@ skill ends; don't start implementing unless asked.
 14. **Every new test file gets its own recorded red run**, not only the migration test (rule 11). Phase 1
     and Phase 2 each name the command that runs the new file alone, and the coder pastes the result (N
     failed, and why) into the completion report's `Red runs` line. A file never seen failing is the same
-    gap as an absence test never seen failing ([[CORE27]] review note (e)).
+    gap as an absence test never seen failing ([[CORE27]] review note (e)). The plan also tells the coder
+    to append each red run to RESULT.md **at the red commit**, not at the end: in [[CORE38]] the coder's
+    report was lost and the red output with it.
 15. **A rule that compares against stored state gets a test for "no stored state".** A guard such as
     [[CORE3]] D20's newer-copy rule ("refuse when the copy changed after the token was issued") is silent
     when there is no row to compare, and that is where it leaked in [[CORE29]]: a member added and removed
