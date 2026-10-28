@@ -67,3 +67,25 @@ describe('nullables', () => {
     expect(codecs.timestamp.readNullable(undefined)).toBeNull()
   })
 })
+
+describe('integer (CORE25 P5)', () => {
+  it('reads a number', () => {
+    expect(codecs.integer.read(42)).toBe(42)
+  })
+  it("reads pg's bigint string as a number", () => {
+    expect(codecs.integer.read('52428800')).toBe(52428800)
+    expect(typeof codecs.integer.read('52428800')).toBe('number')
+  })
+  it.each([1.5, Number.NaN, '12a', true])('refuses %s', (bad) => {
+    expect(() => codecs.integer.read(bad)).toThrow(CodecError)
+  })
+  it('refuses an unsafe value', () => {
+    expect(() => codecs.integer.read('9007199254740993')).toThrow(CodecError)
+    expect(() => codecs.integer.read(2 ** 53)).toThrow(CodecError)
+  })
+  it('readNullable keeps null and undefined', () => {
+    expect(codecs.integer.readNullable(null)).toBeNull()
+    expect(codecs.integer.readNullable(undefined)).toBeNull()
+    expect(codecs.integer.readNullable('7')).toBe(7)
+  })
+})

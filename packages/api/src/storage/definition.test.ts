@@ -4,6 +4,7 @@ import { compileOperation, type Dialect } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { tasks } from '../resources/tasks.js'
 import { definePreparedResource } from './definition.js'
+import { threads } from '../resources/threads.js'
 import { getOperation, listOperation } from './crud.js'
 import { prepareCreate, prepareUpdate } from './prepare.js'
 
@@ -93,5 +94,38 @@ describe('the column projection: only the record columns are selected, so a narr
     }
     // the unrestricted definition does select it
     expect(JSON.stringify(compileOperation(getOperation(tasks, env, id), dialect).reads)).toContain('notes')
+  })
+})
+
+describe('CORE25 load-time checks (embeds, join filters, the files reference)', () => {
+  const idOnly = z.object({ id: z.uuid(), thread_id: z.uuid().nullable() })
+  const interaction = (over: Record<string, unknown> = {}) =>
+    ({ name: 'interactions', eventName: 'interaction', table: 'interactions' as const, record: idOnly, operations: ['list', 'get'], ...over }) as never
+  const jf = { schema: z.uuid(), where: () => undefined as never }
+
+  it('a joinFilters key that is a column of the table is refused', () => {
+    expect(() => definePreparedResource(interaction({ joinFilters: { thread_id: jf } }))).toThrow(/thread_id/)
+    expect(() => definePreparedResource(interaction({ joinFilters: { identity_id: jf } }))).not.toThrow()
+  })
+  it('a joinFilters key that is also in filters is refused', () => {
+    expect(() => definePreparedResource(interaction({ filters: { identity_id: { schema: z.string() } }, joinFilters: { identity_id: jf } }))).toThrow(/identity_id/)
+  })
+  it('an embed on an unknown child table, key or column is refused naming the embed', () => {
+    const embed = (over: Record<string, unknown>) => ({ participants: { table: 'interaction_participants', key: 'interaction_id', columns: ['identity_id', 'role'], orderBy: ['role'], ...over } })
+    const rec = z.object({ id: z.uuid(), participants: z.array(z.unknown()) })
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({}) }))).not.toThrow()
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ table: 'bogus' }) }))).toThrow(/participants/)
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ key: 'bogus' }) }))).toThrow(/participants/)
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ columns: ['bogus'] }) }))).toThrow(/participants/)
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ orderBy: ['bogus'] }) }))).toThrow(/participants/)
+  })
+  it('a live reference to files is refused: files has no deleted_at', () => {
+    const link = (live: boolean) =>
+      ({ name: 'contact_files', eventName: 'contact_file', table: 'contact_files' as const, record: z.object({ id: z.uuid(), file_id: z.uuid() }), references: { file_id: { table: 'files', live } } }) as never
+    expect(() => definePreparedResource(link(true))).toThrow(/deleted_at/)
+    expect(() => definePreparedResource(link(false))).not.toThrow()
+  })
+  it('a read-only resource without deleted_at generates exactly list and get', () => {
+    expect(threads.operations).toEqual(['list', 'get'])
   })
 })

@@ -139,3 +139,31 @@ describe('administration columns (CORE40 C1)', () => {
     expect((COLUMN_KINDS as Record<string, Record<string, string>>).api_keys?.key_hash).toBe('text')
   })
 })
+
+describe('integer columns (CORE25 P5)', () => {
+  it('bind casts an integer to bigint on Postgres', () => {
+    const qc = queryContext('postgres')
+    const c = qc.db.selectNoFrom(bind(qc, 'integer', 7).as('n')).compile()
+    expect(c.sql).toContain('cast($1 as bigint)')
+    expect(c.parameters).toEqual([7])
+  })
+
+  it('bind binds an integer plain on D1', () => {
+    const qc = queryContext('d1')
+    const c = qc.db.selectNoFrom(bind(qc, 'integer', 7).as('n')).compile()
+    expect(c.sql).toBe('select ? as "n"')
+    expect(c.parameters).toEqual([7])
+  })
+
+  it('models the ten messaging tables in COLUMN_KINDS with the integer kind', () => {
+    const kinds = COLUMN_KINDS as Record<string, Record<string, string>>
+    for (const t of ['threads', 'messages', 'interactions', 'files', 'contact_files', 'company_files', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources']) {
+      expect(kinds[t], t).toBeDefined()
+    }
+    expect(kinds.files?.size_bytes).toBe('integer')
+    expect(kinds.messages?.version).toBe('integer')
+    expect(kinds.message_attachments?.position).toBe('integer')
+    expect(kinds.messages?.author).toBe('json')
+    expect(kinds.message_attachments?.inline).toBe('boolean')
+  })
+})

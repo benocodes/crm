@@ -54,7 +54,11 @@ const stringArrayRead = (value: unknown): string[] => {
   return parsed as string[]
 }
 
+// STUB (red phase): the integer codec is implemented in Phase 3.
+const integerStub = { read: (_value: unknown): number => 0, readNullable: (_value: unknown): number | null => null, write: (value: number): number => value }
+
 export const codecs = {
+  integer: integerStub,
   timestamp: {
     read: timestampRead,
     readNullable: nullable(timestampRead),
