@@ -13,6 +13,8 @@ export interface D1WorkerEnv {
   CLERK_WEBHOOK_SECRET?: string
   CLERK_API_URL?: string
   CORS_ALLOWED_ORIGINS?: string
+  /** The deployed commit, set by `deploy:remote` (`--var VERSION:<sha>`); `/health` reports it, `dev` when absent. */
+  VERSION?: string
 }
 
 /** The 503 body of every route but /health and /openapi.json while the deployment marker is absent. */
@@ -30,7 +32,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'CLERK_WEBHOOK_SECRET', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'CLERK_WEBHOOK_SECRET', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -75,7 +77,7 @@ export function composeD1Worker(
   async function health(): Promise<Response> {
     try {
       await env.DB.prepare('SELECT 1').first()
-      return json({ status: 'ok', initialised: (await ensure()) !== undefined }, 200)
+      return json({ status: 'ok', initialised: (await ensure()) !== undefined, version: vars.VERSION || 'dev' }, 200)
     } catch {
       return json({ status: 'unavailable' }, 503)
     }

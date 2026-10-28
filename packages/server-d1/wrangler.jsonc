@@ -1,6 +1,8 @@
-// The open D1 Worker ([[CORE38]]). Everything here is local-first: `wrangler dev` and `wrangler d1 migrations apply DB --local`
-// run against .wrangler/state. There is deliberately no account_id: a fork that deploys replaces database_id with its own
-// D1 database id (wrangler d1 create) and sets the secrets with `wrangler secret put` (see the CORE47 README).
+// The open D1 Worker ([[CORE38]], [[OPS4]]). The top level is local-only: `wrangler dev` and `wrangler d1 migrations apply DB --local`
+// run against .wrangler/state, and its database_id is a placeholder that every remote script refuses. A deployed instance is a
+// named env below, reached only through `deploy:remote` / `db:migrate:remote` / `bootstrap --remote` (CONFIRM_REMOTE=1).
+// There is deliberately no account_id: it comes from CLOUDFLARE_ACCOUNT_ID. A fork replaces the env's names, database_id and
+// hostname with its own (see the README's Deploy section). Secrets are never put here: .dev.vars locally, wrangler secret put when deployed.
 {
   "name": "vault",
   "main": "src/worker.ts",
@@ -18,5 +20,27 @@
   "vars": {
     "AUTH_PROVIDER": "",
     "CORS_ALLOWED_ORIGINS": ""
+  },
+  // vars, d1_databases, r2_buckets and routes are not inherited by an env, so each env repeats what it needs.
+  "env": {
+    "smoked1": {
+      "name": "vault-smoked1",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "api.smoked1.vibase.ai", "custom_domain": true }],
+      "observability": { "enabled": true },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "vault-smoked1",
+          // Placeholder until the database is created (OPS4 Step 3.9); the remote scripts refuse it.
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "../storage-d1/migrations",
+          "remote": true
+        }
+      ],
+      "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-smoked1-bodies" }],
+      "vars": { "AUTH_PROVIDER": "", "CORS_ALLOWED_ORIGINS": "" }
+    }
   }
 }

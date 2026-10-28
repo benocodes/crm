@@ -72,6 +72,16 @@ List only the steps the diff actually needs.
 4. **Starter template or Chrome extension pane**, if those packages changed: their own deploy scripts, after the
    API Worker.
 
+### The D1 instance (`smoked1`)
+
+The D1 Worker (`packages/server-d1`, [[OPS4]]) deploys separately from the main instance's steps above:
+
+1. Only when `packages/storage-d1/migrations/` changed: `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env smoked1`.
+2. `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env smoked1` (clean tree; runs typecheck and the suite).
+3. `curl https://api.smoked1.vibase.ai/health` shows the deployed sha in `version`.
+
+After the OPS4 cycle these are hard stops again for agents unless the user extends OPS4 spec D2 (U4).
+
 ## 4. Verify
 
 - **Migration:** query `information_schema.columns` (via the Neon tooling) for the new column or table.
