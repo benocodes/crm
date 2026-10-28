@@ -15,7 +15,6 @@
     "@vault/api": "workspace:*",
     "@vault/storage": "workspace:*",
     "@vault/storage-d1": "workspace:*",
-    "hono": "4.13.12",
     "kysely": "0.29.6"
   },
   "devDependencies": {

@@ -94,9 +94,6 @@ importers:
       '@vault/storage-d1':
         specifier: workspace:*
         version: link:../storage-d1
-      hono:
-        specifier: 4.13.12
-        version: 4.13.12
       kysely:
         specifier: 0.29.6
         version: 0.29.6
