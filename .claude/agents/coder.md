@@ -19,6 +19,11 @@ area skills the PLAN cites. The PLAN is your instruction set; follow it in order
   scenario (step 4.4) is not yours; the e2e-tester runs it afterwards.
 - Commit on the cycle branch with Conventional Commits, staging explicit paths (never `git add -A`),
   and push. Don't open a PR, don't merge, don't run `/retrospect`; those belong to other stages.
+- Write `RESULT.md` in the cycle folder with the Write tool (not a heredoc) before you report. It holds the
+  deviations from the PLAN, the decisions worth a Ledger line, and the evidence: the red run's output at the
+  red commit, and the **raw, unsummarised output** of every absence mutation (the command, the test that
+  went red, the failure message), plus the gate's counts. A summary is not evidence; if the output is long,
+  filter it to the failing test names and messages, and say what you filtered.
 - When applying review findings, change only what the findings ask for, rerun the suite, commit, push.
 - If you are running low on context, run `/handoff` in the cycle folder and report `handed off`.
 
