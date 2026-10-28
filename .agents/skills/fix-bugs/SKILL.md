@@ -1,6 +1,6 @@
 ---
 name: fix-bugs
-description: Fix the Ready bugs on the orivibes/crm project board. Reads issues labeled `bug` that are Status Ready, ranks them by Priority then Size, then claims, reproduces, fixes, and opens a PR for the top item (or one the user names), flagging any spec the fix may have made stale. Use when the user says /fix-bugs, "fix the next bug", "work the bug queue", or "what bugs are ready".
+description: Fix the Ready bugs on the benocodes/crm project board. Reads issues labeled `bug` that are Status Ready, ranks them by Priority then Size, then claims, reproduces, fixes, and opens a PR for the top item (or one the user names), flagging any spec the fix may have made stale. Use when the user says /fix-bugs, "fix the next bug", "work the bug queue", or "what bugs are ready".
 ---
 
 # Fix Bugs
@@ -10,7 +10,7 @@ The bug-fixing half of delivery: same board, same repo, same claim → branch �
 everything else. Intake and triage (label the type, demand repro steps, gate Ready) happen upstream in
 [[triage-issues]].
 
-One code repo, **`orivibes/crm`**. Board IDs and queries: the [`board`](../board/SKILL.md) skill. The
+One code repo, **`benocodes/crm`**. Board IDs and queries: the [`board`](../board/SKILL.md) skill. The
 board fields (Status, Priority, Size, Spec) mean the same as in [[work-on-ready-issues]]; **Spec** is
 usually blank for bugs.
 
@@ -25,7 +25,7 @@ repro. What I rely on triage to have set:
 1. **Read the queue** (query in the `board` skill). Keep `Status == Ready`, no assignee, labeled `bug`. Sort by
    Priority then Size. Present `#N title · Priority/Size`.
 2. **Pick.** Default to the top item, or the one the user named. Announce it.
-3. **Read context.** `gh issue view <N> -R orivibes/crm --comments`. Extract steps, expected behavior,
+3. **Read context.** `gh issue view <N> -R benocodes/crm --comments`. Extract steps, expected behavior,
    environment and logs. **If there is no usable repro, stop**: comment asking for it (wording in
    [[triage-issues]]) and report back rather than guess at the cause.
 4. **Reproduce first.** Before touching code, trigger the bug locally (a failing request, a failing
@@ -42,7 +42,7 @@ repro. What I rely on triage to have set:
    **Knowledge impact:** <spec IDs this may have made stale, design gaps it left standing, or "none">
    ```
 9. **Ship.** Commit, `git push -u origin fix/<N>-<slug>`, then
-   `gh pr create -R orivibes/crm --base main --title "fix: …" --body "Closes orivibes/crm#<N>
+   `gh pr create -R benocodes/crm --base main --title "fix: …" --body "Closes benocodes/crm#<N>
 
    <repro summary>
 

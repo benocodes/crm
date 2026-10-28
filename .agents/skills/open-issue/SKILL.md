@@ -1,11 +1,11 @@
 ---
 name: open-issue
-description: Open a GitHub issue in orivibes/crm as zooidbot. Use when the user asks to create, file, or open an issue; leave classification and project-board work to triage-issues (board IDs and commands: the board skill).
+description: Open a GitHub issue in benocodes/crm as zooidbot. Use when the user asks to create, file, or open an issue; leave classification and project-board work to triage-issues (board IDs and commands: the board skill).
 ---
 
 # Open Issue
 
-Turn the user's report or request into a concise GitHub issue in **`orivibes/crm`** and open it as
+Turn the user's report or request into a concise GitHub issue in **`benocodes/crm`** and open it as
 zooidbot. Preserve the user's scope; include context or acceptance criteria only when they are already
 clear from the conversation.
 
@@ -14,10 +14,10 @@ Use [`scripts/gh-zooidbot`](../../../scripts/gh-zooidbot) (repo root) for the wr
 pass it as a command argument.
 
 ```bash
-scripts/gh-zooidbot issue create -R orivibes/crm --title "…" --body "…"
+scripts/gh-zooidbot issue create -R benocodes/crm --title "…" --body "…"
 ```
 
-There is one code repo, so the target is always `orivibes/crm`. Return the issue URL.
+There is one code repo, so the target is always `benocodes/crm`. Return the issue URL.
 
 The issue number is load-bearing: if triage later decides the issue warrants a spec, its number becomes
 the spec ID (area code + issue number, see `spec-author` §1). That is why everything that might be

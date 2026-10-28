@@ -57,7 +57,7 @@ choice and reason in the plan's header):
 ### Step 3: Resolve the new cycle's identity (follow-on cycles only)
 
 - **New ID.** The GitHub issue number tracking this cycle, prefixed with the spec's area code (`CORE57`).
-  Open an issue in `orivibes/crm` first if none exists (`open-issue`, with `--label self-triaged`).
+  Open an issue in `benocodes/crm` first if none exists (`open-issue`, with `--label self-triaged`).
   **Never** suffix the spec's ID (`CORE36b` is wrong).
 - **Seq prefix.** The same as the spec-introducing cycle if shipping in the same window; otherwise the
   seq that places it next to its predecessor in build order.

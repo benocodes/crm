@@ -35,13 +35,13 @@ deviations, decisions and blockers, likely written by a different agent.
 ### Step 2: Gather evidence
 
 1. **Git history.** `git log --oneline` scoped to the files the cycle touched, in the worktree or on the
-   merged branch. Code is in `orivibes/crm`; the plan and spec are in the nested `knowledge/` repo, so
+   merged branch. Code is in `benocodes/crm`; the plan and spec are in the nested `knowledge/` repo, so
    run `git -C knowledge ...` for those.
 2. **Files changed.** `git diff` / `git status`; for uncommitted work `git status --short` and `git diff`.
 3. **Conversation context.** What happened in this session: test results, errors hit, deviations,
    anything found after deploy.
 4. **Test results.** Final counts and tests added beyond the plan.
-5. **The PR trail.** When agents built the cycle, read the PR: `gh pr view <N> -R orivibes/crm --comments`
+5. **The PR trail.** When agents built the cycle, read the PR: `gh pr view <N> -R benocodes/crm --comments`
    for the body (the implementer's **Plan feedback** and **Not verified** lines), review comments and the
    number of review rounds. That trail shows where the plan or the agent setup cost time.
 6. **The HANDOFF**, if read in Step 1. Fold what is still relevant into the sections below; it is a
