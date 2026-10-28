@@ -34,7 +34,7 @@ In another terminal, with `KEY` set to the `vk_...` key step 2 printed:
 
 ```bash
 curl http://localhost:8787/health
-# {"status":"ok","initialised":true}
+# {"status":"ok","initialised":true,"version":"dev"}
 
 curl -H "authorization: Bearer $KEY" http://localhost:8787/tasks
 # {"data":[], ...}
@@ -51,13 +51,55 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
 | `DB` | D1 binding | the database; `migrations_dir` points at `packages/storage-d1/migrations` |
 | `AUTH_PROVIDER` | var | empty: agent-only (API keys). `clerk`: also accept Clerk session tokens and webhooks |
 | `CORS_ALLOWED_ORIGINS` | var | comma-separated origins for the email-client pane; empty allows none |
-| `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES`, `CLERK_JWT_KEY` | secrets | required with `AUTH_PROVIDER=clerk` |
-| `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET` | secrets | required with `AUTH_PROVIDER=clerk` |
+| `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES` | vars | public values, required with `AUTH_PROVIDER=clerk` |
+| `CLERK_JWT_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET` | secrets | required with `AUTH_PROVIDER=clerk` |
 | `CLERK_API_URL` | var | optional |
+| `VERSION` | var | the deployed git sha, set by `deploy:remote`; `/health` reports it (`dev` when absent) |
+| `BODIES` | R2 binding | the raw-body bucket (`ObjectStore`); bound now, read from the channel cycles on |
 
 Locally, put the secrets in `.dev.vars` (copy `.dev.vars.example`; gitignored). `wrangler.jsonc` has a placeholder
 `database_id` and no `account_id` on purpose. A bad auth or CORS configuration fails closed: every non-health request is
 `500 internal`, with one log line that names the variable and never its value.
+
+## Deploy
+
+A deployed instance is a named `env` in `wrangler.jsonc`; the top level is local-only and a bare `wrangler deploy` has no
+usable database. The worked example is `smoked1` (Worker `vault-smoked1`, D1 `vault-smoked1`, R2 `vault-smoked1-bodies`,
+`https://api.smoked1.vibase.ai`, API keys only). **A self-hoster** copies the `env.smoked1` block under their own name and
+replaces the env name, Worker `name`, D1 name and `database_id`, bucket name and hostname with their own.
+
+**The API token** (in the gitignored root `.env` as `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID`; see `.env.example`).
+Account level: Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Workers Tail Read, Account Settings Read. On the
+zone: Zone Read and Workers Routes Edit. No DNS or certificate permission: Cloudflare creates the Custom Domain's DNS
+record and certificate itself. There is no `account_id` in the config on purpose.
+
+**Every remote command refuses to run without `CONFIRM_REMOTE=1`** and prints its target (database name and id) before it
+does anything. They refuse the placeholder `database_id` and any env whose D1 binding is not `remote: true`.
+
+```bash
+# First provisioning (once per instance; the ids are not secrets, commit the database id into env.<name>)
+pnpm -C packages/server-d1 exec wrangler d1 create vault-smoked1
+pnpm -C packages/server-d1 exec wrangler r2 bucket create vault-smoked1-bodies
+
+# Shipping order: migrate (only when packages/storage-d1/migrations changed), then deploy, then look
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env smoked1
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env smoked1   # clean tree; typecheck and tests first; --var VERSION:<sha>
+curl https://api.smoked1.vibase.ai/health                                    # shows the deployed sha
+
+# The first organisation, owner and agent. The key is written to the root .env as the variable named by --key-env
+# and is never printed; a re-run is refused while that variable is set.
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env smoked1 --org smoked1 --email "$ADMIN_EMAIL" \
+  --agent operator --auth-provider none --auth-org-id smoked1 --key-env VAULT_SMOKED1_OPERATOR_KEY
+
+# Smoke
+pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai --phase before --expect-version <sha>
+pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai --phase after --expect-version <sha>
+```
+
+Before the first remote bootstrap writes anything, the CLI proves on the live database that a failed `batch()` leaves no
+marker (`atomicity probe: atomic`); if it does not, it stops. Migrations are expand-only with respect to the running
+Worker, because they run first. **Rollback** is `pnpm -C packages/server-d1 exec wrangler rollback --env <name>` of the
+Worker only; the database is never rolled back (D1 Time Travel is a recovery action for a person).
 
 ## The small-deployment profile
 
@@ -82,8 +124,7 @@ sequential work. One organisation per database; a second organisation cannot be 
 
 One request is one Worker invocation. These numbers come from `src/measured-limits.test.ts`, which drives the real
 composition against a **local Miniflare** D1 (not remote), counting what the invocation sends to D1. A `db.batch()` call
-counts as one query, as Cloudflare documents. CPU time is not measured. Remote numbers belong to the deploy cycle
-(OPS4).
+counts as one query, as Cloudflare documents. CPU time is not measured.
 
 | Scenario (one request) | D1 queries | Statements | Outbound fetches | Rows read | Rows written | Longest statement (bytes) | Most bound parameters |
 |---|---|---|---|---|---|---|---|
@@ -130,6 +171,12 @@ Paid** for that delivery. Members already provisioned stay written, and later re
 the job (this is not measured). The test pins each scenario's exact query count, so a new round trip is a visible,
 reviewed change.
 
+**Remote latency (one measurement).** The first deploy smoke of `smoked1` ([[OPS4]], 2026-10-28) sent 200 authenticated
+`GET /tasks` requests at concurrency 20 to `https://api.smoked1.vibase.ai` from a developer machine: **p50 158 ms, p95
+326 ms**, zero non-2xx. That is end-to-end time seen by the client (network, TLS, the Worker and its two or three D1
+queries per request), on an empty database; it is one sample, not a guarantee. `smoke:remote --phase after` prints the
+same numbers for your instance.
+
 ## Golden regeneration
 
 The golden transcripts are generated on the Postgres side and replayed on D1. A failing D1 replay is never fixed by
@@ -151,4 +198,4 @@ It prints `not covered: packages/api's test suites (the Postgres-backed oracle, 
 
 ## Not here yet
 
-Remote D1, deploy, and CI are the deploy cycle's (OPS4). There is no SLA and no claim about a remote deployment.
+CI ([[OPS4]] D19) and remote measurements beyond the deploy smoke's. There is no SLA and no claim about a remote deployment.

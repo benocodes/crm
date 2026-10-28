@@ -447,3 +447,11 @@ skill ends; don't start implementing unless asked.
     exists. Plan them as **absence mutations**: name the fault to inject and the test that must turn red,
     and require the raw output in RESULT.md, instead of a red-first run that would only show a
     missing-module error ([[CORE35]]).
+19. **A step that creates a remote resource names who runs it, and assumes the agent cannot.** Claude
+    Code's permission classifier denies an agent's creation of external resources (`wrangler d1 create`,
+    `r2 bucket create`, a first deploy that attaches a Custom Domain) even when the spec's decision
+    authorizes it, because an agent's or a spec's word is not the user's consent. Write such a step as
+    either **the user runs it** (the exact commands, in an owed-by-user item before the step) or **the agent
+    runs it once the user has added scoped allow rules** for those exact command forms to their own
+    gitignored `.claude/settings.local.json` (also an owed-by-user item). Never plan a workaround through
+    another tool or API. Read-only probes (lists, `GET`s) are not affected ([[OPS4]]).

@@ -1,6 +1,6 @@
 import { sql, type SqlBool } from 'kysely'
 import { assertStep, defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vault/storage'
-import type { D1Like } from '@vault/storage-d1'
+import type { D1Like, D1PreparedLike } from '@vault/storage-d1'
 
 /** The deployment marker ([[CORE35]] D18, D1 migration 0001): the one organisation this database serves and its auth link. */
 export type DeploymentLink = { organizationId: string; authProvider: string; authOrgId: string }
@@ -48,4 +48,11 @@ export function initDeploymentOperation(link: DeploymentLink): PreparedOperation
       return unit({ steps: [step(insert, 'first-mutation'), assertStep(qc, holds)], events: [], decode: () => 'created' as const })
     },
   })
+}
+
+/** The marker insert as a raw prepared statement (the SQL `initDeploymentOperation` compiles), for the atomicity probe. */
+export function markerInsert(d1: D1Like, link: DeploymentLink): D1PreparedLike {
+  return d1
+    .prepare('insert into deployment (singleton, organization_id, auth_provider, auth_org_id) values (1, ?, ?, ?) on conflict do nothing')
+    .bind(link.organizationId, link.authProvider, link.authOrgId)
 }

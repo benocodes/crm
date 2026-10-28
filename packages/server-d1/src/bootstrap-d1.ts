@@ -1,7 +1,7 @@
 import { bootstrap } from '@vault/api'
 import { execute, uuidv7 } from '@vault/storage'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
-import { initDeploymentOperation, readDeployment, type DeploymentLink } from './init-deployment.js'
+import { initDeploymentOperation, markerInsert, readDeployment, type DeploymentLink } from './init-deployment.js'
 
 export interface BootstrapD1Options {
   organizationName: string
@@ -67,4 +67,21 @@ export async function bootstrapD1(
     { now, newId, randomBytes: env.randomBytes },
   )
   return { organizationId: r.organizationId, userId: r.userId, agentId: r.agentId, apiKeyId: r.apiKeyId, key: r.key, deployment }
+}
+
+/**
+ * Proves, on the live database, that `D1Like.batch` is one transaction before a remote bootstrap trusts it ([[OPS4]] C8): a
+ * batch of the marker insert plus a statement that cannot succeed must reject and leave no marker. `'skipped'` when a marker
+ * already exists (the resumable path). A leaked probe row holds exactly the link bootstrap would write, so a resumed
+ * bootstrap adopts it. Not a resource write: no event (the marker is machinery).
+ */
+export async function probeBatchAtomicity(d1: D1Like, link: DeploymentLink): Promise<'atomic' | 'not-atomic' | 'skipped'> {
+  if (await readDeployment(d1)) return 'skipped'
+  try {
+    await d1.batch([markerInsert(d1, link), d1.prepare('select * from __vault_atomicity_probe')])
+    return 'not-atomic'
+  } catch {
+    // expected: the second statement has no such table
+  }
+  return (await readDeployment(d1)) ? 'not-atomic' : 'atomic'
 }

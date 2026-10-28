@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "bootstrap": "tsx scripts/bootstrap.ts",
     "smoke:worker": "tsx scripts/smoke-worker.ts",
-    "open:check": "tsx scripts/open-check.ts"
+    "open:check": "tsx scripts/open-check.ts",
+    "deploy:remote": "tsx scripts/deploy.ts",
+    "db:migrate:remote": "tsx scripts/migrate-remote.ts",
+    "smoke:remote": "tsx scripts/smoke-remote.ts"
   },
   "dependencies": {
     "@vault/api": "workspace:*",
