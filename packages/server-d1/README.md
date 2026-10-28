@@ -112,13 +112,22 @@ Against Cloudflare's documented limits (fetched 2026-10-28):
 | CPU time per invocation | 10 ms / 30 s default (5 min max) | same (not measured locally) |
 | Memory | 128 MB | same |
 
-Every scenario is within the Workers Free bounds **except the 100-member directory snapshot** (201 D1 queries and,
-with its 101 outbound Clerk fetches, 302 subrequests). The cost of a directory delivery grows with the number of
-**first-seen members** k: 2k+3 D1 queries and 3k+5 subrequests (the members page, the organisation fetch, one profile
-fetch per new member, plus the D1 queries). On Workers Free (50) **one delivery with more than about 15 new members
-exceeds the limit**; a directory that large needs **Workers Paid**. Members already provisioned stay written, and later
-redeliveries of the webhook should finish the job (this is not measured). A snapshot of 5 members (11 queries, 17 with
-fetches) is well inside Free. The test pins each scenario's exact query count, so a new round trip is a visible,
+**The Workers Free limit that matters is 50 per invocation, twice over.** One request (or one webhook delivery) may make at
+most 50 D1 queries, and at most 50 subrequests in total, where every D1 query *and* every outbound `fetch` counts as a
+subrequest. Workers Paid raises these to 1,000 queries and 10,000 subrequests.
+
+This deployment profile is a small organisation of about 5 to 10 members. Every scenario above is within the Workers Free
+bounds at that size, **except the 100-member directory snapshot** (201 D1 queries and, with its 101 outbound Clerk
+fetches, 302 subrequests). That one is held to the Paid bound in the test and is not a supported Free-plan size.
+
+The cost of a directory delivery (a Clerk webhook, after which the vault fetches the organisation's whole member list)
+grows with the number of **first-seen members** k: 2k+3 D1 queries and 3k+5 subrequests (the members page, the
+organisation fetch, one profile fetch per new member, plus the D1 queries). The subrequest total is the binding one:
+3k+5 stays at or under 50 up to **k = 15 new members in one delivery**, so organisations of 5 to 10 members have room
+(a 5-member snapshot is 11 queries, 17 with fetches; a 10-member one is about 35 subrequests). An organisation that
+adds more than about 15 new members at once, for example on first connection of a larger directory, needs **Workers
+Paid** for that delivery. Members already provisioned stay written, and later redeliveries of the webhook should finish
+the job (this is not measured). The test pins each scenario's exact query count, so a new round trip is a visible,
 reviewed change.
 
 ## Golden regeneration
