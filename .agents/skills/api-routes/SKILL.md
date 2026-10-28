@@ -62,6 +62,19 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - The bundle needs **no `nodejs_compat`** (Web Crypto only). Keep Node built-ins out of `@vault/api` production
     code; the smoke is the check.
   - Test D1s come from `src/test/kit.ts` (a fresh in-memory D1 per test), so no clearing helper is needed.
+  - **Per-request D1 budget** ([[CORE47]]). Workers Free allows 50 D1 queries per invocation (a `batch()` is one)
+    and 50 subrequests, D1 queries and outbound fetches together. A prepared unit costs one read batch plus one
+    write batch, so most requests send 2–4 queries. `src/measured-limits.test.ts` meters each scenario through
+    `meterD1` (kit) and pins its exact query count in `EXPECTED_QUERIES`: a new round trip turns it red, and you
+    re-pin it in the same change. A loop of units grows with its input. The directory snapshot runs one unit per
+    first-seen member, 2k+3 queries and 3k+5 subrequests, so more than about 15 new members exceeds Free
+    (follow-up #51). Prefer one set unit over a unit per row, and add a scenario when an operation's
+    cost grows with its input.
+  - `pnpm -C packages/server-d1 open:check` copies the open packages into a temp workspace and installs,
+    typechecks production code, tests and smoke-runs them there. A new directory under `packages/` must be
+    classified in `scripts/open-check.ts` (`OPEN_PACKAGES`/`ENTERPRISE_PACKAGES`), or the check fails.
+  - `README.md` is the self-hoster's document (quickstart, profile, measured limits, golden rule). Update it
+    when a refusal, the cap or a measured number changes.
 - **Human auth** ([[CORE3]] cycle 1):
   - `src/auth/adapter.ts` (`AuthAdapter`, `createAuthAdapter(env)`, `parseOriginList`), `src/auth/clerk.ts`;
   - `src/auth/first-sight.ts` (`lookupUserOperation`, `firstSightOperation`, `firstSightRecheckOperation`, and the
