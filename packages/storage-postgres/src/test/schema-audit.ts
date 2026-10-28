@@ -19,3 +19,5 @@ export function diffShapes(_pg: SchemaShape, _d1: SchemaShape): EngineDifference
 export async function postgresShape(_owner: Kysely<any>, _tables: readonly string[]): Promise<SchemaShape> { return nope() }
 export async function d1Shape(_d1: D1Like, _tables: readonly string[]): Promise<SchemaShape> { return nope() }
 export const ENGINE_DIFFERENCES: readonly EngineDifference[] = []
+
+export const NOT_COMPARED: readonly { what: string; why: string }[] = []
