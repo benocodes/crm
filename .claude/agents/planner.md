@@ -33,7 +33,7 @@ Fetch current docs for any third-party API before writing steps that call it. Co
 ## Mode: review
 
 Review the cycle's branch (`git diff main...<branch>` in the worktree) against its PLAN and spec, with
-the e2e-tester's report. You are the last check before an unattended merge, so be strict about:
+the coder's gate output and the e2e-tester's report (if the PLAN has a scenario). You are the last check before an unattended merge, so be strict about:
 
 - correctness and the PLAN's Contracts (exact shapes, error codes, names);
 - AGENTS.md's invariants (tenancy, the test harness not masking RLS, `ON CONFLICT`, agents never send,

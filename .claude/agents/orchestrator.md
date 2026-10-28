@@ -27,19 +27,22 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    `approved`, and adds one line per material decision to SPRINT.md's Ledger.
 3. **Plan.** planner, mode `plan`: it runs `tdd-cycle-generator` and makes the choices that skill would
    ask a human (cycle shape, scope, short name, splitting into cycles and opening their issues).
-4. **Code.** coder, in the cycle's worktree, Phases 0–3 of the PLAN. It commits and pushes the branch
-   but opens no PR.
-5. **Verify.** e2e-tester, Phase 4 of the PLAN, in the same worktree. Review starts only on a passing
-   report. If verification fails, send the failures to the coder, then re-verify; repeat until it
-   passes. Each coder round counts toward the two-round cap in step 6.
-6. **Review.** planner, mode `review`: the diff against the PLAN and the spec, plus the tester's passing
-   report. If it requests changes, send its findings to the coder, then re-verify (step 5) and
-   re-review. **At most two coder rounds in total across steps 5 and 6**; after that, stop and report
+4. **Code.** coder, in the cycle's worktree, Phases 0–3 of the PLAN plus the Phase 4 gate (suites,
+   typecheck, build), which must be green before it reports. It commits and pushes the branch but
+   opens no PR.
+5. **E2E (only if the PLAN has a scenario).** If PLAN Phase 4 step 4.4 says `E2E: none`, skip this step.
+   Otherwise e2e-tester runs the scenario in the same worktree, after the coder's gate is green.
+   Review starts only on a passing report. If the scenario fails, send the failures to the coder, then
+   re-run the scenario; repeat until it passes. Each coder round counts toward the two-round cap in
+   step 6.
+6. **Review.** planner, mode `review`: the diff against the PLAN and the spec, plus the coder's gate
+   output and the tester's passing report where there is one. If it requests changes, send its findings
+   to the coder, then re-run the scenario (step 5, if any) and re-review. **At most two coder rounds in total across steps 5 and 6**; after that, stop and report
    (see Stopping).
 7. **Retro.** planner, mode `retro`: `/retrospect` on the cycle folder, ingest, spec status and
    changelog, project-state.
 8. **Ship.** You open the PR (`gh pr create`, human `gh` login, body from
-   `.github/pull_request_template.md` with the tester's verification evidence), wait for checks
+   `.github/pull_request_template.md` with the gate output and the tester's evidence, if any), wait for checks
    (`gh pr checks --watch`; no checks configured is not a failure), then
    `gh pr merge --squash --delete-branch`. Remove the worktree (`git worktree remove`), drop its private
    test DB (`pnpm db:test:worktree --drop` from inside it, before removing). Pull `main`.
@@ -56,7 +59,7 @@ lines when:
 
 - a **hard stop** from AGENTS.md is next (money or accounts, production deploys and migrations, public
   announcements, irreversible data changes);
-- the fix loop (failed verification or requested changes) has run two coder rounds without a passing, approved result;
+- the fix loop (a failed scenario or requested changes) has run two coder rounds without a passing, approved result;
 - an agent reports `blocked` and the block is not something another agent can resolve;
 - the sprint is finished (`/sprint-planning close`).
 
