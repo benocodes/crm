@@ -7,7 +7,8 @@
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import type { D1Like } from '@vault/storage-d1'
-import { bootstrapD1 } from '../src/bootstrap-d1.js'
+import { bootstrapD1, type BootstrapD1Result } from '../src/bootstrap-d1.js'
+import type { ConfigLike } from './remote.js'
 
 const CONFIG_PATH = fileURLToPath(new URL('../wrangler.jsonc', import.meta.url))
 
@@ -15,6 +16,13 @@ const CONFIG_PATH = fileURLToPath(new URL('../wrangler.jsonc', import.meta.url))
 export function proxyOptions(configPath: string = CONFIG_PATH): { configPath: string; persist: boolean; remoteBindings: boolean } {
   return { configPath, persist: true, remoteBindings: false }
 }
+
+export function remoteProxyOptions(_envName: string, _configPath?: string): { configPath: string; environment: string; persist: boolean; remoteBindings: boolean } { throw new Error('not implemented') }
+export function parseBootstrapArgs(_argv: string[]): { mode: 'local' | 'remote'; values: Record<string, string | undefined>; envName?: string; keyEnv?: string } { throw new Error('not implemented') }
+export function appendEnvVar(_text: string, _name: string, _value: string): string { throw new Error('not implemented') }
+export function reportLines(_r: BootstrapD1Result, _mode: 'local' | 'remote', _keyEnv?: string): string[] { throw new Error('not implemented') }
+export interface RemoteGuardDeps { loadEnv: () => void; readEnvText: () => string; readConfig: () => ConfigLike; getPlatformProxy: (o: unknown) => Promise<unknown>; log?: (line: string) => void }
+export async function runRemoteGuards(_parsed: { envName: string; keyEnv: string }, _env: NodeJS.ProcessEnv, _deps: RemoteGuardDeps): Promise<unknown> { throw new Error('not implemented') }
 
 function usage(message: string): never {
   console.error(`bootstrap: ${message}`)

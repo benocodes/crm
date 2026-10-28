@@ -2,10 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { execute, uuidv7 } from '@vault/storage'
 import { d1Binding } from '@vault/storage-d1'
 import { authenticateApiKey, hashApiKey } from '@vault/api'
-import { bootstrapD1 } from './bootstrap-d1.js'
+import { bootstrapD1, probeBatchAtomicity } from './bootstrap-d1.js'
 import { composeD1Worker } from './compose.js'
-import { initDeploymentOperation } from './init-deployment.js'
-import { NOW, clerkKit, openWorkerD1, testId, type WorkerD1 } from './test/kit.js'
+import { initDeploymentOperation, readDeployment } from './init-deployment.js'
+import { NOW, clerkKit, openWorkerD1, spyD1, testId, type WorkerD1 } from './test/kit.js'
 import { mintClerkToken } from '@vault/api/test/clerk'
 
 let w: WorkerD1
@@ -91,5 +91,49 @@ describe('bootstrapD1 (P7)', () => {
     expect(text).not.toContain(r.key)
     expect(text).not.toContain(hash)
     spies.forEach((s) => s.mockRestore())
+  })
+})
+
+describe('probeBatchAtomicity (C8)', () => {
+  const link = () => ({ organizationId: uuidv7(NOW), authProvider: 'none', authOrgId: 'smoked1' })
+  /** The failure mode: a batch that runs statement by statement, so a later failure leaves the earlier ones written. */
+  const perStatement = (real: typeof w.d1): typeof w.d1 => ({
+    prepare: (q: string) => real.prepare(q),
+    batch: async (stmts: Parameters<typeof w.d1.batch>[0]) => {
+      const out = []
+      for (const s of stmts) out.push(await s.run())
+      return out
+    },
+  }) as typeof w.d1
+
+  it('is atomic on Miniflare D1, leaves no marker, and bootstrap then succeeds', async () => {
+    const l = link()
+    expect(await probeBatchAtomicity(w.d1, l)).toBe('atomic')
+    expect(await readDeployment(w.d1)).toBeNull()
+    const r = await bootstrapD1(w.d1, { ...base, authProvider: l.authProvider, authOrgId: l.authOrgId, organizationId: l.organizationId }, env())
+    expect(r.deployment).toBe('created')
+  })
+
+  it('is skipped when a marker exists, and writes nothing', async () => {
+    await bootstrapD1(w.d1, base, env())
+    const spy = spyD1(w.d1)
+    spy.log.clear()
+    expect(await probeBatchAtomicity(spy.d1, link())).toBe('skipped')
+    expect(spy.log.statements.filter((s) => /^\s*insert/i.test(s))).toEqual([])
+  })
+
+  it('detects a non-atomic batch and the leaked marker equals the link', async () => {
+    const l = link()
+    expect(await probeBatchAtomicity(perStatement(w.d1), l)).toBe('not-atomic')
+    expect(await readDeployment(w.d1)).toEqual(l)
+  })
+
+  it('a leaked probe row is adopted by a resumed bootstrap', async () => {
+    const l = link()
+    await probeBatchAtomicity(perStatement(w.d1), l)
+    const r = await bootstrapD1(w.d1, { ...base, authProvider: l.authProvider, authOrgId: l.authOrgId, organizationId: l.organizationId }, env())
+    expect(r.deployment).toBe('existing')
+    expect(r.organizationId).toBe(l.organizationId)
+    expect(await all('organizations')).toHaveLength(1)
   })
 })

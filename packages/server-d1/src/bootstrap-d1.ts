@@ -68,3 +68,7 @@ export async function bootstrapD1(
   )
   return { organizationId: r.organizationId, userId: r.userId, agentId: r.agentId, apiKeyId: r.apiKeyId, key: r.key, deployment }
 }
+
+export async function probeBatchAtomicity(_d1: D1Like, _link: DeploymentLink): Promise<'atomic' | 'not-atomic' | 'skipped'> {
+  throw new Error('not implemented')
+}

@@ -33,7 +33,7 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
   it('GET /health is 200 with initialised false', async () => {
     const res = await get(composeD1Worker(noAuth()), '/health')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ status: 'ok', initialised: false })
+    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'dev' })
   })
 
   it.each([
@@ -85,7 +85,7 @@ describe('after bootstrap', () => {
 
   it('GET /health is 200 with initialised true', async () => {
     await boot()
-    expect(await (await get(composeD1Worker(noAuth()), '/health')).json()).toEqual({ status: 'ok', initialised: true })
+    expect(await (await get(composeD1Worker(noAuth()), '/health')).json()).toEqual({ status: 'ok', initialised: true, version: 'dev' })
   })
 
   it('GET /health is 503 unavailable when D1 cannot answer SELECT 1', async () => {
@@ -159,5 +159,58 @@ describe('a misconfigured auth provider (D12)', () => {
     expect(lines[0]).toContain('CLERK_JWT_KEY')
     expect(calls.join('\n')).not.toContain(SECRET)
     spies.forEach((s) => s.mockRestore())
+  })
+})
+
+describe('GET /health version (C1)', () => {
+  it('reports VERSION', async () => {
+    const res = await get(composeD1Worker(noAuth({ VERSION: 'abc123' })), '/health')
+    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'abc123' })
+  })
+
+  it('an empty VERSION is dev', async () => {
+    const res = await get(composeD1Worker(noAuth({ VERSION: '' })), '/health')
+    expect(((await res.json()) as { version: string }).version).toBe('dev')
+  })
+
+  it('the 503 carries no version', async () => {
+    const spy = spyD1(w.d1, { failSelectOne: () => true })
+    const res = await get(composeD1Worker({ DB: spy.d1, AUTH_PROVIDER: '', VERSION: 'abc' }), '/health')
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ status: 'unavailable' })
+  })
+})
+
+describe('the none:smoked1 marker (OPS4 D18)', () => {
+  const smoked = () => boot({ authProvider: 'none', authOrgId: 'smoked1', organizationName: 'smoked1', agentName: 'operator' })
+
+  it('serves agents by key and nobody by JWT; the owner has no login', async () => {
+    const r = await smoked()
+    const worker = composeD1Worker(noAuth())
+    const list = await get(worker, '/tasks', bearer(r.key))
+    expect(list.status).toBe(200)
+    expect(await list.json()).toEqual({ data: [], next_cursor: null })
+    expect((await get(worker, '/tasks', bearer('a.b.c'))).status).toBe(401)
+    expect((await get(worker, '/tasks')).status).toBe(401)
+    const created = await worker.fetch(new Request(BASE + '/tasks', { method: 'POST', headers: { ...bearer(r.key), 'content-type': 'application/json' }, body: JSON.stringify({ title: 't' }) }))
+    expect(created.status).toBe(201)
+    const { id } = (await created.json()) as { id: string }
+    const del = await worker.fetch(new Request(BASE + `/tasks/${id}`, { method: 'DELETE', headers: bearer(r.key) }))
+    expect(del.status).toBe(204)
+    const [marker] = (await w.d1.prepare('select auth_provider, auth_org_id from deployment').all()).results as Array<Record<string, unknown>>
+    expect(marker).toEqual({ auth_provider: 'none', auth_org_id: 'smoked1' })
+    const [user] = (await w.d1.prepare('select auth_provider, auth_subject from users').all()).results as Array<Record<string, unknown>>
+    expect(user).toEqual({ auth_provider: null, auth_subject: null })
+  })
+
+  it('a Clerk JWT claiming org smoked1 is not served, and nothing is written', async () => {
+    await smoked()
+    const before = (await w.d1.prepare('select count(*) c from users').first()) as { c: number }
+    const worker = composeD1Worker(withClerk(), { fetch: kit.fetch })
+    const token = await mintClerkToken(kit.issuer, { sub: 'user_x', extra: orgClaim('smoked1') })
+    const res = await get(worker, '/me', bearer(token))
+    expect(res.status).toBe(403)
+    const after = (await w.d1.prepare('select count(*) c from users').first()) as { c: number }
+    expect(after.c).toBe(before.c)
   })
 })
