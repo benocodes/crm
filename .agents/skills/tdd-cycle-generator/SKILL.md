@@ -243,28 +243,43 @@ non-obvious logic, not full files.}
 
 **You MUST actually run all tests. Do NOT skip. Do NOT assume pass.**
 
+Steps 4.1 to 4.3 are the **gate**: in a sprint the coder runs them and must be green before it reports.
+Step 4.4 is the **E2E scenario**, run by the e2e-tester only after the gate passes.
+
 ### Step 4.1: Run all tests
 ```bash
-pnpm -C packages/{pkg} test
+pnpm -r test
 ```
 ### Step 4.2: Typecheck
 ```bash
-pnpm -C packages/{pkg} typecheck
+pnpm -r typecheck
 ```
 ### Step 4.3: Build (if applicable)
-### Step 4.4: Smoke (if applicable)
-{Exercise the real seam the cycle changed: call the REST route or MCP tool with a real payload, or run
-the adapter over a recorded fixture. Name the flow and what "working" looks like. **Any smoke that reads
-through a running API must first confirm which database it is actually on**: an already-exported
-`DATABASE_URL` overrides `--env-file`, so a dev server started from a shell that had run the tests can
-serve the test DB. Write the expected database into the step.}
+### Step 4.4: E2E scenario, or `E2E: none ({reason})`
+Include a scenario only when the cycle adds behaviour that exists across a real seam the deterministic
+tests fake or skip: a new externally reachable surface (REST route, MCP tool, CLI command, the pane, a
+channel adapter over a recorded fixture); infrastructure Node doesn't reproduce (workerd, Workflows,
+Queues, Hyperdrive, R2); auth, tenancy or approval flows through the real pool and RLS; a migration over a
+database that already holds data. Otherwise (refactors, service-layer changes covered by the both-engine
+tests, schema-only additions covered by contract tests, types, docs, skills) write `E2E: none` with the
+reason; the orchestrator then spawns no e2e-tester.
+
+A scenario states, in this order:
+- **Initial state**: what exists before (rows, tenants, credentials, fixtures), and how to set it up.
+- **Actions**: the real calls, with payloads (REST/MCP requests, CLI commands, fixture replays).
+- **Expected end state**: what must be true afterwards (responses, rows, events, outbox), including the
+  failure paths the cycle defines.
+
+**Any scenario that reads through a running API must first confirm which database it is actually on**:
+an already-exported `DATABASE_URL` overrides `--env-file`, so a dev server started from a shell that had
+run the tests can serve the test DB. Write the expected database into the step.
 
 ---
 
 ## Phase 5: Retro and commit
 
-**In an orchestrated sprint** (AGENTS.md, "Running a sprint") this phase is split: the coder commits and
-pushes after Phase 3, the e2e-tester runs Phase 4, the planner runs `/retrospect` after review approves,
+**In an orchestrated sprint** (AGENTS.md, "Running a sprint") this phase is split: the coder runs the gate (steps 4.1 to 4.3),
+commits and pushes after Phase 3, the e2e-tester runs the E2E scenario (step 4.4) if there is one, the planner runs `/retrospect` after review approves,
 and the orchestrator opens and merges the PR. Outside a sprint, the executing agent does all of it:
 
 Run `/retrospect` on this cycle folder **before** committing: it captures deviations while they are fresh
@@ -293,7 +308,7 @@ nested `knowledge/` repo and commit there (`git -C knowledge`).
 - [ ] All unit tests executed and passing (not just written)
 - [ ] All integration tests executed and passing
 - [ ] Typecheck clean; build succeeds (if applicable)
-- [ ] Smoke run, with the database confirmed first
+- [ ] E2E scenario run, with the database confirmed first | `E2E: none` with reason
 - [ ] Retro written and ingested (`/retrospect`)
 - [ ] Committed, pushed, PR opened
 
@@ -313,7 +328,7 @@ Worktree: .claude/worktrees/{cycle-id-lowercase}
 Branch / commits: feat/{cycle-short-name} @ <sha> — <subject> (one line per commit)
 Migration: <number used, or none> (<differs from the plan's claim? say so>)
 Tests: <command> → <N passed / M failed> (one line per suite); typecheck <clean | errors>; build <ok | n/a>
-Smoke: <what was exercised and seen> | skipped — <why>
+E2E: <scenario run and what was seen> | none — <why>
 Deviations from plan: <bullets, or none>
 Red runs: <each new test file → command, N failed, for the right reason> (one line per file)
 Absence checks: <each injected fault → which tests went red, run how> | none in plan
