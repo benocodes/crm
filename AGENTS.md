@@ -85,6 +85,10 @@ Next Action) and tells the user before any of these, and never works around one:
 - **money or external accounts:** creating paid or external accounts or resources (Google Cloud, Neon,
   Clerk, Cloudflare resources, the Chrome Web Store, domains);
 - **production:** a deploy, or a migration against a production database;
+  **Standing exception, `smoked1` (user, 2026-10-28):** the internal single-org D1 instance
+  (`--env smoked1`, Worker `vault-smoked1`, `api.smoked1.vibase.ai`) is the agents' own; they may deploy
+  and migrate it without stopping, through the guarded `deploy:remote` / `db:migrate:remote` scripts.
+  Creating resources beyond it, DNS, Clerk, and any other environment stay hard stops.
 - **public announcements:** releases, posts, emails or messages to people outside the repo;
 - **irreversible data changes:** dropping any database other than the vault's own test databases,
   force-pushing, deleting branches the sprint didn't create.
