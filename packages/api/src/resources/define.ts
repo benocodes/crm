@@ -23,7 +23,7 @@ export function parseInput(schema: z.ZodType, input: unknown): Record<string, un
 const LIMIT = z.coerce.number().int().min(1).max(200)
 
 export function parseListQuery(
-  def: { filters?: Record<string, Filter> },
+  def: { filters?: Record<string, Filter>; joinFilters?: Record<string, Filter> },
   raw: { after?: unknown; limit?: unknown; filters?: Record<string, string> },
 ): { after: string | null; limit: number; filters: Record<string, unknown> } {
   let limit = 50
@@ -38,7 +38,7 @@ export function parseListQuery(
     if (!a.success) throw new ApiError(400, 'validation_error', 'after must be a UUID')
     after = a.data
   }
-  const declared = def.filters ?? {}
+  const declared = { ...(def.filters ?? {}), ...(def.joinFilters ?? {}) }
   const parsed: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(raw.filters ?? {})) {
     const filter = declared[key]

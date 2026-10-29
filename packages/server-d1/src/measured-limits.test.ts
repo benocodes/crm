@@ -174,7 +174,7 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     await snapshot('directory-snapshot-100', 100)
 
     for (const k of SCENARIOS) expect(measures.get(k)?.status, k).toBe(EXPECTED_STATUS[k])
-  })
+  }, 240_000) // the messaging scenarios seed ~700 rows and ~350 requests before they measure one
 
   it('every Free-plan exception names a scenario that still exceeds a Free bound', () => {
     for (const k of Object.keys(FREE_PLAN_EXCEPTIONS)) {
@@ -204,7 +204,7 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
   })
 
   it('the messaging scenarios really ran at their sizes', async () => {
-    expect(await count('select count(*) as n from messages')).toBeGreaterThanOrEqual(150)
+    expect(await count('select count(*) as n from messages')).toBe(102) // 50 listed + 50 interactions + the two attachment sets
     expect(await count("select count(*) as n from contact_files where deleted_at is not null")).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
   })
 

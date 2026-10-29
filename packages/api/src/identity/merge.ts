@@ -20,11 +20,11 @@ import {
 } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
+import { contactFiles } from '../resources/contact-files.js'
 import { contacts, type ContactRecord } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
-import { beforeRead, columnsOf, toRecord } from '../storage/crud.js'
+import { afterOf, beforeRead, columnsOf, toRecord } from '../storage/crud.js'
 import type { PreparedEnv, PreparedResource } from '../storage/definition.js'
-import { physicalTable } from '../storage/definition.js'
 import { operationOf } from './program.js'
 
 export type ContactReference = {
@@ -34,19 +34,32 @@ export type ContactReference = {
   column: string
   /** true: only rows with deleted_at IS NULL move (soft-deletable tables); false: every row, deleted or not. */
   liveOnly: boolean
+  /**
+   * Columns that, with `column`, are unique among LIVE rows ([[CORE25]] D35): the source's rows whose values equal a live
+   * survivor row's would collide with the unique index once re-pointed, so they are soft-deleted instead (a
+   * `<event>.deleted` set), and only the rest move.
+   */
+  uniqueWith?: readonly string[]
 }
 
-/** Every FK to contacts(id) except the exemptions. [[AGT8]] and [[CORE25]] append their entries here. */
-export const CONTACT_REFERENCES: readonly ContactReference[] = [{ def: identities, table: 'identities', column: 'contact_id', liveOnly: true }]
+/** Every FK to contacts(id) except the exemptions. [[AGT8]] appends its entries here. */
+export const CONTACT_REFERENCES: readonly ContactReference[] = [
+  { def: identities, table: 'identities', column: 'contact_id', liveOnly: true },
+  { def: contactFiles, table: 'contact_files', column: 'contact_id', liveOnly: true, uniqueWith: ['file_id'] },
+]
 
-/** STUB (red phase): FKs onto identities(id); merge never changes identity ids, so there is no re-point action. */
-export const IDENTITY_REFERENCES: readonly { table: string; column: string }[] = []
+/**
+ * Every FK onto identities(id) ([[CORE25]] D35). Merge moves identities to the survivor but never changes their ids, so
+ * these rows need no re-point action; `identity-catalog.integration.test.ts` compares the list to the foreign keys on both
+ * engines, so a new FK onto identities is a conscious decision (a later identity merge starts from this list).
+ */
+export const IDENTITY_REFERENCES: readonly { table: string; column: string }[] = [{ table: 'interaction_participants', column: 'identity_id' }]
 
 /** FKs to contacts(id) that merge must NOT re-point: the tombstone pointer itself (D10). */
 export const CONTACT_REFERENCE_EXEMPTIONS: readonly { table: string; column: string }[] = [{ table: 'contacts', column: 'merged_into_id' }]
 
 /** The plan-read keys of a merge program (namespaced so it can share a unit with other programs). */
-export const mergeReadKeys = { survivor: 'merge:survivor', source: 'merge:source', refs: (i: number) => `merge:refs:${i}` }
+export const mergeReadKeys = { survivor: 'merge:survivor', source: 'merge:source', refs: (i: number) => `merge:refs:${i}`, dups: (i: number) => `merge:dups:${i}` }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 type Loose = Kysely<Record<string, Record<string, unknown>>>
@@ -79,14 +92,18 @@ export function mergeOperation(
       [mergeReadKeys.survivor]: beforeRead(contacts, qc, env, survivorId),
       [mergeReadKeys.source]: beforeRead(contacts, qc, env, sourceId),
       ...Object.fromEntries(
-        catalog.map((entry, i) => {
-          let q = loose(qc)
-            .selectFrom(entry.table)
-            .select(recordColumns(qc, entry.table, columnsOf(entry.def)))
-            .where(sql<SqlBool>`${sql.ref(`${entry.table}.${entry.column}`)} = ${sourceId}`)
-            .where(sql<SqlBool>`${sql.ref(`${entry.table}.organization_id`)} = ${env.organizationId}`)
-          if (entry.liveOnly) q = q.where(sql<SqlBool>`${sql.ref(`${entry.table}.deleted_at`)} is null`)
-          return [mergeReadKeys.refs(i), readSet(q.orderBy(sql.ref(`${entry.table}.id`)))] as const
+        catalog.flatMap((entry, i) => {
+          const referencing = (holder: string) => {
+            let q = loose(qc)
+              .selectFrom(entry.table)
+              .select(recordColumns(qc, entry.table, columnsOf(entry.def)))
+              .where(sql<SqlBool>`${sql.ref(`${entry.table}.${entry.column}`)} = ${holder}`)
+              .where(sql<SqlBool>`${sql.ref(`${entry.table}.organization_id`)} = ${env.organizationId}`)
+            if (entry.liveOnly) q = q.where(sql<SqlBool>`${sql.ref(`${entry.table}.deleted_at`)} is null`)
+            return readSet(q.orderBy(sql.ref(`${entry.table}.id`)))
+          }
+          // A `uniqueWith` entry also reads the SURVIVOR's live rows, to find the source rows that would collide.
+          return [[mergeReadKeys.refs(i), referencing(sourceId)] as const, ...(entry.uniqueWith ? [[mergeReadKeys.dups(i), referencing(survivorId)] as const] : [])]
         }),
       ),
     }),
@@ -107,31 +124,61 @@ export function mergeOperation(
 
       catalog.forEach((entry, i) => {
         const rows = found.all(mergeReadKeys.refs(i)).map((r) => toRecord(entry.def, r))
-        const ids = rows.map((r) => r.id as string)
-        let move = loose(qc)
-          .updateTable(entry.table)
-          .set({ [entry.column]: survivorId, updated_at: at })
-          .where(sql<SqlBool>`${sql.ref(`${entry.table}.${entry.column}`)} = ${sourceId}`)
-          .where(sql<SqlBool>`${sql.ref(`${entry.table}.organization_id`)} = ${env.organizationId}`)
-          .where(memberOf(qc, entry.table, 'id' as never, ids))
-        if (entry.liveOnly) move = move.where(sql<SqlBool>`${sql.ref(`${entry.table}.deleted_at`)} is null`)
-        steps.push(...exactly(qc, step(move, label('first-mutation')), ids.length))
-        const evs = rows.map((r) => ({ eventId: env.newId(), resourceId: r.id as string, before: r as Record<string, unknown> }))
+        let duplicates: typeof rows = []
+        let moving = rows
+        if (entry.uniqueWith) {
+          const unique = entry.uniqueWith
+          const keyOf = (r: Record<string, unknown>) => JSON.stringify(unique.map((c) => r[c]))
+          const taken = new Set(found.all(mergeReadKeys.dups(i)).map((r) => keyOf(toRecord(entry.def, r) as Record<string, unknown>)))
+          duplicates = rows.filter((r) => taken.has(keyOf(r as Record<string, unknown>)))
+          moving = rows.filter((r) => !taken.has(keyOf(r as Record<string, unknown>)))
+        }
+        const eventType = (action: string) => `${entry.def.eventName}.${action}`
+        const where = (ids: readonly string[]) => {
+          let q = loose(qc)
+            .updateTable(entry.table)
+            .where(sql<SqlBool>`${sql.ref(`${entry.table}.${entry.column}`)} = ${sourceId}`)
+            .where(sql<SqlBool>`${sql.ref(`${entry.table}.organization_id`)} = ${env.organizationId}`)
+            .where(memberOf(qc, entry.table, 'id' as never, ids))
+          if (entry.liveOnly) q = q.where(sql<SqlBool>`${sql.ref(`${entry.table}.deleted_at`)} is null`)
+          return q
+        }
+        const eventsFor = (set: typeof rows) => set.map((r) => ({ eventId: env.newId(), resourceId: r.id as string, before: r as Record<string, unknown> }))
+        const receipts = (evs: ReturnType<typeof eventsFor>, type: string): EventReceipt[] =>
+          evs.map((e) => ({ id: e.eventId, type, resourceType: entry.def.eventName, resourceId: e.resourceId }))
+
+        if (entry.uniqueWith) {
+          // Always emitted, even for an empty set: the unit's statement count does not depend on the data (D5).
+          const dupIds = duplicates.map((r) => r.id as string)
+          steps.push(...exactly(qc, step(where(dupIds).set({ deleted_at: at, updated_at: at }), label('first-mutation')), dupIds.length))
+          const evs = eventsFor(duplicates)
+          steps.push(
+            step(
+              eventSetStatement(qc, { at, organizationId: env.organizationId, actorId: env.actor.id, type: eventType('deleted'), resourceType: entry.def.eventName, after: null, rows: evs }),
+              label('first-event'),
+            ),
+          )
+          events.push(...receipts(evs, eventType('deleted')))
+        }
+
+        const ids = moving.map((r) => r.id as string)
+        steps.push(...exactly(qc, step(where(ids).set({ [entry.column]: survivorId, updated_at: at }), label('first-mutation')), ids.length))
+        const evs = eventsFor(moving)
         steps.push(
           step(
             eventSetStatement(qc, {
               at,
               organizationId: env.organizationId,
               actorId: env.actor.id,
-              type: `${entry.def.eventName}.updated`,
+              type: eventType('updated'),
               resourceType: entry.def.eventName,
-              after: { table: physicalTable(entry.def), columns: columnsOf(entry.def) },
+              after: afterOf(entry.def),
               rows: evs,
             }),
             label('first-event'),
           ),
         )
-        events.push(...evs.map((e) => ({ id: e.eventId, type: `${entry.def.eventName}.updated`, resourceType: entry.def.eventName, resourceId: e.resourceId })))
+        events.push(...receipts(evs, eventType('updated')))
       })
 
       // Fill the survivor's empty fields from the source; never overwrite.

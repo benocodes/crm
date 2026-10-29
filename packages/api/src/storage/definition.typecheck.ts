@@ -294,38 +294,24 @@ definePreparedResource({
   operations: ['list', 'get'],
 })
 
-// 2. an embed on a table that does not exist
+// 2. an embed on a table that does not exist (the record leaves the field out: with no child table there is no array to type it by)
 definePreparedResource({
   name: 'messages',
   eventName: 'message',
   table: 'messages',
-  record: z.object({ ...messagesBase, attachments: attachmentRecord }),
-  embed: {
-    attachments: {
-      // @ts-expect-error 'bogus' is not a table
-      table: 'bogus',
-      key: 'message_id',
-      columns: ['id'],
-      orderBy: ['position'],
-    },
-  },
+  record: z.object(messagesBase),
+  // @ts-expect-error 'bogus' is not a table
+  embed: { attachments: { table: 'bogus', key: 'message_id', columns: ['id'], orderBy: ['position'] } },
 })
 
-// 3. an embed key that is not a column of the child table
+// 3. an embed key that is not a column of the child table (single line: the directive covers the whole declaration)
 definePreparedResource({
   name: 'messages',
   eventName: 'message',
   table: 'messages',
-  record: z.object({ ...messagesBase, attachments: attachmentRecord }),
-  embed: {
-    attachments: {
-      table: 'message_attachments',
-      // @ts-expect-error 'bogus' is not a column of message_attachments
-      key: 'bogus',
-      columns: ['id'],
-      orderBy: ['position'],
-    },
-  },
+  record: z.object(messagesBase),
+  // @ts-expect-error 'bogus' is not a column of message_attachments
+  embed: { attachments: { table: 'message_attachments', key: 'bogus', columns: ['id'], orderBy: ['position'] } },
 })
 
 // 4. an embed column that is not a column of the child table
@@ -333,16 +319,9 @@ definePreparedResource({
   name: 'messages',
   eventName: 'message',
   table: 'messages',
-  record: z.object({ ...messagesBase, attachments: attachmentRecord }),
-  embed: {
-    attachments: {
-      table: 'message_attachments',
-      key: 'message_id',
-      // @ts-expect-error 'bogus' is not a column of message_attachments
-      columns: ['bogus'],
-      orderBy: ['position'],
-    },
-  },
+  record: z.object(messagesBase),
+  // @ts-expect-error 'bogus' is not a column of message_attachments
+  embed: { attachments: { table: 'message_attachments', key: 'message_id', columns: ['bogus'], orderBy: ['position'] } },
 })
 
 // 5. the record field of an embed typed as a string, not an array

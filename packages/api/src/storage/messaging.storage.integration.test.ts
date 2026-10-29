@@ -33,7 +33,7 @@ describe.each(['postgres', 'd1'] as const)('messaging resources on %s', (name) =
   const seed = (opts: ConversationOpts = {}) => seedConversation((table, row) => e.insert(table, row), opts)
   const get = (def: PreparedResource<any, any>, id: string) => k.get(def, id)
   const list = (def: PreparedResource<any, any>, filters: Record<string, string> = {}) => k.list(def, filters)
-  const ids = (page: { data: Array<{ id: string }> }) => page.data.map((r) => r.id).sort()
+  const ids = (page: { data: Array<Record<string, any>> }) => page.data.map((r) => r.id as string).sort()
   const identityOf = async (value: string, contactId?: string) => {
     const contact = contactId ? { id: contactId } : await k.contact({})
     const identity = await k.identity({ kind: 'email', value, contact_id: contact.id })
@@ -261,8 +261,8 @@ describe.each(['postgres', 'd1'] as const)('messaging resources on %s', (name) =
   })
 
   describe.each([
-    { label: 'contact', def: () => contactFiles, table: 'contact_files', col: 'contact_id', ev: 'contact_file', parent: async () => (await k.contact({})).id as string },
-    { label: 'company', def: () => companyFiles, table: 'company_files', col: 'company_id', ev: 'company_file', parent: async () => (await k.company({ name: 'Co' })).id as string },
+    { label: 'contact', def: (): PreparedResource<any, any> => contactFiles, table: 'contact_files', col: 'contact_id', ev: 'contact_file', parent: async () => (await k.contact({})).id as string },
+    { label: 'company', def: (): PreparedResource<any, any> => companyFiles, table: 'company_files', col: 'company_id', ev: 'company_file', parent: async () => (await k.company({ name: 'Co' })).id as string },
   ])('$label links', ({ def, table, col, ev, parent }) => {
     const create = (body: Record<string, unknown>) => k.run((env) => createOperation(def(), env, body))
     const remove = (id: string) => k.run((env) => deleteOperation(def(), env, id))

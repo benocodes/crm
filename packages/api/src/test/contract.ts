@@ -357,9 +357,10 @@ export function runContractSuite(opts: {
 
             if (has('create') || has('update')) {
               it('unknown field', async () => {
-                const total = await eventCount()
+                let total = await eventCount()
                 if (has('create')) {
                   const input = await fixture.input!(env.kit(a, def))
+                  total = await eventCount() // the fixture may create prerequisite rows (and their events) through the kit
                   const rows = async () => ({ n: await env.countRows(def.table) })
                   const n = (await rows()).n
                   await error(await env.call(a, actor, 'full', 'POST', pathOf(def, 'create'), { ...input, zz_unknown: 1 }), 400, 'validation_error')

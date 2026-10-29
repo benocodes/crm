@@ -18,9 +18,11 @@ import {
 import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
 import { companies } from '../resources/companies.js'
+import { companyFiles } from '../resources/company-files.js'
+import { contactFiles } from '../resources/contact-files.js'
 import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
-import { beforeRead, columnsOf, receipt, selectRecord, toRecord } from '../storage/crud.js'
+import { afterOf, beforeRead, receipt, selectRecord, toRecord } from '../storage/crud.js'
 import type { PreparedEnv, PreparedResource } from '../storage/definition.js'
 import { physicalTable } from '../storage/definition.js'
 import { canonicalId } from '../storage/prepare.js'
@@ -35,6 +37,10 @@ import { canonicalId } from '../storage/prepare.js'
 
 interface Cascade {
   readonly parent: PreparedResource<any, any>
+  /** The dependants, handled in order (D35, P12): each keeps the three guards and gets its own set event. */
+  readonly children: readonly CascadeChild[]
+}
+interface CascadeChild {
   readonly child: PreparedResource<any, any>
   /** The child column pointing at the parent. */
   readonly column: string
@@ -48,19 +54,22 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
   const id = canonicalId(c.parent, rawId)
   const at = codecs.timestamp.write(env.now)
   const parentEventId = env.newId()
-  const childTable = physicalTable(c.child)
-  const childColumns = columnsOf(c.child)
   const parentKey = `cascade:${c.parent.name}`
-  const childrenKey = `cascade:${c.child.name}`
+  const childrenKey = (k: CascadeChild) => `cascade:${k.child.name}`
   return defineOperation<void>({
     name: `${c.parent.name}.delete`,
     mutates: true,
     reads: (qc) => ({
       [parentKey]: beforeRead(c.parent, qc, env, id),
-      [childrenKey]: readSet(
-        selectRecord(c.child, qc, env)
-          .where(sql<SqlBool>`${sql.ref(`${c.child.table}.${c.column}`)} = ${id}`)
-          .orderBy(sql.ref(`${c.child.table}.id`)),
+      ...Object.fromEntries(
+        c.children.map((k) => [
+          childrenKey(k),
+          readSet(
+            selectRecord(k.child, qc, env)
+              .where(sql<SqlBool>`${sql.ref(`${k.child.table}.${k.column}`)} = ${id}`)
+              .orderBy(sql.ref(`${k.child.table}.id`)),
+          ),
+        ]),
       ),
     }),
     build: (found, qc) => {
@@ -68,10 +77,6 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
       if (!row) throw new ApiError(404, 'not_found', `${c.parent.eventName} not found`)
       const { __stamp, ...rest } = row as Record<string, unknown>
       const parentBefore = toRecord(c.parent, rest as Row)
-      const children = found.all(childrenKey).map((r) => toRecord(c.child, r))
-      const ids = children.map((x) => x.id as string)
-      const childEvents = children.map((x) => ({ eventId: env.newId(), resourceId: x.id as string, before: x as Record<string, unknown> }))
-      const eventType = c.kind === 'unlink' ? `${c.child.eventName}.updated` : `${c.child.eventName}.deleted`
 
       const tombstoneParent = qc.db
         .updateTable(c.parent.table)
@@ -80,15 +85,6 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
         .where(sql<SqlBool>`${sql.ref(`${c.parent.table}.organization_id`)} = ${env.organizationId}`)
         .where(sql<SqlBool>`${sql.ref(`${c.parent.table}.deleted_at`)} is null`)
         .where(sql<SqlBool>`${ts.exact(qc, `${c.parent.table}.updated_at`)} = ${String(__stamp)}`)
-      const childSet: Record<string, string | null> = c.kind === 'unlink' ? { [c.column]: null, updated_at: at } : { deleted_at: at, updated_at: at }
-      const changeChildren = qc.db
-        .updateTable(c.child.table)
-        .set(childSet as never)
-        .where(sql<SqlBool>`${sql.ref(`${c.child.table}.${c.column}`)} = ${id}`)
-        .where(sql<SqlBool>`${sql.ref(`${c.child.table}.organization_id`)} = ${env.organizationId}`)
-        .where(sql<SqlBool>`${sql.ref(`${c.child.table}.deleted_at`)} is null`)
-        .where(memberOf(qc, childTable, 'id', ids))
-        .where(eventExists(parentEventId))
       const proof = qc.db.selectNoFrom(sql<number>`1`.as('applied')).where(eventExists(parentEventId))
 
       const steps: Step[] = [
@@ -107,28 +103,44 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
           }),
           'first-event',
         ),
-        ...exactly(qc, step(changeChildren), ids.length),
-        assertStep(
-          qc,
-          sql<SqlBool>`not exists (select 1 from ${sql.table(c.child.table)} where ${sql.ref(`${c.child.table}.${c.column}`)} = ${id} and ${sql.ref(`${c.child.table}.organization_id`)} = ${env.organizationId} and ${sql.ref(`${c.child.table}.deleted_at`)} is null)`,
-        ),
-        step(
-          eventSetStatement(qc, {
-            at,
-            organizationId: env.organizationId,
-            actorId: env.actor.id,
-            type: eventType,
-            resourceType: c.child.eventName,
-            after: c.kind === 'unlink' ? { table: childTable, columns: childColumns } : null,
-            rows: childEvents,
-          }),
-        ),
-        step(proof, 'result'),
       ]
-      const events: EventReceipt[] = [
-        receipt(c.parent, parentEventId, 'deleted', id),
-        ...childEvents.map((e) => ({ id: e.eventId, type: eventType, resourceType: c.child.eventName, resourceId: e.resourceId })),
-      ]
+      const events: EventReceipt[] = [receipt(c.parent, parentEventId, 'deleted', id)]
+
+      for (const k of c.children) {
+        const children = found.all(childrenKey(k)).map((r) => toRecord(k.child, r))
+        const ids = children.map((x) => x.id as string)
+        const childEvents = children.map((x) => ({ eventId: env.newId(), resourceId: x.id as string, before: x as Record<string, unknown> }))
+        const eventType = k.kind === 'unlink' ? `${k.child.eventName}.updated` : `${k.child.eventName}.deleted`
+        const childSet: Record<string, string | null> = k.kind === 'unlink' ? { [k.column]: null, updated_at: at } : { deleted_at: at, updated_at: at }
+        const changeChildren = qc.db
+          .updateTable(k.child.table)
+          .set(childSet as never)
+          .where(sql<SqlBool>`${sql.ref(`${k.child.table}.${k.column}`)} = ${id}`)
+          .where(sql<SqlBool>`${sql.ref(`${k.child.table}.organization_id`)} = ${env.organizationId}`)
+          .where(sql<SqlBool>`${sql.ref(`${k.child.table}.deleted_at`)} is null`)
+          .where(memberOf(qc, physicalTable(k.child), 'id', ids))
+          .where(eventExists(parentEventId))
+        steps.push(
+          ...exactly(qc, step(changeChildren), ids.length),
+          assertStep(
+            qc,
+            sql<SqlBool>`not exists (select 1 from ${sql.table(k.child.table)} where ${sql.ref(`${k.child.table}.${k.column}`)} = ${id} and ${sql.ref(`${k.child.table}.organization_id`)} = ${env.organizationId} and ${sql.ref(`${k.child.table}.deleted_at`)} is null)`,
+          ),
+          step(
+            eventSetStatement(qc, {
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: eventType,
+              resourceType: k.child.eventName,
+              after: k.kind === 'unlink' ? afterOf(k.child) : null,
+              rows: childEvents,
+            }),
+          ),
+        )
+        events.push(...childEvents.map((e) => ({ id: e.eventId, type: eventType, resourceType: k.child.eventName, resourceId: e.resourceId })))
+      }
+      steps.push(step(proof, 'result'))
       return unit({
         steps,
         events,
@@ -140,13 +152,13 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
   })
 }
 
-/** `companies.delete`: soft-deletes the company and unlinks its live contacts (`company_id = null`), one `contact.updated` each, in id order. */
+/** `companies.delete`: soft-deletes the company, unlinks its live contacts (`company_id = null`, one `contact.updated` each) then soft-deletes its file links (`company_file.deleted`), each in id order. */
 export function deleteCompanyOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
-  return cascadeDelete({ parent: companies, child: contacts, column: 'company_id', kind: 'unlink' }, env, id)
+  return cascadeDelete({ parent: companies, children: [{ child: contacts, column: 'company_id', kind: 'unlink' }, { child: companyFiles, column: 'company_id', kind: 'tombstone' }] }, env, id)
 }
 
-/** `contacts.delete`: soft-deletes the contact and tombstones its live identities, one `identity.deleted` each, in id order. */
+/** `contacts.delete`: soft-deletes the contact, tombstones its live identities (`identity.deleted`) then its file links (`contact_file.deleted`), each in id order. */
 export function deleteContactOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
-  return cascadeDelete({ parent: contacts, child: identities, column: 'contact_id', kind: 'tombstone' }, env, id)
+  return cascadeDelete({ parent: contacts, children: [{ child: identities, column: 'contact_id', kind: 'tombstone' }, { child: contactFiles, column: 'contact_id', kind: 'tombstone' }] }, env, id)
 }
 

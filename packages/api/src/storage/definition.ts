@@ -1,6 +1,6 @@
 import type { Expression, ExpressionBuilder, SelectType, SqlBool } from 'kysely'
 import type { z } from 'zod'
-import { COLUMN_KINDS } from '@vault/storage'
+import { COLUMN_KINDS, checkEmbed, type EmbedSpec } from '@vault/storage'
 import type { ColumnOf, PreparedOperation, PublicColumn, PhysicalTable, QueryContext, Read, RowOf, Step, StorageDatabase, SyncHook, Table, ValueOf, Row } from '@vault/storage'
 import type { Actor } from '../auth/types.js'
 import type { CrudAction, Filter } from '../resources/define.js'
@@ -30,7 +30,7 @@ export type WriteMeta = { readonly op: 'create' | 'update'; readonly now: Date }
  * read (`400 invalid_reference`) and the commit-time guard use ONE predicate: `id = v`, plus `organization_id = the
  * unit's organisation` when the target table has that column, plus `deleted_at IS NULL` when `live`.
  */
-export type ReferenceTarget = { readonly table: 'principals' | 'companies' | 'contacts'; readonly live?: boolean }
+export type ReferenceTarget = { readonly table: 'principals' | 'companies' | 'contacts' | 'files'; readonly live?: boolean }
 
 /** A refusal decided from a plan read (a domain or an address already taken): the core runs `read`, then `refuse(row | null)`. */
 export interface Conflict {
@@ -45,12 +45,47 @@ type Computed<T extends Table> = { [C in ColumnOf<T>]?: ComputedValue<T, C> }
 type Stored<T extends Table> = { [C in ColumnOf<T>]?: ValueOf<T, C> }
 
 /**
- * A record shape is valid for table `T` when every key is a PUBLIC column of `T` (secret columns are excluded)
- * and each field's output type fits the stored column. Anything else maps to `never`, so the call site fails.
+ * An embedded child set of a record ([[CORE25]] D50): the child table, the column pointing at the parent, the columns
+ * rendered into each element and their order. All are checked against the child table at the call site.
  */
-export type RecordShape<T extends Table, S> = {
-  [K in keyof S]: K extends PublicColumn<T> ? (S[K] extends z.ZodType<infer O> ? ([O] extends [RowOf<T>[K]] ? S[K] : never) : never) : never
+export type EmbedDecl<Child extends Table = Table> = {
+  readonly table: Child
+  readonly key: ColumnOf<Child>
+  readonly columns: readonly ColumnOf<Child>[]
+  readonly orderBy: readonly ColumnOf<Child>[]
 }
+/** Embed field name -> child table, as inferred from the `embed` declaration. */
+export type EmbedMap = Readonly<Record<string, Table>>
+/** The embed fields, or none when E could not be inferred (a failed declaration falls back to the wide constraint, which must not read as "every key is an embed"). */
+export type EmbedKeys<E> = string extends keyof E ? never : keyof E
+export type EmbedInput<E extends EmbedMap> = { readonly [F in keyof E]: EmbedDecl<E[F]> }
+
+/**
+ * A record shape is valid for table `T` when every key is a PUBLIC column of `T` (secret columns are excluded)
+ * and each field's output type fits the stored column, or an embed field of the definition whose schema is an array.
+ * Anything else maps to `never`, so the call site fails.
+ */
+export type RecordShape<T extends Table, S, E extends EmbedMap = {}> = {
+  [K in keyof S]: K extends EmbedKeys<E>
+    ? S[K] extends z.ZodType<infer O>
+      ? [O] extends [readonly unknown[]]
+        ? S[K]
+        : never
+      : never
+    : K extends PublicColumn<T>
+      ? S[K] extends z.ZodType<infer O>
+        ? [O] extends [RowOf<T>[K]]
+          ? S[K]
+          : never
+        : never
+      : never
+}
+
+/**
+ * A list filter that is not a column of the table ([[CORE25]] D51): an engine-neutral predicate, e.g. an `EXISTS` over a
+ * child table. Synchronous and DB-free like every extension: it returns a Kysely fragment and never runs a query.
+ */
+export type JoinFilter = Filter & { readonly where: (qc: QueryContext, value: unknown) => Expression<SqlBool> }
 
 /**
  * A resource served by the generic prepared CRUD core ([[CORE35]] D3), generic over its concrete table.
@@ -68,6 +103,10 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly scopeResource?: string
   readonly agentWritable?: readonly string[]
   readonly filters?: { readonly [K in ColumnOf<T>]?: Filter }
+  /** List filters that are not columns (their keys never are, and never also in `filters`): `where` is ANDed into the list query. */
+  readonly joinFilters?: Readonly<Record<string, JoinFilter>>
+  /** Embedded child rows rendered into the record and into an event's `after` (the record names the field as an array). */
+  readonly embed?: Readonly<Record<string, EmbedSpec>>
   /** Columns that must reference a visible row of a portable table (checked after existence, re-checked at commit). */
   readonly references?: { readonly [K in ColumnOf<T>]?: ReferenceTarget }
   /** Extension 1: pure normalization of a validated write; returns the column values to store. */
@@ -96,8 +135,8 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
 type Output<S extends z.ZodRawShape> = z.output<z.ZodObject<S>> extends infer O extends { id: string } ? O : never
 
 /** Validates a definition. The record's shape is checked against the table at the call site (`RecordShape`). */
-export function definePreparedResource<T extends Table, S extends z.ZodRawShape & RecordShape<T, S> & { id: z.ZodType<string> }>(
-  def: Omit<PreparedResource<T, Output<S>>, 'record'> & { readonly record: z.ZodObject<S> },
+export function definePreparedResource<T extends Table, S extends z.ZodRawShape & RecordShape<T, S, E> & { id: z.ZodType<string> }, E extends EmbedMap = {}>(
+  def: Omit<PreparedResource<T, Output<S>>, 'record' | 'embed'> & { readonly record: z.ZodObject<S>; readonly embed?: EmbedInput<E> },
 ): PreparedResource<T, Output<S>> {
   // The ONE reviewed cast of the definition layer: zod's conditional output type cannot be related to `Output<S>`
   // inside the generic body. Call sites are checked by `RecordShape` and proven by definition.typecheck.ts.
@@ -115,6 +154,20 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
     const kinds = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[ref.table]
     if (!kinds) throw new Error(`reference ${column} names table "${ref.table}" with no physical schema (${full.name})`)
     if (ref.live && !('deleted_at' in kinds)) throw new Error(`reference ${column} is live but "${ref.table}" has no deleted_at (${full.name})`)
+  }
+  const kindsOfTable = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[full.table]!
+  for (const key of Object.keys(full.joinFilters ?? {})) {
+    if (key in kindsOfTable) throw new Error(`joinFilters key "${key}" is a column of ${full.table}: declare it in filters (${full.name})`)
+    if (key in (full.filters ?? {})) throw new Error(`joinFilters key "${key}" is also in filters (${full.name})`)
+  }
+  for (const [field, spec] of Object.entries(full.embed ?? {})) {
+    try {
+      checkEmbed(spec)
+    } catch (err) {
+      throw new Error(`embed "${field}" (${full.name}): ${(err as Error).message}`)
+    }
+    if (field in kindsOfTable) throw new Error(`embed "${field}" is also a column of ${full.table} (${full.name})`)
+    if (!(field in full.record.shape)) throw new Error(`embed "${field}" is not a field of the record (${full.name})`)
   }
   if (full.agentWritable) {
     const known = new Set([...Object.keys(full.create?.shape ?? {}), ...Object.keys(full.update?.shape ?? {})])
