@@ -9,6 +9,8 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
 
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
+
 export type Json = JsonValue;
 
 export type JsonArray = JsonValue[];
@@ -59,6 +61,28 @@ export interface Companies {
   updated_at: Generated<Timestamp>;
 }
 
+export interface CompanyFiles {
+  company_id: string;
+  created_at: Timestamp;
+  created_by: string;
+  deleted_at: Timestamp | null;
+  file_id: string;
+  id: Generated<string>;
+  organization_id: string;
+  updated_at: Timestamp;
+}
+
+export interface ContactFiles {
+  contact_id: string;
+  created_at: Timestamp;
+  created_by: string;
+  deleted_at: Timestamp | null;
+  file_id: string;
+  id: Generated<string>;
+  organization_id: string;
+  updated_at: Timestamp;
+}
+
 export interface Contacts {
   company_id: string | null;
   created_at: Generated<Timestamp>;
@@ -83,6 +107,18 @@ export interface Events {
   type: string;
 }
 
+export interface Files {
+  created_at: Timestamp;
+  created_by: string;
+  id: Generated<string>;
+  mime_type: string;
+  name: string;
+  organization_id: string;
+  sha256: string;
+  size_bytes: Int8;
+  storage_key: string;
+}
+
 export interface Identities {
   contact_id: string | null;
   created_at: Generated<Timestamp>;
@@ -96,6 +132,29 @@ export interface Identities {
   value: string;
 }
 
+export interface InteractionParticipants {
+  created_at: Timestamp;
+  created_by: string;
+  id: Generated<string>;
+  identity_id: string;
+  interaction_id: string;
+  organization_id: string;
+  role: string;
+}
+
+export interface Interactions {
+  channel: string;
+  created_at: Timestamp;
+  created_by: string;
+  direction: string;
+  id: Generated<string>;
+  kind: string;
+  message_id: string | null;
+  occurred_at: Timestamp;
+  organization_id: string;
+  thread_id: string | null;
+}
+
 export interface Memberships {
   created_at: Generated<Timestamp>;
   created_by: string;
@@ -105,6 +164,54 @@ export interface Memberships {
   role: string;
   updated_at: Generated<Timestamp>;
   user_id: string;
+}
+
+export interface MessageAttachments {
+  content_id: string | null;
+  created_at: Timestamp;
+  created_by: string;
+  fetch_error: string | null;
+  fetch_metadata: Json | null;
+  fetch_status: string;
+  file_id: string | null;
+  id: Generated<string>;
+  inline: boolean;
+  message_id: string;
+  mime_type: string | null;
+  name: string | null;
+  organization_id: string;
+  position: number;
+  size_bytes: Int8 | null;
+  type: string;
+}
+
+export interface Messages {
+  author: Json;
+  channel: string;
+  content_key: string | null;
+  created_at: Timestamp;
+  created_by: string;
+  external_id: string;
+  id: Generated<string>;
+  in_reply_to: string | null;
+  kind: string;
+  occurred_at: Timestamp;
+  organization_id: string;
+  preview: string;
+  retracted_at: Timestamp | null;
+  thread_id: string;
+  version: number;
+}
+
+export interface MessageSources {
+  connection_id: string;
+  created_at: Timestamp;
+  created_by: string;
+  id: Generated<string>;
+  message_id: string;
+  organization_id: string;
+  provider_message_id: string;
+  provider_thread_id: string;
 }
 
 export interface Organizations {
@@ -137,6 +244,25 @@ export interface Tasks {
   updated_at: Generated<Timestamp>;
 }
 
+export interface Threads {
+  channel: string;
+  created_at: Timestamp;
+  created_by: string;
+  id: Generated<string>;
+  organization_id: string;
+  subject: string | null;
+}
+
+export interface ThreadSources {
+  connection_id: string;
+  created_at: Timestamp;
+  created_by: string;
+  id: Generated<string>;
+  organization_id: string;
+  provider_thread_id: string;
+  thread_id: string;
+}
+
 export interface Users {
   auth_provider: string | null;
   auth_subject: string | null;
@@ -152,12 +278,22 @@ export interface DB {
   agents: Agents;
   api_keys: ApiKeys;
   companies: Companies;
+  company_files: CompanyFiles;
+  contact_files: ContactFiles;
   contacts: Contacts;
   events: Events;
+  files: Files;
   identities: Identities;
+  interaction_participants: InteractionParticipants;
+  interactions: Interactions;
   memberships: Memberships;
+  message_attachments: MessageAttachments;
+  message_sources: MessageSources;
+  messages: Messages;
   organizations: Organizations;
   principals: Principals;
   tasks: Tasks;
+  thread_sources: ThreadSources;
+  threads: Threads;
   users: Users;
 }

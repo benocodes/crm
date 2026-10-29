@@ -54,11 +54,19 @@ const stringArrayRead = (value: unknown): string[] => {
   return parsed as string[]
 }
 
-// STUB (red phase): the integer codec is implemented in Phase 3.
-const integerStub = { read: (_value: unknown): number => 0, readNullable: (_value: unknown): number | null => null, write: (value: number): number => value }
+const integerRead = (value: unknown): number => {
+  // `pg` returns bigint as a decimal string; D1 and Postgres integer give a JS number. Anything else is refused.
+  const n = typeof value === 'number' ? value : typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : Number.NaN
+  if (!Number.isSafeInteger(n)) throw new CodecError(`not a safe integer: ${JSON.stringify(value)}`)
+  return n
+}
 
 export const codecs = {
-  integer: integerStub,
+  integer: {
+    read: integerRead,
+    readNullable: nullable(integerRead),
+    write: (value: number): number => integerRead(value),
+  },
   timestamp: {
     read: timestampRead,
     readNullable: nullable(timestampRead),

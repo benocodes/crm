@@ -8,16 +8,27 @@ import type { D1Like } from '../binding.js'
 
 export const MIGRATIONS_DIR = fileURLToPath(new URL('../../migrations', import.meta.url))
 
-/** Splits a migration file into statements. The files hold no triggers, so `;` at a line end is a boundary. */
+/**
+ * Splits a migration file into statements: a `;` at a line end is a boundary, except inside a `CREATE TRIGGER ... BEGIN ...
+ * END;` block, which ends at the line that closes it with `END;` (CORE25 P14: 0004's append-only triggers are multi-line).
+ */
 export function splitStatements(sqlText: string): string[] {
-  const noComments = sqlText
-    .split('\n')
-    .filter((l) => !l.trim().startsWith('--'))
-    .join('\n')
-  return noComments
-    .split(/;\s*(?:\n|$)/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
+  const out: string[] = []
+  let current: string[] = []
+  const flush = () => {
+    const text = current.join('\n').trim().replace(/;$/, '').trim()
+    if (text.length > 0) out.push(text)
+    current = []
+  }
+  for (const line of sqlText.split('\n')) {
+    if (line.trim().startsWith('--')) continue
+    current.push(line)
+    const inTrigger = /^\s*CREATE\s+TRIGGER\b/i.test(current.join('\n').trimStart())
+    const trimmed = line.trimEnd()
+    if (inTrigger ? /\bEND\s*;$/i.test(trimmed) : trimmed.endsWith(';')) flush()
+  }
+  flush()
+  return out
 }
 
 /** Applies every `NNNN_*.sql` file, in order, the way `wrangler d1 migrations apply` would. */
@@ -71,7 +82,7 @@ export async function openLocalD1(names: readonly string[], opts: { migrate?: bo
 export async function clearD1(d1: D1Like): Promise<void> {
   const { results } = await d1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all()
   const tables = new Set((results ?? []).map((r) => (r as { name: string }).name))
-  const order = ['events', 'identities', 'contacts', 'companies', 'tasks', 'api_keys', 'agents', 'memberships', 'users', 'principals', 'organizations', 'deployment']
+  const order = ['events', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources', 'interactions', 'contact_files', 'company_files', 'messages', 'files', 'threads', 'identities', 'contacts', 'companies', 'tasks', 'api_keys', 'agents', 'memberships', 'users', 'principals', 'organizations', 'deployment']
   const known = order.filter((t) => tables.has(t))
   const rest = [...tables].filter((t) => !order.includes(t))
   const statements = [...rest, ...known].map((t) => d1.prepare(`DELETE FROM "${t}"`))

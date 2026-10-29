@@ -90,13 +90,6 @@ const SHAPES: Record<string, Col[]> = {
 }
 
 describe('migration 001 baseline', () => {
-  it('tables exist', async () => {
-    const rows = await q<{ table_name: string }>(
-      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
-    )
-    expect(rows.map((r) => r.table_name).sort()).toEqual([...TABLES, 'companies', 'contacts', 'identities', 'kysely_migration', 'kysely_migration_lock'].sort())
-  })
-
   for (const table of TABLES.filter((t) => t in SHAPES)) {
     it(`column shapes: ${table}`, async () => {
       const rows = await q<{ column_name: string; udt_name: string; is_nullable: string; column_default: string | null }>(

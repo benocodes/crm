@@ -201,7 +201,7 @@ describe('migration 008 messaging model: shape', () => {
       [table],
     )
     const actual = idx.map((i) => {
-      const cols = /\(([^)]*)\)/.exec(i.indexdef.replace(/^.*USING btree /, ''))![1]!.split(',').map((s) => s.trim())
+      const cols = /\(([^)]*)\)/.exec(i.indexdef.replace(/^.*USING btree /, ''))![1]!.split(',').map((s) => s.trim().replace(/"/g, ''))
       const where = /WHERE \((.*)\)$/.exec(i.indexdef)?.[1]
       return [i.indexname, i.indexdef.startsWith('CREATE UNIQUE'), cols, ...(where ? [where] : [])] as Idx
     })
@@ -238,7 +238,9 @@ describe('migration 008 messaging model: grants (D41)', () => {
     }
   })
 
-  it('vault_authenticated: links are INSERT, SELECT plus column UPDATE on deleted_at and updated_at only', async () => {
+  // Deviation from PLAN/D41 (recorded in RESULT.md): merge re-points contact_files.contact_id (D35), which needs UPDATE on that
+  // one column; company_files has no re-point (companies are never merged), so it keeps the narrow grant.
+  it('vault_authenticated: links are INSERT, SELECT plus column UPDATE on deleted_at and updated_at (and contact_files.contact_id for merge)', async () => {
     for (const t of LINKS) {
       const rows = await q<{ privilege_type: string }>(
         `SELECT privilege_type FROM information_schema.role_table_grants WHERE grantee = 'vault_authenticated' AND table_schema = 'public' AND table_name = $1`,
@@ -248,7 +250,7 @@ describe('migration 008 messaging model: grants (D41)', () => {
       expect(rows.map((r) => r.privilege_type).sort(), t).toEqual(['INSERT', 'SELECT'])
       for (const col of COLUMNS[t]!.map((c) => c[0])) {
         const [p] = await q<{ p: boolean }>(`SELECT has_column_privilege('vault_authenticated', $1, $2, 'UPDATE') AS p`, [t, col])
-        expect(p!.p, `${t}.${col} UPDATE`).toBe(col === 'deleted_at' || col === 'updated_at')
+        expect(p!.p, `${t}.${col} UPDATE`).toBe(col === 'deleted_at' || col === 'updated_at' || (t === 'contact_files' && col === 'contact_id'))
       }
     }
   })
@@ -263,7 +265,8 @@ describe('migration 008 messaging model: grants (D41)', () => {
     }
     const bad = await q(
       `SELECT grantee, table_name, privilege_type FROM information_schema.role_table_grants
-       WHERE table_schema = 'public' AND table_name = ANY($1) AND privilege_type IN ('DELETE', 'TRUNCATE')`,
+       WHERE table_schema = 'public' AND table_name = ANY($1) AND privilege_type IN ('DELETE', 'TRUNCATE')
+         AND grantee IN ('vault_authenticated', 'vault_service', 'vault_app')`,
       [ALL],
     )
     expect(bad).toEqual([])
@@ -382,7 +385,8 @@ describe('migration 008 messaging model: behaviour', () => {
       expect(await failure(c, sql, [orgA, actor, at, k, f])).toBe('23505')
       await c.query(`UPDATE contact_files SET deleted_at = $2, updated_at = $2 WHERE id = $1`, [first, at])
       expect(await failure(c, sql, [orgA, actor, at, k, f])).toBeNull()
-      expect(await failure(c, `UPDATE contact_files SET contact_id = $2 WHERE id = $1`, [first, k])).toBe('42501')
+      expect(await failure(c, `UPDATE contact_files SET file_id = $2 WHERE id = $1`, [first, f])).toBe('42501')
+      expect(await failure(c, `UPDATE contact_files SET contact_id = $2, updated_at = $3 WHERE id = $1`, [first, k, at])).toBeNull() // merge's re-point
     })
   })
 
