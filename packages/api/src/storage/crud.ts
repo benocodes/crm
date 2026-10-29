@@ -37,6 +37,8 @@ const loose = (qc: QueryContext): Loose => qc.db as unknown as Loose
 export type ListResult<R> = { data: R[]; next_cursor: string | null }
 
 export const columnsOf = (def: PreparedResource): string[] => Object.keys(def.record.shape)
+/** STUB (red phase): grows `embeds` in Phase 3. */
+export const afterOf = (def: PreparedResource) => ({ table: physicalTable(def), columns: columnsOf(def) })
 const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
 const ref = (def: PreparedResource, column: string) => sql.ref(`${def.table}.${column}`)
 const notFound = (def: PreparedResource) => new ApiError(404, 'not_found', `${def.eventName} not found`)

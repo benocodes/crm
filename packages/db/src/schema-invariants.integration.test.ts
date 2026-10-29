@@ -104,6 +104,19 @@ describe('schema invariants', () => {
     expect(rows.map((r) => r.privilege_type).sort()).toEqual(['INSERT', 'SELECT'])
   })
 
+  it('capture tables are append-only for the tenant role (CORE25 D41): no UPDATE or DELETE on any column', async () => {
+    // Enforced by grant on Postgres and by BEFORE UPDATE triggers on D1; the engine audit lists the difference as not compared.
+    const capture = ['threads', 'messages', 'interactions', 'files', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources']
+    for (const t of capture) {
+      expect(tables, t).toContain(t)
+      const cols = await q(`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`, [t])
+      for (const c of cols) {
+        const [p] = await q(`SELECT has_column_privilege('vault_authenticated', $1, $2, 'UPDATE') AS p`, [t, c.column_name])
+        expect(p.p, `${t}.${c.column_name}`).toBe(false)
+      }
+    }
+  })
+
   it('no table stamps updated_at in the database', async () => {
     // CORE36 D2: the application owns every timestamp; a forever invariant (no trigger, no function).
     const trig = await q(`SELECT tgrelid::regclass::text AS t FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'set_updated_at'`)

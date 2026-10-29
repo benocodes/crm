@@ -391,3 +391,190 @@ describe('the administration slice (CORE40 C2)', () => {
     expect(await count('api_keys')).toBe(0)
   })
 })
+
+// ---- CORE25 cycle 1: the messaging slice (0004) --------------------------------------------------------------------
+
+describe('the messaging slice (CORE25 C1)', () => {
+  const CAPTURE = ['threads', 'messages', 'interactions', 'files', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources']
+  const LINKS = ['contact_files', 'company_files']
+  const ALL = [...CAPTURE, ...LINKS]
+  const H64 = 'a'.repeat(64)
+  let n = 0
+  const id = () => `0190b2c4-0000-7000-8000-${String(++n).padStart(12, '0')}`
+  const common = () => ({ id: id(), organization_id: ORG, created_by: USER, created_at: AT })
+  const insert = async (table: string, row: Record<string, unknown>) => {
+    const cols = Object.keys(row)
+    await d1.prepare(`INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...Object.values(row)).run()
+    return row.id as string
+  }
+  const refuse = (table: string, row: Record<string, unknown>) => {
+    const cols = Object.keys(row)
+    return fails(`INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`, ...Object.values(row))
+  }
+  const thread = (over: Record<string, unknown> = {}) => ({ ...common(), channel: 'email', subject: 's', ...over })
+  const message = (threadId: string, over: Record<string, unknown> = {}) => ({
+    ...common(), thread_id: threadId, channel: 'email', kind: 'message', external_id: `e${n}@y`, in_reply_to: null,
+    author: '{"user_id":"u"}', occurred_at: AT, preview: 'hi', content_key: 'orgs/x/', version: 1, retracted_at: null, ...over,
+  })
+  const file = (over: Record<string, unknown> = {}) => ({ ...common(), name: 'f', mime_type: 'text/plain', size_bytes: 10, sha256: H64, storage_key: 'k', ...over })
+  const contact = async () => insert('contacts', { ...common(), updated_at: AT })
+
+  beforeEach(async () => {
+    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+    await seedPrincipal(d1, { id: USER, kind: 'user' })
+  })
+
+  it('creates the ten tables, STRICT', async () => {
+    const rows = await all<{ name: string; sql: string }>("SELECT name, sql FROM sqlite_master WHERE type = 'table'")
+    for (const t of ALL) {
+      const r = rows.find((x) => x.name === t)
+      expect(r, t).toBeDefined()
+      expect(r!.sql, t).toMatch(/\) STRICT$/)
+    }
+  })
+
+  it('has the columns and nullability of the Postgres tables', async () => {
+    const want: Record<string, Record<string, boolean>> = {
+      threads: { channel: true, subject: false },
+      messages: { thread_id: true, channel: true, kind: true, external_id: true, in_reply_to: false, author: true, occurred_at: true, preview: true, content_key: false, version: true, retracted_at: false },
+      interactions: { kind: true, channel: true, direction: true, occurred_at: true, thread_id: false, message_id: false },
+      files: { name: true, mime_type: true, size_bytes: true, sha256: true, storage_key: true },
+      contact_files: { contact_id: true, file_id: true, updated_at: true, deleted_at: false },
+      company_files: { company_id: true, file_id: true, updated_at: true, deleted_at: false },
+      interaction_participants: { interaction_id: true, identity_id: true, role: true },
+      message_attachments: { message_id: true, position: true, file_id: false, type: true, name: false, mime_type: false, size_bytes: false, inline: true, content_id: false, fetch_status: true, fetch_metadata: false, fetch_error: false },
+      message_sources: { message_id: true, connection_id: true, provider_message_id: true, provider_thread_id: true },
+      thread_sources: { thread_id: true, connection_id: true, provider_thread_id: true },
+    }
+    for (const t of ALL) {
+      const cols = await all<{ name: string; notnull: number }>(`PRAGMA table_info(${t})`)
+      const got = Object.fromEntries(cols.map((c) => [c.name, c.notnull === 1]))
+      expect(got, t).toEqual({ id: true, organization_id: true, created_by: true, created_at: true, ...want[t] })
+    }
+  })
+
+  it('has the composite foreign keys (organization_id first), organization cascade and principal reference', async () => {
+    const want: Record<string, Array<[string, string, string]>> = {
+      messages: [['organization_id,thread_id', 'threads', 'organization_id,id']],
+      interactions: [['organization_id,thread_id', 'threads', 'organization_id,id'], ['organization_id,message_id,thread_id', 'messages', 'organization_id,id,thread_id']],
+      contact_files: [['organization_id,contact_id', 'contacts', 'organization_id,id'], ['organization_id,file_id', 'files', 'organization_id,id']],
+      company_files: [['organization_id,company_id', 'companies', 'organization_id,id'], ['organization_id,file_id', 'files', 'organization_id,id']],
+      interaction_participants: [['organization_id,interaction_id', 'interactions', 'organization_id,id'], ['organization_id,identity_id', 'identities', 'organization_id,id']],
+      message_attachments: [['organization_id,message_id', 'messages', 'organization_id,id'], ['organization_id,file_id', 'files', 'organization_id,id']],
+      message_sources: [['organization_id,message_id', 'messages', 'organization_id,id']],
+      thread_sources: [['organization_id,thread_id', 'threads', 'organization_id,id']],
+    }
+    for (const t of ALL) {
+      const fks = await all<{ id: number; table: string; from: string; to: string; seq: number; on_delete: string }>(`SELECT * FROM pragma_foreign_key_list('${t}') ORDER BY id, seq`)
+      const byId = new Map<number, typeof fks>()
+      for (const f of fks) byId.set(f.id, [...(byId.get(f.id) ?? []), f])
+      const groups = [...byId.values()]
+      const composite = groups.filter((g) => g.length > 1).map((g) => [g.map((x) => x.from).join(','), g[0]!.table, g.map((x) => x.to).join(',')])
+      expect(composite.sort(), t).toEqual([...(want[t] ?? [])].sort())
+      for (const g of groups.filter((g) => g.length > 1)) expect(g[0]!.on_delete, t).toBe('NO ACTION')
+      const single = groups.filter((g) => g.length === 1).map((g) => [g[0]!.from, g[0]!.table, g[0]!.on_delete])
+      expect(single.sort(), t).toEqual([['created_by', 'principals', 'NO ACTION'], ['organization_id', 'organizations', 'CASCADE']])
+    }
+  })
+
+  it('has exactly the named CHECKs', async () => {
+    const want: Record<string, string[]> = {
+      threads: ['threads_channel'],
+      messages: ['messages_channel', 'messages_kind', 'messages_content_key', 'messages_preview_length', 'messages_version_positive'],
+      interactions: ['interactions_kind', 'interactions_channel', 'interactions_direction', 'interactions_kind_pointers'],
+      files: ['files_size_nonnegative', 'files_sha256_hex'],
+      interaction_participants: ['interaction_participants_role'],
+      message_attachments: ['message_attachments_type', 'message_attachments_fetch_status', 'message_attachments_stored_file', 'message_attachments_position_nonnegative', 'message_attachments_size_nonnegative'],
+    }
+    for (const t of ALL) {
+      const [{ sql }] = await all<{ sql: string }>('SELECT sql FROM sqlite_master WHERE type = \'table\' AND name = ?', t)
+      const names = [...sql.matchAll(/CONSTRAINT (\w+) CHECK/g)].map((m) => m[1]).filter((x) => !x!.endsWith('_fk'))
+      expect(names.sort(), t).toEqual([...(want[t] ?? [])].sort())
+    }
+  })
+
+  it('has the append-only triggers on the eight capture tables and none on the links', async () => {
+    const trg = await all<{ name: string; tbl_name: string }>("SELECT name, tbl_name FROM sqlite_master WHERE type = 'trigger'")
+    expect(trg.map((t) => t.name).sort()).toEqual(CAPTURE.map((t) => `${t}_append_only`).sort())
+    for (const t of trg) expect(t.name).toBe(`${t.tbl_name}_append_only`)
+    for (const t of LINKS) expect(trg.some((x) => x.tbl_name === t)).toBe(false)
+  })
+
+  it('UPDATE on a capture table aborts with append_only and leaves the row; DELETE still works', async () => {
+    const t = await insert('threads', thread())
+    const m = await insert('messages', message(t))
+    expect(await fails(`UPDATE messages SET preview = 'x' WHERE id = ?`, m)).toContain('append_only')
+    expect(await fails(`UPDATE threads SET subject = 'x' WHERE id = ?`, t)).toContain('append_only')
+    expect((await all<{ preview: string }>('SELECT preview FROM messages WHERE id = ?', m))[0]!.preview).toBe('hi')
+    await d1.prepare('DELETE FROM messages WHERE id = ?').bind(m).run()
+    expect(await all('SELECT id FROM messages')).toEqual([])
+  })
+
+  it('D31: an interaction naming a message and another thread is refused', async () => {
+    const t1 = await insert('threads', thread())
+    const t2 = await insert('threads', thread())
+    const m = await insert('messages', message(t1))
+    const inter = (threadId: string) => ({ ...common(), kind: 'message', channel: 'email', direction: 'inbound', occurred_at: AT, thread_id: threadId, message_id: m })
+    expect(await refuse('interactions', inter(t2))).toMatch(/FOREIGN KEY|constraint/i)
+    await insert('interactions', inter(t1))
+  })
+
+  it('kind pointers, vocabularies, sha256, preview length, sizes, version', async () => {
+    const t = await insert('threads', thread())
+    expect(await refuse('interactions', { ...common(), kind: 'message', channel: 'email', direction: 'inbound', occurred_at: AT, thread_id: t, message_id: null })).toContain('interactions_kind_pointers')
+    expect(await refuse('threads', thread({ channel: 'sms' }))).toContain('threads_channel')
+    expect(await refuse('messages', message(t, { kind: 'draft' }))).toContain('messages_kind')
+    expect(await refuse('messages', message(t, { kind: 'message', content_key: null }))).toContain('messages_content_key')
+    await insert('messages', message(t, { kind: 'reaction', content_key: null, external_id: 'r@y' }))
+    expect(await refuse('messages', message(t, { preview: 'p'.repeat(201), external_id: 'long@y' }))).toContain('messages_preview_length')
+    await insert('messages', message(t, { preview: 'p'.repeat(200), external_id: 'ok@y' }))
+    expect(await refuse('messages', message(t, { version: 0, external_id: 'v@y' }))).toContain('messages_version_positive')
+    expect(await refuse('files', file({ sha256: 'A'.repeat(64) }))).toContain('files_sha256_hex')
+    expect(await refuse('files', file({ sha256: 'a'.repeat(63) }))).toContain('files_sha256_hex')
+    expect(await refuse('files', file({ size_bytes: -1 }))).toContain('files_size_nonnegative')
+    await insert('files', file())
+  })
+
+  it('stored-file rule on attachments', async () => {
+    const t = await insert('threads', thread())
+    const m = await insert('messages', message(t))
+    const f = await insert('files', file())
+    const att = (over: Record<string, unknown>) => ({ ...common(), message_id: m, position: 0, file_id: null, type: 'file', inline: 0, fetch_status: 'failed', ...over })
+    expect(await refuse('message_attachments', att({ fetch_status: 'stored' }))).toContain('message_attachments_stored_file')
+    expect(await refuse('message_attachments', att({ file_id: f, fetch_status: 'failed' }))).toContain('message_attachments_stored_file')
+    expect(await refuse('message_attachments', att({ position: -1 }))).toContain('message_attachments_position_nonnegative')
+    expect(await refuse('message_attachments', att({ size_bytes: -1 }))).toContain('message_attachments_size_nonnegative')
+    await insert('message_attachments', att({ file_id: f, fetch_status: 'stored' }))
+    await insert('message_attachments', att({ position: 1 }))
+  })
+
+  it('inline is 0/1; author and fetch_metadata are JSON', async () => {
+    const t = await insert('threads', thread())
+    const m = await insert('messages', message(t))
+    const att = (over: Record<string, unknown>) => ({ ...common(), message_id: m, position: 5, type: 'file', inline: 0, fetch_status: 'failed', ...over })
+    expect(await refuse('message_attachments', att({ inline: 2 }))).toMatch(/CHECK|constraint/i)
+    expect(await refuse('message_attachments', att({ fetch_metadata: 'not json' }))).toMatch(/CHECK|constraint/i)
+    expect(await refuse('messages', message(t, { author: 'not json', external_id: 'a@y' }))).toMatch(/CHECK|constraint/i)
+    await insert('message_attachments', att({ fetch_metadata: '{"a":1}' }))
+  })
+
+  it('live link uniqueness; a soft delete frees the pair; cross-column ids must exist', async () => {
+    const k = await contact()
+    const f = await insert('files', file())
+    const link = () => ({ ...common(), updated_at: AT, contact_id: k, file_id: f })
+    const first = await insert('contact_files', link())
+    expect(await refuse('contact_files', link())).toMatch(/UNIQUE|constraint/i)
+    await d1.prepare('UPDATE contact_files SET deleted_at = ?, updated_at = ? WHERE id = ?').bind(AT, AT, first).run()
+    await insert('contact_files', link())
+  })
+
+  it('external id is unique per channel', async () => {
+    const t = await insert('threads', thread())
+    await insert('messages', message(t, { external_id: 'x@y' }))
+    expect(await refuse('messages', message(t, { external_id: 'x@y' }))).toMatch(/UNIQUE|constraint/i)
+  })
+
+  it('a second organisation cannot be stored (tenancy is the database)', async () => {
+    expect(await refuse('threads', thread({ organization_id: OTHER_ORG }))).toMatch(/FOREIGN KEY|constraint/i)
+  })
+})

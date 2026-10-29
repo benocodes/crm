@@ -4,7 +4,10 @@ import { withFault } from '@vault/storage/test'
 import { deleteCompanyOperation, deleteContactOperation } from '../identity/cascades.js'
 import { mergeOperation } from '../identity/merge.js'
 import { ensureOwnIdentity, resolveOperation } from '../identity/resolve.js'
+import { companyFiles } from '../resources/company-files.js'
+import { contactFiles } from '../resources/contact-files.js'
 import { identities } from '../resources/identities.js'
+import { seedConversation } from '../test/messaging-kit.js'
 import { openEngines, type Engine } from '../test/engines.js'
 import { BASE, identityKit, type IdentityKit } from '../test/identity-kit.js'
 import { createOperation, deleteOperation } from './crud.js'
@@ -126,6 +129,29 @@ describe.each(['postgres', 'd1'] as const)('identity model storage behaviour on 
         const s = await k.contact({})
         const r = await k.contact({ name: 'R' })
         for (let i = 0; i < n; i++) await k.identity({ kind: 'email', value: `m${i}@b.com`, contact_id: r.id })
+        return () => e.run(mergeOperation(k.env(), s.id, r.id))
+      },
+      'contact delete with links': async (n: number) => {
+        const c = await k.contact({})
+        for (let i = 0; i < n; i++) await k.identity({ kind: 'email', value: `dl${i}@b.com`, contact_id: c.id })
+        const { fileIds } = await seedConversation((t, r) => e.insert(t, r), { attachments: n })
+        for (const f of fileIds) await k.run((env) => createOperation(contactFiles, env, { contact_id: c.id, file_id: f }))
+        return () => e.run(deleteContactOperation(k.env(), c.id))
+      },
+      'company delete with links': async (n: number) => {
+        const co = await k.company({ name: 'C' })
+        for (let i = 0; i < n; i++) await k.contact({ company_id: co.id })
+        const { fileIds } = await seedConversation((t, r) => e.insert(t, r), { attachments: n })
+        for (const f of fileIds) await k.run((env) => createOperation(companyFiles, env, { company_id: co.id, file_id: f }))
+        return () => e.run(deleteCompanyOperation(k.env(), co.id))
+      },
+      'merge with links': async (n: number) => {
+        const s = await k.contact({})
+        const r = await k.contact({ name: 'R' })
+        for (let i = 0; i < n; i++) await k.identity({ kind: 'email', value: `ml${i}@b.com`, contact_id: r.id })
+        const { fileIds } = await seedConversation((t, row) => e.insert(t, row), { attachments: n })
+        for (const f of fileIds) await k.run((env) => createOperation(contactFiles, env, { contact_id: r.id, file_id: f }))
+        for (const f of fileIds.slice(0, Math.floor(n / 2))) await k.run((env) => createOperation(contactFiles, env, { contact_id: s.id, file_id: f })) // half duplicate the source's
         return () => e.run(mergeOperation(k.env(), s.id, r.id))
       },
       resolve: async (n: number) =>
@@ -325,6 +351,161 @@ describe.each(['postgres', 'd1'] as const)('over-cap refusal on %s', (name) => {
       const kb = identityKit(big)
       const makeBig = await prepare(big, kb)
       await expect(big.run(makeBig())).resolves.toBeDefined()
+    })
+  }
+})
+
+// ---- CORE25: merge and cascades are aware of the file links (D35, P12, P13) --------------------------------------------
+describe.each(['postgres', 'd1'] as const)('merge and delete with file links on %s', (name) => {
+  let e: Engine
+  let k: IdentityKit
+  const seedFiles = async (n: number) => (await seedConversation((t, r) => e.insert(t, r), { attachments: n })).fileIds
+  const link = (contactId: string, fileId: string) => k.run((env) => createOperation(contactFiles, env, { contact_id: contactId, file_id: fileId }))
+  const companyLink = (companyId: string, fileId: string) => k.run((env) => createOperation(companyFiles, env, { company_id: companyId, file_id: fileId }))
+  const mergeAt = (s: string, r: string, n: number) => k.run((env) => mergeOperation(env, s, r), { now: at(n) })
+  const evAfter = async (count: number) => (await e.rows('events')).slice(count)
+  const linkRows = async (contactId: string) => (await e.rows('contact_files')).filter((x) => x.contact_id === contactId)
+  beforeAll(() => {
+    e = engines.find((x) => x.name === name)!
+  })
+  beforeEach(async () => {
+    await e.reset()
+    k = identityKit(e)
+  })
+
+  it('merge re-points links, soft-deleting the duplicates, in the documented event order', async () => {
+    const [F1, F2] = await seedFiles(2)
+    const S = await k.contact({})
+    const R = await k.contact({})
+    const i = await k.identity({ kind: 'email', value: 'r@b.com', contact_id: R.id })
+    const rF1 = await link(R.id, F1!)
+    const rF2 = await link(R.id, F2!)
+    await link(S.id, F2!)
+    const count = (await e.rows('events')).length
+    await mergeAt(S.id, R.id, 50)
+    const live = (await linkRows(S.id)).filter((x) => x.deleted_at === null)
+    expect(live.map((x) => x.file_id).sort()).toEqual([F1, F2].sort())
+    const rowF2 = (await e.rows('contact_files')).find((x) => x.id === rF2.id)!
+    expect(rowF2).toMatchObject({ contact_id: R.id, deleted_at: at(50).toISOString(), updated_at: at(50).toISOString() })
+    expect((await e.rows('contact_files')).find((x) => x.id === rF1.id)).toMatchObject({ contact_id: S.id, updated_at: at(50).toISOString(), deleted_at: null })
+    const evs = await evAfter(count)
+    expect(evs.map((x) => x.type)).toEqual(['identity.updated', 'contact_file.deleted', 'contact_file.updated', 'contact.merged'])
+    expect(evs[0]).toMatchObject({ resource_id: i.id })
+    expect(evs[1]).toMatchObject({ resource_id: rF2.id, after: null, before: rF2 })
+    expect(evs[2]).toMatchObject({ resource_id: rF1.id, before: rF1 })
+    expect(evs[2]!.after).toMatchObject({ contact_id: S.id })
+    for (const x of evs) expect(x.actor_id).toBe(e.userId)
+  })
+
+  it('a merge with no links emits no contact_file events', async () => {
+    const S = await k.contact({})
+    const R = await k.contact({})
+    await k.identity({ kind: 'email', value: 'r@b.com', contact_id: R.id })
+    const count = (await e.rows('events')).length
+    await mergeAt(S.id, R.id, 51)
+    expect((await evAfter(count)).map((x) => x.type)).toEqual(['identity.updated', 'contact.merged'])
+  })
+
+  it('a merge where every source link duplicates the survivor emits one deleted and no updated', async () => {
+    const [F2] = await seedFiles(1)
+    const S = await k.contact({})
+    const R = await k.contact({})
+    await link(R.id, F2!)
+    await link(S.id, F2!)
+    const count = (await e.rows('events')).length
+    await mergeAt(S.id, R.id, 52)
+    expect((await evAfter(count)).map((x) => x.type)).toEqual(['contact_file.deleted', 'contact.merged'])
+    expect((await linkRows(S.id)).filter((x) => x.deleted_at === null)).toHaveLength(1)
+  })
+
+  it('contact delete tombstones identities then live links; an already deleted link is untouched', async () => {
+    const [F1, F2] = await seedFiles(2)
+    const K = await k.contact({})
+    await k.identity({ kind: 'email', value: 'k1@b.com', contact_id: K.id })
+    await k.identity({ kind: 'email', value: 'k2@b.com', contact_id: K.id })
+    const old = await link(K.id, F1!)
+    await k.run((env) => deleteOperation(contactFiles, env, old.id), { now: at(60) })
+    const live = await link(K.id, F2!)
+    const count = (await e.rows('events')).length
+    await k.deleteContact(K.id, { now: at(61) })
+    expect((await evAfter(count)).map((x) => x.type)).toEqual(['contact.deleted', 'identity.deleted', 'identity.deleted', 'contact_file.deleted'])
+    const rows = await e.rows('contact_files')
+    expect(rows.find((x) => x.id === old.id)!.deleted_at).toBe(at(60).toISOString())
+    expect(rows.find((x) => x.id === live.id)!.deleted_at).toBe(at(61).toISOString())
+  })
+
+  it('company delete unlinks contacts then tombstones links', async () => {
+    const [F1, F2] = await seedFiles(2)
+    const Co = await k.company({ name: 'Co' })
+    await k.contact({ company_id: Co.id })
+    await k.contact({ company_id: Co.id })
+    await companyLink(Co.id, F1!)
+    await companyLink(Co.id, F2!)
+    const count = (await e.rows('events')).length
+    await k.deleteCompany(Co.id, { now: at(62) })
+    expect((await evAfter(count)).map((x) => x.type)).toEqual(['company.deleted', 'contact.updated', 'contact.updated', 'company_file.deleted', 'company_file.deleted'])
+    expect((await e.rows('company_files')).every((x) => x.deleted_at === at(62).toISOString())).toBe(true)
+  })
+
+  if (name === 'd1') {
+    describe('D1 drift: what changed between plan and commit aborts the unit', () => {
+      it('merge: the survivor gains a link to a file the source also links', async () => {
+        const [F1] = await seedFiles(1)
+        const S = await k.contact({})
+        const R = await k.contact({})
+        await link(R.id, F1!)
+        const before = Object.fromEntries(await Promise.all(['contact_files', 'events', 'contacts'].map(async (t) => [t, await e.rows(t)] as const)))
+        e.betweenPlanAndCommit(async () => {
+          await e.insert('contact_files', { contact_id: S.id, file_id: F1 })
+        })
+        const err = await k.fail((env) => mergeOperation(env, S.id, R.id))
+        expect([err.status, err.code]).toEqual([409, 'conflict'])
+        expect((await e.rows('events'))).toEqual(before.events)
+        expect((await e.rows('contacts'))).toEqual(before.contacts)
+        expect((await e.rows('contact_files')).length).toBe(before.contact_files!.length + 1)
+      })
+      it('merge: the source gains a link', async () => {
+        const [F1, F3] = await seedFiles(2)
+        const S = await k.contact({})
+        const R = await k.contact({})
+        await link(R.id, F1!)
+        const events = (await e.rows('events')).length
+        e.betweenPlanAndCommit(async () => {
+          await e.insert('contact_files', { contact_id: R.id, file_id: F3 })
+        })
+        const err = await k.fail((env) => mergeOperation(env, S.id, R.id))
+        expect([err.status, err.code]).toEqual([409, 'conflict'])
+        expect((await e.rows('contacts')).find((x) => x.id === R.id)!.deleted_at).toBeNull()
+        expect((await linkRows(S.id))).toHaveLength(0)
+        expect((await e.rows('events')).length).toBe(events)
+      })
+      it('merge: a swap that keeps the count (one link soft-deleted, another inserted)', async () => {
+        const [F1, F3] = await seedFiles(2)
+        const S = await k.contact({})
+        const R = await k.contact({})
+        const l1 = await link(R.id, F1!)
+        const events = (await e.rows('events')).length
+        e.betweenPlanAndCommit(async () => {
+          await e.update('contact_files', l1.id, { deleted_at: '2026-10-22T09:00:00.000Z', updated_at: '2026-10-22T09:00:00.000Z' })
+          await e.insert('contact_files', { contact_id: R.id, file_id: F3 })
+        })
+        const err = await k.fail((env) => mergeOperation(env, S.id, R.id))
+        expect([err.status, err.code]).toEqual([409, 'conflict'])
+        expect((await e.rows('contacts')).find((x) => x.id === R.id)!.deleted_at).toBeNull()
+        expect((await e.rows('events')).length).toBe(events)
+      })
+      it('contact delete: a link added during the delete', async () => {
+        const [F1] = await seedFiles(1)
+        const K = await k.contact({})
+        const events = (await e.rows('events')).length
+        e.betweenPlanAndCommit(async () => {
+          await e.insert('contact_files', { contact_id: K.id, file_id: F1 })
+        })
+        const err = await k.fail((env) => deleteContactOperation(env, K.id))
+        expect([err.status, err.code]).toEqual([409, 'conflict'])
+        expect((await e.rows('contacts')).find((x) => x.id === K.id)!.deleted_at).toBeNull()
+        expect((await e.rows('events')).length).toBe(events)
+      })
     })
   }
 })

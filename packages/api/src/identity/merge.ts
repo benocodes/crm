@@ -39,6 +39,9 @@ export type ContactReference = {
 /** Every FK to contacts(id) except the exemptions. [[AGT8]] and [[CORE25]] append their entries here. */
 export const CONTACT_REFERENCES: readonly ContactReference[] = [{ def: identities, table: 'identities', column: 'contact_id', liveOnly: true }]
 
+/** STUB (red phase): FKs onto identities(id); merge never changes identity ids, so there is no re-point action. */
+export const IDENTITY_REFERENCES: readonly { table: string; column: string }[] = []
+
 /** FKs to contacts(id) that merge must NOT re-point: the tombstone pointer itself (D10). */
 export const CONTACT_REFERENCE_EXEMPTIONS: readonly { table: string; column: string }[] = [{ table: 'contacts', column: 'merged_into_id' }]
 
