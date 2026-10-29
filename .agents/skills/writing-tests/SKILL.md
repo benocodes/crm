@@ -91,6 +91,10 @@ One program, two engines: the same assertions run on Postgres and D1.
     or `kit.seedMember` ([[CORE44]] P9).
   - Suites written after the vertical exists prove their strength with absence mutations (break the
     runtime, see the target test fail), recorded in RESULT.md.
+- **Read-only resources have no writer to seed through.** Seed them with `seedConversation(insert, opts)`
+  (`@vault/api/test/messaging`) and `Engine.insert` (storage suites) or `kit.insert` (contract fixtures' `make`/`input`),
+  direct inserts that satisfy the table CHECKs. `Engine.insert` encodes json (JSON text) and booleans (0/1) per
+  `COLUMN_KINDS` on D1. Replace them with the real capture helper when `recordMessages` exists.
 - Assert engine differences explicitly, never hide them. Since [[CORE36]] D2 there is no timestamp
   difference: every stamp a unit writes equals its injected `now` on both engines. Assert the response, the
   stored row and every event's `created_at`/`after` against the clock exactly, with no engine branch (the

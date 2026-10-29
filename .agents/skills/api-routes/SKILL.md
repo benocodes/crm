@@ -211,8 +211,29 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   column-level grants work ([[CORE15]]). Never select or return a whole row in `src/storage/crud.ts`.
 - `definePreparedResource` throws at load on a bad `name`, a table with no physical schema, an unknown
   `agentWritable` field, and `delete` on a table without `deleted_at` (`src/storage/definition.test.ts`).
-- **Known limits, owed by later plans:** filters are column equality only, and `toRecord` maps one flat
-  row. Join filters and embedded child rows need definition hooks ([[CHN5]]).
+- **Embedded children** ([[CORE25]] D50): `embed: { <field>: { table, key, columns, orderBy } }` renders a child set
+  into the record as a JSON array (`messages.attachments`, `interactions.participants`). The record schema names the
+  field as an array; `columnsOf(def)` returns the physical columns only (record keys minus embed keys), `embedsOf(def)`
+  the specs, and `afterOf(def)` is the `after` of an event (`{ table, columns, embeds }`), so the record and the event
+  carry the same rendering from ONE helper (`embedJson` in `@vault/storage`: Postgres `coalesce(jsonb_agg(... order by ...), '[]')`,
+  D1 `json_group_array(json_object(...) ORDER BY ...)`, wrapped in `json(...)` inside `recordJson`). An empty set is `[]`,
+  never null. Table, key, columns and order are checked against `COLUMN_KINDS` at the call site (types) and at load.
+- **Join filters** ([[CORE25]] D51): `joinFilters: { <key>: { schema, normalize?, where(qc, value) } }` are list filters
+  that are not columns (`interactions.contact_id`, `identity_id`, an `EXISTS` over a child table). A key may never be a
+  column of the table nor also in `filters` (load-time throw); `where` is a synchronous Kysely/`sql` fragment ANDed into
+  the list. `contact_id` joins through `identities` with `deleted_at IS NULL`, so it follows a merge and a deleted identity.
+- **A read-only resource written by a program** (`threads`, `messages`, `interactions`, `files`): `operations: ['list',
+  'get']`, no `create`/`update`, no `deleted_at` on the table. Until the capture program exists (CORE25 cycle 2) the
+  fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vault/api/test/messaging`, `src/test/messaging-kit.ts`)
+  through `Engine.insert` or the contract kit's `insert`. Production code has no other writer.
+- A `ReferenceTarget` may name `files` (no `deleted_at`, so never `live`). A link resource (`contact_files`) is create +
+  soft delete only, with a `conflicts` read for the live pair (`409 link_exists`) and the partial unique index as backstop.
+- **Merge and delete know the links.** `CONTACT_REFERENCES` entries may carry `uniqueWith` (the re-point first soft-deletes
+  the source rows that would duplicate a live survivor row, `<event>.deleted`, then moves the rest: both set statements are
+  always emitted); `IDENTITY_REFERENCES` lists every FK onto `identities` with no re-point (`identity-catalog.integration.test.ts`
+  compares it to both engines). `cascadeDelete` takes several children in order (contact: identities then `contact_files`;
+  company: contacts then `company_files`), each with the three set guards and its own set event.
+- **Known limits, owed by later plans:** binary output and object reads after the unit ([[CORE58]]).
 
 ## Prepared resources: the storage seam ([[CORE35]])
 

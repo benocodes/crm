@@ -164,6 +164,25 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   `DEFAULT`, a test insert that omits it silently picks up the session's organisation. The vault's test pool
   presets nothing (see `api-routes`), so every fixture insert names its organisation explicitly.
 
+## Append-only tables, vocabularies and sources ([[CORE25]])
+
+- **Append-only by grant on Postgres, by trigger on D1.** A capture table gets `SELECT, INSERT` for `vault_authenticated`
+  and no `UPDATE`/`DELETE` (migration 008); D1 has no grants, so each capture table has
+  `CREATE TRIGGER <table>_append_only BEFORE UPDATE ON <table> BEGIN SELECT RAISE(ABORT, 'append_only'); END;`. There is
+  no delete trigger, so `clearD1` still works. The engine audit reads neither, so `NOT_COMPARED` names the difference;
+  `migration-008`, `schema-invariants` and the D1 schema test assert it. A table that is soft-deleted (the link tables) gets a column-level
+  `UPDATE (deleted_at, updated_at)` instead, plus any column a command re-points (merge moves `contact_files.contact_id`).
+- **The D1 splitter knows triggers.** `splitStatements` (`@vault/storage-d1/test`) ends a `CREATE TRIGGER` at the line that
+  closes it with `END;`; wrangler applies the same file as written.
+- **Source tables are machinery** (`message_sources`, `thread_sources`): no events, no API; the provider's ids map to ours.
+  A `connection_id` has no foreign key until `channel_connections` exists.
+- **Vocabulary CHECKs are named identically on both engines** (`<table>_<purpose>`) so the schema audit needs no difference.
+  Widening one later is a Postgres `DROP/ADD CONSTRAINT` and, on D1, a table rebuild under `PRAGMA defer_foreign_keys`: budget for it.
+- **A new FK onto `identities` joins `IDENTITY_REFERENCES`** (`packages/api/src/identity/merge.ts`), like a FK onto contacts joins `CONTACT_REFERENCES`.
+- **The `integer` kind.** `position`/`version` are `integer`, `size_bytes` is `bigint` on Postgres and `INTEGER` on D1;
+  `pg` returns bigint as text, so `codecs.integer` (in `toRecord` and the engines' decoders) reads a safe integer from a number or a
+  decimal string and refuses anything else. No global `pg` type parser. `bind` casts to `bigint` on Postgres.
+
 ## Roles, grants and policies
 
 Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_baseline.ts`).
