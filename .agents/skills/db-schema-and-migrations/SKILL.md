@@ -172,6 +172,8 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   no delete trigger, so `clearD1` still works. The engine audit reads neither, so `NOT_COMPARED` names the difference;
   `migration-008`, `schema-invariants` and the D1 schema test assert it. A table that is soft-deleted (the link tables) gets a column-level
   `UPDATE (deleted_at, updated_at)` instead, plus any column a command re-points (merge moves `contact_files.contact_id`).
+- **Probe D1's SQLite by behaviour, not by version.** `sqlite_version()` is not authorised in D1 or Miniflare
+  (`not authorized to use function`); run the feature you need (an ordered `json_group_array`, a trigger) instead ([[CORE25]]).
 - **The D1 splitter knows triggers.** `splitStatements` (`@vault/storage-d1/test`) ends a `CREATE TRIGGER` at the line that
   closes it with `END;`; wrangler applies the same file as written.
 - **Source tables are machinery** (`message_sources`, `thread_sources`): no events, no API; the provider's ids map to ours.
