@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vault/storage'
 import { seedConversation } from '@vault/api/test/messaging'
+import { fakeR2Bucket } from '@vault/api/test/objects'
+import { fileBlobKey, messageBodyKey } from '@vault/api'
 import { clerkMembership, clerkOrganization, clerkWebhook, clerkUser, signClerkWebhook } from '@vault/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -32,6 +34,8 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'company-delete-100': 3,
   'contact-delete-100': 3,
   'messages-list-50': 2, // auth read, operation read (the embeds are in the same select)
+  'messages-content': 2, // auth read, operation read; plus 1 object read
+  'files-content': 2, // auth read, operation read; plus 1 object read
   'interactions-list-contact': 2,
   'merge-100-links': 3, // auth read, operation read batch, operation write batch
   'contact-delete-100-with-links': 3,
@@ -48,7 +52,8 @@ let worker: { fetch(req: Request): Promise<Response> }
 const BASE = 'https://w.test'
 const measures = new Map<string, InvocationMeasure & { outbound: number; status: number }>()
 
-const env = (): D1WorkerEnv => ({ DB: meter.d1, ...kit.env })
+const bucket = fakeR2Bucket()
+const env = (): D1WorkerEnv => ({ DB: meter.d1, BODIES: bucket, ...kit.env })
 const fresh = () => composeD1Worker(env(), { fetch: kit.fetch, clock: () => now, newId: () => uuidv7(now) })
 const req = (method: string, path: string, body?: unknown, headers: Record<string, string> = { authorization: `Bearer ${key}` }) =>
   new Request(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -80,7 +85,7 @@ beforeAll(async () => {
 })
 afterAll(() => w.dispose())
 
-const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'directory-snapshot-5', 'directory-snapshot-100'] as const
+const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'directory-snapshot-5', 'directory-snapshot-100'] as const
 const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'cold-first-request': 200,
   'key-auth-stamp': 200,
@@ -91,6 +96,8 @@ const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'company-delete-100': 204,
   'contact-delete-100': 204,
   'messages-list-50': 200,
+  'messages-content': 200,
+  'files-content': 200,
   'interactions-list-contact': 200,
   'merge-100-links': 200,
   'contact-delete-100-with-links': 204,
@@ -137,6 +144,20 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     }
     for (let i = 0; i < 50; i++) await seedConversation(insert, { attachments: 2, interaction: false })
     await measure('messages-list-50', () => send('GET', '/messages?limit=50'))
+
+    const withObjects = await seedConversation(insert, { attachments: 1, interaction: false })
+    await bucket.put(messageBodyKey(withObjects.contentKey!, 1), '# Measured body')
+    await bucket.put(fileBlobKey(withObjects.storageKeys[0]!), new Uint8Array([1, 2, 3]))
+    bucket.gets.length = 0
+    await measure('messages-content', () => send('GET', `/messages/${withObjects.messageId}/content`))
+    expect(bucket.gets).toEqual([messageBodyKey(withObjects.contentKey!, 1)])
+    bucket.gets.length = 0
+    await measure('files-content', async () => {
+      const res = await worker.fetch(req('GET', `/files/${withObjects.fileIds[0]}/content`))
+      await res.arrayBuffer()
+      return { status: res.status }
+    })
+    expect(bucket.gets).toEqual([fileBlobKey(withObjects.storageKeys[0]!)])
 
     const reader = (await send('POST', '/contacts', { name: 'Reader' })).json
     const readerIdentity = (await send('POST', '/identities', { kind: 'email', value: 'reader@measure.test', contact_id: reader.id })).json
@@ -204,7 +225,7 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
   })
 
   it('the messaging scenarios really ran at their sizes', async () => {
-    expect(await count('select count(*) as n from messages')).toBe(102) // 50 listed + 50 interactions + the two attachment sets
+    expect(await count('select count(*) as n from messages')).toBe(103) // 50 listed + the content scenarios' one + 50 interactions + the two attachment sets
     expect(await count("select count(*) as n from contact_files where deleted_at is not null")).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
   })
 

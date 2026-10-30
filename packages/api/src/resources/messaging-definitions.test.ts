@@ -29,7 +29,7 @@ describe('messaging definitions (CORE25 C1)', () => {
     const fresh = names.filter((n) => /^(threads|messages|interactions|files|contact_files|company_files)\./.test(n)).sort()
     expect(fresh).toEqual(
       [
-        'threads.list', 'threads.get', 'messages.list', 'messages.get', 'interactions.list', 'interactions.get', 'files.list', 'files.get',
+        'threads.list', 'threads.get', 'messages.list', 'messages.get', 'messages.content', 'interactions.list', 'interactions.get', 'files.list', 'files.get', 'files.content',
         'contact_files.list', 'contact_files.get', 'contact_files.create', 'contact_files.delete',
         'company_files.list', 'company_files.get', 'company_files.create', 'company_files.delete',
       ].sort(),
@@ -37,6 +37,12 @@ describe('messaging definitions (CORE25 C1)', () => {
     expect(ops.filter((o) => fresh.includes(o.name) && o.method === 'patch')).toEqual([])
     expect(createVaultRegistry().get('contact_files.list')).toMatchObject({ path: '/contact-files' })
     expect(createVaultRegistry().get('company_files.get')).toMatchObject({ path: '/company-files/{id}' })
+  })
+
+  it('the content operations (CORE58)', () => {
+    const reg = createVaultRegistry()
+    expect(reg.get('files.content')).toMatchObject({ output: 'binary', method: 'get', path: '/files/{id}/content', scope: { resource: 'files', action: 'read' } })
+    expect(reg.get('messages.content')).toMatchObject({ method: 'get', path: '/messages/{id}/content', scope: { resource: 'messages', action: 'read' } })
   })
 
   it('hidden columns are absent from every record', () => {

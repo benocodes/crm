@@ -31,6 +31,8 @@ export interface ConversationOpts {
   threadId?: string
   /** Default true. */
   interaction?: boolean
+  /** The message's current version (default 1). */
+  version?: number
 }
 export interface Conversation {
   organizationId: string
@@ -40,6 +42,10 @@ export interface Conversation {
   /** The stored attachments' file ids, in the order given. */
   fileIds: string[]
   attachmentIds: string[]
+  /** The message's `content_key` (D23: no trailing slash), null for a reaction. */
+  contentKey: string | null
+  /** The stored files' `storage_key`s, parallel to `fileIds`. */
+  storageKeys: string[]
   messageSourceId: string
   threadSourceId: string | null
 }
@@ -56,6 +62,7 @@ export async function seedConversation(insert: Insert, opts: ConversationOpts = 
     : await insert('threads', { ...(opts.ids?.thread ? { id: opts.ids.thread } : {}), channel: 'email', subject: opts.subject === undefined ? `Subject ${n}` : opts.subject })
   const threadId = opts.threadId ?? (thread!.id as string)
   const organizationId = (thread?.organization_id as string | undefined) ?? ''
+  const contentKey = kind === 'message' ? `orgs/${organizationId || 'org'}/messages/email/${hex64()}` : null
   const message = await insert('messages', {
     ...(opts.ids?.message ? { id: opts.ids.message } : {}),
     thread_id: threadId,
@@ -66,20 +73,23 @@ export async function seedConversation(insert: Insert, opts: ConversationOpts = 
     author: { user_id: 'jane@acme.test', user_name: 'jane@acme.test', full_name: 'Jane', is_bot: false },
     occurred_at: occurredAt,
     preview: `Preview ${n}`,
-    content_key: kind === 'message' ? `orgs/${organizationId || 'org'}/messages/email/${hex64().slice(0, 16)}/` : null,
-    version: 1,
+    content_key: contentKey,
+    version: opts.version ?? 1,
     retracted_at: null,
   })
   const specs: readonly AttachmentSpec[] =
     typeof opts.attachments === 'number' ? Array.from({ length: opts.attachments }, (_, position) => ({ position })) : (opts.attachments ?? [])
   const fileIds: string[] = []
+  const storageKeys: string[] = []
   const attachmentIds: string[] = []
   for (const spec of specs) {
     let fileId: string | null = null
     if (!spec.failed) {
-      const file = await insert('files', { name: spec.name ?? `file-${spec.position}.pdf`, mime_type: 'application/pdf', size_bytes: spec.size_bytes ?? 1000 + spec.position, sha256: hex64(), storage_key: `orgs/${organizationId || 'org'}/files/${hex64().slice(0, 16)}` })
+      const storageKey = `orgs/${organizationId || 'org'}/files/${uuidv7()}`
+      const file = await insert('files', { name: spec.name ?? `file-${spec.position}.pdf`, mime_type: 'application/pdf', size_bytes: spec.size_bytes ?? 1000 + spec.position, sha256: hex64(), storage_key: storageKey })
       fileId = file.id as string
       fileIds.push(fileId)
+      storageKeys.push(storageKey)
     }
     const att = await insert('message_attachments', {
       message_id: message.id,
@@ -120,6 +130,8 @@ export async function seedConversation(insert: Insert, opts: ConversationOpts = 
     interactionId,
     fileIds,
     attachmentIds,
+    contentKey,
+    storageKeys,
     messageSourceId: source.id as string,
     threadSourceId: tsource ? (tsource.id as string) : null,
   }

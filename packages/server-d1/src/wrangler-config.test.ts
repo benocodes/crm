@@ -14,6 +14,7 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
     expect(c.d1_databases).toHaveLength(1)
     expect(c.d1_databases[0]!.database_id).toBe(PLACEHOLDER)
     expect(c.routes ?? []).toEqual([])
+    expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vault-bodies' }])
     expect(c.account_id).toBeUndefined()
   })
 
