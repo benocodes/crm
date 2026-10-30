@@ -5,9 +5,18 @@ Guidance for coding agents working in this repository.
 ## What this is
 
 A **headless CRM** (working name: the vault). No app of its own: every interaction (email, calendar,
-WhatsApp, later calls and iMessage) lands in one database (single-organisation D1 per self-hosted deployment; multi-tenant Postgres for the cloud-hosted and enterprise service), agents the customer
+WhatsApp, later calls and iMessage) lands in one database, agents the customer
 brings read it over REST, MCP or hooks, and they **propose** actions as action requests that a person or a
 rule approves; the vault executes. The only screen is a pane in the user's email client.
+
+**Current focus (2026-10-30, [[discussions/2026-10-30-d1-only-mvp]]): the MVP is Cloudflare D1 only,
+self-managed, one D1 database per organisation/workspace in the customer's Cloudflare account.** No
+enterprise tier and no cloud-hosted Postgres service for now. The engine-neutral storage port and the
+Postgres adapters stay in the repo, dormant, for later: no new Postgres work, and Postgres suites are not a
+cycle gate. A single-workspace D1 deployment uses Clerk for sign-in but not Clerk Organizations; members and roles live in the vault's own tables.
+**Custom objects are physical tables with typed columns** (no shared `records` table, no jsonb), and a
+**discoverable schema** (real names, native types, declared FKs; easy for agents and humans to query and
+understand) is a core principle.
 
 Read these first (they live in the separate knowledge repo, cloned at `knowledge/`):
 
@@ -122,6 +131,8 @@ agent can resolve, and when the sprint is finished.
 
 ## Stack and commands
 
+The MVP target is D1; the Postgres lines below describe the parked enterprise path.
+
 TypeScript (ESM), **pnpm** workspace, Node >= 22, Vitest. Cloudflare Workers + Hono +
 `@hono/zod-openapi`, Kysely on D1 (the single-organisation MVP engine, self-hosted on Cloudflare) or Neon Postgres via Hyperdrive (multi-tenant, cloud-hosted and enterprise), R2, Queues, Workflows. The Vercel AI SDK
 is the only LLM library (if the vault ever calls one).
@@ -162,6 +173,21 @@ in-place edits ([[CORE29]] retro).
   `<type>/<issue#>-<slug>`.
 - Work in a git **worktree** per cycle; never switch branches in the main checkout.
 - Reference specs by stable ID (`[[CORE12]]`), never by seq-prefixed folder path.
+
+## Engines (from 2026-10-30)
+
+**D1 is the oracle.** Behaviour, contracts and goldens are defined by the D1 adapter; the MVP ships on it.
+The Postgres adapters (`@vault/storage-postgres`, `@vault/server-postgres`, `@vault/db`) are kept alive
+because a fuller Postgres adapter is planned (schema per workspace or database per workspace, decided by
+plan and size) and shared code must not drift from it:
+
+- Postgres packages stay in the **typecheck and build** gate (blocking, cheap): a change to shared code
+  (`@vault/storage`, `@vault/api`) must still compile against both adapters.
+- Postgres **test suites still run** on changes to shared code and are reported, but are **non-blocking**:
+  a failure is drift to note in the cycle report (and fix when cheap), never a reason to bend D1 behaviour.
+- New features are specced and built for D1 only. Do not add Postgres migrations or Postgres-only work;
+  where a shared interface changes, keep the Postgres adapter compiling and say what it would need.
+- Specs with Postgres or multi-tenant cloud work are marked **parked**, not deleted.
 
 ## Load-bearing invariants
 

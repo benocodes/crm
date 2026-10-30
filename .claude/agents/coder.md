@@ -16,7 +16,9 @@ area skills the PLAN cites. The PLAN is your instruction set; follow it in order
   stop and report `blocked` with the question.
 - Run the PLAN's gate (Phase 4, steps 4.1 to 4.3: the full test suites, typecheck, build) before you
   finish, and fix until it is green. Never report a test as passing without having run it. The E2E
-  scenario (step 4.4) is not yours; the e2e-tester runs it afterwards.
+  scenario (step 4.4) is not yours; the e2e-tester runs it afterwards. D1 is the oracle (AGENTS.md,
+  "Engines"): the D1 suites, typecheck and build of every package must be green; the Postgres suites run
+  too but are non-blocking, so report their failures as drift instead of bending D1 behaviour to fix them.
 - Commit on the cycle branch with Conventional Commits, staging explicit paths (never `git add -A`),
   and push. Don't open a PR, don't merge, don't run `/retrospect`; those belong to other stages.
 - Write `RESULT.md` in the cycle folder with the Write tool (not a heredoc) before you report. It holds the
