@@ -233,7 +233,10 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   always emitted); `IDENTITY_REFERENCES` lists every FK onto `identities` with no re-point (`identity-catalog.integration.test.ts`
   compares it to both engines). `cascadeDelete` takes several children in order (contact: identities then `contact_files`;
   company: contacts then `company_files`), each with the three set guards and its own set event.
-- **Known limits, owed by later plans:** binary output and object reads after the unit ([[CORE58]]).
+- **Content operations** ([[CORE58]]): `src/messaging/content-operations.ts` holds `messages.content` (JSON, `messages:read`) and
+  `files.content` (binary, `files:read`), registered in `createVaultRegistry`. `SecretColumns` (`@vault/storage`) now holds
+  `messages.content_key` and `files.storage_key`: a record naming either is a compile error, and the operations read them with
+  `selectColumns`, never `publicSelect`.
 
 ## Prepared resources: the storage seam ([[CORE35]])
 
@@ -454,8 +457,20 @@ message bodies or addresses at info level (customer communications are personal 
 
 ## Large bytes and object storage
 
-- `ObjectStore` (`src/storage/types.ts`, R2 and local-disk implementations) holds raw email bodies and
-  attachments the Worker writes. Postgres holds a pointer and metadata only.
+- `ObjectStore` (`src/objects/store.ts`, [[CORE58]]) is `put`, `get`, `delete`: `r2ObjectStore(bucket)` over the structural
+  `R2BucketLike` (no `@cloudflare/workers-types` import) and `memoryObjectStore()` for tests. No Node built-in: production
+  `@vault/api` runs in workerd (`smoke:worker` and `open:check` are the checks). `AppOptions.objects` carries it; the D1 Worker
+  builds it from an optional `BODIES` binding. Postgres holds a pointer and metadata only.
+- The key layout ([[CORE25]] D23) is pure functions in `src/messaging/r2-keys.ts`: `content_key` is
+  `orgs/<org>/messages/<channel>/<sha256 hex of external_id>` (no trailing slash), the body `<content_key>/v<version>/body.md`,
+  `storage_key` `orgs/<org>/files/<object id>` and the bytes `<storage_key>/blob`. Reader and writer both import them.
+- **Objects are read after the unit.** An operation declares `objects(value, store)`: its read unit returns the hidden key to the
+  stage only (never into a response or event), and the app calls the stage once the unit has finished, so a unit never calls R2.
+  A composition without a store answers `503 objects_unavailable` after the scope checks and before any unit.
+- **Binary output.** `output: 'binary'` (status 200, no response schema, an `objects` stage) returns a `BinaryBody`;
+  the app sets `Content-Type` (`safeContentType`: `type/subtype` or `application/octet-stream`), `Content-Length`,
+  `Content-Disposition` (`contentDisposition`: ASCII fallback plus RFC 5987 `filename*`), `X-Content-Type-Options: nosniff` and
+  `Content-Security-Policy: sandbox`. `mime_type` and `name` come from a mail sender: never put them in a header raw.
 - A Worker request body caps at 100 MB; anything a browser uploads goes browser ↔ R2 over presigned URLs,
   and validation moves to a separate "complete" call that `head`s and sniffs what actually landed.
 - **Never hold a DB transaction across a storage call.** Do the DB work, close the transaction, then call
