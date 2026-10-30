@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
-import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey } from '@vault/api'
+import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, type R2BucketLike } from '@vault/api'
 import { applyMigrations } from '@vault/storage-d1/test'
 import type { D1Like } from '@vault/storage-d1'
 import {
@@ -240,7 +240,7 @@ try {
   check('16 the Worker reached only the fake Clerk host', hostsSeen.size > 0 && [...hostsSeen].every((h) => h === API_URL), [...hostsSeen])
 
   // 17-19: message content and file bytes from workerd's real R2 binding (CORE58)
-  const bodies = await mf.getR2Bucket('BODIES')
+  const bodies = (await mf.getR2Bucket('BODIES')) as unknown as R2BucketLike
   const org = String((await rows('select organization_id as o from deployment'))[0]!.o)
   const by = String((await rows('select id from principals limit 1'))[0]!.id)
   const at = '2026-10-30T09:00:00.000Z'
