@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
-import { hashApiKey } from '@vault/api'
+import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, type R2BucketLike } from '@vault/api'
 import { applyMigrations } from '@vault/storage-d1/test'
 import type { D1Like } from '@vault/storage-d1'
 import {
@@ -79,6 +79,7 @@ try {
     compatibilityDate: '2026-07-30',
     d1Databases: { DB: `smoke-${crypto.randomUUID()}` },
     d1Persist: false,
+    r2Buckets: ['BODIES'],
     handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
       capture(stdout)
       capture(stderr)
@@ -237,6 +238,58 @@ try {
 
   // 16: the network guard
   check('16 the Worker reached only the fake Clerk host', hostsSeen.size > 0 && [...hostsSeen].every((h) => h === API_URL), [...hostsSeen])
+
+  // 17-19: message content and file bytes from workerd's real R2 binding (CORE58)
+  const bodies = (await mf.getR2Bucket('BODIES')) as unknown as R2BucketLike
+  const org = String((await rows('select organization_id as o from deployment'))[0]!.o)
+  const by = String((await rows('select id from principals limit 1'))[0]!.id)
+  const at = '2026-10-30T09:00:00.000Z'
+  const sha = 'a'.repeat(64)
+  const thread = crypto.randomUUID()
+  await d1.prepare('insert into threads (id, organization_id, created_by, created_at, channel, subject) values (?, ?, ?, ?, ?, ?)').bind(thread, org, by, at, 'email', 'Smoke').run()
+  const addMessage = async (externalId: string) => {
+    const id = crypto.randomUUID()
+    const contentKey = await messageContentPrefix(org, 'email', externalId)
+    await d1
+      .prepare(
+        `insert into messages (id, organization_id, created_by, created_at, thread_id, channel, kind, external_id, author, occurred_at, preview, content_key, version) values (?, ?, ?, ?, ?, 'email', 'message', ?, ?, ?, 'Smoke', ?, 1)`,
+      )
+      .bind(id, org, by, at, thread, externalId, JSON.stringify({ user_id: 'j@smoke.test', user_name: 'j@smoke.test', full_name: 'J', is_bot: false }), at, contentKey)
+      .run()
+    return { id, contentKey }
+  }
+  const withBody = await addMessage('smoke-1@smoke.test')
+  const withoutBody = await addMessage('smoke-2@smoke.test')
+  await bodies.put(messageBodyKey(withBody.contentKey, 1), '# Smoke body')
+  const fileId = crypto.randomUUID()
+  const storageKey = `orgs/${org}/files/${fileId}`
+  await d1
+    .prepare(`insert into files (id, organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) values (?, ?, ?, ?, 'smoke.pdf', 'application/pdf', 256, ?, ?)`)
+    .bind(fileId, org, by, at, sha, storageKey)
+    .run()
+  const bytes = Uint8Array.from({ length: 256 }, (_, i) => i)
+  await bodies.put(fileBlobKey(storageKey), bytes)
+
+  res = await call('GET', `/messages/${withBody.id}/content`, { token: key })
+  body = await json(res)
+  check('17 GET /messages/{id}/content -> 200 markdown', res.status === 200 && body.content === '# Smoke body' && body.content_type === 'text/markdown' && body.version === 1, { status: res.status, body })
+
+  res = await call('GET', `/files/${fileId}/content`, { token: key })
+  const got = new Uint8Array(await res.arrayBuffer())
+  check(
+    '18 GET /files/{id}/content -> 200, exact bytes, nosniff, sandbox, attachment',
+    res.status === 200 &&
+      got.length === 256 &&
+      got.every((b, i) => b === i) &&
+      res.headers.get('x-content-type-options') === 'nosniff' &&
+      res.headers.get('content-security-policy') === 'sandbox' &&
+      (res.headers.get('content-disposition') ?? '').startsWith('attachment;'),
+    { status: res.status, bytes: got.length, headers: Object.fromEntries(res.headers) },
+  )
+
+  res = await call('GET', `/messages/${withoutBody.id}/content`, { token: key })
+  body = await json(res)
+  check('19 GET /messages/{id}/content without its object -> 404 content_unavailable', res.status === 404 && body.error?.code === 'content_unavailable', { status: res.status, body })
 } catch (err) {
   failures++
   console.log(`FAIL smoke aborted -> ${err instanceof Error ? err.message : String(err)}`)

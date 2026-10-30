@@ -9,11 +9,13 @@ import { createUserAuthenticator } from '../auth/user-authenticator.js'
 import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
-import type { Operation, OperationInput, Registry } from '../registry.js'
+import type { ObjectStore } from '../objects/store.js'
+import type { BinaryBody, Operation, OperationInput, Registry } from '../registry.js'
 import { parseInput } from '../resources/define.js'
 import { ScopeSet, formatScope } from '../scopes.js'
 import { internalEnv } from '../storage/internal.js'
 import { renderError, renderNotFound } from './errors.js'
+import { contentDisposition } from './binary.js'
 import { documentOperation, honoPath, registerSecurityScheme } from './openapi.js'
 
 export type AppEnv = { Variables: { principal: Principal; storage: StorageBinding } }
@@ -37,6 +39,8 @@ export interface AppOptions {
   corsOrigins?: readonly string[]
   /** `info.version` in the document. */
   version?: string
+  /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
+  objects?: ObjectStore
 }
 
 async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationInput> {
@@ -61,7 +65,7 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   return { params, query, body }
 }
 
-async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions, 'clock' | 'newId' | 'randomBytes'>): Promise<unknown> {
+async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects'>): Promise<unknown> {
   const input = await readInput(c, op)
   const principal = c.var.principal
   if (op.kind === 'account') {
@@ -92,6 +96,10 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
   if (!principal.scopes.has(op.scope)) {
     throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}`)
   }
+  // D52: a composition without a store refuses before any unit runs; the scope checks above stay the first refusals.
+  if (op.objects && !injected.objects) {
+    throw new ApiError(503, 'objects_unavailable', 'object storage is not configured')
+  }
   const { actor, organizationId, scopes } = principal
   const storage = c.var.storage
   const clock = injected.clock ?? (() => new Date())
@@ -104,12 +112,15 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
     newId: injected.newId ?? (() => uuidv7(now)),
     randomBytes: injected.randomBytes ?? ((n: number) => crypto.getRandomValues(new Uint8Array(n))),
   }
+  let value: unknown
   try {
     // `prepare` may be async (it can hash a secret) and may refuse with an ApiError: both map like a storage error.
-    return (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, await op.prepare(env, input))).value
+    value = (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, await op.prepare(env, input))).value
   } catch (err) {
     throw mapStorageError(err)
   }
+  // The object stage runs after the unit, outside the storage error mapping: an ApiError propagates, anything else is masked.
+  return op.objects ? op.objects(value, injected.objects!) : value
 }
 
 export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
@@ -149,6 +160,16 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     app.on(op.method.toUpperCase(), honoPath(op.path), auth, async (c) => {
       const result = await run(c, op, options)
       if (op.response.status === 204) return c.body(null, 204)
+      if (op.output === 'binary') {
+        const file = result as BinaryBody
+        return c.body(file.body, 200, {
+          'content-type': file.contentType,
+          'content-length': String(file.size),
+          'content-disposition': contentDisposition(file.filename),
+          'x-content-type-options': 'nosniff',
+          'content-security-policy': 'sandbox',
+        })
+      }
       return c.json(result as never, op.response.status)
     })
   }

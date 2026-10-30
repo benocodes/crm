@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { uuidv7 } from '@vault/storage'
+import { seedConversation } from '@vault/api/test/messaging'
+import { fakeR2Bucket } from '@vault/api/test/objects'
+import { messageBodyKey } from '@vault/api'
 import { clerkMembership, clerkOrganization, clerkWebhook, mintClerkToken, orgClaim, signClerkWebhook } from '@vault/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { NOT_INITIALISED, composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -212,5 +215,40 @@ describe('the none:smoked1 marker (OPS4 D18)', () => {
     expect(res.status).toBe(403)
     const after = (await w.d1.prepare('select count(*) c from users').first()) as { c: number }
     expect(after.c).toBe(before.c)
+  })
+})
+
+describe('message content through BODIES (CORE58 P12)', () => {
+  const seed = async () => {
+    const r = await boot()
+    const orgId = ((await w.d1.prepare('select organization_id as o from deployment').first()) as { o: string }).o
+    const creator = ((await w.d1.prepare('select id from principals limit 1').first()) as { id: string }).id
+    const insert = async (table: string, row: Record<string, unknown>) => {
+      const full: Record<string, unknown> = { id: uuidv7(NOW), organization_id: orgId, created_by: creator, created_at: NOW.toISOString(), ...row }
+      const cols = Object.keys(full)
+      const vals = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : full[c] !== null && typeof full[c] === 'object' ? JSON.stringify(full[c]) : (full[c] ?? null)))
+      await w.d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...vals).run()
+      return full
+    }
+    return { key: r.key, c: await seedConversation(insert) }
+  }
+
+  it('BODIES serves content', async () => {
+    const { key, c } = await seed()
+    const bucket = fakeR2Bucket()
+    await bucket.put(messageBodyKey(c.contentKey!, 1), '# Hello')
+    const res = await get(composeD1Worker(noAuth({ BODIES: bucket })), `/messages/${c.messageId}/content`, bearer(key))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ content_type: 'text/markdown', content: '# Hello', version: 1 })
+    expect(bucket.gets).toEqual([messageBodyKey(c.contentKey!, 1)])
+  })
+
+  it('without BODIES the content route is 503 and the rest works', async () => {
+    const { key, c } = await seed()
+    const worker = composeD1Worker(noAuth())
+    const res = await get(worker, `/messages/${c.messageId}/content`, bearer(key))
+    expect(res.status).toBe(503)
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe('objects_unavailable')
+    expect((await get(worker, '/tasks', bearer(key))).status).toBe(200)
   })
 })

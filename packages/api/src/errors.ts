@@ -1,5 +1,5 @@
 import { ForeignOrganizationError, SetLimitExceeded, StatementFailed, UnitDriftError } from '@vault/storage'
-export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413
+export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 503
 
 export class ApiError extends Error {
   override name = 'ApiError'

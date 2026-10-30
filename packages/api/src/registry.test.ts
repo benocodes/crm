@@ -80,6 +80,16 @@ describe('Registry.register', () => {
     expect(() => new Registry().register(op({ response: { status: 204, schema: z.object({}) } }))).toThrow()
     expect(() => new Registry().register(op({ response: { status: 204 } }))).not.toThrow()
   })
+  it('enforces the binary output rules (CORE58)', () => {
+    const stage = async (v: unknown) => v
+    const bin = (over: Record<string, unknown> = {}) => op({ output: 'binary', response: { status: 200 }, objects: stage, ...over } as never)
+    expect(() => new Registry().register(bin({ objects: undefined }))).toThrow()
+    expect(() => new Registry().register(bin({ response: { status: 200, schema: z.object({}) } }))).toThrow()
+    expect(() => new Registry().register(bin({ response: { status: 201 } }))).toThrow()
+    expect(() => new Registry().register(op({ response: { status: 204 }, objects: stage } as never))).toThrow()
+    expect(() => new Registry().register(bin())).not.toThrow()
+    expect(() => new Registry().register(op({ response: { status: 200 } }))).toThrow()
+  })
   it('requires path params to be declared', () => {
     expect(() =>
       new Registry().register(op({ path: '/x/{id}', request: { params: z.object({ other: z.string() }) } })),

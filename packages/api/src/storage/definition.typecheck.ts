@@ -276,13 +276,6 @@ export const okContactFiles = definePreparedResource({
   record: z.object({ id: z.uuid(), contact_id: z.uuid(), file_id: z.uuid() }),
   references: { contact_id: { table: 'contacts', live: true }, file_id: { table: 'files' } },
 })
-export const okHiddenColumnTyped = definePreparedResource({
-  name: 'messages',
-  eventName: 'message',
-  table: 'messages',
-  record: z.object({ id: z.uuid(), content_key: z.string().nullable() }), // hidden by omission, not by SecretColumns
-  operations: ['list', 'get'],
-})
 
 // 1. a record naming `attachments` without an embed declaration
 definePreparedResource({
@@ -369,12 +362,30 @@ definePreparedResource({
   filters: { contact_id: filter },
 })
 
-// 9. a hidden column named in a record with the wrong type
+// 9. a public messaging column named in a record with the wrong type
 definePreparedResource({
   name: 'messages',
   eventName: 'message',
   table: 'messages',
-  // @ts-expect-error content_key is text or null, the record says number
-  record: z.object({ id: z.uuid(), content_key: z.number() }),
+  // @ts-expect-error version is an integer, the record says string
+  record: z.object({ id: z.uuid(), version: z.string() }),
   operations: ['list', 'get'],
 })
+
+// hidden messaging columns ([[CORE58]] P5): content_key and storage_key are secret columns
+definePreparedResource({
+  name: 'messages',
+  eventName: 'message',
+  table: 'messages',
+  // @ts-expect-error content_key is a secret column
+  record: z.object({ id: z.uuid(), content_key: z.string().nullable() }),
+})
+definePreparedResource({
+  name: 'files',
+  eventName: 'file',
+  table: 'files',
+  // @ts-expect-error storage_key is a secret column
+  record: z.object({ id: z.uuid(), storage_key: z.string() }),
+})
+export const okHiddenMessages = definePreparedResource({ name: 'messages', eventName: 'message', table: 'messages', record: z.object({ id: z.uuid(), version: z.number().int() }) })
+export const okHiddenFiles = definePreparedResource({ name: 'files', eventName: 'file', table: 'files', record: z.object({ id: z.uuid(), name: z.string() }) })

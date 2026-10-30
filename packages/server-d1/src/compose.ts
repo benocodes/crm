@@ -1,4 +1,4 @@
-import { createApp, createAuthAdapter, parseOriginList, type AuthAdapter } from '@vault/api'
+import { createApp, createAuthAdapter, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
 import type { D1Binding } from '@vault/storage'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -15,6 +15,8 @@ export interface D1WorkerEnv {
   CORS_ALLOWED_ORIGINS?: string
   /** The deployed commit, set by `deploy:remote` (`--var VERSION:<sha>`); `/health` reports it, `dev` when absent. */
   VERSION?: string
+  /** The R2 bucket of message bodies and file bytes ([[CORE58]] P12). Absent: the two content routes answer `503 objects_unavailable`. */
+  BODIES?: R2BucketLike
 }
 
 /** The 503 body of every route but /health and /openapi.json while the deployment marker is absent. */
@@ -70,7 +72,7 @@ export function composeD1Worker(
     const link = await readDeployment(env.DB)
     if (!link) return undefined
     const binding = d1Binding(env.DB, link)
-    app = createApp({ storage: () => binding, authAdapter, corsOrigins, clock: deps.clock, newId: deps.newId })
+    app = createApp({ storage: () => binding, authAdapter, corsOrigins, clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
     return app
   }
 
