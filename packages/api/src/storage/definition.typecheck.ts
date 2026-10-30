@@ -378,3 +378,21 @@ definePreparedResource({
   record: z.object({ id: z.uuid(), content_key: z.number() }),
   operations: ['list', 'get'],
 })
+
+// hidden messaging columns ([[CORE58]] P5): content_key and storage_key are secret columns
+definePreparedResource({
+  name: 'messages',
+  eventName: 'message',
+  table: 'messages',
+  // @ts-expect-error content_key is a secret column
+  record: z.object({ id: z.uuid(), content_key: z.string().nullable() }),
+})
+definePreparedResource({
+  name: 'files',
+  eventName: 'file',
+  table: 'files',
+  // @ts-expect-error storage_key is a secret column
+  record: z.object({ id: z.uuid(), storage_key: z.string() }),
+})
+export const okHiddenMessages = definePreparedResource({ name: 'messages', eventName: 'message', table: 'messages', record: z.object({ id: z.uuid(), version: z.number().int() }) })
+export const okHiddenFiles = definePreparedResource({ name: 'files', eventName: 'file', table: 'files', record: z.object({ id: z.uuid(), name: z.string() }) })

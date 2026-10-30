@@ -93,3 +93,11 @@ const accountWithOrganisation: StorageIdentity = { kind: 'account', actorId: 'a'
 
 export { okTenantIdentity, okAccountIdentity, okInternalIdentity, okInternalOrganisation, noKind, accountWithOrganisation }
 export { inferred, okFilter, okNullable, okProjection, okPublic, publicColumns, status, columns }
+
+// hidden messaging columns ([[CORE58]] P5)
+// @ts-expect-error content_key is a secret column of messages
+publicSelect(qc, 'messages', ['content_key'])
+// @ts-expect-error storage_key is a secret column of files
+publicSelect(qc, 'files', ['storage_key'])
+export const okHidden = selectColumns(qc, 'messages', ['id', 'content_key'])
+export const okPublicMessages = publicSelect(qc, 'messages', ['id', 'version'])
