@@ -276,13 +276,6 @@ export const okContactFiles = definePreparedResource({
   record: z.object({ id: z.uuid(), contact_id: z.uuid(), file_id: z.uuid() }),
   references: { contact_id: { table: 'contacts', live: true }, file_id: { table: 'files' } },
 })
-export const okHiddenColumnTyped = definePreparedResource({
-  name: 'messages',
-  eventName: 'message',
-  table: 'messages',
-  record: z.object({ id: z.uuid(), content_key: z.string().nullable() }), // hidden by omission, not by SecretColumns
-  operations: ['list', 'get'],
-})
 
 // 1. a record naming `attachments` without an embed declaration
 definePreparedResource({

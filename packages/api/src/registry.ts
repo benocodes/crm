@@ -2,11 +2,19 @@ import { z } from 'zod'
 import type { Actor } from './auth/types.js'
 import { formatScope, type Scope, type ScopeSet } from './scopes.js'
 import type { PreparedOperation } from '@vault/storage'
+import type { ObjectStore } from './objects/store.js'
 import type { PreparedEnv, PreparedResource } from './storage/definition.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
 import { crudActions, resourcePath, scopeResourceOf, type CrudAction } from './resources/define.js'
 
 export type HttpMethod = 'get' | 'post' | 'patch' | 'delete'
+/** What a binary operation's object stage returns ([[CORE58]] P8, P10): the app turns it into the response. */
+export interface BinaryBody {
+  body: ReadableStream<Uint8Array>
+  size: number
+  contentType: string
+  filename: string
+}
 export type OperationInput = { params: Record<string, unknown>; query: Record<string, unknown>; body: unknown }
 interface OperationBase {
   name: string
@@ -18,6 +26,8 @@ interface OperationBase {
   request?: { params?: z.ZodObject; query?: z.ZodObject; body?: z.ZodType }
   validation?: 'adapter' | 'handler'
   response: { status: 200 | 201 | 204; schema?: z.ZodType }
+  /** `binary` responds with a `BinaryBody` from the `objects` stage; default `json`. */
+  output?: 'json' | 'binary'
 }
 /**
  * The one tenant operation shape ([[CORE36]] D16): the operation builds a bounded program from the trusted environment and
@@ -27,6 +37,11 @@ export interface TenantOperation extends OperationBase {
   kind: 'tenant'
   scope: Scope
   prepare: (env: PreparedEnv, input: OperationInput) => PreparedOperation<unknown> | Promise<PreparedOperation<unknown>>
+  /**
+   * The object stage ([[CORE25]] D52): runs after the read unit with the unit's value and the composition's store, so a
+   * unit never calls R2. Its return is the response (JSON) or a `BinaryBody` (binary).
+   */
+  objects?: (value: unknown, store: ObjectStore) => Promise<unknown>
 }
 /**
  * What an account operation sees ([[CORE41]] C2, P12): the signed-in user, the active organisation and its scopes when
@@ -62,9 +77,15 @@ export class Registry {
     if (this.ops.some((o) => o.method === op.method && o.path === op.path)) {
       throw new Error(`duplicate route ${op.method.toUpperCase()} ${op.path}`)
     }
-    if (op.response.status === 204 ? op.response.schema !== undefined : op.response.schema === undefined) {
-      throw new Error(`operation ${op.name}: response schema is required unless 204, and forbidden on 204`)
+    const binary = op.output === 'binary'
+    if (binary) {
+      if (op.response.schema !== undefined) throw new Error(`operation ${op.name}: a binary operation has no response schema`)
+      if (op.response.status !== 200) throw new Error(`operation ${op.name}: a binary operation responds 200`)
+      if (op.kind !== 'tenant' || !op.objects) throw new Error(`operation ${op.name}: a binary operation needs an objects stage`)
+    } else if (op.response.status === 204 ? op.response.schema !== undefined : op.response.schema === undefined) {
+      throw new Error(`operation ${op.name}: response schema is required unless 204 or binary, and forbidden on 204`)
     }
+    if (op.kind === 'tenant' && op.objects && op.response.status === 204) throw new Error(`operation ${op.name}: an objects stage needs a response body`)
     const params = op.request?.params
     if (params) {
       for (const m of op.path.matchAll(/\{(\w+)\}/g)) {

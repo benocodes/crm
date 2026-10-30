@@ -49,6 +49,8 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
     const body = await res.json()
     expect(body).toEqual({ content_type: 'text/markdown', content: '# Hi\n\nBody', version: 1 })
     expect(Object.keys(body as object).filter((k) => k.includes('key'))).toEqual([])
+    // The layout is spelled out, not rebuilt with the helper under test (D23).
+    expect(gets).toEqual([`${c.contentKey}/v1/body.md`])
   })
 
   it('reads the current version', async () => {

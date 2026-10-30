@@ -16,6 +16,8 @@
       "migrations_dir": "../storage-d1/migrations"
     }
   ],
+  // Local R2 (no account needed): message bodies and file bytes, served by messages.content and files.content.
+  "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-bodies" }],
   // Secrets (CLERK_JWT_KEY, CLERK_SECRET_KEY, CLERK_WEBHOOK_SECRET) are never put here: .dev.vars locally, wrangler secret put when deployed.
   "vars": {
     "AUTH_PROVIDER": "",

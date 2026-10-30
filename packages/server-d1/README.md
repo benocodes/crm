@@ -20,7 +20,7 @@ From the repository root, after `pnpm install`:
 ```bash
 export WRANGLER_SEND_METRICS=false CI=1
 
-# 1. Apply the migrations to the local D1 (0001 to 0003).
+# 1. Apply the migrations to the local D1 (0001 to 0004).
 pnpm -C packages/server-d1 exec wrangler d1 migrations apply DB --local
 
 # 2. Create the deployment marker, the first organisation, its owner and an agent. The key is printed once.
@@ -55,7 +55,7 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
 | `CLERK_JWT_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET` | secrets | required with `AUTH_PROVIDER=clerk` |
 | `CLERK_API_URL` | var | optional |
 | `VERSION` | var | the deployed git sha, set by `deploy:remote`; `/health` reports it (`dev` when absent) |
-| `BODIES` | R2 binding | the raw-body bucket (`ObjectStore`); bound now, read from the channel cycles on |
+| `BODIES` | R2 binding | the object store (`ObjectStore`): message bodies and file bytes served by `messages.content` and `files.content`; without it those two routes answer `503 objects_unavailable` |
 
 Locally, put the secrets in `.dev.vars` (copy `.dev.vars.example`; gitignored). `wrangler.jsonc` has a placeholder
 `database_id` and no `account_id` on purpose. A bad auth or CORS configuration fails closed: every non-health request is

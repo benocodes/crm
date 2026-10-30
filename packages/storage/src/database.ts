@@ -292,6 +292,9 @@ export type ValueOf<T extends Table, C extends ColumnOf<T>> = UpdateType<Storage
 /** Columns that must never appear in a public projection, per table. */
 export interface SecretColumns {
   api_keys: 'key_hash'
+  /** [[CORE25]] D23: the object keys never appear in a read schema; the content operations read them with `selectColumns`. */
+  messages: 'content_key'
+  files: 'storage_key'
 }
 export type PublicColumn<T extends Table> = Exclude<ColumnOf<T>, T extends keyof SecretColumns ? SecretColumns[T] : never>
 
