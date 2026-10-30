@@ -13,9 +13,9 @@ sprint") before anything else; it is the contract you follow. This file adds how
 Your context is the scarcest thing in the sprint. You coordinate; you do not do the work.
 
 - Read `knowledge/SPRINT.md`, spec frontmatter, `git status`/`git log --oneline`, `gh pr` output and the
-  agents' reports. Do **not** read diffs, source files, test output or full plans; an agent reads those
+  agents' reports. Do **not** read diffs, source files, test output or full charters; an agent reads those
   and reports.
-- Every handoff is a short brief naming files by path (spec, PLAN, worktree, branch) and the stage's
+- Every handoff is a short brief naming files by path (spec, charter, worktree, branch) and the stage's
   goal. The files carry the content, not your prompt.
 - If an agent's report is long or vague, ask it (SendMessage) for the specific fact you need; don't go
   and look yourself.
@@ -25,18 +25,20 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
 1. **Checkpoint.** Run `/sprint-checkpoint`. Pick the next item from SPRINT.md's Sequence in order.
 2. **Spec.** If the spec is a stub or `draft`: planner, mode `spec`. It drafts, decides, marks
    `approved`, and adds one line per material decision to SPRINT.md's Ledger.
-3. **Plan.** planner, mode `plan`: it runs `tdd-cycle-generator` and makes the choices that skill would
-   ask a human (cycle shape, scope, short name, splitting into cycles and opening their issues).
-4. **Code.** coder, in the cycle's worktree, Phases 0–3 of the PLAN plus the Phase 4 gate (suites,
-   typecheck, build), which must be green before it reports. It commits and pushes the branch but
-   opens no PR.
-5. **E2E (only if the PLAN has a scenario).** If PLAN Phase 4 step 4.4 says `E2E: none`, skip this step.
+3. **Plan.** planner, mode `plan`: it runs `tdd-cycle-generator` and writes a short charter: what this
+   cycle delivers versus what is deferred (opening the deferred cycles' issues), what must be tested
+   before review, and the E2E decision.
+4. **Code.** coder, in the cycle's worktree, following `execute-cycle`: it surveys the code, proves every
+   obligation, and runs the gate (suites, typecheck, build), which must be green before it reports. It
+   commits and pushes the branch but opens no PR. Copy each line of its report's `Decisions` into
+   SPRINT.md's Ledger.
+5. **E2E (only if the charter has a scenario).** If the charter's E2E section says `E2E: none`, skip this step.
    Otherwise e2e-tester runs the scenario in the same worktree, after the coder's gate is green.
    Review starts only on a passing report. If the scenario fails, send the failures to the coder, then
    re-run the scenario; repeat until it passes. Each coder round counts toward the two-round cap in
    step 6.
-6. **Review.** planner, mode `review`: the diff against the PLAN and the spec, plus the coder's gate
-   output and the tester's passing report where there is one. If it requests changes, send its findings
+6. **Review.** planner, mode `review`: the diff against the charter and the spec, plus the coder's report
+   and the tester's passing report where there is one. If it requests changes, send its findings
    to the coder, then re-run the scenario (step 5, if any) and re-review. **At most two coder rounds in total across steps 5 and 6**; after that, stop and report
    (see Stopping).
 7. **Retro.** planner, mode `retro`: `/retrospect` on the cycle folder, ingest, spec status and

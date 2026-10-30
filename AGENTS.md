@@ -47,7 +47,8 @@ The lifecycle is issue-driven. Skills live in `.agents/skills/`:
 | Triage | `triage-issues` |
 | Spec | `spec-author` |
 | Sprint (a band of specs) | `sprint-planning`, `sprint-checkpoint` |
-| Plan | `tdd-cycle-generator` |
+| Plan (a cycle charter: scope now vs later, what must be tested) | `tdd-cycle-generator` |
+| Implement a cycle | `execute-cycle` |
 | Deliver features / bugs | `work-on-ready-issues` / `fix-bugs` |
 | Pause mid-cycle | `handoff` |
 | Close a cycle | `retrospect` |
@@ -72,14 +73,14 @@ on a single issue (`fix-bugs`, `work-on-ready-issues`), are not orchestrated: do
 | Agent | Model | Job |
 |---|---|---|
 | `orchestrator` | Opus | The main session (`claude --agent orchestrator`). Picks the next item from `knowledge/SPRINT.md`, briefs the others, merges approved PRs, keeps SPRINT.md current. Reads reports, not code. |
-| `planner` | Opus | Modes: `spec` (draft and approve a spec), `plan` (`tdd-cycle-generator`), `review` (the diff against PLAN and spec), `retro` (`/retrospect` and ingest). |
-| `coder` | Sonnet | Executes a PLAN's Phases 0–3 plus the Phase 4 gate (all suites, typecheck, build; must be green) in the cycle's worktree; applies review findings. |
-| `e2e-tester` | Sonnet | Runs a PLAN's E2E scenario (initial state, real actions, expected end state) against a real database or UI, only when the PLAN has one, and reports evidence. Never edits. |
+| `planner` | Opus | Modes: `spec` (draft and approve a spec), `plan` (a short charter via `tdd-cycle-generator`), `review` (the diff against charter and spec), `retro` (`/retrospect` and ingest). |
+| `coder` | Sonnet | Implements the charter via `execute-cycle`: surveys the code, proves every test obligation, runs the gate (all suites, typecheck, build; must be green) in the cycle's worktree, records its design decisions; applies review findings. |
+| `e2e-tester` | Sonnet | Runs the charter's E2E scenario (initial state, real actions, expected end state) against a real database or UI, only when the charter has one, and reports evidence. Never edits. |
 
 Subagents cannot start subagents, so the orchestrator must be the main session, never a subagent.
 
 **Per cycle:** planner `spec` (if the spec isn't approved) → planner `plan` → coder (gate green) →
-e2e-tester (only if the PLAN has an E2E scenario; on failure: coder → e2e-tester, until it passes) → planner `review` (on changes requested: coder → e2e-tester if any → review; **at most two coder rounds in total**) → planner
+e2e-tester (only if the charter has an E2E scenario; on failure: coder → e2e-tester, until it passes) → planner `review` (on changes requested: coder → e2e-tester if any → review; **at most two coder rounds in total**) → planner
 `retro` → orchestrator opens the PR, waits for checks, merges (`gh pr merge --squash --delete-branch`),
 removes the worktree and its test DB, and checkpoints SPRINT.md. Cycles that build on each other run in
 order from an up-to-date `main`.
