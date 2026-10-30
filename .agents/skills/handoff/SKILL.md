@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Write a checkpoint file (HANDOFF.md) into a cycle folder mid-execution of its PLAN, so a second agent — or the same one after a context reset — can pick up implementation without reconstructing progress from git diffs. Use when an agent executing a PLAN is running low on context, hits a natural pause, or the user asks to hand off; delete it once retrospect writes the RETRO.
+description: Write a checkpoint file (HANDOFF.md) into a cycle folder mid-implementation of its charter (PLAN), so a second agent — or the same one after a context reset — can pick up implementation without reconstructing progress from git diffs. Use when an agent implementing a cycle is running low on context, hits a natural pause, or the user asks to hand off; delete it once retrospect writes the RETRO.
 ---
 
 # Handoff
@@ -33,10 +33,10 @@ Derive the cycle ID `<ID>` from the plan filename. Read the plan in full — its
 Gather, in order:
 
 1. **Git state** — `git status --short` and `git diff` (staged + unstaged) on the current branch. `git log --oneline` since the branch point (`git merge-base main HEAD`) to see what's already committed.
-2. **Phase/step position** — walk the PLAN's phases top to bottom against what git state and the conversation show actually exists; find the last step with real evidence of completion (a file exists, a test file was written, a command was run) and the first one that doesn't yet.
+2. **Position against the charter** — walk the charter's "In this cycle" items and "Must be tested" obligations against what git state and the conversation show actually exists: which are delivered, which obligations have a test with evidence (red run, mutation), which are untouched. Then the `execute-cycle` stage reached (survey, red, green, mutations, gate).
 3. **Test status** — the most recent real test run relevant to this cycle (rerun it now if the current state is unclear rather than guessing from stale memory).
-4. **Completion checklist** — go through the PLAN's own checklist and mark each item done / not done based on evidence, not intention.
-5. **Deviations and decisions made so far** — anything already diverging from the PLAN, and why (mirrors the categories `retrospect` collects at the end, but this is a snapshot, not a final account).
+4. **Approach** — the design you worked out in the survey: files touched or to touch, helpers reused, the seam tested at, the migration number. The charter doesn't carry this, so without it the next agent redoes the survey.
+5. **Deviations and decisions made so far** — anything already diverging from the charter, and the design calls made where spec and charter are silent (mirrors the categories `retrospect` collects at the end, but this is a snapshot, not a final account).
 6. **Open blockers** — anything currently stuck: a failing test not yet diagnosed, a missing prerequisite, an ambiguous spec point.
 
 ### Step 3: Write the HANDOFF
@@ -55,19 +55,23 @@ Write `HANDOFF.md` in the cycle directory, overwriting any existing one:
 
 ## Current Position
 
-{Which PLAN phase/step is in progress or was just completed, e.g. "Phase 3, Step 3.4 — implementing the claim route; Steps 3.1–3.3 done."}
+{The `execute-cycle` stage and the charter item in progress, e.g. "Green — claim route; scope items 1–2 delivered, obligations 1–4 red-committed, 5–6 not started."}
 
 ## Done
 
-{Checklist of completed PLAN items, each with the evidence — file path, test name, commit hash. Not "I think this works" — what was actually verified.}
+{Charter items and obligations done, each with the evidence — file path, test name, commit hash. Not "I think this works" — what was actually verified.}
+
+## Approach
+
+{The design worked out so far: files and modules, helpers reused, the test seam, the migration number, and why. Short bullets.}
 
 ## Pending
 
-{Remaining PLAN steps in order, as written in the PLAN — don't re-summarize them, reference the step numbers so the next agent re-reads the PLAN itself for detail.}
+{Remaining charter items and obligations, referenced by their wording in the charter — don't re-explain them.}
 
 ## Deviations & Decisions So Far
 
-{Anything already diverging from the PLAN and why. Empty section ("None yet") is fine and expected early in execution.}
+{Anything already diverging from the charter, and each design decision made (they go into RESULT.md too). Empty section ("None yet") is fine and expected early in execution.}
 
 ## Test Status
 
@@ -79,7 +83,7 @@ Write `HANDOFF.md` in the cycle directory, overwriting any existing one:
 
 ## Next Action
 
-{The single next concrete thing to do — a command to run, a file to open and what to change in it. Specific enough that a fresh agent doesn't have to re-derive it from the PLAN.}
+{The single next concrete thing to do — a command to run, a file to open and what to change in it. Specific enough that a fresh agent doesn't have to re-derive it.}
 ```
 
 ### Step 4: Confirm
@@ -91,7 +95,7 @@ Report the HANDOFF path and a one-line summary of current position. Remind the u
 ## Quality Rules
 
 1. **Evidence-based, like a retro.** Every "done" claim is backed by something checkable — a file, a test result, a commit — not intention or memory of having started it.
-2. **Point at the PLAN, don't duplicate it.** The Pending section references PLAN step numbers; it doesn't re-explain what those steps say. The next agent reads the PLAN for detail and the HANDOFF for position.
+2. **Point at the charter, don't duplicate it.** Pending references the charter's items; it doesn't re-explain them. The next agent reads the charter for scope and obligations, and the HANDOFF for position and approach.
 3. **File paths from repo root.** Same exception as PLAN/RETRO: reference the cycle itself by ID (`[[CORE12]]`), never by its seq-prefixed path.
 4. **Concise.** This is a checkpoint, not a narrative — bullets and short sentences, like a RETRO.
 5. **Overwrite, don't accumulate.** One HANDOFF file per cycle, always current. If the state changed enough to want a second version, that's what `git log` on the file is for.
@@ -109,6 +113,6 @@ When `/retrospect` runs on this cycle, it should:
 
 This skill is scoped to an agent **executing** one PLAN. An agent **writing** specs and generating
 PLANs across a sequence of them has a different unit of work — a band of specs, not one cycle — with
-no cycle folder to live in and no PLAN phases to report position against. That's `sprint-planning`,
+no cycle folder to live in and no charter to report position against. That's `sprint-planning`,
 which maintains `knowledge/SPRINT.md`. The two coexist: a sprint can have a live `SPRINT.md` while
 one of its cycles is mid-execution with its own `HANDOFF.md`.

@@ -264,7 +264,7 @@ tests.
 - **See the migration test fail before writing the migration.** Run it alone on the test DB, at the old
   schema, and check that it fails on the missing column or table. Then write the migration, run codegen
   and update the seeds. If the migration and the generated types come first, nothing proves the test
-  asserts the change rather than the baseline ([[CORE3]] cycle 1; `tdd-cycle-generator` rule 11).
+  asserts the change rather than the baseline ([[CORE3]] cycle 1; `execute-cycle` §3).
 - **A migration test lives until its migration is applied in prod, then it is deleted.** It asserts against
   the *latest* schema, so afterwards it can only fail for a later migration's legitimate change, and "fixing"
   it makes migration N's test describe migration M's change. A later migration that breaks an earlier test

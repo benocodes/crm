@@ -17,8 +17,8 @@ This skill makes the sequence a first-class artifact. It is the **architect's** 
 | | `handoff` | `sprint-planning` |
 |---|---|---|
 | Unit of work | one cycle | a band of specs |
-| Written by | an agent executing a PLAN | an agent writing specs and generating PLANs |
-| Reports position against | the PLAN's phases/steps | the spec queue |
+| Written by | an agent implementing a cycle | an agent writing specs and generating PLANs |
+| Reports position against | the charter's scope items and test obligations | the spec queue |
 | Lives at | `HANDOFF.md`, in the cycle folder | `knowledge/SPRINT.md` |
 | Cleared by | `retrospect`, when the RETRO lands | `/sprint-planning close`, when the last spec ships |
 
@@ -170,7 +170,7 @@ Specific enough that a fresh agent doesn't re-derive it.}
    a RETRO exists and the spec says `shipped`. Never report intent as state.
 
 2. **Point at sources; don't duplicate them.** The Sequence table gives status and a one-line scope;
-   the spec file holds the design and the PLAN holds the steps. A sprint file that restates a spec
+   the spec file holds the design and the PLAN holds the cycle's scope and test obligations. A sprint file that restates a spec
    will drift from it, and the drift is invisible.
 
 3. **The Ledger is a staging area, not a second home.** A fact belongs there only until
@@ -201,9 +201,9 @@ Specific enough that a fresh agent doesn't re-derive it.}
 
 - **`spec-author`** owns each stub's format, the ID/seq rules, and supersession. `open` creates
   stubs that conform to it; this skill adds nothing to the spec format itself.
-- **`tdd-cycle-generator`** turns a spec into a PLAN. Checkpoint after each generation so the
-  claimed migration number lands in the Ledger before it goes stale — a plan's hardcoded migration
-  number is the single most common thing to rot between generation and execution.
+- **`tdd-cycle-generator`** turns a spec into a cycle charter (PLAN). Checkpoint after each
+  generation so the cycle and its deferred issues land in the Sequence. Charters claim no migration
+  number; the coder picks it at implementation time (`execute-cycle`).
 - **`handoff`** takes over inside one cycle's execution. The two coexist: a sprint may have a live
   `knowledge/SPRINT.md` and an executing cycle with its own `HANDOFF.md`. Neither replaces the other.
 - **`retrospect`** is what drains the Ledger. When it ingests a lesson into a skill or doc, the
