@@ -459,3 +459,10 @@ skill ends; don't start implementing unless asked.
     runs it once the user has added scoped allow rules** for those exact command forms to their own
     gitignored `.claude/settings.local.json` (also an owed-by-user item). Never plan a workaround through
     another tool or API. Read-only probes (lists, `GET`s) are not affected ([[OPS4]]).
+20. **Run each test row through the Contracts' algorithm by hand.** When a plan states both an algorithm
+    (a sanitiser, a key builder, a parser) and the test rows that check it, every row's expected value must be what
+    that algorithm returns. [[CORE58]]'s `safeContentType` cut at `;` before validating, so its own "unsafe mime" row
+    (`text/html; charset=utf-8\r\nx: y` → `application/octet-stream`) would have come out `text/html`; the coder
+    caught the contradiction and review amended the contract. Also, a cycle that tightens a type rule (rule 17) lists
+    the existing `@ts-expect-error` fixtures on the affected columns, since they may keep failing for the new reason
+    (`writing-tests` §2).

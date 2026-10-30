@@ -28,6 +28,15 @@ skill is what the coder follows while writing them.
 - **A mutation that stays green is suspect before the test is.** Check `git diff` shows an executable line
   changed: [[CORE38]]'s mutation 7 (`remoteBindings: true`) first replaced the word in a code comment and
   stayed green; applied to the `return` line it turned red. Record which attempt counted.
+- **A filtered run that ran nothing is not a result.** `vitest -t` with a pattern that matches no test exits `0` with
+  every test `skipped`, which reads like "the mutation stayed green". [[CORE58]]'s first mutation pass prefixed the
+  pattern with the `describe` title (`-t "content operations on d1 file bytes and headers"`) and matched nothing for
+  M2, M4 and M7; filtering by the test's own title ran both engines and all three went red. Before recording a mutation,
+  check the output names the targeted test (`×` or `1 failed`); read the engine from the `describe > test` path.
+- **A test that computes its expectation with the function under test cannot catch a fault in it.** [[CORE58]]'s
+  "markdown content" case seeded the object at `messageBodyKey(contentKey, 1)` and the reader looked it up with the same
+  builder, so breaking the builder (M3) moved both sides and stayed green. Pin at least one case to a literal
+  (`` `${contentKey}/v1/body.md` ``) whenever the test and the code share a helper.
 - **An absence mutation is per engine: drop every guard that engine has for the property.** The same property can be
   held by different guards on each engine. Removing one guard proves nothing on an engine where another still holds.
   [[CORE41]]: dropping first sight's `assertStep` turns the D1 drift case red (D1 decodes after the batch commits, so
@@ -74,6 +83,11 @@ When the contract is a compile-time one (a typed storage or definition API), tes
   directive removed it reports the real diagnostic (TS2322, TS2353, TS2345). Keep both outputs.
 - A cast that erases the check (`as never`, `any`) defeats the test; a cast needs one commented, reviewed
   boundary.
+- **Tightening a type can leave an old negative red for the wrong reason.** `@ts-expect-error` only asserts that
+  *some* error occurs. When [[CORE58]] made `messages.content_key` a secret column, fixture 9 (`content_key: z.number()`,
+  "wrong type") kept compiling red, now because the column is secret, and stopped testing the type mismatch it named.
+  A cycle that tightens a type rule greps the existing negatives for the affected columns and re-targets each one whose
+  error reason changed (fixture 9 moved to the public `version` column); review caught this, the gate could not.
 - **Type a column by its decoded value, not by the union of engine representations.** With
   `string[] | string` (Postgres array or D1 JSON text), `scopes: z.string()` is assignable and the negative can
   never go red. `StringArrayColumn` is `string[]`, because only `toRecord` sees the raw text ([[CORE40]]).

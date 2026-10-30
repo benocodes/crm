@@ -471,6 +471,9 @@ message bodies or addresses at info level (customer communications are personal 
   the app sets `Content-Type` (`safeContentType`: `type/subtype` or `application/octet-stream`), `Content-Length`,
   `Content-Disposition` (`contentDisposition`: ASCII fallback plus RFC 5987 `filename*`), `X-Content-Type-Options: nosniff` and
   `Content-Security-Policy: sandbox`. `mime_type` and `name` come from a mail sender: never put them in a header raw.
+  A sanitiser for an untrusted header value rejects the **whole** value on any control character before it parses
+  anything: cutting `text/html; charset=utf-8\r\nx: y` at `;` first would have accepted it as `text/html` ([[CORE58]]
+  review ruling).
 - A Worker request body caps at 100 MB; anything a browser uploads goes browser ↔ R2 over presigned URLs,
   and validation moves to a separate "complete" call that `head`s and sniffs what actually landed.
 - **Never hold a DB transaction across a storage call.** Do the DB work, close the transaction, then call
