@@ -14,7 +14,7 @@ self-managed, one D1 database per organisation/workspace in the customer's Cloud
 enterprise tier and no cloud-hosted Postgres service for now. The engine-neutral storage port and the
 Postgres adapters stay in the repo, dormant, for later: no new Postgres work, and Postgres suites are not a
 cycle gate. A single-workspace D1 deployment uses Clerk for sign-in but not Clerk Organizations; members and roles live in the vault's own tables.
-**Custom objects are physical tables with typed columns** (no shared `records` table, no jsonb), and a
+**Custom objects are not built in the MVP; the MVP is designed so they fit later** as physical tables with typed columns (no shared `records` table, no jsonb). A
 **discoverable schema** (real names, native types, declared FKs; easy for agents and humans to query and
 understand) is a core principle.
 
