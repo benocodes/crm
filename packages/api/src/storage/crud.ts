@@ -5,6 +5,7 @@ import {
   bind,
   codecs,
   defineOperation,
+  embedJson,
   readAll,
   readMaybe,
   recordColumns,
@@ -12,6 +13,7 @@ import {
   ts,
   unit,
   type ColumnKind,
+  type EmbedSpec,
   type EventReceipt,
   type PreparedOperation,
   type QueryContext,
@@ -36,7 +38,17 @@ const loose = (qc: QueryContext): Loose => qc.db as unknown as Loose
 
 export type ListResult<R> = { data: R[]; next_cursor: string | null }
 
-export const columnsOf = (def: PreparedResource): string[] => Object.keys(def.record.shape)
+/** The embeds of a definition (record fields rendered from a child table, [[CORE25]] D50). */
+export const embedsOf = (def: PreparedResource): Readonly<Record<string, EmbedSpec>> => def.embed ?? {}
+/** The physical columns of the record: its keys minus the embed fields. */
+export const columnsOf = (def: PreparedResource): string[] => Object.keys(def.record.shape).filter((k) => !(k in embedsOf(def)))
+/** What an event's `after` is rendered from: the stored row's columns plus the embedded children (one rendering for reads and events). */
+export const afterOf = (def: PreparedResource) => ({ table: physicalTable(def), columns: columnsOf(def), embeds: embedsOf(def) })
+/** A record select's projection: the columns (timestamps as ISO text) and each embed aliased to its field. */
+const projection = (def: PreparedResource, qc: QueryContext) => [
+  ...recordColumns(qc, physicalTable(def), columnsOf(def)),
+  ...Object.entries(embedsOf(def)).map(([field, spec]) => embedJson(qc, physicalTable(def), spec, 'select').as(field)),
+]
 const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
 const ref = (def: PreparedResource, column: string) => sql.ref(`${def.table}.${column}`)
 const notFound = (def: PreparedResource) => new ApiError(404, 'not_found', `${def.eventName} not found`)
@@ -54,7 +66,11 @@ export function toRecord<R extends { id: string }>(def: PreparedResource<Prepare
           ? codecs.boolean.readNullable(v)
           : kinds[k] === 'string_array'
             ? codecs.stringArray.readNullable(v)
-            : v
+            : kinds[k] === 'integer'
+              ? codecs.integer.readNullable(v)
+              : kinds[k] === 'json' || k in embedsOf(def)
+                ? codecs.json.readNullable(v)
+                : v
   }
   return def.record.parse(converted)
 }
@@ -70,7 +86,7 @@ const live = (def: PreparedResource, env: PreparedEnv, id?: string) => [
 ]
 
 export const selectRecord = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id?: string) => {
-  let q = loose(qc).selectFrom(def.table).select(recordColumns(qc, physicalTable(def), columnsOf(def)))
+  let q = loose(qc).selectFrom(def.table).select(projection(def, qc))
   for (const w of live(def, env, id)) q = q.where(w)
   return q
 }
@@ -120,7 +136,10 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
     reads: (qc) => {
       let q = selectRecord(def, qc, env)
       if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
-      for (const [column, value] of Object.entries(filters)) q = q.where(sql<SqlBool>`${ref(def, column)} = ${value}`)
+      for (const [column, value] of Object.entries(filters)) {
+        const join = def.joinFilters?.[column]
+        q = q.where(join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`)
+      }
       return { page: readAll(q.orderBy(ref(def, 'id')).limit(limit + 1)) }
     },
     build: (found) =>
@@ -162,7 +181,7 @@ export function getOperation<R extends { id: string }>(def: PreparedResource<Pre
 export const resultStep = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, eventId: string): Step => {
   const q = loose(qc)
     .selectFrom(def.table)
-    .select(recordColumns(qc, physicalTable(def), columnsOf(def)))
+    .select(projection(def, qc))
     .where(sql<SqlBool>`${ref(def, 'id')} = ${id}`)
     .where(sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`)
     .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`)
@@ -183,6 +202,10 @@ function boundValue(qc: QueryContext, kind: ColumnKind | undefined, value: unkno
   if (kind === 'string_array') return bind(qc, kind, value as readonly string[])
   if (kind === 'boolean') return bind(qc, kind, value === true)
   if (kind === 'json') return bind(qc, kind, JSON.stringify(value))
+  if (kind === 'integer') {
+    if (typeof value !== 'number') throw new Error(`an integer column needs a number, got ${typeof value}`)
+    return bind(qc, kind, value)
+  }
   if (typeof value !== 'string') throw new Error(`a ${kind} column needs a string, got ${typeof value}`)
   return bind(qc, kind, value)
 }
@@ -225,7 +248,7 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
               resourceType: def.eventName,
               resourceId: id,
               before: null,
-              after: { table: physicalTable(def), columns: columnsOf(def) },
+              after: afterOf(def),
             }),
             'first-event',
           ),
@@ -290,7 +313,7 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
               resourceType: def.eventName,
               resourceId: id,
               before,
-              after: { table: physicalTable(def), columns: columnsOf(def) },
+              after: afterOf(def),
             }),
             'first-event',
           ),

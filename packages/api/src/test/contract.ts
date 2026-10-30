@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import type { Kysely } from 'kysely'
+import { sql, type Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } from '@vault/db/test'
 import { postgresBinding } from '@vault/storage-postgres'
 import type { AnyResource, Registry } from '../registry.js'
 import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudAction } from '../resources/define.js'
 import { createApp, type AppEnv } from '../rest/app.js'
+import { withTenantDefaults } from './insert.js'
 import { seedApiKey } from './keys.js'
 import { seedTenant, type Tenant } from './tenant.js'
 import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
@@ -23,6 +24,8 @@ export interface FixtureKit {
   tenant: ContractTenant
   post(path: string, body: unknown): Promise<{ id: string }>
   seedMember(role?: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
+  /** Inserts a row directly into the tenant's store (setup only, bypassing the program under test); fills id, organisation, creator and stamps. */
+  insert(table: string, row: Record<string, unknown>): Promise<Record<string, any>>
 }
 export interface ContractFixture {
   /** A valid create body. Required iff the definition generates `create`. May create prerequisite rows through `kit`. */
@@ -77,6 +80,8 @@ export interface ContractSession {
   principalId(t: ContractTenant, actor: ContractActor, scopes: string[]): Promise<string>
   /** Seeds a user with a live membership in the tenant's organisation. */
   seedMember(t: ContractTenant, role: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
+  /** Direct insert into the tenant's store (Postgres: the owner pool; D1: the tenant's binding). */
+  insert(t: ContractTenant, table: string, row: Record<string, unknown>): Promise<Record<string, any>>
   eventsOf: ContractEnv['eventsOf']
   countEvents: ContractEnv['countEvents']
   countRows: ContractEnv['countRows']
@@ -135,6 +140,12 @@ export function postgresBackend(): ContractBackend {
           const u = await seedUser(db, { organizationId: t.organizationId, role })
           const m = await owner.selectFrom('memberships').select('id').where('user_id', '=', u.id).executeTakeFirstOrThrow()
           return { userId: u.id, membershipId: m.id }
+        },
+        async insert(t, table, row) {
+          const full = withTenantDefaults(table, row, t)
+          const cols = Object.keys(full)
+          const res = await sql<Record<string, any>>`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(owner)
+          return res.rows[0]!
         },
         eventsOf: (id) => owner.selectFrom('events').selectAll().where('resource_id', '=', id).orderBy('id').execute(),
         countEvents: async () => Number((await owner.selectFrom('events').select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
@@ -227,6 +238,7 @@ export function runContractSuite(opts: {
                 return (await res.json()) as { id: string }
               },
               seedMember: (role = 'member') => session.seedMember(t, role),
+              insert: (table, row) => session.insert(t, table, row),
             }),
             eventsOf: session.eventsOf,
             countEvents: session.countEvents,
@@ -345,9 +357,10 @@ export function runContractSuite(opts: {
 
             if (has('create') || has('update')) {
               it('unknown field', async () => {
-                const total = await eventCount()
+                let total = await eventCount()
                 if (has('create')) {
                   const input = await fixture.input!(env.kit(a, def))
+                  total = await eventCount() // the fixture may create prerequisite rows (and their events) through the kit
                   const rows = async () => ({ n: await env.countRows(def.table) })
                   const n = (await rows()).n
                   await error(await env.call(a, actor, 'full', 'POST', pathOf(def, 'create'), { ...input, zz_unknown: 1 }), 400, 'validation_error')

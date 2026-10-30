@@ -20,6 +20,13 @@ export type BooleanColumn = ColumnType<boolean | number, boolean, boolean>
  */
 export type StringArrayColumn = ColumnType<string[], readonly string[], readonly string[]>
 
+/**
+ * An integer as the DECODED number (CORE25 P5): Postgres `integer` and `bigint` (`pg` returns bigint as text, decoded in
+ * `toRecord`), D1 `INTEGER`. Written as a JS number; a byte size above 2^53 is refused by the codec.
+ */
+export type IntegerColumn = ColumnType<number, number, number>
+export type NullableIntegerColumn = ColumnType<number | null, number | null, number | null>
+
 export interface OrganizationsTable {
   id: string
   name: string
@@ -135,6 +142,123 @@ export interface ApiKeysTable {
   created_by: string
 }
 
+
+// ---- the messaging model (CORE25 D44): capture tables are append-only, the two link tables are soft-deleted ----------
+export interface ThreadsTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  channel: 'email'
+  subject: string | null
+}
+export interface MessagesTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  thread_id: string
+  channel: 'email'
+  kind: 'message' | 'reaction'
+  external_id: string
+  in_reply_to: string | null
+  author: JsonValue
+  occurred_at: Timestamp
+  preview: string
+  content_key: string | null
+  version: IntegerColumn
+  retracted_at: NullableTimestamp
+}
+export interface InteractionsTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  kind: 'message' | 'reaction'
+  channel: 'email'
+  direction: 'inbound' | 'outbound'
+  occurred_at: Timestamp
+  thread_id: string | null
+  message_id: string | null
+}
+export interface FilesTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  name: string
+  mime_type: string
+  size_bytes: IntegerColumn
+  sha256: string
+  storage_key: string
+}
+export interface ContactFilesTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  contact_id: string
+  file_id: string
+}
+export interface CompanyFilesTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  company_id: string
+  file_id: string
+}
+export interface InteractionParticipantsTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  interaction_id: string
+  identity_id: string
+  role: 'from' | 'to' | 'cc' | 'bcc'
+}
+export interface MessageAttachmentsTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  message_id: string
+  position: IntegerColumn
+  file_id: string | null
+  type: 'image' | 'file' | 'video' | 'audio'
+  name: string | null
+  mime_type: string | null
+  size_bytes: NullableIntegerColumn
+  inline: BooleanColumn
+  content_id: string | null
+  fetch_status: 'stored' | 'pending' | 'failed' | 'skipped'
+  fetch_metadata: JsonValue
+  fetch_error: string | null
+}
+export interface MessageSourcesTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  message_id: string
+  connection_id: string
+  provider_message_id: string
+  provider_thread_id: string
+}
+export interface ThreadSourcesTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  thread_id: string
+  connection_id: string
+  provider_thread_id: string
+}
+
 export interface StorageDatabase {
   organizations: OrganizationsTable
   principals: PrincipalsTable
@@ -147,6 +271,16 @@ export interface StorageDatabase {
   memberships: MembershipsTable
   agents: AgentsTable
   api_keys: ApiKeysTable
+  threads: ThreadsTable
+  messages: MessagesTable
+  interactions: InteractionsTable
+  files: FilesTable
+  contact_files: ContactFilesTable
+  company_files: CompanyFilesTable
+  interaction_participants: InteractionParticipantsTable
+  message_attachments: MessageAttachmentsTable
+  message_sources: MessageSourcesTable
+  thread_sources: ThreadSourcesTable
 }
 
 export type Table = keyof StorageDatabase & string
@@ -161,7 +295,7 @@ export interface SecretColumns {
 }
 export type PublicColumn<T extends Table> = Exclude<ColumnOf<T>, T extends keyof SecretColumns ? SecretColumns[T] : never>
 
-export type ColumnKind = 'uuid' | 'text' | 'timestamp' | 'json' | 'boolean' | 'string_array'
+export type ColumnKind = 'uuid' | 'text' | 'timestamp' | 'json' | 'boolean' | 'string_array' | 'integer'
 /** Every table exists physically on both engines (CORE40 migrated the last type-only table, api_keys). */
 export type PhysicalTable = Table
 
@@ -273,5 +407,112 @@ export const COLUMN_KINDS = {
     revoked_at: 'timestamp',
     expires_at: 'timestamp',
     created_by: 'uuid',
+  },
+  threads: { id: 'uuid', created_at: 'timestamp', organization_id: 'uuid', created_by: 'uuid', channel: 'text', subject: 'text' },
+  messages: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    thread_id: 'uuid',
+    channel: 'text',
+    kind: 'text',
+    external_id: 'text',
+    in_reply_to: 'text',
+    author: 'json',
+    occurred_at: 'timestamp',
+    preview: 'text',
+    content_key: 'text',
+    version: 'integer',
+    retracted_at: 'timestamp',
+  },
+  interactions: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    kind: 'text',
+    channel: 'text',
+    direction: 'text',
+    occurred_at: 'timestamp',
+    thread_id: 'uuid',
+    message_id: 'uuid',
+  },
+  files: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    name: 'text',
+    mime_type: 'text',
+    size_bytes: 'integer',
+    sha256: 'text',
+    storage_key: 'text',
+  },
+  contact_files: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    contact_id: 'uuid',
+    file_id: 'uuid',
+  },
+  company_files: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    company_id: 'uuid',
+    file_id: 'uuid',
+  },
+  interaction_participants: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    interaction_id: 'uuid',
+    identity_id: 'uuid',
+    role: 'text',
+  },
+  message_attachments: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    message_id: 'uuid',
+    position: 'integer',
+    file_id: 'uuid',
+    type: 'text',
+    name: 'text',
+    mime_type: 'text',
+    size_bytes: 'integer',
+    inline: 'boolean',
+    content_id: 'text',
+    fetch_status: 'text',
+    fetch_metadata: 'json',
+    fetch_error: 'text',
+  },
+  message_sources: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    message_id: 'uuid',
+    connection_id: 'uuid',
+    provider_message_id: 'text',
+    provider_thread_id: 'text',
+  },
+  thread_sources: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    thread_id: 'uuid',
+    connection_id: 'uuid',
+    provider_thread_id: 'text',
   },
 } as const satisfies { [T in PhysicalTable]: { [C in ColumnOf<T>]: ColumnKind } }

@@ -51,3 +51,11 @@ describe('boolean columns in the dialect fragments', () => {
     expect(b).not.toContain('iif(')
   })
 })
+
+describe('integer columns in jsonRows (CORE25 P5)', () => {
+  it('casts an integer column to bigint on Postgres', () => {
+    const qc = queryContext('postgres')
+    const c = sql`select r.n from ${jsonRows(qc, 'r', { n: 'integer' }, [{ n: 3 }])}`.compile(qc.db)
+    expect(c.sql).toContain("(e->>'n')::bigint")
+  })
+})

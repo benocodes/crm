@@ -11,9 +11,10 @@ import { ENGINE_DIFFERENCES, NOT_COMPARED, d1Shape, diffShapes, postgresShape, t
 //   - column types: citext vs lower-case ASCII text, uuid vs checked text, timestamptz vs strftime text, boolean vs 0/1,
 //     jsonb vs json_valid text, text[] vs JSON array (bound by the parity tests and COLUMN_KINDS);
 //   - row-level security (Postgres only; packages/db schema-invariants asserts it);
-//   - D1's unnamed representation CHECKs.
+//   - D1's unnamed representation CHECKs;
+//   - append-only enforcement (Postgres grants vs D1 BEFORE UPDATE triggers; CORE25 P15).
 it('states what it does not compare', () => {
-  expect(NOT_COMPARED.length).toBe(3)
+  expect(NOT_COMPARED.length).toBe(4)
   for (const n of NOT_COMPARED) expect(n.why).not.toBe('')
 })
 

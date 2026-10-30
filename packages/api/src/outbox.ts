@@ -1,7 +1,10 @@
 import { sql, type Kysely, type RawBuilder, type SqlBool } from 'kysely'
-import { appliedPrev, bind, jsonRows, recordJson, type PhysicalTable, type QueryContext, type QueryLike } from '@vault/storage'
+import { appliedPrev, bind, jsonRows, recordJson, type EmbedSpec, type PhysicalTable, type QueryContext, type QueryLike } from '@vault/storage'
 
 // ---- prepared units ([[CORE35]]) ----------------------------------------------------------------------
+
+/** What an event's `after` is rendered from: the table, its public columns and (CORE25 D50) the embedded child sets. */
+export type EventAfter = { table: PhysicalTable; columns: readonly string[]; embeds?: Readonly<Record<string, EmbedSpec>> }
 
 /**
  * The typed event statement a prepared unit composes (AGENTS.md invariant 5: the only other code that
@@ -21,7 +24,7 @@ export function eventStatement(
     resourceId: string
     before: Record<string, unknown> | null
     /** The table and public columns to render `after` from, or null when the resource is gone (delete). */
-    after: { table: PhysicalTable; columns: readonly string[] } | null
+    after: EventAfter | null
   },
 ): QueryLike {
   // The one dynamic-table INSERT...SELECT: reviewed boundary, covered by the atomicity and parity suites.
@@ -39,7 +42,7 @@ export function eventStatement(
   ]
   const select = e.after
     ? L.selectFrom(e.after.table)
-        .select(values(recordJson(qc, e.after.table, e.after.columns)))
+        .select(values(recordJson(qc, e.after.table, e.after.columns, e.after.embeds)))
         .where(sql<SqlBool>`${sql.ref(`${e.after.table}.id`)} = ${e.resourceId}`)
         .where(appliedPrev(qc))
     : L.selectNoFrom(values(bind(qc, 'json', null))).where(appliedPrev(qc))
@@ -63,7 +66,7 @@ export function eventSetStatement(
     actorId: string
     type: string
     resourceType: string
-    after: { table: PhysicalTable; columns: readonly string[] } | null
+    after: EventAfter | null
     rows: readonly { eventId: string; resourceId: string; before: Record<string, unknown> | null }[]
   },
 ): QueryLike {
@@ -74,7 +77,7 @@ export function eventSetStatement(
     { event_id: 'uuid', resource_id: 'uuid', before: 'json' },
     e.rows.map((r) => ({ event_id: r.eventId, resource_id: r.resourceId, before: r.before })),
   )
-  const after = e.after ? recordJson(qc, e.after.table, e.after.columns) : bind(qc, 'json', null)
+  const after = e.after ? recordJson(qc, e.after.table, e.after.columns, e.after.embeds) : bind(qc, 'json', null)
   const join = e.after ? sql`join ${sql.table(e.after.table)} on ${sql.ref(`${e.after.table}.id`)} = ${sql.ref('r.resource_id')}` : sql``
   return sql`
     insert into "events" ("id", "created_at", "organization_id", "type", "resource_type", "resource_id", "actor_id", "before", "after")

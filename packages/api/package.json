@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./test/golden": "./src/test/golden/index.ts",
-    "./test/clerk": "./src/test/clerk.ts"
+    "./test/clerk": "./src/test/clerk.ts",
+    "./test/messaging": "./src/test/messaging-kit.ts"
   },
   "scripts": {
     "test": "vitest run",

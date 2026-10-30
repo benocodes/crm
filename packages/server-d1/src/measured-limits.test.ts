@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vault/storage'
+import { seedConversation } from '@vault/api/test/messaging'
 import { clerkMembership, clerkOrganization, clerkWebhook, clerkUser, signClerkWebhook } from '@vault/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -30,6 +31,10 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'resolve-100-existing': 2,
   'company-delete-100': 3,
   'contact-delete-100': 3,
+  'messages-list-50': 2, // auth read, operation read (the embeds are in the same select)
+  'interactions-list-contact': 2,
+  'merge-100-links': 3, // auth read, operation read batch, operation write batch
+  'contact-delete-100-with-links': 3,
   'directory-snapshot-5': 11, // 4 first-seen users, two queries each, plus the snapshot's own three
   'directory-snapshot-100': 201, // 99 first-seen users
 }
@@ -75,7 +80,7 @@ beforeAll(async () => {
 })
 afterAll(() => w.dispose())
 
-const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'directory-snapshot-5', 'directory-snapshot-100'] as const
+const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'directory-snapshot-5', 'directory-snapshot-100'] as const
 const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'cold-first-request': 200,
   'key-auth-stamp': 200,
@@ -85,6 +90,10 @@ const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'resolve-100-existing': 200,
   'company-delete-100': 204,
   'contact-delete-100': 204,
+  'messages-list-50': 200,
+  'interactions-list-contact': 200,
+  'merge-100-links': 200,
+  'contact-delete-100-with-links': 204,
   'directory-snapshot-5': 200,
   'directory-snapshot-100': 200,
 }
@@ -115,6 +124,38 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     for (let i = 0; i < 100; i++) await send('POST', '/identities', { kind: 'email', value: `own${i}@measure.test`, contact_id: contact.id })
     await measure('contact-delete-100', () => send('DELETE', `/contacts/${contact.id}`))
 
+    // CORE25 C1 (D55): the read and merge scenarios. Conversations are seeded by direct inserts on the unmetered D1.
+    const orgId = ((await w.d1.prepare('select organization_id as o from deployment').first()) as { o: string }).o
+    const creator = ((await w.d1.prepare('select id from principals limit 1').first()) as { id: string }).id
+    const insert = async (table: string, row: Record<string, unknown>) => {
+      const full: Record<string, unknown> = { id: uuidv7(now), organization_id: orgId, created_by: creator, created_at: now.toISOString(), ...row }
+      if (['contact_files', 'company_files'].includes(table)) full.updated_at ??= now.toISOString()
+      const cols = Object.keys(full)
+      const vals = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : full[c] !== null && typeof full[c] === 'object' ? JSON.stringify(full[c]) : (full[c] ?? null)))
+      await w.d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...vals).run()
+      return full
+    }
+    for (let i = 0; i < 50; i++) await seedConversation(insert, { attachments: 2, interaction: false })
+    await measure('messages-list-50', () => send('GET', '/messages?limit=50'))
+
+    const reader = (await send('POST', '/contacts', { name: 'Reader' })).json
+    const readerIdentity = (await send('POST', '/identities', { kind: 'email', value: 'reader@measure.test', contact_id: reader.id })).json
+    for (let i = 0; i < 50; i++) await seedConversation(insert, { participants: [{ identityId: readerIdentity.id, role: 'from' }] })
+    await measure('interactions-list-contact', () => send('GET', `/interactions?contact_id=${reader.id}&limit=50`))
+
+    const files = (await seedConversation(insert, { attachments: 100, interaction: false })).fileIds
+    const survivor = (await send('POST', '/contacts', { name: 'Survivor' })).json
+    const source = (await send('POST', '/contacts', {})).json
+    for (const f of files) await send('POST', '/contact-files', { contact_id: source.id, file_id: f })
+    for (const f of files.slice(0, 50)) await send('POST', '/contact-files', { contact_id: survivor.id, file_id: f })
+    await measure('merge-100-links', () => send('POST', `/contacts/${survivor.id}/merge`, { source_id: source.id }))
+
+    const linked = (await send('POST', '/contacts', { name: 'Linked' })).json
+    const moreFiles = (await seedConversation(insert, { attachments: 100, interaction: false })).fileIds
+    for (let i = 0; i < 100; i++) await send('POST', '/identities', { kind: 'email', value: `lk${i}@measure.test`, contact_id: linked.id })
+    for (const f of moreFiles) await send('POST', '/contact-files', { contact_id: linked.id, file_id: f })
+    await measure('contact-delete-100-with-links', () => send('DELETE', `/contacts/${linked.id}`))
+
     const snapshot = async (keyName: string, n: number) => {
       const owner = clerkMembership({ organizationId: 'org_acme', userId: 'user_owner', role: 'org:admin' })
       kit.organizations.set('org_acme', clerkOrganization({ id: 'org_acme', name: 'Acme' }))
@@ -133,7 +174,7 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     await snapshot('directory-snapshot-100', 100)
 
     for (const k of SCENARIOS) expect(measures.get(k)?.status, k).toBe(EXPECTED_STATUS[k])
-  })
+  }, 240_000) // the messaging scenarios seed ~700 rows and ~350 requests before they measure one
 
   it('every Free-plan exception names a scenario that still exceeds a Free bound', () => {
     for (const k of Object.keys(FREE_PLAN_EXCEPTIONS)) {
@@ -160,6 +201,11 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
   it('the cascades really ran at the cap', async () => {
     expect(await count("select count(*) as n from contacts where company_id is null and name like 'C%' and name <> 'Many'")).toBe(100)
     expect(await count('select count(*) as n from identities where deleted_at is not null and own = 0 and value like \'own%\'')).toBe(100)
+  })
+
+  it('the messaging scenarios really ran at their sizes', async () => {
+    expect(await count('select count(*) as n from messages')).toBe(102) // 50 listed + 50 interactions + the two attachment sets
+    expect(await count("select count(*) as n from contact_files where deleted_at is not null")).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
   })
 
   it('the snapshot really ran at the cap', async () => {

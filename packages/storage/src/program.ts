@@ -2,6 +2,7 @@ import { sql, type AliasedExpression, type CompiledQuery, type Expression, type 
 import { COLUMN_KINDS, type ColumnKind, type PhysicalTable } from './database.js'
 import { SetLimitExceeded, StorageError } from './errors.js'
 import type { CompiledRead } from './compile.js'
+import { embedJson, type EmbedSpec } from './embed.js'
 import type {
   PreparedOperation,
   QueryContext,
@@ -129,10 +130,10 @@ export async function planUnit<T>(
 const refOf = (path: string) => sql.ref(path)
 
 /** Binds `value` with the cast Postgres needs for an otherwise untyped parameter in INSERT...SELECT; D1 binds it plain. */
-export function bind(qc: QueryContext, kind: ColumnKind, value: string | boolean | readonly string[] | null): RawBuilder<string> {
+export function bind(qc: QueryContext, kind: ColumnKind, value: string | boolean | number | readonly string[] | null): RawBuilder<string> {
   // A string array is bound as ONE parameter; the D1 runtime encodes it as JSON text (the column's only array form).
   if (qc.dialect === 'd1') return sql<string>`${value}`
-  const type = { uuid: 'uuid', text: 'text', timestamp: 'timestamptz', json: 'jsonb', boolean: 'boolean', string_array: 'text[]' }[kind]
+  const type = { uuid: 'uuid', text: 'text', timestamp: 'timestamptz', json: 'jsonb', boolean: 'boolean', string_array: 'text[]', integer: 'bigint' }[kind]
   return sql<string>`cast(${value} as ${sql.raw(type)})`
 }
 
@@ -157,7 +158,7 @@ export function appliedPrev(qc: QueryContext): Expression<SqlBool> {
  * The record of a stored row as JSON text/jsonb, built in SQL from the stored columns so that an event's
  * `after` is the stored row, not a recomputation (timestamps in the public ISO form).
  */
-export function recordJson(qc: QueryContext, table: PhysicalTable, columns: readonly string[]): RawBuilder<string> {
+export function recordJson(qc: QueryContext, table: PhysicalTable, columns: readonly string[], embeds: Readonly<Record<string, EmbedSpec>> = {}): RawBuilder<string> {
   const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
   const pairs = columns.map((c) => {
     const ref = `${table}.${c}`
@@ -168,9 +169,12 @@ export function recordJson(qc: QueryContext, table: PhysicalTable, columns: read
           ? sql`json(iif(${refOf(ref)}, 'true', 'false'))` // D1 stores 0/1; an event's `after` carries a JSON boolean on both engines
           : kinds[c] === 'string_array' && qc.dialect === 'd1'
             ? sql`json(${refOf(ref)})` // D1 stores a JSON array as text; an event's `after` carries a JSON array on both engines
-            : sql`${refOf(ref)}`
+            : kinds[c] === 'json' && qc.dialect === 'd1'
+              ? sql`json(${refOf(ref)})` // D1 stores json as text; an event's `after` carries the JSON value (null stays SQL NULL)
+              : sql`${refOf(ref)}`
     return sql`${sql.lit(c)}, ${value}`
   })
+  for (const [field, spec] of Object.entries(embeds)) pairs.push(sql`${sql.lit(field)}, ${embedJson(qc, table, spec, 'json')}`)
   return qc.dialect === 'postgres'
     ? sql<string>`jsonb_build_object(${sql.join(pairs)})`
     : sql<string>`json_object(${sql.join(pairs)})`

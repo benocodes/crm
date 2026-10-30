@@ -33,6 +33,8 @@ export function jsonRows(
         return sql`(e->>${key})::boolean`
       case 'timestamp':
         return sql`(e->>${key})::timestamptz`
+      case 'integer':
+        return sql`(e->>${key})::bigint`
       case 'json':
         return sql`nullif(e->${key}, 'null'::jsonb)`
       default:

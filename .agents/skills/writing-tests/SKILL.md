@@ -35,6 +35,10 @@ skill is what the coder follows while writing them.
   the empty `result` select throws `UnitDriftError`, rolling the unit back. On Postgres that mutation must drop both
   guards. When a plan writes the mutation table, name the engine each row turns red on, and list each engine's guards
   for the property.
+- **An ordering mutation must defeat the index order too.** SQLite returns an unordered aggregate in the order of the
+  index it scanned, so dropping `ORDER BY` from an embed stayed green on D1: the unique index on `(message_id, position)`
+  already sorted the rows, however the seed inserted them ([[CORE25]] M7). Postgres turned red. To prove an `ORDER BY`
+  on D1, order by a column no index covers, or pin the generated SQL in a unit test (`embed.test.ts`).
 - **Deleting tests needs a title-by-title map, not a count.** When a cycle deletes a suite with the code it tested, list
   every deleted test title in RESULT.md beside its surviving counterpart (file and test name), or the reason it was
   only about the deleted mechanism. A falling test count hides lost coverage. [[CORE44]]'s map found three live
@@ -83,6 +87,9 @@ One program, two engines: the same assertions run on Postgres and D1.
     tenant, never two tenants in one D1.
   - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
     behaviour change, run `pnpm -C packages/server-postgres golden:generate`; `golden:check` fails on drift.
+    Some golden values derive from the registry: the owner's scopes in `auth.json` are
+    `grantableScopes(declaredScopes())`, so a cycle that declares a scope regenerates `auth.json` by exactly those
+    lines ([[CORE25]]). A plan that says "golden unchanged" checks for such derived values first.
     The generator lives in the enterprise package and reads the open fixture list, scenarios and Postgres
     backend through `@vault/api/test/golden` ([[CORE44]] P12).
   - Apps that must run no unit (openapi, CORS, option checks) pass `coldStorage()`; probe operations in routing and
@@ -91,6 +98,10 @@ One program, two engines: the same assertions run on Postgres and D1.
     or `kit.seedMember` ([[CORE44]] P9).
   - Suites written after the vertical exists prove their strength with absence mutations (break the
     runtime, see the target test fail), recorded in RESULT.md.
+- **Read-only resources have no writer to seed through.** Seed them with `seedConversation(insert, opts)`
+  (`@vault/api/test/messaging`) and `Engine.insert` (storage suites) or `kit.insert` (contract fixtures' `make`/`input`),
+  direct inserts that satisfy the table CHECKs. `Engine.insert` encodes json (JSON text) and booleans (0/1) per
+  `COLUMN_KINDS` on D1. Replace them with the real capture helper when `recordMessages` exists.
 - Assert engine differences explicitly, never hide them. Since [[CORE36]] D2 there is no timestamp
   difference: every stamp a unit writes equals its injected `now` on both engines. Assert the response, the
   stored row and every event's `created_at`/`after` against the clock exactly, with no engine branch (the
@@ -203,6 +214,10 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   `src/test/fixtures.ts`:
   - `input` and `patch` builders, each producing unique values per call;
   - `make` for read-only definitions.
+
+  An `input` may create prerequisite rows through the kit (a link resource needs a contact and a file). The suite
+  takes its event-count baseline **after** `input` runs, so those rows' events are not counted against the
+  operation under test ([[CORE25]]).
 
   A catalog test fails if a definition has no fixture or a fixture has no definition. A `ContractCheck`
   passed in `checks` runs once per definition and registers its own `it` blocks; `env` is a getter

@@ -10,6 +10,7 @@ import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault
 import { Registry } from '../registry.js'
 import { createApp } from '../rest/app.js'
 import type { ContractBackend, ContractSession, ContractTenant, EventRow } from './contract.js'
+import { d1Value, withTenantDefaults } from './insert.js'
 import { coldStorage } from './storage.js'
 import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 
@@ -72,6 +73,13 @@ export function d1Backend(): ContractBackend {
           const userId = uuidv7()
           await seedPrincipal(d1, { id: userId, kind: 'user' })
           return { userId, membershipId: await seedMembership(d1, { organizationId: t.organizationId, userId, role }) }
+        },
+        async insert(t, table, row) {
+          const d1 = byOrg.get(t.organizationId)!.d1
+          const full = withTenantDefaults(table, row, t)
+          const cols = Object.keys(full)
+          await d1.prepare(`INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...cols.map((c) => d1Value(full[c]))).run()
+          return full as Record<string, any>
         },
         async eventsOf(id): Promise<EventRow[]> {
           const rows: EventRow[] = []

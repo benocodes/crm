@@ -115,7 +115,7 @@ export function resourceOperations(def: PreparedResource<any, any>): TenantOpera
   const ops: TenantOperation[] = []
   if (actions.has('list')) {
     const query: Record<string, z.ZodType> = { after: z.uuid().optional(), limit: z.coerce.number().int().min(1).max(200).optional() }
-    for (const [key, f] of Object.entries(def.filters ?? {})) query[key] = (f as { schema: z.ZodType }).schema.optional()
+    for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.joinFilters ?? {}) })) query[key] = (f as { schema: z.ZodType }).schema.optional()
     ops.push({
       ...base,
       name: `${def.name}.list`,

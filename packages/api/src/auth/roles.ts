@@ -15,6 +15,10 @@ export const SCOPE_POLICY: ScopePolicy = {
   'contacts:write': { member: true, agentGrantable: true },
   'companies:read': { member: true, agentGrantable: true },
   'companies:write': { member: true, agentGrantable: true },
+  // Messaging ([[CORE25]] D25): the privacy split - who talked to whom (interactions), what was said (messages, threads), the bytes (files).
+  'interactions:read': { member: true, agentGrantable: true },
+  'messages:read': { member: true, agentGrantable: true },
+  'files:read': { member: true, agentGrantable: true },
   // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
   // read-only: Clerk is the source of truth ([[CORE3]] D1).
   'members:read': { member: true, agentGrantable: false },

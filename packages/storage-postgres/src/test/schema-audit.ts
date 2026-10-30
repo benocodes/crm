@@ -157,9 +157,10 @@ export async function d1Shape(d1: D1Like, tables: readonly string[]): Promise<Sc
 
 /** What is deliberately not compared, and why (printed into RESULT.md and the README's profile). */
 export const NOT_COMPARED: readonly { what: string; why: string }[] = [
-  { what: 'column types (citext vs lower-case ASCII text, uuid vs checked text, timestamptz vs strftime text, boolean vs 0/1, jsonb vs json_valid text, text[] vs JSON array)', why: 'bound by the parity tests and COLUMN_KINDS' },
+  { what: 'column types (citext vs lower-case ASCII text, uuid vs checked text, timestamptz vs strftime text, boolean vs 0/1, jsonb vs json_valid text, text[] vs JSON array, bigint/integer vs INTEGER)', why: 'bound by the parity tests and COLUMN_KINDS' },
   { what: 'row-level security', why: 'Postgres only; asserted by packages/db schema-invariants' },
   { what: "D1's unnamed representation CHECKs (UUID text shape, strftime timestamps, 0/1 booleans, json_valid)", why: 'they are the D1 spelling of Postgres column types' },
+  { what: 'append-only enforcement (Postgres grants vs D1 BEFORE UPDATE triggers)', why: 'the audit reads neither grants nor triggers (CORE25 P15); asserted by migration-008, schema-invariants and the D1 schema test' },
 ]
 
 /** Every expected difference between the engines. Exact in both directions: an unlisted one fails, and so does a stale entry. */

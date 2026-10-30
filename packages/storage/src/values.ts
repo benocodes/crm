@@ -54,7 +54,19 @@ const stringArrayRead = (value: unknown): string[] => {
   return parsed as string[]
 }
 
+const integerRead = (value: unknown): number => {
+  // `pg` returns bigint as a decimal string; D1 and Postgres integer give a JS number. Anything else is refused.
+  const n = typeof value === 'number' ? value : typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : Number.NaN
+  if (!Number.isSafeInteger(n)) throw new CodecError(`not a safe integer: ${JSON.stringify(value)}`)
+  return n
+}
+
 export const codecs = {
+  integer: {
+    read: integerRead,
+    readNullable: nullable(integerRead),
+    write: (value: number): number => integerRead(value),
+  },
   timestamp: {
     read: timestampRead,
     readNullable: nullable(timestampRead),

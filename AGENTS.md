@@ -207,7 +207,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
    Writes that skip events are allowed only when they are not resources and a spec decision names them.
    Today that means four: identity bookkeeping (`principals`, `users` on first sight and on a provider
    profile refresh, [[CORE3]] D12, [[CORE41]] P11), channel machinery tables (credentials, subscriptions,
-   sync state and cursors, [[CHN5]] D22), the dev/ops `bootstrap` script ([[CORE15]]), and the API-key
+   sync state and cursors, [[CHN5]] D22; the provider-id maps `message_sources` and `thread_sources`, [[CORE25]] D17), the dev/ops `bootstrap` script ([[CORE15]]), and the API-key
    usage stamp (`api_keys.last_used_at` only, at most once a minute, never `updated_at`, [[CORE36]] D17). If such a write has a tenant-visible consequence (a
    membership, a connection's status), that consequence must still emit its event. Add a new exception
    through a spec decision, never ad hoc.

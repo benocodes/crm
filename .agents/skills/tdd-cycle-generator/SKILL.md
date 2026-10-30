@@ -420,6 +420,10 @@ skill ends; don't start implementing unless asked.
     assertion (`db-schema-and-migrations`: never rewrite an earlier migration's test to the new shape). In a
     catalog test over the current registry (`declaredScopes`, bootstrap's scopes), **update** the list in
     the same change: it states today's truth on purpose.
+    **Cross-check a grant contract against every writer of the table.** A narrow column-level `UPDATE` grant
+    written from the resource's own operations misses commands from other areas: [[CORE25]]'s plan granted the
+    link tables `UPDATE (deleted_at, updated_at)`, but merge re-points `contact_files.contact_id`, so the coder
+    had to widen it mid-cycle. List each command that updates the table (merge, cascades, programs) beside the grant.
 14. **Every new test file gets its own recorded red run**, not only the migration test (rule 11). Phase 1
     and Phase 2 each name the command that runs the new file alone, and the coder pastes the result (N
     failed, and why) into the completion report's `Red runs` line. A file never seen failing is the same

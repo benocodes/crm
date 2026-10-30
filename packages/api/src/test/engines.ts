@@ -10,6 +10,7 @@ import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import { seedAgent as seedD1Agent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { execute } from '@vault/storage'
 import { ScopeSet } from '../scopes.js'
+import { d1Value } from './insert.js'
 import type { PreparedEnv } from '../storage/definition.js'
 
 export type RawRow = Record<string, any>
@@ -75,6 +76,7 @@ function decodeRow(table: string, row: RawRow): RawRow {
     else if (kinds[k] === 'boolean') out[k] = v === true || v === 1
     else if (kinds[k] === 'json') out[k] = typeof v === 'string' ? JSON.parse(v) : v
     else if (kinds[k] === 'string_array') out[k] = typeof v === 'string' ? JSON.parse(v) : v
+    else if (kinds[k] === 'integer') out[k] = typeof v === 'string' ? Number(v) : v
     else out[k] = v
   }
   return out
@@ -92,7 +94,7 @@ function withDefaults(e: Engine, table: string, row: Record<string, unknown>): R
 
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 const scopes = () =>
-  ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read'])
+  ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read', 'messages:read', 'interactions:read', 'files:read'])
 
 export async function openEngines(opts: { maxConnections?: number; maxSetSize?: number } = {}): Promise<Engine[]> {
   return [await openPostgres(opts), await openD1(opts)]
@@ -251,7 +253,7 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
     async insert(table, row) {
       const full = withDefaults(e, table, row)
       const cols = Object.keys(full)
-      const values = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : Array.isArray(full[c]) ? JSON.stringify(full[c]) : (full[c] ?? null)))
+      const values = cols.map((c) => d1Value(full[c]))
       await d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...values).run()
       return decodeRow(table, full as RawRow)
     },
@@ -264,7 +266,7 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
     async update(table, id, patch) {
       kindsOf(table)
       const cols = Object.keys(patch)
-      const values = cols.map((c) => (typeof patch[c] === 'boolean' ? (patch[c] ? 1 : 0) : Array.isArray(patch[c]) ? JSON.stringify(patch[c]) : (patch[c] ?? null)))
+      const values = cols.map((c) => d1Value(patch[c]))
       await d1.prepare(`update "${table}" set ${cols.map((c) => `"${c}" = ?`).join(', ')} where id = ?`).bind(...values, id).run()
     },
     betweenPlanAndCommit(hook) {

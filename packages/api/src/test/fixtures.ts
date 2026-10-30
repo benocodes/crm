@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { ContractFixture } from './contract.js'
+import type { ContractFixture, FixtureKit } from './contract.js'
+import { seedConversation } from './messaging-kit.js'
 
 export const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
@@ -33,4 +34,24 @@ export const fixtures: Record<string, ContractFixture> = {
     handwritten: ['create'],
     actors: ['user'],
   },
+  // Messaging ([[CORE25]] C1): read-only resources, made by direct inserts until cycle 2's recordMessages (P9).
+  threads: { make: async (kit) => ({ id: (await conversation(kit)).threadId }) },
+  messages: { make: async (kit) => ({ id: (await conversation(kit)).messageId }) },
+  interactions: {
+    make: async (kit) => {
+      const contact = await kit.post('/contacts', { name: 'Participant' })
+      const identity = await kit.post('/identities', { kind: 'email', value: `p-${randomUUID()}@example.com`, contact_id: contact.id })
+      return { id: (await conversation(kit, { participants: [{ identityId: identity.id, role: 'from' }] })).interactionId! }
+    },
+  },
+  files: { make: async (kit) => ({ id: (await conversation(kit, { attachments: 1 })).fileIds[0]! }) },
+  contact_files: {
+    input: async (kit) => ({ contact_id: (await kit.post('/contacts', { name: 'Linked' })).id, file_id: (await conversation(kit, { attachments: 1 })).fileIds[0]! }),
+  },
+  company_files: {
+    input: async (kit) => ({ company_id: (await kit.post('/companies', { name: 'Linked co', domain: `l-${randomUUID()}.example.com` })).id, file_id: (await conversation(kit, { attachments: 1 })).fileIds[0]! }),
+  },
 }
+
+const conversation = (kit: FixtureKit, opts: Parameters<typeof seedConversation>[1] = {}) =>
+  seedConversation((table, row) => kit.insert(table, row), { externalId: `c-${randomUUID()}@acme.test`, ...opts })
