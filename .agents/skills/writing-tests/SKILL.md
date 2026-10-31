@@ -37,6 +37,17 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   "markdown content" case seeded the object at `messageBodyKey(contentKey, 1)` and the reader looked it up with the same
   builder, so breaking the builder (M3) moved both sides and stayed green. Pin at least one case to a literal
   (`` `${contentKey}/v1/body.md` ``) whenever the test and the code share a helper.
+- **An exactness check must not filter its expected side by the actual side.** [[API32]]'s placement test first kept
+  only the table entries that were registered (`Object.entries(PLACEMENT).filter(([n]) => n in actual)`) and filtered
+  its literal meta list by `ops.some(...)`, so an operation that was never registered, or silently dropped, passed both
+  `toEqual`s. Write the expected side as a literal; where some names legitimately don't exist (read-only resources have
+  no `create`), list them explicitly and assert they are absent too (`NOT_GENERATED`), and pin the count. Prove it by
+  misspelling one expected entry: the test must go red (review round 1).
+- **A smoke script's assertions are untested code.** `packages/server-d1/scripts/smoke-remote.ts`'s `before`/`after`
+  phase functions are reached by no test (only `afterHealthOk` is), so [[API32]]'s `before` phase asserted
+  `GET /openapi.json` → `404` on an uninitialised deployment, where the cold app answers `503 not_initialised`; only
+  review caught it. When a cycle changes what a smoke phase expects, check each expectation against the state that
+  phase runs in (uninitialised, behind, current) and name the test or the compose case that pins the same answer.
 - **An absence mutation is per engine: drop every guard that engine has for the property.** The same property can be
   held by different guards on each engine. Removing one guard proves nothing on an engine where another still holds.
   [[CORE41]]: dropping first sight's `assertStep` turns the D1 drift case red (D1 decodes after the batch commits, so
@@ -116,7 +127,11 @@ One program, two engines: the same assertions run on Postgres and D1.
     The generator runs the Postgres path, so once a shared write path reads a D1-only table it cannot regenerate
     every fixture. Until it runs on D1, edit a registry-derived line by hand to exactly what the generator would
     emit (sorted scope names in `auth.json`), and say so in RESULT ([[CORE62]], [[CORE74]]; issue #72 moves the
-    generator to D1 and ends this).
+    generator to D1 and ends this). Since [[CORE62]] it cannot regenerate **any** fixture with a `DELETE`: every
+    delete cascades into `associations`, which has no Postgres table, so it records `500`. [[API32]] therefore
+    rewrote only the `path` fields by script and proved it with
+    `git diff -U0 packages/api/fixtures | grep '^[+-]' | grep -v '^+++\|^---' | grep -vc '"path":'` → `0`, plus
+    the D1 golden replay green. Do the same for any mechanical fixture edit until #72 lands.
     Tests that pin derived lists (the declared scopes in `identity-definitions.test.ts` and
     `messaging-definitions.test.ts`) also change when a scope is declared; fix them in the same change.
     The generator lives in the enterprise package and reads the open fixture list, scenarios and Postgres

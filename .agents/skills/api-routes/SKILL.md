@@ -55,7 +55,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     never its value. `GET /health` is outside the registry and reads the marker live. A missing `deployment`
     table counts as an absent marker.
   - **Migration gate** ([[CORE61]]): `fetch` runs in this order: `/health` → the `behind` gate
-    (`503 migrations_pending`; `GET /openapi.json` is exempt) → the auth-config `500` → the marker. The state comes from
+    (`503 migrations_pending`; the two OpenAPI documents, `GET /api/v1/openapi.json` and `GET /meta/v1/openapi.json`, are exempt; the root `/openapi.json` no longer exists and answers like any unknown path: `503` while uninitialised or behind, `404` otherwise, [[API32]] D5) → the auth-config `500` → the marker. The state comes from
     `readMigrationState` (`@vault/storage-d1`) against `MIGRATIONS`. It is cached per isolate once
     `current`/`ahead`, re-read at most every 5 s (`deps.nowMs`, not `deps.clock`) while `behind`/`unknown`, and
     never cached after a thrown read. `/health.migrations` reports it. The tracker read is one more query on a
@@ -143,7 +143,13 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   becomes an internal unit with an explicit organisation instead.
   - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
     derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
-  - `path` uses OpenAPI form (`/contacts/{id}/merge`).
+  - `surface` is required, `'api'` (records) or `'meta'` (configuration: agents, API keys, members, users, `me`,
+    later the schema), by architecture principle 14's test; no default, so a missing one is a type error ([[API32]] D1).
+    Generated CRUD inherits the definition's `surface`.
+  - `path` uses OpenAPI form and is **surface-relative** (`/contacts/{id}/merge`); the wire path is
+    `fullPath(op)` = `/api/v1` or `/meta/v1` + `path` (`src/surfaces.ts`). The router, both documents, the
+    contract suite and the goldens use the full path; the duplicate-route check runs on it, so the same relative
+    path may exist on both surfaces.
   - `register` throws at load on a bad name, an empty summary, a duplicate name or route, a 204 with a
     schema (or a non-204 without one), or an undeclared `{param}`.
 - **Validation.** With `validation: 'adapter'` (the default), the adapter parses params, query and body
@@ -170,7 +176,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     the operation and the webhook reuse that binding (`c.var.storage`).
   - Auth is mounted on each registry route, never on `*`. A plain route the caller adds to the returned
     app (`/health`, a webhook receiver) gets `c.var.storage`, no auth, and no OpenAPI entry.
-  - `GET /openapi.json` is unauthenticated.
+  - `GET /api/v1/openapi.json` (`Vault records API`) and `GET /meta/v1/openapi.json` (`Vault meta API`) are
+    unauthenticated; each lists only its surface's operations at full paths. There is no root document and no
+    root resource path ([[API32]] D4, D5, D8). Machinery (`/health`, `/webhooks/clerk`) stays at the root,
+    unversioned, outside the registry (D7).
 - **Errors.** `renderError` turns an `ApiError` into its own status and body. `run()` refuses a tenant operation
   with no organisation (`403 organization_required`) before any unit, so no tenancy error reaches it. Anything else is
   logged (`[api] unhandled`) and masked as `500 internal`. Unmatched routes and methods return
@@ -189,10 +198,10 @@ a route or an MCP tool that bypasses the registry.
 
 - Reads and writes go through the same registry. There is no second read path (no GraphQL, no direct table
   access from a handler).
-- Commands are ordinary registry entries exposed as POST routes (`POST /contacts/{id}/merge`), so they get
+- Commands are ordinary registry entries exposed as POST routes (`POST /api/v1/contacts/{id}/merge`), so they get
   scopes, MCP tools and OpenAPI for free.
 - There is no Hono RPC (`hc`) typing: a registry built in a loop gives no static route types. A TypeScript
-  consumer that needs typed calls should generate a client from `/openapi.json` ([[CORE15]]).
+  consumer that needs typed calls should generate a client from `/api/v1/openapi.json` and `/meta/v1/openapi.json` ([[CORE15]], [[API32]]).
 
 ## Resources: declarative definitions, generic CRUD
 
