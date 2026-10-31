@@ -50,6 +50,18 @@ describe('roles', () => {
     }
   })
 
+  it('schema:read (API63 D8): member-granted, agent-grantable, declared by schema.get', () => {
+    const declared = createVaultRegistry().declaredScopes()
+    expect(declared).toContain('schema:read')
+    expect(SCOPE_POLICY['schema:read']).toEqual({ member: true, agentGrantable: true })
+    expect(isAgentGrantable('schema:read')).toBe(true)
+    expect(grantableScopes(declared)).toContain('schema:read')
+    expect(() => assertAgentGrantable(['schema:read'], declared)).not.toThrow()
+    expect(scopesForRole('owner', declared).toStrings()).toContain('schema:read')
+    expect(scopesForRole('member', declared).toStrings()).toContain('schema:read')
+    expect(declared).not.toContain('schema:write')
+  })
+
   it('associations rows (CORE62 D11): member and agent-grantable, read and write', () => {
     for (const scope of ['associations:read', 'associations:write']) {
       expect(SCOPE_POLICY[scope], scope).toEqual({ member: true, agentGrantable: true })
