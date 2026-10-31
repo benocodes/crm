@@ -8,14 +8,13 @@ description: One-phrase sprint checkpoint. When the user says "sprint-checkpoint
 File format and evidence rules live in `sprint-planning`; this is just the routine.
 
 1. No `knowledge/SPRINT.md` → no sprint in flight; say so, stop.
-2. If a `CYCLE REPORT` is in context (a coding agent's final message — the `Completion report`
-   section every PLAN ends with), start from it: it names the commits, migration, test results,
-   retro, ingested lessons and what's owed. Spot-check its claims (shas exist, RETRO exists, spec
+2. If a `CYCLE REPORT` is in context (a coding agent's final message, defined in `execute-cycle`),
+   start from it: it names the commits, migration, gate results, decisions and what's owed. Spot-check its claims (shas exist, RETRO exists, spec
    `status:` matches) rather than re-deriving them; a claim that doesn't check out is a finding.
-   Carry its "Owed by Ori" and open questions into SPRINT.md.
+   Carry its "Owed by the user" and Decisions into SPRINT.md.
 3. Otherwise check the file against evidence, not memory: spec `status:`, cycle folders
    (PLAN/HANDOFF/RETRO), `git log --oneline`, `git status --short`, deploy claims vs RETROs.
-4. Next migration = highest in `packages/db/migrations` + 1, unless an unexecuted PLAN already claims it.
+4. Next migration = highest in `packages/db/migrations` + 1, unless a branch in flight already adds it.
 5. Fix stale lines in place and bump `Updated:`. All specs shipped → don't edit; say `/sprint-planning close` is due.
 6. If changed: `SPRINT.md` lives in the nested knowledge repo, so check its branch
    (`git -C knowledge rev-parse --abbrev-ref HEAD`), `git -C knowledge add SPRINT.md` only, commit

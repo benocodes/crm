@@ -26,7 +26,8 @@ bookkeeping is Steps 4–6. Skipping them is how `AGENTS.md`, the specs and the 
 
 Resolve `$1` to the cycle folder (`knowledge/specs/<seq>-<ID>-<slug>/`): a directory is used directly, a
 path to `PLAN.md` (or a plan-only `<ID>.md`) uses its parent. Verify the plan exists and read it for the
-goal, scope, phases and completion checklist. Read the spec the cycle implements (its own `<ID>.md`, or
+goal, scope (in this cycle and deferred) and test obligations. Read the cycle's `RESULT.md` too, if any:
+it holds the coder's decisions, deviations and evidence. Read the spec the cycle implements (its own `<ID>.md`, or
 the one named by `implements:`), since Step 5 updates it.
 
 If a `HANDOFF.md` exists in the folder ([[handoff]]), read it now: it is the freshest account of
@@ -74,7 +75,7 @@ spec: "[[{spec-ID}]]"   # the spec this cycle targeted: own ID for a spec-introd
 {Concrete deliverables grouped by category (new files, modified files, tests added), with paths from the repo root.}
 
 ## Deviations from Plan
-{What changed against the plan: steps added, removed, modified. If followed exactly, say so. Be specific.}
+{What changed against the charter: scope moved in or out, obligations proven differently or not at all, decisions the coder made that the spec didn't. If followed exactly, say so. Be specific.}
 
 ## Decisions Made
 {Key decisions during implementation and why.}

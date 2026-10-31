@@ -1,14 +1,14 @@
 ---
 name: writing-tests
-description: How to write tests for the vault that prove something - red first, absence mutations, contract and golden suites, tests that run on both storage engines, type-level negative tests, no leaked state, flake handling. Use whenever you write or change a test, plan a cycle's test phases (Phase 1 and 2 of a PLAN), review a coder's tests, or investigate a flaky or order-dependent test.
+description: How to write tests for the vault that prove something - red first, absence mutations, contract and golden suites, tests that run on both storage engines, type-level negative tests, no leaked state, flake handling. Use whenever you write or change a test, write a cycle charter's test obligations, review a coder's tests, or investigate a flaky or order-dependent test.
 ---
 
 # Writing tests
 
 The rule behind everything here: **a test only counts once you have seen it fail for the right reason.**
 Tenancy itself (per-engine rules, the open/enterprise import boundary) is in `api-routes`. Migration tests are in `db-schema-and-migrations`
-("Testing migrations"). Plan-level rules about tests (rules 11, 13-18) are in `tdd-cycle-generator`; this
-skill is what the coder follows while writing them.
+("Testing migrations"). The charter (`tdd-cycle-generator`) names *what* must be proven and the
+evidence kind; this skill is how the coder proves it, and `execute-cycle` is the procedure around it.
 
 ## 1. Prove the test can fail
 
@@ -42,7 +42,7 @@ skill is what the coder follows while writing them.
   [[CORE41]]: dropping first sight's `assertStep` turns the D1 drift case red (D1 decodes after the batch commits, so
   the assertion is the only guard). The Postgres trial stays green, because decode runs **before** commit there and
   the empty `result` select throws `UnitDriftError`, rolling the unit back. On Postgres that mutation must drop both
-  guards. When a plan writes the mutation table, name the engine each row turns red on, and list each engine's guards
+  guards. When you record a mutation, name the engine each row turns red on, and list each engine's guards
   for the property. Count the **write's own guards** too: an `exactly(n)` around an INSERT…SELECT and a unique index
   are drift guards as well as the assertion. [[CORE68]]'s "remove the commit-time assertion" turned 7 of 10 race cases
   red; a copy committed meanwhile stayed `409` through `exactly` on messages, a removed identity through `exactly(m)`
@@ -58,6 +58,11 @@ skill is what the coder follows while writing them.
   behaviours that only the legacy suite had ever tested, and they got tests of their own.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
+- **An absence test is only red-then-green if the fixture triggers the producer under the old code.** A
+  conditional producer makes a bare-minimum fixture pass trivially. Check the injected fault can actually
+  turn the named test red: `set_config(..., false)` inside a transaction that rolls back is rolled back too,
+  so it cannot redden an "after rollback" leak test ([[CORE1]]). Run each target test alone (`-t`): on a
+  shared `max: 1` pool, one test's leak reddens the next for the wrong reason.
 - **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row passes
   whatever the code under test does ([[CORE29]] review). If the seeded id is not needed, drop the `const`
   (`await seedUser(...)`); if it is, assert something the code decides.
@@ -67,13 +72,13 @@ skill is what the coder follows while writing them.
   only one ([[CORE29]]: repair tests checked `actor_id`, reconcile tests checked only event types).
 - **A refusal titled "writes nothing" snapshots after every refusal it makes**, not only the last one. A
   check of the state from before the call proves nothing ([[CORE40]] review).
-- **A rule that compares against stored state gets a test for "no stored state"** (rule 15): a guard that
-  is silent when there is no row to compare is where it leaks.
+- **A rule that compares against stored state gets a test for "no stored state"**: a guard that is silent
+  when there is no row to compare is where it leaks ([[CORE29]]).
 - **A pinned behaviour is a spec decision.** Tests assert the contract the spec writes down (statuses,
   codes, messages, event order). Where a spec keeps a rule, the shipped code is a reference for reading it,
   never an oracle to compare against: there is no legacy-oracle fixture ([[CORE36]] D12, no backward
   compatibility). Where the spec is silent and a cycle pins existing behaviour, record that as a decision
-  (rule 16; [[CORE35]] D22).
+  ([[CORE35]] D22).
 
 ## 2. Type-level tests
 
@@ -107,7 +112,7 @@ One program, two engines: the same assertions run on Postgres and D1.
     behaviour change, run `pnpm -C packages/server-postgres golden:generate`; `golden:check` fails on drift.
     Some golden values derive from the registry: the owner's scopes in `auth.json` are
     `grantableScopes(declaredScopes())`, so a cycle that declares a scope regenerates `auth.json` by exactly those
-    lines ([[CORE25]]). A plan that says "golden unchanged" checks for such derived values first.
+    lines ([[CORE25]]). Before claiming "golden unchanged", check for such derived values.
     The generator lives in the enterprise package and reads the open fixture list, scenarios and Postgres
     backend through `@vault/api/test/golden` ([[CORE44]] P12).
   - Apps that must run no unit (openapi, CORS, option checks) pass `coldStorage()`; probe operations in routing and

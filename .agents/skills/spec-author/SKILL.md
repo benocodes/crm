@@ -244,6 +244,6 @@ When the boundary is unclear:
 
 **Specs (`<ID>.md`):** architecture, design decisions, interfaces, config shapes, data flows. Answer *what and why*. No step-by-step instructions, no full code blocks. One spec lives in one folder for the lifetime of the project.
 
-**Plans (PLAN.md):** fully detailed, dev-ready TDD cycle — exact file paths, complete test code, runnable commands, phase-by-phase instructions. Generated from specs via `/tdd-cycle-generator`. Each plan lives in its own cycle folder (the spec-introducing folder for cycle 1; a plan-only folder for each subsequent cycle).
+**Plans (PLAN.md):** a short cycle charter (60–120 lines) — what this cycle delivers versus what is deferred to which cycle, what must be tested before review, and the E2E decision. No code maps, test code or implementation steps: the coder works those out against the tree (`execute-cycle`). Generated from specs via `/tdd-cycle-generator`. Each plan lives in its own cycle folder (the spec-introducing folder for cycle 1; a plan-only folder for each subsequent cycle).
 
 **Retros (RETRO.md):** what was done, what deviated from the plan, lessons learned. Generated via `/retrospect` after completion. Lives in the same cycle folder as its plan — never with a numeric suffix, since each cycle has its own folder.
