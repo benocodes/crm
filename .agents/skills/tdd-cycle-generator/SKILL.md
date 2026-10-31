@@ -391,7 +391,10 @@ skill ends; don't start implementing unless asked.
 9. **Contract suite for resources.** A cycle that adds a resource definition must add it to the contract
    suite (create emits `<resource>.created`, cross-tenant reads return nothing, a missing scope is
    refused, REST and MCP both work) rather than hand-writing those tests, and must say so in the plan
-   ([[architecture]] §11).
+   ([[architecture]] §11). Name the file (`packages/api/src/contract.integration.test.ts`) and **both runs** in
+   it: the D1 run registers its resources by hand, so a plan that puts a resource in the D1 gate must add it to
+   that registry and fixture map. [[CORE68]]'s plan named a nonexistent file and said "both backends" without the
+   D1 step, so the fixtures it switched have no red run and run only on Postgres.
 10. **An absence test is only red-then-green if the fixture triggers the producer under the old code.** A
     conditional producer makes a bare-minimum fixture pass trivially. Plans that assert an absence say so
     and have the executing agent run the test before implementing to confirm it fails for the right
