@@ -42,6 +42,14 @@ describe('roles', () => {
     expect(SCOPE_POLICY['agents:read']).toEqual({ member: true, agentGrantable: false })
     expect(SCOPE_POLICY['agents:write']).toEqual({ member: false, agentGrantable: false })
   })
+  it('notes rows (CORE74 D8): member and agent-grantable, read and write', () => {
+    for (const scope of ['notes:read', 'notes:write']) {
+      expect(SCOPE_POLICY[scope], scope).toEqual({ member: true, agentGrantable: true })
+      expect(isAgentGrantable(scope)).toBe(true)
+      expect(createVaultRegistry().declaredScopes()).toContain(scope)
+    }
+  })
+
   it('associations rows (CORE62 D11): member and agent-grantable, read and write', () => {
     for (const scope of ['associations:read', 'associations:write']) {
       expect(SCOPE_POLICY[scope], scope).toEqual({ member: true, agentGrantable: true })

@@ -247,9 +247,15 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   edges on either side automatically (`touches(table, id)` in `src/identity/cascades.ts`), so a new associable resource with a
   delete needs no extra code there, only a cascade test; `contacts.merge` re-points edges and lists `associations` in
   `CONTACT_NON_FK_REFERENCES`. Associations are custom operations over a prepared definition, not generic CRUD.
+  `notes` ([[CORE74]], `src/resources/notes.ts`) is a plain associable resource on generic CRUD whose `override.delete` is
+  `cascadeDelete` with no children: the flag alone brings the edge cascade. **`include=associations`** on an associable
+  `get` (D6) needs `associations:read` (else `403`), parses `include` inside `prepare` (unknown value `400 validation_error`),
+  and reuses `orientedEdges` descending with limit 51 → 50 plus `associations_truncated`, filtering unreadable neighbour types
+  in SQL so the cap counts only visible edges. Without the parameter the response is unchanged.
 - **A D1-only table read by a shared write path breaks the dormant Postgres suites.** Postgres has no `associations` table, so
   every Postgres-path delete of a contact, company or task, and every contact merge, fails with `relation "associations" does not
-  exist` ([[CORE62]]: 62 of 63 api failures). That is accepted drift under AGENTS.md *Engines*: list the failing groups in the
+  exist` ([[CORE62]]: 62 of 63 api failures); [[CORE74]] added `notes` (79 api failures, plus 4 storage-postgres schema
+  parity and audit failures). That is accepted drift under AGENTS.md *Engines*: list the failing groups in the
   cycle's RESULT, keep Postgres compiling, never bend D1. The future Postgres adapter needs each such table with RLS.
 - **Content operations** ([[CORE58]]): `src/messaging/content-operations.ts` holds `messages.content` (JSON, `messages:read`) and
   `files.content` (binary, `files:read`), registered in `createVaultRegistry`. `SecretColumns` (`@vault/storage`) now holds
@@ -313,7 +319,10 @@ interactive transaction, no `withContext` and no `executor` marker.
   `409 conflict` ([[CORE36]] P4).
 - **`override`** replaces a generated action with a concrete program. Its input is `{ after, limit, filters }`
   for list, the id for get and delete, the body for create, and `{ id, body }` for update. The cascades
-  (`src/identity/cascades.ts`) are the `override.delete` of companies and contacts.
+  (`src/identity/cascades.ts`) are the `override.delete` of companies, contacts, tasks and notes. `get` with
+  `include=associations` goes to `getWithAssociations` (`src/associations/embed.ts`), **not** to `override.get`
+  (`src/registry.ts`); no associable resource has an `override.get` today, and one that adds it must route the
+  embedded view through it too ([[CORE74]] review).
 - **Multi-statement units re-assert their plan at commit** ([[CORE36]] D4). On Postgres the org writer lock
   makes the plan authoritative; on D1 nothing does, so:
   - `assertStep(qc, cond)` aborts the unit as drift when `cond` is false (D1: an insert into the always-empty

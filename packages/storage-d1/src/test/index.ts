@@ -82,7 +82,7 @@ export async function openLocalD1(names: readonly string[], opts: { migrate?: bo
 export async function clearD1(d1: D1Like): Promise<void> {
   const { results } = await d1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all()
   const tables = new Set((results ?? []).map((r) => (r as { name: string }).name))
-  const order = ['events', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources', 'interactions', 'associations', 'contact_files', 'company_files', 'messages', 'files', 'threads', 'identities', 'contacts', 'companies', 'tasks', 'api_keys', 'agents', 'memberships', 'users', 'principals', 'organizations', 'deployment']
+  const order = ['events', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources', 'interactions', 'associations', 'notes', 'contact_files', 'company_files', 'messages', 'files', 'threads', 'identities', 'contacts', 'companies', 'tasks', 'api_keys', 'agents', 'memberships', 'users', 'principals', 'organizations', 'deployment']
   // wrangler's own tracker is migration state, not data ([[CORE61]] D10): emptying it would flip a gated database to `behind`.
   tables.delete('d1_migrations')
   const known = order.filter((t) => tables.has(t))

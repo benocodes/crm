@@ -14,7 +14,7 @@ describe('identity definitions', () => {
   it('declared scopes', () => {
     expect(createVaultRegistry().declaredScopes()).toEqual([
       'agents:read', 'agents:write', 'associations:read', 'associations:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'files:read',
-      'interactions:read', 'members:read', 'messages:read', 'tasks:read', 'tasks:write',
+      'interactions:read', 'members:read', 'messages:read', 'notes:read', 'notes:write', 'tasks:read', 'tasks:write',
     ])
   })
   it('operations registered', () => {

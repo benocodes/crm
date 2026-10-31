@@ -22,6 +22,7 @@ import { companyFiles } from '../resources/company-files.js'
 import { contactFiles } from '../resources/contact-files.js'
 import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
+import { notes } from '../resources/notes.js'
 import { tasks } from '../resources/tasks.js'
 import { associations } from '../associations/definition.js'
 import { afterOf, beforeRead, receipt, selectRecord, toRecord } from '../storage/crud.js'
@@ -193,4 +194,9 @@ export function deleteContactOperation(env: PreparedEnv, id: string): PreparedOp
 /** `tasks.delete`: soft-deletes the task and its live edges (`association.deleted` each, in id order). */
 export function deleteTaskOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
   return cascadeDelete({ parent: tasks, children: [] }, env, id)
+}
+
+/** `notes.delete`: soft-deletes the note and its live edges (`association.deleted` each, in id order). */
+export function deleteNoteOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
+  return cascadeDelete({ parent: notes, children: [] }, env, id)
 }

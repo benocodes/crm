@@ -7,4 +7,5 @@ export const MIGRATIONS: readonly { readonly name: string; readonly sha256: stri
   { name: '0003_administration.sql', sha256: '0bb874b36add95daf240289cdecaab72f33771c38d2a9ecd9cc64562e4307298' },
   { name: '0004_messaging_model.sql', sha256: 'f0f593123db2e36be74679eec659a723c68fe6127c9d96a541416a885afabe18' },
   { name: '0005_associations.sql', sha256: 'b394e82a489bf55cfd2e96768cedb903c7e40750de160a88ac1b103b4a895720' },
+  { name: '0006_notes.sql', sha256: '23f84b50970ff072c96f145c3dc505f1de75f7c1a59a156eb7a4d95963457a06' },
 ]

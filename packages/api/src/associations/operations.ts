@@ -24,7 +24,7 @@ const idParams = z.object({ id: z.uuid() })
 const createBody = z.strictObject({ a_type: z.string().max(64), a_id: z.uuid(), b_type: z.string().max(64), b_id: z.uuid(), relation: z.literal('related_to').optional() })
 const listQuery = z.object({ type: z.string().max(64), id: z.uuid(), neighbour_type: z.string().max(64).optional(), after: z.uuid().optional(), limit: z.coerce.number().int().min(1).max(200).optional() })
 const recordSchema = associations.record
-const listItem = z.object({ id: z.uuid(), relation: z.enum(['related_to']), neighbour_type: z.string(), neighbour_id: z.uuid(), created_by: z.uuid(), created_at: z.string() })
+export const listItem = z.object({ id: z.uuid(), relation: z.enum(['related_to']), neighbour_type: z.string(), neighbour_id: z.uuid(), created_by: z.uuid(), created_at: z.string() })
 export type AssociationListItem = z.infer<typeof listItem>
 
 /** The type's definition, or `400 validation_error` for an unknown or non-associable name. */
@@ -39,7 +39,7 @@ function requireRead(env: PreparedEnv, t: EndpointType): void {
   if (!canRead(env, t)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(t.read)} to associate ${t.type}`)
 }
 /** The types the caller may read, in a stable order. */
-const readableTypes = (env: PreparedEnv, types: EndpointTypes): string[] => [...types.values()].filter((t) => canRead(env, t)).map((t) => t.type).sort()
+export const readableTypes = (env: PreparedEnv, types: EndpointTypes): string[] => [...types.values()].filter((t) => canRead(env, t)).map((t) => t.type).sort()
 const inTypes = (column: string, names: readonly string[]): Expression<SqlBool> =>
   names.length === 0 ? sql<SqlBool>`1 = 0` : sql<SqlBool>`${A(column)} in (${sql.join(names)})`
 
@@ -178,6 +178,25 @@ export function deleteAssociation(env: PreparedEnv, types: EndpointTypes, rawId:
   })
 }
 
+/**
+ * The live edges of the anchor, oriented from it ([[CORE62]] D12), whose neighbour type is one of `readable` (D13): filtered in SQL,
+ * so a page or a cap counts only edges the caller may see. Ordering and limits are the caller's.
+ */
+export function orientedEdges(qc: QueryContext, env: PreparedEnv, anchor: Endpoint, readable: readonly string[]) {
+  const onA = sql<SqlBool>`${A('a_type')} = ${anchor.type} and ${A('a_id')} = ${anchor.id}`
+  const mine = sql`(${A('a_type')} = ${anchor.type} and ${A('a_id')} = ${anchor.id})`
+  return loose(qc)
+    .selectFrom('associations')
+    .select([
+      ...recordColumns(qc, 'associations', ['id', 'relation', 'created_by', 'created_at']),
+      sql<string>`case when ${mine} then ${A('b_type')} else ${A('a_type')} end`.as('neighbour_type'),
+      sql<string>`case when ${mine} then ${A('b_id')} else ${A('a_id')} end`.as('neighbour_id'),
+    ])
+    .where(sql<SqlBool>`${A('organization_id')} = ${env.organizationId}`)
+    .where(sql<SqlBool>`${A('deleted_at')} is null`)
+    .where(sql<SqlBool>`((${onA} and ${inTypes('b_type', readable)}) or (${A('b_type')} = ${anchor.type} and ${A('b_id')} = ${anchor.id} and ${inTypes('a_type', readable)}))`)
+}
+
 /** `associations.list`: the anchor's edges oriented from the anchor, neighbour types the caller cannot read filtered in SQL, paged by association id. */
 export function listAssociations(env: PreparedEnv, types: EndpointTypes, input: unknown): PreparedOperation<{ data: AssociationListItem[]; next_cursor: string | null }> {
   const q = parseInput(listQuery, input) as { type: string; id: string; neighbour_type?: string; after?: string; limit?: number }
@@ -192,20 +211,7 @@ export function listAssociations(env: PreparedEnv, types: EndpointTypes, input: 
     name: 'associations.list',
     mutates: false,
     reads: (qc) => {
-      const onA = sql<SqlBool>`${A('a_type')} = ${anchor.type} and ${A('a_id')} = ${anchor.id}`
-      const mine = sql`(${A('a_type')} = ${anchor.type} and ${A('a_id')} = ${anchor.id})`
-      let query = loose(qc)
-        .selectFrom('associations')
-        .select([
-          ...recordColumns(qc, 'associations', ['id', 'relation', 'created_by', 'created_at']),
-          sql<string>`case when ${mine} then ${A('b_type')} else ${A('a_type')} end`.as('neighbour_type'),
-          sql<string>`case when ${mine} then ${A('b_id')} else ${A('a_id')} end`.as('neighbour_id'),
-        ])
-        .where(sql<SqlBool>`${A('organization_id')} = ${env.organizationId}`)
-        .where(sql<SqlBool>`${A('deleted_at')} is null`)
-        .where(
-          sql<SqlBool>`((${onA} and ${inTypes('b_type', readable)}) or (${A('b_type')} = ${anchor.type} and ${A('b_id')} = ${anchor.id} and ${inTypes('a_type', readable)}))`,
-        )
+      let query = orientedEdges(qc, env, anchor, readable)
       if (after) query = query.where(sql<SqlBool>`${A('id')} > ${after}`)
       return { page: readAll(query.orderBy(A('id')).limit(limit + 1)) }
     },
@@ -237,7 +243,7 @@ export function associationOperations(defs: () => readonly AnyResource[]): Tenan
       ...base,
       name: 'associations.list',
       summary: 'List the associations of a record',
-      description: 'The records linked to the anchor (`type`, `id`), oriented from the anchor, newest page by association id. Neighbours of a type the caller cannot read are omitted.',
+      description: 'The records linked to the anchor (`type`, `id`), oriented from the anchor, pages ascending by association id. Neighbours of a type the caller cannot read are omitted.',
       method: 'get',
       path: '/associations',
       scope: { resource: 'associations', action: 'read' },

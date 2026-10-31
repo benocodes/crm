@@ -39,7 +39,7 @@ afterEach(() => {
 describe('migrations manifest (D5)', () => {
   it('matches the real migrations/ directory', () => {
     expect(manifestProblems(MIGRATIONS, MIGRATIONS_DIR)).toEqual([])
-    expect(MIGRATIONS.map((e) => e.name)).toEqual(['0001_typed_storage_core.sql', '0002_identity_model.sql', '0003_administration.sql', '0004_messaging_model.sql', '0005_associations.sql'])
+    expect(MIGRATIONS.map((e) => e.name)).toEqual(['0001_typed_storage_core.sql', '0002_identity_model.sql', '0003_administration.sql', '0004_messaging_model.sql', '0005_associations.sql', '0006_notes.sql'])
   })
   it('catches one edited byte', () => {
     const dir = copyOfTree()
@@ -51,8 +51,8 @@ describe('migrations manifest (D5)', () => {
   })
   it('catches an unlisted file', () => {
     const dir = copyOfTree()
-    writeFileSync(join(dir, '0005_new.sql'), 'select 1;')
-    expect(manifestProblems(MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0005_new.sql'])
+    writeFileSync(join(dir, '0007_new.sql'), 'select 1;')
+    expect(manifestProblems(MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0007_new.sql'])
   })
   it('catches an entry without a file', () => {
     const dir = copyOfTree()

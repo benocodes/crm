@@ -16,11 +16,12 @@ import { interactions } from './resources/interactions.js'
 import { messages } from './resources/messages.js'
 import { threads } from './resources/threads.js'
 import { memberships } from './resources/memberships.js'
+import { notes } from './resources/notes.js'
 import { tasks } from './resources/tasks.js'
 
 /** A fresh registry per call: no module-level mutable registry. Later specs append here. */
 export function createVaultRegistry(): Registry {
-  const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities)
+  const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes)
   registry.registerResource(threads).registerResource(messages).registerResource(interactions).registerResource(files).registerResource(contactFiles).registerResource(companyFiles)
   for (const op of associationOperations(() => registry.resources())) registry.register(op)
   for (const op of contentOperations()) registry.register(op)
