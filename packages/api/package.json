@@ -8,6 +8,7 @@
     "./test/golden": "./src/test/golden/index.ts",
     "./test/clerk": "./src/test/clerk.ts",
     "./test/messaging": "./src/test/messaging-kit.ts",
+    "./test/capture": "./src/test/capture-kit.ts",
     "./test/objects": "./src/test/objects.ts"
   },
   "scripts": {

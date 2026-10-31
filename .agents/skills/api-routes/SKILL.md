@@ -316,7 +316,14 @@ interactive transaction, no `withContext` and no `executor` marker.
   counts: company and contact delete 9, merge 12, resolve 7 on Postgres and 6 on D1.
 - **Concrete programs are `Program<T>` plan/build pairs** (`src/identity/program.ts`) with namespaced read
   keys (`resolve:`, `own:`, `merge:`), so [[CORE25]] can compose them later. `resolveProgram`,
-  `ensureOwnProgram` and `mergeOperation` are the worked examples.
+  `ensureOwnProgram` and `mergeOperation` are the worked examples. **Composing one program into another**
+  (`recordMessages` in `src/messaging/capture.ts`, [[CORE68]]): spread the inner `reads` into the outer's; in
+  `build`, call the inner `build`, drop its `result` step and put its steps first (its events precede yours);
+  `unit()` allows one `first-mutation` and one `first-event`, so label your own first INSERT and first event only
+  when the inner program emitted no steps; the outer has no `result` step when `build` already knows the answer
+  (`decode` returns it). Read what you need (`own`, say) through your own namespaced read, not the inner
+  program's internal rows. Keep the statement count constant by emitting every set statement even for an
+  empty set; filtering empty sets out changes the shape per chunk (M12).
 - **Every unit runs as a `StorageIdentity` with a required `kind`** ([[CORE41]] C1). Composition code picks it, never
   request input:
   - `tenant` (`actorId`, `organizationId`): Postgres RLS role plus the org writer lock when it mutates; D1 refuses a

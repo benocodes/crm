@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { execute, uuidv7 } from '@vault/storage'
+import { d1Binding } from '@vault/storage-d1'
 import { seedConversation } from '@vault/api/test/messaging'
 import { fakeR2Bucket } from '@vault/api/test/objects'
-import { fileBlobKey, messageBodyKey } from '@vault/api'
+import { captureMessage, tenantEnv } from '@vault/api/test/capture'
+import { fileBlobKey, messageBodyKey, recordMessagesOperation } from '@vault/api'
 import { clerkMembership, clerkOrganization, clerkWebhook, clerkUser, signClerkWebhook } from '@vault/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -39,6 +41,8 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'interactions-list-contact': 2,
   'merge-100-links': 3, // auth read, operation read batch, operation write batch
   'contact-delete-100-with-links': 3,
+  'capture-chunk-1': 2, // read batch, write batch (no route: the unit is run directly, CORE68 D55)
+  'capture-chunk-100': 2, // the same two, at the cap: 100 messages, 100 distinct addresses, 100 stored attachments
   'directory-snapshot-5': 11, // 4 first-seen users, two queries each, plus the snapshot's own three
   'directory-snapshot-100': 201, // 99 first-seen users
 }
@@ -85,7 +89,7 @@ beforeAll(async () => {
 })
 afterAll(() => w.dispose())
 
-const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'directory-snapshot-5', 'directory-snapshot-100'] as const
+const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'capture-chunk-1', 'capture-chunk-100', 'directory-snapshot-5', 'directory-snapshot-100'] as const
 const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'cold-first-request': 200,
   'key-auth-stamp': 200,
@@ -101,6 +105,8 @@ const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'interactions-list-contact': 200,
   'merge-100-links': 200,
   'contact-delete-100-with-links': 204,
+  'capture-chunk-1': 200,
+  'capture-chunk-100': 200,
   'directory-snapshot-5': 200,
   'directory-snapshot-100': 200,
 }
@@ -177,6 +183,24 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     for (const f of moreFiles) await send('POST', '/contact-files', { contact_id: linked.id, file_id: f })
     await measure('contact-delete-100-with-links', () => send('DELETE', `/contacts/${linked.id}`))
 
+    // CORE68 D55: the capture unit at 1 and at the cap (100 messages, 100 distinct addresses, 100 stored attachments), run through the metered binding.
+    const binding = d1Binding(meter.d1, { organizationId: orgId, authProvider: 'clerk', authOrgId: 'org_acme' })
+    const captureAt = (messages: ReturnType<typeof captureMessage>[]) => async () => {
+      await execute(binding, { kind: 'tenant', actorId: creator, organizationId: orgId }, recordMessagesOperation(tenantEnv({ organizationId: orgId, userId: creator, agentId: creator }, now), { connection_id: uuidv7(now), messages }))
+      return { status: 200 }
+    }
+    await measure('capture-chunk-1', captureAt([captureMessage(orgId, { attachments: 1 })]))
+    const hundred = Array.from({ length: 100 }, (_, i) =>
+      captureMessage(orgId, {
+        attachments: 1,
+        participants: [
+          { kind: 'email', value: `s${i % 50}@measure.test`, role: 'from' },
+          { kind: 'email', value: `r${i % 50}@measure.test`, role: 'to' },
+        ],
+      }),
+    )
+    await measure('capture-chunk-100', captureAt(hundred))
+
     const snapshot = async (keyName: string, n: number) => {
       const owner = clerkMembership({ organizationId: 'org_acme', userId: 'user_owner', role: 'org:admin' })
       kit.organizations.set('org_acme', clerkOrganization({ id: 'org_acme', name: 'Acme' }))
@@ -225,7 +249,7 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
   })
 
   it('the messaging scenarios really ran at their sizes', async () => {
-    expect(await count('select count(*) as n from messages')).toBe(103) // 50 listed + the content scenarios' one + 50 interactions + the two attachment sets
+    expect(await count('select count(*) as n from messages')).toBe(204) // 50 listed + the content scenarios' one + 50 interactions + the two attachment sets + the capture chunks' 1 and 100
     expect(await count("select count(*) as n from contact_files where deleted_at is not null")).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
   })
 

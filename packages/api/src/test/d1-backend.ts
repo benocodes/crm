@@ -3,13 +3,14 @@
 // authentication stand-in. Nothing reaches a remote database.
 import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
-import { coldDb, uuidv7 } from '@vault/storage'
+import { coldDb, uuidv7, type StorageBinding } from '@vault/storage'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { clearD1, openLocalD1 } from '@vault/storage-d1/test'
 import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { Registry } from '../registry.js'
 import { createApp } from '../rest/app.js'
 import type { ContractBackend, ContractSession, ContractTenant, EventRow } from './contract.js'
+import { captureAs } from './capture-kit.js'
 import { d1Value, withTenantDefaults } from './insert.js'
 import { coldStorage } from './storage.js'
 import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
@@ -24,7 +25,7 @@ export function d1Backend(): ContractBackend {
     async open(registry: Registry): Promise<ContractSession> {
       const local = await openLocalD1(['A', 'B'])
       const names = ['A', 'B'] as const
-      const byOrg = new Map<string, { d1: D1Like; app: ReturnType<typeof createApp> }>()
+      const byOrg = new Map<string, { d1: D1Like; app: ReturnType<typeof createApp>; binding: StorageBinding }>()
       // The relational Kysely of a ContractSession is Postgres-only; a cold one stands in on D1 (it cannot execute).
       const unusedDb = coldDb('d1') as unknown as Kysely<Database>
       const all = () => [...byOrg.values()]
@@ -46,7 +47,7 @@ export function d1Backend(): ContractBackend {
             await seedAgent(d1, { id: t.agentId, organizationId: t.organizationId, createdBy: t.userId })
             const binding = d1Binding(d1, { organizationId: t.organizationId, authProvider: 'clerk', authOrgId: CONTRACT_ORG_LINK })
             const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
-            byOrg.set(t.organizationId, { d1, app })
+            byOrg.set(t.organizationId, { d1, app, binding })
             tenants.push(t)
           }
           return { a: tenants[0]!, b: tenants[1]! }
@@ -81,6 +82,7 @@ export function d1Backend(): ContractBackend {
           await d1.prepare(`INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...cols.map((c) => d1Value(full[c]))).run()
           return full as Record<string, any>
         },
+        capture: (t, input) => captureAs(byOrg.get(t.organizationId)!.binding, t, input),
         async eventsOf(id): Promise<EventRow[]> {
           const rows: EventRow[] = []
           for (const { d1 } of all()) {

@@ -43,7 +43,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   the assertion is the only guard). The Postgres trial stays green, because decode runs **before** commit there and
   the empty `result` select throws `UnitDriftError`, rolling the unit back. On Postgres that mutation must drop both
   guards. When you record a mutation, name the engine each row turns red on, and list each engine's guards
-  for the property.
+  for the property. Count the **write's own guards** too: an `exactly(n)` around an INSERT…SELECT and a unique index
+  are drift guards as well as the assertion. [[CORE68]]'s "remove the commit-time assertion" turned 7 of 10 race cases
+  red; a copy committed meanwhile stayed `409` through `exactly` on messages, a removed identity through `exactly(m)`
+  on participants, a created identity through the unique index. Predict each case per guard, and drop the
+  assertion clause and the overlapping guard together to prove each clause.
 - **An ordering mutation must defeat the index order too.** SQLite returns an unordered aggregate in the order of the
   index it scanned, so dropping `ORDER BY` from an embed stayed green on D1: the unique index on `(message_id, position)`
   already sorted the rows, however the seed inserted them ([[CORE25]] M7). Postgres turned red. To prove an `ORDER BY`
@@ -219,7 +223,11 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   through every fixture on the other side. Two "different" users that land in one default org prove nothing;
   RLS has nothing to separate and the assertion passes for the wrong reason.
 - **The contract suite runs over every resource definition automatically**
-  (`src/contract.integration.test.ts`, which calls `runContractSuite` from `src/test/contract.ts`). It
+  (`src/contract.integration.test.ts`, which calls `runContractSuite` from `src/test/contract.ts`; there is no
+  `src/test/contract-suite*` file). The file holds **two runs**: Postgres over `createVaultRegistry()`, and D1 over a
+  hand-built registry and fixture map. A resource missing from the D1 run's registry is contract-tested only on
+  Postgres, which is non-blocking: check both runs when adding a resource or switching its fixtures ([[CORE68]]: the
+  messaging fixtures went to `kit.capture` but run only on Postgres until [[CORE69]]). It
   runs over REST, as both an agent (a real API key) and a user (`fakeUserAuthenticator`), checking:
   - create, get, list, update and delete, with exact events and `actor_id`;
   - cross-tenant 404s;

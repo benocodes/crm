@@ -3,10 +3,13 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 import { sql, type Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } from '@vault/db/test'
+import { uuidv7 } from '@vault/storage'
 import { postgresBinding } from '@vault/storage-postgres'
 import type { AnyResource, Registry } from '../registry.js'
 import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudAction } from '../resources/define.js'
 import { createApp, type AppEnv } from '../rest/app.js'
+import type { CaptureInput, CaptureResult } from '../messaging/capture.js'
+import { captureAs, captureMessage, type CaptureOverrides } from './capture-kit.js'
 import { withTenantDefaults } from './insert.js'
 import { seedApiKey } from './keys.js'
 import { seedTenant, type Tenant } from './tenant.js'
@@ -26,6 +29,13 @@ export interface FixtureKit {
   seedMember(role?: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
   /** Inserts a row directly into the tenant's store (setup only, bypassing the program under test); fills id, organisation, creator and stamps. */
   insert(table: string, row: Record<string, unknown>): Promise<Record<string, any>>
+  /** A public GET as the tenant's user with every declared scope; throws on a non-2xx. */
+  get(path: string): Promise<any>
+  /**
+   * Captures one message through `recordMessages` as the tenant's user ([[CORE68]] P15): the way the read-only messaging
+   * resources get their rows. `over` overrides the generated message (`attachments: n` means n stored attachments).
+   */
+  capture(over?: CaptureOverrides): Promise<CaptureResult>
 }
 export interface ContractFixture {
   /** A valid create body. Required iff the definition generates `create`. May create prerequisite rows through `kit`. */
@@ -82,6 +92,8 @@ export interface ContractSession {
   seedMember(t: ContractTenant, role: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
   /** Direct insert into the tenant's store (Postgres: the owner pool; D1: the tenant's binding). */
   insert(t: ContractTenant, table: string, row: Record<string, unknown>): Promise<Record<string, any>>
+  /** Runs `recordMessages` as the tenant's user on the session's binding. */
+  capture(t: ContractTenant, input: CaptureInput): Promise<CaptureResult>
   eventsOf: ContractEnv['eventsOf']
   countEvents: ContractEnv['countEvents']
   countRows: ContractEnv['countRows']
@@ -147,6 +159,7 @@ export function postgresBackend(): ContractBackend {
           const res = await sql<Record<string, any>>`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(owner)
           return res.rows[0]!
         },
+        capture: (t, input) => captureAs(storage, t, input),
         eventsOf: (id) => owner.selectFrom('events').selectAll().where('resource_id', '=', id).orderBy('id').execute(),
         countEvents: async () => Number((await owner.selectFrom('events').select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
         countRows: async (table) =>
@@ -239,6 +252,12 @@ export function runContractSuite(opts: {
               },
               seedMember: (role = 'member') => session.seedMember(t, role),
               insert: (table, row) => session.insert(t, table, row),
+              async get(path) {
+                const res = await session.call(t, 'user', registry.declaredScopes(), 'GET', path)
+                if (res.status !== 200) throw new Error(`fixture get ${path} failed: ${res.status} ${await res.text()}`)
+                return res.json()
+              },
+              capture: (over = {}) => session.capture(t, { connection_id: uuidv7(), messages: [captureMessage(t.organizationId, over)] }),
             }),
             eventsOf: session.eventsOf,
             countEvents: session.countEvents,

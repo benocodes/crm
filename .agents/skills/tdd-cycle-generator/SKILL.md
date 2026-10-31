@@ -205,3 +205,9 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    behaviour", and the coder reads the old code as the reference ([[CORE35]] D22).
 6. **Fetch external API docs** before scoping a cycle that integrates a third-party API, enough to know
    the auth mechanism and the seams. The coder fetches them again for detail.
+7. **A cycle that adds a resource names the contract file and both runs.** Add it to the contract suite
+   (`packages/api/src/contract.integration.test.ts`) rather than hand-writing the checks, and say so in the
+   charter. The file has a Postgres run and a D1 run; the D1 run registers its resources by hand, so a
+   resource in the D1 gate must be added to that registry and fixture map. [[CORE68]]'s plan named a
+   nonexistent file and said "both backends" without the D1 step, so the fixtures it switched had no red
+   run and ran only on Postgres.
