@@ -22,6 +22,8 @@ import { companyFiles } from '../resources/company-files.js'
 import { contactFiles } from '../resources/contact-files.js'
 import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
+import { tasks } from '../resources/tasks.js'
+import { associations } from '../associations/definition.js'
 import { afterOf, beforeRead, receipt, selectRecord, toRecord } from '../storage/crud.js'
 import type { PreparedEnv, PreparedResource } from '../storage/definition.js'
 import { physicalTable } from '../storage/definition.js'
@@ -48,6 +50,9 @@ interface CascadeChild {
   readonly kind: 'unlink' | 'tombstone'
 }
 
+/** A live edge of `(type, id)` on either side ([[CORE62]] D15); `type` is a registry table name, never input. */
+export const touches = (type: string, id: string) =>
+  sql<SqlBool>`((${sql.ref('associations.a_type')} = ${type} and ${sql.ref('associations.a_id')} = ${id}) or (${sql.ref('associations.b_type')} = ${type} and ${sql.ref('associations.b_id')} = ${id}))`
 const eventExists = (eventId: string) => sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`
 
 function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOperation<void> {
@@ -56,11 +61,13 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
   const parentEventId = env.newId()
   const parentKey = `cascade:${c.parent.name}`
   const childrenKey = (k: CascadeChild) => `cascade:${k.child.name}`
+  const edgesKey = 'cascade:associations'
   return defineOperation<void>({
     name: `${c.parent.name}.delete`,
     mutates: true,
     reads: (qc) => ({
       [parentKey]: beforeRead(c.parent, qc, env, id),
+      ...(c.parent.associable ? { [edgesKey]: readSet(selectRecord(associations, qc, env).where(touches(c.parent.table, id)).orderBy(sql.ref('associations.id'))) } : {}),
       ...Object.fromEntries(
         c.children.map((k) => [
           childrenKey(k),
@@ -140,6 +147,26 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
         )
         events.push(...childEvents.map((e) => ({ id: e.eventId, type: eventType, resourceType: k.child.eventName, resourceId: e.resourceId })))
       }
+      if (c.parent.associable) {
+        // [[CORE62]] D15: the parent's live edges, on either side, as one planned set with the same three guards.
+        const edges = found.all(edgesKey).map((r) => toRecord(associations, r))
+        const edgeIds = edges.map((x) => x.id as string)
+        const edgeEvents = edges.map((x) => ({ eventId: env.newId(), resourceId: x.id as string, before: x as Record<string, unknown> }))
+        const changeEdges = qc.db
+          .updateTable('associations')
+          .set({ deleted_at: at, updated_at: at } as never)
+          .where(sql<SqlBool>`${sql.ref('associations.organization_id')} = ${env.organizationId}`)
+          .where(sql<SqlBool>`${sql.ref('associations.deleted_at')} is null`)
+          .where(touches(c.parent.table, id))
+          .where(memberOf(qc, 'associations', 'id', edgeIds))
+          .where(eventExists(parentEventId))
+        steps.push(
+          ...exactly(qc, step(changeEdges), edgeIds.length),
+          assertStep(qc, sql<SqlBool>`not exists (select 1 from "associations" where "associations"."organization_id" = ${env.organizationId} and "associations"."deleted_at" is null and ${touches(c.parent.table, id)})`),
+          step(eventSetStatement(qc, { at, organizationId: env.organizationId, actorId: env.actor.id, type: 'association.deleted', resourceType: 'association', after: null, rows: edgeEvents })),
+        )
+        events.push(...edgeEvents.map((e) => ({ id: e.eventId, type: 'association.deleted', resourceType: 'association', resourceId: e.resourceId })))
+      }
       steps.push(step(proof, 'result'))
       return unit({
         steps,
@@ -162,3 +189,8 @@ export function deleteContactOperation(env: PreparedEnv, id: string): PreparedOp
   return cascadeDelete({ parent: contacts, children: [{ child: identities, column: 'contact_id', kind: 'tombstone' }, { child: contactFiles, column: 'contact_id', kind: 'tombstone' }] }, env, id)
 }
 
+
+/** `tasks.delete`: soft-deletes the task and its live edges (`association.deleted` each, in id order). */
+export function deleteTaskOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
+  return cascadeDelete({ parent: tasks, children: [] }, env, id)
+}

@@ -13,6 +13,7 @@ export const interactions = definePreparedResource({
   name: 'interactions',
   eventName: 'interaction',
   table: 'interactions',
+  associable: true,
   scopeResource: 'interactions',
   operations: ['list', 'get'],
   record: z.object({

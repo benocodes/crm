@@ -12,6 +12,9 @@
       },
       {
         "name": "0004_messaging_model.sql"
+      },
+      {
+        "name": "0005_associations.sql"
       }
     ],
     "success": true,

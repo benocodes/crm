@@ -19,6 +19,9 @@ export const SCOPE_POLICY: ScopePolicy = {
   'interactions:read': { member: true, agentGrantable: true },
   'messages:read': { member: true, agentGrantable: true },
   'files:read': { member: true, agentGrantable: true },
+  // Associations ([[CORE62]] D11): linking needs the grant plus read on both endpoint types, checked by the operation.
+  'associations:read': { member: true, agentGrantable: true },
+  'associations:write': { member: true, agentGrantable: true },
   // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
   // read-only: Clerk is the source of truth ([[CORE3]] D1).
   'members:read': { member: true, agentGrantable: false },

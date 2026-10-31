@@ -41,6 +41,7 @@ export const companies = definePreparedResource({
   name: 'companies',
   eventName: 'company',
   table: 'companies',
+  associable: true,
   record,
   create,
   update,

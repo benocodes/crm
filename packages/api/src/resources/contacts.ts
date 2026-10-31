@@ -36,6 +36,7 @@ export const contacts = definePreparedResource({
   name: 'contacts',
   eventName: 'contact',
   table: 'contacts',
+  associable: true,
   record,
   create,
   update,

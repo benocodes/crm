@@ -90,7 +90,7 @@ describe('CONTACT_NON_FK_REFERENCES catalog guard (CORE62 D16)', () => {
     const listed = [...CONTACT_NON_FK_REFERENCES.flatMap((r) => r.columns.map((c) => `${r.table}.${c.id}`)), ...CONTACT_NON_FK_EXEMPTIONS.map((r) => `${r.table}.${r.column}`)].sort()
     expect(await d1PolymorphicReferences()).toEqual(listed)
   })
-  it('guard: the scan sees associations on both sides (and the audit log's resource_id, an exemption), and the entries name real columns', async () => {
+  it('guard: the scan sees associations on both sides (and the audit log resource_id, an exemption), and the entries name real columns', async () => {
     expect(await d1PolymorphicReferences()).toEqual(['associations.a_id', 'associations.b_id', 'events.resource_id'])
     for (const r of CONTACT_NON_FK_REFERENCES) {
       const lite = ((await d1.prepare(`SELECT name FROM pragma_table_info('${r.table}')`).all()).results as Array<{ name: string }>).map((x) => x.name)
