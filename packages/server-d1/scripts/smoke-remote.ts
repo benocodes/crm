@@ -49,10 +49,15 @@ const errCode = (j: Json | null) => ((j?.error as Json | undefined)?.code as str
 async function before(base: string, version: string): Promise<void> {
   const h = await call(base, 'GET', '/health')
   check('health -> 200 ok, initialised false, version', h.status === 200 && h.json?.status === 'ok' && h.json?.initialised === false && h.json?.version === version, { status: h.status, initialised: h.json?.initialised, version: h.json?.version })
-  const t = await call(base, 'GET', '/tasks')
-  check('GET /tasks (no auth) -> 503 not_initialised', t.status === 503 && errCode(t.json) === 'not_initialised', { status: t.status, code: errCode(t.json) })
-  const o = await call(base, 'GET', '/openapi.json')
-  check('GET /openapi.json -> 200, openapi 3.1.0', o.status === 200 && o.json?.openapi === '3.1.0', { status: o.status })
+  const t = await call(base, 'GET', '/api/v1/tasks')
+  check('GET /api/v1/tasks (no auth) -> 503 not_initialised', t.status === 503 && errCode(t.json) === 'not_initialised', { status: t.status, code: errCode(t.json) })
+  for (const [path, title] of [['/api/v1/openapi.json', 'Vault records API'], ['/meta/v1/openapi.json', 'Vault meta API']] as const) {
+    const o = await call(base, 'GET', path)
+    check(`GET ${path} -> 200, openapi 3.1.0, ${title}`, o.status === 200 && o.json?.openapi === '3.1.0' && (o.json?.info as Json | undefined)?.title === title, { status: o.status })
+  }
+  // The old root document is not exempt: uninitialised, it is refused like any other route ([[API32]] D5).
+  const root = await call(base, 'GET', '/openapi.json')
+  check('GET /openapi.json -> 503 not_initialised (no root document, not exempt)', root.status === 503 && errCode(root.json) === 'not_initialised', { status: root.status, code: errCode(root.json) })
 }
 
 /** The `after` health check: initialised, the expected version, and every core migration applied ([[CORE61]] D7). */
@@ -63,26 +68,28 @@ export function afterHealthOk(status: number, json: Json | null, version: string
 async function after(base: string, version: string, key: string): Promise<void> {
   const h = await call(base, 'GET', '/health')
   check('health -> 200 ok, initialised true, version, migrations current', afterHealthOk(h.status, h.json, version), { status: h.status, initialised: h.json?.initialised, version: h.json?.version, migrations: h.json?.migrations })
-  const list = await call(base, 'GET', '/tasks', key)
-  check('GET /tasks with the key -> 200, data array', list.status === 200 && Array.isArray(list.json?.data), { status: list.status })
-  const none = await call(base, 'GET', '/tasks')
+  const root = await call(base, 'GET', '/openapi.json')
+  check('GET /openapi.json -> 404 not_found (no root document)', root.status === 404 && errCode(root.json) === 'not_found', { status: root.status, code: errCode(root.json) })
+  const list = await call(base, 'GET', '/api/v1/tasks', key)
+  check('GET /api/v1/tasks with the key -> 200, data array', list.status === 200 && Array.isArray(list.json?.data), { status: list.status })
+  const none = await call(base, 'GET', '/api/v1/tasks')
   check('no Authorization -> 401', none.status === 401, { status: none.status })
-  const mal = await call(base, 'GET', '/tasks', null, undefined, 'Bearer vk_malformed')
+  const mal = await call(base, 'GET', '/api/v1/tasks', null, undefined, 'Bearer vk_malformed')
   check('Bearer vk_malformed -> 401', mal.status === 401, { status: mal.status })
-  const jwt = await call(base, 'GET', '/tasks', null, undefined, 'Bearer a.b.c')
+  const jwt = await call(base, 'GET', '/api/v1/tasks', null, undefined, 'Bearer a.b.c')
   check('Bearer a.b.c -> 401', jwt.status === 401, { status: jwt.status })
 
   const title = `smoke-${version}`
-  const created = await call(base, 'POST', '/tasks', key, { title })
+  const created = await call(base, 'POST', '/api/v1/tasks', key, { title })
   const id = (created.json?.id as string | undefined) ?? ''
-  check('POST /tasks -> 201', created.status === 201 && id !== '', { status: created.status })
+  check('POST /api/v1/tasks -> 201', created.status === 201 && id !== '', { status: created.status })
   if (id) {
-    const got = await call(base, 'GET', `/tasks/${id}`, key)
-    check('GET /tasks/<id> -> 200 with the title', got.status === 200 && got.json?.title === title, { status: got.status })
-    const del = await call(base, 'DELETE', `/tasks/${id}`, key)
-    check('DELETE /tasks/<id> -> 204', del.status === 204, { status: del.status })
-    const gone = await call(base, 'GET', `/tasks/${id}`, key)
-    check('GET /tasks/<id> after delete -> 404 not_found', gone.status === 404 && errCode(gone.json) === 'not_found', { status: gone.status, code: errCode(gone.json) })
+    const got = await call(base, 'GET', `/api/v1/tasks/${id}`, key)
+    check('GET /api/v1/tasks/<id> -> 200 with the title', got.status === 200 && got.json?.title === title, { status: got.status })
+    const del = await call(base, 'DELETE', `/api/v1/tasks/${id}`, key)
+    check('DELETE /api/v1/tasks/<id> -> 204', del.status === 204, { status: del.status })
+    const gone = await call(base, 'GET', `/api/v1/tasks/${id}`, key)
+    check('GET /api/v1/tasks/<id> after delete -> 404 not_found', gone.status === 404 && errCode(gone.json) === 'not_found', { status: gone.status, code: errCode(gone.json) })
   }
 
   const total = 200
@@ -97,7 +104,7 @@ async function after(base: string, version: string, key: string): Promise<void> 
         next++
         const t0 = performance.now()
         try {
-          const r = await fetch(base + '/tasks', { headers: { authorization: `Bearer ${key}` } })
+          const r = await fetch(base + '/api/v1/tasks', { headers: { authorization: `Bearer ${key}` } })
           await r.arrayBuffer()
           if (r.status < 200 || r.status > 299) bad++
         } catch {
@@ -108,7 +115,7 @@ async function after(base: string, version: string, key: string): Promise<void> 
     }),
   )
   times.sort((a, b) => a - b)
-  check(`load: ${total} GET /tasks at concurrency ${concurrency}: zero non-2xx, zero errors`, bad === 0 && errors === 0, { non2xx: bad, errors })
+  check(`load: ${total} GET /api/v1/tasks at concurrency ${concurrency}: zero non-2xx, zero errors`, bad === 0 && errors === 0, { non2xx: bad, errors })
   console.log(`load: p50=${percentile(times, 50).toFixed(0)}ms p95=${percentile(times, 95).toFixed(0)}ms max=${times[times.length - 1]!.toFixed(0)}ms`)
 }
 

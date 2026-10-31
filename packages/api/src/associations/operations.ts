@@ -237,7 +237,7 @@ export function listAssociations(env: PreparedEnv, types: EndpointTypes, input: 
  */
 export function associationOperations(defs: () => readonly AnyResource[]): TenantOperation[] {
   const types = () => endpointTypesOf(defs())
-  const base = { kind: 'tenant' as const, validation: 'handler' as const, tags: ['associations'] }
+  const base = { kind: 'tenant' as const, surface: 'api' as const, validation: 'handler' as const, tags: ['associations'] }
   return [
     {
       ...base,

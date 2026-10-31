@@ -16,6 +16,7 @@ import { ScopeSet, formatScope } from '../scopes.js'
 import { internalEnv } from '../storage/internal.js'
 import { renderError, renderNotFound } from './errors.js'
 import { contentDisposition } from './binary.js'
+import { SURFACES, SURFACE_PREFIX, SURFACE_TITLE, fullPath, openApiPath } from '../surfaces.js'
 import { documentOperation, honoPath, registerSecurityScheme } from './openapi.js'
 
 export type AppEnv = { Variables: { principal: Principal; storage: StorageBinding } }
@@ -157,7 +158,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   const auth = authMiddleware({ userAuthenticator, env: () => internalEnv(options) })
   for (const op of registry.operations()) {
     documentOperation(app, op)
-    app.on(op.method.toUpperCase(), honoPath(op.path), auth, async (c) => {
+    app.on(op.method.toUpperCase(), honoPath(fullPath(op)), auth, async (c) => {
       const result = await run(c, op, options)
       if (op.response.status === 204) return c.body(null, 204)
       if (op.output === 'binary') {
@@ -177,13 +178,17 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   // Plain route, not an operation: the Svix signature is its only credential, and it is not documented.
   if (options.authAdapter) app.post('/webhooks/clerk', clerkWebhookHandler(options.authAdapter, { clock: options.clock, newId: options.newId }))
 
-  app.get('/openapi.json', (c) =>
-    c.json(
-      app.getOpenAPI31Document({
+  // [[API32]] D4: one document per surface, unauthenticated; there is no root document (D5).
+  for (const surface of SURFACES) {
+    app.get(openApiPath(surface), (c) => {
+      const all = app.getOpenAPI31Document({
         openapi: '3.1.0',
-        info: { title: 'Vault API', version: options.version ?? '0.0.0-dev' },
-      }),
-    ),
-  )
+        info: { title: SURFACE_TITLE[surface], version: options.version ?? '0.0.0-dev' },
+      }) as { paths?: Record<string, unknown> }
+      const prefix = SURFACE_PREFIX[surface] + '/'
+      const paths = Object.fromEntries(Object.entries(all.paths ?? {}).filter(([p]) => p.startsWith(prefix)))
+      return c.json({ ...all, paths })
+    })
+  }
   return app
 }

@@ -11,10 +11,10 @@ export const fixtures: Record<string, ContractFixture> = {
   contacts: { input: async () => ({ name: 'Contract contact' }), patch: async () => ({ name: 'Renamed' }) },
   identities: {
     input: async (kit) => {
-      const c = await kit.post('/contacts', { name: 'Owner' })
+      const c = await kit.post('/api/v1/contacts', { name: 'Owner' })
       return { kind: 'email', value: `c-${randomUUID()}@example.com`, contact_id: c.id }
     },
-    patch: async (kit) => ({ contact_id: (await kit.post('/contacts', {})).id }),
+    patch: async (kit) => ({ contact_id: (await kit.post('/api/v1/contacts', {})).id }),
   },
   // Administration ([[CORE3]]): human-only scopes, so the suite runs these as a user.
   memberships: {
@@ -28,8 +28,8 @@ export const fixtures: Record<string, ContractFixture> = {
   },
   api_keys: {
     async make(kit) {
-      const agent = await kit.post('/agents', { name: 'k' })
-      return kit.post('/api-keys', { agent_id: agent.id })
+      const agent = await kit.post('/meta/v1/agents', { name: 'k' })
+      return kit.post('/meta/v1/api-keys', { agent_id: agent.id })
     },
     handwritten: ['create'],
     actors: ['user'],
@@ -40,15 +40,15 @@ export const fixtures: Record<string, ContractFixture> = {
   interactions: { make: async (kit) => ({ id: (await kit.capture()).captured[0]!.interaction_id }) },
   files: { make: async (kit) => ({ id: await storedFileId(kit) }) },
   contact_files: {
-    input: async (kit) => ({ contact_id: (await kit.post('/contacts', { name: 'Linked' })).id, file_id: await storedFileId(kit) }),
+    input: async (kit) => ({ contact_id: (await kit.post('/api/v1/contacts', { name: 'Linked' })).id, file_id: await storedFileId(kit) }),
   },
   company_files: {
-    input: async (kit) => ({ company_id: (await kit.post('/companies', { name: 'Linked co', domain: `l-${randomUUID()}.example.com` })).id, file_id: await storedFileId(kit) }),
+    input: async (kit) => ({ company_id: (await kit.post('/api/v1/companies', { name: 'Linked co', domain: `l-${randomUUID()}.example.com` })).id, file_id: await storedFileId(kit) }),
   },
 }
 
 /** Captures a message with one stored attachment and returns the id of its file (read back through the public message). */
 async function storedFileId(kit: FixtureKit): Promise<string> {
   const { message_id } = (await kit.capture({ attachments: 1 })).captured[0]!
-  return (await kit.get(`/messages/${message_id}`)).attachments[0].file_id as string
+  return (await kit.get(`/api/v1/messages/${message_id}`)).attachments[0].file_id as string
 }

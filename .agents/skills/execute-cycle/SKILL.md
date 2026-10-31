@@ -68,6 +68,12 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
 
 - Run each new test file alone and see it fail **for the reason the behaviour is missing**, not an import
   error. Commit the red tests, and append the red run's output to `RESULT.md` **at the red commit**.
+- **The red commit comes before any implementation commit, even in a mechanical cycle.** If a test cannot
+  load without part of the change (a new module's constants, a required type field), put the smallest stub
+  that lets it import into the red commit, so the assertions fail rather than the import. [[API32]]'s coder
+  built exactly that stub (a constants-only `surfaces.ts`) but ran it in a throwaway worktree against `main`
+  and folded the tests into the implementation commit, so the branch history no longer shows red before green.
+  That is a recorded deviation, not an equivalent.
 - A migration's test goes red against the old schema **before** the migration exists (vitest runs
   untyped, so missing generated types don't block the run). Only then write the migration, run codegen
   and change the seeds ([[CORE3]] cycle 1).

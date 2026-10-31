@@ -77,7 +77,7 @@ describe.each(['postgres', 'd1'] as const)('bootstrap on %s', (name) => {
 
   it('a bootstrapped linked user signs in without a profile fetch', async () => {
     await bootstrap(e.binding, { ...OPTS, authSubject: 'user_boot' }, env())
-    const res = await kit.call('/me', 'user_boot')
+    const res = await kit.call('/meta/v1/me', 'user_boot')
     expect(res.status).toBe(200)
     expect(kit.clerk.fetch.calls).toEqual([])
     expect((await res.json()).user.email).toBe('owner@acme.test')

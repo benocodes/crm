@@ -77,7 +77,7 @@ describe('bootstrapD1 (P7)', () => {
     const r = await bootstrapD1(w.d1, { ...base, authSubject: 'user_owner' }, env())
     const worker = composeD1Worker({ DB: w.d1, ...kit.env }, { fetch: kit.fetch })
     const token = await mintClerkToken(kit.issuer, { sub: 'user_owner' })
-    const res = await worker.fetch(new Request('https://w.test/me', { headers: { authorization: `Bearer ${token}` } }))
+    const res = await worker.fetch(new Request('https://w.test/meta/v1/me', { headers: { authorization: `Bearer ${token}` } }))
     expect(res.status).toBe(200)
     expect(((await res.json()) as { user: { id: string } }).user.id).toBe(r.userId)
     expect(kit.fetch.calls.filter((c) => c.url.includes('/v1/users'))).toEqual([])

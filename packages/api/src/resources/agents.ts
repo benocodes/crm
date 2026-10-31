@@ -41,6 +41,7 @@ const scopesField = z.array(z.string()).max(100)
  * pure, so it runs in `prepare`; a scope change applies at once because the next request reads the stored list.
  */
 export const agents = definePreparedResource({
+  surface: 'meta',
   name: 'agents',
   eventName: 'agent',
   table: 'agents',

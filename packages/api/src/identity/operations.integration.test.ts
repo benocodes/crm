@@ -28,11 +28,11 @@ describe.each([postgresBackend(), d1Backend()] as ContractBackend[])('identity c
   const READ = ['contacts:read']
   const post = (path: string, scopes: string[], body: unknown, actor: 'user' | 'agent' = 'agent') => session.call(a, actor, scopes, 'POST', path, body)
   const err = async (res: Response) => ((await res.json()) as any).error
-  const contact = async (): Promise<{ id: string }> => (await (await post('/contacts', WRITE, {}, 'user')).json()) as { id: string }
+  const contact = async (): Promise<{ id: string }> => (await (await post('/api/v1/contacts', WRITE, {}, 'user')).json()) as { id: string }
 
   describe('identities.resolve', () => {
     it('resolves', async () => {
-      const res = await post('/identities/resolve', WRITE, { identities: [{ kind: 'email', value: 'A@B.com', name: 'A' }] })
+      const res = await post('/api/v1/identities/resolve', WRITE, { identities: [{ kind: 'email', value: 'A@B.com', name: 'A' }] })
       expect(res.status).toBe(200)
       const body = (await res.json()) as any
       expect(body.data).toHaveLength(1)
@@ -42,7 +42,7 @@ describe.each([postgresBackend(), d1Backend()] as ContractBackend[])('identity c
       expect(events[0]!.actor_id).toBe(await session.principalId(a, 'agent', WRITE))
     })
     it('needs write', async () => {
-      const res = await post('/identities/resolve', READ, { identities: [{ kind: 'email', value: 'a@b.com' }] })
+      const res = await post('/api/v1/identities/resolve', READ, { identities: [{ kind: 'email', value: 'a@b.com' }] })
       expect(res.status).toBe(403)
       expect(await err(res)).toEqual({ code: 'insufficient_scope', message: 'requires contacts:write' })
     })
@@ -53,13 +53,13 @@ describe.each([postgresBackend(), d1Backend()] as ContractBackend[])('identity c
         { identities: Array.from({ length: 101 }, (_, i) => ({ kind: 'email', value: `a${i}@b.com` })) },
         { identities: [{ ...one, extra: 1 }] },
       ]) {
-        const res = await post('/identities/resolve', WRITE, body)
+        const res = await post('/api/v1/identities/resolve', WRITE, body)
         expect(res.status).toBe(400)
         expect((await err(res)).code).toBe('validation_error')
       }
     })
     it('answers an invalid entry with its index', async () => {
-      const res = await post('/identities/resolve', WRITE, { identities: [{ kind: 'phone', value: 'x' }] })
+      const res = await post('/api/v1/identities/resolve', WRITE, { identities: [{ kind: 'phone', value: 'x' }] })
       expect(res.status).toBe(400)
       const e = await err(res)
       expect(e.code).toBe('invalid_identity')
@@ -71,7 +71,7 @@ describe.each([postgresBackend(), d1Backend()] as ContractBackend[])('identity c
     const two = async () => ({ s: await contact(), r: await contact() })
     it('merges and attributes contact.merged to the caller', async () => {
       const { s, r } = await two()
-      const res = await post(`/contacts/${s.id}/merge`, WRITE, { source_id: r.id }, 'user')
+      const res = await post(`/api/v1/contacts/${s.id}/merge`, WRITE, { source_id: r.id }, 'user')
       expect(res.status).toBe(200)
       expect(((await res.json()) as any).id).toBe(s.id)
       const merged = (await session.eventsOf(r.id)).filter((x) => x.type === 'contact.merged')
@@ -80,14 +80,14 @@ describe.each([postgresBackend(), d1Backend()] as ContractBackend[])('identity c
     })
     it('needs write', async () => {
       const { s, r } = await two()
-      const res = await post(`/contacts/${s.id}/merge`, READ, { source_id: r.id }, 'user')
+      const res = await post(`/api/v1/contacts/${s.id}/merge`, READ, { source_id: r.id }, 'user')
       expect(res.status).toBe(403)
       expect((await err(res)).code).toBe('insufficient_scope')
     })
     it('validates the body', async () => {
       const { s, r } = await two()
       for (const body of [{ source_id: 'nope' }, { source_id: r.id, extra: 1 }]) {
-        const res = await post(`/contacts/${s.id}/merge`, WRITE, body, 'user')
+        const res = await post(`/api/v1/contacts/${s.id}/merge`, WRITE, body, 'user')
         expect(res.status).toBe(400)
         expect((await err(res)).code).toBe('validation_error')
       }
@@ -96,7 +96,7 @@ describe.each([postgresBackend(), d1Backend()] as ContractBackend[])('identity c
       const { s } = await two()
       const before = await session.countEvents()
       for (const source_id of [s.id, s.id.toUpperCase()]) {
-        const res = await post(`/contacts/${s.id}/merge`, WRITE, { source_id }, 'user')
+        const res = await post(`/api/v1/contacts/${s.id}/merge`, WRITE, { source_id }, 'user')
         expect(res.status).toBe(400)
         expect((await err(res)).code).toBe('merge_into_self')
       }
@@ -106,14 +106,14 @@ describe.each([postgresBackend(), d1Backend()] as ContractBackend[])('identity c
 
   describe('document and lookup', () => {
     it('documents both commands under their operation ids', async () => {
-      const doc = (await (await session.app.request('/openapi.json')).json()) as any
-      expect(doc.paths['/identities/resolve'].post.operationId).toBe('identities.resolve')
-      expect(doc.paths['/contacts/{id}/merge'].post.operationId).toBe('contacts.merge')
+      const doc = (await (await session.app.request('/api/v1/openapi.json')).json()) as any
+      expect(doc.paths['/api/v1/identities/resolve'].post.operationId).toBe('identities.resolve')
+      expect(doc.paths['/api/v1/contacts/{id}/merge'].post.operationId).toBe('contacts.merge')
     })
     it('looks a sender up by address, normalised', async () => {
       const k = await contact()
-      expect((await post('/identities', WRITE, { kind: 'email', value: 'ori@example.com', contact_id: k.id }, 'user')).status).toBe(201)
-      const res = await session.call(a, 'agent', READ, 'GET', '/identities?kind=email&value=Ori%40Example.com')
+      expect((await post('/api/v1/identities', WRITE, { kind: 'email', value: 'ori@example.com', contact_id: k.id }, 'user')).status).toBe(201)
+      const res = await session.call(a, 'agent', READ, 'GET', '/api/v1/identities?kind=email&value=Ori%40Example.com')
       expect(res.status).toBe(200)
       expect(((await res.json()) as any).data[0].value).toBe('ori@example.com')
     })

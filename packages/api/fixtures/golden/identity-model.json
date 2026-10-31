@@ -12,7 +12,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "Acme",
             "domain": " Acme.COM "
@@ -52,7 +52,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "Other",
             "domain": "other.com"
@@ -92,7 +92,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "Clash",
             "domain": "ACME.com"
@@ -110,7 +110,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "PATCH",
-          "path": "/companies/{b}",
+          "path": "/api/v1/companies/{b}",
           "request": {
             "domain": "acme.com"
           },
@@ -127,7 +127,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "PATCH",
-          "path": "/companies/{a}",
+          "path": "/api/v1/companies/{a}",
           "request": {
             "domain": "ACME.COM",
             "name": "Acme Inc"
@@ -175,7 +175,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "Bad",
             "domain": "https://acme.com"
@@ -193,7 +193,7 @@
           "as": "agent",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "No domain"
           },
@@ -232,7 +232,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "GET",
-          "path": "/companies?domain=ACME.com",
+          "path": "/api/v1/companies?domain=ACME.com",
           "request": null,
           "status": 200,
           "response": {
@@ -255,7 +255,7 @@
           "as": "user",
           "at": "2026-10-22T09:08:00.000Z",
           "method": "PATCH",
-          "path": "/companies/{c}",
+          "path": "/api/v1/companies/{c}",
           "request": {
             "domain": null,
             "name": "Renamed"
@@ -303,7 +303,7 @@
           "as": "user",
           "at": "2026-10-22T09:09:00.000Z",
           "method": "DELETE",
-          "path": "/companies/{a}",
+          "path": "/api/v1/companies/{a}",
           "request": null,
           "status": 204,
           "response": null,
@@ -332,7 +332,7 @@
           "as": "user",
           "at": "2026-10-22T09:10:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "Acme again",
             "domain": "acme.com"
@@ -372,7 +372,7 @@
           "as": "user",
           "at": "2026-10-22T09:11:00.000Z",
           "method": "GET",
-          "path": "/companies/{a}",
+          "path": "/api/v1/companies/{a}",
           "request": null,
           "status": 404,
           "response": {
@@ -387,7 +387,7 @@
           "as": "user",
           "at": "2026-10-22T09:12:00.000Z",
           "method": "GET",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": null,
           "status": 200,
           "response": {
@@ -434,7 +434,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "Acme",
             "domain": "acme.com"
@@ -474,7 +474,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "One",
             "company_id": "{co}"
@@ -516,7 +516,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "Two",
             "company_id": "{co}"
@@ -558,7 +558,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "Gone",
             "company_id": "{co}"
@@ -600,7 +600,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "DELETE",
-          "path": "/contacts/{k3}",
+          "path": "/api/v1/contacts/{k3}",
           "request": null,
           "status": 204,
           "response": null,
@@ -630,7 +630,7 @@
           "as": "agent",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "DELETE",
-          "path": "/companies/{co}",
+          "path": "/api/v1/companies/{co}",
           "request": null,
           "status": 204,
           "response": null,
@@ -715,7 +715,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "GET",
-          "path": "/contacts/{k1}",
+          "path": "/api/v1/contacts/{k1}",
           "request": null,
           "status": 200,
           "response": {
@@ -734,7 +734,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "GET",
-          "path": "/contacts?company_id={co}",
+          "path": "/api/v1/contacts?company_id={co}",
           "request": null,
           "status": 200,
           "response": {
@@ -747,7 +747,7 @@
           "as": "user",
           "at": "2026-10-22T09:08:00.000Z",
           "method": "DELETE",
-          "path": "/companies/{co}",
+          "path": "/api/v1/companies/{co}",
           "request": null,
           "status": 404,
           "response": {
@@ -768,7 +768,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {},
           "status": 201,
           "response": {
@@ -807,7 +807,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "Acme"
           },
@@ -846,7 +846,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "  Padded  ",
             "company_id": "{co}"
@@ -888,7 +888,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "company_id": "0190b2c4-0000-7000-8000-00000000dead"
           },
@@ -905,7 +905,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "PATCH",
-          "path": "/contacts/{a}",
+          "path": "/api/v1/contacts/{a}",
           "request": {
             "company_id": "0190b2c4-0000-7000-8000-00000000dead"
           },
@@ -922,7 +922,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "PATCH",
-          "path": "/contacts/{a}",
+          "path": "/api/v1/contacts/{a}",
           "request": {
             "merged_into_id": "{b}"
           },
@@ -939,7 +939,7 @@
           "as": "agent",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "PATCH",
-          "path": "/contacts/{a}",
+          "path": "/api/v1/contacts/{a}",
           "request": {
             "name": "Named",
             "company_id": "{co}"
@@ -990,7 +990,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "PATCH",
-          "path": "/contacts/{b}",
+          "path": "/api/v1/contacts/{b}",
           "request": {},
           "status": 200,
           "response": {
@@ -1009,7 +1009,7 @@
           "as": "user",
           "at": "2026-10-22T09:08:00.000Z",
           "method": "PATCH",
-          "path": "/contacts/{b}",
+          "path": "/api/v1/contacts/{b}",
           "request": {
             "name": null,
             "company_id": null
@@ -1060,7 +1060,7 @@
           "as": "user",
           "at": "2026-10-22T09:09:00.000Z",
           "method": "GET",
-          "path": "/contacts?company_id={co}",
+          "path": "/api/v1/contacts?company_id={co}",
           "request": null,
           "status": 200,
           "response": {
@@ -1084,7 +1084,7 @@
           "as": "user",
           "at": "2026-10-22T09:10:00.000Z",
           "method": "DELETE",
-          "path": "/companies/{co}",
+          "path": "/api/v1/companies/{co}",
           "request": null,
           "status": 204,
           "response": null,
@@ -1141,7 +1141,7 @@
           "as": "user",
           "at": "2026-10-22T09:11:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "company_id": "{co}"
           },
@@ -1158,7 +1158,7 @@
           "as": "user",
           "at": "2026-10-22T09:12:00.000Z",
           "method": "GET",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": null,
           "status": 200,
           "response": {
@@ -1198,7 +1198,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "Ori"
           },
@@ -1239,7 +1239,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "ori@example.com",
@@ -1284,7 +1284,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "phone",
             "value": "+14155550100",
@@ -1329,7 +1329,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "old@example.com",
@@ -1374,7 +1374,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "DELETE",
-          "path": "/identities/{i3}",
+          "path": "/api/v1/identities/{i3}",
           "request": null,
           "status": 204,
           "response": null,
@@ -1405,7 +1405,7 @@
           "as": "agent",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "DELETE",
-          "path": "/contacts/{k}",
+          "path": "/api/v1/contacts/{k}",
           "request": null,
           "status": 204,
           "response": null,
@@ -1475,7 +1475,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "GET",
-          "path": "/identities/{i1}",
+          "path": "/api/v1/identities/{i1}",
           "request": null,
           "status": 404,
           "response": {
@@ -1490,7 +1490,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {},
           "status": 201,
           "response": {
@@ -1529,7 +1529,7 @@
           "as": "user",
           "at": "2026-10-22T09:08:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "ORI@example.com",
@@ -1574,7 +1574,7 @@
           "as": "user",
           "at": "2026-10-22T09:09:00.000Z",
           "method": "DELETE",
-          "path": "/contacts/{k}",
+          "path": "/api/v1/contacts/{k}",
           "request": null,
           "status": 404,
           "response": {
@@ -1595,7 +1595,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "X"
           },
@@ -1636,7 +1636,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "Y"
           },
@@ -1677,7 +1677,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": " Ori@Example.com ",
@@ -1722,7 +1722,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "me@us.com",
@@ -1767,7 +1767,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "a@b.com"
@@ -1785,7 +1785,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "a@b.com",
@@ -1805,7 +1805,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "phone",
             "value": "020 7946 0958",
@@ -1824,7 +1824,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "ORI@example.com",
@@ -1843,7 +1843,7 @@
           "as": "user",
           "at": "2026-10-22T09:08:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "me@us.com",
@@ -1862,7 +1862,7 @@
           "as": "user",
           "at": "2026-10-22T09:09:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "z@z.com",
@@ -1881,7 +1881,7 @@
           "as": "user",
           "at": "2026-10-22T09:10:00.000Z",
           "method": "PATCH",
-          "path": "/identities/{i}",
+          "path": "/api/v1/identities/{i}",
           "request": {
             "contact_id": "{y}"
           },
@@ -1934,7 +1934,7 @@
           "as": "user",
           "at": "2026-10-22T09:11:00.000Z",
           "method": "PATCH",
-          "path": "/identities/{i}",
+          "path": "/api/v1/identities/{i}",
           "request": {
             "own": true
           },
@@ -1987,7 +1987,7 @@
           "as": "agent",
           "at": "2026-10-22T09:12:00.000Z",
           "method": "PATCH",
-          "path": "/identities/{i}",
+          "path": "/api/v1/identities/{i}",
           "request": {
             "contact_id": "{x}"
           },
@@ -2040,7 +2040,7 @@
           "as": "user",
           "at": "2026-10-22T09:13:00.000Z",
           "method": "PATCH",
-          "path": "/identities/{i}",
+          "path": "/api/v1/identities/{i}",
           "request": {},
           "status": 200,
           "response": {
@@ -2060,7 +2060,7 @@
           "as": "user",
           "at": "2026-10-22T09:14:00.000Z",
           "method": "PATCH",
-          "path": "/identities/{i}",
+          "path": "/api/v1/identities/{i}",
           "request": {
             "contact_id": "{x}",
             "own": true
@@ -2078,7 +2078,7 @@
           "as": "user",
           "at": "2026-10-22T09:15:00.000Z",
           "method": "PATCH",
-          "path": "/identities/{i}",
+          "path": "/api/v1/identities/{i}",
           "request": {
             "value": "other@example.com"
           },
@@ -2095,7 +2095,7 @@
           "as": "user",
           "at": "2026-10-22T09:16:00.000Z",
           "method": "GET",
-          "path": "/identities?kind=email&value=Ori%40Example.COM",
+          "path": "/api/v1/identities?kind=email&value=Ori%40Example.COM",
           "request": null,
           "status": 200,
           "response": {
@@ -2120,7 +2120,7 @@
           "as": "user",
           "at": "2026-10-22T09:17:00.000Z",
           "method": "GET",
-          "path": "/identities?value=ori@example.com",
+          "path": "/api/v1/identities?value=ori@example.com",
           "request": null,
           "status": 400,
           "response": {
@@ -2135,7 +2135,7 @@
           "as": "user",
           "at": "2026-10-22T09:18:00.000Z",
           "method": "GET",
-          "path": "/identities?own=true",
+          "path": "/api/v1/identities?own=true",
           "request": null,
           "status": 200,
           "response": {
@@ -2160,7 +2160,7 @@
           "as": "user",
           "at": "2026-10-22T09:19:00.000Z",
           "method": "GET",
-          "path": "/identities?contact_id={x}",
+          "path": "/api/v1/identities?contact_id={x}",
           "request": null,
           "status": 200,
           "response": {
@@ -2185,7 +2185,7 @@
           "as": "user",
           "at": "2026-10-22T09:20:00.000Z",
           "method": "DELETE",
-          "path": "/identities/{i}",
+          "path": "/api/v1/identities/{i}",
           "request": null,
           "status": 204,
           "response": null,
@@ -2222,7 +2222,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {},
           "status": 201,
           "response": {
@@ -2261,7 +2261,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "Jürgen@Example.com",
@@ -2280,7 +2280,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "ö",
@@ -2299,7 +2299,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/identities/resolve",
+          "path": "/api/v1/identities/resolve",
           "request": {
             "identities": [
               {
@@ -2325,7 +2325,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "GET",
-          "path": "/identities?kind=email&value=jürgen@example.com",
+          "path": "/api/v1/identities?kind=email&value=jürgen@example.com",
           "request": null,
           "status": 400,
           "response": {
@@ -2340,7 +2340,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "phone",
             "value": "+44 20 7946 0958",
@@ -2385,7 +2385,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "GET",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": null,
           "status": 200,
           "response": {
@@ -2416,7 +2416,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/identities/resolve",
+          "path": "/api/v1/identities/resolve",
           "request": {
             "identities": [
               {
@@ -2501,7 +2501,7 @@
           "as": "agent",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/identities/resolve",
+          "path": "/api/v1/identities/resolve",
           "request": {
             "identities": [
               {
@@ -2711,7 +2711,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "me@us.com",
@@ -2756,7 +2756,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/identities/resolve",
+          "path": "/api/v1/identities/resolve",
           "request": {
             "identities": [
               {
@@ -2791,7 +2791,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "POST",
-          "path": "/identities/resolve",
+          "path": "/api/v1/identities/resolve",
           "request": {
             "identities": [
               {
@@ -2817,7 +2817,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "POST",
-          "path": "/identities/resolve",
+          "path": "/api/v1/identities/resolve",
           "request": {
             "identities": []
           },
@@ -2834,7 +2834,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "GET",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": null,
           "status": 200,
           "response": {
@@ -2884,7 +2884,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/companies",
+          "path": "/api/v1/companies",
           "request": {
             "name": "Acme"
           },
@@ -2923,7 +2923,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "Survivor"
           },
@@ -2964,7 +2964,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "company_id": "{co}"
           },
@@ -3005,7 +3005,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/contacts",
+          "path": "/api/v1/contacts",
           "request": {
             "name": "Third"
           },
@@ -3046,7 +3046,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "r1@example.com",
@@ -3091,7 +3091,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "POST",
-          "path": "/identities",
+          "path": "/api/v1/identities",
           "request": {
             "kind": "email",
             "value": "r2@example.com",
@@ -3136,7 +3136,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "DELETE",
-          "path": "/identities/{i2}",
+          "path": "/api/v1/identities/{i2}",
           "request": null,
           "status": 204,
           "response": null,
@@ -3167,7 +3167,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "POST",
-          "path": "/contacts/{s}/merge",
+          "path": "/api/v1/contacts/{s}/merge",
           "request": {
             "source_id": "{s}"
           },
@@ -3184,7 +3184,7 @@
           "as": "user",
           "at": "2026-10-22T09:08:00.000Z",
           "method": "POST",
-          "path": "/contacts/{s}/merge",
+          "path": "/api/v1/contacts/{s}/merge",
           "request": {
             "source_id": "0190b2c4-0000-7000-8000-00000000dead"
           },
@@ -3201,7 +3201,7 @@
           "as": "agent",
           "at": "2026-10-22T09:09:00.000Z",
           "method": "POST",
-          "path": "/contacts/{s}/merge",
+          "path": "/api/v1/contacts/{s}/merge",
           "request": {
             "source_id": "{r}"
           },
@@ -3309,7 +3309,7 @@
           "as": "user",
           "at": "2026-10-22T09:10:00.000Z",
           "method": "GET",
-          "path": "/contacts/{r}",
+          "path": "/api/v1/contacts/{r}",
           "request": null,
           "status": 404,
           "response": {
@@ -3324,7 +3324,7 @@
           "as": "user",
           "at": "2026-10-22T09:11:00.000Z",
           "method": "GET",
-          "path": "/identities?contact_id={s}",
+          "path": "/api/v1/identities?contact_id={s}",
           "request": null,
           "status": 200,
           "response": {
@@ -3349,7 +3349,7 @@
           "as": "user",
           "at": "2026-10-22T09:12:00.000Z",
           "method": "POST",
-          "path": "/contacts/{t}/merge",
+          "path": "/api/v1/contacts/{t}/merge",
           "request": {
             "source_id": "{r}"
           },
@@ -3366,7 +3366,7 @@
           "as": "user",
           "at": "2026-10-22T09:13:00.000Z",
           "method": "POST",
-          "path": "/contacts/{t}/merge",
+          "path": "/api/v1/contacts/{t}/merge",
           "request": {
             "source_id": "{s}"
           },
@@ -3474,7 +3474,7 @@
           "as": "user",
           "at": "2026-10-22T09:14:00.000Z",
           "method": "GET",
-          "path": "/identities?contact_id={t}",
+          "path": "/api/v1/identities?contact_id={t}",
           "request": null,
           "status": 200,
           "response": {

@@ -16,7 +16,7 @@ export function probeUnit<T>(value: T, name = 'probe.run'): PreparedOperation<T>
 }
 
 /**
- * A binding whose `execute` throws: for suites that only read `/openapi.json` or CORS headers, or that stop at a 401 before
+ * A binding whose `execute` throws: for suites that only read an OpenAPI document or CORS headers, or that stop at a 401 before
  * any unit runs. A unit reaching it is a test defect, and the message says so.
  */
 export function coldStorage(): () => StorageBinding {

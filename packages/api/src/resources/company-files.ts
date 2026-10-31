@@ -11,6 +11,7 @@ const fields = { company_id: z.uuid(), file_id: z.uuid() }
  * `409 link_exists` from the plan, and the partial unique index is the commit-time backstop.
  */
 export const companyFiles = definePreparedResource({
+  surface: 'api',
   name: 'company_files',
   eventName: 'company_file',
   table: 'company_files',

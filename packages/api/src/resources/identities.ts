@@ -52,6 +52,7 @@ function ownerColumns(input: Record<string, unknown>): { contact_id: string | nu
  * the plan (`409 identity_exists`) and the partial unique index re-checks at commit. `kind` and `value` are immutable.
  */
 export const identities = definePreparedResource({
+  surface: 'api',
   name: 'identities',
   eventName: 'identity',
   table: 'identities',

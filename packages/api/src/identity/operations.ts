@@ -23,6 +23,7 @@ export function identityOperations(): TenantOperation[] {
   return [
     {
       kind: 'tenant',
+      surface: 'api',
       name: 'identities.resolve',
       summary: 'Resolve addresses to identities, creating contacts for new ones',
       tags: ['identities'],
@@ -51,6 +52,7 @@ export function identityOperations(): TenantOperation[] {
     },
     {
       kind: 'tenant',
+      surface: 'api',
       name: 'contacts.merge',
       summary: 'Merge another contact into this one',
       tags: ['contacts'],

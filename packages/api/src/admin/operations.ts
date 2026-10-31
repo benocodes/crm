@@ -12,7 +12,7 @@ const createKeyBody = z.strictObject({
 
 /** Hand-written administration operations: `users` has no organization_id, and key secrets must not reach reads or events. All prepared ([[CORE40]]). */
 export function adminOperations(): TenantOperation[] {
-  const base = { kind: 'tenant' as const }
+  const base = { kind: 'tenant' as const, surface: 'meta' as const }
   return [
     {
       ...base,

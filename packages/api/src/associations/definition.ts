@@ -10,6 +10,7 @@ import { definePreparedResource, type PreparedResource } from '../storage/defini
  * (canonicalised create, oriented list, endpoint-aware reads). The definition serves their reads, events and the cascades.
  */
 export const associations = definePreparedResource({
+  surface: 'api',
   name: 'associations',
   eventName: 'association',
   table: 'associations',

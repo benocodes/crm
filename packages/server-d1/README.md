@@ -37,7 +37,7 @@ curl http://localhost:8787/health
 # {"status":"ok","initialised":true,"version":"dev","migrations":{"status":"unknown","applied":0,"expected":4,"latest_applied":null,"latest_expected":"0004_messaging_model.sql"}}
 # (`unknown` locally: `bootstrap` applies the migration files without wrangler, so there is no d1_migrations tracker)
 
-curl -H "authorization: Bearer $KEY" http://localhost:8787/tasks
+curl -H "authorization: Bearer $KEY" http://localhost:8787/api/v1/tasks
 # {"data":[], ...}
 
 # A resolve batch is capped at 100 identities: 101 are refused (400 validation_error), nothing is written.
@@ -118,9 +118,9 @@ sequential work. One organisation per database; a second organisation cannot be 
   - `400 set_limit_exceeded`: a set was over the cap; nothing was written.
   - `403 organization_forbidden`: the token names an organisation other than this deployment's.
   - `409 conflict`: the record changed while the operation was running; **retry**.
-  - `503 not_initialised`: the bootstrap CLI has not run yet (`/health` and `/openapi.json` still answer).
+  - `503 not_initialised`: the bootstrap CLI has not run yet (`/health` and the two OpenAPI documents, `/api/v1/openapi.json` and `/meta/v1/openapi.json`, still answer).
   - `503 migrations_pending`: the database lacks a migration this Worker build expects (deployed before migrating). Run
-    `db:migrate:remote`; the Worker re-reads within 5 s. `/health` and `/openapi.json` still answer. It wins over `not_initialised`.
+    `db:migrate:remote`; the Worker re-reads within 5 s. `/health` and the two OpenAPI documents still answer. It wins over `not_initialised`.
 
 ## Migration state
 
@@ -184,7 +184,7 @@ the job (this is not measured). The test pins each scenario's exact query count,
 reviewed change.
 
 **Remote latency (one measurement).** The first deploy smoke of `smoked1` ([[OPS4]], 2026-10-28) sent 200 authenticated
-`GET /tasks` requests at concurrency 20 to `https://api.smoked1.vibase.ai` from a developer machine: **p50 158 ms, p95
+`GET /api/v1/tasks` requests at concurrency 20 to `https://api.smoked1.vibase.ai` from a developer machine: **p50 158 ms, p95
 326 ms**, zero non-2xx. That is end-to-end time seen by the client (network, TLS, the Worker and its two or three D1
 queries per request), on an empty database; it is one sample, not a guarantee. `smoke:remote --phase after` prints the
 same numbers for your instance.

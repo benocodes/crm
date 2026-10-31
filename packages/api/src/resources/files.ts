@@ -6,6 +6,7 @@ import { definePreparedResource } from '../storage/definition.js'
  * served by the content operation of [[CORE58]]). `size_bytes` is a JSON number on both engines (Postgres stores bigint).
  */
 export const files = definePreparedResource({
+  surface: 'api',
   name: 'files',
   eventName: 'file',
   table: 'files',

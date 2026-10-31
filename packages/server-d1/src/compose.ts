@@ -1,4 +1,4 @@
-import { createApp, createAuthAdapter, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
+import { createApp, openApiPath, createAuthAdapter, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
 import type { D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -19,9 +19,9 @@ export interface D1WorkerEnv {
   BODIES?: R2BucketLike
 }
 
-/** The 503 body of every route but /health and /openapi.json while the deployment marker is absent. */
+/** The 503 body of every route but /health and the two OpenAPI documents while the deployment marker is absent. */
 export const NOT_INITIALISED = { error: { code: 'not_initialised', message: 'run the bootstrap CLI first' } }
-/** The 503 body of every route but /health and /openapi.json while the database lacks a migration this build expects ([[CORE61]] D4). */
+/** The 503 body of every route but /health and the two OpenAPI documents while the database lacks a migration this build expects ([[CORE61]] D4). */
 export const MIGRATIONS_PENDING = { error: { code: 'migrations_pending', message: 'apply the database migrations first' } }
 /** While `behind` or `unknown` the tracker is re-read at most this often ([[CORE61]] D6). */
 export const MIGRATION_REREAD_MS = 5_000
@@ -43,7 +43,7 @@ const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES'
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
- * binding (a missing `deployment` table counts as absent): while it is absent every route but `/health` and `/openapi.json` is `503 not_initialised`, and an absent marker is
+ * binding (a missing `deployment` table counts as absent): while it is absent every route but `/health` and the two OpenAPI documents is `503 not_initialised`, and an absent marker is
  * never cached, so a bootstrap run after an earlier 503 is picked up by the next request. A bad auth or CORS configuration
  * fails closed: every non-health request is `500 internal`, logged once with the variable's name and never its value.
  * A database `behind` the build's migration manifest answers every other route `503 migrations_pending`, ahead of the marker and
@@ -133,7 +133,7 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
-        const spec = req.method === 'GET' && url.pathname === '/openapi.json'
+        const spec = req.method === 'GET' && (url.pathname === openApiPath('api') || url.pathname === openApiPath('meta'))
         if (!spec && (await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
         if (configError) return json(INTERNAL, 500)
         const ready = await ensure()

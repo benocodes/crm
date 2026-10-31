@@ -26,6 +26,7 @@ function testRegistry() {
     .registerResource(tasks)
     .register({
       kind: 'tenant',
+      surface: 'api',
       name: 'probe.echo',
       summary: 'Echo',
       method: 'post',
@@ -51,6 +52,7 @@ function testRegistry() {
     })
     .register({
       kind: 'tenant',
+      surface: 'api',
       name: 'probe.boom',
       summary: 'Boom',
       method: 'post',
@@ -63,6 +65,7 @@ function testRegistry() {
     })
     .register({
       kind: 'account',
+      surface: 'meta',
       name: 'account.whoami',
       summary: 'Who am I (account)',
       method: 'get',
@@ -108,15 +111,15 @@ beforeEach(async () => {
 
 describe('adapter validation', () => {
   it('parses params, query and body', async () => {
-    const res = await post(mkApp(), `/probe/echo/${UUID}?n=3`, { msg: 'hi' })
+    const res = await post(mkApp(), `/api/v1/probe/echo/${UUID}?n=3`, { msg: 'hi' })
     expect(res.status).toBe(201)
     expect(await res.json()).toEqual({ id: UUID, n: 3, msg: 'hi', org: A.organizationId })
   })
   it.each([
-    ['bad uuid', '/probe/echo/nope', { msg: 'hi' }],
-    ['unknown query', `/probe/echo/${UUID}?zz=1`, { msg: 'hi' }],
-    ['bad body type', `/probe/echo/${UUID}`, { msg: 1 }],
-    ['unknown body key', `/probe/echo/${UUID}`, { msg: 'a', x: 1 }],
+    ['bad uuid', '/api/v1/probe/echo/nope', { msg: 'hi' }],
+    ['unknown query', `/api/v1/probe/echo/${UUID}?zz=1`, { msg: 'hi' }],
+    ['bad body type', `/api/v1/probe/echo/${UUID}`, { msg: 1 }],
+    ['unknown body key', `/api/v1/probe/echo/${UUID}`, { msg: 'a', x: 1 }],
   ])('refuses %s', async (_n, path, body) => {
     const res = await post(mkApp(), path, body)
     expect(res.status).toBe(400)
@@ -126,21 +129,21 @@ describe('adapter validation', () => {
 
 describe('bodies', () => {
   it('invalid JSON is 400', async () => {
-    const res = await post(mkApp(), '/tasks', '{not json')
+    const res = await post(mkApp(), '/api/v1/tasks', '{not json')
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: { code: 'validation_error', message: 'request body is not valid JSON' } })
   })
   it('an empty body is 400', async () => {
-    const res = await post(mkApp(), '/tasks')
+    const res = await post(mkApp(), '/api/v1/tasks')
     expect(res.status).toBe(400)
     expect((await res.json()).error.code).toBe('validation_error')
   })
   it('needs no Content-Type', async () => {
-    const res = await post(mkApp(), '/tasks', { title: 'a' })
+    const res = await post(mkApp(), '/api/v1/tasks', { title: 'a' })
     expect(res.status).toBe(201)
   })
   it('generic validation comes from the handler', async () => {
-    const res = await post(mkApp(), '/tasks', { title: 'a', zz: 1 })
+    const res = await post(mkApp(), '/api/v1/tasks', { title: 'a', zz: 1 })
     expect(res.status).toBe(400)
     expect((await res.json()).error.code).toBe('validation_error')
   })
@@ -148,27 +151,27 @@ describe('bodies', () => {
 
 describe('generic routes', () => {
   it('a non-UUID id is 404', async () => {
-    const res = await mkApp().request('/tasks/abc', { headers: agentHeaders() })
+    const res = await mkApp().request('/api/v1/tasks/abc', { headers: agentHeaders() })
     expect(res.status).toBe(404)
     expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'task not found' } })
   })
   it('lists with a cursor and filters', async () => {
     const app = mkApp()
-    for (const t of ['a', 'b', 'c']) await post(app, '/tasks', { title: t, status: t === 'c' ? 'done' : 'open' })
-    const p1 = await (await app.request('/tasks?limit=2', { headers: agentHeaders() })).json()
+    for (const t of ['a', 'b', 'c']) await post(app, '/api/v1/tasks', { title: t, status: t === 'c' ? 'done' : 'open' })
+    const p1 = await (await app.request('/api/v1/tasks?limit=2', { headers: agentHeaders() })).json()
     expect(p1.data).toHaveLength(2)
-    const p2 = await (await app.request(`/tasks?after=${p1.next_cursor}`, { headers: agentHeaders() })).json()
+    const p2 = await (await app.request(`/api/v1/tasks?after=${p1.next_cursor}`, { headers: agentHeaders() })).json()
     expect(p2.data).toHaveLength(1)
     expect(p2.next_cursor).toBeNull()
-    const done = await (await app.request('/tasks?status=done', { headers: agentHeaders() })).json()
+    const done = await (await app.request('/api/v1/tasks?status=done', { headers: agentHeaders() })).json()
     expect(done.data.map((r: { title: string }) => r.title)).toEqual(['c'])
-    expect((await app.request('/tasks?limit=0', { headers: agentHeaders() })).status).toBe(400)
-    expect((await app.request('/tasks?title=x', { headers: agentHeaders() })).status).toBe(400)
+    expect((await app.request('/api/v1/tasks?limit=0', { headers: agentHeaders() })).status).toBe(400)
+    expect((await app.request('/api/v1/tasks?title=x', { headers: agentHeaders() })).status).toBe(400)
   })
   it('delete renders 204 with an empty body', async () => {
     const app = mkApp()
-    const created = await (await post(app, '/tasks', { title: 'a' })).json()
-    const res = await app.request(`/tasks/${created.id}`, { method: 'DELETE', headers: agentHeaders() })
+    const created = await (await post(app, '/api/v1/tasks', { title: 'a' })).json()
+    const res = await app.request(`/api/v1/tasks/${created.id}`, { method: 'DELETE', headers: agentHeaders() })
     expect(res.status).toBe(204)
     expect(await res.text()).toBe('')
   })
@@ -176,17 +179,17 @@ describe('generic routes', () => {
 
 describe('principal and organisation', () => {
   it('an account op works for a user with no organisation', async () => {
-    const res = await mkApp().request('/account/whoami', { headers: userHeaders(A, null) })
+    const res = await mkApp().request('/meta/v1/account/whoami', { headers: userHeaders(A, null) })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ actor_id: A.userId, organizations: 2 })
   })
   it('an account op refuses agents', async () => {
-    const res = await mkApp().request('/account/whoami', { headers: agentHeaders() })
+    const res = await mkApp().request('/meta/v1/account/whoami', { headers: agentHeaders() })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: { code: 'user_required', message: 'this operation requires a signed-in user' } })
   })
   it('a tenant op needs an organisation', async () => {
-    const res = await mkApp().request('/tasks', { headers: userHeaders(A, null) })
+    const res = await mkApp().request('/api/v1/tasks', { headers: userHeaders(A, null) })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({
       error: { code: 'organization_required', message: 'an organisation is required (sign in with an active organisation)' },
@@ -197,7 +200,7 @@ describe('principal and organisation', () => {
 describe('errors', () => {
   it('masks unexpected errors', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const res = await post(mkApp(), '/probe/boom')
+    const res = await post(mkApp(), '/api/v1/probe/boom')
     expect(res.status).toBe(500)
     const text = await res.text()
     expect(JSON.parse(text)).toEqual({ error: { code: 'internal', message: 'internal error' } })
@@ -207,7 +210,7 @@ describe('errors', () => {
   })
   it('unknown routes are 404', async () => {
     const app = mkApp()
-    for (const [m, p] of [['GET', '/nope'], ['PUT', '/tasks']]) {
+    for (const [m, p] of [['GET', '/nope'], ['PUT', '/api/v1/tasks']]) {
       const res = await app.request(p!, { method: m, headers: agentHeaders() })
       expect(res.status).toBe(404)
       expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'no such route' } })
@@ -220,7 +223,7 @@ describe('per-request storage', () => {
     const resolver = vi.fn(pgStorage(db))
     const app = mkApp(resolver)
     expect(resolver).not.toHaveBeenCalled()
-    for (let i = 0; i < 3; i++) await app.request('/tasks', { headers: agentHeaders() })
+    for (let i = 0; i < 3; i++) await app.request('/api/v1/tasks', { headers: agentHeaders() })
     expect(resolver).toHaveBeenCalledTimes(3)
   })
   it('two apps use their own bindings', async () => {
@@ -228,8 +231,8 @@ describe('per-request storage', () => {
     try {
       const rx = vi.fn(pgStorage(db))
       const ry = vi.fn(pgStorage(other))
-      await mkApp(rx).request('/tasks', { headers: agentHeaders() })
-      await mkApp(ry).request('/tasks', { headers: agentHeaders() })
+      await mkApp(rx).request('/api/v1/tasks', { headers: agentHeaders() })
+      await mkApp(ry).request('/api/v1/tasks', { headers: agentHeaders() })
       expect(rx).toHaveBeenCalledTimes(1)
       expect(ry).toHaveBeenCalledTimes(1)
     } finally {
@@ -242,7 +245,7 @@ describe('CORS ([[CORE3]] C4)', () => {
   const ORIGIN = 'https://pane.test.example'
   const EXT = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop'
   const preflight = (app: ReturnType<typeof createApp>, origin: string) =>
-    app.request('/tasks', {
+    app.request('/api/v1/tasks', {
       method: 'OPTIONS',
       headers: {
         origin,
@@ -252,7 +255,7 @@ describe('CORS ([[CORE3]] C4)', () => {
     })
 
   it('sends no CORS headers by default', async () => {
-    const res = await createApp({ storage: coldStorage() }).request('/openapi.json', { headers: { origin: ORIGIN } })
+    const res = await createApp({ storage: coldStorage() }).request('/api/v1/openapi.json', { headers: { origin: ORIGIN } })
     expect(res.headers.get('access-control-allow-origin')).toBeNull()
   })
 
@@ -299,6 +302,7 @@ describe('auth options and the account context ([[CORE3]])', () => {
   it('an account operation sees the resolved organisation and scopes', async () => {
     const registry = new Registry().register({
       kind: 'account',
+      surface: 'meta',
       name: 'probe.ctx',
       summary: 'Context',
       method: 'get',
@@ -313,9 +317,9 @@ describe('auth options and the account context ([[CORE3]])', () => {
         }),
     })
     const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(db) })
-    const withOrg = await app.request('/probe/ctx', { headers: userHeaders(A) })
+    const withOrg = await app.request('/meta/v1/probe/ctx', { headers: userHeaders(A) })
     expect(await withOrg.json()).toEqual({ org: A.organizationId, scopes: ['tasks:read', 'tasks:write'] })
-    const without = await app.request('/probe/ctx', { headers: userHeaders(A, null) })
+    const without = await app.request('/meta/v1/probe/ctx', { headers: userHeaders(A, null) })
     expect(await without.json()).toEqual({ org: null, scopes: [] })
   })
 })

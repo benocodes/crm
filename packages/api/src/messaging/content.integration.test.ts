@@ -44,7 +44,7 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
   it('markdown content', async () => {
     const c = await seed()
     await store.put(messageBodyKey(c.contentKey!, 1), '# Hi\n\nBody')
-    const res = await call(`/messages/${c.messageId}/content`)
+    const res = await call(`/api/v1/messages/${c.messageId}/content`)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ content_type: 'text/markdown', content: '# Hi\n\nBody', version: 1 })
@@ -57,21 +57,21 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
     const c = await seed({ version: 2 })
     await store.put(messageBodyKey(c.contentKey!, 1), 'old')
     await store.put(messageBodyKey(c.contentKey!, 2), 'new')
-    const res = await call(`/messages/${c.messageId}/content`)
+    const res = await call(`/api/v1/messages/${c.messageId}/content`)
     expect(await res.json()).toEqual({ content_type: 'text/markdown', content: 'new', version: 2 })
   })
 
   it('accepts an upper-case id', async () => {
     const c = await seed()
     await store.put(messageBodyKey(c.contentKey!, 1), 'x')
-    const res = await call(`/messages/${c.messageId.toUpperCase()}/content`)
+    const res = await call(`/api/v1/messages/${c.messageId.toUpperCase()}/content`)
     expect(res.status).toBe(200)
     expect(((await res.json()) as { content: string }).content).toBe('x')
   })
 
   it('a reaction has no content and the store is never read', async () => {
     const c = await seed({ kind: 'reaction' })
-    const res = await call(`/messages/${c.messageId}/content`)
+    const res = await call(`/api/v1/messages/${c.messageId}/content`)
     expect(res.status).toBe(404)
     expect((await err(res)).code).toBe('content_unavailable')
     expect(gets).toEqual([])
@@ -79,14 +79,14 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
 
   it('a missing object is content_unavailable', async () => {
     const c = await seed()
-    const res = await call(`/messages/${c.messageId}/content`)
+    const res = await call(`/api/v1/messages/${c.messageId}/content`)
     expect(res.status).toBe(404)
     expect(await err(res)).toEqual({ code: 'content_unavailable', message: 'no content is stored for this message' })
   })
 
   it('an unknown or non-UUID message id is not_found and the store is never read', async () => {
     for (const id of [uuidv7(), 'abc']) {
-      const res = await call(`/messages/${id}/content`)
+      const res = await call(`/api/v1/messages/${id}/content`)
       expect(res.status).toBe(404)
       expect(await err(res)).toEqual({ code: 'not_found', message: 'message not found' })
     }
@@ -97,7 +97,7 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
     const c = await seed({ attachments: [{ position: 0, name: 'Jane "CV".pdf', size_bytes: 256 }] })
     const bytes = Uint8Array.from({ length: 256 }, (_, i) => i)
     await store.put(fileBlobKey(c.storageKeys[0]!), bytes)
-    const res = await call(`/files/${c.fileIds[0]}/content`)
+    const res = await call(`/api/v1/files/${c.fileIds[0]}/content`)
     expect(res.status).toBe(200)
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes)
     expect(res.headers.get('content-type')).toBe('application/pdf')
@@ -110,20 +110,20 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
   it('an unsafe mime type is served as application/octet-stream', async () => {
     const file = await e.insert('files', { name: 'x.html', mime_type: 'text/html; charset=utf-8\r\nx: y', size_bytes: 1, sha256: 'a'.repeat(64), storage_key: `orgs/${e.organizationId}/files/${uuidv7()}` })
     await store.put(fileBlobKey(file.storage_key as string), new Uint8Array([1]))
-    const res = await call(`/files/${file.id}/content`)
+    const res = await call(`/api/v1/files/${file.id}/content`)
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('application/octet-stream')
   })
 
   it('a missing blob is content_unavailable', async () => {
     const c = await seed({ attachments: 1 })
-    const res = await call(`/files/${c.fileIds[0]}/content`)
+    const res = await call(`/api/v1/files/${c.fileIds[0]}/content`)
     expect(res.status).toBe(404)
     expect(await err(res)).toEqual({ code: 'content_unavailable', message: 'no content is stored for this file' })
   })
 
   it('an unknown file is not_found', async () => {
-    const res = await call(`/files/${uuidv7()}/content`)
+    const res = await call(`/api/v1/files/${uuidv7()}/content`)
     expect(res.status).toBe(404)
     expect(await err(res)).toEqual({ code: 'not_found', message: 'file not found' })
   })
@@ -131,13 +131,13 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
   it('splits the scopes (D25)', async () => {
     const c = await seed({ attachments: 1 })
     const only = (scopes: string[], path: string) => call(path, { scopes })
-    let res = await only(['interactions:read'], `/messages/${c.messageId}/content`)
+    let res = await only(['interactions:read'], `/api/v1/messages/${c.messageId}/content`)
     expect(res.status).toBe(403)
     expect(await err(res)).toEqual({ code: 'insufficient_scope', message: 'requires messages:read' })
-    res = await only(['interactions:read'], `/files/${c.fileIds[0]}/content`)
+    res = await only(['interactions:read'], `/api/v1/files/${c.fileIds[0]}/content`)
     expect(res.status).toBe(403)
     expect((await err(res)).message).toBe('requires files:read')
-    res = await only(['messages:read'], `/files/${c.fileIds[0]}/content`)
+    res = await only(['messages:read'], `/api/v1/files/${c.fileIds[0]}/content`)
     expect(res.status).toBe(403)
     expect((await err(res)).message).toBe('requires files:read')
   })
@@ -145,7 +145,7 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
   it('an agent principal can read', async () => {
     const c = await seed()
     await store.put(messageBodyKey(c.contentKey!, 1), 'x')
-    const res = await call(`/messages/${c.messageId}/content`, { kind: 'agent', userId: e.agentId })
+    const res = await call(`/api/v1/messages/${c.messageId}/content`, { kind: 'agent', userId: e.agentId })
     expect(res.status).toBe(200)
   })
 
@@ -154,8 +154,8 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
     await store.put(messageBodyKey(c.contentKey!, 1), 'x')
     await store.put(fileBlobKey(c.storageKeys[0]!), new Uint8Array([1]))
     const before = (await e.rows('events')).length
-    for (const p of [`/messages/${c.messageId}/content`, `/files/${c.fileIds[0]}/content`, `/files/${uuidv7()}/content`, `/messages/abc/content`]) await call(p)
-    await call(`/messages/${c.messageId}/content`, { scopes: [] })
+    for (const p of [`/api/v1/messages/${c.messageId}/content`, `/api/v1/files/${c.fileIds[0]}/content`, `/api/v1/files/${uuidv7()}/content`, `/api/v1/messages/abc/content`]) await call(p)
+    await call(`/api/v1/messages/${c.messageId}/content`, { scopes: [] })
     expect((await e.rows('events')).length).toBe(before)
   })
 
@@ -163,7 +163,7 @@ describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) =>
     const f = await foreignTenant(e)
     const c = await seedConversation((t, r) => e.insert(t, { ...r, organization_id: f.organizationId, created_by: f.userId }))
     await store.put(messageBodyKey(c.contentKey!, 1), 'secret')
-    const res = await call(`/messages/${c.messageId}/content`)
+    const res = await call(`/api/v1/messages/${c.messageId}/content`)
     expect(res.status).toBe(404)
     expect((await err(res)).code).toBe('not_found')
     expect(gets).toEqual([])

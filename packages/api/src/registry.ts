@@ -7,6 +7,7 @@ import type { PreparedEnv, PreparedResource } from './storage/definition.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
 import { endpointTypesOf, type EndpointTypes } from './associations/definition.js'
 import { embeddedFields, getWithAssociations, includeQuery } from './associations/embed.js'
+import { fullPath, type Surface } from './surfaces.js'
 import { crudActions, parseInput, resourcePath, scopeResourceOf, type CrudAction } from './resources/define.js'
 
 export type HttpMethod = 'get' | 'post' | 'patch' | 'delete'
@@ -20,6 +21,8 @@ export interface BinaryBody {
 export type OperationInput = { params: Record<string, unknown>; query: Record<string, unknown>; body: unknown }
 interface OperationBase {
   name: string
+  /** [[API32]] D1: required, no default. `path` is relative to the surface; the wire path is `fullPath(op)`. */
+  surface: Surface
   summary: string
   description?: string
   tags?: string[]
@@ -76,8 +79,8 @@ export class Registry {
     if (!TOOL_NAME.test(toolName(op.name))) throw new Error(`invalid tool name for operation ${op.name}`)
     if (!op.summary || op.summary.trim() === '') throw new Error(`operation ${op.name} needs a summary`)
     if (this.ops.some((o) => o.name === op.name)) throw new Error(`duplicate operation ${op.name}`)
-    if (this.ops.some((o) => o.method === op.method && o.path === op.path)) {
-      throw new Error(`duplicate route ${op.method.toUpperCase()} ${op.path}`)
+    if (this.ops.some((o) => o.method === op.method && fullPath(o) === fullPath(op))) {
+      throw new Error(`duplicate route ${op.method.toUpperCase()} ${fullPath(op)}`)
     }
     const binary = op.output === 'binary'
     if (binary) {
@@ -135,7 +138,7 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
   const idParams = z.object({ id: z.uuid() })
   const rec: z.ZodType = def.record
   const getQuery = z.object({ include: includeQuery.optional() })
-  const base = { kind: 'tenant' as const, validation: 'handler' as const, tags: [def.name] }
+  const base = { kind: 'tenant' as const, surface: def.surface, validation: 'handler' as const, tags: [def.name] }
   const ops: TenantOperation[] = []
   if (actions.has('list')) {
     const query: Record<string, z.ZodType> = { after: z.uuid().optional(), limit: z.coerce.number().int().min(1).max(200).optional() }

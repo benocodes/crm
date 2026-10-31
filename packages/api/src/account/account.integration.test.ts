@@ -47,7 +47,7 @@ describe('me.get', () => {
     const alpha = await seedOrganization(db, { name: 'Alpha', authOrgId: 'org_alpha' })
     const u = await seedUser(db, { organizationId: beta.id, role: 'owner', authSubject: 'u1', emailVerified: true, email: 'me@x.test' })
     await seedMembership(db, { organizationId: alpha.id, userId: u.id, role: 'member' })
-    const res = await call('/me', 'u1', { claim: { id: 'org_beta' } })
+    const res = await call('/meta/v1/me', 'u1', { claim: { id: 'org_beta' } })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.user).toEqual({ id: u.id, email: 'me@x.test', name: null, email_verified: true })
@@ -63,19 +63,19 @@ describe('me.get', () => {
   it('member scopes', async () => {
     const o = await seedOrganization(db, { authOrgId: 'org_m' })
     await seedUser(db, { organizationId: o.id, role: 'member', authSubject: 'u2' })
-    const body = await (await call('/me', 'u2', { claim: { id: 'org_m', rol: 'member' } })).json()
+    const body = await (await call('/meta/v1/me', 'u2', { claim: { id: 'org_m', rol: 'member' } })).json()
     expect(body.active_organization.scopes).toEqual(scopesForRole('member', declared).toStrings())
   })
 })
 
 describe('documentation', () => {
   it('lists me.get only', async () => {
-    const doc = await (await app.request('/openapi.json')).json()
+    const doc = await (await app.request('/meta/v1/openapi.json')).json()
     const ids = Object.values(doc.paths).flatMap((p) => Object.values(p as Record<string, { operationId?: string }>).map((o) => o.operationId))
     expect(ids).toContain('me.get')
     expect(ids).not.toContain('organizations.create')
     expect(ids).not.toContain('invitations.accept')
-    expect(doc.paths['/me'].get).toBeDefined()
+    expect(doc.paths['/meta/v1/me'].get).toBeDefined()
     expect(doc.paths['/organizations']).toBeUndefined()
   })
 
@@ -84,7 +84,7 @@ describe('documentation', () => {
     const u = await seedUser(db, { organizationId: o.id, role: 'owner' })
     const a = await seedAgent(db, { organizationId: o.id, createdBy: u.id, scopes: ['tasks:read'] })
     const k = await seedApiKey(db, { organizationId: o.id, agentId: a.id, createdBy: u.id })
-    const res = await app.request('/me', { headers: { authorization: `Bearer ${k.key}` } })
+    const res = await app.request('/meta/v1/me', { headers: { authorization: `Bearer ${k.key}` } })
     expect(res.status).toBe(403)
     expect((await res.json()).error.code).toBe('user_required')
   })
