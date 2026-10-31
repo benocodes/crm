@@ -15,6 +15,9 @@
       },
       {
         "name": "0005_associations.sql"
+      },
+      {
+        "name": "0006_notes.sql"
       }
     ],
     "success": true,

@@ -202,6 +202,17 @@ export interface ContactFilesTable {
   contact_id: string
   file_id: string
 }
+/** [[CORE74]] ([[CORE62]] D17): a Markdown note; D1 only (no Postgres table). */
+export interface NotesTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  title: string | null
+  content: string
+  created_by: string
+  deleted_at: NullableTimestamp
+}
 /** [[CORE62]] D1-D2: an undirected edge between two records, stored once in canonical order; D1 only (no Postgres table). */
 export interface AssociationsTable {
   id: string
@@ -292,6 +303,7 @@ export interface StorageDatabase {
   contact_files: ContactFilesTable
   company_files: CompanyFilesTable
   associations: AssociationsTable
+  notes: NotesTable
   interaction_participants: InteractionParticipantsTable
   message_attachments: MessageAttachmentsTable
   message_sources: MessageSourcesTable
@@ -486,6 +498,16 @@ export const COLUMN_KINDS = {
     deleted_at: 'timestamp',
     company_id: 'uuid',
     file_id: 'uuid',
+  },
+  notes: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    title: 'text',
+    content: 'text',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
   },
   associations: {
     id: 'uuid',

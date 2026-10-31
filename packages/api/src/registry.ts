@@ -5,7 +5,9 @@ import type { PreparedOperation } from '@vault/storage'
 import type { ObjectStore } from './objects/store.js'
 import type { PreparedEnv, PreparedResource } from './storage/definition.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
-import { crudActions, resourcePath, scopeResourceOf, type CrudAction } from './resources/define.js'
+import { endpointTypesOf, type EndpointTypes } from './associations/definition.js'
+import { embeddedFields, getWithAssociations, includeQuery } from './associations/embed.js'
+import { crudActions, parseInput, resourcePath, scopeResourceOf, type CrudAction } from './resources/define.js'
 
 export type HttpMethod = 'get' | 'post' | 'patch' | 'delete'
 /** What a binary operation's object stage returns ([[CORE58]] P8, P10): the app turns it into the response. */
@@ -97,7 +99,7 @@ export class Registry {
   }
 
   registerResource(def: AnyResource): this {
-    for (const op of resourceOperations(def)) this.register(op)
+    for (const op of resourceOperations(def, () => endpointTypesOf(this.defs))) this.register(op)
     this.defs.push(def)
     return this
   }
@@ -126,12 +128,13 @@ export class Registry {
 export const toolName = (name: string): string => name.replaceAll('.', '_')
 
 /** The generic CRUD operations of a definition, in CRUD_ACTIONS order, for the actions it generates. */
-export function resourceOperations(def: PreparedResource<any, any>): TenantOperation[] {
+export function resourceOperations(def: PreparedResource<any, any>, types: () => EndpointTypes = () => endpointTypesOf([def])): TenantOperation[] {
   const p = resourcePath(def)
   const s = scopeResourceOf(def)
   const actions = new Set<CrudAction>(crudActions(def))
   const idParams = z.object({ id: z.uuid() })
   const rec: z.ZodType = def.record
+  const getQuery = z.object({ include: includeQuery.optional() })
   const base = { kind: 'tenant' as const, validation: 'handler' as const, tags: [def.name] }
   const ops: TenantOperation[] = []
   if (actions.has('list')) {
@@ -161,9 +164,15 @@ export function resourceOperations(def: PreparedResource<any, any>): TenantOpera
       method: 'get',
       path: `${p}/{id}`,
       scope: { resource: s, action: 'read' },
-      request: { params: idParams },
-      response: { status: 200, schema: rec },
-      prepare: (env, input) => (def.override?.get ? def.override.get(env, input.params.id) : getOperation(def, env, input.params.id as string)),
+      // [[CORE62]] D6: an associable record can embed its edges (`?include=associations`); other resources take no query.
+      request: { params: idParams, ...(def.associable ? { query: getQuery } : {}) },
+      response: { status: 200, schema: def.associable ? (def.record as z.ZodObject).extend(embeddedFields) : rec },
+      prepare: (env, input) =>
+        def.associable && parseInput(getQuery, input.query).include === 'associations'
+          ? getWithAssociations(def, env, types(), input.params.id as string)
+          : def.override?.get
+            ? def.override.get(env, input.params.id)
+            : getOperation(def, env, input.params.id as string),
     })
   }
   if (actions.has('create')) {

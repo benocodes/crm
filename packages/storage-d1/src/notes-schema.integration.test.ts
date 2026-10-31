@@ -56,7 +56,7 @@ describe('migration 0006_notes over a database at 0005 with data', () => {
     expect(await refused(note({ id: 'not-a-uuid' }))).toMatch(/CHECK/)
     expect(await refused(note({ id: NOTE.replace('c1', 'c4'), created_at: 'yesterday' }))).toMatch(/CHECK/)
     expect(await refused(note({ id: NOTE.replace('c1', 'c4'), deleted_at: 'never' }))).toMatch(/CHECK/)
-    const fks = (await d1.prepare("select \"table\" as t from pragma_foreign_key_list('notes') order by 1").all()).results.map((r) => (r as { t: string }).t)
+    const fks = (await d1.prepare("select \"table\" as t from pragma_foreign_key_list('notes') order by 1").all()).results!.map((r) => (r as { t: string }).t)
     expect(fks).toEqual(['organizations', 'principals'])
   })
 })
