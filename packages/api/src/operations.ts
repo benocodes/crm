@@ -3,6 +3,7 @@ import { adminOperations } from './admin/operations.js'
 import { accountOperations } from './account/operations.js'
 import { identityOperations } from './identity/operations.js'
 import { associationOperations } from './associations/operations.js'
+import { schemaOperations } from './schema/operations.js'
 import { Registry } from './registry.js'
 import { agents } from './resources/agents.js'
 import { apiKeys } from './resources/api-keys.js'
@@ -29,5 +30,6 @@ export function createVaultRegistry(): Registry {
   for (const op of adminOperations()) registry.register(op)
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
+  for (const op of schemaOperations(() => registry.resources())) registry.register(op)
   return registry
 }

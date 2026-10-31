@@ -43,6 +43,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   `toEqual`s. Write the expected side as a literal; where some names legitimately don't exist (read-only resources have
   no `create`), list them explicitly and assert they are absent too (`NOT_GENERATED`), and pin the count. Prove it by
   misspelling one expected entry: the test must go red (review round 1).
+- **A fixture whose order agrees with a tie-break hides the rule under test.** Where code resolves a choice by a rule
+  and falls back to "first declared wins", a fixture that already declares the right answer first passes with the rule
+  deleted. [[API63]]'s D13 primary-key rule (`interactions.thread_id` → `threads.id`, not `messages.thread_id`) survived
+  its absence mutation until the fixture declared the decoy (`messages`) key first. Put the decoy first so only the
+  rule gives the expected answer, and confirm with the mutation.
+- **A case behind an earlier layer cannot be red.** A test that a new route answers `503` while a gate is closed passes
+  before the route exists when the gate runs before routing ([[API63]]: the [[CORE61]] `migrations_pending` gate). Keep
+  it as a regression guard and pair it with a case that needs the new code (gate open → `200`); a charter should not
+  ask for a red run on the first one.
 - **A smoke script's assertions are untested code.** `packages/server-d1/scripts/smoke-remote.ts`'s `before`/`after`
   phase functions are reached by no test (only `afterHealthOk` is), so [[API32]]'s `before` phase asserted
   `GET /openapi.json` → `404` on an uninitialised deployment, where the cold app answers `503 not_initialised`; only
@@ -225,6 +234,10 @@ A test that fails once and then passes is a bug until its cause is found. Do not
   serially. Inside a package, Vitest 4+ has no `poolOptions.forks.singleFork`: use `pool: 'forks'` with
   `fileParallelism: false`.
 - **Event order.** See "Assert emit order" in section 6; never order by `id` in a test.
+- **Known flake: `packages/server-d1/src/measured-limits.test.ts`** is intermittently off by one on pinned query counts,
+  on clean `main` too ([[CORE62]], [[API32]], [[API63]]; issue #79). Until #79 lands, when it fails, record the scenario
+  names and counts in RESULT.md and rerun once; don't loosen `EXPECTED_QUERIES`.
+
 
 ## 6. Backend (`packages/api`) tests
 
