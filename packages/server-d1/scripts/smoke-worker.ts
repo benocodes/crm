@@ -182,6 +182,26 @@ try {
   body = await json(res)
   check('7 GET /meta/v1/agents with the key -> 403 insufficient_scope', res.status === 403 && body.error?.code === 'insufficient_scope', { status: res.status, body })
 
+  // 7a: schema discovery under workerd's D1 (pragma table-valued functions), API63
+  res = await call('GET', '/meta/v1/schema', { token: key })
+  body = await json(res)
+  const names: string[] = Array.isArray(body.tables) ? body.tables.map((t: { name: string }) => t.name) : []
+  const contacts = Array.isArray(body.tables) ? body.tables.find((t: { name: string }) => t.name === 'contacts') : undefined
+  const companyId = contacts?.columns?.find((c: { name: string }) => c.name === 'company_id')
+  check(
+    '7a GET /meta/v1/schema with the key -> 200, d1, sorted, notes present, deployment hidden, contacts.company_id -> companies.id',
+    res.status === 200 &&
+      body.engine === 'd1' &&
+      names.includes('notes') &&
+      names.includes('associations') &&
+      !names.includes('deployment') &&
+      !names.includes('unit_assertion') &&
+      names.join() === [...names].sort().join() &&
+      companyId?.references?.table === 'companies' &&
+      companyId?.references?.column === 'id',
+    { status: res.status, names },
+  )
+
   // 8: resolve two emails, then merge two contacts
   res = await call('POST', '/api/v1/identities/resolve', {
     token: key,

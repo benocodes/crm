@@ -57,16 +57,17 @@ const COLUMNS: ColumnRow[] = [
   col('deployment', 0, 'singleton', 'INTEGER', { notnull: true, pk: true }),
   col('thread_sources', 0, 'id', 'TEXT', { notnull: true, pk: true }),
 ]
-// SQLite numbers a table's foreign keys in reverse declaration order; the builder reports them as declared.
+// SQLite numbers a table's foreign keys in reverse declaration order; the builder reports them as declared. interactions declares the
+// messages key BEFORE the threads key, so only the primary-key rule (not declaration order) gives thread_id threads.id.
 const FKS: ForeignKeyRow[] = [
   fk('contacts', 0, 0, 'companies', 'organization_id', 'organization_id'),
   fk('contacts', 0, 1, 'companies', 'company_id', 'id'),
   fk('contacts', 1, 0, 'organizations', 'organization_id', 'id', 'CASCADE'),
-  fk('interactions', 0, 0, 'messages', 'organization_id', 'organization_id'),
-  fk('interactions', 0, 1, 'messages', 'message_id', 'id'),
-  fk('interactions', 0, 2, 'messages', 'thread_id', 'thread_id'),
-  fk('interactions', 1, 0, 'threads', 'organization_id', 'organization_id'),
-  fk('interactions', 1, 1, 'threads', 'thread_id', 'id'),
+  fk('interactions', 0, 0, 'threads', 'organization_id', 'organization_id'),
+  fk('interactions', 0, 1, 'threads', 'thread_id', 'id'),
+  fk('interactions', 1, 0, 'messages', 'organization_id', 'organization_id'),
+  fk('interactions', 1, 1, 'messages', 'message_id', 'id'),
+  fk('interactions', 1, 2, 'messages', 'thread_id', 'thread_id'),
   fk('interactions', 2, 0, 'organizations', 'organization_id', 'id', 'CASCADE'),
   fk('companies', 0, 0, 'organizations', 'organization_id', 'id', 'CASCADE'),
 ]
@@ -135,7 +136,7 @@ describe('document shape (D10, D11)', () => {
     expect(column(doc, 'contacts', 'company_id')).toMatchObject({ label: 'Primary company', description: 'The primary company.' })
     expect(column(doc, 'contacts', 'name')).toBeUndefined() // not a fixture column: catalog entries never add columns
     expect(column(doc, 'contacts', 'id')).toMatchObject({ label: 'Id', description: 'The id.' })
-    expect(column(doc, 'tasks', 'organization_id')).toMatchObject({ label: 'Organization id', description: 'The organisation.' })
+    expect(column(doc, 'contacts', 'organization_id')).toMatchObject({ label: 'Organization id', description: 'The organisation.' })
   })
 })
 
@@ -158,7 +159,7 @@ describe('per-column references (D13)', () => {
       { columns: ['organization_id'], references: { table: 'organizations', columns: ['id'] }, on_delete: 'CASCADE' },
       { columns: ['organization_id', 'company_id'], references: { table: 'companies', columns: ['organization_id', 'id'] }, on_delete: 'NO ACTION' },
     ])
-    expect(table(doc, 'interactions').foreign_keys[2]).toEqual({
+    expect(table(doc, 'interactions').foreign_keys[1]).toEqual({
       columns: ['organization_id', 'message_id', 'thread_id'],
       references: { table: 'messages', columns: ['organization_id', 'id', 'thread_id'] },
       on_delete: 'NO ACTION',

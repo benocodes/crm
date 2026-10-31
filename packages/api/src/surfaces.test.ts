@@ -30,6 +30,7 @@ place('meta', 'api_keys', [...CRUD, 'revoke'])
 place('meta', 'memberships', CRUD)
 place('meta', 'users', ['list', 'get'])
 place('meta', 'me', ['get'])
+place('meta', 'schema', ['get'])
 
 /** CRUD actions the registry does not generate (read-only resources, hard-lived tables, no public writer). Listed, never filtered. */
 const NOT_GENERATED = [
@@ -58,9 +59,10 @@ describe('placement (D6)', () => {
       'api_keys.create', 'api_keys.get', 'api_keys.list', 'api_keys.revoke',
       'me.get',
       'memberships.get', 'memberships.list',
+      'schema.get',
       'users.get', 'users.list',
     ])
-    expect(ops.length).toBe(62)
+    expect(ops.length).toBe(63)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

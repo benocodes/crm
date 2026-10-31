@@ -25,6 +25,8 @@ export const SCOPE_POLICY: ScopePolicy = {
   // Notes ([[CORE74]] D8): any holder of notes:write may edit any note.
   'notes:read': { member: true, agentGrantable: true },
   'notes:write': { member: true, agentGrantable: true },
+  // Schema discovery ([[API63]] D8): designing against the schema is expected agent work.
+  'schema:read': { member: true, agentGrantable: true },
   // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
   // read-only: Clerk is the source of truth ([[CORE3]] D1).
   'members:read': { member: true, agentGrantable: false },

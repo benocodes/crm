@@ -22,7 +22,7 @@ afterAll(async () => {
 })
 
 const op = () => registry.get('schema.get') as TenantOperation
-const run = (e: Engine) => e.run(op().prepare(e.env(), { params: {}, query: {}, body: undefined }))
+const run = async (e: Engine) => e.run(await op().prepare(e.env(), { params: {}, query: {}, body: undefined }))
 const getDoc = async (): Promise<any> => (await run(d1)).value
 const table = (doc: any, name: string) => doc.tables.find((t: any) => t.name === name)
 const column = (doc: any, t: string, c: string) => table(doc, t).columns.find((x: any) => x.name === c)

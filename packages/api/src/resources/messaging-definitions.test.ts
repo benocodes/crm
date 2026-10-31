@@ -19,7 +19,7 @@ describe('messaging definitions (CORE25 C1)', () => {
   it('declared scopes', () => {
     expect(createVaultRegistry().declaredScopes()).toEqual([
       'agents:read', 'agents:write', 'associations:read', 'associations:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'files:read',
-      'interactions:read', 'members:read', 'messages:read', 'notes:read', 'notes:write', 'tasks:read', 'tasks:write',
+      'interactions:read', 'members:read', 'messages:read', 'notes:read', 'notes:write', 'schema:read', 'tasks:read', 'tasks:write',
     ])
   })
 
