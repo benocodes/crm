@@ -4,7 +4,7 @@ import type { Database } from '@vault/db'
 import { createOwnerTestDb } from '@vault/db/test'
 import { openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import type { D1Like } from '@vault/storage-d1'
-import { CONTACT_REFERENCES, CONTACT_REFERENCE_EXEMPTIONS } from './merge.js'
+import { CONTACT_NON_FK_EXEMPTIONS, CONTACT_NON_FK_REFERENCES, CONTACT_REFERENCES, CONTACT_REFERENCE_EXEMPTIONS } from './merge.js'
 
 // D8: the typed catalog plus its exemptions equals the foreign keys onto contacts, on BOTH engines.
 let owner: Kysely<Database>
@@ -65,6 +65,36 @@ describe('CONTACT_REFERENCES catalog guard', () => {
         expect(cols).toContain(r.column)
         if (r.liveOnly) expect(cols).toContain('deleted_at')
       }
+    }
+  })
+})
+
+// CORE62 D16: a polymorphic reference (`<x>_type` beside `<x>_id`, no foreign key) is invisible to the FK scan above, so it
+// is listed by hand and this guard finds every such pair on D1: a new one is a conscious merge decision.
+async function d1PolymorphicReferences(): Promise<string[]> {
+  const tables = ((await d1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all()).results as Array<{ name: string }>).map((t) => t.name)
+  const out: string[] = []
+  for (const t of tables) {
+    const cols = ((await d1.prepare(`SELECT name FROM pragma_table_info('${t}')`).all()).results as Array<{ name: string }>).map((c) => c.name)
+    const fks = ((await d1.prepare(`SELECT "from" AS col FROM pragma_foreign_key_list('${t}')`).all()).results as Array<{ col: string }>).map((f) => f.col)
+    for (const c of cols.filter((x) => x.endsWith('_type'))) {
+      const id = `${c.slice(0, -'_type'.length)}_id`
+      if (cols.includes(id) && !fks.includes(id)) out.push(`${t}.${id}`)
+    }
+  }
+  return out.sort()
+}
+
+describe('CONTACT_NON_FK_REFERENCES catalog guard (CORE62 D16)', () => {
+  it('every polymorphic reference is listed, with its type column', async () => {
+    const listed = [...CONTACT_NON_FK_REFERENCES.flatMap((r) => r.columns.map((c) => `${r.table}.${c.id}`)), ...CONTACT_NON_FK_EXEMPTIONS.map((r) => `${r.table}.${r.column}`)].sort()
+    expect(await d1PolymorphicReferences()).toEqual(listed)
+  })
+  it('guard: the scan sees associations on both sides (and the audit log's resource_id, an exemption), and the entries name real columns', async () => {
+    expect(await d1PolymorphicReferences()).toEqual(['associations.a_id', 'associations.b_id', 'events.resource_id'])
+    for (const r of CONTACT_NON_FK_REFERENCES) {
+      const lite = ((await d1.prepare(`SELECT name FROM pragma_table_info('${r.table}')`).all()).results as Array<{ name: string }>).map((x) => x.name)
+      for (const c of r.columns) expect(lite).toEqual(expect.arrayContaining([c.id, c.type]))
     }
   })
 })

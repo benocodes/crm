@@ -42,6 +42,14 @@ describe('roles', () => {
     expect(SCOPE_POLICY['agents:read']).toEqual({ member: true, agentGrantable: false })
     expect(SCOPE_POLICY['agents:write']).toEqual({ member: false, agentGrantable: false })
   })
+  it('associations rows (CORE62 D11): member and agent-grantable, read and write', () => {
+    for (const scope of ['associations:read', 'associations:write']) {
+      expect(SCOPE_POLICY[scope], scope).toEqual({ member: true, agentGrantable: true })
+      expect(isAgentGrantable(scope)).toBe(true)
+      expect(createVaultRegistry().declaredScopes()).toContain(scope)
+    }
+    expect(scopesForRole('member', createVaultRegistry().declaredScopes()).toStrings()).toEqual(expect.arrayContaining(['associations:read', 'associations:write']))
+  })
   it('member holds the read scopes of administration', () => {
     const member = scopesForRole('member', createVaultRegistry().declaredScopes()).toStrings()
     expect(member).toEqual(expect.arrayContaining(['members:read', 'agents:read']))

@@ -4,7 +4,8 @@ import type { Database } from '@vault/db'
 import { createOwnerTestDb } from '@vault/db/test'
 import { openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import type { D1Like } from '@vault/storage-d1'
-import { IDENTITY_REFERENCES } from './merge.js'
+import { createVaultRegistry } from '../operations.js'
+import { CONTACT_NON_FK_REFERENCES, IDENTITY_REFERENCES } from './merge.js'
 
 // CORE25 D35: every foreign key onto identities(id) is listed in IDENTITY_REFERENCES, on BOTH engines. Merge never
 // changes identity ids, so the list has no re-point action; the guard makes a new FK onto identities a decision.
@@ -61,5 +62,16 @@ describe('IDENTITY_REFERENCES catalog guard', () => {
       expect(pg).toContain(r.column)
       expect(lite).toContain(r.column)
     }
+  })
+})
+
+// CORE62 D9/D16: associations are polymorphic (no FK), so they would escape the scan above. Identities are not associable
+// (D9: addresses owned by a contact), which keeps them out of the polymorphic list; the list itself is guarded in merge-catalog.
+describe('polymorphic references to identities (CORE62)', () => {
+  it('identities are not an associable type, and the non-FK list is not empty', () => {
+    const associable = createVaultRegistry().resources().filter((d) => d.associable).map((d) => d.table)
+    expect(associable.length).toBeGreaterThan(0)
+    expect(associable).not.toContain('identities')
+    expect(CONTACT_NON_FK_REFERENCES.map((r) => r.table)).toContain('associations')
   })
 })

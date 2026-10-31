@@ -94,10 +94,17 @@ function withDefaults(e: Engine, table: string, row: Record<string, unknown>): R
 
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 const scopes = () =>
-  ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read', 'messages:read', 'interactions:read', 'files:read'])
+  ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read', 'messages:read', 'interactions:read', 'files:read', 'associations:read', 'associations:write'])
 
 export async function openEngines(opts: { maxConnections?: number; maxSetSize?: number } = {}): Promise<Engine[]> {
   return [await openPostgres(opts), await openD1(opts)]
+}
+
+/** The D1 engine alone, for suites of D1-only features (no Postgres table): CORE62's associations. */
+export async function openD1Engine(opts: { maxSetSize?: number } = {}): Promise<Engine> {
+  const e = await openD1(opts)
+  await e.reset()
+  return e
 }
 
 async function openPostgres(opts: { maxConnections?: number; maxSetSize?: number }): Promise<Engine> {
