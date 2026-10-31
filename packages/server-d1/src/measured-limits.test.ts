@@ -27,7 +27,7 @@ const FREE_PLAN_EXCEPTIONS: Record<string, string> = {
 
 /** The exact D1 query count of each scenario, pinned from the first green run: a new round trip is a reviewed change. */
 const EXPECTED_QUERIES: Record<string, number> = {
-  'cold-first-request': 4, // marker read, auth read, auth stamp, operation read
+  'cold-first-request': 5, // migration-state read ([[CORE61]] D6, once per isolate), marker read, auth read, auth stamp, operation read
   'key-auth-stamp': 3, // auth read, auth stamp, operation read
   'key-auth-read': 2, // auth read, operation read
   'task-patch': 3, // auth read, operation read, operation write
@@ -35,7 +35,7 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'resolve-100-existing': 2,
   'company-delete-100': 3,
   'contact-delete-100': 3,
-  'messages-list-50': 2, // auth read, operation read (the embeds are in the same select)
+  'messages-list-50': 3, // migration-state read (this scenario's isolate is cold, [[CORE61]] D6), auth read, operation read (the embeds are in the same select)
   'messages-content': 2, // auth read, operation read; plus 1 object read
   'files-content': 2, // auth read, operation read; plus 1 object read
   'interactions-list-contact': 2,

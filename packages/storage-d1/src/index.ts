@@ -140,3 +140,5 @@ export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime 
 export function d1Binding(d1: D1Like, options: D1RuntimeOptions): D1Binding {
   return { kind: 'd1', runtime: createD1Runtime(d1, options), organizationId: options.organizationId, authProvider: options.authProvider, authOrgId: options.authOrgId }
 }
+export { MIGRATIONS } from './migrations-manifest.js'
+export { compareMigrations, readMigrationState, type MigrationDiff, type MigrationState, type MigrationStatus } from './migration-state.js'

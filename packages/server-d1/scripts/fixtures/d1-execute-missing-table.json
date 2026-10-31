@@ -1,0 +1,6 @@
+
+{
+  "error": {
+    "text": "no such table: nope: SQLITE_ERROR"
+  }
+}

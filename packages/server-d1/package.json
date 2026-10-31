@@ -13,6 +13,7 @@
     "open:check": "tsx scripts/open-check.ts",
     "deploy:remote": "tsx scripts/deploy.ts",
     "db:migrate:remote": "tsx scripts/migrate-remote.ts",
+    "db:status:remote": "tsx scripts/status-remote.ts",
     "smoke:remote": "tsx scripts/smoke-remote.ts"
   },
   "dependencies": {

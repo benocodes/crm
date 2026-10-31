@@ -11,8 +11,8 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
 import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, type R2BucketLike } from '@vault/api'
-import { applyMigrations } from '@vault/storage-d1/test'
-import type { D1Like } from '@vault/storage-d1'
+import { applyMigrations, createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
+import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
 import {
   API_URL,
   SECRET_KEY,
@@ -138,6 +138,14 @@ try {
   res = await call('GET', '/health')
   body = await json(res)
   check('4 GET /health after bootstrap -> initialised true', res.status === 200 && body.initialised === true, { status: res.status, body })
+  const unknownState = (body.migrations ?? {}) as { status?: string; expected?: number; applied?: number }
+  check('4a /health.migrations is unknown without a wrangler tracker (workerd reads the real binding)', unknownState.status === 'unknown' && unknownState.applied === 0 && unknownState.expected === MIGRATIONS.length, body.migrations)
+  await createMigrationTracker(d1)
+  await recordMigrations(d1, MIGRATIONS.map((m) => m.name))
+  await new Promise((resolve) => setTimeout(resolve, 5_200)) // the Worker re-reads an unknown state after 5 s (CORE61 D6)
+  res = await call('GET', '/health')
+  body = await json(res)
+  check('4b /health.migrations is current once the tracker is filled', (body.migrations as { status?: string } | undefined)?.status === 'current', body.migrations)
 
   res = await call('GET', '/tasks', { token: key })
   body = await json(res)
