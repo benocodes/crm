@@ -55,8 +55,9 @@ async function before(base: string, version: string): Promise<void> {
     const o = await call(base, 'GET', path)
     check(`GET ${path} -> 200, openapi 3.1.0, ${title}`, o.status === 200 && o.json?.openapi === '3.1.0' && (o.json?.info as Json | undefined)?.title === title, { status: o.status })
   }
+  // The old root document is not exempt: uninitialised, it is refused like any other route ([[API32]] D5).
   const root = await call(base, 'GET', '/openapi.json')
-  check('GET /openapi.json -> 404 not_found (no root document)', root.status === 404 && errCode(root.json) === 'not_found', { status: root.status, code: errCode(root.json) })
+  check('GET /openapi.json -> 503 not_initialised (no root document, not exempt)', root.status === 503 && errCode(root.json) === 'not_initialised', { status: root.status, code: errCode(root.json) })
 }
 
 /** The `after` health check: initialised, the expected version, and every core migration applied ([[CORE61]] D7). */
@@ -67,6 +68,8 @@ export function afterHealthOk(status: number, json: Json | null, version: string
 async function after(base: string, version: string, key: string): Promise<void> {
   const h = await call(base, 'GET', '/health')
   check('health -> 200 ok, initialised true, version, migrations current', afterHealthOk(h.status, h.json, version), { status: h.status, initialised: h.json?.initialised, version: h.json?.version, migrations: h.json?.migrations })
+  const root = await call(base, 'GET', '/openapi.json')
+  check('GET /openapi.json -> 404 not_found (no root document)', root.status === 404 && errCode(root.json) === 'not_found', { status: root.status, code: errCode(root.json) })
   const list = await call(base, 'GET', '/api/v1/tasks', key)
   check('GET /api/v1/tasks with the key -> 200, data array', list.status === 200 && Array.isArray(list.json?.data), { status: list.status })
   const none = await call(base, 'GET', '/api/v1/tasks')

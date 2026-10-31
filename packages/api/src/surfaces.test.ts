@@ -19,18 +19,27 @@ const place = (surface: Surface, resource: string, actions: string[]) => {
 }
 const CRUD = ['list', 'get', 'create', 'update', 'delete']
 for (const r of ['tasks', 'companies', 'contacts', 'notes']) place('api', r, CRUD)
-place('api', 'identities', ['list', 'get', 'create', 'update', 'delete', 'resolve'])
+place('api', 'identities', [...CRUD, 'resolve'])
 place('api', 'contacts', ['merge'])
-for (const r of ['threads', 'messages', 'interactions', 'files', 'contact_files', 'company_files']) place('api', r, ['list', 'get', 'create', 'update', 'delete'])
+for (const r of ['threads', 'messages', 'interactions', 'files', 'contact_files', 'company_files']) place('api', r, CRUD)
 place('api', 'messages', ['content'])
 place('api', 'files', ['content'])
 place('api', 'associations', ['list', 'get', 'create', 'delete'])
 place('meta', 'agents', CRUD)
-place('meta', 'api_keys', CRUD)
-place('meta', 'api_keys', ['revoke'])
+place('meta', 'api_keys', [...CRUD, 'revoke'])
 place('meta', 'memberships', CRUD)
 place('meta', 'users', ['list', 'get'])
 place('meta', 'me', ['get'])
+
+/** CRUD actions the registry does not generate (read-only resources, hard-lived tables, no public writer). Listed, never filtered. */
+const NOT_GENERATED = [
+  ...['threads', 'messages', 'interactions', 'files'].flatMap((r) => [`${r}.create`, `${r}.update`, `${r}.delete`]),
+  'contact_files.update', 'company_files.update',
+  'memberships.create', 'memberships.update', 'memberships.delete',
+  'agents.delete',
+  'api_keys.update', 'api_keys.delete',
+]
+for (const name of NOT_GENERATED) delete PLACEMENT[name]
 
 const registry = createVaultRegistry()
 const ops = registry.operations()
@@ -38,19 +47,20 @@ const ops = registry.operations()
 describe('placement (D6)', () => {
   it('every registered operation sits on the surface the placement table gives it, and the table names nothing unregistered', () => {
     const actual = Object.fromEntries(ops.map((o) => [o.name, o.surface]))
-    // Operations the registry does not generate (read-only resources have no create) are in PLACEMENT only if registered.
-    const expected = Object.fromEntries(Object.entries(PLACEMENT).filter(([name]) => name in actual))
-    expect(actual).toEqual(expected)
+    expect(actual).toEqual(PLACEMENT)
   })
-  it('the placement table covers generated CRUD that exists, so a new resource must be added to it', () => {
-    expect(ops.length).toBeGreaterThan(40)
+  it('the actions listed as not generated are not registered', () => {
+    for (const name of NOT_GENERATED) expect(registry.get(name), name).toBeUndefined()
+  })
+  it('the meta surface is exactly this list', () => {
     expect(ops.filter((o) => o.surface === 'meta').map((o) => o.name).sort()).toEqual([
       'agents.create', 'agents.get', 'agents.list', 'agents.update',
-      'api_keys.create', 'api_keys.get', 'api_keys.list', 'api_keys.revoke', 'api_keys.update',
+      'api_keys.create', 'api_keys.get', 'api_keys.list', 'api_keys.revoke',
       'me.get',
-      'memberships.get', 'memberships.list', 'memberships.update',
+      'memberships.get', 'memberships.list',
       'users.get', 'users.list',
-    ].filter((n) => ops.some((o) => o.name === n)))
+    ])
+    expect(ops.length).toBe(62)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)
