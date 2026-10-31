@@ -13,7 +13,7 @@ import { seedConversation } from './messaging-kit.js'
 
 export type Rec = Record<string, any>
 export type Opts = { as?: 'agent'; scopes?: readonly string[]; organizationId?: string }
-export const ALL_READ = ['contacts:read', 'companies:read', 'tasks:read', 'messages:read', 'interactions:read', 'associations:read', 'associations:write']
+export const ALL_READ = ['notes:read', 'contacts:read', 'companies:read', 'tasks:read', 'messages:read', 'interactions:read', 'associations:read', 'associations:write']
 /** An agent that may link and read everything except message content (threads). */
 export const NO_MESSAGES = ALL_READ.filter((s) => s !== 'messages:read')
 
@@ -55,6 +55,7 @@ export function assocKit(e: Engine) {
     contact: async (name = 'C'): Promise<[string, string]> => ['contacts', (await k.contact({ name })).id],
     company: async (name = 'Co'): Promise<[string, string]> => ['companies', (await k.company({ name })).id],
     task: async (title = 'T'): Promise<[string, string]> => ['tasks', (await k.run((env) => createOperation(tasks, env, { title }))).id as string],
+    note: async (content = 'Note', title: string | null = 'N'): Promise<[string, string]> => ['notes', (await call('notes.create', { body: { title, content } })).id as string],
     thread: async (): Promise<[string, string]> => ['threads', (await seedConversation((t, row) => e.insert(t, row))).threadId],
     interaction: async (): Promise<[string, string]> => ['interactions', (await seedConversation((t, row) => e.insert(t, row))).interactionId!],
   }

@@ -3,6 +3,7 @@ import type { ContractFixture, FixtureKit } from './contract.js'
 
 export const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
+  notes: { input: async () => ({ title: 'Contract note', content: '# Contract\n\nA note.' }), patch: async () => ({ content: 'Edited' }) },
   companies: {
     input: async () => ({ name: 'Contract company', domain: `c-${randomUUID()}.example.com` }),
     patch: async () => ({ name: 'Renamed company' }),
