@@ -135,7 +135,7 @@ describe('catalog completeness (D16)', () => {
     expect(column(doc, 'tasks', 'status').values).toEqual(['open', 'done'])
     expect(column(doc, 'tasks', 'title').values).toBeNull()
     expect(column(doc, 'tasks', 'title').exposed).toBe(true)
-    for (const [t, c] of [['api_keys', 'key_hash'], ['messages', 'content_key']] as const) expect(column(doc, t, c), `${t}.${c}`).toMatchObject({ exposed: false })
+    for (const [t, c] of [['api_keys', 'key_hash'], ['messages', 'content_key'], ['files', 'storage_key']] as const) expect(column(doc, t, c), `${t}.${c}`).toMatchObject({ exposed: false })
     expect(table(doc, 'tasks').resource.path).toBe('/api/v1/tasks')
     expect(table(doc, 'events').resource).toBeNull()
   })
