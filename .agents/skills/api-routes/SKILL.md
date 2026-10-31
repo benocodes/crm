@@ -240,6 +240,17 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   always emitted); `IDENTITY_REFERENCES` lists every FK onto `identities` with no re-point (`identity-catalog.integration.test.ts`
   compares it to both engines). `cascadeDelete` takes several children in order (contact: identities then `contact_files`;
   company: contacts then `company_files`), each with the three set guards and its own set event.
+- **Associations** ([[CORE62]], `src/associations/`): a polymorphic edge `(a_type, a_id) ↔ (b_type, b_id)` stored once in
+  canonical order. A table joins the graph with `associable: true` on its definition (load-time checks: an `id` column, a
+  lowercase-identifier table name); the associable set and each type's read scope (`scopeResource`) come from the registry, and
+  **a table name reaches SQL only from a definition, never from input**. `cascadeDelete` soft-deletes an associable parent's live
+  edges on either side automatically (`touches(table, id)` in `src/identity/cascades.ts`), so a new associable resource with a
+  delete needs no extra code there, only a cascade test; `contacts.merge` re-points edges and lists `associations` in
+  `CONTACT_NON_FK_REFERENCES`. Associations are custom operations over a prepared definition, not generic CRUD.
+- **A D1-only table read by a shared write path breaks the dormant Postgres suites.** Postgres has no `associations` table, so
+  every Postgres-path delete of a contact, company or task, and every contact merge, fails with `relation "associations" does not
+  exist` ([[CORE62]]: 62 of 63 api failures). That is accepted drift under AGENTS.md *Engines*: list the failing groups in the
+  cycle's RESULT, keep Postgres compiling, never bend D1. The future Postgres adapter needs each such table with RLS.
 - **Content operations** ([[CORE58]]): `src/messaging/content-operations.ts` holds `messages.content` (JSON, `messages:read`) and
   `files.content` (binary, `files:read`), registered in `createVaultRegistry`. `SecretColumns` (`@vault/storage`) now holds
   `messages.content_key` and `files.storage_key`: a record naming either is a compile error, and the operations read them with

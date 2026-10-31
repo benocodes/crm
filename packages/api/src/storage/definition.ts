@@ -101,6 +101,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly update?: z.ZodObject
   readonly operations?: readonly CrudAction[]
   readonly scopeResource?: string
+  /**
+   * [[CORE62]] D9: the table may be an endpoint of an association. The associable set, and each type's read scope
+   * (`scopeResource`), come from the registry's definitions; table names reach SQL from here, never from input.
+   */
+  readonly associable?: boolean
   readonly agentWritable?: readonly string[]
   readonly filters?: { readonly [K in ColumnOf<T>]?: Filter }
   /** List filters that are not columns (their keys never are, and never also in `filters`): `where` is ANDed into the list query. */
@@ -168,6 +173,11 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
     }
     if (field in kindsOfTable) throw new Error(`embed "${field}" is also a column of ${full.table} (${full.name})`)
     if (!(field in full.record.shape)) throw new Error(`embed "${field}" is not a field of the record (${full.name})`)
+  }
+  if (full.associable) {
+    const kinds = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[full.table]!
+    if (!('id' in kinds)) throw new Error(`${full.name}: an associable table needs an id column`)
+    if (!/^[a-z][a-z0-9_]*$/.test(full.table)) throw new Error(`${full.name}: an associable table name must be a lowercase identifier`)
   }
   if (full.agentWritable) {
     const known = new Set([...Object.keys(full.create?.shape ?? {}), ...Object.keys(full.update?.shape ?? {})])

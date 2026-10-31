@@ -68,13 +68,13 @@ describe('the diff and the exit code (D7, D9)', () => {
   it('current exits 0', () => {
     const r = run(fixture('d1-execute-migrations.json'))
     expect(r.code).toBe(0)
-    expect(r.out).toContain('migrations: current (4 applied, 4 expected)')
+    expect(r.out).toContain(`migrations: current (${EXPECTED.length} applied, ${EXPECTED.length} expected)`)
   })
   it('behind exits 1 and names what is missing', () => {
-    const r = run(rows(EXPECTED.slice(0, 3)))
+    const r = run(rows(EXPECTED.slice(0, -1)))
     expect(r.code).toBe(1)
-    expect(r.out).toContain('migrations: behind (3 applied, 4 expected)')
-    expect(r.out).toContain(`missing  ${EXPECTED[3]}`)
+    expect(r.out).toContain(`migrations: behind (${EXPECTED.length - 1} applied, ${EXPECTED.length} expected)`)
+    expect(r.out).toContain(`missing  ${EXPECTED[EXPECTED.length - 1]}`)
   })
   it('ahead exits 1', () => {
     const r = run(rows([...EXPECTED, '9999_future.sql']))

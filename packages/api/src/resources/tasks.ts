@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { codecs } from '@vault/storage'
+import { deleteTaskOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
 
 export type TaskRecord = {
@@ -60,6 +61,8 @@ export const tasks = definePreparedResource({
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
+  associable: true,
+  override: { delete: (env, id) => deleteTaskOperation(env, id as string) },
   record,
   create,
   update,

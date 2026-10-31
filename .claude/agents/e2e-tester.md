@@ -15,7 +15,10 @@ Run only what the scenario needs, plus a quick `git status`/sha check that you a
   never as passing.
 - **Confirm the database before anything else**: print the connection target and `current_database()` /
   `current_user` first. An exported `DATABASE_URL` overrides `--env-file`; a run against the wrong
-  database proves nothing.
+  database proves nothing. **On D1** there is no `current_database()`, and `sqlite_version()` is refused
+  (`not authorized`): print the wrangler `--env`/`--persist-to` (or Miniflare binding) the Worker runs
+  against and `GET /health` (`initialised`, `migrations`) instead. To drive the D1 Worker in workerd, write a
+  throwaway script in the scratchpad modelled on `packages/server-d1/scripts/smoke-worker.ts` ([[CORE62]]).
 - Never touch production, shared or other products' databases. Only the cycle's own worktree test DB and
   the local `vault_dev`.
 - **Don't fix anything.** Not code, not tests, not config. If something fails, capture the exact

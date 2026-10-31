@@ -202,6 +202,20 @@ export interface ContactFilesTable {
   contact_id: string
   file_id: string
 }
+/** [[CORE62]] D1-D2: an undirected edge between two records, stored once in canonical order; D1 only (no Postgres table). */
+export interface AssociationsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  a_type: string
+  a_id: string
+  b_type: string
+  b_id: string
+  relation: 'related_to'
+}
 export interface CompanyFilesTable {
   id: string
   created_at: Timestamp
@@ -277,6 +291,7 @@ export interface StorageDatabase {
   files: FilesTable
   contact_files: ContactFilesTable
   company_files: CompanyFilesTable
+  associations: AssociationsTable
   interaction_participants: InteractionParticipantsTable
   message_attachments: MessageAttachmentsTable
   message_sources: MessageSourcesTable
@@ -471,6 +486,19 @@ export const COLUMN_KINDS = {
     deleted_at: 'timestamp',
     company_id: 'uuid',
     file_id: 'uuid',
+  },
+  associations: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    a_type: 'text',
+    a_id: 'uuid',
+    b_type: 'text',
+    b_id: 'uuid',
+    relation: 'text',
   },
   interaction_participants: {
     id: 'uuid',

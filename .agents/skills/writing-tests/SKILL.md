@@ -113,6 +113,11 @@ One program, two engines: the same assertions run on Postgres and D1.
     Some golden values derive from the registry: the owner's scopes in `auth.json` are
     `grantableScopes(declaredScopes())`, so a cycle that declares a scope regenerates `auth.json` by exactly those
     lines ([[CORE25]]). Before claiming "golden unchanged", check for such derived values.
+    The generator runs the Postgres path, so once a shared write path reads a D1-only table it cannot regenerate
+    every fixture. Until it runs on D1, edit a registry-derived line by hand to exactly what the generator would
+    emit (sorted scope names in `auth.json`), and say so in RESULT ([[CORE62]]).
+    Tests that pin derived lists (the declared scopes in `identity-definitions.test.ts` and
+    `messaging-definitions.test.ts`) also change when a scope is declared; fix them in the same change.
     The generator lives in the enterprise package and reads the open fixture list, scenarios and Postgres
     backend through `@vault/api/test/golden` ([[CORE44]] P12).
   - Apps that must run no unit (openapi, CORS, option checks) pass `coldStorage()`; probe operations in routing and

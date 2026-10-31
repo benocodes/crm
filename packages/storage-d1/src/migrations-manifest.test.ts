@@ -39,7 +39,7 @@ afterEach(() => {
 describe('migrations manifest (D5)', () => {
   it('matches the real migrations/ directory', () => {
     expect(manifestProblems(MIGRATIONS, MIGRATIONS_DIR)).toEqual([])
-    expect(MIGRATIONS.map((e) => e.name)).toEqual(['0001_typed_storage_core.sql', '0002_identity_model.sql', '0003_administration.sql', '0004_messaging_model.sql'])
+    expect(MIGRATIONS.map((e) => e.name)).toEqual(['0001_typed_storage_core.sql', '0002_identity_model.sql', '0003_administration.sql', '0004_messaging_model.sql', '0005_associations.sql'])
   })
   it('catches one edited byte', () => {
     const dir = copyOfTree()

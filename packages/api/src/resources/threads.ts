@@ -10,6 +10,7 @@ export const threads = definePreparedResource({
   name: 'threads',
   eventName: 'thread',
   table: 'threads',
+  associable: true,
   scopeResource: 'messages',
   operations: ['list', 'get'],
   record: z.object({
