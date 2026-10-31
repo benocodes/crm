@@ -122,7 +122,9 @@ Commit on the cycle branch with Conventional Commits, staging explicit paths (ne
 push. In a sprint, stop here: the PR, the retro and the merge belong to other stages. Outside a sprint,
 run `/retrospect` on the cycle folder, then open the PR (`gh pr create`) and leave the merge to a human.
 
-When applying review findings, change only what the findings ask for, rerun the gate, commit, push.
+When applying review findings, change only what the findings ask for, rerun the gate, commit, push,
+and **end with the `CYCLE REPORT`** (§7). A review round is a run like any other: a fix pushed without a report
+leaves the orchestrator waiting for one ([[API63]] round 1).
 
 If you run low on context, run `/handoff` in the cycle folder and report `handed off`.
 
