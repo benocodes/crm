@@ -59,9 +59,7 @@ describe('resolveThreads', () => {
   })
 
   it('prefers a nearer ancestor earlier in the chunk', () => {
-    const h = ['h0', 'h1', 'h2']
     const r = resolveThreads([input('h0'), input('c', { in_reply_to: 'h0', thread_hints: ['h1', 'h2'] })], planned({ ancestors: { c: { rank: 2, thread_id: 'T8' } } }), counter())
-    expect(h).toHaveLength(3)
     expect(r.decisions[1]).toEqual({ external_id: 'c', outcome: 'ancestor', thread_id: 'T1', chosen_rank: 0 })
     expect(r.absent).not.toContain('h1')
     expect(r.absent).not.toContain('h2')

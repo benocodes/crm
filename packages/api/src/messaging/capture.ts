@@ -109,7 +109,13 @@ function validate(input: CaptureInput): void {
     }
     if (!m.participants.some((p) => p.role === 'from')) throw new Error('a message needs a from participant')
     for (const p of m.participants) {
-      if (normalizeIdentityValue(p.kind, p.value) !== p.value) throw new Error('capture participants must be normalised')
+      let normalised: string
+      try {
+        normalised = normalizeIdentityValue(p.kind, p.value)
+      } catch {
+        throw new Error('capture participants must be normalised')
+      }
+      if (normalised !== p.value) throw new Error('capture participants must be normalised')
     }
   }
 }
