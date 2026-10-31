@@ -76,7 +76,11 @@ List only the steps the diff actually needs.
 
 The D1 Worker (`packages/server-d1`, [[OPS4]]) deploys separately from the main instance's steps above:
 
-1. Only when `packages/storage-d1/migrations/` changed: `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env smoked1`.
+0. `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env smoked1` prints applied versus
+   expected and exits 0 only for `current` ([[CORE61]]).
+1. When the status is `behind` (or `packages/storage-d1/migrations/` changed): `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env smoked1`.
+   This always comes before the deploy: a Worker whose manifest is ahead of the database answers
+   `503 migrations_pending` on every route but `/health` and `/openapi.json`.
 2. `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env smoked1` (clean tree; runs typecheck and the suite).
 3. `curl https://api.smoked1.vibase.ai/health` shows the deployed sha in `version`.
 

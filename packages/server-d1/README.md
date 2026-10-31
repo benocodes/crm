@@ -34,7 +34,8 @@ In another terminal, with `KEY` set to the `vk_...` key step 2 printed:
 
 ```bash
 curl http://localhost:8787/health
-# {"status":"ok","initialised":true,"version":"dev"}
+# {"status":"ok","initialised":true,"version":"dev","migrations":{"status":"unknown","applied":0,"expected":4,"latest_applied":null,"latest_expected":"0004_messaging_model.sql"}}
+# (`unknown` locally: `bootstrap` applies the migration files without wrangler, so there is no d1_migrations tracker)
 
 curl -H "authorization: Bearer $KEY" http://localhost:8787/tasks
 # {"data":[], ...}
@@ -82,7 +83,8 @@ pnpm -C packages/server-d1 exec wrangler d1 create vault-smoked1
 pnpm -C packages/server-d1 exec wrangler r2 bucket create vault-smoked1-bodies
 
 # Shipping order: migrate (only when packages/storage-d1/migrations changed), then deploy, then look
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env smoked1
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env smoked1   # prints the applied-versus-expected diff before and after
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env smoked1    # read-only: the same diff, exit 0 only when current
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env smoked1   # clean tree; typecheck and tests first; --var VERSION:<sha>
 curl https://api.smoked1.vibase.ai/health                                    # shows the deployed sha
 
@@ -117,6 +119,16 @@ sequential work. One organisation per database; a second organisation cannot be 
   - `403 organization_forbidden`: the token names an organisation other than this deployment's.
   - `409 conflict`: the record changed while the operation was running; **retry**.
   - `503 not_initialised`: the bootstrap CLI has not run yet (`/health` and `/openapi.json` still answer).
+  - `503 migrations_pending`: the database lacks a migration this Worker build expects (deployed before migrating). Run
+    `db:migrate:remote`; the Worker re-reads within 5 s. `/health` and `/openapi.json` still answer. It wins over `not_initialised`.
+
+## Migration state
+
+`/health.migrations` is `{ status, applied, expected, latest_applied, latest_expected }`, from comparing the names in wrangler's
+`d1_migrations` table with the list compiled into the build (`packages/storage-d1/src/migrations-manifest.ts`):
+`current` (same set), `behind` (something expected is missing: every other route answers `503 migrations_pending`),
+`ahead` (extra migrations, e.g. after a Worker rollback: served), `unknown` (no readable tracker: served). A new migration file must
+be added to the manifest with its sha256 in the same change; a test fails otherwise and fails if an existing file is edited.
   - a masked `500 internal` on a write may mean the write **committed**: D1 decodes its result after the batch commits, so
     an error after that point does not undo it. **Read before retrying.**
 

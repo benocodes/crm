@@ -1,6 +1,7 @@
 // Shared guards of the remote scripts ([[OPS4]] C3, C4): every command that can reach a deployed instance goes through
 // these, before any network call or query. Pure parts are exported and unit-tested; nothing here logs an environment value.
 import { fileURLToPath } from 'node:url'
+import { compareMigrations, type MigrationStatus } from '@vault/storage-d1'
 
 export const PLACEHOLDER_DATABASE_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -98,3 +99,53 @@ export function deployCommands(envName: string, sha: string): Cmd[] {
     { command: 'pnpm', args: ['exec', 'wrangler', 'deploy', '--env', envName, '--var', `VERSION:${sha}`] },
   ]
 }
+
+/** The read of wrangler's tracker on a deployed instance ([[CORE61]] D7): same `--remote --env` addressing as `migrations apply`. */
+export function trackerReadCommand(envName: string): Cmd {
+  return { command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'execute', 'DB', '--remote', '--env', envName, '--json', '--command', 'select name from d1_migrations'] }
+}
+
+/**
+ * The applied names from `wrangler d1 execute --json` output: `[ { results: [ { name } ], success } ]`. `null` when the tracker
+ * does not exist (`{ error: { text: "no such table: d1_migrations" } }`); any other error or shape throws.
+ */
+export function parseTrackerOutput(stdout: string): string[] | null {
+  let json: unknown
+  try {
+    json = JSON.parse(stdout)
+  } catch {
+    throw new Error('unreadable output from wrangler d1 execute')
+  }
+  const error = (json as { error?: { text?: unknown } } | null)?.error
+  if (error) {
+    const text = typeof error.text === 'string' ? error.text : ''
+    if (/no such table/i.test(text)) return null
+    throw new Error(`wrangler d1 execute failed: ${text || 'unknown error'}`)
+  }
+  const results = Array.isArray(json) ? (json[0] as { results?: unknown } | undefined)?.results : undefined
+  if (!Array.isArray(results)) throw new Error('unexpected output shape from wrangler d1 execute')
+  return results.map((r) => {
+    const name = (r as { name?: unknown } | null)?.name
+    if (typeof name !== 'string') throw new Error('unexpected row shape from wrangler d1 execute')
+    return name
+  })
+}
+
+/** The status a printed diff reports: a missing tracker is `unknown` (applied `null`). */
+export function statusOf(applied: readonly string[] | null, expected: readonly string[]): MigrationStatus {
+  return applied === null ? 'unknown' : compareMigrations(applied, expected).status
+}
+
+/** The D9 diff as lines for an owner ([[CORE61]] D7); the Worker's `/health` reports the same status. */
+export function formatMigrationDiff(applied: readonly string[] | null, expected: readonly string[]): string[] {
+  const status = statusOf(applied, expected)
+  if (applied === null) return [`migrations: unknown (no d1_migrations table; ${expected.length} expected)`]
+  const d = compareMigrations(applied, expected)
+  const lines = [`migrations: ${status} (${applied.length} applied, ${expected.length} expected)`]
+  for (const n of d.missing) lines.push(`  missing  ${n}`)
+  for (const n of d.extra) lines.push(`  extra    ${n}`)
+  return lines
+}
+
+/** Exit code of `db:status:remote`: 0 only for `current`, so a CI step can gate on it. */
+export const statusExitCode = (status: MigrationStatus): number => (status === 'current' ? 0 : 1)

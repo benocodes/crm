@@ -31,6 +31,11 @@ pnpm db:test:worktree
 
 If the brief names an existing worktree, use it. Every later command runs from the worktree.
 
+`.env` is gitignored, so a new worktree has none. The guarded remote scripts (`db:status:remote`,
+`db:migrate:remote`, `deploy:remote`, `smoke:remote`) read the `.env` at the root they run from
+(`ROOT_ENV_PATH` in `packages/server-d1/scripts/remote.ts`). Before running one, link the main checkout's file
+with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never print it ([[CORE61]] retro).
+
 ## 2. Survey before you write
 
 - Read the modules the cycle changes or calls, their tests, and the shared test helpers and seeds. Reuse

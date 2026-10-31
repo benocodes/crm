@@ -1,0 +1,22 @@
+[
+  {
+    "results": [
+      {
+        "name": "0001_typed_storage_core.sql"
+      },
+      {
+        "name": "0002_identity_model.sql"
+      },
+      {
+        "name": "0003_administration.sql"
+      },
+      {
+        "name": "0004_messaging_model.sql"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "duration": 0
+    }
+  }
+]

@@ -158,6 +158,11 @@ already holds data. Otherwise (refactors, service-layer changes covered by both-
 additions covered by contract tests, types, docs, skills) write `E2E: none` with the reason, and the
 orchestrator spawns no e2e-tester.
 
+Check each expected end state against the spec's decisions before writing it down, especially caches,
+re-read windows and consistency rules. Where state is cached per isolate or per process, say whether a step
+runs on a cold or a warm instance. [[CORE61]]'s charter expected a warm Worker to notice a deleted tracker row
+that spec D6 caches for the isolate's life, and review had to amend the scenario.
+
 A scenario states, in order:
 - **Initial state:** what exists before (rows, tenants, credentials, fixtures) and how to set it up.
 - **Actions:** the real calls, with payloads (REST/MCP requests, CLI commands, fixture replays).

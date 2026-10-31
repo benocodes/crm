@@ -55,9 +55,14 @@ async function before(base: string, version: string): Promise<void> {
   check('GET /openapi.json -> 200, openapi 3.1.0', o.status === 200 && o.json?.openapi === '3.1.0', { status: o.status })
 }
 
+/** The `after` health check: initialised, the expected version, and every core migration applied ([[CORE61]] D7). */
+export function afterHealthOk(status: number, json: Json | null, version: string): boolean {
+  return status === 200 && json?.initialised === true && json?.version === version && (json?.migrations as Json | undefined)?.status === 'current'
+}
+
 async function after(base: string, version: string, key: string): Promise<void> {
   const h = await call(base, 'GET', '/health')
-  check('health -> 200 ok, initialised true, version', h.status === 200 && h.json?.initialised === true && h.json?.version === version, { status: h.status, initialised: h.json?.initialised, version: h.json?.version })
+  check('health -> 200 ok, initialised true, version, migrations current', afterHealthOk(h.status, h.json, version), { status: h.status, initialised: h.json?.initialised, version: h.json?.version, migrations: h.json?.migrations })
   const list = await call(base, 'GET', '/tasks', key)
   check('GET /tasks with the key -> 200, data array', list.status === 200 && Array.isArray(list.json?.data), { status: list.status })
   const none = await call(base, 'GET', '/tasks')

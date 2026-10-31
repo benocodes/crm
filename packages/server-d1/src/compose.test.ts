@@ -4,6 +4,7 @@ import { seedConversation } from '@vault/api/test/messaging'
 import { fakeR2Bucket } from '@vault/api/test/objects'
 import { messageBodyKey } from '@vault/api'
 import { clerkMembership, clerkOrganization, clerkWebhook, mintClerkToken, orgClaim, signClerkWebhook } from '@vault/api/test/clerk'
+import { MIGRATIONS } from '@vault/storage-d1'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { NOT_INITIALISED, composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { NOW, clerkKit, openWorkerD1, spyD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
@@ -30,13 +31,15 @@ const boot = (over: Partial<Parameters<typeof bootstrapD1>[1]> = {}) =>
   bootstrapD1(w.d1, { organizationName: 'Acme', email: 'owner@x.test', agentName: 'bot', authOrgId: 'org_acme', ...over }, { now: NOW, newId: () => uuidv7(NOW) })
 const withClerk = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({ DB: w.d1, ...kit.env, ...extra })
 const noAuth = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({ DB: w.d1, AUTH_PROVIDER: '', ...extra })
+/** The harness has no `d1_migrations`, so a test database reports `unknown` ([[CORE61]] D10). */
+const UNKNOWN_MIGRATIONS = { status: 'unknown', applied: 0, expected: MIGRATIONS.length, latest_applied: null, latest_expected: MIGRATIONS.at(-1)!.name }
 const mutations = (sqls: string[]) => sqls.filter((s) => /^\s*(insert|update|delete)/i.test(s))
 
 describe('before the deployment is initialised (D2, D3, D4)', () => {
   it('GET /health is 200 with initialised false', async () => {
     const res = await get(composeD1Worker(noAuth()), '/health')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'dev' })
+    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'dev', migrations: UNKNOWN_MIGRATIONS })
   })
 
   it.each([
@@ -88,7 +91,7 @@ describe('after bootstrap', () => {
 
   it('GET /health is 200 with initialised true', async () => {
     await boot()
-    expect(await (await get(composeD1Worker(noAuth()), '/health')).json()).toEqual({ status: 'ok', initialised: true, version: 'dev' })
+    expect(await (await get(composeD1Worker(noAuth()), '/health')).json()).toEqual({ status: 'ok', initialised: true, version: 'dev', migrations: UNKNOWN_MIGRATIONS })
   })
 
   it('GET /health is 503 unavailable when D1 cannot answer SELECT 1', async () => {
@@ -168,7 +171,7 @@ describe('a misconfigured auth provider (D12)', () => {
 describe('GET /health version (C1)', () => {
   it('reports VERSION', async () => {
     const res = await get(composeD1Worker(noAuth({ VERSION: 'abc123' })), '/health')
-    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'abc123' })
+    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'abc123', migrations: UNKNOWN_MIGRATIONS })
   })
 
   it('an empty VERSION is dev', async () => {

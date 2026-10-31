@@ -1,6 +1,6 @@
 import { createApp, createAuthAdapter, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
 import type { D1Binding } from '@vault/storage'
-import { d1Binding, type D1Like } from '@vault/storage-d1'
+import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
 
 export interface D1WorkerEnv {
@@ -21,6 +21,11 @@ export interface D1WorkerEnv {
 
 /** The 503 body of every route but /health and /openapi.json while the deployment marker is absent. */
 export const NOT_INITIALISED = { error: { code: 'not_initialised', message: 'run the bootstrap CLI first' } }
+/** The 503 body of every route but /health and /openapi.json while the database lacks a migration this build expects ([[CORE61]] D4). */
+export const MIGRATIONS_PENDING = { error: { code: 'migrations_pending', message: 'apply the database migrations first' } }
+/** While `behind` or `unknown` the tracker is re-read at most this often ([[CORE61]] D6). */
+export const MIGRATION_REREAD_MS = 5_000
+const EXPECTED = MIGRATIONS.map((m) => m.name)
 const INTERNAL = { error: { code: 'internal', message: 'internal error' } }
 
 /** The binding of the pre-initialisation app: it serves the OpenAPI document only, and a unit reaching it is a defect. */
@@ -38,14 +43,15 @@ const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES'
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
- * binding: while it is absent every route but `/health` and `/openapi.json` is `503 not_initialised`, and an absent marker is
+ * binding (a missing `deployment` table counts as absent): while it is absent every route but `/health` and `/openapi.json` is `503 not_initialised`, and an absent marker is
  * never cached, so a bootstrap run after an earlier 503 is picked up by the next request. A bad auth or CORS configuration
  * fails closed: every non-health request is `500 internal`, logged once with the variable's name and never its value.
- * `deps` exists for Node tests; the Worker passes none.
+ * A database `behind` the build's migration manifest answers every other route `503 migrations_pending`, ahead of the marker and
+ * auth checks ([[CORE61]] D4). `deps` exists for Node tests; the Worker passes none.
  */
 export function composeD1Worker(
   env: D1WorkerEnv,
-  deps: { fetch?: typeof fetch; clock?: () => Date; newId?: () => string } = {},
+  deps: { fetch?: typeof fetch; clock?: () => Date; newId?: () => string; /** Milliseconds for the migration-state re-read window; defaults to `Date.now`. */ nowMs?: () => number } = {},
 ): { fetch(req: Request): Promise<Response> } {
   const vars: Record<string, string | undefined> = {}
   for (const name of STRING_VARS) vars[name] = typeof env[name] === 'string' ? env[name] : undefined
@@ -66,10 +72,36 @@ export function composeD1Worker(
   let app: App | undefined
   let cold: App | undefined
 
-  /** The app bound to the marker, once the marker exists. Only success is cached. */
+  const nowMs = deps.nowMs ?? (() => Date.now())
+  type Migrations = { status: MigrationStatus; applied: string[] }
+  let settled: Migrations | undefined
+  let latest: (Migrations & { at: number }) | undefined
+
+  /**
+   * The migration state ([[CORE61]] D6): remembered for the isolate once `current` or `ahead`; while `behind` or `unknown` it is
+   * re-read at most every 5 s; a read that threw is never remembered, so the next request reads again.
+   */
+  async function migrations(): Promise<Migrations> {
+    if (settled) return settled
+    const now = nowMs()
+    if (latest && now - latest.at < MIGRATION_REREAD_MS) return latest
+    const read = await readMigrationState(env.DB, EXPECTED)
+    const state = { status: read.status, applied: read.applied }
+    if (state.status === 'current' || state.status === 'ahead') settled = state
+    latest = read.readFailed ? undefined : { ...state, at: now }
+    return state
+  }
+
+  /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
   async function ensure(): Promise<App | undefined> {
     if (app) return app
-    const link = await readDeployment(env.DB)
+    let link
+    try {
+      link = await readDeployment(env.DB)
+    } catch (err) {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) return undefined
+      throw err
+    }
     if (!link) return undefined
     const binding = d1Binding(env.DB, link)
     app = createApp({ storage: () => binding, authAdapter, corsOrigins, clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
@@ -79,7 +111,18 @@ export function composeD1Worker(
   async function health(): Promise<Response> {
     try {
       await env.DB.prepare('SELECT 1').first()
-      return json({ status: 'ok', initialised: (await ensure()) !== undefined, version: vars.VERSION || 'dev' }, 200)
+      const initialised = (await ensure()) !== undefined
+      const m = await migrations()
+      const latestApplied = m.applied.length > 0 ? [...m.applied].sort().at(-1)! : null
+      return json(
+        {
+          status: 'ok',
+          initialised,
+          version: vars.VERSION || 'dev',
+          migrations: { status: m.status, applied: m.applied.length, expected: EXPECTED.length, latest_applied: latestApplied, latest_expected: EXPECTED.at(-1) ?? null },
+        },
+        200,
+      )
     } catch {
       return json({ status: 'unavailable' }, 503)
     }
@@ -90,10 +133,12 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
+        const spec = req.method === 'GET' && url.pathname === '/openapi.json'
+        if (!spec && (await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
         if (configError) return json(INTERNAL, 500)
         const ready = await ensure()
         if (ready) return await ready.fetch(req)
-        if (req.method === 'GET' && url.pathname === '/openapi.json') {
+        if (spec) {
           cold ??= createApp({ storage: () => NO_UNITS })
           return await cold.fetch(req)
         }
