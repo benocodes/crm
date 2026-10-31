@@ -38,6 +38,7 @@ const update = create.partial()
  * Delete unlinks the company's live contacts as a set (`identity/cascades.ts`).
  */
 export const companies = definePreparedResource({
+  surface: 'api',
   name: 'companies',
   eventName: 'company',
   table: 'companies',

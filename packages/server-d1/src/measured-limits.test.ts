@@ -115,27 +115,27 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
   it('runs every scenario and returns its success status', async () => {
     // cold: a fresh composition, first request (marker read + stamp)
     worker = fresh()
-    await measure('cold-first-request', () => send('GET', '/tasks'))
+    await measure('cold-first-request', () => send('GET', '/api/v1/tasks'))
 
     // the stamp throttle: older than a minute, then within the minute
     now = new Date(now.getTime() + 2 * 60_000)
-    await measure('key-auth-stamp', () => send('GET', '/tasks'))
-    await measure('key-auth-read', () => send('GET', '/tasks'))
+    await measure('key-auth-stamp', () => send('GET', '/api/v1/tasks'))
+    await measure('key-auth-read', () => send('GET', '/api/v1/tasks'))
 
-    const task = (await send('POST', '/tasks', { title: 'one' })).json
-    await measure('task-patch', () => send('PATCH', `/tasks/${task.id}`, { title: 'two' }))
+    const task = (await send('POST', '/api/v1/tasks', { title: 'one' })).json
+    await measure('task-patch', () => send('PATCH', `/api/v1/tasks/${task.id}`, { title: 'two' }))
 
     const emails = Array.from({ length: 100 }, (_, i) => ({ kind: 'email', value: `p${i}@measure.test`, name: `P${i}` }))
-    await measure('resolve-100-new', () => send('POST', '/identities/resolve', { identities: emails }))
-    await measure('resolve-100-existing', () => send('POST', '/identities/resolve', { identities: emails }))
+    await measure('resolve-100-new', () => send('POST', '/api/v1/identities/resolve', { identities: emails }))
+    await measure('resolve-100-existing', () => send('POST', '/api/v1/identities/resolve', { identities: emails }))
 
-    const company = (await send('POST', '/companies', { name: 'Big Co' })).json
-    for (let i = 0; i < 100; i++) await send('POST', '/contacts', { name: `C${i}`, company_id: company.id })
-    await measure('company-delete-100', () => send('DELETE', `/companies/${company.id}`))
+    const company = (await send('POST', '/api/v1/companies', { name: 'Big Co' })).json
+    for (let i = 0; i < 100; i++) await send('POST', '/api/v1/contacts', { name: `C${i}`, company_id: company.id })
+    await measure('company-delete-100', () => send('DELETE', `/api/v1/companies/${company.id}`))
 
-    const contact = (await send('POST', '/contacts', { name: 'Many' })).json
-    for (let i = 0; i < 100; i++) await send('POST', '/identities', { kind: 'email', value: `own${i}@measure.test`, contact_id: contact.id })
-    await measure('contact-delete-100', () => send('DELETE', `/contacts/${contact.id}`))
+    const contact = (await send('POST', '/api/v1/contacts', { name: 'Many' })).json
+    for (let i = 0; i < 100; i++) await send('POST', '/api/v1/identities', { kind: 'email', value: `own${i}@measure.test`, contact_id: contact.id })
+    await measure('contact-delete-100', () => send('DELETE', `/api/v1/contacts/${contact.id}`))
 
     // CORE25 C1 (D55): the read and merge scenarios. Conversations are seeded by direct inserts on the unmetered D1.
     const orgId = ((await w.d1.prepare('select organization_id as o from deployment').first()) as { o: string }).o
@@ -149,39 +149,39 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
       return full
     }
     for (let i = 0; i < 50; i++) await seedConversation(insert, { attachments: 2, interaction: false })
-    await measure('messages-list-50', () => send('GET', '/messages?limit=50'))
+    await measure('messages-list-50', () => send('GET', '/api/v1/messages?limit=50'))
 
     const withObjects = await seedConversation(insert, { attachments: 1, interaction: false })
     await bucket.put(messageBodyKey(withObjects.contentKey!, 1), '# Measured body')
     await bucket.put(fileBlobKey(withObjects.storageKeys[0]!), new Uint8Array([1, 2, 3]))
     bucket.gets.length = 0
-    await measure('messages-content', () => send('GET', `/messages/${withObjects.messageId}/content`))
+    await measure('messages-content', () => send('GET', `/api/v1/messages/${withObjects.messageId}/content`))
     expect(bucket.gets).toEqual([messageBodyKey(withObjects.contentKey!, 1)])
     bucket.gets.length = 0
     await measure('files-content', async () => {
-      const res = await worker.fetch(req('GET', `/files/${withObjects.fileIds[0]}/content`))
+      const res = await worker.fetch(req('GET', `/api/v1/files/${withObjects.fileIds[0]}/content`))
       await res.arrayBuffer()
       return { status: res.status }
     })
     expect(bucket.gets).toEqual([fileBlobKey(withObjects.storageKeys[0]!)])
 
-    const reader = (await send('POST', '/contacts', { name: 'Reader' })).json
-    const readerIdentity = (await send('POST', '/identities', { kind: 'email', value: 'reader@measure.test', contact_id: reader.id })).json
+    const reader = (await send('POST', '/api/v1/contacts', { name: 'Reader' })).json
+    const readerIdentity = (await send('POST', '/api/v1/identities', { kind: 'email', value: 'reader@measure.test', contact_id: reader.id })).json
     for (let i = 0; i < 50; i++) await seedConversation(insert, { participants: [{ identityId: readerIdentity.id, role: 'from' }] })
-    await measure('interactions-list-contact', () => send('GET', `/interactions?contact_id=${reader.id}&limit=50`))
+    await measure('interactions-list-contact', () => send('GET', `/api/v1/interactions?contact_id=${reader.id}&limit=50`))
 
     const files = (await seedConversation(insert, { attachments: 100, interaction: false })).fileIds
-    const survivor = (await send('POST', '/contacts', { name: 'Survivor' })).json
-    const source = (await send('POST', '/contacts', {})).json
-    for (const f of files) await send('POST', '/contact-files', { contact_id: source.id, file_id: f })
-    for (const f of files.slice(0, 50)) await send('POST', '/contact-files', { contact_id: survivor.id, file_id: f })
-    await measure('merge-100-links', () => send('POST', `/contacts/${survivor.id}/merge`, { source_id: source.id }))
+    const survivor = (await send('POST', '/api/v1/contacts', { name: 'Survivor' })).json
+    const source = (await send('POST', '/api/v1/contacts', {})).json
+    for (const f of files) await send('POST', '/api/v1/contact-files', { contact_id: source.id, file_id: f })
+    for (const f of files.slice(0, 50)) await send('POST', '/api/v1/contact-files', { contact_id: survivor.id, file_id: f })
+    await measure('merge-100-links', () => send('POST', `/api/v1/contacts/${survivor.id}/merge`, { source_id: source.id }))
 
-    const linked = (await send('POST', '/contacts', { name: 'Linked' })).json
+    const linked = (await send('POST', '/api/v1/contacts', { name: 'Linked' })).json
     const moreFiles = (await seedConversation(insert, { attachments: 100, interaction: false })).fileIds
-    for (let i = 0; i < 100; i++) await send('POST', '/identities', { kind: 'email', value: `lk${i}@measure.test`, contact_id: linked.id })
-    for (const f of moreFiles) await send('POST', '/contact-files', { contact_id: linked.id, file_id: f })
-    await measure('contact-delete-100-with-links', () => send('DELETE', `/contacts/${linked.id}`))
+    for (let i = 0; i < 100; i++) await send('POST', '/api/v1/identities', { kind: 'email', value: `lk${i}@measure.test`, contact_id: linked.id })
+    for (const f of moreFiles) await send('POST', '/api/v1/contact-files', { contact_id: linked.id, file_id: f })
+    await measure('contact-delete-100-with-links', () => send('DELETE', `/api/v1/contacts/${linked.id}`))
 
     // CORE68 D55: the capture unit at 1 and at the cap (100 messages, 100 distinct addresses, 100 stored attachments), run through the metered binding.
     const binding = d1Binding(meter.d1, { organizationId: orgId, authProvider: 'clerk', authOrgId: 'org_acme' })

@@ -18,6 +18,7 @@ export type ApiKeyRecord = z.infer<typeof apiKeyRecord>
 
 /** Read-only here; `api_keys.create` and `api_keys.revoke` are hand-written (`admin/`). */
 export const apiKeys = definePreparedResource({
+  surface: 'meta',
   name: 'api_keys',
   eventName: 'api_key',
   table: 'api_keys',

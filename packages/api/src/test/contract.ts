@@ -6,6 +6,7 @@ import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } fro
 import { uuidv7 } from '@vault/storage'
 import { postgresBinding } from '@vault/storage-postgres'
 import type { AnyResource, Registry } from '../registry.js'
+import { fullPath, openApiPath } from '../surfaces.js'
 import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudAction } from '../resources/define.js'
 import { createApp, type AppEnv } from '../rest/app.js'
 import type { CaptureInput, CaptureResult } from '../messaging/capture.js'
@@ -185,7 +186,7 @@ export function assertFixturesCoverRegistry(registry: Registry, fixtures: Readon
 const NO_SUCH = '0190b2c4-0000-7000-8000-00000000dead'
 const METHOD: Record<CrudAction, string> = { list: 'GET', get: 'GET', create: 'POST', update: 'PATCH', delete: 'DELETE' }
 const pathOf = (def: AnyResource, action: CrudAction, id = NO_SUCH): string =>
-  action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/${id}`
+  fullPath({ surface: def.surface, path: action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/${id}` })
 
 export function runContractSuite(opts: {
   registry: Registry
@@ -429,21 +430,21 @@ export function runContractSuite(opts: {
             const absent = CRUD_ACTIONS.filter((x) => !has(x) && !fixture.handwritten?.includes(x))
             if (absent.length > 0) {
               it('not generated', async () => {
-                const doc = (await (await app.request('/openapi.json')).json()) as any
+                const doc = (await (await app.request(openApiPath(def.surface))).json()) as any
                 for (const action of absent) {
                   const res = await env.call(a, actor, 'full', METHOD[action], pathOf(def, action), await bodyFor(action))
                   await error(res, 404, 'not_found')
-                  const openApiPath = action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/{id}`
-                  expect(doc.paths[openApiPath]?.[METHOD[action].toLowerCase()]).toBeUndefined()
+                  const docPath = fullPath({ surface: def.surface, path: action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/{id}` })
+                  expect(doc.paths[docPath]?.[METHOD[action].toLowerCase()]).toBeUndefined()
                 }
               })
             }
 
             it('document', async () => {
-              const doc = (await (await app.request('/openapi.json')).json()) as any
+              const doc = (await (await app.request(openApiPath(def.surface))).json()) as any
               for (const action of CRUD_ACTIONS.filter(has)) {
                 const o = op(action)
-                const entry = doc.paths[o.path]?.[o.method]
+                const entry = doc.paths[fullPath(o)]?.[o.method]
                 expect(entry.operationId).toBe(o.name)
                 expect(entry.summary).toBeTruthy()
               }

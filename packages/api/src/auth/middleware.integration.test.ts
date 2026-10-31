@@ -26,6 +26,7 @@ const authenticate = vi.fn<UserAuthenticator['authenticate']>()
 const whoamiRegistry = () =>
   new Registry().registerResource(tasks).register({
     kind: 'tenant',
+    surface: 'api',
     name: 'probe.whoami',
     summary: 'Who am I',
     method: 'get',
@@ -65,7 +66,7 @@ beforeEach(async () => {
 
 describe('api key auth', () => {
   it('a valid key resolves the agent', async () => {
-    const res = await get(mkApp(), '/probe/whoami', bearer(agentA.key))
+    const res = await get(mkApp(), '/api/v1/probe/whoami', bearer(agentA.key))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ actor_id: agentA.id, kind: 'agent', organization_id: A.organizationId })
   })
@@ -75,59 +76,59 @@ describe('api key auth', () => {
     ['wrong scheme', { authorization: 'Basic x' }],
     ['empty token', { authorization: 'Bearer ' }],
   ])('%s is 401', async (_n, headers) => {
-    const res = await get(mkApp(), '/tasks', headers)
+    const res = await get(mkApp(), '/api/v1/tasks', headers)
     expect(res.status).toBe(401)
     expect((await res.json()).error.code).toBe('unauthenticated')
   })
 
   it('an unknown key is 401 with the shared message', async () => {
-    const res = await get(mkApp(), '/tasks', bearer('vk_' + randomBytes(32).toString('base64url')))
+    const res = await get(mkApp(), '/api/v1/tasks', bearer('vk_' + randomBytes(32).toString('base64url')))
     expect(res.status).toBe(401)
     expect(await res.json()).toEqual({ error: { code: 'unauthenticated', message: 'invalid or expired credentials' } })
   })
 
   it('a revoked key is 401', async () => {
     const k = await newAgentKey(A, ['tasks:read'], { revoked: true })
-    expect((await get(mkApp(), '/tasks', bearer(k.key))).status).toBe(401)
+    expect((await get(mkApp(), '/api/v1/tasks', bearer(k.key))).status).toBe(401)
   })
 
   it('expired is 401, future expiry is 200', async () => {
     const past = await newAgentKey(A, ['tasks:read'], { expiresAt: new Date(Date.now() - 1000) })
     const future = await newAgentKey(A, ['tasks:read'], { expiresAt: new Date(Date.now() + 3_600_000) })
-    expect((await get(mkApp(), '/tasks', bearer(past.key))).status).toBe(401)
-    expect((await get(mkApp(), '/tasks', bearer(future.key))).status).toBe(200)
+    expect((await get(mkApp(), '/api/v1/tasks', bearer(past.key))).status).toBe(401)
+    expect((await get(mkApp(), '/api/v1/tasks', bearer(future.key))).status).toBe(200)
   })
 
   it('a disabled agent is 401', async () => {
     await withServiceRole(db, (trx) => trx.updateTable('agents').set({ disabled_at: new Date() }).where('id', '=', agentA.id).execute())
-    expect((await get(mkApp(), '/tasks', bearer(agentA.key))).status).toBe(401)
+    expect((await get(mkApp(), '/api/v1/tasks', bearer(agentA.key))).status).toBe(401)
   })
 
   it('scopes come from the agent', async () => {
     const k = await newAgentKey(A, ['tasks:read'])
     const app = mkApp()
-    const post = await app.request('/tasks', { method: 'POST', headers: bearer(k.key), body: JSON.stringify({ title: 'x' }) })
+    const post = await app.request('/api/v1/tasks', { method: 'POST', headers: bearer(k.key), body: JSON.stringify({ title: 'x' }) })
     expect(post.status).toBe(403)
     expect(await post.json()).toEqual({ error: { code: 'insufficient_scope', message: 'requires tasks:write' } })
-    expect((await get(app, '/tasks', bearer(k.key))).status).toBe(200)
+    expect((await get(app, '/api/v1/tasks', bearer(k.key))).status).toBe(200)
   })
 
   it('last_used_at is set once a minute', async () => {
     const read = async () => (await owner.selectFrom('api_keys').select('last_used_at').where('id', '=', agentA.keyId).executeTakeFirstOrThrow()).last_used_at
     expect(await read()).toBeNull()
     const app = mkApp()
-    await get(app, '/tasks', bearer(agentA.key))
+    await get(app, '/api/v1/tasks', bearer(agentA.key))
     const first = await read()
     expect(first).not.toBeNull()
-    await get(app, '/tasks', bearer(agentA.key))
+    await get(app, '/api/v1/tasks', bearer(agentA.key))
     expect((await read())!.getTime()).toBe(first!.getTime())
   })
 
   it('checks the agent X-Organization-Id header', async () => {
     const app = mkApp()
-    expect((await get(app, '/tasks', bearer(agentA.key, { 'x-organization-id': A.organizationId }))).status).toBe(200)
+    expect((await get(app, '/api/v1/tasks', bearer(agentA.key, { 'x-organization-id': A.organizationId }))).status).toBe(200)
     for (const v of [B.organizationId, 'not-a-uuid']) {
-      const res = await get(app, '/tasks', bearer(agentA.key, { 'x-organization-id': v }))
+      const res = await get(app, '/api/v1/tasks', bearer(agentA.key, { 'x-organization-id': v }))
       expect(res.status).toBe(403)
       expect((await res.json()).error.code).toBe('organization_forbidden')
     }
@@ -142,7 +143,7 @@ describe('credential dispatch', () => {
       scopes: ScopeSet.parse(['tasks:read']),
     }
     authenticate.mockResolvedValue(principal)
-    const res = await get(mkApp(), '/probe/whoami', bearer('a.b.c', { 'x-organization-id': A.organizationId }))
+    const res = await get(mkApp(), '/api/v1/probe/whoami', bearer('a.b.c', { 'x-organization-id': A.organizationId }))
     expect(res.status).toBe(200)
     expect((await res.json()).kind).toBe('user')
     expect(authenticate).toHaveBeenCalledTimes(1)
@@ -150,19 +151,19 @@ describe('credential dispatch', () => {
   })
 
   it('a key-shaped token never reaches the authenticator', async () => {
-    await get(mkApp(), '/tasks', bearer(agentA.key))
+    await get(mkApp(), '/api/v1/tasks', bearer(agentA.key))
     expect(authenticate).not.toHaveBeenCalled()
   })
 
   it('without an authenticator a JWT-shaped token is 401', async () => {
-    const res = await get(mkApp(false), '/tasks', bearer('a.b.c'))
+    const res = await get(mkApp(false), '/api/v1/tasks', bearer('a.b.c'))
     expect(res.status).toBe(401)
     expect((await res.json()).error.code).toBe('unauthenticated')
   })
 
   it('authenticator errors pass through', async () => {
     authenticate.mockRejectedValue(new ApiError(409, 'account_conflict', 'x'))
-    const res = await get(mkApp(), '/tasks', bearer('a.b.c'))
+    const res = await get(mkApp(), '/api/v1/tasks', bearer('a.b.c'))
     expect(res.status).toBe(409)
     expect((await res.json()).error.code).toBe('account_conflict')
   })
@@ -172,7 +173,7 @@ describe('logging and plain routes', () => {
   it('never logs the key', async () => {
     const k = await newAgentKey(A, ['tasks:read'], { revoked: true })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    await get(mkApp(), '/tasks', bearer(k.key))
+    await get(mkApp(), '/api/v1/tasks', bearer(k.key))
     expect(warn).toHaveBeenCalledTimes(1)
     const args = warn.mock.calls[0]!
     expect(JSON.stringify(args)).not.toContain(k.key)
@@ -190,22 +191,22 @@ describe('logging and plain routes', () => {
 
 describe('bearer scheme ([[CORE3]] C11)', () => {
   it.each([['bearer'], ['BEARER'], ['Bearer  ']])('scheme %j is accepted', async (scheme) => {
-    const res = await get(mkApp(), '/tasks', { authorization: `${scheme}${scheme.endsWith(' ') ? '' : ' '}${agentA.key}` })
+    const res = await get(mkApp(), '/api/v1/tasks', { authorization: `${scheme}${scheme.endsWith(' ') ? '' : ' '}${agentA.key}` })
     expect(res.status).toBe(200)
   })
 
   it('accepts several spaces', async () => {
-    expect((await get(mkApp(), '/tasks', { authorization: `BEARER   ${agentA.key}` })).status).toBe(200)
+    expect((await get(mkApp(), '/api/v1/tasks', { authorization: `BEARER   ${agentA.key}` })).status).toBe(200)
   })
 
   it.each([['Basic x'], ['KEYALONE'], ['Bearer']])('%j is missing credentials', async (value) => {
-    const res = await get(mkApp(), '/tasks', { authorization: value })
+    const res = await get(mkApp(), '/api/v1/tasks', { authorization: value })
     expect(res.status).toBe(401)
     expect((await res.json()).error.message).toBe('missing bearer credentials')
   })
 
   it('an agent X-Organization-Id compares case-insensitively', async () => {
-    const res = await get(mkApp(), '/tasks', bearer(agentA.key, { 'x-organization-id': A.organizationId.toUpperCase() }))
+    const res = await get(mkApp(), '/api/v1/tasks', bearer(agentA.key, { 'x-organization-id': A.organizationId.toUpperCase() }))
     expect(res.status).toBe(200)
   })
 })
@@ -215,7 +216,7 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     authenticate.mockRejectedValue(new AuthFailure('expired'))
     const token = 'aaaaaaaaaaaa.b.c'
-    const res = await get(mkApp(), '/tasks', bearer(token))
+    const res = await get(mkApp(), '/api/v1/tasks', bearer(token))
     expect(res.status).toBe(401)
     expect(warn).toHaveBeenCalledTimes(1)
     const args = warn.mock.calls[0]!
@@ -227,7 +228,7 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
   it('a 409 is not logged by the middleware', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     authenticate.mockRejectedValue(new ApiError(409, 'account_conflict', 'x'))
-    const res = await get(mkApp(), '/tasks', bearer('a.b.c'))
+    const res = await get(mkApp(), '/api/v1/tasks', bearer('a.b.c'))
     expect(res.status).toBe(409)
     expect(warn).not.toHaveBeenCalled()
   })
@@ -236,7 +237,7 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
 
   it('the forbidden flag is 403 on a tenant route', async () => {
     authenticate.mockResolvedValue({ ...forbidden, actor: { id: A.userId, kind: 'user' } })
-    const res = await get(mkApp(), '/tasks', bearer('a.b.c'))
+    const res = await get(mkApp(), '/api/v1/tasks', bearer('a.b.c'))
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: { code: 'organization_forbidden', message: 'not a member of that organisation' } })
   })
@@ -245,6 +246,7 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
     authenticate.mockResolvedValue({ ...forbidden, actor: { id: A.userId, kind: 'user' } })
     const registry = new Registry().register({
       kind: 'account',
+      surface: 'meta',
       name: 'probe.acct',
       summary: 'Account probe',
       method: 'get',
@@ -253,6 +255,6 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
       prepare: () => defineOperation({ name: 'probe.acct', mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => ({ ok: true }) }) }),
     })
     const app = createApp({ registry, userAuthenticator: { authenticate }, storage: pgStorage(db) })
-    expect((await get(app, '/probe/acct', bearer('a.b.c'))).status).toBe(200)
+    expect((await get(app, '/meta/v1/probe/acct', bearer('a.b.c'))).status).toBe(200)
   })
 })

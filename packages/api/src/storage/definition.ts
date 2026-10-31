@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import { COLUMN_KINDS, checkEmbed, type EmbedSpec } from '@vault/storage'
 import type { ColumnOf, PreparedOperation, PublicColumn, PhysicalTable, QueryContext, Read, RowOf, Step, StorageDatabase, SyncHook, Table, ValueOf, Row } from '@vault/storage'
 import type { Actor } from '../auth/types.js'
+import type { Surface } from '../surfaces.js'
 import type { CrudAction, Filter } from '../resources/define.js'
 import type { ScopeSet } from '../scopes.js'
 
@@ -92,6 +93,8 @@ export type JoinFilter = Filter & { readonly where: (qc: QueryContext, value: un
  * Extension points are synchronous and DB-free: they return values or Kysely fragments and never run a query.
  */
 export interface PreparedResource<T extends CrudTable = CrudTable, R extends { id: string } = { id: string }> {
+  /** [[API32]] D1: which surface serves the definition's operations; required, no default. */
+  readonly surface: Surface
   readonly name: string
   readonly eventName: string
   readonly table: T

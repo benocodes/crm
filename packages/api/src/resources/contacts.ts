@@ -33,6 +33,7 @@ const update = create.partial()
 
 /** Contacts on the prepared path ([[CORE36]]): the company must be a live company of this organisation; delete tombstones the identities as a set. */
 export const contacts = definePreparedResource({
+  surface: 'api',
   name: 'contacts',
   eventName: 'contact',
   table: 'contacts',

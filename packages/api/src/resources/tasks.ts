@@ -58,6 +58,7 @@ const create = z.strictObject(fields)
 const update = create.partial()
 
 export const tasks = definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',

@@ -12,7 +12,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "First"
           },
@@ -59,7 +59,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "GET",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": null,
           "status": 200,
           "response": {
@@ -81,7 +81,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "GET",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": null,
           "status": 200,
           "response": {
@@ -114,7 +114,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "  Padded title  ",
             "notes": "n",
@@ -165,7 +165,7 @@
           "as": "agent",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "By the agent",
             "status": "open",
@@ -222,7 +222,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {},
           "status": 400,
           "response": {
@@ -237,7 +237,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": ""
           },
@@ -254,7 +254,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "x",
             "completed_at": "2026-10-22T09:00:00Z"
@@ -272,7 +272,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "x",
             "due_at": "2026-10-25"
@@ -290,7 +290,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "x",
             "status": "blocked"
@@ -308,7 +308,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "x",
             "assignee_id": "not-a-uuid"
@@ -326,7 +326,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "GET",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": null,
           "status": 200,
           "response": {
@@ -345,7 +345,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "Complete me"
           },
@@ -392,7 +392,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "status": "done"
           },
@@ -451,7 +451,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "status": "done",
             "notes": "again"
@@ -511,7 +511,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "title": "Renamed while done"
           },
@@ -570,7 +570,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "status": "open"
           },
@@ -629,7 +629,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "status": "open"
           },
@@ -688,7 +688,7 @@
           "as": "agent",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "status": "done"
           },
@@ -753,7 +753,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "Patch me",
             "notes": "keep",
@@ -803,7 +803,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {},
           "status": 200,
           "response": {
@@ -825,7 +825,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "title": "Patch me"
           },
@@ -884,7 +884,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "notes": null,
             "due_at": null,
@@ -945,7 +945,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "title": "x",
             "zz_unknown": 1
@@ -963,7 +963,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/0190b2c4-0000-7000-8000-00000000dead",
+          "path": "/api/v1/tasks/0190b2c4-0000-7000-8000-00000000dead",
           "request": {},
           "status": 404,
           "response": {
@@ -978,7 +978,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/not-a-uuid",
+          "path": "/api/v1/tasks/not-a-uuid",
           "request": {
             "title": "x"
           },
@@ -1001,7 +1001,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "Assign me"
           },
@@ -1048,7 +1048,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "Bad assignee",
             "assignee_id": "0190b2c4-0000-7000-8000-00000000dead"
@@ -1066,7 +1066,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "Foreign assignee",
             "assignee_id": "0190b2c4-0000-7000-8000-00000000b003"
@@ -1084,7 +1084,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "assignee_id": "0190b2c4-0000-7000-8000-00000000dead"
           },
@@ -1101,7 +1101,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "assignee_id": "0190b2c4-0000-7000-8000-00000000b003",
             "title": "Not applied"
@@ -1119,7 +1119,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/0190b2c4-0000-7000-8000-00000000dead",
+          "path": "/api/v1/tasks/0190b2c4-0000-7000-8000-00000000dead",
           "request": {
             "assignee_id": "0190b2c4-0000-7000-8000-00000000dead"
           },
@@ -1136,7 +1136,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "assignee_id": "0190b2c4-0000-7000-8000-00000000c001"
           },
@@ -1195,7 +1195,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "GET",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": null,
           "status": 200,
           "response": {
@@ -1223,7 +1223,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "Delete me"
           },
@@ -1270,7 +1270,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "Keep me"
           },
@@ -1317,7 +1317,7 @@
           "as": "agent",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "DELETE",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": null,
           "status": 204,
           "response": null,
@@ -1350,7 +1350,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "GET",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": null,
           "status": 404,
           "response": {
@@ -1365,7 +1365,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "PATCH",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": {
             "title": "x"
           },
@@ -1382,7 +1382,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "DELETE",
-          "path": "/tasks/{a}",
+          "path": "/api/v1/tasks/{a}",
           "request": null,
           "status": 404,
           "response": {
@@ -1397,7 +1397,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "DELETE",
-          "path": "/tasks/not-a-uuid",
+          "path": "/api/v1/tasks/not-a-uuid",
           "request": null,
           "status": 404,
           "response": {
@@ -1412,7 +1412,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "GET",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": null,
           "status": 200,
           "response": {
@@ -1445,7 +1445,7 @@
           "as": "user",
           "at": "2026-10-22T09:00:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "t1",
             "assignee_id": "0190b2c4-0000-7000-8000-00000000b002"
@@ -1493,7 +1493,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "t2",
             "status": "done"
@@ -1541,7 +1541,7 @@
           "as": "user",
           "at": "2026-10-22T09:02:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "t3",
             "assignee_id": "0190b2c4-0000-7000-8000-00000000b002",
@@ -1590,7 +1590,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "POST",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": {
             "title": "t4"
           },
@@ -1637,7 +1637,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "GET",
-          "path": "/tasks?limit=2",
+          "path": "/api/v1/tasks?limit=2",
           "request": null,
           "status": 200,
           "response": {
@@ -1677,7 +1677,7 @@
           "as": "user",
           "at": "2026-10-22T09:05:00.000Z",
           "method": "GET",
-          "path": "/tasks?limit=2&after={t2}",
+          "path": "/api/v1/tasks?limit=2&after={t2}",
           "request": null,
           "status": 200,
           "response": {
@@ -1717,7 +1717,7 @@
           "as": "user",
           "at": "2026-10-22T09:06:00.000Z",
           "method": "GET",
-          "path": "/tasks?status=done",
+          "path": "/api/v1/tasks?status=done",
           "request": null,
           "status": 200,
           "response": {
@@ -1757,7 +1757,7 @@
           "as": "user",
           "at": "2026-10-22T09:07:00.000Z",
           "method": "GET",
-          "path": "/tasks?assignee_id=0190b2c4-0000-7000-8000-00000000b002&status=done",
+          "path": "/api/v1/tasks?assignee_id=0190b2c4-0000-7000-8000-00000000b002&status=done",
           "request": null,
           "status": 200,
           "response": {
@@ -1784,7 +1784,7 @@
           "as": "user",
           "at": "2026-10-22T09:08:00.000Z",
           "method": "GET",
-          "path": "/tasks?status=blocked",
+          "path": "/api/v1/tasks?status=blocked",
           "request": null,
           "status": 400,
           "response": {
@@ -1799,7 +1799,7 @@
           "as": "user",
           "at": "2026-10-22T09:09:00.000Z",
           "method": "GET",
-          "path": "/tasks?limit=0",
+          "path": "/api/v1/tasks?limit=0",
           "request": null,
           "status": 400,
           "response": {
@@ -1814,7 +1814,7 @@
           "as": "user",
           "at": "2026-10-22T09:10:00.000Z",
           "method": "GET",
-          "path": "/tasks?limit=201",
+          "path": "/api/v1/tasks?limit=201",
           "request": null,
           "status": 400,
           "response": {
@@ -1829,7 +1829,7 @@
           "as": "user",
           "at": "2026-10-22T09:11:00.000Z",
           "method": "GET",
-          "path": "/tasks?after=nope",
+          "path": "/api/v1/tasks?after=nope",
           "request": null,
           "status": 400,
           "response": {
@@ -1844,7 +1844,7 @@
           "as": "user",
           "at": "2026-10-22T09:12:00.000Z",
           "method": "GET",
-          "path": "/tasks?title=t1",
+          "path": "/api/v1/tasks?title=t1",
           "request": null,
           "status": 400,
           "response": {

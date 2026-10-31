@@ -28,7 +28,7 @@ beforeEach(() => truncateAll(owner))
 
 const app = () => createApp({ storage: pgStorage(db) })
 const call = (key: string, method = 'GET', body?: unknown) =>
-  app().request('/tasks', { method, headers: { authorization: `Bearer ${key}` }, body: body ? JSON.stringify(body) : undefined })
+  app().request('/api/v1/tasks', { method, headers: { authorization: `Bearer ${key}` }, body: body ? JSON.stringify(body) : undefined })
 
 describe('bootstrap', () => {
   it('creates and authenticates', async () => {
@@ -122,7 +122,7 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
     const kit = await testClerkAdapter({ profiles: new Map([['user_b', clerkUser({ id: 'user_b', email: 'b@x.test' })]]) })
     const authed = createApp({ authAdapter: kit.adapter, storage: pgStorage(db) })
     // No organisation claim: a bootstrapped organisation is not linked to the provider, so /me is the check.
-    const res = await authed.request('/me', { headers: { authorization: `Bearer ${await mintClerkToken(kit.issuer, { sub: 'user_b' })}` } })
+    const res = await authed.request('/meta/v1/me', { headers: { authorization: `Bearer ${await mintClerkToken(kit.issuer, { sub: 'user_b' })}` } })
     expect(res.status).toBe(200)
     expect((await res.json()).memberships).toHaveLength(1)
     expect(kit.fetch.calls).toHaveLength(0)

@@ -28,6 +28,7 @@ interface FileFound {
 
 export const messagesContentOperation: TenantOperation = {
   kind: 'tenant',
+  surface: 'api',
   name: 'messages.content',
   summary: "Read a message's markdown content",
   tags: ['messages'],
@@ -78,6 +79,7 @@ export const messagesContentOperation: TenantOperation = {
 
 export const filesContentOperation: TenantOperation = {
   kind: 'tenant',
+  surface: 'api',
   name: 'files.content',
   summary: "Download a file's bytes",
   tags: ['files'],

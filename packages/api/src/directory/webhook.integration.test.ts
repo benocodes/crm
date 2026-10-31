@@ -109,8 +109,10 @@ describe('POST /webhooks/clerk', () => {
   })
 
   it('is not in the OpenAPI document', async () => {
-    const doc = (await (await k.app.request('/openapi.json')).json()) as { paths: Record<string, unknown> }
-    expect(Object.keys(doc.paths).some((p) => p.includes('webhooks'))).toBe(false)
+    for (const path of ['/api/v1/openapi.json', '/meta/v1/openapi.json']) {
+      const doc = (await (await k.app.request(path)).json()) as { paths: Record<string, unknown> }
+      expect(Object.keys(doc.paths).some((p) => p.includes('webhooks'))).toBe(false)
+    }
   })
 
   it('does not exist without an adapter', async () => {

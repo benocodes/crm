@@ -9,7 +9,7 @@ const mid = async (userId: string) =>
 describe('memberships (read-only: the directory sync is the only writer)', () => {
   it('lists', async () => {
     const t = await k.seedOrg()
-    const res = await k.call('/memberships', 'o', { org: t.organizationId })
+    const res = await k.call('/meta/v1/memberships', 'o', { org: t.organizationId })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.data).toHaveLength(2)
@@ -21,15 +21,15 @@ describe('memberships (read-only: the directory sync is the only writer)', () =>
 
   it('filters', async () => {
     const t = await k.seedOrg()
-    const byUser = await (await k.call(`/memberships?user_id=${t.memberId}`, 'o', { org: t.organizationId })).json()
+    const byUser = await (await k.call(`/meta/v1/memberships?user_id=${t.memberId}`, 'o', { org: t.organizationId })).json()
     expect(byUser.data.map((m: { user_id: string }) => m.user_id)).toEqual([t.memberId])
-    const byRole = await (await k.call('/memberships?role=owner', 'o', { org: t.organizationId })).json()
+    const byRole = await (await k.call('/meta/v1/memberships?role=owner', 'o', { org: t.organizationId })).json()
     expect(byRole.data.map((m: { user_id: string }) => m.user_id)).toEqual([t.ownerId])
   })
 
   it('a member reads one', async () => {
     const t = await k.seedOrg()
-    const res = await k.call(`/memberships/${await mid(t.ownerId)}`, 'm', { org: t.organizationId })
+    const res = await k.call(`/meta/v1/memberships/${await mid(t.ownerId)}`, 'm', { org: t.organizationId })
     expect(res.status).toBe(200)
     membershipRecord.parse(await res.json())
   })
@@ -38,7 +38,7 @@ describe('memberships (read-only: the directory sync is the only writer)', () =>
     const t = await k.seedOrg()
     const id = await mid(t.memberId)
     for (const [method, body] of [['PATCH', { role: 'owner' }], ['DELETE', undefined]] as const) {
-      const res = await k.call(`/memberships/${id}`, 'o', { method, org: t.organizationId, body })
+      const res = await k.call(`/meta/v1/memberships/${id}`, 'o', { method, org: t.organizationId, body })
       expect(res.status, method).toBe(404)
       expect((await res.json()).error.code).toBe('not_found')
     }

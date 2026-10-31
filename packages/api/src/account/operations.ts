@@ -59,6 +59,7 @@ export function accountOperations(): AccountOperation[] {
   return [
     {
       kind: 'account',
+      surface: 'meta',
       name: 'me.get',
       summary: 'Who am I: user, memberships and the active organisation',
       tags: ['account'],

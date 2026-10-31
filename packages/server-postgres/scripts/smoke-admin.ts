@@ -170,12 +170,14 @@ try {
   const tokO = await mint(owner.sub, { rol: 'org:admin' })
   const tokM = await mint(member.sub, { rol: 'org:member' })
 
-  await check('GET /openapi.json', { path: '/openapi.json' }, 200, (j) => {
-    const have = new Set(Object.values(j.paths).flatMap((p: any) => Object.values(p).map((o: any) => o.operationId)))
-    const missing = createVaultRegistry().operations().map((o) => o.name).filter((n) => !have.has(n))
-    return missing.length ? `missing ${missing.join(', ')}` : undefined
-  })
-  const me = await check('GET /me (owner, first sight, claim repairs the copy)', { path: '/me', token: tokO }, 200, (j) =>
+  for (const surface of ['api', 'meta'] as const) {
+    await check(`GET /${surface}/v1/openapi.json`, { path: `/${surface}/v1/openapi.json` }, 200, (j) => {
+      const have = new Set(Object.values(j.paths).flatMap((p: any) => Object.values(p).map((o: any) => o.operationId)))
+      const missing = createVaultRegistry().operations().filter((o) => o.surface === surface).map((o) => o.name).filter((n) => !have.has(n))
+      return missing.length ? `missing ${missing.join(', ')}` : undefined
+    })
+  }
+  const me = await check('GET /meta/v1/me (owner, first sight, claim repairs the copy)', { path: '/meta/v1/me', token: tokO }, 200, (j) =>
     eq(j.active_organization?.role, 'owner', 'role'),
   )
   const orgId = me.active_organization.id as string
@@ -184,13 +186,13 @@ try {
   clerkMembers.push({ role: 'org:member', public_user_data: { user_id: member.sub } })
   const created = `msg_${randomBytes(8).toString('hex')}`
   await webhook('organizationMembership.created (member who never signed in)', 'organizationMembership.created', membershipData(), 200, { id: created })
-  await check('GET /memberships (owner)', { path: '/memberships', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
-  await check('GET /users (owner)', { path: '/users', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
-  const users = await check('GET /users (owner, to find the member)', { path: '/users', token: tokO }, 200)
+  await check('GET /meta/v1/memberships (owner)', { path: '/meta/v1/memberships', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
+  await check('GET /meta/v1/users (owner)', { path: '/meta/v1/users', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
+  const users = await check('GET /meta/v1/users (owner, to find the member)', { path: '/meta/v1/users', token: tokO }, 200)
   const memberUser = users.data.find((u: { email: string }) => u.email === member.email)
-  await check('GET /users/{id} (member who never signed in)', { path: `/users/${memberUser?.id}`, token: tokO }, 200, (j) => eq(j.email, member.email, 'email'))
-  await check('GET /users/nope', { path: '/users/nope', token: tokO }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
-  await check('GET /memberships (member, first sign-in)', { path: '/memberships', token: tokM }, 200, (j) => eq(j.data.length, 2, 'count'))
+  await check('GET /meta/v1/users/{id} (member who never signed in)', { path: `/meta/v1/users/${memberUser?.id}`, token: tokO }, 200, (j) => eq(j.email, member.email, 'email'))
+  await check('GET /meta/v1/users/nope', { path: '/meta/v1/users/nope', token: tokO }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
+  await check('GET /meta/v1/memberships (member, first sign-in)', { path: '/meta/v1/memberships', token: tokM }, 200, (j) => eq(j.data.length, 2, 'count'))
   const before = await events(orgId)
   await webhook('replayed delivery', 'organizationMembership.created', membershipData(), 200, { id: created })
   const after = await events(orgId)
@@ -198,42 +200,42 @@ try {
   if (replayed) failures++
   console.log(`${replayed ? 'FAIL' : 'ok  '} replay adds no events${replayed ? ` (${replayed})` : ''}`)
 
-  await check('POST /agents (member)', { path: '/agents', method: 'POST', token: tokM, body: { name: 'Bot', scopes: [] } }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
-  await check('POST /agents (human-only scope)', { path: '/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['members:read'] } }, 400, (j) => eq(j.error.code, 'scope_not_grantable', 'code'))
-  await check('POST /agents (unknown scope)', { path: '/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['nope:read'] } }, 400, (j) => eq(j.error.code, 'unknown_scope', 'code'))
-  const agent = await check('POST /agents', { path: '/agents', method: 'POST', token: tokO, body: { name: `Bot ${rand}`, scopes: ['tasks:read', 'tasks:write'] } }, 201)
-  const made = await check('POST /api-keys', { path: '/api-keys', method: 'POST', token: tokO, body: { agent_id: agent.id } }, 201, (j) => (typeof j.key === 'string' && j.key.startsWith('vk_') ? undefined : 'no key'))
+  await check('POST /meta/v1/agents (member)', { path: '/meta/v1/agents', method: 'POST', token: tokM, body: { name: 'Bot', scopes: [] } }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
+  await check('POST /meta/v1/agents (human-only scope)', { path: '/meta/v1/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['members:read'] } }, 400, (j) => eq(j.error.code, 'scope_not_grantable', 'code'))
+  await check('POST /meta/v1/agents (unknown scope)', { path: '/meta/v1/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['nope:read'] } }, 400, (j) => eq(j.error.code, 'unknown_scope', 'code'))
+  const agent = await check('POST /meta/v1/agents', { path: '/meta/v1/agents', method: 'POST', token: tokO, body: { name: `Bot ${rand}`, scopes: ['tasks:read', 'tasks:write'] } }, 201)
+  const made = await check('POST /meta/v1/api-keys', { path: '/meta/v1/api-keys', method: 'POST', token: tokO, body: { agent_id: agent.id } }, 201, (j) => (typeof j.key === 'string' && j.key.startsWith('vk_') ? undefined : 'no key'))
   // CORE41 D17: the key's own use stamps last_used_at (through authenticateApiKey on storage) and leaves updated_at alone.
-  const unused = await check('GET /api-keys/{id} (before use)', { path: `/api-keys/${made.id}`, token: tokO }, 200, (j) => (j.last_used_at === null ? undefined : 'last_used_at already set'))
-  await check('GET /tasks (agent key)', { path: '/tasks', token: made.key }, 200)
-  await check('GET /api-keys/{id} (after use: last_used_at set, updated_at unchanged)', { path: `/api-keys/${made.id}`, token: tokO }, 200, (j) =>
+  const unused = await check('GET /meta/v1/api-keys/{id} (before use)', { path: `/meta/v1/api-keys/${made.id}`, token: tokO }, 200, (j) => (j.last_used_at === null ? undefined : 'last_used_at already set'))
+  await check('GET /api/v1/tasks (agent key)', { path: '/api/v1/tasks', token: made.key }, 200)
+  await check('GET /meta/v1/api-keys/{id} (after use: last_used_at set, updated_at unchanged)', { path: `/meta/v1/api-keys/${made.id}`, token: tokO }, 200, (j) =>
     j.last_used_at ? eq(j.updated_at, unused.updated_at, 'updated_at') : 'last_used_at unset',
   )
-  await check('GET /agents (agent key)', { path: '/agents', token: made.key }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
+  await check('GET /meta/v1/agents (agent key)', { path: '/meta/v1/agents', token: made.key }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
   const keyBody = await fetch(`${base}/api-keys?agent_id=${agent.id}`, { headers: { authorization: `Bearer ${tokO}` } })
   const keyText = await keyBody.text()
   const leaked = keyBody.status !== 200 || /"key"|key_hash/.test(keyText)
   if (leaked) failures++
-  console.log(`${leaked ? 'FAIL' : 'ok  '} GET /api-keys?agent_id= -> ${keyBody.status} (no key or key_hash in the body)`)
+  console.log(`${leaked ? 'FAIL' : 'ok  '} GET /meta/v1/api-keys?agent_id= -> ${keyBody.status} (no key or key_hash in the body)`)
 
-  await check('PATCH /agents/{id} (disable)', { path: `/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: true } }, 200, (j) => (j.disabled_at ? undefined : 'disabled_at unset'))
-  await check('GET /tasks (agent key, disabled)', { path: '/tasks', token: made.key }, 401)
-  await check('PATCH /agents/{id} (enable)', { path: `/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: false } }, 200)
-  await check('GET /tasks (agent key, enabled)', { path: '/tasks', token: made.key }, 200)
-  const revoked = await check('POST /api-keys/{id}/revoke', { path: `/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => (j.revoked_at ? undefined : 'revoked_at unset'))
+  await check('PATCH /meta/v1/agents/{id} (disable)', { path: `/meta/v1/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: true } }, 200, (j) => (j.disabled_at ? undefined : 'disabled_at unset'))
+  await check('GET /api/v1/tasks (agent key, disabled)', { path: '/api/v1/tasks', token: made.key }, 401)
+  await check('PATCH /meta/v1/agents/{id} (enable)', { path: `/meta/v1/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: false } }, 200)
+  await check('GET /api/v1/tasks (agent key, enabled)', { path: '/api/v1/tasks', token: made.key }, 200)
+  const revoked = await check('POST /meta/v1/api-keys/{id}/revoke', { path: `/meta/v1/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => (j.revoked_at ? undefined : 'revoked_at unset'))
   const stamped = eq(revoked.updated_at, revoked.revoked_at, 'updated_at moves with revoked_at')
   if (stamped) failures++
   console.log(`${stamped ? 'FAIL' : 'ok  '} revoke stamps updated_at with revoked_at${stamped ? ` (${stamped})` : ''}`)
-  await check('GET /tasks (agent key, revoked)', { path: '/tasks', token: made.key }, 401)
-  await check('POST /api-keys/{id}/revoke (again)', { path: `/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => eq(j.revoked_at, revoked.revoked_at, 'revoked_at'))
+  await check('GET /api/v1/tasks (agent key, revoked)', { path: '/api/v1/tasks', token: made.key }, 401)
+  await check('POST /meta/v1/api-keys/{id}/revoke (again)', { path: `/meta/v1/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => eq(j.revoked_at, revoked.revoked_at, 'revoked_at'))
 
   clerkMembers[1]!.role = 'org:admin'
   await webhook('organizationMembership.updated (member becomes admin)', 'organizationMembership.updated', membershipData())
-  await check('GET /memberships?role=owner', { path: '/memberships?role=owner', token: tokO }, 200, (j) => eq(j.data.length, 2, 'owners'))
+  await check('GET /meta/v1/memberships?role=owner', { path: '/meta/v1/memberships?role=owner', token: tokO }, 200, (j) => eq(j.data.length, 2, 'owners'))
   clerkMembers.pop()
   await webhook('organizationMembership.deleted (member removed)', 'organizationMembership.deleted', membershipData())
-  await check('GET /memberships (one left)', { path: '/memberships', token: tokO }, 200, (j) => eq(j.data.length, 1, 'count'))
-  await check('GET /tasks (removed member, token without the organisation)', { path: '/tasks', token: await mint(member.sub) }, 403, (j) =>
+  await check('GET /meta/v1/memberships (one left)', { path: '/meta/v1/memberships', token: tokO }, 200, (j) => eq(j.data.length, 1, 'count'))
+  await check('GET /api/v1/tasks (removed member, token without the organisation)', { path: '/api/v1/tasks', token: await mint(member.sub) }, 403, (j) =>
     eq(j.error.code, 'organization_required', 'code'),
   )
 

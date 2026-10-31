@@ -9,6 +9,7 @@ import { parseScope } from './scopes.js'
 const op = (over: Partial<Operation> = {}): Operation =>
   ({
     kind: 'tenant',
+    surface: 'api',
     name: 'probe.one',
     summary: 'One',
     method: 'get',
@@ -73,7 +74,7 @@ describe('Registry.register', () => {
   })
   it('rejects duplicates', () => {
     expect(() => new Registry().register(op()).register(op({ path: '/y' }))).toThrow('duplicate operation probe.one')
-    expect(() => new Registry().register(op()).register(op({ name: 'probe.two' }))).toThrow('duplicate route GET /x')
+    expect(() => new Registry().register(op()).register(op({ name: 'probe.two' }))).toThrow('duplicate route GET /api/v1/x')
   })
   it('enforces the response schema rule', () => {
     expect(() => new Registry().register(op({ response: { status: 200 } }))).toThrow()
@@ -98,6 +99,7 @@ describe('Registry.register', () => {
   it('declaredScopes lists tenant scopes only', () => {
     const r = new Registry().registerResource(tasks).register({
       kind: 'account',
+      surface: 'meta',
       name: 'account.whoami',
       summary: 'Who am I',
       method: 'get',

@@ -24,6 +24,7 @@ const registry = new Registry()
   .registerResource(seededViews)
   .register({
     kind: 'tenant',
+    surface: 'api',
     name: 'posted_views.create',
     summary: 'Hand-written create',
     method: 'post',
@@ -34,19 +35,19 @@ const registry = new Registry()
   })
 const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
-  task_views: { make: (kit) => kit.post('/tasks', { title: 'v' }) },
+  task_views: { make: (kit) => kit.post('/api/v1/tasks', { title: 'v' }) },
   assigned_tasks: {
     // The builder names the tenant's own user: the reference check only passes in the right org.
     input: async (kit) => ({ title: 'x', assignee_id: kit.tenant.userId }),
     patch: async () => ({ title: 'Renamed' }),
   },
-  posted_views: { make: (kit) => kit.post('/tasks', { title: 'p' }), handwritten: ['create'] },
+  posted_views: { make: (kit) => kit.post('/api/v1/tasks', { title: 'p' }), handwritten: ['create'] },
   seeded_views: {
     async make(kit) {
       const m = await kit.seedMember()
       expect(m.userId).toMatch(/^[0-9a-f-]{36}$/)
       expect(m.membershipId).toMatch(/^[0-9a-f-]{36}$/)
-      return kit.post('/tasks', { title: 's' })
+      return kit.post('/api/v1/tasks', { title: 's' })
     },
   },
 }
@@ -67,9 +68,9 @@ describe('suite shape', () => {
   })
   it('documents read-only definitions without write routes', async () => {
     const app = createApp({ storage: coldStorage(), registry })
-    const d = (await (await app.request('/openapi.json')).json()) as any
-    expect(Object.keys(d.paths['/task-views'])).toEqual(['get'])
-    expect(Object.keys(d.paths['/task-views/{id}'])).toEqual(['get'])
+    const d = (await (await app.request('/api/v1/openapi.json')).json()) as any
+    expect(Object.keys(d.paths['/api/v1/task-views'])).toEqual(['get'])
+    expect(Object.keys(d.paths['/api/v1/task-views/{id}'])).toEqual(['get'])
   })
   it('fails the catalog check on a missing fixture', () => {
     expect(() => assertFixturesCoverRegistry(new Registry().registerResource(tasks), {})).toThrow(/tasks/)

@@ -1,5 +1,6 @@
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import type { Operation } from '../registry.js'
+import { fullPath } from '../surfaces.js'
 import type { AppEnv } from './app.js'
 
 /** `/tasks/{id}` -> `/tasks/:id`. */
@@ -11,7 +12,7 @@ export function documentOperation(app: OpenAPIHono<AppEnv>, op: Operation): void
   const json = (schema: unknown) => ({ content: { 'application/json': { schema } } })
   app.openAPIRegistry.registerPath({
     method: op.method,
-    path: op.path,
+    path: fullPath(op),
     operationId: op.name,
     summary: op.summary,
     description: op.description,

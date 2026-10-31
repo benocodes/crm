@@ -18,7 +18,7 @@
           },
           "at": "2026-10-22T09:00:00.000Z",
           "method": "GET",
-          "path": "/tasks",
+          "path": "/api/v1/tasks",
           "request": null,
           "status": 200,
           "response": {
@@ -163,7 +163,7 @@
           "as": "user",
           "at": "2026-10-22T09:03:00.000Z",
           "method": "GET",
-          "path": "/memberships",
+          "path": "/meta/v1/memberships",
           "request": null,
           "status": 200,
           "response": {
@@ -204,7 +204,7 @@
           "as": "user",
           "at": "2026-10-22T09:04:00.000Z",
           "method": "GET",
-          "path": "/users",
+          "path": "/meta/v1/users",
           "request": null,
           "status": 200,
           "response": {
@@ -310,7 +310,7 @@
           "as": "user",
           "at": "2026-10-22T09:01:00.000Z",
           "method": "GET",
-          "path": "/users/0190b2c4-0000-7000-8000-00000000b001",
+          "path": "/meta/v1/users/0190b2c4-0000-7000-8000-00000000b001",
           "request": null,
           "status": 200,
           "response": {

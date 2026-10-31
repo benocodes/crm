@@ -43,9 +43,9 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
   })
 
   it.each([
-    ['GET /tasks with a key-shaped bearer', 'GET', '/tasks', { authorization: 'Bearer vk_anything' }],
-    ['GET /tasks with a JWT-shaped bearer', 'GET', '/tasks', { authorization: 'Bearer a.b.c' }],
-    ['GET /tasks with no credentials', 'GET', '/tasks', {}],
+    ['GET /api/v1/tasks with a key-shaped bearer', 'GET', '/api/v1/tasks', { authorization: 'Bearer vk_anything' }],
+    ['GET /api/v1/tasks with a JWT-shaped bearer', 'GET', '/api/v1/tasks', { authorization: 'Bearer a.b.c' }],
+    ['GET /api/v1/tasks with no credentials', 'GET', '/api/v1/tasks', {}],
     ['POST /webhooks/clerk', 'POST', '/webhooks/clerk', {}],
   ])('%s is 503 not_initialised and no unit runs', async (_n, method, path, headers) => {
     const spy = spyD1(w.d1)
@@ -57,24 +57,35 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
     expect(kit.fetch.calls).toEqual([])
   })
 
-  it('GET /openapi.json is served', async () => {
-    const res = await get(composeD1Worker(noAuth()), '/openapi.json')
+  it.each([
+    ['/api/v1/openapi.json', 'Vault records API'],
+    ['/meta/v1/openapi.json', 'Vault meta API'],
+  ])('GET %s is served before initialisation', async (path, title) => {
+    const res = await get(composeD1Worker(noAuth()), path)
     expect(res.status).toBe(200)
-    expect(((await res.json()) as { openapi: string }).openapi).toBe('3.1.0')
+    const doc = (await res.json()) as { openapi: string; info: { title: string } }
+    expect(doc.openapi).toBe('3.1.0')
+    expect(doc.info.title).toBe(title)
+  })
+
+  it('the old root /openapi.json is no longer exempt: 503 not_initialised before initialisation', async () => {
+    const res = await get(composeD1Worker(noAuth()), '/openapi.json')
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual(NOT_INITIALISED)
   })
 
   it('a marker written after an earlier 503 is picked up by the next request of the same isolate', async () => {
     const worker = composeD1Worker(noAuth())
-    expect((await get(worker, '/tasks', bearer('vk_x'))).status).toBe(503)
+    expect((await get(worker, '/api/v1/tasks', bearer('vk_x'))).status).toBe(503)
     const r = await boot()
-    expect((await get(worker, '/tasks', bearer(r.key))).status).toBe(200)
+    expect((await get(worker, '/api/v1/tasks', bearer(r.key))).status).toBe(200)
   })
 })
 
 describe('after bootstrap', () => {
   it('serves the app', async () => {
     const r = await boot()
-    const res = await get(composeD1Worker(noAuth()), '/tasks', bearer(r.key))
+    const res = await get(composeD1Worker(noAuth()), '/api/v1/tasks', bearer(r.key))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ data: [], next_cursor: null })
   })
@@ -84,8 +95,8 @@ describe('after bootstrap', () => {
     const spy = spyD1(w.d1)
     spy.log.clear()
     const worker = composeD1Worker({ DB: spy.d1, AUTH_PROVIDER: '' })
-    await get(worker, '/tasks', bearer(r.key))
-    await get(worker, '/tasks', bearer(r.key))
+    await get(worker, '/api/v1/tasks', bearer(r.key))
+    await get(worker, '/api/v1/tasks', bearer(r.key))
     expect(spy.log.statements.filter((s) => /from "?deployment"?/i.test(s))).toHaveLength(1)
   })
 
@@ -109,15 +120,15 @@ describe('after bootstrap', () => {
   it('with AUTH_PROVIDER empty a key works and a JWT-shaped token is 401', async () => {
     const r = await boot()
     const worker = composeD1Worker(noAuth())
-    expect((await get(worker, '/tasks', bearer(r.key))).status).toBe(200)
-    expect((await get(worker, '/tasks', bearer('a.b.c'))).status).toBe(401)
+    expect((await get(worker, '/api/v1/tasks', bearer(r.key))).status).toBe(200)
+    expect((await get(worker, '/api/v1/tasks', bearer('a.b.c'))).status).toBe(401)
   })
 
   it('answers a CORS preflight for an allowed origin', async () => {
     await boot()
     const origin = 'https://pane.test.example'
     const worker = composeD1Worker(noAuth({ CORS_ALLOWED_ORIGINS: origin }))
-    const res = await worker.fetch(new Request(BASE + '/tasks', { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' } }))
+    const res = await worker.fetch(new Request(BASE + '/api/v1/tasks', { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' } }))
     expect(res.headers.get('access-control-allow-origin')).toBe(origin)
   })
 
@@ -139,7 +150,7 @@ describe('after bootstrap', () => {
     await boot({ authSubject: 'user_owner' })
     const worker = composeD1Worker(withClerk(), { fetch: kit.fetch })
     const token = await mintClerkToken(kit.issuer, { sub: 'user_owner', extra: orgClaim('org_other') })
-    const res = await get(worker, '/me', bearer(token))
+    const res = await get(worker, '/meta/v1/me', bearer(token))
     expect(res.status).toBe(403)
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('organization_forbidden')
     expect(kit.fetch.calls).toEqual([])
@@ -153,7 +164,7 @@ describe('a misconfigured auth provider (D12)', () => {
     const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
     const env = withClerk({ CLERK_JWT_KEY: undefined, CLERK_SECRET_KEY: SECRET })
     const worker = composeD1Worker(env, { fetch: kit.fetch })
-    for (const path of ['/tasks', '/openapi.json', '/me']) {
+    for (const path of ['/api/v1/tasks', '/api/v1/openapi.json', '/meta/v1/openapi.json', '/meta/v1/me']) {
       const res = await get(worker, path, bearer('vk_x'))
       expect(res.status).toBe(500)
       expect(((await res.json()) as { error: { code: string } }).error.code).toBe('internal')
@@ -193,15 +204,15 @@ describe('the none:smoked1 marker (OPS4 D18)', () => {
   it('serves agents by key and nobody by JWT; the owner has no login', async () => {
     const r = await smoked()
     const worker = composeD1Worker(noAuth())
-    const list = await get(worker, '/tasks', bearer(r.key))
+    const list = await get(worker, '/api/v1/tasks', bearer(r.key))
     expect(list.status).toBe(200)
     expect(await list.json()).toEqual({ data: [], next_cursor: null })
-    expect((await get(worker, '/tasks', bearer('a.b.c'))).status).toBe(401)
-    expect((await get(worker, '/tasks')).status).toBe(401)
-    const created = await worker.fetch(new Request(BASE + '/tasks', { method: 'POST', headers: { ...bearer(r.key), 'content-type': 'application/json' }, body: JSON.stringify({ title: 't' }) }))
+    expect((await get(worker, '/api/v1/tasks', bearer('a.b.c'))).status).toBe(401)
+    expect((await get(worker, '/api/v1/tasks')).status).toBe(401)
+    const created = await worker.fetch(new Request(BASE + '/api/v1/tasks', { method: 'POST', headers: { ...bearer(r.key), 'content-type': 'application/json' }, body: JSON.stringify({ title: 't' }) }))
     expect(created.status).toBe(201)
     const { id } = (await created.json()) as { id: string }
-    const del = await worker.fetch(new Request(BASE + `/tasks/${id}`, { method: 'DELETE', headers: bearer(r.key) }))
+    const del = await worker.fetch(new Request(BASE + `/api/v1/tasks/${id}`, { method: 'DELETE', headers: bearer(r.key) }))
     expect(del.status).toBe(204)
     const [marker] = (await w.d1.prepare('select auth_provider, auth_org_id from deployment').all()).results as Array<Record<string, unknown>>
     expect(marker).toEqual({ auth_provider: 'none', auth_org_id: 'smoked1' })
@@ -214,7 +225,7 @@ describe('the none:smoked1 marker (OPS4 D18)', () => {
     const before = (await w.d1.prepare('select count(*) c from users').first()) as { c: number }
     const worker = composeD1Worker(withClerk(), { fetch: kit.fetch })
     const token = await mintClerkToken(kit.issuer, { sub: 'user_x', extra: orgClaim('smoked1') })
-    const res = await get(worker, '/me', bearer(token))
+    const res = await get(worker, '/meta/v1/me', bearer(token))
     expect(res.status).toBe(403)
     const after = (await w.d1.prepare('select count(*) c from users').first()) as { c: number }
     expect(after.c).toBe(before.c)
@@ -240,7 +251,7 @@ describe('message content through BODIES (CORE58 P12)', () => {
     const { key, c } = await seed()
     const bucket = fakeR2Bucket()
     await bucket.put(messageBodyKey(c.contentKey!, 1), '# Hello')
-    const res = await get(composeD1Worker(noAuth({ BODIES: bucket })), `/messages/${c.messageId}/content`, bearer(key))
+    const res = await get(composeD1Worker(noAuth({ BODIES: bucket })), `/api/v1/messages/${c.messageId}/content`, bearer(key))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ content_type: 'text/markdown', content: '# Hello', version: 1 })
     expect(bucket.gets).toEqual([messageBodyKey(c.contentKey!, 1)])
@@ -249,9 +260,9 @@ describe('message content through BODIES (CORE58 P12)', () => {
   it('without BODIES the content route is 503 and the rest works', async () => {
     const { key, c } = await seed()
     const worker = composeD1Worker(noAuth())
-    const res = await get(worker, `/messages/${c.messageId}/content`, bearer(key))
+    const res = await get(worker, `/api/v1/messages/${c.messageId}/content`, bearer(key))
     expect(res.status).toBe(503)
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('objects_unavailable')
-    expect((await get(worker, '/tasks', bearer(key))).status).toBe(200)
+    expect((await get(worker, '/api/v1/tasks', bearer(key))).status).toBe(200)
   })
 })

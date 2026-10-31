@@ -71,31 +71,37 @@ describe('/health.migrations (D3)', () => {
 describe('the behind gate (D4)', () => {
   it('behind and the marker absent: 503 migrations_pending, not not_initialised', async () => {
     await tracker(NAMES.slice(0, -1))
-    const res = await get(composeD1Worker(env()), '/tasks', { authorization: 'Bearer vk_x' })
+    const res = await get(composeD1Worker(env()), '/api/v1/tasks', { authorization: 'Bearer vk_x' })
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual(PENDING)
   })
   it('behind and a broken auth configuration: 503 migrations_pending, not 500', async () => {
     await tracker(NAMES.slice(0, -1))
-    const res = await get(composeD1Worker(env({ AUTH_PROVIDER: 'clerk' })), '/tasks')
+    const res = await get(composeD1Worker(env({ AUTH_PROVIDER: 'clerk' })), '/api/v1/tasks')
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual(PENDING)
   })
-  it('behind and initialised: every route but /health and /openapi.json is refused, and no unit runs', async () => {
+  it('behind and initialised: every route but /health and the two OpenAPI documents is refused, and no unit runs', async () => {
     const r = await boot()
     await tracker(NAMES.slice(0, -1))
     const spy = spyD1(w.d1)
     const worker = composeD1Worker(env({ DB: spy.d1 }))
-    for (const [method, path] of [['GET', '/tasks'], ['POST', '/tasks'], ['POST', '/webhooks/clerk']] as const) {
+    for (const [method, path] of [['GET', '/api/v1/tasks'], ['POST', '/api/v1/tasks'], ['POST', '/webhooks/clerk']] as const) {
       const res = await worker.fetch(new Request(BASE + path, { method, headers: { authorization: `Bearer ${r.key}` }, body: method === 'POST' ? '{}' : undefined }))
       expect(res.status).toBe(503)
       expect(await res.json()).toEqual(PENDING)
     }
     expect(spy.log.statements.filter((s) => /^\s*(insert|update|delete)/i.test(s))).toEqual([])
     expect((await get(worker, '/health')).status).toBe(200)
-    const spec = await get(worker, '/openapi.json')
-    expect(spec.status).toBe(200)
-    expect(((await spec.json()) as { openapi: string }).openapi).toBe('3.1.0')
+    for (const path of ['/api/v1/openapi.json', '/meta/v1/openapi.json']) {
+      const spec = await get(worker, path)
+      expect(spec.status).toBe(200)
+      expect(((await spec.json()) as { openapi: string }).openapi).toBe('3.1.0')
+    }
+    // The old root document is not exempt: it is an unknown path, refused by the gate like any other.
+    const root = await get(worker, '/openapi.json')
+    expect(root.status).toBe(503)
+    expect(await root.json()).toEqual(PENDING)
   })
   it.each([
     ['ahead', [...NAMES, '9999_future.sql'] as string[] | null],
@@ -104,8 +110,21 @@ describe('the behind gate (D4)', () => {
   ])('%s serves normally', async (_n, names) => {
     const r = await boot()
     if (names) await tracker(names)
-    const res = await get(composeD1Worker(env()), '/tasks', { authorization: `Bearer ${r.key}` })
+    const res = await get(composeD1Worker(env()), '/api/v1/tasks', { authorization: `Bearer ${r.key}` })
     expect(res.status).toBe(200)
+  })
+  it('initialised and current: the old root /openapi.json is 404 not_found, the two documents are served', async () => {
+    await boot()
+    await tracker(NAMES)
+    const worker = composeD1Worker(env())
+    const root = await get(worker, '/openapi.json')
+    expect(root.status).toBe(404)
+    expect(((await root.json()) as { error: { code: string } }).error.code).toBe('not_found')
+    for (const [path, title] of [['/api/v1/openapi.json', 'Vault records API'], ['/meta/v1/openapi.json', 'Vault meta API']] as const) {
+      const doc = await get(worker, path)
+      expect(doc.status).toBe(200)
+      expect(((await doc.json()) as { info: { title: string } }).info.title).toBe(title)
+    }
   })
 })
 
@@ -125,10 +144,11 @@ describe('a database with no marker table and no tracker (edge)', () => {
   })
   it('other routes are 503 not_initialised, openapi still served', async () => {
     const worker = composeD1Worker({ DB: d1, AUTH_PROVIDER: '' })
-    const res = await get(worker, '/tasks', { authorization: 'Bearer vk_x' })
+    const res = await get(worker, '/api/v1/tasks', { authorization: 'Bearer vk_x' })
     expect(res.status).toBe(503)
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('not_initialised')
-    expect((await get(worker, '/openapi.json')).status).toBe(200)
+    expect((await get(worker, '/api/v1/openapi.json')).status).toBe(200)
+    expect((await get(worker, '/meta/v1/openapi.json')).status).toBe(200)
   })
 })
 
@@ -144,13 +164,13 @@ describe('the per-isolate cache (D6)', () => {
     t = 1_000_000
     const worker = composeD1Worker(env({ DB: spy.d1 }), { nowMs: clock })
     const auth = { authorization: `Bearer ${r.key}` }
-    expect((await get(worker, '/tasks', auth)).status).toBe(503)
+    expect((await get(worker, '/api/v1/tasks', auth)).status).toBe(503)
     await recordMigrations(w.d1, [LAST])
     t += 4_000
-    expect((await get(worker, '/tasks', auth)).status).toBe(503)
+    expect((await get(worker, '/api/v1/tasks', auth)).status).toBe(503)
     expect(reads(spy.log.statements)).toBe(1)
     t += 1_000
-    expect((await get(worker, '/tasks', auth)).status).toBe(200)
+    expect((await get(worker, '/api/v1/tasks', auth)).status).toBe(200)
     expect(reads(spy.log.statements)).toBe(2)
   })
   it('current is read once and never again', async () => {

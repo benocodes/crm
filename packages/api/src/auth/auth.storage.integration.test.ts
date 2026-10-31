@@ -104,7 +104,7 @@ describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
     it('authenticates a request through the app and stamps the key', async () => {
       await e.update('agents', e.agentId, { scopes: ['tasks:read'] })
       const { key, id } = await seedKey()
-      const res = await kit.keyCall('/tasks', key)
+      const res = await kit.keyCall('/api/v1/tasks', key)
       expect(res.status).toBe(200)
       expect((await row('api_keys', id)).last_used_at).toBe(NOW.toISOString())
     })
@@ -112,7 +112,7 @@ describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
     it('a refused key is 401 and logs neither the key past 8 characters nor its hash', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const revoked = await seedKey({ revoked_at: iso(-10) })
-      const res = await kit.keyCall('/tasks', revoked.key)
+      const res = await kit.keyCall('/api/v1/tasks', revoked.key)
       expect(res.status).toBe(401)
       const body = (await res.json()) as { error: { code: string; message: string } }
       expect(body.error).toEqual({ code: 'unauthenticated', message: 'invalid or expired credentials' })
@@ -243,7 +243,7 @@ describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
   describe('D19: one organisation per D1', () => {
     if (name === 'd1') {
       it('a token claiming another organisation is 403 before any fetch or unit (D1)', async () => {
-        const res = await kit.call('/tasks', 'user_stranger', { claim: { id: 'org_somewhere_else', rol: 'admin' } })
+        const res = await kit.call('/api/v1/tasks', 'user_stranger', { claim: { id: 'org_somewhere_else', rol: 'admin' } })
         expect(res.status).toBe(403)
         expect(((await res.json()) as { error: { code: string } }).error.code).toBe('organization_forbidden')
         expect(kit.clerk.fetch.calls).toEqual([])
@@ -252,12 +252,12 @@ describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
       })
 
       it('sign-in with no claim lists local memberships only; a tenant operation is 403 organization_required (D1)', async () => {
-        const me = await kit.call('/me', e.userSubject)
+        const me = await kit.call('/meta/v1/me', e.userSubject)
         expect(me.status).toBe(200)
         const body = (await me.json()) as { memberships: Array<{ organization_id: string }>; active_organization: unknown }
         expect(body.memberships.map((m) => m.organization_id)).toEqual([e.organizationId])
         expect(body.active_organization).toBeNull()
-        const tasks = await kit.call('/tasks', e.userSubject)
+        const tasks = await kit.call('/api/v1/tasks', e.userSubject)
         expect(tasks.status).toBe(403)
         expect(((await tasks.json()) as { error: { code: string } }).error.code).toBe('organization_required')
       })
@@ -265,7 +265,7 @@ describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
       it('Postgres admits a claim for another provider organisation (it is multi-tenant): D19 is a D1 rule', async () => {
         kit.profile('user_stranger')
         kit.clerk.organizations.set('org_elsewhere', { id: 'org_elsewhere', name: 'Elsewhere' } as never)
-        const res = await kit.call('/tasks', 'user_stranger', { claim: { id: 'org_elsewhere', rol: 'admin' } })
+        const res = await kit.call('/api/v1/tasks', 'user_stranger', { claim: { id: 'org_elsewhere', rol: 'admin' } })
         expect(res.status).toBe(200)
       })
     }
@@ -273,7 +273,7 @@ describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
 
   describe('me.get', () => {
     it('answers the user, the memberships ordered by name and the active organisation with its scopes', async () => {
-      const res = await kit.call('/me', e.userSubject, { claim: { id: e.authOrgId, rol: 'admin' } })
+      const res = await kit.call('/meta/v1/me', e.userSubject, { claim: { id: e.authOrgId, rol: 'admin' } })
       expect(res.status).toBe(200)
       const body = (await res.json()) as any
       const user = (await e.rows('users')).find((u) => u.id === e.userId)!
@@ -290,7 +290,7 @@ describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
       it('lists every organisation the user belongs to (Postgres)', async () => {
         const other = await e.insert('organizations', { name: 'Alpha', auth_provider: 'clerk', auth_org_id: 'org_alpha' })
         await e.insert('memberships', { organization_id: other.id, user_id: e.userId, role: 'member', created_by: e.userId })
-        const body = (await (await kit.call('/me', e.userSubject, { claim: { id: e.authOrgId, rol: 'admin' } })).json()) as any
+        const body = (await (await kit.call('/meta/v1/me', e.userSubject, { claim: { id: e.authOrgId, rol: 'admin' } })).json()) as any
         expect(body.memberships.map((m: any) => m.organization_name)).toEqual(['Alpha', 'Engine org'])
       })
     }
@@ -298,7 +298,7 @@ describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
     it('an agent is refused 403 user_required', async () => {
       await e.update('agents', e.agentId, { scopes: ['tasks:read'] })
       const { key } = await seedKey()
-      const res = await kit.keyCall('/me', key)
+      const res = await kit.keyCall('/meta/v1/me', key)
       expect(res.status).toBe(403)
       expect(((await res.json()) as { error: { code: string } }).error.code).toBe('user_required')
     })

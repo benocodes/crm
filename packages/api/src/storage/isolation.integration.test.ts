@@ -78,7 +78,7 @@ describe('isolation on D1: one organisation per database (D18)', () => {
     const binding = d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId })
     const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
     const token = mintTestUserToken({ userId: e.userId, organizationId: uuidv7(), scopes: ['tasks:read', 'tasks:write'] })
-    const res = await app.request('/tasks', { headers: { authorization: `Bearer ${token}` } })
+    const res = await app.request('/api/v1/tasks', { headers: { authorization: `Bearer ${token}` } })
     expect(res.status).toBe(403)
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('organization_forbidden')
   })

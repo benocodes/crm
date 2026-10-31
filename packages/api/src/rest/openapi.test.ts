@@ -4,24 +4,24 @@ import { createApp } from './app.js'
 
 const mk = (version?: string) => createApp({ storage: coldStorage(), version })
 const doc = async (app = mk()) => {
-  const res = await app.request('/openapi.json')
+  const res = await app.request('/api/v1/openapi.json')
   expect(res.status).toBe(200)
   return (await res.json()) as any
 }
 
-describe('GET /openapi.json', () => {
+describe('GET /api/v1/openapi.json', () => {
   it('is served unauthenticated', async () => {
     const d = await doc()
     expect(d.openapi).toBe('3.1.0')
-    expect(d.info.title).toBe('Vault API')
+    expect(d.info.title).toBe('Vault records API')
   })
   it('names operations', async () => {
     const d = await doc()
-    expect(d.paths['/tasks'].get.operationId).toBe('tasks.list')
-    expect(d.paths['/tasks'].post.operationId).toBe('tasks.create')
-    expect(d.paths['/tasks/{id}'].get.operationId).toBe('tasks.get')
-    expect(d.paths['/tasks/{id}'].patch.operationId).toBe('tasks.update')
-    expect(d.paths['/tasks/{id}'].delete.operationId).toBe('tasks.delete')
+    expect(d.paths['/api/v1/tasks'].get.operationId).toBe('tasks.list')
+    expect(d.paths['/api/v1/tasks'].post.operationId).toBe('tasks.create')
+    expect(d.paths['/api/v1/tasks/{id}'].get.operationId).toBe('tasks.get')
+    expect(d.paths['/api/v1/tasks/{id}'].patch.operationId).toBe('tasks.update')
+    expect(d.paths['/api/v1/tasks/{id}'].delete.operationId).toBe('tasks.delete')
     for (const item of Object.values<any>(d.paths)) {
       for (const o of Object.values<any>(item)) {
         expect(o.summary).toBeTruthy()
@@ -31,12 +31,12 @@ describe('GET /openapi.json', () => {
   })
   it('describes requests and responses', async () => {
     const d = await doc()
-    const body = d.paths['/tasks'].post.requestBody.content['application/json'].schema
+    const body = d.paths['/api/v1/tasks'].post.requestBody.content['application/json'].schema
     expect(Object.keys(body.properties)).toContain('title')
     expect(body.additionalProperties).toBe(false)
-    const names = d.paths['/tasks'].get.parameters.map((p: any) => p.name)
+    const names = d.paths['/api/v1/tasks'].get.parameters.map((p: any) => p.name)
     expect(names).toEqual(expect.arrayContaining(['after', 'limit', 'status', 'assignee_id']))
-    expect(d.paths['/tasks/{id}'].delete.responses['204']).toBeDefined()
+    expect(d.paths['/api/v1/tasks/{id}'].delete.responses['204']).toBeDefined()
   })
   it('registers the security scheme', async () => {
     const d = await doc()

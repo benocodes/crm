@@ -7,6 +7,7 @@ import { definePreparedResource } from '../storage/definition.js'
  * the directory sync (prepared programs since [[CORE41]]). No last-owner guard is needed here.
  */
 export const memberships = definePreparedResource({
+  surface: 'meta',
   name: 'memberships',
   eventName: 'membership',
   table: 'memberships',

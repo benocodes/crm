@@ -130,18 +130,18 @@ organizations.set(orgExt, { object: 'organization', id: orgExt, name: `Smoke ${r
 try {
   const tokA = await mint(subjectA)
   const tokOrg = await mint(subjectA, { org: { id: orgExt, rol: 'org:admin' } })
-  await check('GET /openapi.json', { path: '/openapi.json' }, 200, (j) => {
+  await check('GET /meta/v1/openapi.json', { path: '/meta/v1/openapi.json' }, 200, (j) => {
     const ids = Object.values(j.paths).flatMap((p: any) => Object.values(p).map((o: any) => o.operationId))
     if (!ids.includes('me.get')) return 'me.get missing'
     if (ids.includes('organizations.create')) return 'organizations.create must be gone'
     return Object.keys(j.paths).some((p) => p.includes('webhooks')) ? 'webhook route must not be documented' : undefined
   })
-  await check('GET /me (first sight, no claim)', { path: '/me', token: tokA }, 200, (j) =>
+  await check('GET /meta/v1/me (first sight, no claim)', { path: '/meta/v1/me', token: tokA }, 200, (j) =>
     eq(j.memberships, [], 'memberships') ?? eq(j.active_organization, null, 'active_organization') ?? (j.user.email_verified === true ? undefined : 'email_verified'),
   )
-  await check('GET /me (lower-case scheme)', { path: '/me', token: tokA, scheme: 'bearer' }, 200)
-  await check('GET /tasks (no claim)', { path: '/tasks', token: tokA }, 403, (j) => eq(j.error.code, 'organization_required', 'code'))
-  const me = await check('GET /me (claim for a new organisation: repaired)', { path: '/me', token: tokOrg }, 200, (j) =>
+  await check('GET /meta/v1/me (lower-case scheme)', { path: '/meta/v1/me', token: tokA, scheme: 'bearer' }, 200)
+  await check('GET /api/v1/tasks (no claim)', { path: '/api/v1/tasks', token: tokA }, 403, (j) => eq(j.error.code, 'organization_required', 'code'))
+  const me = await check('GET /meta/v1/me (claim for a new organisation: repaired)', { path: '/meta/v1/me', token: tokOrg }, 200, (j) =>
     eq(j.memberships.length, 1, 'memberships') ??
     eq(j.memberships[0]?.role, 'owner', 'role') ??
     eq(j.active_organization?.role, 'owner', 'active role') ??
@@ -149,50 +149,50 @@ try {
   )
   const org1 = { id: me.active_organization.id as string }
   const title = `smoke task ${rand}`
-  await check('POST /tasks (claim)', { path: '/tasks', method: 'POST', token: tokOrg, body: { title } }, 201)
+  await check('POST /api/v1/tasks (claim)', { path: '/api/v1/tasks', method: 'POST', token: tokOrg, body: { title } }, 201)
   // [[CORE35]]: the task lifecycle through the prepared path on Postgres, over HTTP.
-  const created = await check('POST /tasks (lifecycle)', { path: '/tasks', method: 'POST', token: tokOrg, body: { title: `${title} lifecycle` } }, 201, (j) =>
+  const created = await check('POST /api/v1/tasks (lifecycle)', { path: '/api/v1/tasks', method: 'POST', token: tokOrg, body: { title: `${title} lifecycle` } }, 201, (j) =>
     eq(j.status, 'open', 'status') ?? eq(j.completed_at, null, 'completed_at'),
   )
-  const taskPath = `/tasks/${created.id}`
-  await check('PATCH /tasks/{id} status done', { path: taskPath, method: 'PATCH', token: tokOrg, body: { status: 'done' } }, 200, (j) =>
+  const taskPath = `/api/v1/tasks/${created.id}`
+  await check('PATCH /api/v1/tasks/{id} status done', { path: taskPath, method: 'PATCH', token: tokOrg, body: { status: 'done' } }, 200, (j) =>
     eq(j.status, 'done', 'status') ?? (typeof j.completed_at === 'string' ? undefined : `completed_at: got ${JSON.stringify(j.completed_at)}`),
   )
-  await check('PATCH /tasks/{id} status open', { path: taskPath, method: 'PATCH', token: tokOrg, body: { status: 'open' } }, 200, (j) =>
+  await check('PATCH /api/v1/tasks/{id} status open', { path: taskPath, method: 'PATCH', token: tokOrg, body: { status: 'open' } }, 200, (j) =>
     eq(j.status, 'open', 'status') ?? eq(j.completed_at, null, 'completed_at'),
   )
-  await check('DELETE /tasks/{id}', { path: taskPath, method: 'DELETE', token: tokOrg }, 204)
-  await check('GET /tasks/{id} (deleted)', { path: taskPath, token: tokOrg }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
-  await check('GET /tasks (claim)', { path: '/tasks', token: tokOrg }, 200, (j) =>
+  await check('DELETE /api/v1/tasks/{id}', { path: taskPath, method: 'DELETE', token: tokOrg }, 204)
+  await check('GET /api/v1/tasks/{id} (deleted)', { path: taskPath, token: tokOrg }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
+  await check('GET /api/v1/tasks (claim)', { path: '/api/v1/tasks', token: tokOrg }, 200, (j) =>
     j.data.some((t: { title: string }) => t.title === title) ? undefined : 'task missing',
   )
-  await check('GET /tasks (matching header, upper-case)', { path: '/tasks', token: tokOrg, org: org1.id.toUpperCase() }, 200)
-  await check('GET /tasks (header: random uuid)', { path: '/tasks', token: tokOrg, org: randomUUID() }, 403, (j) => eq(j.error.code, 'organization_forbidden', 'code'))
-  await check('GET /tasks (unmapped role)', { path: '/tasks', token: await mint(subjectA, { org: { id: orgExt, rol: 'org:billing' } }) }, 403, (j) =>
+  await check('GET /api/v1/tasks (matching header, upper-case)', { path: '/api/v1/tasks', token: tokOrg, org: org1.id.toUpperCase() }, 200)
+  await check('GET /api/v1/tasks (header: random uuid)', { path: '/api/v1/tasks', token: tokOrg, org: randomUUID() }, 403, (j) => eq(j.error.code, 'organization_forbidden', 'code'))
+  await check('GET /api/v1/tasks (unmapped role)', { path: '/api/v1/tasks', token: await mint(subjectA, { org: { id: orgExt, rol: 'org:billing' } }) }, 403, (j) =>
     eq(j.error.code, 'organization_forbidden', 'code'),
   )
-  await check('GET /tasks (organisation Clerk does not have)', { path: '/tasks', token: await mint(subjectA, { org: { id: `org_gone_${rand}`, rol: 'org:admin' } }) }, 403, (j) =>
+  await check('GET /api/v1/tasks (organisation Clerk does not have)', { path: '/api/v1/tasks', token: await mint(subjectA, { org: { id: `org_gone_${rand}`, rol: 'org:admin' } }) }, 403, (j) =>
     eq(j.error.code, 'organization_forbidden', 'code'),
   )
-  await check('GET /me (wrong azp)', { path: '/me', token: await mint(subjectA, { azp: 'https://evil.example' }) }, 401, (j) => eq(j.error.code, 'unauthenticated', 'code'))
-  await check('GET /me (expired)', { path: '/me', token: await mint(subjectA, { exp: Math.floor(Date.now() / 1000) - 60 }) }, 401)
-  await check('GET /me (second subject, same email)', { path: '/me', token: await mint(subjectB) }, 409, (j) => eq(j.error.code, 'account_conflict', 'code'))
+  await check('GET /meta/v1/me (wrong azp)', { path: '/meta/v1/me', token: await mint(subjectA, { azp: 'https://evil.example' }) }, 401, (j) => eq(j.error.code, 'unauthenticated', 'code'))
+  await check('GET /meta/v1/me (expired)', { path: '/meta/v1/me', token: await mint(subjectA, { exp: Math.floor(Date.now() / 1000) - 60 }) }, 401)
+  await check('GET /meta/v1/me (second subject, same email)', { path: '/meta/v1/me', token: await mint(subjectB) }, 409, (j) => eq(j.error.code, 'account_conflict', 'code'))
   // [[CORE36]]: the identity model over HTTP on Postgres: company, contact, resolve, merge, delete cascade, events.
-  const company = await check('POST /companies (mixed-case domain)', { path: '/companies', method: 'POST', token: tokOrg, body: { name: 'Smoke Co', domain: ` Smoke-${rand}.EXAMPLE.com ` } }, 201, (j) =>
+  const company = await check('POST /api/v1/companies (mixed-case domain)', { path: '/api/v1/companies', method: 'POST', token: tokOrg, body: { name: 'Smoke Co', domain: ` Smoke-${rand}.EXAMPLE.com ` } }, 201, (j) =>
     eq(j.domain, `smoke-${rand}.example.com`, 'domain'),
   )
-  await check('POST /contacts (on the company)', { path: '/contacts', method: 'POST', token: tokOrg, body: { name: 'Smoke Contact', company_id: company.id } }, 201)
-  const r1 = await check('POST /identities/resolve (first address)', { path: '/identities/resolve', method: 'POST', token: tokOrg, body: { identities: [{ kind: 'email', value: `One-${rand}@Example.com` }] } }, 200, (j) =>
+  await check('POST /api/v1/contacts (on the company)', { path: '/api/v1/contacts', method: 'POST', token: tokOrg, body: { name: 'Smoke Contact', company_id: company.id } }, 201)
+  const r1 = await check('POST /api/v1/identities/resolve (first address)', { path: '/api/v1/identities/resolve', method: 'POST', token: tokOrg, body: { identities: [{ kind: 'email', value: `One-${rand}@Example.com` }] } }, 200, (j) =>
     eq(j.data.map((d: any) => d.created), [true], 'created'),
   )
-  const r2 = await check('POST /identities/resolve (second address)', { path: '/identities/resolve', method: 'POST', token: tokOrg, body: { identities: [{ kind: 'email', value: `two-${rand}@example.com` }] } }, 200, (j) =>
+  const r2 = await check('POST /api/v1/identities/resolve (second address)', { path: '/api/v1/identities/resolve', method: 'POST', token: tokOrg, body: { identities: [{ kind: 'email', value: `two-${rand}@example.com` }] } }, 200, (j) =>
     eq(j.data.map((d: any) => d.created), [true], 'created'),
   )
   const survivorId = r1.data[0].contact.id as string
   const sourceId = r2.data[0].contact.id as string
-  await check('POST /contacts/{id}/merge', { path: `/contacts/${survivorId}/merge`, method: 'POST', token: tokOrg, body: { source_id: sourceId } }, 200, (j) => eq(j.id, survivorId, 'survivor'))
-  await check('GET /contacts/{source} (merged)', { path: `/contacts/${sourceId}`, token: tokOrg }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
-  await check('DELETE /companies/{id}', { path: `/companies/${company.id}`, method: 'DELETE', token: tokOrg }, 204)
+  await check('POST /api/v1/contacts/{id}/merge', { path: `/api/v1/contacts/${survivorId}/merge`, method: 'POST', token: tokOrg, body: { source_id: sourceId } }, 200, (j) => eq(j.id, survivorId, 'survivor'))
+  await check('GET /api/v1/contacts/{source} (merged)', { path: `/api/v1/contacts/${sourceId}`, token: tokOrg }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
+  await check('DELETE /api/v1/companies/{id}', { path: `/api/v1/companies/${company.id}`, method: 'DELETE', token: tokOrg }, 204)
   // Set and count of the organisation's identity-model event types (never ctid order on a reused database).
   const events = await withOrganization(db, { principalId: me.user.id, organizationId: org1.id }, (trx) =>
     sql<{ type: string }>`SELECT type FROM events WHERE type LIKE 'company.%' OR type LIKE 'contact.%' OR type LIKE 'identity.%'`.execute(trx),

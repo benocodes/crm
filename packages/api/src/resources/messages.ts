@@ -23,6 +23,7 @@ const attachment = z.object({
  * [[CORE58]]'s), and attachments are embedded ordered by position, `[]` when there are none.
  */
 export const messages = definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',

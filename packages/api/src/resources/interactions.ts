@@ -10,6 +10,7 @@ const lower = (v: unknown) => (v as string).toLowerCase()
  * identities that are live NOW, so after a merge the survivor owns the interactions and a deleted identity drops out.
  */
 export const interactions = definePreparedResource({
+  surface: 'api',
   name: 'interactions',
   eventName: 'interaction',
   table: 'interactions',

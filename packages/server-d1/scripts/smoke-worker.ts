@@ -126,9 +126,16 @@ try {
   let res = await call('GET', '/health')
   let body = await json(res)
   check('1 GET /health before bootstrap -> 200 initialised false', res.status === 200 && body.status === 'ok' && body.initialised === false, { status: res.status, body })
-  res = await call('GET', '/tasks', { token: 'vk_anything' })
+  res = await call('GET', '/api/v1/tasks', { token: 'vk_anything' })
   body = await json(res)
-  check('2 GET /tasks before bootstrap -> 503 not_initialised', res.status === 503 && body.error?.code === 'not_initialised', { status: res.status, body })
+  check('2 GET /api/v1/tasks before bootstrap -> 503 not_initialised', res.status === 503 && body.error?.code === 'not_initialised', { status: res.status, body })
+
+  // 2a: the two OpenAPI documents are served before initialisation; the old root document is not exempt ([[API32]] D4, D5)
+  for (const [path, title] of [['/api/v1/openapi.json', 'Vault records API'], ['/meta/v1/openapi.json', 'Vault meta API']] as const) {
+    res = await call('GET', path)
+    body = await json(res)
+    check(`2a GET ${path} before bootstrap -> 200, ${title}`, res.status === 200 && body.openapi === '3.1.0' && body.info?.title === title, { status: res.status })
+  }
 
   // 3: the local bootstrap, through the same code the CLI uses
   const boot = await bootstrapD1(d1, { organizationName: 'Smoke', email: 'owner@smoke.test', agentName: 'smoke-bot', authOrgId: 'org_smoke', authSubject: 'user_owner' })
@@ -147,50 +154,57 @@ try {
   body = await json(res)
   check('4b /health.migrations is current once the tracker is filled', (body.migrations as { status?: string } | undefined)?.status === 'current', body.migrations)
 
-  res = await call('GET', '/tasks', { token: key })
+  res = await call('GET', '/api/v1/tasks', { token: key })
   body = await json(res)
-  check('5 GET /tasks with the key -> 200', res.status === 200 && Array.isArray(body.data), { status: res.status, body })
+  check('5 GET /api/v1/tasks with the key -> 200', res.status === 200 && Array.isArray(body.data), { status: res.status, body })
 
   // 6: a task lifecycle with three events
   const eventsBefore = await count('events')
-  const created = await call('POST', '/tasks', { token: key, body: { title: 'smoke task' } })
+  const created = await call('POST', '/api/v1/tasks', { token: key, body: { title: 'smoke task' } })
   const task = await json(created)
-  const patched = await call('PATCH', `/tasks/${task.id}`, { token: key, body: { title: 'renamed' } })
-  const deleted = await call('DELETE', `/tasks/${task.id}`, { token: key })
+  const patched = await call('PATCH', `/api/v1/tasks/${task.id}`, { token: key, body: { title: 'renamed' } })
+  const deleted = await call('DELETE', `/api/v1/tasks/${task.id}`, { token: key })
   const events = (await count('events')) - eventsBefore
-  check('6 POST/PATCH/DELETE /tasks -> 201/200/204 and three events', created.status === 201 && patched.status === 200 && deleted.status === 204 && events === 3, {
+  check('6 POST/PATCH/DELETE /api/v1/tasks -> 201/200/204 and three events', created.status === 201 && patched.status === 200 && deleted.status === 204 && events === 3, {
     statuses: [created.status, patched.status, deleted.status],
     events,
   })
 
+  // 6a: the old root paths are gone ([[API32]] D5, D8)
+  for (const path of ['/openapi.json', '/tasks']) {
+    res = await call('GET', path, { token: key })
+    body = await json(res)
+    check(`6a GET ${path} -> 404 not_found`, res.status === 404 && body.error?.code === 'not_found', { status: res.status, body })
+  }
+
   // 7: agents:read is not agent-grantable
-  res = await call('GET', '/agents', { token: key })
+  res = await call('GET', '/meta/v1/agents', { token: key })
   body = await json(res)
-  check('7 GET /agents with the key -> 403 insufficient_scope', res.status === 403 && body.error?.code === 'insufficient_scope', { status: res.status, body })
+  check('7 GET /meta/v1/agents with the key -> 403 insufficient_scope', res.status === 403 && body.error?.code === 'insufficient_scope', { status: res.status, body })
 
   // 8: resolve two emails, then merge two contacts
-  res = await call('POST', '/identities/resolve', {
+  res = await call('POST', '/api/v1/identities/resolve', {
     token: key,
     body: { identities: [{ kind: 'email', value: 'a@smoke.test', name: 'A' }, { kind: 'email', value: 'b@smoke.test', name: 'B' }] },
   })
   body = await json(res)
   const resolved = res.status === 200 && body.data?.length === 2
-  const c1 = await json(await call('POST', '/contacts', { token: key, body: { name: 'Survivor' } }))
-  const c2 = await json(await call('POST', '/contacts', { token: key, body: { name: 'Source' } }))
-  const merged = await call('POST', `/contacts/${c1.id}/merge`, { token: key, body: { source_id: c2.id } })
-  check('8 POST /identities/resolve then /contacts/{a}/merge -> 200, merged', resolved && merged.status === 200, { resolve: res.status, merge: merged.status })
+  const c1 = await json(await call('POST', '/api/v1/contacts', { token: key, body: { name: 'Survivor' } }))
+  const c2 = await json(await call('POST', '/api/v1/contacts', { token: key, body: { name: 'Source' } }))
+  const merged = await call('POST', `/api/v1/contacts/${c1.id}/merge`, { token: key, body: { source_id: c2.id } })
+  check('8 POST /api/v1/identities/resolve then /contacts/{a}/merge -> 200, merged', resolved && merged.status === 200, { resolve: res.status, merge: merged.status })
 
   // 9-10: Clerk users
   const ownerToken = await mintClerkToken(issuer, { sub: 'user_owner', extra: orgClaim('org_smoke') })
-  res = await call('GET', '/me', { token: ownerToken })
+  res = await call('GET', '/meta/v1/me', { token: ownerToken })
   body = await json(res)
-  check('9 GET /me as the linked owner -> 200, one membership', res.status === 200 && body.memberships?.length === 1, { status: res.status, body })
+  check('9 GET /meta/v1/me as the linked owner -> 200, one membership', res.status === 200 && body.memberships?.length === 1, { status: res.status, body })
 
   const eventsBeforeFirstSight = await count('events')
   const newToken = await mintClerkToken(issuer, { sub: 'user_new' })
-  res = await call('GET', '/me', { token: newToken })
+  res = await call('GET', '/meta/v1/me', { token: newToken })
   body = await json(res)
-  check('10 GET /me as user_new -> 200, first sight with no event', res.status === 200 && (await count('events')) === eventsBeforeFirstSight && body.user?.email === 'new@smoke.test', { status: res.status, body })
+  check('10 GET /meta/v1/me as user_new -> 200, first sight with no event', res.status === 200 && (await count('events')) === eventsBeforeFirstSight && body.user?.email === 'new@smoke.test', { status: res.status, body })
 
   // 11: a membership webhook reconciles the organisation
   members.set('org_smoke', [
@@ -213,7 +227,7 @@ try {
 
   // 13: a token claiming another organisation
   const otherToken = await mintClerkToken(issuer, { sub: 'user_owner', extra: orgClaim('org_other') })
-  res = await call('GET', '/me', { token: otherToken })
+  res = await call('GET', '/meta/v1/me', { token: otherToken })
   body = await json(res)
   check('13 token claiming org_other -> 403 organization_forbidden', res.status === 403 && body.error?.code === 'organization_forbidden', { status: res.status, body })
 
@@ -278,14 +292,14 @@ try {
   const bytes = Uint8Array.from({ length: 256 }, (_, i) => i)
   await bodies.put(fileBlobKey(storageKey), bytes)
 
-  res = await call('GET', `/messages/${withBody.id}/content`, { token: key })
+  res = await call('GET', `/api/v1/messages/${withBody.id}/content`, { token: key })
   body = await json(res)
-  check('17 GET /messages/{id}/content -> 200 markdown', res.status === 200 && body.content === '# Smoke body' && body.content_type === 'text/markdown' && body.version === 1, { status: res.status, body })
+  check('17 GET /api/v1/messages/{id}/content -> 200 markdown', res.status === 200 && body.content === '# Smoke body' && body.content_type === 'text/markdown' && body.version === 1, { status: res.status, body })
 
-  res = await call('GET', `/files/${fileId}/content`, { token: key })
+  res = await call('GET', `/api/v1/files/${fileId}/content`, { token: key })
   const got = new Uint8Array(await res.arrayBuffer())
   check(
-    '18 GET /files/{id}/content -> 200, exact bytes, nosniff, sandbox, attachment',
+    '18 GET /api/v1/files/{id}/content -> 200, exact bytes, nosniff, sandbox, attachment',
     res.status === 200 &&
       got.length === 256 &&
       got.every((b, i) => b === i) &&
@@ -295,9 +309,9 @@ try {
     { status: res.status, bytes: got.length, headers: Object.fromEntries(res.headers) },
   )
 
-  res = await call('GET', `/messages/${withoutBody.id}/content`, { token: key })
+  res = await call('GET', `/api/v1/messages/${withoutBody.id}/content`, { token: key })
   body = await json(res)
-  check('19 GET /messages/{id}/content without its object -> 404 content_unavailable', res.status === 404 && body.error?.code === 'content_unavailable', { status: res.status, body })
+  check('19 GET /api/v1/messages/{id}/content without its object -> 404 content_unavailable', res.status === 404 && body.error?.code === 'content_unavailable', { status: res.status, body })
 } catch (err) {
   failures++
   console.log(`FAIL smoke aborted -> ${err instanceof Error ? err.message : String(err)}`)

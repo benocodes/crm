@@ -7,6 +7,7 @@ import { definePreparedResource } from '../storage/definition.js'
  * `messages:read` (D25: threads are part of content).
  */
 export const threads = definePreparedResource({
+  surface: 'api',
   name: 'threads',
   eventName: 'thread',
   table: 'threads',
