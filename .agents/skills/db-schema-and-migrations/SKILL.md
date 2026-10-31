@@ -322,6 +322,9 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   changed byte or a wrong order. **A committed D1 migration file is immutable**: fix a mistake with a new file.
   The Worker refuses work (`503 migrations_pending`) until wrangler's `d1_migrations` holds every name in the
   manifest, so an instance is migrated **before** the Worker is deployed to it (`ship-branch`).
+  A new file also goes into the recorded wrangler output `packages/server-d1/scripts/fixtures/d1-execute-migrations.json`.
+  Tests that count migrations derive the count from the manifest (`EXPECTED.length`, `EXPECTED.slice(0, -1)`),
+  never a literal, so the next migration does not break them ([[CORE62]]).
 - **`d1_migrations` is wrangler's table, never the vault's.** The local harness doesn't create it, so its
   status is `unknown` and nothing is gated. Tests that need `current`, `behind` or `ahead` create it with
   `createMigrationTracker` and fill it with `recordMigrations`/`forgetMigrations` (`@vault/storage-d1/test`).
