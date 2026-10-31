@@ -52,7 +52,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     marker** (`readDeployment`), never from Worker vars. Only success is cached per isolate: an absent marker answers
     `503 not_initialised` and is re-read on the next request, so a bootstrap takes effect without a restart. A bad auth
     or CORS configuration fails closed (`500 internal` on every non-health route) and logs one line naming the variable,
-    never its value. `GET /health` is outside the registry and reads the marker live.
+    never its value. `GET /health` is outside the registry and reads the marker live. A missing `deployment`
+    table counts as an absent marker.
+  - **Migration gate** ([[CORE61]]): `fetch` runs in this order: `/health` → the `behind` gate
+    (`503 migrations_pending`; `GET /openapi.json` is exempt) → the auth-config `500` → the marker. The state comes from
+    `readMigrationState` (`@vault/storage-d1`) against `MIGRATIONS`. It is cached per isolate once
+    `current`/`ahead`, re-read at most every 5 s (`deps.nowMs`, not `deps.clock`) while `behind`/`unknown`, and
+    never cached after a thrown read. `/health.migrations` reports it. The tracker read is one more query on a
+    cold isolate.
   - `src/init-deployment.ts` (`initDeploymentOperation`: marker insert `ON CONFLICT DO NOTHING` plus `assertStep`, no
     events) and `src/bootstrap-d1.ts` (`bootstrapD1`: marker unit, then [[CORE41]]'s `bootstrap`; resumable).
   - `scripts/bootstrap.ts` (`pnpm -C packages/server-d1 bootstrap -- …`): local only. `getPlatformProxy` defaults

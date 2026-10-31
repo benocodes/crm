@@ -189,6 +189,11 @@ One program, two engines: the same assertions run on Postgres and D1.
 
 A test that fails once and then passes is a bug until its cause is found. Do not rerun and move on.
 
+- **Capture it at first sight.** Before any rerun, save the failing test's name and its raw failure (keep the
+  run's output, or rerun only that file with the same seed). A flake reported without a name can't be followed
+  up ([[CORE61]]: "1 failed | 160 passed" after a mutation series, never identified). After a mutation series,
+  check `git status` first: a mutation that wasn't restored looks exactly like a flake.
+
 - **Read the failure for what it says.** CORE35's flake expected the injected clock and received wall-clock
   time: that named the cause (a trigger stamping `updated_at`, enabled on a fresh DB and disabled by a leak
   on reruns) directly.

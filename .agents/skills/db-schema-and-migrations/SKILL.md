@@ -316,6 +316,16 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   identities). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
   owner and tombstone CHECKs, the email CHECK `value = lower(value) AND value NOT GLOB '*[^ -~]*'`. Add the new
   tables to `clearD1`'s delete `order` (children first) in the same step.
+- **Add every new file to the manifest in the same change** ([[CORE61]] D2, D5). `MIGRATIONS` in
+  `packages/storage-d1/src/migrations-manifest.ts` lists `{ name, sha256 }` in file order, and
+  `migrations-manifest.test.ts` hashes the real files. It fails on an unlisted file, an entry with no file, a
+  changed byte or a wrong order. **A committed D1 migration file is immutable**: fix a mistake with a new file.
+  The Worker refuses work (`503 migrations_pending`) until wrangler's `d1_migrations` holds every name in the
+  manifest, so an instance is migrated **before** the Worker is deployed to it (`ship-branch`).
+- **`d1_migrations` is wrangler's table, never the vault's.** The local harness doesn't create it, so its
+  status is `unknown` and nothing is gated. Tests that need `current`, `behind` or `ahead` create it with
+  `createMigrationTracker` and fill it with `recordMigrations`/`forgetMigrations` (`@vault/storage-d1/test`).
+  `clearD1` must never delete from it.
 - **`unit_assertion`** (in 0002) is machinery, not a resource: an always-empty table whose named CHECK
   `unit_assertion_holds` lets `assertStep` abort a D1 batch. The D1 runtime classifies that one constraint as
   drift, so never reuse the name.

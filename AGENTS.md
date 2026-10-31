@@ -153,7 +153,8 @@ pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need 
 pnpm -C packages/server-postgres golden:generate   # and golden:check
 pnpm -C packages/server-d1 bootstrap -- --org <n> --email <e> --agent <a> --auth-org-id <org_…>  # local D1 only
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env <name>   # remote D1 migrations (OPS4)
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env <name>    # applied vs expected; exit 0 only when current (CORE61)
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env <name>   # remote D1 migrations (OPS4); migrate before deploy
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env <name>       # deploy the Worker; /health shows the sha
 pnpm -C packages/server-d1 smoke:remote -- --base <url> --phase before|after --expect-version <sha>
 ```
