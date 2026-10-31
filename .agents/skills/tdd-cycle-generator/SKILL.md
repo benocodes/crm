@@ -163,6 +163,15 @@ re-read windows and consistency rules. Where state is cached per isolate or per 
 runs on a cold or a warm instance. [[CORE61]]'s charter expected a warm Worker to notice a deleted tracker row
 that spec D6 caches for the isolate's life, and review had to amend the scenario.
 
+Write the scenario so a tester can run it literally ([[CORE74]] needed two deviations and one false failure):
+- **Scopes in full** (`notes:read`, `notes:write`): the grammar is `resource:action` with no wildcard, so
+  `notes:*` cannot be granted.
+- **A migration over data seeds the old schema directly** (SQL against the database at the previous
+  migration, or the previous build), never through the new Worker: since [[CORE61]] the new code answers
+  `503 migrations_pending` until the database is current. List that `503` as an expected step.
+- **Deletes as the spec defines them:** for a soft delete, say "`deleted_at` set, row kept". Left unsaid,
+  the tester asserted that cascaded edges were gone, against [[CORE62]] D15.
+
 A scenario states, in order:
 - **Initial state:** what exists before (rows, tenants, credentials, fixtures) and how to set it up.
 - **Actions:** the real calls, with payloads (REST/MCP requests, CLI commands, fixture replays).
