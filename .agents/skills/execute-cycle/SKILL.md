@@ -107,6 +107,9 @@ pnpm -r build      # where a package has a build
 D1 is the oracle (AGENTS.md, "Engines"): the D1 suites, typecheck and build must be green. The Postgres
 suites run too but don't block: report their failures as drift instead of bending D1 behaviour to fix
 them. A failure that reproduces on a clean `main` is pre-existing: report it, don't fix it in this cycle.
+The `@vault/api` Postgres baseline is tracked in #89 (128 failures on `main` `7bd7973`, D1-only schema):
+compare the count against it, and if it rises name the D1 migration responsible ([[CORE84]] retro), instead of
+re-running a clean `main` to prove the failures predate the branch.
 The charter's E2E scenario is not part of the gate; in a sprint the e2e-tester runs it.
 
 ## 6. RESULT.md, commit, push
@@ -115,7 +118,8 @@ The charter's E2E scenario is not part of the gate; in a sprint the e2e-tester r
 
 - **Decisions** (each worth a Ledger line in a sprint);
 - **Deviations from the charter** (scope moved in or out, an obligation proven differently);
-- **Evidence**, keyed to the charter's obligations: red runs, absence mutations (raw), the gate's counts;
+- **Evidence**, keyed to the charter's obligations: red runs, absence mutations (raw), the gate's counts per
+  suite written out in RESULT.md itself (the retro reads the folder, not the CYCLE REPORT);
 - for a deletion, a title-by-title map of deleted tests to their surviving counterparts.
 
 Commit on the cycle branch with Conventional Commits, staging explicit paths (never `git add -A`), and
