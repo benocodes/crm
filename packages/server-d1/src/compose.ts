@@ -1,4 +1,4 @@
-import { createApp, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
+import { createApp, createVaultRegistry, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
 import type { D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -79,6 +79,13 @@ export function composeD1Worker(
   let app: App | undefined
   let cold: App | undefined
 
+  // [[CORE64]] D21, D22: the documents read configuration only; built once. A bad configuration (below) still answers 500.
+  const discovery = {
+    provider: authAdapter ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() } : undefined,
+    cliClientId,
+    declaredScopes: createVaultRegistry().declaredScopes(),
+  }
+
   const nowMs = deps.nowMs ?? (() => Date.now())
   type Migrations = { status: MigrationStatus; applied: string[] }
   let settled: Migrations | undefined
@@ -141,6 +148,9 @@ export function composeD1Worker(
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
         const spec = req.method === 'GET' && (url.pathname === openApiPath('api') || url.pathname === openApiPath('meta'))
+        // Exempt from the migration and marker gates, not from a bad configuration (CORE84).
+        const doc = discoveryResponse(req, discovery)
+        if (doc) return configError ? json(INTERNAL, 500) : doc
         if (!spec && (await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
         if (configError) return json(INTERNAL, 500)
         const ready = await ensure()

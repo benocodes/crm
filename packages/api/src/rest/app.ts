@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import { execute, uuidv7, type StorageBinding } from '@vault/storage'
 import type { AuthAdapter } from '../auth/adapter.js'
+import { resourceMetadataChallenge } from '../discovery.js'
 import { authMiddleware } from '../auth/middleware.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
@@ -155,9 +156,18 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
         origin: (origin) => (corsOrigins.includes(origin) ? origin : null),
         allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
         allowHeaders: ['Authorization', 'X-Organization-Id', 'Content-Type'],
+        exposeHeaders: ['WWW-Authenticate'],
         maxAge: 600,
       }),
     )
+  }
+  // [[CORE64]] D22: with a provider configured, every 401 points at the protected-resource metadata. A thrown ApiError is already
+  // rendered by `onError` when control returns here.
+  if (options.workspace?.adapter) {
+    app.use('*', async (c, next) => {
+      await next()
+      if (c.res.status === 401) c.res.headers.set('WWW-Authenticate', resourceMetadataChallenge(new URL(c.req.url).origin))
+    })
   }
   app.use('*', async (c, next) => {
     c.set('storage', options.storage(c))

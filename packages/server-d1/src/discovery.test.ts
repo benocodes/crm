@@ -94,7 +94,7 @@ describe('D22 GET /.well-known/oauth-protected-resource', () => {
 describe('both documents are public and cacheable', () => {
   it.each([VIBASE, PRM])('%s: 200 with no credentials and with a garbage Authorization header, no WWW-Authenticate', async (path) => {
     const wk = worker()
-    for (const headers of [{}, { authorization: 'Bearer garbage' }, { authorization: 'Bearer a.b.c' }, { authorization: 'Basic !!' }]) {
+    for (const headers of [{}, { authorization: 'Bearer garbage' }, { authorization: 'Bearer a.b.c' }, { authorization: 'Basic !!' }] as Record<string, string>[]) {
       const res = await get(wk, path, headers)
       expect(res.status).toBe(200)
       expect(res.headers.get('www-authenticate')).toBeNull()
@@ -212,7 +212,7 @@ describe('WWW-Authenticate on every 401 with a provider (D22)', () => {
     await boot()
     await tracker(NAMES)
     const wk = worker({ AUTH_PROVIDER: undefined })
-    for (const headers of [{}, { authorization: 'Bearer vk_unknown_key' }]) {
+    for (const headers of [{}, { authorization: 'Bearer vk_unknown_key' }] as Record<string, string>[]) {
       const res = await get(wk, '/api/v1/contacts', headers)
       expect(res.status).toBe(401)
       expect(res.headers.get('www-authenticate')).toBeNull()
