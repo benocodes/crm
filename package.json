@@ -8,8 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "pnpm -r test",
-    "test:postgres": "VAULT_TEST_POSTGRES=1 pnpm -r --no-bail test",
+    "test": "vitest run",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "format": "pnpm -r format",
@@ -21,5 +21,8 @@
   "dependencies": {
     "@neon/config": "^1.9.2",
     "@neon/env": "^1.6.3"
+  },
+  "devDependencies": {
+    "vitest": "5.0.3"
   }
 }

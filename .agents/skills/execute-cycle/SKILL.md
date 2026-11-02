@@ -105,9 +105,10 @@ pnpm -r build      # where a package has a build
 ```
 
 D1 is the oracle (AGENTS.md, "Engines"): the D1 suites, typecheck and build must be green. The Postgres
-suites are off by default (`pnpm -r test` skips them, no Postgres database needed); don't run `pnpm test:postgres`
-in a cycle unless the cycle is about Postgres. If you do, their failures are drift to report, not to fix by bending
-D1 behaviour. A failure that reproduces on a clean `main` is pre-existing: report it, don't fix it in this cycle.
+suites are off by default (the `postgres` vitest project, switched in the root `vitest.config.ts`; `pnpm -r test` skips
+them, no Postgres database needed); don't run `pnpm test:postgres` in a cycle unless the cycle is about Postgres.
+If you do run them, their failures are drift to report, not to fix by bending D1 behaviour.
+A new test that needs Postgres is a `*.postgres.test.ts` file, never a list entry or a guard. A failure that reproduces on a clean `main` is pre-existing: report it, don't fix it in this cycle.
 The `@vault/api` Postgres baseline is tracked in #89 (128 failures on `main` `7bd7973`, D1-only schema):
 compare the count against it, and if it rises name the D1 migration responsible ([[CORE84]] retro), instead of
 re-running a clean `main` to prove the failures predate the branch.

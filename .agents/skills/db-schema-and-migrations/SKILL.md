@@ -36,7 +36,7 @@ monotonic (the random bits decide the order). Any test or query that relies on "
 rows inserted in one transaction is flaky; pin explicit ids in fixtures or separate the writes in time.
 To assert the order a transaction *emitted* rows in (events), order by `ctid` on a table that is only
 ever inserted into and was truncated before the test: one backend appending to a fresh heap gives ctid in
-insert order (`packages/api/src/identity/merge.integration.test.ts`, [[CORE2]]). That is a test device,
+insert order (`packages/api/src/identity/merge.integration.suite.ts`, [[CORE2]]). That is a test device,
 not a product ordering: no reader can recover intra-transaction order from same-millisecond ids. It holds
 **only on a fresh heap**: on a long-lived database (`vault_dev`) inserts reuse freed space, so smoke and
 e2e checks there compare the set and count of event types, never ctid order ([[CORE27]] review). [[API6]]
@@ -140,7 +140,7 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   (`packages/db/migrations/20261018_003_identity_model.ts`, [[CORE2]]). A self-reference
   (`contacts.merged_into_id`) is added with `ALTER TABLE` after the unique constraint exists.
 - **A new foreign key to `contacts(id)` must join merge's re-point list** (`CONTACT_REFERENCES` in
-  `packages/api/src/identity/merge.ts`) or its exemptions; `merge-catalog.integration.test.ts` fails
+  `packages/api/src/identity/merge.ts`) or its exemptions; `merge-catalog.integration.suite.ts` fails
   otherwise ([[CORE2]] D11).
 - **Index names** `idx_{table}_{columns}`; unique `idx_{table}_{purpose}_unique` or inline `.unique()`.
 - **Conflicts: `ON CONFLICT`, not catch-and-retry.** A caught `23505` inside a transaction does not save it;
@@ -208,11 +208,11 @@ Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_bas
   breaks callers. **A column-level `UPDATE` grant must include `updated_at`** whenever tenants update the
   table: the app stamps it on every write (D2 above), so a grant without it fails `42501` on the first
   prepared update (`20261026_007_admin_app_clock_grants.ts`, [[CORE40]] P3). Pin the grant with a
-  `has_column_privilege` test that also asserts nothing else widened (`src/migration-007.integration.test.ts`). `SELECT … FOR UPDATE` needs `UPDATE` on at least one column of the table, so a
+  `has_column_privilege` test that also asserts nothing else widened (`src/migration-007.integration.postgres.test.ts`). `SELECT … FOR UPDATE` needs `UPDATE` on at least one column of the table, so a
   column-level `UPDATE` grant also covers the row lock. A column left out of the `SELECT` grant must also
   be left out of the definition's `record` (`api-routes`: generic reads name their columns). A new table needs its own
   `GRANT`s **to both group roles**: there are no default privileges, and a table without a `vault_service`
-  `SELECT` fails the invariants suite. `schema-invariants.integration.test.ts` enforces these rules
+  `SELECT` fails the invariants suite. `schema-invariants.integration.postgres.test.ts` enforces these rules
   across every table.
 - **`REVOKE ALL ON ALL TABLES` also hits Kysely's tables.** The Migrator creates `kysely_migration*` before
   running `up()`, so a schema-wide `GRANT`/`REVOKE` in a migration covers them; name tables explicitly.
@@ -244,7 +244,7 @@ schema. Every helper that truncates or drops calls `assertTestDatabaseName` firs
 
 General test-writing rules (red first, no leaked state, flakes) are in `writing-tests`; this section is the migration-specific part.
 
-Every consequential migration gets a paired integration test, `packages/db/src/migration-NNN.integration.test.ts`,
+Every consequential migration gets a paired integration test, `packages/db/src/migration-NNN.integration.postgres.test.ts`,
 using a raw `pg.Pool` against `TEST_DATABASE_URL` (not the API test harness). It **asserts the resulting
 schema** by inspecting `information_schema` and `pg_catalog` on the already-migrated test database
 (`db:test:reset` migrates to latest and refuses any name without "test").
@@ -269,7 +269,7 @@ tests.
   the *latest* schema, so afterwards it can only fail for a later migration's legitimate change, and "fixing"
   it makes migration N's test describe migration M's change. A later migration that breaks an earlier test
   deletes the broken assertion in the same change; it never rewrites it to the new shape.
-- **Invariants that must hold forever** go in `packages/db/src/schema-invariants.integration.test.ts`,
+- **Invariants that must hold forever** go in `packages/db/src/schema-invariants.integration.postgres.test.ts`,
   written against the current schema across *every* matching table (today's intent: every table with
   `organization_id` also has an actor column, RLS enabled and forced, and at least one policy).
 - **Never assert a literal for a value the migration copies from a live source**; assert against the source.
@@ -295,7 +295,7 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
 
 - **Tenancy is the database** (spec D18). A singleton `deployment` row fixes the organisation id,
   `organizations.id` references it, and every tenant table's `organization_id` references
-  `organizations`. A second organisation cannot be stored; `isolation.integration.test.ts` proves it.
+  `organizations`. A second organisation cannot be stored; `isolation.integration.d1.test.ts` proves it.
   D1 always enforces foreign keys, and `pragma foreign_keys = off` has no effect.
 - **Value conventions:**
   - `STRICT` tables;
@@ -310,7 +310,7 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   - a statement binds at most **100 parameters**;
   - a statement is at most 100 KB.
 - **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
-  inspects `sqlite_master`/PRAGMA. `schema-parity.integration.test.ts` on each engine ties the
+  inspects `sqlite_master`/PRAGMA. `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
   physical columns to `COLUMN_KINDS` in `@vault/storage`, so a new column changes all three together.
 - **Each implementation cycle adds one numbered file** (`0002_identity_model.sql`: companies, contacts,
   identities). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,

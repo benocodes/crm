@@ -286,7 +286,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   soft delete only, with a `conflicts` read for the live pair (`409 link_exists`) and the partial unique index as backstop.
 - **Merge and delete know the links.** `CONTACT_REFERENCES` entries may carry `uniqueWith` (the re-point first soft-deletes
   the source rows that would duplicate a live survivor row, `<event>.deleted`, then moves the rest: both set statements are
-  always emitted); `IDENTITY_REFERENCES` lists every FK onto `identities` with no re-point (`identity-catalog.integration.test.ts`
+  always emitted); `IDENTITY_REFERENCES` lists every FK onto `identities` with no re-point (`identity-catalog.integration.suite.ts`
   compares it to both engines). `cascadeDelete` takes several children in order (contact: identities then `contact_files`;
   company: contacts then `company_files`), each with the three set guards and its own set event.
 - **Associations** ([[CORE62]], `src/associations/`): a polymorphic edge `(a_type, a_id) ↔ (b_type, b_id)` stored once in
@@ -421,7 +421,7 @@ interactive transaction, no `withContext` and no `executor` marker.
   reruns as a read-only recheck (winner → login; email held → `409 account_conflict`; neither → `409 conflict`),
   and repair reruns the same unit with a fresh plan. A recheck that cannot write cannot loop. Reconcile and refresh
   map drift to `409 conflict` and let Svix redeliver.
-- **Testing on both engines:** see `writing-tests` section 3.
+- **Testing on both engines:** see `writing-tests` section 3 (engine in the file name: `.postgres.test.ts` / `.d1.test.ts`, a shared `.suite.ts` body; no flag or `skipIf`).
 
 ## The service context and tenancy
 

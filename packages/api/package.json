@@ -12,7 +12,8 @@
     "./test/objects": "./src/test/objects.ts"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "test:postgres": "vitest run --config ../../vitest.postgres.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

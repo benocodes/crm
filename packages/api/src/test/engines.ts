@@ -1,10 +1,8 @@
 // Test-only. One harness over both engines for the storage-level suites ([[CORE35]] D16): the same program
 // runs on Postgres (`vault_app`, no presets: invariant 2) and on a local D1 binding, with the same raw reads.
-import { sql, type Kysely } from 'kysely'
-import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
+import type { Kysely } from 'kysely'
 import type { Database } from '@vault/db'
 import { COLUMN_KINDS, uuidv7, type ColumnKind, type ExecutionResult, type PreparedOperation, type StorageBinding, type StorageIdentity } from '@vault/storage'
-import { postgresBinding } from '@vault/storage-postgres'
 import { d1Binding, type D1Like, type D1PreparedLike } from '@vault/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import { seedAgent as seedD1Agent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
@@ -14,8 +12,9 @@ import { d1Value } from './insert.js'
 import type { PreparedEnv } from '../storage/definition.js'
 
 export type RawRow = Record<string, any>
+export type EngineName = 'postgres' | 'd1'
 export interface Engine {
-  name: 'postgres' | 'd1'
+  name: EngineName
   binding: StorageBinding
   organizationId: string
   userId: string
@@ -59,15 +58,15 @@ export interface Engine {
   betweenPlanAndCommit(hook: () => Promise<void>): void
 }
 
-const SEED_AT = '2026-10-22T08:00:00.000Z'
-const LINK = { authProvider: 'clerk', authOrgId: 'org_engine', userSubject: 'user_engine_1', user2Subject: 'user_engine_2' } as const
-const kindsOf = (table: string): Record<string, ColumnKind> => {
+export const SEED_AT = '2026-10-22T08:00:00.000Z'
+export const LINK = { authProvider: 'clerk', authOrgId: 'org_engine', userSubject: 'user_engine_1', user2Subject: 'user_engine_2' } as const
+export const kindsOf = (table: string): Record<string, ColumnKind> => {
   const kinds = (COLUMN_KINDS as Record<string, Record<string, ColumnKind>>)[table]
   if (!kinds) throw new Error(`no modelled table "${table}"`)
   return kinds
 }
 /** Decodes a raw row to the shape both engines share: ISO timestamps, JS booleans, parsed JSON. */
-function decodeRow(table: string, row: RawRow): RawRow {
+export function decodeRow(table: string, row: RawRow): RawRow {
   const kinds = kindsOf(table)
   const out: RawRow = {}
   for (const [k, v] of Object.entries(row)) {
@@ -81,7 +80,7 @@ function decodeRow(table: string, row: RawRow): RawRow {
   }
   return out
 }
-function withDefaults(e: Engine, table: string, row: Record<string, unknown>): Record<string, unknown> {
+export function withDefaults(e: Engine, table: string, row: Record<string, unknown>): Record<string, unknown> {
   const kinds = kindsOf(table)
   const out = { ...row }
   if ('id' in kinds) out.id ??= uuidv7()
@@ -96,88 +95,20 @@ const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 const scopes = () =>
   ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read', 'messages:read', 'interactions:read', 'files:read', 'associations:read', 'associations:write', 'notes:read', 'notes:write'])
 
-/** Whether the Postgres suites run: `VAULT_TEST_POSTGRES=1`. Off by default (D1-only MVP); see `vitest.postgres.ts` at the repo root. */
-export const POSTGRES_TESTS = process.env.VAULT_TEST_POSTGRES === '1'
-/** The engines a both-engine suite runs on: `describe.each(ENGINE_NAMES)`. */
-export const ENGINE_NAMES: readonly ('postgres' | 'd1')[] = POSTGRES_TESTS ? ['postgres', 'd1'] : ['d1']
-
-export async function openEngines(opts: { maxConnections?: number; maxSetSize?: number } = {}): Promise<Engine[]> {
-  return POSTGRES_TESTS ? [await openPostgres(opts), await openD1(opts)] : [await openD1(opts)]
+/**
+ * Opens the named engines (a both-engine suite's entry file names its own: `*.d1.test.ts` or `*.postgres.test.ts`). The Postgres
+ * harness is loaded only when asked for, so a D1 run never touches the Postgres pools.
+ */
+export async function openEngines(names: readonly EngineName[], opts: { maxConnections?: number; maxSetSize?: number } = {}): Promise<Engine[]> {
+  const out: Engine[] = []
+  for (const name of names) out.push(name === 'postgres' ? await (await import('./engine-postgres.js')).openPostgres(opts) : await openD1(opts))
+  return out
 }
 
 /** The D1 engine alone, for suites of D1-only features (no Postgres table): CORE62's associations. */
 export async function openD1Engine(opts: { maxSetSize?: number } = {}): Promise<Engine> {
   const e = await openD1(opts)
   await e.reset()
-  return e
-}
-
-async function openPostgres(opts: { maxConnections?: number; maxSetSize?: number }): Promise<Engine> {
-  const app = createTestDb({ max: opts.maxConnections ?? 6 })
-  const owner = createOwnerTestDb()
-  const binding = postgresBinding(app, opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize })
-  const e: Engine = {
-    name: 'postgres',
-    binding,
-    organizationId: '',
-    userId: '',
-    user2Id: '',
-    agentId: '',
-    ...LINK,
-    app,
-    owner,
-    async reset() {
-      await truncateAll(owner)
-      const org = await seedOrganization(app, { name: 'Engine org', authProvider: LINK.authProvider, authOrgId: LINK.authOrgId })
-      const user = await seedUser(app, { organizationId: org.id, role: 'owner', authSubject: LINK.userSubject })
-      const user2 = await seedUser(app, { organizationId: org.id, authSubject: LINK.user2Subject })
-      const agent = await seedAgent(app, { organizationId: org.id, createdBy: user.id })
-      // The seeds' defaults are the database clock; stamp them like D1's seeds so both engines start from the same instant (CORE41 P17).
-      for (const t of ['organizations', 'users', 'memberships', 'agents']) {
-        await sql`update ${sql.table(t)} set created_at = ${SEED_AT}, updated_at = ${SEED_AT}`.execute(owner)
-      }
-      await sql`update principals set created_at = ${SEED_AT}`.execute(owner)
-      Object.assign(e, { organizationId: org.id, userId: user.id, user2Id: user2.id, agentId: agent.id })
-    },
-    async close() {
-      await app.destroy()
-      await owner.destroy()
-    },
-    ...shared(() => e),
-    async tasks() {
-      return (await sql<RawRow>`select id, title, status, notes, due_at, completed_at, assignee_id, deleted_at, created_at, updated_at from tasks order by ctid`.execute(owner)).rows
-    },
-    async events() {
-      return (await sql<RawRow>`select * from events order by ctid`.execute(owner)).rows
-    },
-    async insertTask(row) {
-      const at = row.at ?? '2026-10-22T08:00:00.000Z'
-      await sql`insert into tasks (id, organization_id, title, status, completed_at, created_by, created_at, updated_at) values (${row.id}, ${e.organizationId}, ${row.title}, ${row.status ?? 'open'}, ${row.completed_at ?? null}, ${e.userId}, ${at}, ${at})`.execute(owner)
-    },
-    async rows(table) {
-      kindsOf(table)
-      return (await sql<RawRow>`select * from ${sql.table(table)} order by ctid`.execute(owner)).rows.map((r) => decodeRow(table, r))
-    },
-    async insert(table, row) {
-      const full = withDefaults(e, table, row)
-      const cols = Object.keys(full)
-      const res = await sql<RawRow>`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(owner)
-      return decodeRow(table, res.rows[0]!)
-    },
-    async seedMember(role = 'member', opts = {}) {
-      const u = await seedUser(app, { organizationId: e.organizationId, role, ...(opts.subject ? { authSubject: opts.subject } : {}), ...(opts.email ? { email: opts.email } : {}) })
-      const m = await sql<{ id: string }>`select id from memberships where user_id = ${u.id}`.execute(owner)
-      return { userId: u.id, membershipId: m.rows[0]!.id }
-    },
-    async update(table, id, patch) {
-      kindsOf(table)
-      const cols = Object.keys(patch)
-      await sql`update ${sql.table(table)} set ${sql.join(cols.map((c) => sql`${sql.ref(c)} = ${patch[c]}`))} where id = ${id}`.execute(owner)
-    },
-    betweenPlanAndCommit() {
-      throw new Error('betweenPlanAndCommit is a D1 device: Postgres plan and commit share one locked transaction (races are covered by D13 trials)')
-    },
-  }
   return e
 }
 
@@ -288,7 +219,7 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
   return e
 }
 
-function shared(self: () => Engine): Pick<Engine, 'env' | 'run' | 'runAs'> {
+export function shared(self: () => Engine): Pick<Engine, 'env' | 'run' | 'runAs'> {
   return {
     env(over = {}) {
       const e = self()

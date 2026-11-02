@@ -2,16 +2,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { sql, type Kysely } from 'kysely'
 import type { Database } from '@vault/db'
-import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } from '@vault/db/test'
 import { uuidv7 } from '@vault/storage'
-import { postgresBinding } from '@vault/storage-postgres'
 import type { AnyResource, Registry } from '../registry.js'
 import { fullPath, openApiPath } from '../surfaces.js'
 import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudAction } from '../resources/define.js'
 import { createApp, type AppEnv } from '../rest/app.js'
 import type { CaptureInput, CaptureResult } from '../messaging/capture.js'
 import { captureAs, captureMessage, type CaptureOverrides } from './capture-kit.js'
-import { POSTGRES_TESTS } from './engines.js'
 import { withTenantDefaults } from './insert.js'
 import { seedApiKey } from './keys.js'
 import { seedTenant, type Tenant } from './tenant.js'
@@ -105,72 +102,6 @@ export interface ContractBackend {
   open(registry: Registry): Promise<ContractSession>
 }
 
-/** The Postgres backend: `vault_app` pool, owner pool for truncation and reads, the storage-postgres binding. */
-export function postgresBackend(): ContractBackend {
-  return {
-    name: 'postgres',
-    async open(registry) {
-      const db = createTestDb()
-      const owner = createOwnerTestDb()
-      const storage = postgresBinding(db)
-      const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => storage })
-      const agents = new Map<string, { id: string; key: string }>()
-      const agentFor = async (t: ContractTenant, scopes: string[]) => {
-        const k = `${t.organizationId}:${scopes.join(',')}`
-        let agent = agents.get(k)
-        if (!agent) {
-          const row = await seedAgent(db, { organizationId: t.organizationId, createdBy: t.userId, scopes })
-          const key = await seedApiKey(db, { organizationId: t.organizationId, agentId: row.id, createdBy: t.userId })
-          agent = { id: row.id, key: key.key }
-          agents.set(k, agent)
-        }
-        return agent
-      }
-      return {
-        app,
-        db,
-        owner,
-        async reset() {
-          await truncateAll(owner)
-          agents.clear()
-          return { a: await seedTenant(db, 'A'), b: await seedTenant(db, 'B') }
-        },
-        async close() {
-          await db.destroy()
-          await owner.destroy()
-        },
-        async call(t, actor, scopes, method, path, body) {
-          const token = actor === 'agent' ? (await agentFor(t, scopes)).key : mintTestUserToken({ userId: t.userId, organizationId: t.organizationId, scopes })
-          return app.request(path, {
-            method,
-            headers: { authorization: `Bearer ${token}` },
-            body: body === undefined ? undefined : JSON.stringify(body),
-          })
-        },
-        async principalId(t, actor, scopes) {
-          return actor === 'agent' ? (await agentFor(t, scopes)).id : t.userId
-        },
-        async seedMember(t, role) {
-          const u = await seedUser(db, { organizationId: t.organizationId, role })
-          const m = await owner.selectFrom('memberships').select('id').where('user_id', '=', u.id).executeTakeFirstOrThrow()
-          return { userId: u.id, membershipId: m.id }
-        },
-        async insert(t, table, row) {
-          const full = withTenantDefaults(table, row, t)
-          const cols = Object.keys(full)
-          const res = await sql<Record<string, any>>`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(owner)
-          return res.rows[0]!
-        },
-        capture: (t, input) => captureAs(storage, t, input),
-        eventsOf: (id) => owner.selectFrom('events').selectAll().where('resource_id', '=', id).orderBy('id').execute(),
-        countEvents: async () => Number((await owner.selectFrom('events').select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
-        countRows: async (table) =>
-          Number((await (owner as unknown as Kysely<Record<string, Record<string, unknown>>>).selectFrom(table).select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
-      }
-    },
-  }
-}
-
 /** The catalog case: every registered definition has a fixture and every fixture a definition. */
 export function assertFixturesCoverRegistry(registry: Registry, fixtures: Readonly<Record<string, ContractFixture>>): void {
   const defined = new Set(registry.resources().map((d) => d.name))
@@ -193,13 +124,10 @@ export function runContractSuite(opts: {
   registry: Registry
   fixtures: Readonly<Record<string, ContractFixture>>
   checks?: readonly ContractCheck[]
-  /** Default: Postgres. The same assertions run on every backend passed. */
-  backend?: ContractBackend
+  /** Required (no default): the same assertions run on whichever backend the entry file names. */
+  backend: ContractBackend
 }): void {
-  const { registry, fixtures, checks = [] } = opts
-  // The default backend is Postgres, which is off unless VAULT_TEST_POSTGRES=1 (D1-only MVP): register nothing.
-  if (!opts.backend && !POSTGRES_TESTS) return
-  const backend = opts.backend ?? postgresBackend()
+  const { registry, fixtures, backend, checks = [] } = opts
 
   describe(`contract (${backend.name})`, () => {
     let session: ContractSession

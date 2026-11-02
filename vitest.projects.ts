@@ -1,0 +1,32 @@
+// The test projects (OPS92): an engine is a vitest project, selected by file name.
+//   engine-neutral  `*.test.ts` with no engine infix  needs no database server (D1 runs in-process, Miniflare)
+//   d1              `*.d1.test.ts`                    the D1 side of a both-engine suite
+//   postgres        `*.postgres.test.ts`              needs a Postgres database (`TEST_DATABASE_URL`, `.env.test.local`)
+// Globs are relative to the directory vitest is started from: the repo root (every package) or one package (`pnpm -C packages/<pkg> test`).
+import { fileURLToPath } from 'node:url'
+import { configDefaults, type TestProjectInlineConfiguration } from 'vitest/config'
+
+const TESTS = '**/{src,scripts}/**/*.test.ts'
+// Not workspace tests: vendored sources, other worktrees (`.claude/worktrees/*`) and the knowledge repo. The root run starts at the repo root, so the globs reach them.
+const EXCLUDE = [...configDefaults.exclude, '**/dist/**', '**/vendor/**', '**/.claude/**', '**/knowledge/**']
+// Every package's Postgres setup is the same one: it reads `packages/db/.env.test.local` (written by `pnpm db:test:worktree`).
+const POSTGRES_SETUP = fileURLToPath(new URL('./packages/db/src/test-setup.ts', import.meta.url))
+
+const common = {
+  environment: 'node',
+  // Miniflare (workerd) starts per file and the D1 golden replays, over-cap cases and concurrency trials are slow under load.
+  testTimeout: 30_000,
+  // Vitest 4+ removed `poolOptions`; the Postgres suites share one database, so run files serially.
+  pool: 'forks',
+  fileParallelism: false,
+} as const
+
+export const engineNeutralProject: TestProjectInlineConfiguration = {
+  test: { ...common, name: 'engine-neutral', include: [TESTS], exclude: [...EXCLUDE, '**/*.d1.test.ts', '**/*.postgres.test.ts'] },
+}
+export const d1Project: TestProjectInlineConfiguration = {
+  test: { ...common, name: 'd1', include: ['**/{src,scripts}/**/*.d1.test.ts'], exclude: EXCLUDE },
+}
+export const postgresProject: TestProjectInlineConfiguration = {
+  test: { ...common, name: 'postgres', include: ['**/{src,scripts}/**/*.postgres.test.ts'], exclude: EXCLUDE, setupFiles: [POSTGRES_SETUP] },
+}
