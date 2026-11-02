@@ -11,6 +11,7 @@
     "bootstrap": "tsx scripts/bootstrap.ts",
     "smoke:worker": "tsx scripts/smoke-worker.ts",
     "open:check": "tsx scripts/open-check.ts",
+    "setup:remote": "tsx scripts/setup-remote.ts",
     "deploy:remote": "tsx scripts/deploy.ts",
     "db:migrate:remote": "tsx scripts/migrate-remote.ts",
     "db:status:remote": "tsx scripts/status-remote.ts",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@types/node": "^22",
     "esbuild": "0.28.2",
+    "jsonc-parser": "3.3.1",
     "miniflare": "4.20260730.0",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
