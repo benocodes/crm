@@ -218,7 +218,12 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    behaviour and the spec doesn't decide whether it changes, the obligation is "matches today's
    behaviour", and the coder reads the old code as the reference ([[CORE35]] D22).
 6. **Fetch external API docs** before scoping a cycle that integrates a third-party API, enough to know
-   the auth mechanism and the seams. The coder fetches them again for detail.
+   the auth mechanism and the seams. The coder fetches them again for detail. **For an E2E on a real
+   third-party instance, check that every configuration step the scenario needs has an API.** A step that
+   exists only in the provider's dashboard is a precondition the user completes before the tester runs. Do
+   not write it as a tester step. Also check that tokens minted through the provider's API carry the same
+   claims as browser tokens. [[CORE64]]: Clerk's session-token customisation is dashboard-only, and
+   Backend-API session tokens carry no `azp`. That cost one blocked E2E run and one review round.
 7. **A cycle that adds a resource names the contract file and both runs.** Add it to the contract suite
    (`packages/api/src/contract.integration.test.ts`) rather than hand-writing the checks, and say so in the
    charter. The file has a Postgres run and a D1 run; the D1 run registers its resources by hand, so a

@@ -90,6 +90,17 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `src/auth/user-authenticator.ts` (`createUserAuthenticator`); `AuthFailure` lives in `src/auth/adapter.ts`;
   - `src/account/` (`me.get` only, a prepared account operation `meOperation(env)`; organisations and memberships
     come from Clerk, [[CORE29]]);
+  - **D1 workspace sign-in** ([[CORE64]] cycle 1). `createApp({ workspace: { adapter? } })` is exclusive with
+    `authAdapter`/`userAuthenticator`. `@vault/server-d1` sets it for every composition, `AUTH_PROVIDER` unset
+    included. It uses `createWorkspaceAuthAdapter` (never reads `CLERK_WEBHOOK_SECRET`) and
+    `src/auth/workspace-authenticator.ts`. The role is read on every request from the claim `AUTH_ROLE_CLAIM`
+    (default `vibase_role`) and mapped through `SCOPE_POLICY`. The vault never reads or writes `memberships`
+    for it. A missing, unknown, `agent` or non-string role throws `403 organization_forbidden` before first
+    sight, so a refused token writes nothing. `/webhooks/clerk` is not mounted. `me.get` answers agents (the
+    op flag `agents: true`), and memberships are synthesised from the role. `CLERK_AUTHORIZED_PARTIES` is
+    optional on D1, because session tokens minted through Clerk's Backend API carry no `azp`. An `azp` that is
+    present must still be listed. Bootstrap uses `src/bootstrap-workspace.ts` (no human, attributed to `system`).
+    The Organizations authenticator stays for `@vault/server-postgres` and the engine-harness suites;
   - `packages/server-postgres/scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:auth`: local key pair, fake
     Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`
     equals `SMOKE_EXPECT_DATABASE`, because an exported `DATABASE_URL` overrides `--env-file` ([[CORE36]]).
@@ -168,9 +179,9 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
      through `mapStorageError`;
   4. respond with `c.json(result, status)`, or an empty 204.
   Any new transport (MCP) must apply the same order.
-- **`createApp({ storage: (c) => StorageBinding, registry?, authAdapter? | userAuthenticator?, clock?, newId?, randomBytes?, corsOrigins?, version? })`** ([[CORE44]] C1: `storage` is required, there is no `db`).
+- **`createApp({ storage: (c) => StorageBinding, registry?, authAdapter? | userAuthenticator? | workspace?, clock?, newId?, randomBytes?, corsOrigins?, version? })`** ([[CORE44]] C1: `storage` is required, there is no `db`).
   - `authAdapter` builds the real authenticator over the registry's declared scopes; `userAuthenticator`
-    is for tests and custom setups. Passing both throws, so a test can't silently run the fake.
+    is for tests and custom setups; `workspace` is the D1 workspace authenticator ([[CORE64]]). Passing more than one throws, so a test can't silently run the fake.
   - `corsOrigins` empty or absent: no CORS middleware and no `Access-Control-*` header.
   - The storage resolver runs once per request, in `app.use('*')` before auth, and never at construction. Auth,
     the operation and the webhook reuse that binding (`c.var.storage`).
