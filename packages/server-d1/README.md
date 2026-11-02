@@ -54,7 +54,8 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
 | `DB` | D1 binding | the database; `migrations_dir` points at `packages/storage-d1/migrations` |
 | `AUTH_PROVIDER` | var | empty: agent-only (API keys). `clerk`: also accept Clerk session tokens; the role is the `vibase_role` claim ([[CORE64]]), there is no webhook |
 | `CORS_ALLOWED_ORIGINS` | var | comma-separated origins for the email-client pane; empty allows none |
-| `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES` | vars | public values, required with `AUTH_PROVIDER=clerk` |
+| `CLERK_ISSUER` | var | public value, required with `AUTH_PROVIDER=clerk` |
+| `CLERK_AUTHORIZED_PARTIES` | var | optional on D1: comma-separated origins allowed as a session token's `azp`; unset, a token carrying an `azp` is 401 |
 | `CLERK_JWT_KEY`, `CLERK_SECRET_KEY` | secrets | required with `AUTH_PROVIDER=clerk`; the key is a PEM (line breaks, or `\n` escapes, optionally quoted) |
 | `AUTH_ROLE_CLAIM` | var | the session-token claim holding `owner` or `member`; default `vibase_role`; an empty value fails closed |
 | `CLERK_API_URL` | var | optional |

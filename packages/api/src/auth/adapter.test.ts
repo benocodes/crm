@@ -69,6 +69,14 @@ describe('createWorkspaceAuthAdapter ([[CORE64]] D24, D8)', () => {
     expect(() => createAuthAdapter(env)).toThrow('AUTH_PROVIDER=clerk requires CLERK_WEBHOOK_SECRET')
   })
 
+  it('CLERK_AUTHORIZED_PARTIES is optional for the workspace adapter and required for the Organizations one', async () => {
+    const env = await baseEnv()
+    delete env.CLERK_AUTHORIZED_PARTIES
+    expect(createWorkspaceAuthAdapter(env)).toBeDefined()
+    expect(() => createAuthAdapter(env)).toThrow('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
+    expect(() => createAuthAdapter({ ...env, CLERK_AUTHORIZED_PARTIES: ' , ' })).toThrow('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
+  })
+
   it('unset provider is undefined', () => {
     expect(createWorkspaceAuthAdapter({})).toBeUndefined()
   })

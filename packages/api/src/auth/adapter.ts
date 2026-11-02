@@ -78,7 +78,7 @@ function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, w
   const jwtKey = need('CLERK_JWT_KEY')
   const issuer = need('CLERK_ISSUER')
   const secretKey = need('CLERK_SECRET_KEY')
-  need('CLERK_AUTHORIZED_PARTIES')
+  if (!workspace) need('CLERK_AUTHORIZED_PARTIES')
   let webhookSecret: string | undefined
   if (!workspace) {
     webhookSecret = need('CLERK_WEBHOOK_SECRET')
@@ -90,7 +90,8 @@ function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, w
     if (roleClaim === '') throw new Error('AUTH_ROLE_CLAIM must not be empty')
   }
   const authorizedParties = parseOriginList(env.CLERK_AUTHORIZED_PARTIES, 'CLERK_AUTHORIZED_PARTIES')
-  if (authorizedParties.length === 0) throw new Error('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
+  // D1 workspace ([[CORE64]] D8): optional; unset means no party is authorised, so a token carrying any azp is 401.
+  if (!workspace && authorizedParties.length === 0) throw new Error('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
   return createClerkAdapter({
     jwtKey,
     issuer,

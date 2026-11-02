@@ -199,6 +199,17 @@ describe('the organisation claim and the authorised party (D24, CORE3)', () => {
   })
 })
 
+describe('CLERK_AUTHORIZED_PARTIES is optional on D1 (D8)', () => {
+  it('unset: composes, a token without azp is admitted and a token with any azp is 401', async () => {
+    await initWorkspace()
+    profile('user_a')
+    const wk = worker({ CLERK_AUTHORIZED_PARTIES: undefined })
+    const noAzp = await token('user_a', { vibase_role: 'owner' }, { azp: undefined })
+    expect((await call(wk, 'GET', '/meta/v1/me', noAzp)).status).toBe(200)
+    expect((await call(wk, 'GET', '/meta/v1/me', await token('user_a', { vibase_role: 'owner' }))).status).toBe(401)
+  })
+})
+
 describe('composition (D24)', () => {
   it('composes with AUTH_PROVIDER=clerk and no CLERK_WEBHOOK_SECRET, and /webhooks/clerk is 404', async () => {
     await initWorkspace()
@@ -305,13 +316,37 @@ describe('bootstrap on a Clerk-backed D1 (D11)', () => {
     expect(res.json.memberships[0]).toMatchObject({ organization_name: 'Acme', role: 'owner' })
   })
 
-  it('running again with the same marker is idempotent and writes nothing', async () => {
+  it('running again on an initialised organisation is refused and writes nothing', async () => {
     const first = await bootstrapD1(w.d1, opts, env())
     const before = { orgs: (await rows('organizations')).length, agents: (await rows('agents')).length, keys: (await rows('api_keys')).length }
     const again = await bootstrapD1(w.d1, opts, env()).catch((e: Error) => e)
     expect(again).toBeInstanceOf(Error)
     expect((again as Error).message).toContain(`organization ${first.organizationId} is already initialised`)
     expect({ orgs: (await rows('organizations')).length, agents: (await rows('agents')).length, keys: (await rows('api_keys')).length }).toEqual(before)
+  })
+
+  it('a Clerk-path marker-only crash resumes: the organisation and agent are written, no human', async () => {
+    const link = { organizationId: uuidv7(NOW), authProvider: 'clerk', authOrgId: opts.authOrgId }
+    await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+    const r = await bootstrapD1(w.d1, opts, env())
+    expect(r.deployment).toBe('existing')
+    expect(r.organizationId).toBe(link.organizationId)
+    expect(await rows('organizations')).toHaveLength(1)
+    expect(await rows('agents')).toHaveLength(1)
+    expect(await rows('users')).toEqual([])
+  })
+
+  it.each([
+    ['a none marker and the Clerk path (the path check)', 'none', {} as Record<string, unknown>, /the marker's provider is none/],
+    ['a clerk marker and an explicit none path (the existing link check)', 'clerk', { authProvider: 'none', email: 'o@x.test' }, /deployment is already initialised/],
+  ])('%s: refused, rows unchanged', async (_n, markerProvider, over, message) => {
+    const link = { organizationId: uuidv7(NOW), authProvider: markerProvider, authOrgId: opts.authOrgId }
+    await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+    const tables = ['deployment', 'organizations', 'users', 'principals', 'agents', 'api_keys', 'events']
+    const counts = async () => Promise.all(tables.map(async (t) => (await rows(t)).length))
+    const before = await counts()
+    await expect(bootstrapD1(w.d1, { ...opts, ...over }, env())).rejects.toThrow(message)
+    expect(await counts()).toEqual(before)
   })
 
   it('refuses a human on the Clerk path', async () => {

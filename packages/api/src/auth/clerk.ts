@@ -1,4 +1,5 @@
 import { errors, importSPKI, jwtVerify, type CryptoKey } from 'jose'
+import { DEFAULT_ROLE_CLAIM } from './adapter.js'
 import type {
   AuthAdapter,
   AuthProfile,
@@ -80,7 +81,7 @@ export function createClerkAdapter(config: ClerkConfig): AuthAdapter {
   const apiUrl = (config.apiUrl ?? 'https://api.clerk.com').replace(/\/+$/, '')
   let key: Promise<CryptoKey> | undefined
   const getKey = () => (key ??= importSPKI(normalisePem(config.jwtKey), 'RS256'))
-  const roleClaim = config.roleClaim ?? 'vibase_role'
+  const roleClaim = config.roleClaim ?? DEFAULT_ROLE_CLAIM
   const backend = (path: string) =>
     (config.fetch ?? globalThis.fetch)(`${apiUrl}${path}`, { headers: { authorization: `Bearer ${config.secretKey}` } })
 
