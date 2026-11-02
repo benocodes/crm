@@ -8,7 +8,7 @@ import { createVaultRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
 import { seedApiKey } from '../test/keys.js'
 import { seedPrincipal } from '@vault/storage-d1/test/seed'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 import { BASE } from '../test/identity-kit.js'
 
 // Administration on both engines (CORE40 Step 2.4): agents, memberships, api keys and users through the real
@@ -31,7 +31,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('administration storage behaviour on %s', (name) => {
+describe.each(ENGINE_NAMES)('administration storage behaviour on %s', (name) => {
   let e: Engine
   let tick = 0
   beforeAll(() => {

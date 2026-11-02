@@ -3,7 +3,7 @@ import { sql, type SqlBool } from 'kysely'
 import { UnitDriftError, assertStep, defineOperation, exactly, step, unit, uuidv7, type PreparedOperation, type QueryContext, type Step } from '@vault/storage'
 import { mapStorageError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 
 // CORE36 D4: the assertion step and exactly(n) on both engines. A failed assertion aborts the whole unit.
 const AT = '2026-10-22T10:00:00.000Z'
@@ -17,7 +17,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('unit assertions on %s', (name) => {
+describe.each(ENGINE_NAMES)('unit assertions on %s', (name) => {
   let e: Engine
   beforeAll(() => {
     e = engines.find((x) => x.name === name)!

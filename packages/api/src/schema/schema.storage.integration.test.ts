@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createVaultRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
 import { ApiError } from '../errors.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, POSTGRES_TESTS, type Engine } from '../test/engines.js'
 import { CATALOG, HIDDEN_TABLES } from './catalog.js'
 
 // API63 on the migrated local D1 (the oracle): which tables appear, the D13 facts, catalog completeness (D16), no event written.
@@ -141,7 +141,7 @@ describe('catalog completeness (D16)', () => {
   })
 })
 
-describe('schema.get on Postgres (D15)', () => {
+describe.skipIf(!POSTGRES_TESTS)('schema.get on Postgres (D15)', () => {
   it('answers 501 not_implemented', async () => {
     await pg.reset()
     await expect(run(pg)).rejects.toMatchObject({ status: 501, code: 'not_implemented' })

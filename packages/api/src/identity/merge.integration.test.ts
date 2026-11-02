@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
 import { createOperation, deleteOperation, getOperation } from '../storage/crud.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 import { foreignTenant, identityKit, type IdentityKit } from '../test/identity-kit.js'
 import { mergeOperation } from './merge.js'
 
@@ -14,7 +14,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('contacts.merge on %s', (name) => {
+describe.each(ENGINE_NAMES)('contacts.merge on %s', (name) => {
   let e: Engine
   let k: IdentityKit
   beforeAll(() => {

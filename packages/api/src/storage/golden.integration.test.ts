@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { d1GoldenBackend, type D1GoldenBackend } from '../test/golden/d1-backend.js'
+import { POSTGRES_TESTS } from '../test/engines.js'
 import { pgGoldenBackend, type PgGoldenBackend } from '../test/golden/pg-backend.js'
 import { runScenario } from '../test/golden/runner.js'
 import { administrationScenarios, authScenarios, directoryScenarios, identityModelScenarios, taskScenarios, type GoldenScenario } from '../test/golden/scenarios.js'
@@ -30,7 +31,7 @@ describe.each(SETS)('golden fixtures: %s', (_label, file, scenarios) => {
     expect(fixture.named_differences).toEqual(NAMED_DIFFERENCES.filter((d) => scenarios.some((s) => s.name === d.scenario)))
   })
 
-  describe('postgres path', () => {
+  describe.skipIf(!POSTGRES_TESTS)('postgres path', () => {
     let pg: PgGoldenBackend
     beforeAll(() => {
       pg = pgGoldenBackend()

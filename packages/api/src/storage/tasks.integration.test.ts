@@ -3,7 +3,7 @@ import { codecs, uuidv7 } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { taskCompletion, tasks } from '../resources/tasks.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './crud.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 
 const NOW = new Date('2026-10-22T10:00:00.000Z')
 const EARLIER = '2026-10-22T08:30:00.000Z'
@@ -17,7 +17,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('tasks through the prepared path on %s', (name) => {
+describe.each(ENGINE_NAMES)('tasks through the prepared path on %s', (name) => {
   let e: Engine
   beforeAll(() => {
     e = engines.find((x) => x.name === name)!

@@ -146,7 +146,8 @@ is the only LLM library (if the vault ever calls one).
 
 ```bash
 pnpm install          # at the repo root
-pnpm -r test          # all packages
+pnpm -r test          # all packages (D1 and engine-neutral; Postgres suites are off)
+pnpm test:postgres    # the same plus the parked Postgres suites (needs a Postgres test database)
 pnpm -r typecheck
 pnpm -C packages/<pkg> test [file]
 pnpm db:migrate       # dev database
@@ -192,8 +193,13 @@ plan and size) and shared code must not drift from it:
 
 - Postgres packages stay in the **typecheck and build** gate (blocking, cheap): a change to shared code
   (`@vault/storage`, `@vault/api`) must still compile against both adapters.
-- Postgres **test suites still run** on changes to shared code and are reported, but are **non-blocking**:
-  a failure is drift to note in the cycle report (and fix when cheap), never a reason to bend D1 behaviour.
+- Postgres **test suites are off by default** (2026-11-02): `pnpm -r test` runs D1 and engine-neutral suites only and
+  needs no Postgres database. `pnpm test:postgres` (`VAULT_TEST_POSTGRES=1`) turns them back on, unchanged; run it
+  when un-parking Postgres, or on demand to see drift (non-blocking: a failure is drift to note, never a reason to
+  bend D1 behaviour). Mechanism: whole Postgres-only files are excluded in each package's `vitest.config.ts` via
+  `postgresOnly([...])` (`vitest.postgres.ts` at the root); suites that run on both engines take their engines from
+  `ENGINE_NAMES` / `openEngines()` (`packages/api/src/test/engines.ts`), and single Postgres cases use
+  `skipIf(!POSTGRES_TESTS)`. A new Postgres-dependent test file must be listed or guarded the same way.
 - New features are specced and built for D1 only. Do not add Postgres migrations or Postgres-only work;
   where a shared interface changes, keep the Postgres adapter compiling and say what it would need.
 - Specs with Postgres or multi-tenant cloud work are marked **parked**, not deleted.

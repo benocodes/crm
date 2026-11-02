@@ -4,6 +4,7 @@ import type { Database } from '@vault/db'
 import { createOwnerTestDb } from '@vault/db/test'
 import { openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import type { D1Like } from '@vault/storage-d1'
+import { POSTGRES_TESTS } from '../test/engines.js'
 import { CONTACT_NON_FK_EXEMPTIONS, CONTACT_NON_FK_REFERENCES, CONTACT_REFERENCES, CONTACT_REFERENCE_EXEMPTIONS } from './merge.js'
 
 // D8: the typed catalog plus its exemptions equals the foreign keys onto contacts, on BOTH engines.
@@ -44,14 +45,14 @@ const listed = () =>
   [...CONTACT_REFERENCES.map((r) => `${r.table}.${r.column}`), ...CONTACT_REFERENCE_EXEMPTIONS.map((r) => `${r.table}.${r.column}`)].sort()
 
 describe('CONTACT_REFERENCES catalog guard', () => {
-  it('every foreign key onto contacts is listed (Postgres)', async () => {
+  it.skipIf(!POSTGRES_TESTS)('every foreign key onto contacts is listed (Postgres)', async () => {
     expect(await postgresCatalog()).toEqual(listed())
   })
   it('every foreign key onto contacts is listed (D1)', async () => {
     expect(await d1Catalog()).toEqual(listed())
   })
   it('guard: both catalogs see something', async () => {
-    for (const c of [await postgresCatalog(), await d1Catalog()]) {
+    for (const c of [...(POSTGRES_TESTS ? [await postgresCatalog()] : []), await d1Catalog()]) {
       expect(c).toContain('identities.contact_id')
       expect(c).toContain('contacts.merged_into_id')
     }
@@ -59,9 +60,10 @@ describe('CONTACT_REFERENCES catalog guard', () => {
   it('entries name the definition table and real columns on both engines; liveOnly entries have deleted_at', async () => {
     for (const r of CONTACT_REFERENCES) {
       expect(r.def.table).toBe(r.table)
-      const pg = (await sql<{ column_name: string }>`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=${r.table}`.execute(owner)).rows.map((x) => x.column_name)
+      const pg = POSTGRES_TESTS ? (await sql<{ column_name: string }>`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=${r.table}`.execute(owner)).rows.map((x) => x.column_name) : null
       const lite = ((await d1.prepare(`SELECT name FROM pragma_table_info('${r.table}')`).all()).results as Array<{ name: string }>).map((x) => x.name)
       for (const cols of [pg, lite]) {
+        if (!cols) continue
         expect(cols).toContain(r.column)
         if (r.liveOnly) expect(cols).toContain('deleted_at')
       }

@@ -5,6 +5,7 @@ import { createOwnerTestDb } from '@vault/db/test'
 import { openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import type { D1Like } from '@vault/storage-d1'
 import { createVaultRegistry } from '../operations.js'
+import { POSTGRES_TESTS } from '../test/engines.js'
 import { CONTACT_NON_FK_REFERENCES, IDENTITY_REFERENCES } from './merge.js'
 
 // CORE25 D35: every foreign key onto identities(id) is listed in IDENTITY_REFERENCES, on BOTH engines. Merge never
@@ -45,21 +46,21 @@ async function d1Catalog(): Promise<string[]> {
 const listed = () => IDENTITY_REFERENCES.map((r) => `${r.table}.${r.column}`).sort()
 
 describe('IDENTITY_REFERENCES catalog guard', () => {
-  it('every foreign key onto identities is listed (Postgres)', async () => {
+  it.skipIf(!POSTGRES_TESTS)('every foreign key onto identities is listed (Postgres)', async () => {
     expect(await postgresCatalog()).toEqual(listed())
   })
   it('every foreign key onto identities is listed (D1)', async () => {
     expect(await d1Catalog()).toEqual(listed())
   })
   it('guard: both catalogs see interaction_participants.identity_id', async () => {
-    expect(await postgresCatalog()).toContain('interaction_participants.identity_id')
+    if (POSTGRES_TESTS) expect(await postgresCatalog()).toContain('interaction_participants.identity_id')
     expect(await d1Catalog()).toContain('interaction_participants.identity_id')
   })
   it('entries name real columns on both engines', async () => {
     for (const r of IDENTITY_REFERENCES) {
-      const pg = (await sql<{ column_name: string }>`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=${r.table}`.execute(owner)).rows.map((x) => x.column_name)
+      const pg = POSTGRES_TESTS ? (await sql<{ column_name: string }>`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=${r.table}`.execute(owner)).rows.map((x) => x.column_name) : null
       const lite = ((await d1.prepare(`SELECT name FROM pragma_table_info('${r.table}')`).all()).results as Array<{ name: string }>).map((x) => x.name)
-      expect(pg).toContain(r.column)
+      if (pg) expect(pg).toContain(r.column)
       expect(lite).toContain(r.column)
     }
   })

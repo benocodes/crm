@@ -3,7 +3,7 @@ import { companies } from './companies.js'
 import { contacts } from './contacts.js'
 import { identities } from './identities.js'
 import { createOperation, listOperation, updateOperation } from '../storage/crud.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 import { foreignTenant, identityKit, type IdentityKit } from '../test/identity-kit.js'
 
 // The identity model's resources on both engines (CORE36 C7: Companies, Contacts, Identities). Exact statuses,
@@ -16,7 +16,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('identity model resources on %s', (name) => {
+describe.each(ENGINE_NAMES)('identity model resources on %s', (name) => {
   let e: Engine
   let k: IdentityKit
   const postgres = name === 'postgres'
