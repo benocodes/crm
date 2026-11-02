@@ -81,3 +81,9 @@ model setting can override it.
 **An agent that stops without reporting is not still working.** If a notification says an agent
 finished (or is "waiting on background work") and no report arrives, check its evidence yourself
 (`git log` on its branch, `git ls-remote`, its RESULT.md section) and move on; don't sit idle waiting.
+
+**Don't wake an agent just to re-verify.** Resume the coder (SendMessage) only for work that needs its
+context: applying findings, fixing a failure. To re-run a suite or the gate on a pushed sha, spawn a
+separate, fresh agent (a new `coder` instance with `model: "sonnet"`, briefed "verify only, don't edit")
+in the same worktree. It reports counts; pass them to the coder only if something failed and needs fixing.
+Every extra run in the coder's own context bloats it for the rounds that matter.
