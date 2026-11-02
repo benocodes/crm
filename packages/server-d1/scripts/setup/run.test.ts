@@ -251,6 +251,20 @@ describe('D18 bootstrap marker', () => {
     expect(states(await runSetup(only, CONFIRM, w.deps))).toEqual(['bootstrap:ok'])
     expect(await readDeployment(db.d1)).toMatchObject({ authProvider: 'none', authOrgId: 'smoked1' })
   })
+  it('a matching marker with operator flags: ok, says the flags were not applied, .env unchanged, no log line claims the key', async () => {
+    await seedMarker('none', 'smoked1')
+    const w = smoked1World()
+    const o = await runSetup([...SMOKED1, '--only', 'bootstrap,verify', '--operator-agent', 'operator', '--key-env', 'SMOKED1_KEY', '--owner-email', 'owner@example.com'], CONFIRM, w.deps)
+    expect(states(o)).toEqual(['bootstrap:ok', 'verify:ok'])
+    expect(o.results[0]!.detail).toMatch(/not applied/)
+    expect(w.state.envText).toBe('')
+    expect(w.logs.join('\n')).not.toMatch(/operator key in \.env/)
+  })
+  it('verify without a key prints the exact repair command', async () => {
+    const w = smoked1World()
+    const o = await runSetup([...SMOKED1, '--only', 'verify'], CONFIRM, w.deps)
+    expect((o.results[0]!.lines ?? []).join('\n')).toContain('CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env smoked1 --key-env <NAME> --org <name> --auth-provider none --auth-org-id smoked1 --email <email> --agent <name>')
+  })
   it('a different marker is a fail and writes nothing', async () => {
     await seedMarker('none', 'other')
     const w = smoked1World()

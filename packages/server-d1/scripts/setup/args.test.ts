@@ -10,7 +10,7 @@ describe('parseSetupArgs: valid input (D6, D9, D18, D20)', () => {
     expect(o).toMatchObject({ env: 'acme', apiHost: 'api.acme.vibase.ai', auth: 'none', org: 'acme', workerName: 'vault-acme', d1Name: 'vault-acme', r2Name: 'vault-acme-bodies', origins: [], dryRun: false })
   })
   it('overrides names, collects origins in order, and reads --only in the given order', () => {
-    const o = parseSetupArgs([...base, '--worker-name', 'w', '--d1-name', 'd', '--r2-name', 'r', '--org', 'Acme Ltd', '--web-origin', 'https://app.example.com', '--extra-origin', 'https://a.example.com', '--extra-origin', 'https://b.example.com:8443', '--only', 'migrate,verify', '--dry-run'])
+    const o = parseSetupArgs([...base, '--worker-name', 'w', '--d1-name', 'd', '--r2-name', 'r', '--org', 'Acme Ltd', '--operator-agent', 'operator', '--key-env', 'K', '--owner-email', 'o@example.com', '--web-origin', 'https://app.example.com', '--extra-origin', 'https://a.example.com', '--extra-origin', 'https://b.example.com:8443', '--only', 'migrate,verify', '--dry-run'])
     expect(o).toMatchObject({ workerName: 'w', d1Name: 'd', r2Name: 'r', org: 'Acme Ltd', origins: ['https://app.example.com', 'https://a.example.com', 'https://b.example.com:8443'], only: ['migrate', 'verify'], dryRun: true })
   })
   it('takes the operator agent and key variable together', () => {
@@ -37,6 +37,7 @@ describe('parseSetupArgs: refusals before any network call (D19, D20, D18, D6)',
     ['key env without operator agent', [...base, '--key-env', 'ACME_KEY'], /together/],
     ['key env not UPPER_SNAKE', [...base, '--operator-agent', 'operator', '--key-env', 'lower', '--owner-email', 'o@example.com'], /UPPER_SNAKE/],
     ['operator without an owner email (none needs a human owner)', [...base, '--operator-agent', 'operator', '--key-env', 'K'], /--owner-email/],
+    ['--org without an operator agent (only the marker is written, the name would be ignored)', [...base, '--org', 'Acme'], /--org/],
     ['a Clerk-only flag', [...base, '--clerk-publishable-key', 'pk_test_x'], /OPS87/],
   ]
   it.each(cases)('%s', (_name, argv, message) => {
