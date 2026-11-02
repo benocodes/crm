@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vault/storage'
 import { createApp } from '../rest/app.js'
 import { memoryObjectStore, type ObjectStore } from '../objects/store.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 import { foreignTenant } from '../test/identity-kit.js'
 import { seedConversation } from '../test/messaging-kit.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
@@ -19,7 +19,7 @@ afterAll(async () => {
 
 const SCOPES = ['messages:read', 'files:read']
 
-describe.each(['postgres', 'd1'] as const)('content operations on %s', (name) => {
+describe.each(ENGINE_NAMES)('content operations on %s', (name) => {
   let e: Engine
   let store: ObjectStore
   let gets: string[]

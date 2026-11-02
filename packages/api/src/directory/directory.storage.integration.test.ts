@@ -5,7 +5,7 @@ import { d1Binding } from '@vault/storage-d1'
 import { clearD1 } from '@vault/storage-d1/test'
 import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { ApiError, mapStorageError } from '../errors.js'
-import { openEngines, type Engine, type RawRow } from '../test/engines.js'
+import { openEngines, type Engine, type RawRow, ENGINE_NAMES } from '../test/engines.js'
 import { openAuthKit, type AuthKit } from '../test/auth-kit.js'
 import { clerkMembership, clerkOrganization } from '../test/clerk.js'
 import { reconcileOrganization, refreshUser, repairMembership } from './sync.js'
@@ -25,7 +25,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('the directory on %s', (name) => {
+describe.each(ENGINE_NAMES)('the directory on %s', (name) => {
   let e: Engine
   let kit: AuthKit
   let orgName: string

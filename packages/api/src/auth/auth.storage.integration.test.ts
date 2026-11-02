@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { uuidv7 } from '@vault/storage'
 import { ApiError } from '../errors.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 import { openAuthKit, type AuthKit } from '../test/auth-kit.js'
 import { API_KEY_PREFIX, authenticateApiKey, generateApiKey, hashApiKey, apiKeyAuthOperation } from './api-keys.js'
 import { AuthFailure } from './adapter.js'
@@ -22,7 +22,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('authentication on %s', (name) => {
+describe.each(ENGINE_NAMES)('authentication on %s', (name) => {
   let e: Engine
   let kit: AuthKit
   beforeAll(() => {

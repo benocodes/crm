@@ -10,7 +10,7 @@ import { issueApiKeyOperation, revokeApiKeyOperation } from '../admin/api-keys.j
 import { generateApiKey } from '../auth/api-keys.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createOperation, deleteOperation, updateOperation } from './crud.js'
-import { openEngines, type Engine, type RawRow } from '../test/engines.js'
+import { openEngines, type Engine, type RawRow, ENGINE_NAMES } from '../test/engines.js'
 import { openAuthKit } from '../test/auth-kit.js'
 import { clerkMembership, clerkOrganization } from '../test/clerk.js'
 import { provisionUser } from '../auth/first-sight.js'
@@ -53,7 +53,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('concurrent task writes on %s', (name) => {
+describe.each(ENGINE_NAMES)('concurrent task writes on %s', (name) => {
   let e: Engine
   const TRIALS = name === 'postgres' ? 20 : 5
   beforeAll(() => {
@@ -144,7 +144,7 @@ describe.each(['postgres', 'd1'] as const)('concurrent task writes on %s', (name
 })
 
 // ---- the identity model (CORE36 D13): the writer lock and the unique constraints are the only protection ---------
-describe.each(['postgres', 'd1'] as const)('concurrent identity-model writes on %s', (name) => {
+describe.each(ENGINE_NAMES)('concurrent identity-model writes on %s', (name) => {
   let e: Engine
   const TRIALS = name === 'postgres' ? 20 : 5
   beforeAll(() => {
@@ -234,7 +234,7 @@ describe.each(['postgres', 'd1'] as const)('concurrent identity-model writes on 
 })
 
 // ---- administration (CORE40 D13): two revokes of one key --------------------------------------------------------
-describe.each(['postgres', 'd1'] as const)('concurrent administration writes on %s', (name) => {
+describe.each(ENGINE_NAMES)('concurrent administration writes on %s', (name) => {
   let e: Engine
   const TRIALS = name === 'postgres' ? 20 : 5
   beforeAll(() => {
@@ -274,7 +274,7 @@ describe.each(['postgres', 'd1'] as const)('concurrent administration writes on 
 })
 
 // ---- auth and directory (CORE41 D13, Step 2.6) ------------------------------------------------------------------
-describe.each(['postgres', 'd1'] as const)('concurrent auth and directory writes on %s', (name) => {
+describe.each(ENGINE_NAMES)('concurrent auth and directory writes on %s', (name) => {
   let e: Engine
   const TRIALS = name === 'postgres' ? 20 : 5
   beforeAll(() => {

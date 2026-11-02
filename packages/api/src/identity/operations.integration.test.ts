@@ -4,6 +4,7 @@ import { companies } from '../resources/companies.js'
 import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
 import { d1Backend } from '../test/d1-backend.js'
+import { POSTGRES_TESTS } from '../test/engines.js'
 import { postgresBackend, type ContractBackend, type ContractSession, type ContractTenant } from '../test/contract.js'
 import { identityOperations } from './operations.js'
 
@@ -13,7 +14,7 @@ const registry = (): Registry => {
   return r
 }
 
-describe.each([postgresBackend(), d1Backend()] as ContractBackend[])('identity commands over REST on $name', (backend) => {
+describe.each([...(POSTGRES_TESTS ? [postgresBackend()] : []), d1Backend()] as ContractBackend[])('identity commands over REST on $name', (backend) => {
   let session: ContractSession
   let a: ContractTenant
   beforeAll(async () => {

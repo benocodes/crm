@@ -11,6 +11,7 @@ import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudActi
 import { createApp, type AppEnv } from '../rest/app.js'
 import type { CaptureInput, CaptureResult } from '../messaging/capture.js'
 import { captureAs, captureMessage, type CaptureOverrides } from './capture-kit.js'
+import { POSTGRES_TESTS } from './engines.js'
 import { withTenantDefaults } from './insert.js'
 import { seedApiKey } from './keys.js'
 import { seedTenant, type Tenant } from './tenant.js'
@@ -196,6 +197,8 @@ export function runContractSuite(opts: {
   backend?: ContractBackend
 }): void {
   const { registry, fixtures, checks = [] } = opts
+  // The default backend is Postgres, which is off unless VAULT_TEST_POSTGRES=1 (D1-only MVP): register nothing.
+  if (!opts.backend && !POSTGRES_TESTS) return
   const backend = opts.backend ?? postgresBackend()
 
   describe(`contract (${backend.name})`, () => {

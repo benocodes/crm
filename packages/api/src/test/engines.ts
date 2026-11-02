@@ -96,8 +96,13 @@ const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 const scopes = () =>
   ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read', 'messages:read', 'interactions:read', 'files:read', 'associations:read', 'associations:write', 'notes:read', 'notes:write'])
 
+/** Whether the Postgres suites run: `VAULT_TEST_POSTGRES=1`. Off by default (D1-only MVP); see `vitest.postgres.ts` at the repo root. */
+export const POSTGRES_TESTS = process.env.VAULT_TEST_POSTGRES === '1'
+/** The engines a both-engine suite runs on: `describe.each(ENGINE_NAMES)`. */
+export const ENGINE_NAMES: readonly ('postgres' | 'd1')[] = POSTGRES_TESTS ? ['postgres', 'd1'] : ['d1']
+
 export async function openEngines(opts: { maxConnections?: number; maxSetSize?: number } = {}): Promise<Engine[]> {
-  return [await openPostgres(opts), await openD1(opts)]
+  return POSTGRES_TESTS ? [await openPostgres(opts), await openD1(opts)] : [await openD1(opts)]
 }
 
 /** The D1 engine alone, for suites of D1-only features (no Postgres table): CORE62's associations. */

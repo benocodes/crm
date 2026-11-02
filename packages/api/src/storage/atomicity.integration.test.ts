@@ -28,7 +28,7 @@ import { generateApiKey, apiKeyAuthOperation } from '../auth/api-keys.js'
 import { firstSightOperation } from '../auth/first-sight.js'
 import { reconcileOperation, repairOperation } from '../directory/sync.js'
 import { bootstrapOperation } from '../bootstrap.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 
 const LABELS: readonly StatementLabel[] = ['first-mutation', 'first-event', 'result']
 const NOW = new Date('2026-10-22T10:00:00.000Z')
@@ -42,7 +42,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('atomicity on %s', (name) => {
+describe.each(ENGINE_NAMES)('atomicity on %s', (name) => {
   let e: Engine
   beforeAll(() => {
     e = engines.find((x) => x.name === name)!
@@ -162,7 +162,7 @@ function withTrailingFault<T>(op: PreparedOperation<T>): PreparedOperation<T> {
   }
 }
 
-describe.each(['postgres', 'd1'] as const)('atomicity of auth and directory units on %s', (name) => {
+describe.each(ENGINE_NAMES)('atomicity of auth and directory units on %s', (name) => {
   let e: Engine
   beforeAll(() => {
     e = engines.find((x) => x.name === name)!

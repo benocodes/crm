@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 import { foreignTenant, identityKit, type IdentityKit } from '../test/identity-kit.js'
 import { ensureOwnIdentity, resolveOperation, type ResolveEntry } from './resolve.js'
 
@@ -11,7 +11,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('identities.resolve and ensureOwnIdentity on %s', (name) => {
+describe.each(ENGINE_NAMES)('identities.resolve and ensureOwnIdentity on %s', (name) => {
   let e: Engine
   let k: IdentityKit
   beforeAll(() => {

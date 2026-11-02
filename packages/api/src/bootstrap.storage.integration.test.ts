@@ -5,7 +5,7 @@ import { seedDeployment } from '@vault/storage-d1/test/seed'
 import { authenticateApiKey, hashApiKey } from './auth/api-keys.js'
 import { bootstrap } from './bootstrap.js'
 import { openAuthKit, type AuthKit } from './test/auth-kit.js'
-import { openEngines, type Engine } from './test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from './test/engines.js'
 
 // Bootstrap on both engines (CORE41 Step 2.4, C7): one internal unit, no events, the key printed once.
 const NOW = new Date('2026-10-22T10:00:00.000Z')
@@ -19,7 +19,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('bootstrap on %s', (name) => {
+describe.each(ENGINE_NAMES)('bootstrap on %s', (name) => {
   let e: Engine
   let kit: AuthKit
   beforeAll(() => {

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { SetLimitExceeded, uuidv7 } from '@vault/storage'
 import { withFault } from '@vault/storage/test'
 import { ApiError, mapStorageError } from '../errors.js'
-import { openEngines, type Engine, type RawRow } from '../test/engines.js'
+import { openEngines, type Engine, type RawRow, ENGINE_NAMES } from '../test/engines.js'
 import { captureMessage, runCapture, storedAttachment, type CaptureOverrides } from '../test/capture-kit.js'
 import { recordMessages, recordMessagesOperation, type CaptureMessage } from './capture.js'
 
@@ -24,7 +24,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('recordMessages on %s', (name) => {
+describe.each(ENGINE_NAMES)('recordMessages on %s', (name) => {
   let e: Engine
   beforeAll(() => {
     e = engines.find((x) => x.name === name)!
@@ -553,7 +553,7 @@ describe.each(['postgres', 'd1'] as const)('recordMessages on %s', (name) => {
 // unit's fixed statements and none of resolve's four.
 const ALL_EXISTING_STATEMENTS: Record<'postgres' | 'd1', number> = { postgres: 20, d1: 21 }
 
-describe.each(['postgres', 'd1'] as const)('recordMessages caps on %s', (name) => {
+describe.each(ENGINE_NAMES)('recordMessages caps on %s', (name) => {
   let capped: Engine[]
   let e: Engine
   beforeAll(async () => {

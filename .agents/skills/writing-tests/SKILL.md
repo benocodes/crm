@@ -274,8 +274,9 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   (`src/contract.integration.test.ts`, which calls `runContractSuite` from `src/test/contract.ts`; there is no
   `src/test/contract-suite*` file). The file holds **two runs**: Postgres over `createVaultRegistry()`, and D1 over a
   hand-built registry and fixture map. A resource missing from the D1 run's registry is contract-tested only on
-  Postgres, which is non-blocking: check both runs when adding a resource or switching its fixtures ([[CORE68]]: the
-  messaging fixtures went to `kit.capture` but run only on Postgres until [[CORE69]]). It
+  Postgres, which is off by default (`pnpm test:postgres`): the default run exercises only the D1 registry, so a
+  resource missing from it has no contract coverage at all ([[CORE68]]: the messaging fixtures went to `kit.capture`
+  but ran only on Postgres until [[CORE69]]). It
   runs over REST, as both an agent (a real API key) and a user (`fakeUserAuthenticator`), checking:
   - create, get, list, update and delete, with exact events and `actor_id`;
   - cross-tenant 404s;

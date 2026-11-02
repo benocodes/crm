@@ -8,7 +8,7 @@ import { companyFiles } from '../resources/company-files.js'
 import { contactFiles } from '../resources/contact-files.js'
 import { identities } from '../resources/identities.js'
 import { seedConversation } from '../test/messaging-kit.js'
-import { openEngines, type Engine } from '../test/engines.js'
+import { openEngines, type Engine, ENGINE_NAMES } from '../test/engines.js'
 import { BASE, identityKit, type IdentityKit } from '../test/identity-kit.js'
 import { createOperation, deleteOperation } from './crud.js'
 
@@ -27,7 +27,7 @@ afterAll(async () => {
   for (const e of engines) await e.close()
 })
 
-describe.each(['postgres', 'd1'] as const)('identity model storage behaviour on %s', (name) => {
+describe.each(ENGINE_NAMES)('identity model storage behaviour on %s', (name) => {
   let e: Engine
   let k: IdentityKit
   beforeAll(() => {
@@ -305,14 +305,16 @@ describe.each(['postgres', 'd1'] as const)('identity model storage behaviour on 
 })
 
 // ---- over the cap (D14): refused at a small runtime cap, the same programs pass at a larger one ----------------
-describe.each(['postgres', 'd1'] as const)('over-cap refusal on %s', (name) => {
+describe.each(ENGINE_NAMES)('over-cap refusal on %s', (name) => {
   let small: Engine
   let big: Engine
   const smalls: Engine[] = []
   beforeAll(async () => {
-    smalls.push(...(await openEngines({ maxSetSize: 3 })), ...(await openEngines({ maxSetSize: 10 })))
-    small = smalls.find((x, i) => x.name === name && i < 2)!
-    big = smalls.find((x, i) => x.name === name && i >= 2)!
+    const capped = await openEngines({ maxSetSize: 3 })
+    const roomy = await openEngines({ maxSetSize: 10 })
+    smalls.push(...capped, ...roomy)
+    small = capped.find((x) => x.name === name)!
+    big = roomy.find((x) => x.name === name)!
   })
   afterAll(async () => {
     for (const x of smalls) await x.close()
@@ -356,7 +358,7 @@ describe.each(['postgres', 'd1'] as const)('over-cap refusal on %s', (name) => {
 })
 
 // ---- CORE25: merge and cascades are aware of the file links (D35, P12, P13) --------------------------------------------
-describe.each(['postgres', 'd1'] as const)('merge and delete with file links on %s', (name) => {
+describe.each(ENGINE_NAMES)('merge and delete with file links on %s', (name) => {
   let e: Engine
   let k: IdentityKit
   const seedFiles = async (n: number) => (await seedConversation((t, r) => e.insert(t, r), { attachments: n })).fileIds
