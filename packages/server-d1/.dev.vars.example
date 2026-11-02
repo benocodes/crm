@@ -1,8 +1,10 @@
 # Copy to .dev.vars (gitignored) for `wrangler dev`. Leave AUTH_PROVIDER empty (in wrangler.jsonc) for an agent-only deployment.
-# With AUTH_PROVIDER=clerk all of these are required; CLERK_API_URL is optional.
+# With AUTH_PROVIDER=clerk CLERK_ISSUER, CLERK_JWT_KEY and CLERK_SECRET_KEY are required; CLERK_AUTHORIZED_PARTIES (unset: tokens carrying an azp are 401), CLERK_API_URL and
+# AUTH_ROLE_CLAIM (default vibase_role) are optional. CLERK_JWT_KEY is a PEM: real line breaks or literal \n escapes, optionally quoted.
+# There is no CLERK_WEBHOOK_SECRET on D1 (CORE64): membership lives in Clerk, as the vibase_role claim.
 CLERK_ISSUER=
 CLERK_AUTHORIZED_PARTIES=
 CLERK_JWT_KEY=
 CLERK_SECRET_KEY=
-CLERK_WEBHOOK_SECRET=
+AUTH_ROLE_CLAIM=
 CLERK_API_URL=

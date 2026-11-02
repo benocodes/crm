@@ -5,7 +5,6 @@ import { seedConversation } from '@vault/api/test/messaging'
 import { fakeR2Bucket } from '@vault/api/test/objects'
 import { captureMessage, tenantEnv } from '@vault/api/test/capture'
 import { fileBlobKey, messageBodyKey, recordMessagesOperation } from '@vault/api'
-import { clerkMembership, clerkOrganization, clerkWebhook, clerkUser, signClerkWebhook } from '@vault/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { NOW, clerkKit, meterD1, openWorkerD1, type ClerkKit, type D1Meter, type InvocationMeasure, type WorkerD1 } from './test/kit.js'
@@ -21,8 +20,7 @@ const PAID = { queries: 1_000, subrequests: 10_000 }
 
 /** Scenarios that exceed a Workers Free bound, with the measured value; they are held to the Paid bound instead (P8). */
 const FREE_PLAN_EXCEPTIONS: Record<string, string> = {
-  // 1 outbound page of 100 members + 99 profile fetches, and two D1 queries (read, write) per first-seen user: 201 queries, 302 subrequests.
-  'directory-snapshot-100': 'measured 201 D1 queries and 302 subrequests: needs Workers Paid',
+  // None since [[CORE64]]: the D1 Worker has no directory webhook, so the two snapshot scenarios (201 queries, 302 subrequests) are gone.
 }
 
 /** The exact D1 query count of each scenario, pinned from the first green run: a new round trip is a reviewed change. */
@@ -43,8 +41,6 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'contact-delete-100-with-links': 3,
   'capture-chunk-1': 2, // read batch, write batch (no route: the unit is run directly, CORE68 D55)
   'capture-chunk-100': 2, // the same two, at the cap: 100 messages, 100 distinct addresses, 100 stored attachments
-  'directory-snapshot-5': 11, // 4 first-seen users, two queries each, plus the snapshot's own three
-  'directory-snapshot-100': 201, // 99 first-seen users
 }
 
 let w: WorkerD1
@@ -77,19 +73,18 @@ async function measure(keyName: string, run: () => Promise<{ status: number }>) 
   return res
 }
 const count = async (sqlText: string) => Number(((await w.d1.prepare(sqlText).first()) as { n: number }).n)
-const webhook = (type: string, data: unknown) => signClerkWebhook(clerkWebhook(type, data), { timestamp: Math.floor(now.getTime() / 1000) })
 
 beforeAll(async () => {
   w = await openWorkerD1()
   kit = await clerkKit()
   meter = meterD1(w.d1)
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', email: 'owner@x.test', agentName: 'bot', authOrgId: 'org_acme', authSubject: 'user_owner' }, { now: NOW, newId: () => uuidv7(NOW) })
+  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW) })
   key = r.key
   worker = fresh()
 })
 afterAll(() => w.dispose())
 
-const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'capture-chunk-1', 'capture-chunk-100', 'directory-snapshot-5', 'directory-snapshot-100'] as const
+const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'capture-chunk-1', 'capture-chunk-100'] as const
 const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'cold-first-request': 200,
   'key-auth-stamp': 200,
@@ -107,8 +102,6 @@ const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'contact-delete-100-with-links': 204,
   'capture-chunk-1': 200,
   'capture-chunk-100': 200,
-  'directory-snapshot-5': 200,
-  'directory-snapshot-100': 200,
 }
 
 describe('measured limits (local Miniflare, one request = one invocation)', () => {
@@ -201,23 +194,6 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     )
     await measure('capture-chunk-100', captureAt(hundred))
 
-    const snapshot = async (keyName: string, n: number) => {
-      const owner = clerkMembership({ organizationId: 'org_acme', userId: 'user_owner', role: 'org:admin' })
-      kit.organizations.set('org_acme', clerkOrganization({ id: 'org_acme', name: 'Acme' }))
-      kit.profiles.set('user_owner', clerkUser({ id: 'user_owner', email: 'owner@x.test' }))
-      const others = Array.from({ length: n - 1 }, (_, i) => clerkMembership({ organizationId: 'org_acme', userId: `user_m${n}_${i}`, role: 'org:member' }))
-      for (let i = 0; i < n - 1; i++) kit.profiles.set(`user_m${n}_${i}`, clerkUser({ id: `user_m${n}_${i}`, email: `m${n}_${i}@measure.test` }))
-      kit.members.set('org_acme', [owner, ...others])
-      const signed = webhook('organization.updated', { id: 'org_acme' })
-      return measure(keyName, async () => {
-        const res = await worker.fetch(new Request(BASE + '/webhooks/clerk', { method: 'POST', headers: signed.headers, body: signed.body }))
-        await res.text()
-        return { status: res.status }
-      })
-    }
-    await snapshot('directory-snapshot-5', 5)
-    await snapshot('directory-snapshot-100', 100)
-
     for (const k of SCENARIOS) expect(measures.get(k)?.status, k).toBe(EXPECTED_STATUS[k])
   }, 240_000) // the messaging scenarios seed ~700 rows and ~350 requests before they measure one
 
@@ -251,9 +227,5 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
   it('the messaging scenarios really ran at their sizes', async () => {
     expect(await count('select count(*) as n from messages')).toBe(204) // 50 listed + the content scenarios' one + 50 interactions + the two attachment sets + the capture chunks' 1 and 100
     expect(await count("select count(*) as n from contact_files where deleted_at is not null")).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
-  })
-
-  it('the snapshot really ran at the cap', async () => {
-    expect(await count('select count(*) as n from memberships where deleted_at is null')).toBe(100)
   })
 })

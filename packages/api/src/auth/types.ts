@@ -1,4 +1,5 @@
 import type { StorageBinding } from '@vault/storage'
+import type { Role } from './roles.js'
 import type { ScopeSet } from '../scopes.js'
 import type { InternalEnv } from '../storage/internal.js'
 
@@ -10,6 +11,8 @@ export type Principal = {
   scopes: ScopeSet
   /** The organisation claim was unusable or the X-Organization-Id header contradicted it ([[CORE3]] D7). */
   organizationForbidden?: boolean
+  /** The workspace role of a user, read from the token on this request ([[CORE64]] D10); absent for agents and on the Organizations path. */
+  role?: Role
 }
 
 /**

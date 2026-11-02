@@ -1,4 +1,5 @@
 import { errors, importSPKI, jwtVerify, type CryptoKey } from 'jose'
+import { DEFAULT_ROLE_CLAIM } from './adapter.js'
 import type {
   AuthAdapter,
   AuthProfile,
@@ -10,14 +11,16 @@ import type {
 import type { Role } from './roles.js'
 
 export interface ClerkConfig {
-  /** PEM SPKI; literal "\n" sequences (a PEM pasted into an env var) are turned into newlines first. */
+  /** PEM SPKI; one pair of surrounding quotes is dropped and literal "\n" sequences (a PEM pasted into an env var) become newlines first. */
   jwtKey: string
   /** Exact match on iss. */
   issuer: string
   authorizedParties: readonly string[]
   secretKey: string
-  /** The Svix signing secret of the webhook endpoint (`whsec_<base64>`). */
-  webhookSecret: string
+  /** The Svix signing secret of the webhook endpoint (`whsec_<base64>`). Absent on the D1 workspace adapter: every webhook is refused. */
+  webhookSecret?: string
+  /** The session-token claim holding the workspace role ([[CORE64]] D8); default `vibase_role`. */
+  roleClaim?: string
   /** Default 'https://api.clerk.com'. */
   apiUrl?: string
   fetch?: typeof fetch
@@ -58,6 +61,13 @@ const MEMBERS_PAGE = 100
 /** Svix's tolerance: a delivery is refused when its timestamp is further than this from now. */
 const WEBHOOK_TOLERANCE_S = 300
 
+/** A PEM from an environment variable: optional surrounding quotes, and `\n` escapes for the line breaks. */
+function normalisePem(value: string): string {
+  let pem = value.trim()
+  if (pem.length >= 2 && (pem[0] === '"' || pem[0] === "'") && pem.at(-1) === pem[0]) pem = pem.slice(1, -1)
+  return pem.replace(/\\n/g, '\n')
+}
+
 function base64Bytes(value: string): Uint8Array<ArrayBuffer> | null {
   try {
     return Uint8Array.from(atob(value), (ch) => ch.charCodeAt(0))
@@ -70,7 +80,8 @@ function base64Bytes(value: string): Uint8Array<ArrayBuffer> | null {
 export function createClerkAdapter(config: ClerkConfig): AuthAdapter {
   const apiUrl = (config.apiUrl ?? 'https://api.clerk.com').replace(/\/+$/, '')
   let key: Promise<CryptoKey> | undefined
-  const getKey = () => (key ??= importSPKI(config.jwtKey.replace(/\\n/g, '\n'), 'RS256'))
+  const getKey = () => (key ??= importSPKI(normalisePem(config.jwtKey), 'RS256'))
+  const roleClaim = config.roleClaim ?? DEFAULT_ROLE_CLAIM
   const backend = (path: string) =>
     (config.fetch ?? globalThis.fetch)(`${apiUrl}${path}`, { headers: { authorization: `Bearer ${config.secretKey}` } })
 
@@ -97,10 +108,11 @@ export function createClerkAdapter(config: ClerkConfig): AuthAdapter {
       }
       if (typeof payload.iat !== 'number') return { ok: false, reason: 'claims' }
       const issuedAt = new Date(payload.iat * 1000)
-      if (!('o' in payload)) return { ok: true, subject: payload.sub, issuedAt, organization: null }
+      const role = payload[roleClaim]
+      if (!('o' in payload)) return { ok: true, subject: payload.sub, issuedAt, organization: null, role }
       const o = payload.o as { id?: unknown; rol?: unknown } | null
       if (typeof o !== 'object' || o === null || typeof o.id !== 'string' || o.id === '') return { ok: false, reason: 'claims' }
-      return { ok: true, subject: payload.sub, issuedAt, organization: { externalId: o.id, role: mapClerkRole(o.rol) } }
+      return { ok: true, subject: payload.sub, issuedAt, organization: { externalId: o.id, role: mapClerkRole(o.rol) }, role }
     },
 
     async fetchProfile(subject): Promise<AuthProfile> {
@@ -159,6 +171,7 @@ export function createClerkAdapter(config: ClerkConfig): AuthAdapter {
       const nowS = (config.now?.() ?? new Date()).getTime() / 1000
       if (Math.abs(nowS - Number(timestamp)) > WEBHOOK_TOLERANCE_S) return { ok: false, reason: 'timestamp' }
 
+      if (config.webhookSecret === undefined) return { ok: false, reason: 'signature' }
       const secret = base64Bytes(config.webhookSecret.replace(/^whsec_/, ''))
       if (!secret) return { ok: false, reason: 'signature' }
       const hmac = await crypto.subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])

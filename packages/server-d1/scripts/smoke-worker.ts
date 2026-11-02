@@ -16,15 +16,10 @@ import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
 import {
   API_URL,
   SECRET_KEY,
-  WEBHOOK_SECRET,
-  clerkMembership,
-  clerkOrganization,
   clerkUser,
-  clerkWebhook,
   fakeClerkFetch,
   mintClerkToken,
   orgClaim,
-  signClerkWebhook,
   testIssuer,
 } from '@vault/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
@@ -52,10 +47,11 @@ const bundle = join(workerDir, 'worker.mjs')
 const entry = fileURLToPath(new URL('../src/worker.ts', import.meta.url))
 
 const issuer = await testIssuer()
-const profiles = new Map([['user_new', clerkUser({ id: 'user_new', email: 'new@smoke.test' })]])
-const organizations = new Map([['org_smoke', clerkOrganization({ id: 'org_smoke', name: 'Smoke' })]])
-const members = new Map([['org_smoke', [clerkMembership({ organizationId: 'org_smoke', userId: 'user_owner', role: 'org:admin' })]]])
-const clerk = fakeClerkFetch(profiles, { organizations, members })
+const profiles = new Map([
+  ['user_owner', clerkUser({ id: 'user_owner', email: 'owner@smoke.test' })],
+  ['user_new', clerkUser({ id: 'user_new', email: 'new@smoke.test' })],
+])
+const clerk = fakeClerkFetch(profiles)
 const hostsSeen = new Set<string>()
 let mf: Miniflare | undefined
 
@@ -90,7 +86,6 @@ try {
       CLERK_ISSUER: issuer.issuer,
       CLERK_AUTHORIZED_PARTIES: issuer.party,
       CLERK_SECRET_KEY: SECRET_KEY,
-      CLERK_WEBHOOK_SECRET: WEBHOOK_SECRET,
       CLERK_API_URL: API_URL,
       CORS_ALLOWED_ORIGINS: '',
     },
@@ -138,7 +133,8 @@ try {
   }
 
   // 3: the local bootstrap, through the same code the CLI uses
-  const boot = await bootstrapD1(d1, { organizationName: 'Smoke', email: 'owner@smoke.test', agentName: 'smoke-bot', authOrgId: 'org_smoke', authSubject: 'user_owner' })
+  // [[CORE64]] D11: a Clerk-backed deployment creates no human; the owner arrives with a `vibase_role: owner` token
+  const boot = await bootstrapD1(d1, { organizationName: 'Smoke', agentName: 'smoke-bot', authOrgId: issuer.issuer })
   check('3 bootstrapD1 -> a vk_ key and the marker', boot.key.startsWith('vk_') && boot.deployment === 'created', { prefix: boot.key.slice(0, 7), deployment: boot.deployment })
   const key = boot.key
 
@@ -214,63 +210,50 @@ try {
   const merged = await call('POST', `/api/v1/contacts/${c1.id}/merge`, { token: key, body: { source_id: c2.id } })
   check('8 POST /api/v1/identities/resolve then /contacts/{a}/merge -> 200, merged', resolved && merged.status === 200, { resolve: res.status, merge: merged.status })
 
-  // 9-10: Clerk users
-  const ownerToken = await mintClerkToken(issuer, { sub: 'user_owner', extra: orgClaim('org_smoke') })
+  // 9-10: Clerk session tokens carrying the workspace role ([[CORE64]] D8)
+  const ownerToken = await mintClerkToken(issuer, { sub: 'user_owner', extra: { vibase_role: 'owner' } })
   res = await call('GET', '/meta/v1/me', { token: ownerToken })
   body = await json(res)
-  check('9 GET /meta/v1/me as the linked owner -> 200, one membership', res.status === 200 && body.memberships?.length === 1, { status: res.status, body })
+  check('9 GET /meta/v1/me as an owner by claim -> 200, one synthesised membership', res.status === 200 && body.memberships?.length === 1 && body.memberships[0].role === 'owner' && body.principal?.kind === 'user', { status: res.status, body })
+
+  res = await call('GET', '/meta/v1/me', { token: key })
+  body = await json(res)
+  check('9a GET /meta/v1/me with the agent key -> 200, an agent with no user and no memberships', res.status === 200 && body.principal?.kind === 'agent' && body.user === null && body.memberships?.length === 0 && body.active_organization?.role === null, { status: res.status, body })
 
   const eventsBeforeFirstSight = await count('events')
-  const newToken = await mintClerkToken(issuer, { sub: 'user_new' })
+  const newToken = await mintClerkToken(issuer, { sub: 'user_new', extra: { vibase_role: 'member' } })
   res = await call('GET', '/meta/v1/me', { token: newToken })
   body = await json(res)
-  check('10 GET /meta/v1/me as user_new -> 200, first sight with no event', res.status === 200 && (await count('events')) === eventsBeforeFirstSight && body.user?.email === 'new@smoke.test', { status: res.status, body })
+  check('10 GET /meta/v1/me as user_new (member) -> 200, first sight with no event', res.status === 200 && (await count('events')) === eventsBeforeFirstSight && body.user?.email === 'new@smoke.test', { status: res.status, body })
 
-  // 11: a membership webhook reconciles the organisation
-  members.set('org_smoke', [
-    clerkMembership({ organizationId: 'org_smoke', userId: 'user_owner', role: 'org:admin' }),
-    clerkMembership({ organizationId: 'org_smoke', userId: 'user_new', role: 'org:member' }),
-  ])
-  let signed = signClerkWebhook(clerkWebhook('organizationMembership.created', { id: 'orgmem_new', organization: { id: 'org_smoke' }, public_user_data: { user_id: 'user_new' } }))
-  res = await call('POST', '/webhooks/clerk', { headers: signed.headers, raw: signed.body })
-  const live = await rows(
-    `select u.auth_subject as s from memberships m join users u on u.id = m.user_id where m.deleted_at is null order by u.auth_subject`,
-  )
-  check('11 signed organizationMembership.created -> 200 and user_new is a member', res.status === 200 && live.map((r) => r.s).join() === 'user_new,user_owner', { status: res.status, live })
+  // 11: there is no webhook on the D1 Worker (D24), and no membership state
+  res = await call('POST', '/webhooks/clerk', { raw: '{}' })
+  check('11 POST /webhooks/clerk -> 404 and memberships is empty', res.status === 404 && (await count('memberships')) === 0, { status: res.status, memberships: await count('memberships') })
 
-  // 12: a webhook for another organisation is acknowledged without a fetch
-  const callsBefore = clerk.calls.length
-  signed = signClerkWebhook(clerkWebhook('organization.updated', { id: 'org_other' }))
-  res = await call('POST', '/webhooks/clerk', { headers: signed.headers, raw: signed.body })
+  // 12: a token without an admissible role admits nothing
+  const usersBefore = await count('users')
+  const noRole = await mintClerkToken(issuer, { sub: 'user_stranger' })
+  res = await call('GET', '/meta/v1/me', { token: noRole })
   body = await json(res)
-  check('12 signed webhook for org_other -> 200 received, no Clerk call for it', res.status === 200 && body.received === true && clerk.calls.slice(callsBefore).every((c) => !c.url.includes('org_other')), { status: res.status, body })
+  check('12 token with no vibase_role -> 403 organization_forbidden, no user written', res.status === 403 && body.error?.code === 'organization_forbidden' && (await count('users')) === usersBefore, { status: res.status, body })
 
-  // 13: a token claiming another organisation
-  const otherToken = await mintClerkToken(issuer, { sub: 'user_owner', extra: orgClaim('org_other') })
+  // 13: an organisation claim is ignored
+  const otherToken = await mintClerkToken(issuer, { sub: 'user_owner', extra: { vibase_role: 'owner', ...orgClaim('org_other') } })
   res = await call('GET', '/meta/v1/me', { token: otherToken })
   body = await json(res)
-  check('13 token claiming org_other -> 403 organization_forbidden', res.status === 403 && body.error?.code === 'organization_forbidden', { status: res.status, body })
+  check('13 token with an o claim for org_other and a role -> 200 (the claim is ignored)', res.status === 200 && body.active_organization?.role === 'owner', { status: res.status, body })
 
-  // 14: more members than the set cap
-  const membersBefore = await count('memberships')
-  members.set(
-    'org_smoke',
-    Array.from({ length: 101 }, (_, i) => clerkMembership({ organizationId: 'org_smoke', userId: `user_bulk_${i}`, role: 'org:member' })),
-  )
-  signed = signClerkWebhook(clerkWebhook('organization.updated', { id: 'org_smoke' }))
-  res = await call('POST', '/webhooks/clerk', { headers: signed.headers, raw: signed.body })
-  body = await json(res)
-  check('14 101 members then a webhook -> 400 set_limit_exceeded, memberships unchanged', res.status === 400 && body.error?.code === 'set_limit_exceeded' && (await count('memberships')) === membersBefore, {
-    status: res.status,
-    body,
-  })
+  // 14: the authorised party is still enforced
+  const foreign = await mintClerkToken(issuer, { sub: 'user_owner', azp: 'https://evil.example', extra: { vibase_role: 'owner' } })
+  res = await call('GET', '/meta/v1/me', { token: foreign })
+  check('14 token with a foreign azp -> 401', res.status === 401, { status: res.status })
 
   // 15: secret absence
   const keyHash = await hashApiKey(key)
   const eventText = JSON.stringify(await rows('select * from events'))
   const logText = logLines.join('\n')
-  // The capture must be live, or the absence below proves nothing: check 14's Worker log line has to be in it.
-  const captured = logText.includes('[directory] snapshot over the set limit')
+  // The capture must be live, or the absence below proves nothing: check 12's Worker log line has to be in it.
+  const captured = logText.includes('[auth] missing or unmapped workspace role')
   check('15 no event row and no Worker log line contains the key or its hash (capture seen live)', captured && !eventText.includes(key) && !eventText.includes(keyHash) && !logText.includes(key) && !logText.includes(keyHash), {
     captureLive: captured,
     lines: logLines.length,

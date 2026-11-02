@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Actor } from './auth/types.js'
+import type { Role } from './auth/roles.js'
 import { formatScope, type Scope, type ScopeSet } from './scopes.js'
 import type { PreparedOperation } from '@vault/storage'
 import type { ObjectStore } from './objects/store.js'
@@ -58,9 +59,13 @@ export interface AccountEnv {
   readonly organizationId: string | null
   readonly scopes: ScopeSet
   readonly now: Date
+  /** Set on a single-workspace composition ([[CORE64]] D24): the user's role from the token, null for an agent. Absent: the copy-based answer. */
+  readonly workspace?: { readonly role: Role | null }
 }
 export interface AccountOperation extends OperationBase {
   kind: 'account'
+  /** Also answers an agent principal, on a single-workspace composition only ([[CORE64]] `me.get`). */
+  agents?: boolean
   prepare: (env: AccountEnv, input: OperationInput) => PreparedOperation<unknown>
 }
 export type Operation = TenantOperation | AccountOperation

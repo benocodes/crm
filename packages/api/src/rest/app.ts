@@ -6,6 +6,7 @@ import type { AuthAdapter } from '../auth/adapter.js'
 import { authMiddleware } from '../auth/middleware.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
+import { createWorkspaceAuthenticator } from '../auth/workspace-authenticator.js'
 import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
@@ -31,6 +32,12 @@ export interface AppOptions {
   userAuthenticator?: UserAuthenticator
   /** [[CORE3]]: builds the real authenticator over this registry's declared scopes. Exclusive with `userAuthenticator`. */
   authAdapter?: AuthAdapter
+  /**
+   * A single-workspace composition (the D1 Worker, [[CORE64]] D24): the organisation is the deployment's, the role comes from the
+   * token's claim, `/webhooks/clerk` is not mounted and `me.get` answers agents. `adapter` is the workspace adapter, absent when
+   * the deployment is API-key only. Exclusive with `authAdapter` and `userAuthenticator`.
+   */
+  workspace?: { adapter?: AuthAdapter }
   /** Injected clock and id source for prepared units (tests and golden fixtures). Default: real time, UUIDv7. */
   clock?: () => Date
   newId?: () => string
@@ -66,11 +73,11 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   return { params, query, body }
 }
 
-async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects'>): Promise<unknown> {
+async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects' | 'workspace'>): Promise<unknown> {
   const input = await readInput(c, op)
   const principal = c.var.principal
   if (op.kind === 'account') {
-    if (principal.actor.kind !== 'user') {
+    if (principal.actor.kind !== 'user' && !(op.agents && injected.workspace)) {
       throw new ApiError(403, 'user_required', 'this operation requires a signed-in user')
     }
     const storage = c.var.storage
@@ -81,6 +88,7 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
       organizationId,
       scopes: organizationId === null ? ScopeSet.parse([]) : principal.scopes,
       now: (injected.clock ?? (() => new Date()))(),
+      ...(injected.workspace ? { workspace: { role: principal.actor.kind === 'user' ? (principal.role ?? null) : null } } : {}),
     }
     try {
       return (await execute(storage, { kind: 'account', actorId: principal.actor.id }, op.prepare(env, input))).value
@@ -125,15 +133,17 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
 }
 
 export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
-  if (options.authAdapter && options.userAuthenticator) {
-    throw new Error('createApp: pass either authAdapter or userAuthenticator, not both')
+  if ([options.authAdapter, options.userAuthenticator, options.workspace].filter(Boolean).length > 1) {
+    throw new Error('createApp: pass only one of authAdapter, userAuthenticator and workspace')
   }
   const registry = options.registry ?? createVaultRegistry()
   const userAuthenticator =
     options.userAuthenticator ??
     (options.authAdapter
       ? createUserAuthenticator({ adapter: options.authAdapter, declaredScopes: registry.declaredScopes() })
-      : undefined)
+      : options.workspace?.adapter
+        ? createWorkspaceAuthenticator({ adapter: options.workspace.adapter, declaredScopes: registry.declaredScopes() })
+        : undefined)
   const app = new OpenAPIHono<AppEnv>()
   app.onError(renderError)
   app.notFound(renderNotFound)

@@ -23,8 +23,10 @@ export WRANGLER_SEND_METRICS=false CI=1
 # 1. Apply the migrations to the local D1 (0001 to 0004).
 pnpm -C packages/server-d1 exec wrangler d1 migrations apply DB --local
 
-# 2. Create the deployment marker, the first organisation, its owner and an agent. The key is printed once.
-pnpm -C packages/server-d1 bootstrap -- --org "Acme" --email owner@example.com --agent my-agent --auth-org-id org_local
+# 2. Create the deployment marker, the first organisation and an operator agent. The key is printed once. A Clerk-backed deployment
+#    creates no human: the owner signs in with a Clerk session token whose `vibase_role` claim is `owner` (CORE64). --issuer is the
+#    Worker's CLERK_ISSUER. For an API-keys-only local run: --auth-provider none --auth-org-id org_local --email owner@example.com --agent my-agent
+pnpm -C packages/server-d1 bootstrap -- --org "Acme" --issuer https://clerk.example.com --agent my-agent
 
 # 3. Start the Worker locally (leave it running; stop it with Ctrl-C).
 pnpm -C packages/server-d1 exec wrangler dev --local --port 8787
@@ -50,10 +52,12 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
 | Name | Kind | Purpose |
 |---|---|---|
 | `DB` | D1 binding | the database; `migrations_dir` points at `packages/storage-d1/migrations` |
-| `AUTH_PROVIDER` | var | empty: agent-only (API keys). `clerk`: also accept Clerk session tokens and webhooks |
+| `AUTH_PROVIDER` | var | empty: agent-only (API keys). `clerk`: also accept Clerk session tokens; the role is the `vibase_role` claim ([[CORE64]]), there is no webhook |
 | `CORS_ALLOWED_ORIGINS` | var | comma-separated origins for the email-client pane; empty allows none |
-| `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES` | vars | public values, required with `AUTH_PROVIDER=clerk` |
-| `CLERK_JWT_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET` | secrets | required with `AUTH_PROVIDER=clerk` |
+| `CLERK_ISSUER` | var | public value, required with `AUTH_PROVIDER=clerk` |
+| `CLERK_AUTHORIZED_PARTIES` | var | optional on D1: comma-separated origins allowed as a session token's `azp`; unset, a token carrying an `azp` is 401 |
+| `CLERK_JWT_KEY`, `CLERK_SECRET_KEY` | secrets | required with `AUTH_PROVIDER=clerk`; the key is a PEM (line breaks, or `\n` escapes, optionally quoted) |
+| `AUTH_ROLE_CLAIM` | var | the session-token claim holding `owner` or `member`; default `vibase_role`; an empty value fails closed |
 | `CLERK_API_URL` | var | optional |
 | `VERSION` | var | the deployed git sha, set by `deploy:remote`; `/health` reports it (`dev` when absent) |
 | `BODIES` | R2 binding | the object store (`ObjectStore`): message bodies and file bytes served by `messages.content` and `files.content`; without it those two routes answer `503 objects_unavailable` |

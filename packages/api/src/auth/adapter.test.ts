@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createAuthAdapter, parseOriginList } from './adapter.js'
+import { createAuthAdapter, createWorkspaceAuthAdapter, parseOriginList } from './adapter.js'
 import { WEBHOOK_SECRET, clerkUser, fakeClerkFetch, mintClerkToken, testIssuer } from '../test/clerk.js'
 
 const baseEnv = async () => {
@@ -52,6 +52,56 @@ describe('createAuthAdapter', () => {
     const env = { ...(await baseEnv()), CLERK_API_URL: 'http://127.0.0.1:9' }
     await createAuthAdapter(env, { fetch: f })!.fetchProfile('user_1')
     expect(f.calls[0]!.url.startsWith('http://127.0.0.1:9/')).toBe(true)
+  })
+})
+
+describe('createWorkspaceAuthAdapter ([[CORE64]] D24, D8)', () => {
+  it('does not need CLERK_WEBHOOK_SECRET, and ignores one that is set', async () => {
+    const env = await baseEnv()
+    delete env.CLERK_WEBHOOK_SECRET
+    expect(createWorkspaceAuthAdapter(env)!.provider).toBe('clerk')
+    expect(() => createWorkspaceAuthAdapter({ ...env, CLERK_WEBHOOK_SECRET: 'not-a-secret' })).not.toThrow()
+  })
+
+  it('the Organizations adapter still requires the webhook secret', async () => {
+    const env = await baseEnv()
+    delete env.CLERK_WEBHOOK_SECRET
+    expect(() => createAuthAdapter(env)).toThrow('AUTH_PROVIDER=clerk requires CLERK_WEBHOOK_SECRET')
+  })
+
+  it('CLERK_AUTHORIZED_PARTIES is optional for the workspace adapter and required for the Organizations one', async () => {
+    const env = await baseEnv()
+    delete env.CLERK_AUTHORIZED_PARTIES
+    expect(createWorkspaceAuthAdapter(env)).toBeDefined()
+    expect(() => createAuthAdapter(env)).toThrow('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
+    expect(() => createAuthAdapter({ ...env, CLERK_AUTHORIZED_PARTIES: ' , ' })).toThrow('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
+  })
+
+  it('unset provider is undefined', () => {
+    expect(createWorkspaceAuthAdapter({})).toBeUndefined()
+  })
+
+  it('reads vibase_role by default and AUTH_ROLE_CLAIM when set', async () => {
+    const issuer = await testIssuer()
+    const env = await baseEnv()
+    const token = await mintClerkToken(issuer, { extra: { vibase_role: 'owner', acme_role: 'member' } })
+    expect(await createWorkspaceAuthAdapter(env)!.verify(token)).toMatchObject({ ok: true, role: 'owner' })
+    expect(await createWorkspaceAuthAdapter({ ...env, AUTH_ROLE_CLAIM: ' acme_role ' })!.verify(token)).toMatchObject({ ok: true, role: 'member' })
+    expect(await createWorkspaceAuthAdapter({ ...env, AUTH_ROLE_CLAIM: 'absent' })!.verify(token)).toMatchObject({ ok: true, role: undefined })
+  })
+
+  it.each(['', '   '])('AUTH_ROLE_CLAIM %j fails closed', async (value) => {
+    const env = { ...(await baseEnv()), AUTH_ROLE_CLAIM: value }
+    expect(() => createWorkspaceAuthAdapter(env)).toThrow('AUTH_ROLE_CLAIM must not be empty')
+  })
+
+  it('every webhook is refused: there is no secret', async () => {
+    const env = await baseEnv()
+    delete env.CLERK_WEBHOOK_SECRET
+    const adapter = createWorkspaceAuthAdapter(env)!
+    const now = Math.floor(Date.now() / 1000)
+    const result = await adapter.parseWebhook({ headers: new Headers({ 'svix-id': 'msg_1', 'svix-timestamp': String(now), 'svix-signature': 'v1,AAAA' }), body: '{}' })
+    expect(result).toEqual({ ok: false, reason: 'signature' })
   })
 })
 

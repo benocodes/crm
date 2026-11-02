@@ -3,7 +3,7 @@ import { uuidv7 } from '@vault/storage'
 import { seedConversation } from '@vault/api/test/messaging'
 import { fakeR2Bucket } from '@vault/api/test/objects'
 import { messageBodyKey } from '@vault/api'
-import { clerkMembership, clerkOrganization, clerkWebhook, mintClerkToken, orgClaim, signClerkWebhook } from '@vault/api/test/clerk'
+import { mintClerkToken, orgClaim } from '@vault/api/test/clerk'
 import { MIGRATIONS } from '@vault/storage-d1'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { NOT_INITIALISED, composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -28,7 +28,7 @@ const BASE = 'https://w.test'
 const get = (worker: { fetch(r: Request): Promise<Response> }, path: string, headers: Record<string, string> = {}) => worker.fetch(new Request(BASE + path, { headers }))
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` })
 const boot = (over: Partial<Parameters<typeof bootstrapD1>[1]> = {}) =>
-  bootstrapD1(w.d1, { organizationName: 'Acme', email: 'owner@x.test', agentName: 'bot', authOrgId: 'org_acme', ...over }, { now: NOW, newId: () => uuidv7(NOW) })
+  bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', ...over }, { now: NOW, newId: () => uuidv7(NOW) })
 const withClerk = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({ DB: w.d1, ...kit.env, ...extra })
 const noAuth = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({ DB: w.d1, AUTH_PROVIDER: '', ...extra })
 /** The harness has no `d1_migrations`, so a test database reports `unknown` ([[CORE61]] D10). */
@@ -131,30 +131,6 @@ describe('after bootstrap', () => {
     const res = await worker.fetch(new Request(BASE + '/api/v1/tasks', { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' } }))
     expect(res.headers.get('access-control-allow-origin')).toBe(origin)
   })
-
-  it('mounts the Clerk webhook: a signed organization.updated renames the organisation', async () => {
-    await boot({ authSubject: 'user_owner' })
-    kit.organizations.set('org_acme', clerkOrganization({ id: 'org_acme', name: 'Acme Renamed' }))
-    kit.members.set('org_acme', [clerkMembership({ organizationId: 'org_acme', userId: 'user_owner', role: 'org:admin' })])
-    kit.profiles.set('user_owner', (await import('@vault/api/test/clerk')).clerkUser({ id: 'user_owner', email: 'owner@x.test' }))
-    const worker = composeD1Worker(withClerk(), { fetch: kit.fetch })
-    const signed = signClerkWebhook(clerkWebhook('organization.updated', { id: 'org_acme' }))
-    const res = await worker.fetch(new Request(BASE + '/webhooks/clerk', { method: 'POST', headers: signed.headers, body: signed.body }))
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ received: true })
-    const [org] = (await w.d1.prepare('select name from organizations').all()).results as Array<{ name: string }>
-    expect(org!.name).toBe('Acme Renamed')
-  })
-
-  it('D19: a token claiming another organisation is 403 organization_forbidden with no fetch', async () => {
-    await boot({ authSubject: 'user_owner' })
-    const worker = composeD1Worker(withClerk(), { fetch: kit.fetch })
-    const token = await mintClerkToken(kit.issuer, { sub: 'user_owner', extra: orgClaim('org_other') })
-    const res = await get(worker, '/meta/v1/me', bearer(token))
-    expect(res.status).toBe(403)
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe('organization_forbidden')
-    expect(kit.fetch.calls).toEqual([])
-  })
 })
 
 describe('a misconfigured auth provider (D12)', () => {
@@ -199,7 +175,7 @@ describe('GET /health version (C1)', () => {
 })
 
 describe('the none:smoked1 marker (OPS4 D18)', () => {
-  const smoked = () => boot({ authProvider: 'none', authOrgId: 'smoked1', organizationName: 'smoked1', agentName: 'operator' })
+  const smoked = () => boot({ authProvider: 'none', email: 'owner@x.test', authOrgId: 'smoked1', organizationName: 'smoked1', agentName: 'operator' })
 
   it('serves agents by key and nobody by JWT; the owner has no login', async () => {
     const r = await smoked()
