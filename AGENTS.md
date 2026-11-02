@@ -99,6 +99,12 @@ Next Action) and tells the user before any of these, and never works around one:
   (`--env smoked1`, Worker `vault-smoked1`, `api.smoked1.vibase.ai`) is the agents' own; they may deploy
   and migrate it without stopping, through the guarded `deploy:remote` / `db:migrate:remote` scripts.
   Creating resources beyond it, DNS, Clerk, and any other environment stay hard stops.
+  **Standing exception, Clerk dev instance (user, 2026-11-02):** the Clerk *development* instance whose
+  keys are in the gitignored `.env.dev` (`sk_test_`/`pk_test_`, `CLERK_JWT_KEY`, `CLERK_FRONTEND_API_URL`)
+  is the agents' own for tests and E2E: they may configure it (session-token claims such as `vibase_role`,
+  OAuth applications, device grant, dynamic client registration) and create and delete test users on it.
+  The root `.env` holds **live** Clerk keys: never use them in tests, E2E or scripts. Any other Clerk
+  instance stays a hard stop.
 - **public announcements:** releases, posts, emails or messages to people outside the repo;
 - **irreversible data changes:** dropping any database other than the vault's own test databases,
   force-pushing, deleting branches the sprint didn't create.
