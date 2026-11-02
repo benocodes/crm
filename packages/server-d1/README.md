@@ -74,6 +74,24 @@ usable database. The worked example is `smoked1` (Worker `vault-smoked1`, D1 `va
 `https://api.smoked1.vibase.ai`, API keys only). **A self-hoster** copies the `env.smoked1` block under their own name and
 replaces the env name, Worker `name`, D1 name and `database_id`, bucket name and hostname with their own.
 
+**One command (`--auth none`, API keys only).** `setup:remote` takes an env from nothing to a migrated, bootstrapped, deployed,
+verified Worker, one idempotent step at a time (`preflight`, `config:resources`, `config:write`, `migrate`, `bootstrap`, `deploy`,
+`verify`). Read the plan first: `--dry-run` only reads and needs no `CONFIRM_REMOTE`; a real run needs it. The first real run
+creates the D1 database and the R2 bucket, writes `env.<name>` into `wrangler.jsonc` (comments kept; a differing value you
+already have is a `fail`, never overwritten) and **stops**: review and commit the file, then run the same command again to
+migrate, bootstrap, deploy and verify. Re-running a finished setup changes nothing. The Clerk side (`--auth clerk`, the default
+later) is [[OPS87]]; until then pass `--auth none`.
+
+```bash
+pnpm -C packages/server-d1 setup:remote -- --env acme --auth none --api-host api.acme.example.com --dry-run
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --auth none --api-host api.acme.example.com \
+  [--org <name>] [--web-origin https://app.example.com] [--extra-origin https://other.example.com] \
+  [--operator-agent operator --key-env ACME_OPERATOR_KEY --owner-email you@example.com] [--only migrate,verify]
+```
+
+`--api-host` is required (a custom domain on a zone in your account). Without `--operator-agent` the bootstrap writes only the
+deployment marker `none:<env>`. The commands below stay as the manual and repair path.
+
 **The API token** (in the gitignored root `.env` as `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID`; see `.env.example`).
 Account level: Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Workers Tail Read, Account Settings Read. On the
 zone: Zone Read and Workers Routes Edit. No DNS or certificate permission: Cloudflare creates the Custom Domain's DNS

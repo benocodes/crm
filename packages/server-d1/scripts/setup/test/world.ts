@@ -51,7 +51,7 @@ export interface World {
   logs: string[]
   state: { configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; deployedSha: string | null; sleeps: number[] }
   writes(): string[][]
-  /** Every string that reached argv, stdin, fetched urls or logs. */
+  /** Every string that reached argv, stdin or a log line (fetched URLs carry the account id as an API path and are checked apart). */
   surface(): string
 }
 
@@ -173,6 +173,6 @@ export function makeWorld(o: WorldOptions): World {
     logs,
     state,
     writes: () => argv.filter((c) => isWriteCommand(c)),
-    surface: () => [...argv.map((c) => c.join(' ')), ...inputs, ...fetched, ...logs].join('\n'),
+    surface: () => [...argv.map((c) => c.join(' ')), ...inputs, ...logs].join('\n'),
   }
 }

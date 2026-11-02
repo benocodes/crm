@@ -11,6 +11,7 @@
     "bootstrap": "tsx scripts/bootstrap.ts",
     "smoke:worker": "tsx scripts/smoke-worker.ts",
     "open:check": "tsx scripts/open-check.ts",
+    "setup:remote": "tsx scripts/setup-remote.ts",
     "deploy:remote": "tsx scripts/deploy.ts",
     "db:migrate:remote": "tsx scripts/migrate-remote.ts",
     "db:status:remote": "tsx scripts/status-remote.ts",

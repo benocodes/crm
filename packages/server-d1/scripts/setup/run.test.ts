@@ -300,6 +300,8 @@ describe('no secret leaks across a full run', () => {
     expect(surface).not.toContain(key!)
     expect(surface).not.toContain(CREDS.apiToken)
     expect(surface).not.toContain(CREDS.accountId)
+    expect(w.fetched.join('\n')).not.toContain(key!)
+    expect(w.fetched.join('\n')).not.toContain(CREDS.apiToken)
     expect(w.state.configText).not.toContain(key!)
     expect(w.state.configText).not.toContain(CREDS.apiToken)
   })
