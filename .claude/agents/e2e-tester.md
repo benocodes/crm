@@ -19,6 +19,12 @@ Run only what the scenario needs, plus a quick `git status`/sha check that you a
   (`not authorized`): print the wrangler `--env`/`--persist-to` (or Miniflare binding) the Worker runs
   against and `GET /health` (`initialised`, `migrations`) instead. To drive the D1 Worker in workerd, write a
   throwaway script in the scratchpad modelled on `packages/server-d1/scripts/smoke-worker.ts` ([[CORE62]]).
+- **A fresh worktree has no `.env`** (gitignored), so the guarded remote scripts (`*:remote`, `setup:remote`)
+  refuse. Link the main checkout's file from the worktree root, `ln -s ../../../.env .env`, and remove the link
+  when done. Never copy it, never print it (`execute-cycle` §1, [[CORE61]]; [[OPS65]] copied it instead).
+- **Against an existing deployment from an unmerged branch,** anything that compares the live Worker with
+  HEAD (`/health.version`, setup's `deploy` step) reports a change; that is expected, not a failure. Shas are
+  compared in full (40 characters), never short ([[OPS65]], [[CORE77]]).
 - Never touch production, shared or other products' databases. Only the cycle's own worktree test DB and
   the local `vault_dev`.
 - **Save a once-shown secret before you trim or redact output.** A bootstrap API key or a minted token

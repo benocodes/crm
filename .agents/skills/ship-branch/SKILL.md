@@ -82,9 +82,14 @@ The D1 Worker (`packages/server-d1`, [[OPS4]]) deploys separately from the main 
    This always comes before the deploy: a Worker whose manifest is ahead of the database answers
    `503 migrations_pending` on every route but `/health` and the two OpenAPI documents (`/api/v1/openapi.json`, `/meta/v1/openapi.json`, [[API32]]).
 2. `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env smoked1` (clean tree; runs typecheck and the suite).
-3. `curl https://api.smoked1.vibase.ai/health` shows the deployed sha in `version`.
+3. `curl https://api.smoked1.vibase.ai/health` shows the deployed sha in `version`: the **full** `git rev-parse HEAD`.
+4. `pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai --phase after --expect-version "$(git rev-parse HEAD)"`.
+   `--expect-version` needs the full 40-character sha; a short one never matches ([[CORE77]] ship).
 
-After the OPS4 cycle these are hard stops again for agents unless the user extends OPS4 spec D2 (U4).
+`smoked1` only: agents may run these under the standing exception (AGENTS.md, Hard stops; user 2026-10-28). Any other
+env, and creating resources, stays a hard stop. Since [[OPS65]], `setup:remote -- --env smoked1 --auth none --api-host
+api.smoked1.vibase.ai --dry-run` is a read-only check of the whole env: every step `ok`, except `deploy: update` (and
+`verify: blocked`) while HEAD is not what `smoked1` runs.
 
 To watch it: `pnpm -C packages/server-d1 exec wrangler tail --env smoked1 --format pretty`. With `--env`, pass **no**
 Worker name: wrangler appends the env to a given name (`vault-smoked1` becomes `vault-smoked1-smoked1`, error `10007`

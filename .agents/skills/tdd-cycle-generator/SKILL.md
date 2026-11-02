@@ -161,7 +161,10 @@ orchestrator spawns no e2e-tester.
 Check each expected end state against the spec's decisions before writing it down, especially caches,
 re-read windows and consistency rules. Where state is cached per isolate or per process, say whether a step
 runs on a cold or a warm instance. [[CORE61]]'s charter expected a warm Worker to notice a deleted tracker row
-that spec D6 caches for the isolate's life, and review had to amend the scenario.
+that spec D6 caches for the isolate's life, and review had to amend the scenario. Likewise, the E2E runs
+from the unmerged cycle branch, so a check against a live deployment that compares with HEAD (a deploy
+step's idempotence, `/health.version`) reports a change, not `ok`: exclude that step or expect the change
+([[OPS65]]'s A3 expected "every step ok" and got `deploy: update`).
 
 Write the scenario so a tester can run it literally ([[CORE74]] needed two deviations and one false failure):
 - **Scopes in full** (`notes:read`, `notes:write`): the grammar is `resource:action` with no wildcard, so
