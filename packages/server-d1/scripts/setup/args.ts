@@ -70,6 +70,8 @@ export function parseSetupArgs(argv: string[]): SetupOptions {
   const ownerEmail = str('owner-email')
   if (operatorAgent !== undefined && !ownerEmail) throw new RemoteRefusal('--owner-email is required with --operator-agent on --auth none (the API-key deployment needs a human owner, as bootstrap does)')
 
+  if (str('org') !== undefined && operatorAgent === undefined) throw new RemoteRefusal('--org only applies with --operator-agent on --auth none (without it only the deployment marker is written)')
+
   const web = str('web-origin')
   const origins = [...(web ? [validateOrigin('--web-origin', web)] : []), ...((values['extra-origin'] as string[] | undefined) ?? []).map((o) => validateOrigin('--extra-origin', o))]
 

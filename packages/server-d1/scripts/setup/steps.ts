@@ -44,6 +44,8 @@ export interface Ctx {
   facts?: { d1s: { uuid: string; name: string }[]; r2s: string[] }
   /** `config:write` made a change: the run stops ([[OPS65]] D10). */
   stop?: boolean
+  /** `bootstrap` wrote the operator key to `.env` in this run. */
+  keyWritten?: boolean
 }
 
 type Step = (ctx: Ctx) => Promise<StepResult>
@@ -209,7 +211,10 @@ const bootstrap: Step = async (ctx) => {
   const marker = parseMarkerOutput((await run(ctx, markerCommand(t.env))).stdout)
   if (marker === 'no-table') return opts.dryRun ? result('bootstrap', 'blocked', 'the database is not migrated yet') : result('bootstrap', 'fail', 'the database is not migrated: run migrate first')
   if (marker !== null) {
-    if (marker.authProvider === 'none' && marker.authOrgId === opts.env) return result('bootstrap', 'ok', `marker none:${opts.env} present`)
+    if (marker.authProvider === 'none' && marker.authOrgId === opts.env) {
+      const flags = opts.operatorAgent !== undefined
+      return result('bootstrap', 'ok', flags ? `marker none:${opts.env} present: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)` : `marker none:${opts.env} present`)
+    }
     return result('bootstrap', 'fail', `the database is marked ${marker.authProvider}:${marker.authOrgId}, not none:${opts.env}: it belongs to another deployment`)
   }
   const operator = opts.operatorAgent !== undefined
@@ -236,6 +241,7 @@ const bootstrap: Step = async (ctx) => {
     } catch {
       return result('bootstrap', 'fail', `the API key could not be written to .env; it is lost: revoke api key ${r.apiKeyId} and create a new one`)
     }
+    ctx.keyWritten = true
     return result('bootstrap', 'create', `wrote ${what}`, [`agent_id: ${r.agentId}`, `api_key_id: ${r.apiKeyId}`, `api_key: written to .env as ${opts.keyEnv} (not shown)`])
   } finally {
     await dispose()
@@ -307,7 +313,8 @@ const verify: Step = async (ctx) => {
     const seen = health === null ? 'no answer' : `version ${health.version ?? '?'}, migrations ${health.migrations ?? '?'}`
     return result('verify', 'fail', `https://${ctx.opts.apiHost}/health did not become current within ${VERIFY_BOUND_MS / 1000}s (${seen})`)
   }
-  const next = [`API: https://${ctx.opts.apiHost}`, ctx.opts.keyEnv ? `agents use the operator key in .env (${ctx.opts.keyEnv}) as a Bearer token` : 'no operator key was created (--operator-agent and --key-env); create an agent key before connecting agents']
+  const repair = `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${ctx.opts.env} --key-env <NAME> --org <name> --auth-provider none --auth-org-id ${ctx.opts.env} --email <email> --agent <name>`
+  const next = [`API: https://${ctx.opts.apiHost}`, ...(ctx.keyWritten ? [`agents use the operator key in .env (${ctx.opts.keyEnv}) as a Bearer token`] : ['no operator key was created in this run; to create an agent and key:', `  ${repair}`])]
   return result('verify', 'ok', `https://${ctx.opts.apiHost}/health is current (${health!.version?.slice(0, 12) ?? 'no version'})`, next)
 }
 

@@ -85,8 +85,8 @@ later) is [[OPS87]]; until then pass `--auth none`.
 ```bash
 pnpm -C packages/server-d1 setup:remote -- --env acme --auth none --api-host api.acme.example.com --dry-run
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --auth none --api-host api.acme.example.com \
-  [--org <name>] [--web-origin https://app.example.com] [--extra-origin https://other.example.com] \
-  [--operator-agent operator --key-env ACME_OPERATOR_KEY --owner-email you@example.com] [--only migrate,verify]
+  [--web-origin https://app.example.com] [--extra-origin https://other.example.com] \
+  [--operator-agent operator --key-env ACME_OPERATOR_KEY --owner-email you@example.com [--org <name>]] [--only migrate,verify]
 ```
 
 `--api-host` is required (a custom domain on a zone in your account). Without `--operator-agent` the bootstrap writes only the
