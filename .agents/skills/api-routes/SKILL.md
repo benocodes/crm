@@ -54,7 +54,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     or CORS configuration fails closed (`500 internal` on every non-health route) and logs one line naming the variable,
     never its value. `GET /health` is outside the registry and reads the marker live. A missing `deployment`
     table counts as an absent marker.
-  - **Migration gate** ([[CORE61]]): `fetch` runs in this order: `/health` → the `behind` gate
+  - **Migration gate** ([[CORE61]]): `fetch` runs in this order: `/health` → the two discovery documents ([[CORE84]]: `discoveryResponse`, answered unless `configError`, which is `500` there too) → the `behind` gate
     (`503 migrations_pending`; the two OpenAPI documents, `GET /api/v1/openapi.json` and `GET /meta/v1/openapi.json`, are exempt; the root `/openapi.json` no longer exists and answers like any unknown path: `503` while uninitialised or behind, `404` otherwise, [[API32]] D5) → the auth-config `500` → the marker. The state comes from
     `readMigrationState` (`@vault/storage-d1`) against `MIGRATIONS`. It is cached per isolate once
     `current`/`ahead`, re-read at most every 5 s (`deps.nowMs`, not `deps.clock`) while `behind`/`unknown`, and
@@ -118,6 +118,17 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     absent from `scopes_supported`, so the issuer metadata is not the list of grantable scopes (the vault
     publishes its own, [[CORE84]]). The DCR `registration_endpoint` is in `/.well-known/oauth-authorization-server`,
     not in `openid-configuration`.
+  - **OAuth discovery** ([[CORE84]], `src/discovery.ts`): `GET`/`HEAD` of `/.well-known/vibase` (D21) and
+    `/.well-known/oauth-protected-resource` (D22; `404` with no provider), exact paths, `Cache-Control: public,
+    max-age=60`, `Access-Control-Allow-Origin: *`, URLs on the request's origin. A public document mounted before
+    the gates must check `configError` itself: the config check sits after the migration gate, so moving a path
+    earlier silently skips it. The `401` challenge (`WWW-Authenticate: Bearer resource_metadata="…"`, no `error=`)
+    is one outer middleware in `createApp` that reads `c.res.status` after `next()` (so `onError`'s rendering is
+    covered), active only with `workspace.adapter`; per-path setting missed paths in the absence mutation. Shared
+    CORS exposes `WWW-Authenticate` (not safelisted). The goldens come from the Postgres app, which has no
+    `workspace.adapter`, so D1-only auth behaviour is pinned in `server-d1` tests, not goldens (#72). A browser
+    preflight (`OPTIONS`) on the documents falls through to the shared CORS policy (no `*`): the MCP adapter spec
+    revisits it.
     The Organizations authenticator stays for `@vault/server-postgres` and the engine-harness suites;
   - `packages/server-postgres/scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:auth`: local key pair, fake
     Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`

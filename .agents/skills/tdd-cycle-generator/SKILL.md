@@ -177,6 +177,9 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
 
 A scenario states, in order:
 - **Initial state:** what exists before (rows, tenants, credentials, fixtures) and how to set it up.
+  List the **full required configuration** of the adapter the Worker composes (from its config parser or
+  `.dev.vars.example`), not only the variables the cycle reads: [[CORE84]]'s scenario omitted
+  `CLERK_SECRET_KEY`, which the workspace adapter requires, and the Worker answered `500`.
 - **Actions:** the real calls, with payloads (REST/MCP requests, CLI commands, fixture replays).
 - **Expected end state:** responses, rows, events, including the failure paths the cycle defines.
 - **Expected database:** which one it must run against (an exported `DATABASE_URL` overrides
