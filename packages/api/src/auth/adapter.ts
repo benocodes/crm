@@ -6,17 +6,31 @@ export type VerifyFailure = 'malformed' | 'algorithm' | 'signature' | 'expired' 
 /** Always 401 `unauthenticated`. `reason` is for the middleware's log line, never the response. */
 export class AuthFailure extends ApiError {
   constructor(
-    readonly reason: VerifyFailure | 'no_email',
+    readonly reason: VerifyFailure | 'no_email' | 'disabled',
     message = 'invalid or expired credentials',
   ) {
     super(401, 'unauthenticated', message)
   }
 }
 export type OrganizationClaim = { externalId: string; role: Role | null } // null = unmapped role ([[CORE3]] D19)
+/**
+ * A verified token, by kind ([[CORE77]] D13). `session`: a signed-in person's (or agent account's) browser or API session; the workspace
+ * role is the claim's value, unvalidated. `oauth`: an OAuth access token issued to a client; its `scopes` are the vault's scope names
+ * (the provider's own scopes dropped, [[CORE77]] D18), and it carries no role: the profile does (D12). Only the workspace adapter
+ * ever returns `oauth`; the Organizations adapter reads every token as a session token.
+ */
 export type VerifyResult =
-  | { ok: true; subject: string; issuedAt: Date; organization: OrganizationClaim | null; role?: unknown }
+  | { ok: true; kind: 'session'; subject: string; issuedAt: Date; organization: OrganizationClaim | null; role?: unknown }
+  | { ok: true; kind: 'oauth'; subject: string; clientId: string; scopes: string[] }
   | { ok: false; reason: VerifyFailure }
-export type AuthProfile = { email: string | null; emailVerified: boolean; name: string | null }
+/** `role` is the provider's stored workspace role for the user (`public_metadata.vibase_role`), unvalidated; undefined when absent ([[CORE77]] D12). */
+export type AuthProfile = { email: string | null; emailVerified: boolean; name: string | null; role?: unknown }
+/** The provider answered 404 for the user: removed, or never existed ([[CORE77]] D12). */
+export class ProfileNotFoundError extends Error {
+  constructor(message = 'provider profile not found') {
+    super(message)
+  }
+}
 export type DirectoryOrganization = { externalId: string; name: string }
 export type DirectoryMember = { subject: string; role: Role }
 export type DirectoryChange =
@@ -37,6 +51,8 @@ export interface AuthAdapter {
   verify(token: string): Promise<VerifyResult>
   /** Called once per new subject, outside any transaction. Throws on transport or HTTP failure. */
   fetchProfile(subject: string): Promise<AuthProfile>
+  /** The display name of an OAuth client by its client id; null when the provider does not know it. Throws on transport or HTTP failure ([[CORE77]] D15). */
+  fetchOAuthClientName(clientId: string): Promise<string | null>
   /** null on 404. Throws on any other failure. */
   fetchOrganization(externalId: string): Promise<DirectoryOrganization | null>
   /** Every member, all pages; unmapped roles dropped with a warn. Throws on failure (a 404 too). */
@@ -64,6 +80,18 @@ export function createAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; no
  */
 export function createWorkspaceAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date } = {}): AuthAdapter | undefined {
   return build(env, deps, true)
+}
+
+/**
+ * `AUTH_CLI_CLIENT_ID` ([[CORE77]] D14, D16): the first-party CLI's public OAuth client id. Unset means no client is the CLI; set but blank is a
+ * configuration error (fail closed: a blank id must never read as "no CLI" by accident, nor match a token with an empty client id).
+ */
+export function parseCliClientId(env: AuthEnv): string | undefined {
+  const raw = env.AUTH_CLI_CLIENT_ID
+  if (raw === undefined) return undefined
+  const id = raw.trim()
+  if (id === '') throw new Error('AUTH_CLI_CLIENT_ID must not be empty')
+  return id
 }
 
 function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, workspace: boolean): AuthAdapter | undefined {
@@ -99,6 +127,7 @@ function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, w
     secretKey,
     webhookSecret,
     roleClaim,
+    oauth: workspace,
     apiUrl: env.CLERK_API_URL?.trim() || undefined,
     fetch: deps.fetch,
     now: deps.now,

@@ -37,7 +37,7 @@ export interface AppOptions {
    * token's claim, `/webhooks/clerk` is not mounted and `me.get` answers agents. `adapter` is the workspace adapter, absent when
    * the deployment is API-key only. Exclusive with `authAdapter` and `userAuthenticator`.
    */
-  workspace?: { adapter?: AuthAdapter }
+  workspace?: { adapter?: AuthAdapter; /** The first-party CLI's OAuth client id ([[CORE77]] D14); unset: none. */ cliClientId?: string }
   /** Injected clock and id source for prepared units (tests and golden fixtures). Default: real time, UUIDv7. */
   clock?: () => Date
   newId?: () => string
@@ -88,7 +88,7 @@ async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions,
       organizationId,
       scopes: organizationId === null ? ScopeSet.parse([]) : principal.scopes,
       now: (injected.clock ?? (() => new Date()))(),
-      ...(injected.workspace ? { workspace: { role: principal.actor.kind === 'user' ? (principal.role ?? null) : null } } : {}),
+      ...(injected.workspace ? { workspace: { role: principal.actor.kind === 'user' ? (principal.role ?? null) : null, clientId: principal.clientId ?? null } } : {}),
     }
     try {
       return (await execute(storage, { kind: 'account', actorId: principal.actor.id }, op.prepare(env, input))).value
@@ -142,7 +142,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     (options.authAdapter
       ? createUserAuthenticator({ adapter: options.authAdapter, declaredScopes: registry.declaredScopes() })
       : options.workspace?.adapter
-        ? createWorkspaceAuthenticator({ adapter: options.workspace.adapter, declaredScopes: registry.declaredScopes() })
+        ? createWorkspaceAuthenticator({ adapter: options.workspace.adapter, declaredScopes: registry.declaredScopes(), cliClientId: options.workspace.cliClientId })
         : undefined)
   const app = new OpenAPIHono<AppEnv>()
   app.onError(renderError)

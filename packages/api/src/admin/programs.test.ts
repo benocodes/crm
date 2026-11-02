@@ -151,6 +151,10 @@ describe('agents.update: a write field that is not a column is a hook input only
       created_by: USER,
       created_at: '2026-10-21T08:00:00.000Z',
       updated_at: '2026-10-21T08:00:00.000Z',
+      auth_provider: null,
+      auth_subject: null,
+      auth_client_id: null,
+      delegated_by: null,
       __stamp: '2026-10-21T08:00:00.000000Z',
     }
     const op = updateOperation(agents, env, AGENT, { disabled: true })

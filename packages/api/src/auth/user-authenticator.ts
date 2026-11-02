@@ -28,6 +28,8 @@ export function createUserAuthenticator(opts: { adapter: AuthAdapter; declaredSc
     async authenticate(token, { storage, organizationHeader, env }) {
       const verified = await adapter.verify(token)
       if (!verified.ok) throw new AuthFailure(verified.reason)
+      // The Organizations adapter never returns an OAuth token; a different adapter doing so is not admitted here.
+      if (verified.kind !== 'session') throw new AuthFailure('claims')
       const claim = verified.organization
       // D19: a D1 serves ONE provider organisation. A claim for another is refused before any lookup, fetch or SQL. This is
       // the one place the authenticator throws for an organisation problem: the decision is about the deployment, not the operation.

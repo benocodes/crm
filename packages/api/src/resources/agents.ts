@@ -17,6 +17,14 @@ export const agentRecord = z.object({
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
+  /** How the agent is linked to the sign-in provider ([[CORE77]] D23); all null for an API-key agent. */
+  auth_provider: z.string().nullable(),
+  /** An agent account: the provider user whose role is `agent`. */
+  auth_subject: z.string().nullable(),
+  /** A delegated agent: the OAuth client the human consented to. */
+  auth_client_id: z.string().nullable(),
+  /** A delegated agent: the human who consented. */
+  delegated_by: z.uuid().nullable(),
 })
 export type AgentRecord = z.infer<typeof agentRecord>
 

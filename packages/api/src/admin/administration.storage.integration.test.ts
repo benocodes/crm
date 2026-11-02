@@ -83,6 +83,10 @@ describe.each(['postgres', 'd1'] as const)('administration storage behaviour on 
         created_by: e.userId,
         created_at: iso(1),
         updated_at: iso(1),
+        auth_provider: null,
+        auth_subject: null,
+        auth_client_id: null,
+        delegated_by: null,
       })
       expect(await row('principals', a.id)).toMatchObject({ kind: 'agent', created_at: iso(1) })
       expect((await e.rows('principals')).length).toBe(principalsBefore + 1)

@@ -15,7 +15,7 @@ import {
 import { ApiError, mapStorageError } from '../errors.js'
 import { normalizeIdentityValue } from '../identity/normalize.js'
 import type { InternalEnv } from '../storage/internal.js'
-import { AuthFailure, type AuthAdapter } from './adapter.js'
+import { AuthFailure, type AuthAdapter, type AuthProfile } from './adapter.js'
 import type { Role } from './roles.js'
 
 /**
@@ -189,8 +189,15 @@ export async function lookupUser(storage: StorageBinding, a: Lookup): Promise<Us
  * First sight with its network and normalisation outside any unit ([[CORE3]] D4, D5, D12): the profile fetch, then the
  * email check and normalisation (`400 invalid_identity`, D7), then the unit; on drift ONE read-only recheck.
  */
-export async function provisionUser(storage: StorageBinding, adapter: AuthAdapter, subject: string, env: InternalEnv): Promise<UserLogin> {
-  const profile = await adapter.fetchProfile(subject)
+export async function provisionUser(
+  storage: StorageBinding,
+  adapter: AuthAdapter,
+  subject: string,
+  env: InternalEnv,
+  /** The profile source; the D1 workspace authenticator passes its cached read ([[CORE77]] D12). Default: the adapter's own call. */
+  fetchProfile: (subject: string) => Promise<AuthProfile> = (s) => adapter.fetchProfile(s),
+): Promise<UserLogin> {
+  const profile = await fetchProfile(subject)
   const raw = profile.email?.trim()
   if (!raw) {
     console.warn('[auth] first sight: provider returned no email', { provider: adapter.provider })

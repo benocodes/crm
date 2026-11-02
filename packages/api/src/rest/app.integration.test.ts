@@ -291,6 +291,7 @@ describe('auth options and the account context ([[CORE3]])', () => {
           provider: 'x',
           verify: async () => ({ ok: false, reason: 'malformed' }),
           fetchProfile: async () => ({ email: null, emailVerified: false, name: null }),
+          fetchOAuthClientName: async () => null,
           fetchOrganization: async () => null,
           listMembers: async () => [],
           parseWebhook: async () => ({ ok: false, reason: 'headers' }),

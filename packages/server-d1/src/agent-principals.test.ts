@@ -303,7 +303,7 @@ describe('delegated scopes are a four-way intersection (D15)', () => {
   it('the role term: a member never delegates a scope the member role lacks (a policy where an agent-grantable scope is owner-only)', async () => {
     await initWorkspace()
     const policy: ScopePolicy = { ...SCOPE_POLICY, 'tasks:write': { member: false, agentGrantable: true } }
-    const adapter = createWorkspaceAuthAdapter({ ...kit.env, CLERK_API_URL: kit.env.CLERK_API_URL, CLERK_WEBHOOK_SECRET: undefined } as Record<string, string | undefined>, { fetch: kit.fetch, now: () => clock })!
+    const adapter = createWorkspaceAuthAdapter({ ...kit.env, CLERK_WEBHOOK_SECRET: undefined } as unknown as Record<string, string | undefined>, { fetch: kit.fetch, now: () => clock })!
     const authenticator = createWorkspaceAuthenticator({ adapter, declaredScopes: declared, cliClientId: CLI, policy })
     const link = { organizationId: (await rows('select id from organizations'))[0]!.id as string, authProvider: 'clerk', authOrgId: kit.issuer.issuer }
     const storage = d1Binding(w.d1, link)

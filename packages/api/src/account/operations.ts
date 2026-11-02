@@ -28,8 +28,8 @@ export type MeResponse = z.infer<typeof meResponse>
  * - The copy-based answer (Postgres, and the Organizations authenticator on any engine): the user by the actor's id, their live
  *   memberships joined to the organisations (ordered by name, then id), and the active organisation with the caller's scopes.
  * - The workspace answer (a single-workspace composition, `env.workspace` set, [[CORE64]] D10): no membership row is read. The one
- *   membership is synthesised from the role in the token and the deployment's organisation; an agent has none and no role. For
- *   now `agent.delegated_by`, `auth_client_id`, `auth_subject` and `client_id` are always null ([[CORE77]] fills them).
+ *   membership is synthesised from the role in the token and the deployment's organisation; an agent has none and no role. `agent` carries the principal links
+ *   ([[CORE77]] D23, null for an API-key agent) and `client_id` is the token's OAuth client, null for a session token and an API key.
  */
 export function meOperation(env: AccountEnv): PreparedOperation<MeResponse> {
   if (env.workspace) return workspaceMeOperation(env, env.workspace)
@@ -74,7 +74,7 @@ export function meOperation(env: AccountEnv): PreparedOperation<MeResponse> {
   })
 }
 
-function workspaceMeOperation(env: AccountEnv, workspace: { role: Role | null }): PreparedOperation<MeResponse> {
+function workspaceMeOperation(env: AccountEnv, workspace: { role: Role | null; clientId: string | null }): PreparedOperation<MeResponse> {
   const isUser = env.actor.kind === 'user'
   return defineOperation<MeResponse>({
     name: 'me.get',
@@ -83,7 +83,7 @@ function workspaceMeOperation(env: AccountEnv, workspace: { role: Role | null })
       org: readMaybe(qc.db.selectFrom('organizations').select(['organizations.id', 'organizations.name']).where('organizations.id', '=', env.organizationId ?? '')),
       ...(isUser
         ? { user: readOne(qc.db.selectFrom('users').select(['users.id', 'users.email', 'users.name', 'users.email_verified']).where('users.id', '=', env.actor.id)) }
-        : { agent: readOne(qc.db.selectFrom('agents').select(['agents.id', 'agents.name']).where('agents.id', '=', env.actor.id)) }),
+        : { agent: readOne(qc.db.selectFrom('agents').select(['agents.id', 'agents.name', 'agents.delegated_by', 'agents.auth_client_id', 'agents.auth_subject']).where('agents.id', '=', env.actor.id)) }),
     }),
     build: (found) =>
       unit({
@@ -98,8 +98,8 @@ function workspaceMeOperation(env: AccountEnv, workspace: { role: Role | null })
           return meResponse.parse({
             principal: { id: env.actor.id, kind: env.actor.kind },
             user: user ? { id: user.id, email: user.email, name: user.name, email_verified: codecs.boolean.read(user.email_verified) } : null,
-            agent: agent ? { id: agent.id, name: agent.name, delegated_by: null, auth_client_id: null, auth_subject: null } : null,
-            client_id: null,
+            agent: agent ? { id: agent.id, name: agent.name, delegated_by: agent.delegated_by, auth_client_id: agent.auth_client_id, auth_subject: agent.auth_subject } : null,
+            client_id: workspace.clientId,
             memberships,
             active_organization: org ? { id: org.id, role, scopes: env.scopes.toStrings() } : null,
           })
