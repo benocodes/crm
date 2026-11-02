@@ -133,10 +133,23 @@ When the contract is a compile-time one (a typed storage or definition API), tes
 ## 3. Tests across storage engines
 
 One program, two engines: the same assertions run on Postgres and D1.
+  - **The engine is in the file name (OPS92).** `*.postgres.test.ts` runs in the `postgres` vitest project (off by
+    default, needs a database), `*.d1.test.ts` and engine-neutral `*.test.ts` in the default projects. A file with no
+    `.postgres.` infix must not import `@vault/db`, `@vault/storage-postgres` or `pg` directly; a boundary test fails it.
+    That check sees direct imports only (most `.postgres.` files reach Postgres through relative helpers). The runtime
+    is the backstop: the default projects load no Postgres env, so `createTestDb` throws `TEST_APP_DATABASE_URL is not
+    set`. Its one hole is a shell that already exports `TEST_APP_DATABASE_URL`.
+    There is no flag, no per-package exclude list and no `skipIf` guard: a Postgres-only test goes in a `.postgres.` file.
+    The infix goes last (`tasks.integration.postgres.test.ts`) so `.integration` stays the database-backed marker.
+  - **A both-engine suite is a shared body plus two entry files.** The body is `x.integration.suite.ts` (not matched
+    by the test glob) exporting `engineSuite(engineName)`; `x.integration.d1.test.ts` and
+    `x.integration.postgres.test.ts` each call it with their engine. Write each assertion once; an engine branch
+    stays in the body (`if (name === 'postgres')`). Break a shared assertion and both entry files go red.
   - `src/test/engines.ts` opens Postgres (`vault_app`, no presets) and a Miniflare D1, with injected
     clock and ids.
-  - `runContractSuite({ backend: d1Backend() })` runs the same assertions on D1, with one binding per
-    tenant, never two tenants in one D1.
+  - `runContractSuite({ ..., backend })` runs the same assertions on the backend it is given (`d1Backend()`,
+    `postgresBackend()` from `src/test/postgres-backend.ts`); `backend` is required, there is no default. D1 has one
+    binding per tenant, never two tenants in one D1.
   - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
     behaviour change, run `pnpm -C packages/server-postgres golden:generate`; `golden:check` fails on drift.
     Some golden values derive from the registry: the owner's scopes in `auth.json` are
@@ -167,7 +180,7 @@ One program, two engines: the same assertions run on Postgres and D1.
 - Assert engine differences explicitly, never hide them. Since [[CORE36]] D2 there is no timestamp
   difference: every stamp a unit writes equals its injected `now` on both engines. Assert the response, the
   stored row and every event's `created_at`/`after` against the clock exactly, with no engine branch (the
-  clock-parity case in `src/storage/identity-model.storage.integration.test.ts`).
+  clock-parity case in `src/storage/identity-model.storage.integration.suite.ts`).
 - Golden fixtures pin behaviour across engines and across refactors. Name every deliberate difference in the
   fixture (`named_differences`, filtered per file from `NAMED_DIFFERENCES` in `packages/api/src/test/golden/fixtures.ts`). The one entry
   is D1 fixed-organisation admission (scenario `foreign-organisation-claim`, [[CORE41]] P15). For a named scenario,
@@ -217,8 +230,17 @@ One program, two engines: the same assertions run on Postgres and D1.
   state, make the harness assert that state before every suite (CORE35's `tgenabled` guard did this; it went
   with the trigger in [[CORE36]]). If such a guard trips, run `pnpm db:test:worktree`.
 - **Test support lives under `src/test/`.** The import-boundary checker treats a file as test code only by its
-  `*.test.ts` suffix or a `/test/` path segment. A setup file such as `src/test-setup.ts` is production code to it,
-  and fails the rule that forbids `@vault/db` in `api/src` ([[CORE44]] P13: it moved to `src/test/setup.ts`).
+  `*.test.ts` or `*.suite.ts` suffix or a `/test/` path segment. A support file elsewhere in `src` is production code
+  to it and fails the rule that forbids `@vault/db` in `api/src`. Vitest setup files are not in the package: the
+  `postgres` project loads `packages/db/src/test-setup.ts` from `vitest.projects.ts`.
+- **The root vitest config collects from the directory it starts in.** Its include globs are relative, and
+  `configDefaults.exclude` does not cover `vendor/` (2000+ vendored test files), `.claude/` (other worktrees) or
+  `knowledge/`; `EXCLUDE` in `vitest.projects.ts` lists them. When you add a project or glob, check it with
+  planted files: put a `x.test.ts` under each of those trees and confirm `pnpm exec vitest list --filesOnly` at the
+  root doesn't list it (OPS92 review; the normal file count proved nothing).
+- **A refactor that moves or splits tests proves it kept them with a test-name manifest**: the full
+  `package + test name` list before and after (`vitest run --reporter=json`), diffed as a multiset, with every
+  difference explained (OPS92: 2750 → 2761, each delta named). A green run alone can't show a test went missing.
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
 - Clean up in `afterEach`, delete only the exact rows this test seeded by their own ids, never a "nothing
@@ -271,8 +293,8 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   through every fixture on the other side. Two "different" users that land in one default org prove nothing;
   RLS has nothing to separate and the assertion passes for the wrong reason.
 - **The contract suite runs over every resource definition automatically**
-  (`src/contract.integration.test.ts`, which calls `runContractSuite` from `src/test/contract.ts`; there is no
-  `src/test/contract-suite*` file). The file holds **two runs**: Postgres over `createVaultRegistry()`, and D1 over a
+  (`src/contract.integration.d1.test.ts` and `src/contract.integration.postgres.test.ts`, which call `runContractSuite`
+  from `src/test/contract.ts`). There are **two runs**: Postgres over `createVaultRegistry()`, and D1 over a
   hand-built registry and fixture map. A resource missing from the D1 run's registry is contract-tested only on
   Postgres, which is off by default (`pnpm test:postgres`): the default run exercises only the D1 registry, so a
   resource missing from it has no contract coverage at all ([[CORE68]]: the messaging fixtures went to `kit.capture`

@@ -146,8 +146,8 @@ is the only LLM library (if the vault ever calls one).
 
 ```bash
 pnpm install          # at the repo root
-pnpm -r test          # all packages (D1 and engine-neutral; Postgres suites are off)
-pnpm test:postgres    # the same plus the parked Postgres suites (needs a Postgres test database)
+pnpm -r test          # all packages (D1 and engine-neutral; the postgres project is off)
+pnpm test:postgres    # the parked Postgres suites alone (the `postgres` vitest project; needs a Postgres test database)
 pnpm -r typecheck
 pnpm -C packages/<pkg> test [file]
 pnpm db:migrate       # dev database
@@ -193,13 +193,20 @@ plan and size) and shared code must not drift from it:
 
 - Postgres packages stay in the **typecheck and build** gate (blocking, cheap): a change to shared code
   (`@vault/storage`, `@vault/api`) must still compile against both adapters.
-- Postgres **test suites are off by default** (2026-11-02): `pnpm -r test` runs D1 and engine-neutral suites only and
-  needs no Postgres database. `pnpm test:postgres` (`VAULT_TEST_POSTGRES=1`) turns them back on, unchanged; run it
-  when un-parking Postgres, or on demand to see drift (non-blocking: a failure is drift to note, never a reason to
-  bend D1 behaviour). Mechanism: whole Postgres-only files are excluded in each package's `vitest.config.ts` via
-  `postgresOnly([...])` (`vitest.postgres.ts` at the root); suites that run on both engines take their engines from
-  `ENGINE_NAMES` / `openEngines()` (`packages/api/src/test/engines.ts`), and single Postgres cases use
-  `skipIf(!POSTGRES_TESTS)`. A new Postgres-dependent test file must be listed or guarded the same way.
+- Postgres **test suites are off by default** (2026-11-02, OPS92): an engine is a vitest **project**, chosen by the
+  file name. `*.postgres.test.ts` runs in the `postgres` project, `*.d1.test.ts` and engine-neutral `*.test.ts` (no
+  engine infix) in the default projects, so `pnpm test` and `pnpm -r test` run D1 and engine-neutral suites only and
+  need no Postgres database. The one switch is `RUN_POSTGRES_PROJECT` in the root `vitest.config.ts` (projects are
+  defined in `vitest.projects.ts`). `pnpm test:postgres` runs the `postgres` project alone, whatever the switch says
+  (needs `TEST_DATABASE_URL` / `.env.test.local`); run it when un-parking Postgres, or on demand to see drift
+  (non-blocking: a failure is drift to note, never a reason to bend D1 behaviour). **Naming rule:** a test file that
+  needs Postgres carries the `.postgres.` infix (`x.integration.postgres.test.ts`); a file with no infix must not
+  import `@vault/db`, `@vault/storage-postgres` or `pg` directly (a boundary test in `@vault/storage` enforces it; it sees
+  direct imports only, and the runtime is the backstop: the default projects load no Postgres env, so `createTestDb`
+  throws `TEST_APP_DATABASE_URL is not set`, unless the shell already exports that variable). A suite
+  that proves the same behaviour on both engines is one shared body (`x.integration.suite.ts`, exporting
+  `engineSuite(engineName)`) with two entry files (`x.integration.d1.test.ts`, `x.integration.postgres.test.ts`),
+  never a flag or a `skipIf`.
 - New features are specced and built for D1 only. Do not add Postgres migrations or Postgres-only work;
   where a shared interface changes, keep the Postgres adapter compiling and say what it would need.
 - Specs with Postgres or multi-tenant cloud work are marked **parked**, not deleted.

@@ -13,7 +13,8 @@
     "db:test:reset": "tsx scripts/reset-test-db.ts",
     "db:test:worktree": "tsx scripts/worktree-test-db.ts",
     "db:codegen": "tsx scripts/codegen.ts",
-    "test": "vitest run",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "test:postgres": "vitest run --config ../../vitest.postgres.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

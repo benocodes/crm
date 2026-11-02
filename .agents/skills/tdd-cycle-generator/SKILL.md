@@ -57,7 +57,10 @@ and the reason in the charter's **Scope** section.
      always follow-on. Never overwrite an existing plan.
 2. **Scope.** Which spec sections and decisions this cycle delivers. Split when one PR would be too big
    to review in one sitting, or when part of the spec depends on something not yet merged. A good cut
-   leaves `main` working and every deferred item nameable.
+   leaves `main` working and every deferred item nameable. Size by review effort, not by diff size: a
+   large mechanical change (renames, file splits) that one check proves whole, such as a before/after
+   test-name manifest, is one cycle. Splitting it only adds an interim state where old and new mechanisms
+   live side by side ([[OPS92]], where the user dropped a two-cycle split).
 3. **Short name.** Kebab-case, describing *this cycle's* scope (`contacts-resource`, `webhook-delivery`).
 
 ### Step 3: Resolve identities
@@ -231,7 +234,7 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    claims as browser tokens. [[CORE64]]: Clerk's session-token customisation is dashboard-only, and
    Backend-API session tokens carry no `azp`. That cost one blocked E2E run and one review round.
 7. **A cycle that adds a resource names the contract file and both runs.** Add it to the contract suite
-   (`packages/api/src/contract.integration.test.ts`) rather than hand-writing the checks, and say so in the
+   (`packages/api/src/contract.integration.d1.test.ts`) rather than hand-writing the checks, and say so in the
    charter. The file has a Postgres run and a D1 run; the D1 run registers its resources by hand, so a
    resource in the D1 gate must be added to that registry and fixture map. [[CORE68]]'s plan named a
    nonexistent file and said "both backends" without the D1 step, so the fixtures it switched had no red

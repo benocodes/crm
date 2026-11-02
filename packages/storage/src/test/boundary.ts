@@ -51,7 +51,8 @@ function* files(dir: string): Generator<string> {
 const forbidden = (specifier: string, forbid: readonly string[]): boolean =>
   forbid.some((f) => specifier === f || specifier.startsWith(`${f}/`))
 
-const isTest = (path: string): boolean => /\.(test|integration\.test)\.ts$/.test(path) || /[\\/]test[\\/]/.test(path)
+// `.suite.ts` is a both-engine suite body (OPS92 D3): test code, imported only by `*.d1.test.ts` and `*.postgres.test.ts` entry files.
+const isTest = (path: string): boolean => /\.(test|suite)\.ts$/.test(path) || /[\\/]test[\\/]/.test(path)
 
 export interface Violation {
   file: string
@@ -72,6 +73,33 @@ export function checkBoundary(packagesRoot: string, rules: readonly Rule[] = RUL
       for (const m of text.matchAll(SPECIFIER)) {
         if (forbidden(m[1]!, rule.forbid)) out.push({ file: relative(packagesRoot, file), specifier: m[1]!, rule: rule.dir })
       }
+    }
+  }
+  return out
+}
+
+/** Test files that hold forbidden imports as data (strings), each with the reason. */
+const NAMING_EXEMPT: Readonly<Record<string, string>> = { 'storage/src/import-boundary.test.ts': 'holds forbidden imports as test data' }
+export const POSTGRES_INTEGRATION = '<integration test in a Postgres package>'
+const POSTGRES_CODE = ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres']
+const TYPE_ONLY_IMPORT = /\bimport\s+type\b[^;'"]*?\bfrom\s+['"][^'"]+['"]/gs
+
+/**
+ * The engine-naming rule (OPS92 D2): a `*.test.ts` file with no `.postgres.` infix (engine-neutral, or `.d1.`) runs in the
+ * default projects, which need no Postgres server, so it must not import Postgres code. Type-only imports are erased and
+ * allowed. Non-test helpers are not checked: a helper may import Postgres code as long as no default-project test file does.
+ */
+export function checkEngineNaming(packagesRoot: string): Violation[] {
+  const out: Violation[] = []
+  for (const file of files(packagesRoot)) {
+    if (!/\.test\.ts$/.test(file) || /\.postgres\.test\.ts$/.test(file)) continue
+    const rel = relative(packagesRoot, file)
+    if (rel in NAMING_EXEMPT) continue
+    // Inside the Postgres packages an `.integration.` test is database-backed by definition, whatever it imports (relative helpers hide it).
+    if (/\.integration\.test\.ts$/.test(file) && /^(db|storage-postgres)[\\/]/.test(rel)) out.push({ file: rel, specifier: POSTGRES_INTEGRATION, rule: 'engine-naming' })
+    const text = readFileSync(file, 'utf-8').replace(TYPE_ONLY_IMPORT, '')
+    for (const m of text.matchAll(SPECIFIER)) {
+      if (forbidden(m[1]!, POSTGRES_CODE)) out.push({ file: rel, specifier: m[1]!, rule: 'engine-naming' })
     }
   }
   return out
