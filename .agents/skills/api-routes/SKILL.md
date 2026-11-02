@@ -95,11 +95,29 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     included. It uses `createWorkspaceAuthAdapter` (never reads `CLERK_WEBHOOK_SECRET`) and
     `src/auth/workspace-authenticator.ts`. The role is read on every request from the claim `AUTH_ROLE_CLAIM`
     (default `vibase_role`) and mapped through `SCOPE_POLICY`. The vault never reads or writes `memberships`
-    for it. A missing, unknown, `agent` or non-string role throws `403 organization_forbidden` before first
+    for it. A missing, unknown or non-string role throws `403 organization_forbidden` before first
     sight, so a refused token writes nothing. `/webhooks/clerk` is not mounted. `me.get` answers agents (the
     op flag `agents: true`), and memberships are synthesised from the role. `CLERK_AUTHORIZED_PARTIES` is
     optional on D1, because session tokens minted through Clerk's Backend API carry no `azp`. An `azp` that is
     present must still be listed. Bootstrap uses `src/bootstrap-workspace.ts` (no human, attributed to `system`).
+  - **D1 agent principals** ([[CORE77]], migration `0007`). The workspace adapter returns `kind: 'session' | 'oauth'`;
+    an OAuth token is marked by RFC 9068's `typ: at+jwt` header **or** a `client_id` claim (required), verified with
+    the session key, no `aud`/`azp` check. Clerk's own scopes are dropped, the rest go through
+    `fromProviderScope` (identity). Resolution lives in `src/auth/workspace-authenticator.ts` +
+    `src/auth/agent-principals.ts`: one read-only lookup unit (user row, account agent by `auth_subject`, delegated
+    agent by (client, human)); `AUTH_CLI_CLIENT_ID` acts as the human (role ∩ token); any other client is a
+    delegated agent (token ∩ stored cap ∩ role ∩ grantable); role `agent` is an agent account (grants ∩ token for
+    OAuth, grants for a session token). Kinds never convert (`403 organization_forbidden`); a disabled agent is
+    `401`. First sight inserts `ON CONFLICT DO NOTHING`, gates the event on the insert, then asserts the stored id
+    (the race loser re-looks up once, else `409`). The profile (`fetchProfile`, with `role`) is cached per isolate
+    for 60 s by `env.now`; a `404` is cached as a refusal, any other failure is `500` and uncached. The client
+    name comes from `GET /v1/oauth_applications?name_query=<client_id>` (Clerk documents that `name_query` also
+    matches an exact `client_id`), falling back to the id. A scope term that is vacuous under `SCOPE_POLICY`
+    (the role term) is tested with an injected `policy` option.
+  - **Clerk OAuth facts seen live** ([[CORE77]] E2E): Clerk grants custom scopes that are "Not advertised" and
+    absent from `scopes_supported`, so the issuer metadata is not the list of grantable scopes (the vault
+    publishes its own, [[CORE84]]). The DCR `registration_endpoint` is in `/.well-known/oauth-authorization-server`,
+    not in `openid-configuration`.
     The Organizations authenticator stays for `@vault/server-postgres` and the engine-harness suites;
   - `packages/server-postgres/scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:auth`: local key pair, fake
     Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`

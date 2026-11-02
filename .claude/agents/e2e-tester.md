@@ -24,7 +24,13 @@ Run only what the scenario needs, plus a quick `git status`/sha check that you a
 - **Save a once-shown secret before you trim or redact output.** A bootstrap API key or a minted token
   that appears only once goes straight to a file in the scratchpad (`chmod 600`), and later steps read it
   from there. Redact only what you print or report. If you redact first, the secret is gone and the run has
-  to start over ([[CORE64]] retro).
+  to start over ([[CORE64]] retro). The same goes for **single-use responses**: an OAuth device-authorization
+  response (`device_code`, `user_code`) or an authorization code is consumed by the first poll or exchange, so
+  write the raw response to the file before parsing or printing it; a fetch whose output was not saved costs a
+  new login ([[CORE77]]).
+- **Call provider HTTP endpoints with `curl`** (or set a browser-like `User-Agent`). Python `urllib`'s default
+  agent got a non-JSON answer from Clerk's token endpoint, most likely Cloudflare's bot screen in front of it
+  ([[CORE77]]). A non-JSON body from an OAuth endpoint is a client problem first, not a vault finding.
 - **Don't fix anything.** Not code, not tests, not config. If something fails, capture the exact
   command, output (trimmed to what matters) and your reading of the cause, and report it.
 

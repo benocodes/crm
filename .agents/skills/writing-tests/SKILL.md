@@ -52,6 +52,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   before the route exists when the gate runs before routing ([[API63]]: the [[CORE61]] `migrations_pending` gate). Keep
   it as a regression guard and pair it with a case that needs the new code (gate open → `200`); a charter should not
   ask for a red run on the first one.
+- **A term that today's configuration makes vacuous cannot be proven with today's configuration.** [[CORE77]]'s
+  delegated scopes are token ∩ cap ∩ role ∩ grantable, but under the real `SCOPE_POLICY` every agent-grantable scope
+  is also a member scope, so dropping the role term changed nothing. Inject the configuration (an optional `policy`
+  option on the authenticator) with a case where only that term removes a scope, and prove it with the mutation.
+  Give each term of an intersection its own case.
+- **A schema-equality suite does not go red on a new field.** The contract suite compares a response with the
+  record schema, and both gain the field together, so a charter asking for its red run on a record-shape change
+  cannot be met ([[CORE77]]). Pin a new field with a test that names it (the resource's record-shape test, a
+  Worker test reading it, the golden), and ask for those red runs instead.
 - **A smoke script's assertions are untested code.** `packages/server-d1/scripts/smoke-remote.ts`'s `before`/`after`
   phase functions are reached by no test (only `afterHealthOk` is), so [[API32]]'s `before` phase asserted
   `GET /openapi.json` → `404` on an uninitialised deployment, where the cold app answers `503 not_initialised`; only
