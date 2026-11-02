@@ -60,7 +60,7 @@ export interface AccountEnv {
   readonly scopes: ScopeSet
   readonly now: Date
   /** Set on a single-workspace composition ([[CORE64]] D24): the user's role from the token, null for an agent. Absent: the copy-based answer. */
-  readonly workspace?: { readonly role: Role | null }
+  readonly workspace?: { readonly role: Role | null; /** The OAuth client of the token ([[CORE77]] D14); null for a session token and an API key. */ readonly clientId: string | null }
 }
 export interface AccountOperation extends OperationBase {
   kind: 'account'

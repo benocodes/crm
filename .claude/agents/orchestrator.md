@@ -23,6 +23,12 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
 ## The loop
 
 1. **Checkpoint.** Run `/sprint-checkpoint`. Pick the next item from SPRINT.md's Sequence in order.
+   **When `main` moved under you** (a human merged a PR, especially one touching `AGENTS.md` or
+   `.claude/agents/`), pull the main checkout and merge `origin/main` into the open cycle's branch before the next
+   stage. Agents read `AGENTS.md` from their worktree and the permission checks read the session's, so a
+   standing exception merged after the worktree was cut is invisible to them: [[CORE77]]'s first E2E was refused
+   the Clerk dev-instance exception that PR #81 had already added. A session started before the pull keeps
+   the old text; tell the user if the main session itself needs a restart.
 2. **Spec.** If the spec is a stub or `draft`: planner, mode `spec`. It drafts, decides, marks
    `approved`, and adds one line per material decision to SPRINT.md's Ledger.
 3. **Plan.** planner, mode `plan`: it runs `tdd-cycle-generator` and writes a short charter: what this

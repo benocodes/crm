@@ -26,6 +26,7 @@ describe('clerk verify', () => {
     const { adapter } = await setup()
     expect(await adapter.verify(await mint({ sub: 'user_1' }))).toEqual({
       ok: true,
+      kind: 'session',
       subject: 'user_1',
       issuedAt: new Date(nowS * 1000),
       organization: null,
@@ -101,7 +102,7 @@ describe('clerk verify', () => {
     const { adapter } = await setup()
     const org = async (rol: string) => {
       const r = await adapter.verify(await mint({ extra: orgClaim('org_x', rol) }))
-      return r.ok ? r.organization : r
+      return r.ok && r.kind === 'session' ? r.organization : r
     }
     expect(await org('admin')).toEqual({ externalId: 'org_x', role: 'owner' })
     expect(await org('member')).toEqual({ externalId: 'org_x', role: 'member' })

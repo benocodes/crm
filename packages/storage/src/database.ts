@@ -127,6 +127,13 @@ export interface AgentsTable {
   scopes: StringArrayColumn
   disabled_at: NullableTimestamp
   created_by: string
+  /** The identity provider that owns the next two columns ([[CORE77]] D23); null for an API-key agent. D1 only: the Postgres adapter has no such columns. */
+  auth_provider: string | null
+  /** An agent account: the provider user whose role is `agent`. */
+  auth_subject: string | null
+  /** A delegated agent: the OAuth client the human consented to (with `delegated_by`). */
+  auth_client_id: string | null
+  delegated_by: string | null
 }
 export interface ApiKeysTable {
   id: string
@@ -424,6 +431,10 @@ export const COLUMN_KINDS = {
     scopes: 'string_array',
     disabled_at: 'timestamp',
     created_by: 'uuid',
+    auth_provider: 'text',
+    auth_subject: 'text',
+    auth_client_id: 'text',
+    delegated_by: 'uuid',
   },
   api_keys: {
     id: 'uuid',

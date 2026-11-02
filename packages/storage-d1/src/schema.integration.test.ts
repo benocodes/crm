@@ -325,7 +325,7 @@ describe('the administration slice (CORE40 C2)', () => {
       Object.fromEntries((await all<{ name: string; notnull: number }>(`PRAGMA table_info(${table})`)).map((c) => [c.name, c.notnull === 1]))
     const common = { id: true, created_at: true, updated_at: true, organization_id: true, created_by: true }
     expect(await shape('memberships')).toEqual({ ...common, user_id: true, role: true, deleted_at: false })
-    expect(await shape('agents')).toEqual({ ...common, name: true, scopes: true, disabled_at: false })
+    expect(await shape('agents')).toEqual({ ...common, name: true, scopes: true, disabled_at: false, auth_provider: false, auth_subject: false, auth_client_id: false, delegated_by: false })
     expect(await shape('api_keys')).toEqual({ ...common, agent_id: true, key_hash: true, prefix: true, last_used_at: false, revoked_at: false, expires_at: false })
   })
 
@@ -333,7 +333,7 @@ describe('the administration slice (CORE40 C2)', () => {
     const fks = async (table: string) =>
       (await all<{ table: string; from: string; to: string; on_delete: string }>(`PRAGMA foreign_key_list(${table})`)).map((f) => `${f.from}->${f.table}.${f.to}:${f.on_delete}`).sort()
     expect(await fks('memberships')).toEqual(['created_by->principals.id:NO ACTION', 'organization_id->organizations.id:CASCADE', 'user_id->users.id:CASCADE'])
-    expect(await fks('agents')).toEqual(['created_by->principals.id:NO ACTION', 'id->principals.id:CASCADE', 'organization_id->organizations.id:CASCADE'])
+    expect(await fks('agents')).toEqual(['created_by->principals.id:NO ACTION', 'delegated_by->users.id:NO ACTION', 'id->principals.id:CASCADE', 'organization_id->organizations.id:CASCADE'])
     expect(await fks('api_keys')).toEqual(['agent_id->agents.id:CASCADE', 'created_by->principals.id:NO ACTION', 'organization_id->organizations.id:CASCADE'])
   })
 

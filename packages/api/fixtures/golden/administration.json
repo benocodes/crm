@@ -33,7 +33,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:00:00.000Z"
+            "updated_at": "2026-10-22T09:00:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -55,7 +59,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -78,7 +86,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:00:00.000Z"
+            "updated_at": "2026-10-22T09:00:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": []
         },
@@ -109,7 +121,11 @@
                 "disabled_at": null,
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "created_at": "2026-10-22T08:00:00.000Z",
-                "updated_at": "2026-10-22T08:00:00.000Z"
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               },
               {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -122,7 +138,11 @@
                 "disabled_at": null,
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "created_at": "2026-10-22T09:00:00.000Z",
-                "updated_at": "2026-10-22T09:00:00.000Z"
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             ],
             "next_cursor": null
@@ -149,7 +169,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:03:00.000Z"
+            "updated_at": "2026-10-22T09:03:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -170,7 +194,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -183,7 +211,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:03:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -211,7 +243,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:04:00.000Z"
+            "updated_at": "2026-10-22T09:04:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -232,7 +268,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:03:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -245,7 +285,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:04:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -270,7 +314,11 @@
             "disabled_at": "2026-10-22T09:05:00.000Z",
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:05:00.000Z"
+            "updated_at": "2026-10-22T09:05:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -291,7 +339,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:04:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -304,7 +356,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:05:00.000Z",
                 "disabled_at": "2026-10-22T09:05:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -329,7 +385,11 @@
             "disabled_at": "2026-10-22T09:05:00.000Z",
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:06:00.000Z"
+            "updated_at": "2026-10-22T09:06:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -350,7 +410,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:05:00.000Z",
                 "disabled_at": "2026-10-22T09:05:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -363,7 +427,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:06:00.000Z",
                 "disabled_at": "2026-10-22T09:05:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -388,7 +456,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:07:00.000Z"
+            "updated_at": "2026-10-22T09:07:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -409,7 +481,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:06:00.000Z",
                 "disabled_at": "2026-10-22T09:05:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -422,7 +498,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:07:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -445,7 +525,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:07:00.000Z"
+            "updated_at": "2026-10-22T09:07:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": []
         },
@@ -466,7 +550,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:09:00.000Z",
-            "updated_at": "2026-10-22T09:09:00.000Z"
+            "updated_at": "2026-10-22T09:09:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -485,7 +573,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:09:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -513,7 +605,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:00:00.000Z"
+            "updated_at": "2026-10-22T09:00:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -532,7 +628,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -710,7 +810,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:00:00.000Z"
+            "updated_at": "2026-10-22T09:00:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -731,7 +835,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -1003,7 +1111,11 @@
             "disabled_at": "2026-10-22T09:08:00.000Z",
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:08:00.000Z"
+            "updated_at": "2026-10-22T09:08:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -1023,7 +1135,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -1035,7 +1151,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:08:00.000Z",
                 "disabled_at": "2026-10-22T09:08:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]
@@ -1159,7 +1279,11 @@
             "disabled_at": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:00:00.000Z",
-            "updated_at": "2026-10-22T09:00:00.000Z"
+            "updated_at": "2026-10-22T09:00:00.000Z",
+            "auth_provider": null,
+            "auth_subject": null,
+            "auth_client_id": null,
+            "delegated_by": null
           },
           "events": [
             {
@@ -1178,7 +1302,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "auth_provider": null,
+                "auth_subject": null,
+                "auth_client_id": null,
+                "delegated_by": null
               }
             }
           ]

@@ -75,6 +75,8 @@ export interface ClerkKit {
   profiles: Map<string, ClerkUserJson>
   organizations: Map<string, ClerkOrganizationJson>
   members: Map<string, ClerkMembershipJson[]>
+  /** OAuth applications the fake Backend API knows: client id -> name. */
+  clients: Map<string, string>
   /** The Worker's Clerk variables, pointing at the local fake. */
   env: Omit<D1WorkerEnv, 'DB'>
 }
@@ -84,12 +86,14 @@ export async function clerkKit(): Promise<ClerkKit> {
   const profiles = new Map<string, ClerkUserJson>()
   const organizations = new Map<string, ClerkOrganizationJson>()
   const members = new Map<string, ClerkMembershipJson[]>()
+  const clients = new Map<string, string>()
   return {
     issuer,
-    fetch: fakeClerkFetch(profiles, { organizations, members }),
+    fetch: fakeClerkFetch(profiles, { organizations, members, clients }),
     profiles,
     organizations,
     members,
+    clients,
     env: {
       AUTH_PROVIDER: 'clerk',
       CLERK_JWT_KEY: issuer.pem,

@@ -13,6 +13,8 @@ export type Principal = {
   organizationForbidden?: boolean
   /** The workspace role of a user, read from the token on this request ([[CORE64]] D10); absent for agents and on the Organizations path. */
   role?: Role
+  /** The OAuth client of the token on the D1 workspace path ([[CORE77]] D14); absent for a session token and an API key. */
+  clientId?: string
 }
 
 /**

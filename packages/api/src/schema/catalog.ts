@@ -146,6 +146,10 @@ export const CATALOG: Catalog = {
         name: 'Display name of the agent.',
         scopes: 'The scopes granted to the agent, as a JSON array of strings (for example tasks:read).',
         disabled_at: 'When the agent was disabled; null while enabled.',
+        auth_provider: 'The sign-in provider that identifies the agent (for example clerk); null for an agent that only uses API keys.',
+        auth_subject: "An agent account: the provider's id of the user whose role is agent; null otherwise.",
+        auth_client_id: 'A delegated agent: the OAuth client the person consented to; null otherwise.',
+        delegated_by: 'A delegated agent: the user who consented and whose role bounds its scopes; null otherwise.',
       },
     },
     api_keys: {

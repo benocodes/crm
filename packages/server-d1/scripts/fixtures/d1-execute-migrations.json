@@ -18,6 +18,9 @@
       },
       {
         "name": "0006_notes.sql"
+      },
+      {
+        "name": "0007_agent_principals.sql"
       }
     ],
     "success": true,
