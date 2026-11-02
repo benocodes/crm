@@ -78,7 +78,7 @@ Reads (viewing, searching) can use plain `gh`.
 
 5. **Well-formed issues: add to the board and set metadata** (anything that cleared steps 3–4):
    - Add to the project (`gh project item-add`, see the `board` skill).
-   - **Priority** `Urgent`/`High`/`Medium`/`Low`: judge from impact (breaks the core flow vs. papercut
+   - **Priority** `P0`/`P1`/`P2` (P0 breaks the core flow now, P1 matters soon, P2 is a papercut or nice-to-have): judge from impact (breaks the core flow vs. papercut
      vs. nice-to-have), not from how the reporter phrased it.
    - **Size** `XS`–`XL`: your rough effort read.
    - **Spec**: grep `knowledge/specs/*/*.md` for a related, **non-shipped** spec (area codes in

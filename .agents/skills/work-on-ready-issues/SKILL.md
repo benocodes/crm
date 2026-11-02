@@ -18,7 +18,7 @@ Board IDs and queries: the [`board`](../board/SKILL.md) skill.
 | Field | Type | What it means for me |
 |---|---|---|
 | **Status** | Backlog · Ready · In progress · In review · Done | The readiness gate. I only pick from **Ready**. I set **In progress** on claim and **In review** when the PR opens. I never set Done (merge does that). |
-| **Priority** | Urgent · High · Medium · Low | Primary sort key. |
+| **Priority** | P0 · P1 · P2 | Primary sort key. |
 | **Size** | XS · S · M · L · XL | Tiebreak within a priority: smaller first. |
 | **Spec** | text | An `[[ID]]` pointing at `knowledge/specs/*/<ID>.md`. Read it before coding. Blank means a standalone change with no spec. |
 
@@ -33,7 +33,7 @@ If these are missing the item isn't really Ready; flag it back instead of invent
 
 1. **Read the queue** (query in `board.md`). Keep items with `Status == Ready`, no assignee, and **not
    labeled `bug` or `needs-spec`** (a `needs-spec` item waits for [[spec-author]], even if it was set
-   Ready by mistake; report it). Sort by Priority (Urgent→Low) then Size (XS→XL). Present the ranked list:
+   Ready by mistake; report it). Sort by Priority (P0→P2) then Size (XS→XL). Present the ranked list:
    `#N title · Priority/Size · Spec`.
 2. **Pick.** Default to the top item; if the user named one, use it (still require Ready unless they
    override). Announce the choice.

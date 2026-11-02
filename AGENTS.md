@@ -30,7 +30,7 @@ Read these first (they live in the separate knowledge repo, cloned at `knowledge
 | `benocodes/crm` | this repo | code, skills, issues, the project board |
 | `benocodes/crm-knowledge` (private) | `knowledge/` (gitignored here, its own `.git`) | vision, architecture, specs, plans, retros, discussions, `project-state.md` |
 
-The delivery board is the GitHub project **CRM**: https://github.com/users/benocodes/projects/2 (IDs and
+The delivery board is the GitHub project **crm** (project 3): https://github.com/users/benocodes/projects/3 (IDs and
 queries in the `board` skill, `.agents/skills/board/SKILL.md`).
 
 `knowledge/` is a nested git repo. Use `git -C knowledge ...` for it; a commit in one repo never
