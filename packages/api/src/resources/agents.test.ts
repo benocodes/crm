@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ScopePolicy } from '../auth/roles.js'
 import { ApiError } from '../errors.js'
-import { normalizeAgentScopes } from './agents.js'
+import { agentRecord, normalizeAgentScopes } from './agents.js'
 
 const policy: ScopePolicy = {
   'a:read': { member: true, agentGrantable: true },
@@ -49,5 +49,14 @@ describe('normalizeAgentScopes', () => {
   })
   it.each(['members:read', 'agents:read', 'agents:write'])('the real policy refuses %s', (s) => {
     expect(fail(() => normalizeAgentScopes([s])).code).toBe('scope_not_grantable')
+  })
+})
+
+describe('the agents read record (CORE77 D23)', () => {
+  it('carries the four principal fields, nullable, under the column names', () => {
+    expect(Object.keys(agentRecord.shape)).toEqual(expect.arrayContaining(['auth_provider', 'auth_subject', 'auth_client_id', 'delegated_by']))
+    const base = { id: '0190b2c4-0000-7000-8000-000000000001', organization_id: '0190b2c4-0000-7000-8000-000000000002', name: 'a', scopes: [], disabled_at: null, created_by: '0190b2c4-0000-7000-8000-000000000003', created_at: 't', updated_at: 't' }
+    expect(agentRecord.parse({ ...base, auth_provider: null, auth_subject: null, auth_client_id: null, delegated_by: null })).toMatchObject({ auth_provider: null, delegated_by: null })
+    expect(() => agentRecord.parse(base)).toThrow()
   })
 })

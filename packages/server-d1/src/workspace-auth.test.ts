@@ -97,7 +97,6 @@ describe('a token without an admissible role admits nothing (D9)', () => {
   const cases: Array<[string, Record<string, unknown>]> = [
     ['no role', {}],
     ['an unknown role', { vibase_role: 'admin' }],
-    ['the agent role (agent accounts arrive with CORE77)', { vibase_role: 'agent' }],
     ['a non-string role', { vibase_role: 7 }],
   ]
   it.each(cases)('%s is 403 organization_forbidden on an /api/v1 operation and on /meta/v1/me, and writes nothing', async (_n, extra) => {

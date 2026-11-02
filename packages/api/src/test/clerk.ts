@@ -41,6 +41,17 @@ export type MintOptions = {
   omit?: ('sub' | 'exp' | 'iat')[]
   extra?: Record<string, unknown>
   now?: Date
+  /** The JWT header `typ` (RFC 9068 access tokens carry `at+jwt`). */
+  typ?: string
+}
+
+export type OAuthMint = Omit<MintOptions, 'azp' | 'typ'> & {
+  /** The OAuth client the token was issued to (`client_id` claim). */
+  clientId: string
+  /** Space-delimited `scope` claim (RFC 9068); an array is joined. */
+  scope?: string | string[]
+  /** Replaces `typ: at+jwt` (use `null` to leave the header off and rely on the `client_id` claim). */
+  typ?: string | null
 }
 
 export async function mintClerkToken(issuer: TestIssuer, opts: MintOptions = {}): Promise<string> {
@@ -50,7 +61,7 @@ export async function mintClerkToken(issuer: TestIssuer, opts: MintOptions = {})
     if (opts.azp !== undefined) payload.azp = opts.azp
   } else payload.azp = issuer.party
   const jwt = new SignJWT(payload)
-    .setProtectedHeader({ alg: opts.alg ?? 'RS256' })
+    .setProtectedHeader({ alg: opts.alg ?? 'RS256', ...(opts.typ ? { typ: opts.typ } : {}) })
     .setNotBefore(opts.nbf ?? now)
     .setIssuer(opts.iss ?? issuer.issuer)
   if (!opts.omit?.includes('iat')) jwt.setIssuedAt(now)
@@ -59,6 +70,20 @@ export async function mintClerkToken(issuer: TestIssuer, opts: MintOptions = {})
   const key = opts.alg === 'HS256' ? new TextEncoder().encode('a-symmetric-secret-of-32-bytes!!!') : (opts.key ?? issuer.privateKey)
   const token = await jwt.sign(key)
   return token
+}
+
+/** A Clerk OAuth JWT access token (RFC 9068): `typ: at+jwt`, `client_id` and `scope` claims, no `azp`, one-day life by default. */
+export async function mintOAuthToken(issuer: TestIssuer, o: OAuthMint): Promise<string> {
+  const { clientId, scope, typ, ...rest } = o
+  const now = Math.floor((rest.now ?? new Date()).getTime() / 1000)
+  const scopeClaim = Array.isArray(scope) ? scope.join(' ') : (scope ?? '')
+  return mintClerkToken(issuer, {
+    exp: now + 86_400,
+    ...rest,
+    azp: undefined,
+    ...(typ === null ? {} : { typ: typ ?? 'at+jwt' }),
+    extra: { client_id: clientId, scope: scopeClaim, ...rest.extra },
+  })
 }
 
 /** The `extra` claims of a Clerk v2 session token with an active organisation. */
@@ -101,7 +126,7 @@ export function signClerkWebhook(
   }
 }
 
-export function clerkUser(o: { id: string; email?: string | null; verified?: boolean; first?: string | null; last?: string | null }): ClerkUserJson {
+export function clerkUser(o: { id: string; email?: string | null; verified?: boolean; first?: string | null; last?: string | null; role?: unknown }): ClerkUserJson {
   const addresses =
     o.email === null || o.email === undefined
       ? []
@@ -121,13 +146,14 @@ export function clerkUser(o: { id: string; email?: string | null; verified?: boo
     last_name: o.last === undefined ? 'Lovelace' : (o.last as string),
     primary_email_address_id: addresses.length ? 'idn_primary' : (null as unknown as string),
     email_addresses: addresses as ClerkUserJson['email_addresses'],
-  }
+    public_metadata: o.role === undefined ? {} : { vibase_role: o.role },
+  } as ClerkUserJson
 }
 
 export type FakeFetch = typeof fetch & {
   calls: { url: string; authorization: string | null }[]
   /** Force an HTTP status on the organisation or membership endpoints (cleared by `reset`). */
-  fail: { organization?: number; members?: number }
+  fail: { organization?: number; members?: number; clients?: number }
   reset(): void
 }
 
@@ -145,6 +171,8 @@ export function fakeClerkFetch(
     onRequest?: () => void
     organizations?: Map<string, ClerkOrganizationJson>
     members?: Map<string, ClerkMembershipJson[]>
+    /** OAuth applications by client id -> display name (`GET /v1/oauth_applications?name_query=`). */
+    clients?: Map<string, string>
   } = {},
 ): FakeFetch {
   const calls: FakeFetch['calls'] = []
@@ -157,6 +185,12 @@ export function fakeClerkFetch(
     opts.onRequest?.()
     if (opts.gate) await opts.gate
     const parsed = new URL(url)
+    if (parsed.pathname === '/v1/oauth_applications') {
+      if (f.fail.clients) return new Response('{}', { status: f.fail.clients })
+      const q = parsed.searchParams.get('name_query') ?? ''
+      const data = [...(opts.clients ?? new Map<string, string>())].filter(([id]) => id === q).map(([client_id, name]) => ({ object: 'oauth_application', id: `oauth_app_${client_id}`, client_id, name }))
+      return ok({ data, total_count: data.length })
+    }
     const org = /\/v1\/organizations\/([^/?]+)(\/memberships)?$/.exec(parsed.pathname)
     if (org) {
       const id = decodeURIComponent(org[1]!)
