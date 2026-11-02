@@ -1,11 +1,13 @@
-// The D1 bootstrap CLI ([[CORE38]] D7, P8; [[OPS4]] C7, D17): the deployment marker, then the first organisation, owner and agent
-// key. Local unless `--remote --env <name>` and `CONFIRM_REMOTE=1`: local mode opens the state `wrangler dev` uses
+// The D1 bootstrap CLI ([[CORE38]] D7, P8; [[OPS4]] C7, D17; [[CORE64]] D11): the deployment marker, then the first organisation and
+// the operator agent key. On a Clerk-backed deployment (the default provider) it creates NO human: the owner is invited in Clerk, and
+// the marker's link is the Clerk issuer (`--issuer`, the Worker's CLERK_ISSUER). `--auth-provider none` (API keys only, `smoked1`)
+// keeps creating its owner user from `--email` and `--auth-org-id <name>`. Local unless `--remote --env <name>` and `CONFIRM_REMOTE=1`: local mode opens the state `wrangler dev` uses
 // (`.wrangler/state`) through wrangler's `getPlatformProxy` with `remoteBindings: false` and prints the key. Remote mode opens
 // the named instance's database, proves `batch()` atomic first, writes the key to the root `.env` as the variable named by
 // `--key-env`, and never prints it.
 //
-//   pnpm -C packages/server-d1 bootstrap -- --org <name> --email <email> --agent <name> --auth-org-id <clerk org id> \
-//     [--scopes a:read,b:write] [--name <user name>] [--auth-provider clerk] [--auth-subject <provider user id>] [--organization-id <uuid>]
+//   pnpm -C packages/server-d1 bootstrap -- --org <name> --issuer <CLERK_ISSUER> [--agent <name>] [--scopes a:read,b:write] [--organization-id <uuid>]
+//   pnpm -C packages/server-d1 bootstrap -- --org <name> --auth-provider none --auth-org-id <name> --email <email> --agent <name>
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --key-env <NAME> --org ... (same flags)
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -29,7 +31,7 @@ export function remoteProxyOptions(envName: string, configPath: string = CONFIG_
 
 const KEY_ENV_SHAPE = /^[A-Z][A-Z0-9_]*$/
 const USAGE =
-  'usage: pnpm -C packages/server-d1 bootstrap -- --org <name> --email <email> --agent <name> --auth-org-id <clerk org id> [--scopes a:read,b:write] [--name <user name>] [--auth-provider clerk] [--auth-subject <provider user id>] [--organization-id <uuid>] [--remote --env <name> --key-env <NAME>]'
+  'usage: pnpm -C packages/server-d1 bootstrap -- --org <name> --issuer <CLERK_ISSUER> [--agent <name>] [--scopes a:read,b:write] [--organization-id <uuid>] [--remote --env <name> --key-env <NAME>]\n   or: ... --org <name> --auth-provider none --auth-org-id <name> --email <email> --agent <name> [--name <user name>]'
 
 export function parseBootstrapArgs(argv: string[]): { mode: 'local' | 'remote'; values: Values; envName?: string; keyEnv?: string } {
   const { values } = parseArgs({
@@ -39,6 +41,7 @@ export function parseBootstrapArgs(argv: string[]): { mode: 'local' | 'remote'; 
       email: { type: 'string' },
       agent: { type: 'string' },
       'auth-org-id': { type: 'string' },
+      issuer: { type: 'string' },
       scopes: { type: 'string' },
       name: { type: 'string' },
       'auth-provider': { type: 'string' },
@@ -71,10 +74,8 @@ export function reportLines(r: BootstrapD1Result, mode: 'local' | 'remote', keyE
   return [
     `deployment:      ${r.deployment}`,
     `organization_id: ${r.organizationId}`,
-    `user_id:         ${r.userId}`,
-    `agent_id:        ${r.agentId}`,
-    `api_key_id:      ${r.apiKeyId}`,
-    mode === 'local' ? `api_key:         ${r.key}   (shown once)` : `api_key: written to .env as ${keyEnv} (not shown)`,
+    ...(r.userId === null ? [] : [`user_id:         ${r.userId}`]),
+    ...(r.key === null ? ['agent:           none (no --agent given)'] : [`agent_id:        ${r.agentId}`, `api_key_id:      ${r.apiKeyId}`, mode === 'local' ? `api_key:         ${r.key}   (shown once)` : `api_key: written to .env as ${keyEnv} (not shown)`]),
   ]
 }
 
@@ -120,7 +121,14 @@ async function main(): Promise<void> {
     usage(err instanceof Error ? err.message : 'bad arguments')
   }
   const { values } = parsed
-  if (!values.org || !values.email || !values.agent || !values['auth-org-id']) usage('--org, --email, --agent and --auth-org-id are required')
+  const provider = values['auth-provider'] ?? 'clerk'
+  if (values.issuer !== undefined && values['auth-org-id'] !== undefined) usage('pass --issuer or --auth-org-id, not both')
+  const authOrgId = values.issuer ?? values['auth-org-id']
+  if (!values.org || !authOrgId) usage(provider === 'clerk' ? '--org and --issuer are required' : '--org and --auth-org-id are required')
+  if (provider === 'clerk' && (values.email !== undefined || values.name !== undefined || values['auth-subject'] !== undefined)) {
+    usage('a Clerk-backed deployment creates no human: drop --email, --name and --auth-subject (invite the owner in Clerk)')
+  }
+  if (provider !== 'clerk' && (!values.email || !values.agent)) usage(`--auth-provider ${provider} requires --email and --agent`)
 
   const { getPlatformProxy, unstable_readConfig } = await import('wrangler')
   let proxy: Awaited<ReturnType<RemoteGuardDeps['getPlatformProxy']>>
@@ -151,7 +159,7 @@ async function main(): Promise<void> {
   try {
     const authProvider = values['auth-provider']
     if (parsed.mode === 'remote') {
-      const link = { organizationId: values['organization-id'] ?? uuidv7(), authProvider: authProvider ?? 'clerk', authOrgId: values['auth-org-id'] }
+      const link = { organizationId: values['organization-id'] ?? uuidv7(), authProvider: authProvider ?? 'clerk', authOrgId: authOrgId! }
       const probe = await probeBatchAtomicity(proxy.env.DB, link)
       if (probe === 'not-atomic') {
         console.error('atomicity probe: FAILED (a failed batch left a row): stopping')
@@ -168,11 +176,11 @@ async function main(): Promise<void> {
       agentName: values.agent,
       scopes: values.scopes ? values.scopes.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
       authProvider,
-      authOrgId: values['auth-org-id'],
+      authOrgId: authOrgId!,
       authSubject: values['auth-subject'],
       organizationId,
     })
-    if (parsed.mode === 'remote') {
+    if (parsed.mode === 'remote' && r.key !== null) {
       try {
         writeFileSync(ROOT_ENV_PATH, appendEnvVar(readFileSync(ROOT_ENV_PATH, 'utf8'), parsed.keyEnv!, r.key))
       } catch (err) {

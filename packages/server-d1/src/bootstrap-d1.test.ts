@@ -3,10 +3,8 @@ import { execute, uuidv7 } from '@vault/storage'
 import { d1Binding } from '@vault/storage-d1'
 import { authenticateApiKey, hashApiKey } from '@vault/api'
 import { bootstrapD1, probeBatchAtomicity } from './bootstrap-d1.js'
-import { composeD1Worker } from './compose.js'
 import { initDeploymentOperation, readDeployment } from './init-deployment.js'
-import { NOW, clerkKit, openWorkerD1, spyD1, testId, type WorkerD1 } from './test/kit.js'
-import { mintClerkToken } from '@vault/api/test/clerk'
+import { NOW, openWorkerD1, spyD1, testId, type WorkerD1 } from './test/kit.js'
 
 let w: WorkerD1
 beforeAll(async () => {
@@ -15,7 +13,8 @@ beforeAll(async () => {
 afterAll(() => w.dispose())
 beforeEach(() => w.reset())
 
-const base = { organizationName: 'Acme', email: 'Owner@X.test', agentName: 'bot', authOrgId: 'org_acme' }
+/** The human bootstrap is the `none` path now ([[CORE64]] D11); the Clerk path is covered in workspace-auth.test.ts. */
+const base = { organizationName: 'Acme', email: 'Owner@X.test', agentName: 'bot', authOrgId: 'org_acme', authProvider: 'none' }
 const env = () => ({ now: NOW, newId: () => uuidv7(NOW) })
 const all = async (table: string) => (await w.d1.prepare(`select * from "${table}"`).all()).results as Array<Record<string, unknown>>
 const counts = async () =>
@@ -27,8 +26,8 @@ describe('bootstrapD1 (P7)', () => {
     expect(r.deployment).toBe('created')
     const [marker] = await all('deployment')
     const [org] = await all('organizations')
-    expect(marker).toMatchObject({ organization_id: r.organizationId, auth_provider: 'clerk', auth_org_id: 'org_acme' })
-    expect(org).toMatchObject({ id: r.organizationId, name: 'Acme', auth_provider: 'clerk', auth_org_id: 'org_acme' })
+    expect(marker).toMatchObject({ organization_id: r.organizationId, auth_provider: 'none', auth_org_id: 'org_acme' })
+    expect(org).toMatchObject({ id: r.organizationId, name: 'Acme', auth_provider: 'none', auth_org_id: 'org_acme' })
     const [user] = await all('users')
     expect(user).toMatchObject({ id: r.userId, email: 'owner@x.test' })
     expect(await all('memberships')).toMatchObject([{ user_id: r.userId, organization_id: r.organizationId, role: 'owner' }])
@@ -43,7 +42,7 @@ describe('bootstrapD1 (P7)', () => {
 
   it('the key authenticates as the agent', async () => {
     const r = await bootstrapD1(w.d1, base, env())
-    const binding = d1Binding(w.d1, { organizationId: r.organizationId, authProvider: 'clerk', authOrgId: 'org_acme' })
+    const binding = d1Binding(w.d1, { organizationId: r.organizationId, authProvider: 'none', authOrgId: 'org_acme' })
     const principal = await authenticateApiKey(binding, r.key, { now: NOW, newId: testId })
     expect(principal).toMatchObject({ actor: { id: r.agentId, kind: 'agent' }, organizationId: r.organizationId })
   })
@@ -56,7 +55,7 @@ describe('bootstrapD1 (P7)', () => {
   })
 
   it('resumes after a marker-only crash', async () => {
-    const link = { organizationId: uuidv7(NOW), authProvider: 'clerk', authOrgId: 'org_acme' }
+    const link = { organizationId: uuidv7(NOW), authProvider: 'none', authOrgId: 'org_acme' }
     await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
     const r = await bootstrapD1(w.d1, base, env())
     expect(r.deployment).toBe('existing')
@@ -65,22 +64,11 @@ describe('bootstrapD1 (P7)', () => {
   })
 
   it('refuses a conflicting link and writes nothing', async () => {
-    const link = { organizationId: uuidv7(NOW), authProvider: 'clerk', authOrgId: 'org_a' }
+    const link = { organizationId: uuidv7(NOW), authProvider: 'none', authOrgId: 'org_a' }
     await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
     const before = await counts()
-    await expect(bootstrapD1(w.d1, { ...base, authOrgId: 'org_b' }, env())).rejects.toThrow(`deployment is already initialised for organization ${link.organizationId} (clerk:org_a)`)
+    await expect(bootstrapD1(w.d1, { ...base, authOrgId: 'org_b' }, env())).rejects.toThrow(`deployment is already initialised for organization ${link.organizationId} (none:org_a)`)
     expect(await counts()).toEqual(before)
-  })
-
-  it('a linked owner signs in with no profile fetch', async () => {
-    const kit = await clerkKit()
-    const r = await bootstrapD1(w.d1, { ...base, authSubject: 'user_owner' }, env())
-    const worker = composeD1Worker({ DB: w.d1, ...kit.env }, { fetch: kit.fetch })
-    const token = await mintClerkToken(kit.issuer, { sub: 'user_owner' })
-    const res = await worker.fetch(new Request('https://w.test/meta/v1/me', { headers: { authorization: `Bearer ${token}` } }))
-    expect(res.status).toBe(200)
-    expect(((await res.json()) as { user: { id: string } }).user.id).toBe(r.userId)
-    expect(kit.fetch.calls.filter((c) => c.url.includes('/v1/users'))).toEqual([])
   })
 
   it('never logs the plaintext key or its hash', async () => {

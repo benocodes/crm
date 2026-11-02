@@ -14,7 +14,7 @@ export class AuthFailure extends ApiError {
 }
 export type OrganizationClaim = { externalId: string; role: Role | null } // null = unmapped role ([[CORE3]] D19)
 export type VerifyResult =
-  | { ok: true; subject: string; issuedAt: Date; organization: OrganizationClaim | null }
+  | { ok: true; subject: string; issuedAt: Date; organization: OrganizationClaim | null; role?: unknown }
   | { ok: false; reason: VerifyFailure }
 export type AuthProfile = { email: string | null; emailVerified: boolean; name: string | null }
 export type DirectoryOrganization = { externalId: string; name: string }
@@ -47,8 +47,26 @@ export interface AuthAdapter {
 
 export type AuthEnv = Record<string, string | undefined>
 
-/** undefined when AUTH_PROVIDER is unset or empty (agent-only setups). Throws on bad config (fail closed). */
+/** The session-token claim holding the workspace role when `AUTH_ROLE_CLAIM` is unset ([[CORE64]] D8). */
+export const DEFAULT_ROLE_CLAIM = 'vibase_role'
+
+/**
+ * undefined when AUTH_PROVIDER is unset or empty (agent-only setups). Throws on bad config (fail closed). The Organizations
+ * adapter: needs `CLERK_WEBHOOK_SECRET`, reads no role claim. The workspace adapter is `createWorkspaceAuthAdapter`.
+ */
 export function createAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date } = {}): AuthAdapter | undefined {
+  return build(env, deps, false)
+}
+
+/**
+ * The D1 workspace adapter ([[CORE64]] D8, D24): `CLERK_WEBHOOK_SECRET` is not read (a value set is ignored, and the adapter then
+ * answers every webhook as a bad signature), and the role is read from the claim named by `AUTH_ROLE_CLAIM` (default `vibase_role`).
+ */
+export function createWorkspaceAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date } = {}): AuthAdapter | undefined {
+  return build(env, deps, true)
+}
+
+function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, workspace: boolean): AuthAdapter | undefined {
   const provider = env.AUTH_PROVIDER?.trim()
   if (!provider) return undefined
   if (provider !== 'clerk') throw new Error(`unknown AUTH_PROVIDER "${provider}"`)
@@ -61,8 +79,16 @@ export function createAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; no
   const issuer = need('CLERK_ISSUER')
   const secretKey = need('CLERK_SECRET_KEY')
   need('CLERK_AUTHORIZED_PARTIES')
-  const webhookSecret = need('CLERK_WEBHOOK_SECRET')
-  if (!WEBHOOK_SECRET_SHAPE.test(webhookSecret)) throw new Error('CLERK_WEBHOOK_SECRET must be a whsec_ secret')
+  let webhookSecret: string | undefined
+  if (!workspace) {
+    webhookSecret = need('CLERK_WEBHOOK_SECRET')
+    if (!WEBHOOK_SECRET_SHAPE.test(webhookSecret)) throw new Error('CLERK_WEBHOOK_SECRET must be a whsec_ secret')
+  }
+  let roleClaim: string | undefined
+  if (workspace && env.AUTH_ROLE_CLAIM !== undefined) {
+    roleClaim = env.AUTH_ROLE_CLAIM.trim()
+    if (roleClaim === '') throw new Error('AUTH_ROLE_CLAIM must not be empty')
+  }
   const authorizedParties = parseOriginList(env.CLERK_AUTHORIZED_PARTIES, 'CLERK_AUTHORIZED_PARTIES')
   if (authorizedParties.length === 0) throw new Error('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
   return createClerkAdapter({
@@ -71,6 +97,7 @@ export function createAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; no
     authorizedParties,
     secretKey,
     webhookSecret,
+    roleClaim,
     apiUrl: env.CLERK_API_URL?.trim() || undefined,
     fetch: deps.fetch,
     now: deps.now,

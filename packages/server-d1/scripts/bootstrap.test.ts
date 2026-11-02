@@ -27,6 +27,11 @@ describe('remote mode (C7)', () => {
     expect(p.values.org).toBe('smoked1')
   })
 
+  it('the Clerk path takes --issuer and no human', () => {
+    const p = parseBootstrapArgs(['--org', 'Acme', '--issuer', 'https://clerk.example.com'])
+    expect(p.values).toMatchObject({ org: 'Acme', issuer: 'https://clerk.example.com' })
+  })
+
   it('remote needs --env and --key-env', () => {
     const msg = '--remote requires --env <name> and --key-env <NAME>'
     expect(() => parseBootstrapArgs([...REQUIRED, '--remote', '--key-env', 'K'])).toThrow(msg)
@@ -90,5 +95,12 @@ describe('reportLines (C7)', () => {
   })
   it('the local report is unchanged', () => {
     expect(reportLines(r, 'local')).toContain('api_key:         vk_SECRETVALUE   (shown once)')
+  })
+  it('a Clerk-path report has no user line, and no agent lines without an agent', () => {
+    const none: BootstrapD1Result = { organizationId: 'o', userId: null, agentId: null, apiKeyId: null, key: null, deployment: 'created' }
+    const lines = reportLines(none, 'local')
+    expect(lines.some((l) => l.startsWith('user_id'))).toBe(false)
+    expect(lines.some((l) => l.startsWith('api_key'))).toBe(false)
+    expect(lines).toContain('agent:           none (no --agent given)')
   })
 })

@@ -13,7 +13,7 @@ rule approves; the vault executes. The only screen is a pane in the user's email
 self-managed, one D1 database per organisation/workspace in the customer's Cloudflare account.** No
 enterprise tier and no cloud-hosted Postgres service for now. The engine-neutral storage port and the
 Postgres adapters stay in the repo, dormant, for later: no new Postgres work, and Postgres suites are not a
-cycle gate. A single-workspace D1 deployment uses Clerk for sign-in but not Clerk Organizations; members and roles live in the vault's own tables.
+cycle gate. A single-workspace D1 deployment uses Clerk for sign-in but not Clerk Organizations; membership and roles live in Clerk (the `vibase_role` claim, [[CORE64]] D7); the vault keeps principals, agents and scopes.
 **Custom objects are not built in the MVP; the MVP is designed so they fit later** as physical tables with typed columns (no shared `records` table, no jsonb). A
 **discoverable schema** (real names, native types, declared FKs; easy for agents and humans to query and
 understand) is a core principle.
@@ -151,7 +151,7 @@ pnpm -C packages/server-postgres dev               # Postgres dev server (DATABA
 pnpm -C packages/server-postgres bootstrap -- --org <n> --email <e> --agent <a>
 pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need SMOKE_EXPECT_DATABASE
 pnpm -C packages/server-postgres golden:generate   # and golden:check
-pnpm -C packages/server-d1 bootstrap -- --org <n> --email <e> --agent <a> --auth-org-id <org_…>  # local D1 only
+pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env <name>    # applied vs expected; exit 0 only when current (CORE61)
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env <name>   # remote D1 migrations (OPS4); migrate before deploy

@@ -1,4 +1,4 @@
-import { createApp, openApiPath, createAuthAdapter, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
+import { createApp, openApiPath, createWorkspaceAuthAdapter, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
 import type { D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -10,7 +10,10 @@ export interface D1WorkerEnv {
   CLERK_AUTHORIZED_PARTIES?: string
   CLERK_SECRET_KEY?: string
   CLERK_JWT_KEY?: string
+  /** Not read on D1 ([[CORE64]] D24): there is no webhook. Kept so an old `.dev.vars` still type-checks. */
   CLERK_WEBHOOK_SECRET?: string
+  /** The session-token claim holding the workspace role; default `vibase_role` ([[CORE64]] D8). */
+  AUTH_ROLE_CLAIM?: string
   CLERK_API_URL?: string
   CORS_ALLOWED_ORIGINS?: string
   /** The deployed commit, set by `deploy:remote` (`--var VERSION:<sha>`); `/health` reports it, `dev` when absent. */
@@ -39,7 +42,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'CLERK_WEBHOOK_SECRET', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -60,7 +63,7 @@ export function composeD1Worker(
   let corsOrigins: readonly string[] = []
   let configError = false
   try {
-    authAdapter = createAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
+    authAdapter = createWorkspaceAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
     corsOrigins = parseOriginList(vars.CORS_ALLOWED_ORIGINS, 'CORS_ALLOWED_ORIGINS')
   } catch (err) {
     // The message names a variable ("AUTH_PROVIDER=clerk requires CLERK_JWT_KEY"); no adapter message carries a value.
@@ -104,7 +107,7 @@ export function composeD1Worker(
     }
     if (!link) return undefined
     const binding = d1Binding(env.DB, link)
-    app = createApp({ storage: () => binding, authAdapter, corsOrigins, clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
+    app = createApp({ storage: () => binding, workspace: { adapter: authAdapter }, corsOrigins, clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
     return app
   }
 
