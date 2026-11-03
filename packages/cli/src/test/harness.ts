@@ -1,0 +1,89 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { run } from '../cli.js'
+import type { Deps, Sink } from '../types.js'
+import { apiDoc, metaDoc, wellKnown } from './fixtures.js'
+
+export interface Seen {
+  url: string
+  method: string
+  headers: Record<string, string>
+}
+export interface Result {
+  code: number
+  stdout: string
+  stderr: string
+  stdoutBytes: Uint8Array
+}
+type Handler = (req: Request) => Response | Promise<Response> | undefined
+
+/** A scratch config and cache directory, and a `run` that records every outgoing request. */
+export function rig(opts: { fetch: (req: Request) => Response | Promise<Response>; env?: Record<string, string>; tty?: boolean; stdin?: string; stdinTTY?: boolean }) {
+  const dir = mkdtempSync(join(tmpdir(), 'vibase-cli-'))
+  const seen: Seen[] = []
+  const fetchImpl = (async (input: any, init?: any) => {
+    const req = new Request(input, init)
+    const headers: Record<string, string> = {}
+    req.headers.forEach((v, k) => (headers[k] = v))
+    seen.push({ url: req.url, method: req.method, headers })
+    return opts.fetch(req)
+  }) as typeof fetch
+  const configFile = join(dir, 'vibase', 'config.json')
+  const cacheDir = join(dir, 'vibase')
+  let clock = 1_800_000_000_000
+  const go = async (argv: string[], over: { env?: Record<string, string | undefined>; stdin?: string; tty?: boolean; stdinTTY?: boolean } = {}): Promise<Result> => {
+    const out: (string | Uint8Array)[] = []
+    const err: string[] = []
+    const stdout: Sink = { isTTY: over.tty ?? opts.tty ?? false, write: (c) => void out.push(c) }
+    const stderr: Sink = { isTTY: false, write: (c) => void err.push(typeof c === 'string' ? c : Buffer.from(c).toString()) }
+    const deps: Deps = {
+      fetch: fetchImpl,
+      env: { XDG_CONFIG_HOME: dir, XDG_CACHE_HOME: dir, ...opts.env, ...over.env },
+      stdout,
+      stderr,
+      readStdin: async () => over.stdin ?? opts.stdin ?? '',
+      stdinIsTTY: over.stdinTTY ?? opts.stdinTTY ?? false,
+      now: () => clock,
+      homedir: dir,
+      version: '0.0.0-test',
+    }
+    const code = await run(argv, deps)
+    const bytes = Buffer.concat(out.map((c) => (typeof c === 'string' ? Buffer.from(c) : Buffer.from(c))))
+    return { code, stdout: bytes.toString('utf8'), stderr: err.join(''), stdoutBytes: new Uint8Array(bytes) }
+  }
+  return {
+    dir,
+    configFile,
+    cacheDir,
+    seen,
+    run: go,
+    advance: (ms: number) => void (clock += ms),
+    dispose: () => rmSync(dir, { recursive: true, force: true }),
+  }
+}
+
+export const KEY = ['vk', 'cli'.repeat(12)].join('_')
+export const SERVER = 'http://127.0.0.1:8787'
+const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
+export { json }
+
+/** A fake instance at `origin`: the discovery document, both OpenAPI documents and routes supplied by the test. */
+export function fakeInstance(opts: { origin?: string; routes?: Handler; wellKnown?: (origin: string) => Response | unknown; api?: unknown; meta?: unknown } = {}) {
+  const counts = { wellKnown: 0, api: 0, meta: 0 }
+  const fetch = async (req: Request): Promise<Response> => {
+    const u = new URL(req.url)
+    const origin = opts.origin ?? u.origin
+    if (u.pathname === '/.well-known/vibase') {
+      counts.wellKnown++
+      const body = opts.wellKnown ? opts.wellKnown(origin) : wellKnown(origin)
+      return body instanceof Response ? body : json(body)
+    }
+    if (u.pathname.endsWith('/openapi.json')) {
+      if (u.pathname.startsWith('/api/')) return counts.api++, json(opts.api ?? apiDoc())
+      return counts.meta++, json(opts.meta ?? metaDoc())
+    }
+    return (await opts.routes?.(req)) ?? json({ error: { code: 'not_found', message: 'no such route' } }, 404)
+  }
+  return { fetch, counts }
+}

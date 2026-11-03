@@ -5,6 +5,12 @@
   "license": "Apache-2.0",
   "type": "module",
   "main": "src/worker.ts",
+  "exports": {
+    ".": "./src/worker.ts",
+    "./compose": "./src/compose.ts",
+    "./bootstrap": "./src/bootstrap-d1.ts",
+    "./test": "./src/test/kit.ts"
+  },
   "scripts": {
     "test": "vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit",

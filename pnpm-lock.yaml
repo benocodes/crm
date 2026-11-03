@@ -59,6 +59,30 @@ importers:
         specifier: 5.0.3
         version: 5.0.3(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/cli:
+    devDependencies:
+      '@types/node':
+        specifier: ^22
+        version: 22.20.5
+      '@vault/api':
+        specifier: workspace:*
+        version: link:../api
+      '@vault/server-d1':
+        specifier: workspace:*
+        version: link:../server-d1
+      '@vault/storage-d1':
+        specifier: workspace:*
+        version: link:../storage-d1
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.3
+        version: 5.0.3(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/db:
     dependencies:
       kysely:

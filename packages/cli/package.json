@@ -1,0 +1,25 @@
+{
+  "name": "@vault/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "vibase: the vault's command line ([[API6]] D12). Every registry operation of the instance it discovers at run time, as a command.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "vibase": "./dist/vibase.js"
+  },
+  "scripts": {
+    "build": "esbuild src/bin.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/vibase.js --banner:js=\"#!/usr/bin/env node\" --log-level=warning",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@vault/api": "workspace:*",
+    "@vault/server-d1": "workspace:*",
+    "@vault/storage-d1": "workspace:*",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}
