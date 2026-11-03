@@ -12,6 +12,9 @@
     "./test": "./src/test/kit.ts"
   },
   "scripts": {
+    "build": "tsx scripts/build-connect.ts",
+    "dev": "pnpm build && wrangler dev --local --port 8787",
+    "e2e:connect": "playwright test --config playwright.config.ts",
     "test": "vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "bootstrap": "tsx scripts/bootstrap.ts",

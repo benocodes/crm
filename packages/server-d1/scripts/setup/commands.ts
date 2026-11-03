@@ -13,7 +13,7 @@ export const trackerCommand = (env: string): SetupCmd => ({ ...trackerReadComman
 export const migrateStepCommands = (env: string): SetupCmd[] => migrateCommands(env).map((c) => ({ ...c, cwd: 'package' as const, inherit: true }))
 export const gitHead = (): SetupCmd => ({ command: 'git', args: ['rev-parse', 'HEAD'], cwd: 'root' })
 export const gitStatus = (): SetupCmd => ({ command: 'git', args: ['status', '--porcelain'], cwd: 'root' })
-/** `deploy:remote`'s own commands (typecheck, the suite, `wrangler deploy --var VERSION:<sha>`), with its working directories ([[OPS4]] D12). */
+/** `deploy:remote`'s own commands (the page build, typecheck, the suite, `wrangler deploy --var VERSION:<sha>`), with its working directories ([[OPS4]] D12). */
 export const deployStepCommands = (env: string, sha: string): SetupCmd[] =>
   deployCommands(env, sha).map((c: Cmd) => ({ ...c, cwd: c.args.includes('deploy') ? ('package' as const) : ('root' as const), inherit: true }))
 /** The marker row and whether an organisation exists (D39), in one read. */

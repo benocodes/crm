@@ -136,7 +136,7 @@ export function makeWorld(o: WorldOptions): World {
       state.applied = [...EXPECTED_MIGRATIONS]
       return text('applied\n')
     }
-    if (a.includes('typecheck') || (a.includes('test') && a.includes('-C'))) return text('ok\n')
+    if (a.includes('typecheck') || (a.includes('test') && a.includes('-C')) || (a.includes('build') && a.includes('-C'))) return text('ok\n')
     if (a.includes('deploy')) {
       const v = a.find((x) => x.startsWith('VERSION:'))
       state.deployedSha = v ? v.slice('VERSION:'.length) : OLD_SHA

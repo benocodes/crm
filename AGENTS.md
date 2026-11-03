@@ -167,7 +167,9 @@ pnpm -C packages/server-postgres bootstrap -- --org <n> --email <e> --agent <a>
 pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need SMOKE_EXPECT_DATABASE
 pnpm -C packages/server-postgres golden:generate   # and golden:check
 pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner
-pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network
+pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the /connect page first
+pnpm -C packages/server-d1 build                   # the connect page (UI30) into dist/assets/connect/; `dev` runs it before `wrangler dev --local`
+pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --api-host <host> --owner-email <e> [--auth clerk|none] [--clerk-env-file .env.<name>] [--dry-run]  # one guarded idempotent setup of a self-managed env (OPS65, OPS87); Clerk keys from .env.<name>, never the root .env; --dry-run reads only
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env <name>    # applied vs expected; exit 0 only when current (CORE61)
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env <name>   # remote D1 migrations (OPS4); migrate before deploy

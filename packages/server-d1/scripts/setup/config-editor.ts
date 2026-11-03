@@ -14,7 +14,7 @@ export interface DesiredEnv {
   apiHost: string
   corsOrigins: string
   /** `--auth clerk`: the Clerk variables ([[OPS65]] D3). `AUTH_CLI_CLIENT_ID` is absent while the CLI application is only planned. */
-  authVars?: { AUTH_PROVIDER: string; CLERK_ISSUER: string; CLERK_AUTHORIZED_PARTIES: string; AUTH_CLI_CLIENT_ID?: string }
+  authVars?: { AUTH_PROVIDER: string; CLERK_ISSUER: string; CLERK_PUBLISHABLE_KEY?: string; CLERK_AUTHORIZED_PARTIES: string; AUTH_CLI_CLIENT_ID?: string }
 }
 export interface ReconcileResult {
   text: string
@@ -89,7 +89,20 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
 
     if (!('vars' in current)) edits.push({ path: ['env', d.env, 'vars'], value: want.vars, label: at('vars') })
     else if (!isObj(current.vars)) mismatches.push(at('vars'))
-    else for (const [k, v] of Object.entries(want.vars as Json)) scalar(current.vars, ['env', d.env, 'vars'], k, v, at(`vars.${k}`))
+    else {
+      const vars = current.vars
+      for (const [k, v] of Object.entries(want.vars as Json)) {
+        const here = vars[k]
+        const label = at(`vars.${k}`)
+        if (k === 'CLERK_AUTHORIZED_PARTIES' && typeof v === 'string' && typeof here === 'string') {
+          // A union, never a removal ([[UI30]] D7): what an owner added by hand stays, what setup needs is appended.
+          const present = here.split(',').map((o) => o.trim()).filter(Boolean)
+          const missing = v.split(',').filter((o) => o !== '' && !present.includes(o))
+          if (missing.length > 0) edits.push({ path: ['env', d.env, 'vars', k], value: [...present, ...missing].join(','), label })
+        } else if (k === 'CLERK_PUBLISHABLE_KEY' && here === '') edits.push({ path: ['env', d.env, 'vars', k], value: v, label })
+        else scalar(vars, ['env', d.env, 'vars'], k, v, label)
+      }
+    }
   }
 
   if (mismatches.length > 0) return { text, changed: [], mismatches }

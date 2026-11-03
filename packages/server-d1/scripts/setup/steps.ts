@@ -179,7 +179,19 @@ const configWrite: Step = async (ctx) => {
     r2Name: ctx.opts.r2Name,
     apiHost: ctx.opts.apiHost,
     corsOrigins: ctx.opts.origins.join(','),
-    ...(clerk ? { authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ctx.keys!.issuer, CLERK_AUTHORIZED_PARTIES: ctx.opts.origins.join(','), AUTH_CLI_CLIENT_ID: cliId } } : {}),
+    // [[UI30]] D7: the connect page's own origin is an authorized party (never a CORS origin, never a Clerk allowed origin), and the
+    // publishable key is a public var. `--auth none` writes neither.
+    ...(clerk
+      ? {
+          authVars: {
+            AUTH_PROVIDER: 'clerk',
+            CLERK_ISSUER: ctx.keys!.issuer,
+            CLERK_PUBLISHABLE_KEY: ctx.keys!.publishableKey,
+            CLERK_AUTHORIZED_PARTIES: [...new Set([`https://${ctx.opts.apiHost}`, ...ctx.opts.origins])].join(','),
+            AUTH_CLI_CLIENT_ID: cliId,
+          },
+        }
+      : {}),
   }
   const before = ctx.deps.readConfigText()
   const r = reconcileEnvBlock(before, desired)

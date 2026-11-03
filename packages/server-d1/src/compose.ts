@@ -1,8 +1,8 @@
-import { createApp, createVaultRegistry, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
+import { createApp, createVaultRegistry, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
 import type { D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
-import type { AssetsLike } from './connect-serving.js'
+import { serveConnect, type AssetsLike } from './connect-serving.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
@@ -69,10 +69,13 @@ export function composeD1Worker(
   let authAdapter: AuthAdapter | undefined
   let corsOrigins: readonly string[] = []
   let cliClientId: string | undefined
+  let publishableKey: string | undefined
   let configError = false
   try {
     authAdapter = createWorkspaceAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
     cliClientId = parseCliClientId(vars)
+    // Only with a provider: without one the key is ignored and discovery has no auth to put it in.
+    if (authAdapter) publishableKey = parsePublishableKey(vars)
     corsOrigins = parseOriginList(vars.CORS_ALLOWED_ORIGINS, 'CORS_ALLOWED_ORIGINS')
   } catch (err) {
     // The message names a variable ("AUTH_PROVIDER=clerk requires CLERK_JWT_KEY"); no adapter message carries a value.
@@ -88,6 +91,7 @@ export function composeD1Worker(
   const discovery = {
     provider: authAdapter ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() } : undefined,
     cliClientId,
+    publishableKey,
     declaredScopes: createVaultRegistry().declaredScopes(),
   }
 
@@ -152,6 +156,9 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
+        // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
+        const page = await serveConnect(req, { assets: env.ASSETS, issuer: discovery.provider?.issuer })
+        if (page) return page
         const spec = req.method === 'GET' && (url.pathname === openApiPath('api') || url.pathname === openApiPath('meta'))
         // Exempt from the migration and marker gates, not from a bad configuration (CORE84).
         const doc = discoveryResponse(req, discovery)

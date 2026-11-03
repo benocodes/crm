@@ -339,7 +339,7 @@ try {
       res.headers.get('cache-control') === 'no-store',
     { status: res.status, policy },
   )
-  res = await call('GET', '/connect/')
+  res = await fetch(new URL('/connect/', base), { redirect: 'manual' })
   check('21 GET /connect/ -> 308 to /connect, headers present', res.status === 308 && res.headers.get('location') === '/connect' && res.headers.get('x-content-type-options') === 'nosniff', { status: res.status })
   res = await call('GET', '/connect/connect.js')
   check('22 GET /connect/connect.js -> 200 javascript with the headers', res.status === 200 && (res.headers.get('content-type') ?? '').includes('javascript') && (res.headers.get('content-security-policy') ?? '') !== '', { status: res.status, type: res.headers.get('content-type') })

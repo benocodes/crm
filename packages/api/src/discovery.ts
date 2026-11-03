@@ -12,6 +12,8 @@ export interface DiscoveryConfig {
   provider?: { name: 'clerk'; issuer: string }
   /** `AUTH_CLI_CLIENT_ID`; `undefined` is `null` in the document. */
   cliClientId?: string
+  /** `CLERK_PUBLISHABLE_KEY` ([[UI30]] D5), already validated against the issuer; `undefined` is `null` in the document. */
+  publishableKey?: string
   /** Every declared vault scope, in the vault's names; mapped to the provider's names here. */
   declaredScopes: readonly string[]
 }
@@ -39,7 +41,7 @@ export function discoveryResponse(req: Request, config: DiscoveryConfig): Respon
       api: o + SURFACE_PREFIX.api,
       openapi: { api: o + openApiPath('api'), meta: o + openApiPath('meta') },
       auth: config.provider
-        ? { provider: config.provider.name, issuer: config.provider.issuer, cli_client_id: config.cliClientId ?? null, protected_resource_metadata: o + PROTECTED_RESOURCE_PATH }
+        ? { provider: config.provider.name, issuer: config.provider.issuer, cli_client_id: config.cliClientId ?? null, publishable_key: config.publishableKey ?? null, protected_resource_metadata: o + PROTECTED_RESOURCE_PATH }
         : null,
     }
   } else if (url.pathname === PROTECTED_RESOURCE_PATH) {

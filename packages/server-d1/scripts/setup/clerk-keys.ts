@@ -2,6 +2,7 @@
 // own (never loaded into `process.env`, never read from it), with the kind and issuer derived from the key shapes. Nothing here prints a value.
 import { createPublicKey } from 'node:crypto'
 import { parseEnv } from 'node:util'
+import { publishableKeyHost } from '@vault/api'
 import { RemoteRefusal } from '../remote.js'
 import type { SetupDeps, SetupOptions } from './types.js'
 
@@ -15,15 +16,13 @@ export interface ClerkKeys {
   file: string
 }
 
-const HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
 const kindOf = (key: string, prefix: 'sk' | 'pk'): ClerkKeys['kind'] | null => (key.startsWith(`${prefix}_test_`) && key.length > 8 ? 'development' : key.startsWith(`${prefix}_live_`) && key.length > 8 ? 'production' : null)
 
-/** `pk_<kind>_<base64(host$)>`: the issuer is that host over https. */
+/** `pk_<kind>_<base64(host$)>`: the issuer is that host over https. The decoder is shared with the Worker ([[UI30]] D5). */
 export function decodePublishableKey(pk: string): string {
-  const m = /^pk_(?:test|live)_([A-Za-z0-9+/=_-]+)$/.exec(pk)
-  const host = m ? Buffer.from(m[1]!, 'base64').toString('utf8') : ''
-  if (!host.endsWith('$') || !HOST.test(host.slice(0, -1))) throw new RemoteRefusal('the Clerk publishable key is malformed: it does not carry a Frontend API host')
-  return `https://${host.slice(0, -1)}`
+  const host = publishableKeyHost(pk)
+  if (host === undefined) throw new RemoteRefusal('the Clerk publishable key is malformed: it does not carry a Frontend API host')
+  return `https://${host}`
 }
 
 /** An RSA JWK of the instance's JWKS as the SPKI PEM that `CLERK_JWT_KEY` holds. */

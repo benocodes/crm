@@ -643,6 +643,8 @@ describe('bootstrap with the Clerk marker (D18, D38)', () => {
 describe('D7 the connect page origin and the publishable key', () => {
   const vars = (w: World, env = 'acme') => (parse(w.state.configText) as { env: Record<string, { vars: Record<string, string> }> }).env[env]!.vars
   const API = 'https://api.acme.vibase.ai'
+  // The resources acmeConfig's block names already exist, so the config step is the only thing under test.
+  const EXISTING = { d1s: [{ uuid: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', name: 'vault-acme' }], r2s: ['vault-acme-bodies'] }
 
   it('--auth clerk writes CLERK_PUBLISHABLE_KEY and the api origin as the only authorized party; CORS and Clerk allowed_origins stay empty', async () => {
     const { clerk, w } = setup()
@@ -657,8 +659,7 @@ describe('D7 the connect page origin and the publishable key', () => {
     await run(w, clerk, [...BASE, '--web-origin', 'https://app.example.com', '--extra-origin', API, '--extra-origin', 'https://app.example.com'])
     expect(vars(w).CLERK_AUTHORIZED_PARTIES).toBe(`${API},https://app.example.com`)
     expect(vars(w).CORS_ALLOWED_ORIGINS).toBe(`https://app.example.com,${API},https://app.example.com`)
-    expect(clerk.state.allowedOrigins).toEqual(expect.arrayContaining(['https://app.example.com']))
-    expect(clerk.state.allowedOrigins).not.toContain(API)
+    expect(new Set(clerk.state.allowedOrigins)).toEqual(new Set(['https://app.example.com', API])) // exactly the flags, as before D7
   })
 
   it('a second run writes nothing', async () => {
@@ -676,26 +677,26 @@ describe('D7 the connect page origin and the publishable key', () => {
   it('a dry run over a block with an empty CLERK_AUTHORIZED_PARTIES and no key (as hq today) plans exactly those two vars', async () => {
     const hqLike = (await acmeConfig()).replace(`"CLERK_PUBLISHABLE_KEY": "${PK_TEST}",`, '').replace('"CLERK_AUTHORIZED_PARTIES": "https://api.acme.vibase.ai"', '"CLERK_AUTHORIZED_PARTIES": ""')
     expect(hqLike).not.toContain('CLERK_PUBLISHABLE_KEY')
-    const { clerk, w } = setup(settled(), { configText: hqLike })
+    const { clerk, w } = setup(settled(), { ...EXISTING, configText: hqLike })
     const o = await run(w, clerk, [...BASE, '--dry-run'], {})
     const write = states(o).find((x) => x.startsWith('config:write'))
     expect(write).toBe('config:write:update')
     expect(text(o, 'config:write')).toMatch(/vars\.CLERK_PUBLISHABLE_KEY/)
     expect(text(o, 'config:write')).toMatch(/vars\.CLERK_AUTHORIZED_PARTIES/)
-    expect(text(o, 'config:write')).not.toMatch(/differs/)
+    expect(text(o, 'config:write'), 'mismatch').not.toMatch(/differs/)
     expect(w.state.configText).toBe(hqLike)
   })
 
   it('a hand-added party survives (union, never removed)', async () => {
     const withExtra = (await acmeConfig()).replace('"CLERK_AUTHORIZED_PARTIES": "https://api.acme.vibase.ai"', '"CLERK_AUTHORIZED_PARTIES": "https://hand.example,https://api.acme.vibase.ai"')
-    const { clerk, w } = setup(settled(), { configText: withExtra })
+    const { clerk, w } = setup(settled(), { ...EXISTING, configText: withExtra })
     const o = await run(w, clerk, [...BASE, '--dry-run'], {})
     expect(states(o).find((x) => x.startsWith('config:write'))).toBe('config:write:ok')
   })
 
   it('a different publishable key already in the config is a mismatch naming the variable; the file is untouched', async () => {
     const other = (await acmeConfig()).replace(PK_TEST, ['pk', 'test', btoa('other.clerk.accounts.dev$')].join('_'))
-    const { clerk, w } = setup(settled(), { configText: other })
+    const { clerk, w } = setup(settled(), { ...EXISTING, configText: other })
     const o = await run(w, clerk, [...BASE, '--dry-run'], {})
     expect(states(o).find((x) => x.startsWith('config:write'))).toBe('config:write:fail')
     expect(text(o, 'config:write')).toContain('env.acme.vars.CLERK_PUBLISHABLE_KEY')
