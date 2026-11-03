@@ -110,6 +110,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   only one ([[CORE29]]: repair tests checked `actor_id`, reconcile tests checked only event types).
 - **A refusal titled "writes nothing" snapshots after every refusal it makes**, not only the last one. A
   check of the state from before the call proves nothing ([[CORE40]] review).
+- **An assertion that must hold "in every test" runs on its own, not by a call each test remembers.** Have
+  the harness record what each test produced (every run's stdout and stderr, every request) and check it in
+  `afterEach`. For example: no issued secret appears in any output. A per-test helper reached 11 of 47 tests;
+  the automatic one caught a planted leak in 34 ([[API104]] review, `packages/cli/src/device-login.test.ts`).
 - **A rule that compares against stored state gets a test for "no stored state"**: a guard that is silent
   when there is no row to compare is where it leaks ([[CORE29]]).
 - **A pinned behaviour is a spec decision.** Tests assert the contract the spec writes down (statuses,

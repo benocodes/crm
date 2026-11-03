@@ -7,7 +7,7 @@ export const json = (deps: Deps, sink: 'stdout' | 'stderr', value: unknown) => d
 const network = (url: string, e: unknown) => new CliError(1, 'network_error', `could not reach ${url}: ${e instanceof Error ? e.message : 'request failed'}`)
 
 /** The API's own `{ error: { code, message } }` when the body has it; otherwise one built from the status. */
-async function apiError(res: Response): Promise<CliError> {
+export async function apiError(res: Response): Promise<CliError> {
   const text = await res.text().catch(() => '')
   try {
     const body = JSON.parse(text)
@@ -19,16 +19,27 @@ async function apiError(res: Response): Promise<CliError> {
 }
 
 /** Runs one invocation against `server` with `key` and prints the result ([[API6]] D8, D14). Returns the exit code. */
-export async function execute(cmd: Command, inv: Invocation, conn: { server: string; key: string }, deps: Deps): Promise<number> {
+export async function execute(cmd: Command, inv: Invocation, conn: { server: string; key: string; refresh?: (rejected: string) => Promise<string> }, deps: Deps): Promise<number> {
+  let key = conn.key
+  let retried = false
   const toStdout = cmd.binary && (inv.output === undefined || inv.output === '-')
   if (cmd.binary && inv.output === undefined && deps.stdout.isTTY) throw usage('this command returns bytes: pass --output <path>, or --output - to write them to the terminal')
 
+  // A `401` on an OAuth credential is answered by one refresh and one retry ([[API6]] D20); a second `401` is the answer.
   const send = async (query: [string, string][]): Promise<Response> => {
+    const res = await sendOnce(query)
+    if (res.status !== 401 || !conn.refresh || retried) return res
+    retried = true
+    await res.body?.cancel().catch(() => undefined)
+    key = await conn.refresh(key)
+    return sendOnce(query)
+  }
+  const sendOnce = async (query: [string, string][]): Promise<Response> => {
     // The path comes from a document the server served: it must stay on the server's origin, whatever it contains.
     const url = new URL(inv.path, conn.server)
     if (url.origin !== conn.server || !inv.path.startsWith('/') || inv.path.startsWith('//')) throw usage(`refusing to send the credential to ${url.origin}: ${cmd.operationId} is not on ${conn.server}`, 'origin_mismatch')
     for (const [k, v] of query) url.searchParams.append(k, v)
-    const headers: Record<string, string> = { authorization: `Bearer ${conn.key}`, 'user-agent': `vibase-cli/${deps.version}`, accept: cmd.binary ? '*/*' : 'application/json' }
+    const headers: Record<string, string> = { authorization: `Bearer ${key}`, 'user-agent': `vibase-cli/${deps.version}`, accept: cmd.binary ? '*/*' : 'application/json' }
     let body: string | undefined
     if (inv.body !== undefined) {
       headers['content-type'] = 'application/json'

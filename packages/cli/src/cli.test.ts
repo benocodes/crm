@@ -301,7 +301,7 @@ describe('the key never comes from argv (D10)', () => {
     expect(existsSync(r.configFile)).toBe(false)
   })
 
-  it('login without --api-key says device login is not available in this release (exit 2)', async () => {
+  it('device login against an instance that accepts API keys only is exit 2 and names --api-key', async () => {
     const { r } = setup()
     const res = await r.run(['login', '--server', SERVER])
     expect(res.code).toBe(2)

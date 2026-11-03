@@ -5,7 +5,8 @@ import { deriveCommands } from './derive.js'
 import { discover } from './discovery.js'
 import { CliError, usage } from './errors.js'
 import { commandHelp, resourceHelp, topHelp } from './help.js'
-import { execute, json } from './http.js'
+import { apiError, execute, json } from './http.js'
+import { deviceGrant, ensureFresh, fetchAuthServer, getJson, refreshProfile, revokeRefreshToken, withLock } from './oauth.js'
 import { GLOBAL_VALUE_FLAGS, parseInvocation } from './invoke.js'
 import type { Command, Deps } from './types.js'
 
@@ -130,27 +131,32 @@ async function main(argv: string[], deps: Deps): Promise<number> {
 
   const inv = await parseInvocation(cmd, rest, { readFile: (p) => readFile(p, 'utf8'), readStdin: () => deps.readStdin() })
   const withKey = resolveConnection(cfg, g, deps.env, { needKey: true })
-  return execute(cmd, inv, { server: withKey.server, key: withKey.key! }, deps)
+  if (!withKey.oauth) return execute(cmd, inv, { server: withKey.server, key: withKey.key! }, deps)
+  // An OAuth grant: refreshed ahead of expiry, and once more when the server answers 401 (D20).
+  const fresh = await ensureFresh(deps, withKey.profile, withKey.oauth)
+  const refresh = async (rejected: string) => (await refreshProfile(deps, withKey.profile, { kind: 'rejected', stale: rejected })).access_token
+  return execute(cmd, inv, { server: withKey.server, key: fresh.access_token, refresh }, deps)
 }
 
 const SECRET_ARG = 'login reads the key from stdin only: `printf %s "$KEY" | vibase login --api-key --server <url> [--profile <name>]`'
 
 async function login(args: string[], deps: Deps): Promise<number> {
-  let values: { 'api-key'?: boolean; server?: string; profile?: string }
+  let values: { 'api-key'?: boolean; server?: string; profile?: string; scope?: string }
   try {
-    const parsed = parseArgs({ args, options: { 'api-key': { type: 'boolean' }, server: { type: 'string' }, profile: { type: 'string' } }, allowPositionals: true })
+    const parsed = parseArgs({ args, options: { 'api-key': { type: 'boolean' }, server: { type: 'string' }, profile: { type: 'string' }, scope: { type: 'string' } }, allowPositionals: true })
     // Anything else on the line might be the key: refuse without echoing it.
     if (parsed.positionals.length > 0) throw new Error('positional')
     values = parsed.values
   } catch {
-    throw usage(`login takes --api-key, --server and --profile only. ${SECRET_ARG}`)
+    throw usage(`login takes --server, --profile and --scope, or --api-key with --server and --profile. ${SECRET_ARG}`)
   }
-  if (!values['api-key']) throw usage('device login is not available in this release: use `vibase login --api-key --server <url>` (the key is read from stdin)')
+  if (values['api-key'] && values.scope !== undefined) throw usage('--scope applies to device login, not to --api-key')
   const rawServer = values.server ?? (deps.env.VIBASE_SERVER || undefined)
   if (!rawServer) throw usage('login needs --server <url> (or VIBASE_SERVER)')
   const server = serverOrigin(rawServer)
   const name = profileName(values.profile ?? (deps.env.VIBASE_PROFILE || undefined) ?? 'default')
   const path = configPath(deps)
+  if (!values['api-key']) return deviceLogin(server, name, values.scope, deps)
   const cfg = loadConfig(path)
   if (deps.stdinIsTTY) throw usage(`stdin is a terminal. ${SECRET_ARG}`)
   const key = (await deps.readStdin()).trim()
@@ -159,6 +165,59 @@ async function login(args: string[], deps: Deps): Promise<number> {
   cfg.default_profile ??= name
   saveConfig(path, cfg)
   await json(deps, 'stdout', { profile: name, server })
+  return 0
+}
+
+const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v !== ''
+
+/** Device login ([[API6]] D11, D19): every refusal comes before the device request, and nothing is stored until the grant succeeds. */
+async function deviceLogin(server: string, name: string, scopeFlag: string | undefined, deps: Deps): Promise<number> {
+  const path = configPath(deps)
+  loadConfig(path) // a malformed or world-readable config is refused before the user is asked to approve anything
+  const wkUrl = `${server}/.well-known/vibase`
+  const wk = await getJson(wkUrl, deps)
+  if (wk.status !== 200 || typeof wk.body !== 'object' || wk.body === null) throw usage(`${wkUrl} answered ${wk.status}: this does not look like a vault instance`, 'discovery_failed')
+  const auth = wk.body.auth
+  if (!auth || typeof auth !== 'object' || !nonEmpty(auth.cli_client_id) || !nonEmpty(auth.issuer)) {
+    throw usage(`this instance accepts API keys only (no sign-in is configured for the CLI): use \`vibase login --api-key --server ${server}\``, 'api_keys_only')
+  }
+  const prUrl: unknown = auth.protected_resource_metadata ?? `${server}/.well-known/oauth-protected-resource`
+  if (!nonEmpty(prUrl) || new URL(prUrl, server).origin !== server) throw usage(`${wkUrl} names the protected-resource metadata at ${String(prUrl).slice(0, 200)}, which is not on ${server}: refusing to continue`, 'origin_mismatch')
+  const pr = await getJson(prUrl, deps)
+  if (pr.status !== 200 || !Array.isArray(pr.body?.scopes_supported) || !pr.body.scopes_supported.every(nonEmpty)) throw usage(`${prUrl} has no scopes_supported list`, 'discovery_failed')
+  const supported: string[] = pr.body.scopes_supported
+  const as = await fetchAuthServer(auth.issuer, deps)
+
+  let scopes = supported
+  if (scopeFlag !== undefined) {
+    scopes = scopeFlag.split(',').map((s) => s.trim()).filter((s) => s !== '')
+    if (scopes.length === 0) throw usage('--scope needs at least one scope (a,b,...)', 'unknown_scope')
+    const unknown = scopes.filter((s) => s !== 'offline_access' && !supported.includes(s))
+    if (unknown.length > 0) throw usage(`${server} does not support the scope ${unknown.join(', ')} (supported: ${supported.join(', ')})`, 'unknown_scope')
+  }
+  const requested = [...new Set([...scopes, 'offline_access'])].join(' ')
+  const grant = await deviceGrant(as, auth.cli_client_id, requested, deps)
+
+  // Reload: another process may have written the config while the person was approving. Replaces any credential of the profile.
+  const cfg = loadConfig(path)
+  cfg.profiles[name] = { kind: 'oauth', server, issuer: auth.issuer, client_id: auth.cli_client_id, ...grant }
+  cfg.default_profile ??= name
+  saveConfig(path, cfg)
+
+  let res: Response
+  try {
+    res = await deps.fetch(`${server}/meta/v1/me`, { headers: { authorization: `Bearer ${grant.access_token}`, accept: 'application/json', 'user-agent': `vibase-cli/${deps.version}` }, redirect: 'error' })
+  } catch (e) {
+    throw new CliError(1, 'network_error', `signed in, but could not reach ${server}/meta/v1/me: ${e instanceof Error ? e.message : 'request failed'}`)
+  }
+  if (!res.ok) throw await apiError(res)
+  const me = (await res.json().catch(() => undefined)) as any
+  if (me === undefined) throw new CliError(1, 'invalid_response', 'the response of /meta/v1/me was not JSON')
+  await json(deps, 'stdout', me)
+  if (me.principal?.kind === 'agent' && Array.isArray(me.active_organization?.scopes) && me.active_organization.scopes.length === 0) {
+    const id = String(me.principal.id)
+    await deps.stderr.write(`Signed in as the agent account ${id}, which has no scopes yet: an owner must grant them, for example\n  vibase agents update ${id} --data '{"scopes":["contacts:read","contacts:write"]}'\n`)
+  }
   return 0
 }
 
@@ -174,10 +233,41 @@ async function logout(args: string[], deps: Deps): Promise<number> {
   const cfg = loadConfig(path)
   const name = profileName(profile ?? (deps.env.VIBASE_PROFILE || undefined) ?? cfg.default_profile ?? 'default')
   if (!Object.hasOwn(cfg.profiles, name)) throw usage(`no profile named "${name}"`, 'no_profile')
+  if (cfg.profiles[name]!.kind === 'oauth') return oauthLogout(name, deps)
   delete cfg.profiles[name]
   if (cfg.default_profile === name) delete cfg.default_profile
   saveConfig(path, cfg)
   await json(deps, 'stdout', { profile: name, removed: true })
+  return 0
+}
+
+/** D21: revoke the refresh token (RFC 7009), then remove the profile whatever the revocation did. Under the refresh lock, so no refresh rotates it meanwhile. */
+async function oauthLogout(name: string, deps: Deps): Promise<number> {
+  const path = configPath(deps)
+  const state: { outcome: 'revoked' | 'unsupported' | 'nothing' | CliError } = { outcome: 'nothing' }
+  await withLock(deps, async () => {
+    const cfg = loadConfig(path)
+    const p = Object.hasOwn(cfg.profiles, name) ? cfg.profiles[name] : undefined
+    if (!p) throw usage(`no profile named "${name}"`, 'no_profile')
+    if (p.kind === 'oauth' && p.refresh_token !== '') {
+      try {
+        state.outcome = await revokeRefreshToken(p, deps)
+      } catch (e) {
+        if (!(e instanceof CliError)) throw e
+        state.outcome = new CliError(1, e.code, `could not revoke the grant (the local credential is removed anyway; it may stay valid until it expires): ${e.message}`)
+      }
+    }
+    delete cfg.profiles[name]
+    if (cfg.default_profile === name) delete cfg.default_profile
+    saveConfig(path, cfg)
+  })
+  const { outcome } = state
+  await json(deps, 'stdout', { profile: name, removed: true })
+  if (outcome instanceof CliError) {
+    await json(deps, 'stderr', { error: { code: outcome.code, message: outcome.message } })
+    return outcome.exit
+  }
+  if (outcome === 'unsupported') await deps.stderr.write('note: the issuer advertises no revocation endpoint, so the grant was not revoked; it lives until it expires\n')
   return 0
 }
 
@@ -198,6 +288,7 @@ async function configCommand(action: string | undefined, rest: string[], deps: D
   if (m) {
     if (m[2] === 'kind') throw usage('profiles.<name>.kind is read-only')
     if (!profile) throw usage(`no profile named "${m[1]}"`, 'no_profile')
+    if (profile.kind === 'oauth') throw usage('an OAuth profile is bound to the server it signed in to: run `vibase login --server <url>` instead')
     profile.server = serverOrigin(value!)
   } else {
     const name = profileName(value!)

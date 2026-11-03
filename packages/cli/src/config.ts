@@ -4,12 +4,27 @@ import { dirname, join } from 'node:path'
 import { usage } from './errors.js'
 import type { Deps } from './types.js'
 
-/** One named connection. Only API keys exist in this release; `kind` leaves room for OAuth ([[API6]] D11). */
-export interface Profile {
+/** A connection by API key ([[API6]] D10). */
+export interface ApiKeyProfile {
   kind: 'api_key'
   server: string
   api_key: string
 }
+/**
+ * A connection by device login ([[API6]] D11). `expires_at` is epoch milliseconds. Empty tokens mean the grant was lost
+ * (`invalid_grant`, or the issuer sent no refresh token): the profile keeps its server so the error can say what to run.
+ */
+export interface OAuthProfile {
+  kind: 'oauth'
+  server: string
+  issuer: string
+  client_id: string
+  access_token: string
+  refresh_token: string
+  expires_at: number
+  scope: string
+}
+export type Profile = ApiKeyProfile | OAuthProfile
 export interface Config {
   version: 1
   default_profile?: string
@@ -63,8 +78,16 @@ export function loadConfig(path: string): Config {
     cfg.default_profile = raw.default_profile
   }
   for (const [name, p] of Object.entries<any>(raw.profiles)) {
-    if (!PROFILE_NAME.test(name) || typeof p !== 'object' || p === null || p.kind !== 'api_key' || typeof p.server !== 'string' || typeof p.api_key !== 'string') throw bad()
-    cfg.profiles[name] = { kind: 'api_key', server: p.server, api_key: p.api_key }
+    if (!PROFILE_NAME.test(name) || typeof p !== 'object' || p === null || typeof p.server !== 'string') throw bad()
+    if (p.kind === 'api_key' && typeof p.api_key === 'string') cfg.profiles[name] = { kind: 'api_key', server: p.server, api_key: p.api_key }
+    else if (
+      p.kind === 'oauth' &&
+      ['issuer', 'client_id', 'access_token', 'refresh_token', 'scope'].every((k) => typeof p[k] === 'string') &&
+      typeof p.expires_at === 'number' &&
+      Number.isFinite(p.expires_at)
+    ) {
+      cfg.profiles[name] = { kind: 'oauth', server: p.server, issuer: p.issuer, client_id: p.client_id, access_token: p.access_token, refresh_token: p.refresh_token, expires_at: p.expires_at, scope: p.scope }
+    } else throw bad()
   }
   return cfg
 }
@@ -89,12 +112,6 @@ export function saveConfig(path: string, cfg: Config): void {
   }
 }
 
-export interface Connection {
-  server: string
-  key: string
-  profile: string
-}
-
 /**
  * Settings precedence ([[API6]] D10): flags, then `VIBASE_SERVER` / `VIBASE_API_KEY` / `VIBASE_PROFILE`, then the profile.
  * A key stored in a profile belongs to that profile's server and is not used for another one.
@@ -104,7 +121,7 @@ export function resolveConnection(
   flags: { server?: string; profile?: string },
   env: Record<string, string | undefined>,
   opts: { needKey: boolean },
-): { server: string; key?: string; profile: string } {
+): { server: string; key?: string; profile: string; /** Set when the credential is the profile's OAuth grant: it is refreshed, and the key is its access token. */ oauth?: OAuthProfile } {
   const explicit = flags.profile ?? (env.VIBASE_PROFILE || undefined)
   const name = profileName(explicit ?? cfg.default_profile ?? 'default')
   const profile = Object.hasOwn(cfg.profiles, name) ? cfg.profiles[name] : undefined
@@ -113,7 +130,14 @@ export function resolveConnection(
   if (!rawServer) throw usage('no server: pass --server, set VIBASE_SERVER, or run `vibase login --api-key --server <url>`', 'no_server')
   const server = serverOrigin(rawServer)
   let key = env.VIBASE_API_KEY || undefined
-  if (!key && profile && serverOrigin(profile.server) === server) key = profile.api_key
-  if (opts.needKey && !key) throw usage(`no credential for ${server}: run \`vibase login --api-key --server ${server}\` or set VIBASE_API_KEY`, 'no_credential')
-  return { server, key, profile: name }
+  let oauth: OAuthProfile | undefined
+  if (!key && profile && serverOrigin(profile.server) === server) {
+    if (profile.kind === 'api_key') key = profile.api_key
+    else if (profile.access_token !== '') {
+      oauth = profile
+      key = profile.access_token
+    }
+  }
+  if (opts.needKey && !key) throw usage(`no credential for ${server}: run \`vibase login --server ${server}\` (or \`--api-key\`), or set VIBASE_API_KEY`, 'no_credential')
+  return { server, key, profile: name, oauth }
 }
