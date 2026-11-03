@@ -54,6 +54,8 @@ export interface FakeIssuerOptions {
   metadata?: (base: Record<string, unknown>) => Record<string, unknown>
   /** Real milliseconds the token endpoint takes to answer a refresh (so concurrent callers overlap). */
   refreshDelayMs?: number
+  /** The token endpoint issues no refresh token (an issuer that ignores offline_access). */
+  noRefresh?: boolean
   /** Answers every request on these paths with a redirect to this URL (the metadata, device or token endpoint redirecting off-origin). */
   redirect?: { path: string; to: string }
 }
@@ -82,7 +84,7 @@ export function fakeIssuer(opts: FakeIssuerOptions = {}) {
     refresh.set(rt, { scope, sub: subject })
     secrets.add(token)
     secrets.add(rt)
-    return { access_token: token, token_type: 'Bearer', expires_in: expiresIn, refresh_token: rt, scope }
+    return { access_token: token, token_type: 'Bearer', expires_in: expiresIn, ...(opts.noRefresh ? {} : { refresh_token: rt }), scope }
   }
   const err = (error: string, status = 400) => jsonRes({ error, error_description: `${error} (fake)` }, status)
 

@@ -133,7 +133,7 @@ export function resolveConnection(
   let oauth: OAuthProfile | undefined
   if (!key && profile && serverOrigin(profile.server) === server) {
     if (profile.kind === 'api_key') key = profile.api_key
-    else if (profile.refresh_token !== '' && profile.access_token !== '') {
+    else if (profile.access_token !== '') {
       oauth = profile
       key = profile.access_token
     }

@@ -18,8 +18,18 @@ beforeAll(async () => {
 })
 afterAll(() => w.dispose())
 const rigs: ReturnType<typeof rig>[] = []
+const sessions: { r: ReturnType<typeof rig>; iss: ReturnType<typeof fakeIssuer> }[] = []
 afterEach(() => {
-  while (rigs.length) rigs.pop()!.dispose()
+  // The shared assertion, automatic: nothing the authorization server issued is in any run's stdout or stderr.
+  try {
+    for (const s of sessions) for (const o of s.r.outputs) for (const t of s.iss.secrets()) {
+      expect(o.stdout, `stdout of vibase ${o.argv.join(' ')}`).not.toContain(t)
+      expect(o.stderr, `stderr of vibase ${o.argv.join(' ')}`).not.toContain(t)
+    }
+  } finally {
+    sessions.length = 0
+    while (rigs.length) rigs.pop()!.dispose()
+  }
 })
 beforeEach(async () => {
   await w.reset()
@@ -41,7 +51,9 @@ function session(subject: string) {
   const net = network({ [SERVER]: (req) => worker.fetch(req), [iss.origin]: iss.handler })
   const r = rig({ fetch: net.fetch })
   rigs.push(r)
-  return { iss, net, r }
+  const s = { iss, net, r }
+  sessions.push(s)
+  return s
 }
 const clean = (s: ReturnType<typeof session>, ...res: { stdout: string; stderr: string }[]) => {
   for (const x of res) for (const t of s.iss.secrets()) {

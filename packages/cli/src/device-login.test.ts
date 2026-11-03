@@ -12,8 +12,18 @@ const SCOPES = ['contacts:read', 'contacts:write', 'tasks:read']
 const ME = { principal: { id: 'p1', kind: 'user' }, user: { id: 'p1' }, active_organization: { id: 'o1', role: 'owner', scopes: ['contacts:read'] } }
 
 const rigs: ReturnType<typeof rig>[] = []
+const worlds: World[] = []
 afterEach(() => {
-  while (rigs.length) rigs.pop()!.dispose()
+  // The shared assertion, automatic: nothing the authorization server issued is in any run's stdout or stderr.
+  try {
+    for (const w of worlds) for (const o of w.r.outputs) for (const s of w.iss.secrets()) {
+      expect(o.stdout, `stdout of vibase ${o.argv.join(' ')}`).not.toContain(s)
+      expect(o.stderr, `stderr of vibase ${o.argv.join(' ')}`).not.toContain(s)
+    }
+  } finally {
+    worlds.length = 0
+    while (rigs.length) rigs.pop()!.dispose()
+  }
 })
 
 interface World {
@@ -59,6 +69,7 @@ function world(o: { issuer?: FakeIssuerOptions; auth?: unknown | ((issuer: strin
   w.net = network({ [SERVER]: inst.fetch, [iss.origin]: iss.handler, 'https://evil.test': () => json({ stolen: true }) })
   w.r = rig({ fetch: w.net.fetch })
   rigs.push(w.r)
+  worlds.push(w)
   return w
 }
 
@@ -379,6 +390,21 @@ describe('refresh (D20)', () => {
     expect(errCode(res.stderr)).toBe('unauthorized')
     expect(w.iss.refreshCalls()).toBe(1)
     expect(res.stdout.trimEnd().split('\n')).toHaveLength(1) // page 1 (after the refresh) was printed
+  })
+
+  it('an issuer that sends no refresh token: the access token works until near expiry, then login_required (exit 1)', async () => {
+    const w = world({ issuer: { noRefresh: true } })
+    expect((await login(w)).code).toBe(0)
+    expect(profile(w).refresh_token).toBe('')
+    const ok = await w.r.run(['me', 'get'])
+    expect(ok.code).toBe(0)
+    expect(meHits(w).at(-1)!.headers.authorization).toBe(`Bearer ${profile(w).access_token}`)
+    expireIn(w, 30_000)
+    const res = await w.r.run(['me', 'get'])
+    expect(res.code).toBe(1)
+    expect(errCode(res.stderr)).toBe('login_required')
+    expect(res.stderr).toContain('vibase login')
+    expect(w.iss.refreshCalls()).toBe(0)
   })
 
   it('a refresh that fails for another reason keeps the tokens, exit 1', async () => {

@@ -160,6 +160,15 @@ function grantFrom(body: any, requested: string, deps: Deps): LoginGrant {
 
 // ---- the lock -------------------------------------------------------------------------------------------------------
 
+/** The lock file's mtime, or now when it vanished meanwhile (then it is not stale and the loop retries). */
+const mtimeOrNow = (path: string) => {
+  try {
+    return statSync(path).mtimeMs
+  } catch {
+    return Date.now()
+  }
+}
+
 export const lockPath = (deps: Deps) => `${configPath(deps)}.lock`
 
 /**
@@ -194,7 +203,7 @@ export async function withLock<T>(deps: Deps, fn: () => Promise<T>): Promise<T> 
     } catch {
       // being written: judged by the file's own age below
     }
-    const stale = typeof at === 'number' ? deps.now() - at > LOCK_STALE_MS : Date.now() - statSync(path).mtimeMs > LOCK_STALE_MS
+    const stale = typeof at === 'number' ? deps.now() - at > LOCK_STALE_MS : Date.now() - mtimeOrNow(path) > LOCK_STALE_MS
     if (stale) {
       // Remove it only if it is still the lock we judged.
       try {

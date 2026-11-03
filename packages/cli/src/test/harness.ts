@@ -39,6 +39,7 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
     }
   }) as typeof fetch
   const sleeps: number[] = []
+  const outputs: { argv: string[]; stdout: string; stderr: string }[] = []
   const configFile = join(dir, 'vibase', 'config.json')
   const cacheDir = join(dir, 'vibase')
   let clock = 1_800_000_000_000
@@ -67,6 +68,7 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
     }
     const code = await run(argv, deps)
     const bytes = Buffer.concat(out.map((c) => (typeof c === 'string' ? Buffer.from(c) : Buffer.from(c))))
+    outputs.push({ argv, stdout: bytes.toString('utf8'), stderr: err.join('') })
     return { code, stdout: bytes.toString('utf8'), stderr: err.join(''), stdoutBytes: new Uint8Array(bytes) }
   }
   return {
@@ -75,6 +77,8 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
     cacheDir,
     seen,
     sleeps,
+    /** Every run's stdout and stderr, for assertions that must hold in all of them. */
+    outputs,
     now: () => clock,
     run: go,
     advance: (ms: number) => void (clock += ms),
