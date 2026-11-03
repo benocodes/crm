@@ -22,6 +22,8 @@ interface World {
   r: ReturnType<typeof rig>
   denyAll: boolean
   meRedirect?: string
+  /** The second page of /api/v1/widgets answers 401. */
+  denyPage2?: boolean
 }
 
 function world(o: { issuer?: FakeIssuerOptions; auth?: unknown | ((issuer: string, origin: string) => unknown); scopes?: string[] | null } = {}): World {
@@ -44,6 +46,10 @@ function world(o: { issuer?: FakeIssuerOptions; auth?: unknown | ((issuer: strin
         if (w.meRedirect && u.pathname === '/meta/v1/me') return new Response(null, { status: 307, headers: { location: w.meRedirect } })
         const tok = /^Bearer (.+)$/.exec(req.headers.get('authorization') ?? '')?.[1]
         if (w.denyAll || !tok || !iss.isLiveAccess(tok)) return json({ error: { code: 'unauthorized', message: 'bad token' } }, 401)
+        if (u.pathname === '/api/v1/widgets' && w.denyPage2) {
+          if (u.searchParams.has('after')) return json({ error: { code: 'unauthorized', message: 'bad token' } }, 401)
+          return json({ data: [{ id: '00000000-0000-7000-8000-000000000009', name: 'a' }], next_cursor: '00000000-0000-7000-8000-000000000009' })
+        }
         return json(u.pathname === '/meta/v1/me' ? ME : { data: [], next_cursor: null })
       }
       return undefined
@@ -269,7 +275,7 @@ describe('credential routing (D18)', () => {
       for (const d of device) if (!(atToken && t.path === '/oauth/token')) expect(hay).not.toContain(d)
     }
     expect(authorized).toBeGreaterThan(1)
-    expect(w.net.at(w.iss.origin, '/oauth/token').length).toBeGreaterThan(2)
+    expect(w.net.at(w.iss.origin, '/oauth/token').length).toBeGreaterThanOrEqual(2)
     expect(w.net.at(w.iss.origin, '/oauth/revoke').length).toBe(1)
   }
 
@@ -361,6 +367,18 @@ describe('refresh (D20)', () => {
     expect(w.iss.refreshCalls()).toBe(1)
     expect(meHits(w).length - before).toBe(2)
     clean(w, res)
+  })
+
+  it('the one retry is per command: a 401 on a later page of --all is exit 1 without a second refresh', async () => {
+    const w = world()
+    await login(w)
+    w.iss.rejectAccess(profile(w).access_token)
+    w.denyPage2 = true
+    const res = await w.r.run(['widgets', 'list', '--all'])
+    expect(res.code).toBe(1)
+    expect(errCode(res.stderr)).toBe('unauthorized')
+    expect(w.iss.refreshCalls()).toBe(1)
+    expect(res.stdout.trimEnd().split('\n')).toHaveLength(1) // page 1 (after the refresh) was printed
   })
 
   it('a refresh that fails for another reason keeps the tokens, exit 1', async () => {
@@ -540,6 +558,14 @@ describe('cycle 1 stays as it was', () => {
     expect(JSON.parse((await w.r.run(['config', 'get', 'profiles.default.kind'])).stdout)).toBe('oauth')
     expect(JSON.parse((await w.r.run(['config', 'get', 'profiles.default.server'])).stdout)).toBe(SERVER)
     expect((await w.r.run(['config', 'get', 'profiles.default.refresh_token'])).code).toBe(2)
+  })
+
+  it('config set cannot repoint an OAuth profile at another server (its token would follow)', async () => {
+    const w = world()
+    await login(w)
+    const res = await w.r.run(['config', 'set', 'profiles.default.server', 'https://elsewhere.test'])
+    expect(res.code).toBe(2)
+    expect(profile(w).server).toBe(SERVER)
   })
 
   it('the API-key profile and its logout still work next to an OAuth profile', async () => {

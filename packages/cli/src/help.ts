@@ -1,8 +1,9 @@
 import type { Command } from './types.js'
 
 export const HAND_COMMANDS = `Commands that are always here:
+  vibase login --server <url> [--profile <name>] [--scope a,b]   sign in by device login (approve in any browser)
   vibase login --api-key --server <url> [--profile <name>]   store an API key (read from stdin, never argv)
-  vibase logout [--profile <name>]                           forget a profile
+  vibase logout [--profile <name>]                           forget a profile (revokes a device login's grant)
   vibase config get|set <key> [value]                        read or change the configuration`
 
 export const GLOBAL_FLAGS = `Flags every command takes:
@@ -24,7 +25,7 @@ export function topHelp(commands: Command[] | undefined, server?: string): strin
   if (commands) {
     lines.push(`Resources of ${server}:`)
     for (const [resource, cmds] of [...group(commands)].sort(([a], [b]) => a.localeCompare(b))) lines.push(`  ${resource.padEnd(22)}${cmds.map((c) => c.action).join(', ')}`)
-  } else lines.push('Resources come from the instance: pass --server or run `vibase login --api-key --server <url>` first.')
+  } else lines.push('Resources come from the instance: pass --server or run `vibase login --server <url>` (or `--api-key`) first.')
   lines.push('', HAND_COMMANDS, '', GLOBAL_FLAGS, '', 'vibase <resource> --help and vibase <resource> <action> --help describe a command.')
   return lines.join('\n') + '\n'
 }

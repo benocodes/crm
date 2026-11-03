@@ -21,4 +21,41 @@ network failed, `2` usage or configuration. Settings: flags, then `VIBASE_SERVER
 `$XDG_CONFIG_HOME/vibase/config.json` (mode 0600). The command list is cached for an hour in `$XDG_CACHE_HOME/vibase/` (`--refresh` refetches).
 Put the command words first: `vibase contacts list --limit 5`.
 
-Not here yet: device login (#104), `events tail` (#105).
+## Sign in by device login
+
+An instance with a sign-in configured (`auth` in `<server>/.well-known/vibase`) is signed in to from any browser, on any machine:
+
+```bash
+vibase login --server https://api.example.com               # prints a URL and a code on stderr; approve in a browser
+vibase login --server https://api.example.com --scope contacts:read,contacts:write   # ask for less
+vibase --profile work login --server https://api.example.com   # a second identity in its own profile
+vibase me get                                               # who am I; login already printed it on stdout
+vibase logout                                               # revokes the refresh token, then forgets the profile
+```
+
+The CLI never opens a browser: it prints `verification_uri_complete` (or the URL and the user code) and the expiry on stderr, then polls.
+Stdout stays machine-readable (the `me` document). By default it asks for every scope the instance supports plus `offline_access`; the
+vault caps the token at what the person or agent account may do, so asking for all loses nothing. The profile (kind `oauth`) is stored in
+the same `config.json`. A login that is denied, expires or fails leaves the profile as it was.
+
+The access token is refreshed when it is within 60 s of expiry and once when the server answers `401`; parallel `vibase` processes
+share one refresh through a lock file beside the config (`config.json.lock`). If the grant is gone (`invalid_grant`) the tokens are
+cleared and the command exits `1` telling you to run `vibase login` again. `logout` revokes the refresh token (RFC 7009); if that
+fails it still removes the profile, says so on stderr and exits `1`. An access token already issued stays valid until it expires.
+
+The access token goes only to `--server`'s origin; the refresh token only to the issuer's token and revocation endpoints. The issuer and
+its endpoints must be `https`, and a redirect from any of them is an error.
+
+## Onboard an agent account
+
+An agent that is not a person (a sales agent, an automation) signs in as its own Clerk user, so it has its own audit identity and its
+scopes are set by an owner:
+
+1. Invite the agent's email in Clerk with the public metadata `{ "vibase_role": "agent" }`.
+2. As the agent (its own browser session, or yours with the agent's account): `vibase --profile agent login --server <url>`.
+   It prints `me` with `kind: agent` and no scopes, and says on stderr that an owner must grant them.
+3. An owner grants scopes with the id that login printed: `vibase agents update <agent-id> --data '{"scopes":["contacts:read","contacts:write"]}'`.
+4. The agent's next request carries the grant (the token's scopes intersect with it). Disabling the agent (`agents update --data '{"disabled":true}'`)
+   is the switch that stops it at once; its access tokens otherwise live until they expire.
+
+Not here yet: `events tail` (#105).
