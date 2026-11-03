@@ -7,13 +7,13 @@ import { initDeploymentOperation, readDeployment } from '../../src/init-deployme
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { PLACEHOLDER_DATABASE_ID } from '../remote.js'
 import { runSetup, type SetupOutcome } from './run.js'
-import { CREDS, EXPECTED_MIGRATIONS, OLD_SHA, REAL_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
+import { CREDS, EXPECTED_MIGRATIONS, OLD_SHA, FIXTURE_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const ACME = ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai']
 const SMOKED1 = ['--env', 'smoked1', '--auth', 'none', '--api-host', 'api.smoked1.vibase.ai']
 const SMOKED1_ID = '13f7fb64-d909-44e7-9ce7-cc3c753bb3bc'
-const realConfig = readFileSync(REAL_CONFIG_PATH, 'utf8')
+const realConfig = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const states = (o: SetupOutcome) => o.results.map((r) => `${r.step}:${r.status}`)
 
 let db: WorkerD1

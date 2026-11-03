@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { parse } from 'jsonc-parser'
 import { unstable_readConfig } from 'wrangler'
 
 const CONFIG = fileURLToPath(new URL('../wrangler.jsonc', import.meta.url))
@@ -53,7 +54,9 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
 
 // [[UI30]] D2: the connect page's assets, behind the Worker for /connect* only, in every env.
 describe('assets (UI30 D2)', () => {
-  it.each([undefined, 'smoked1', 'hq'])('env %s binds ASSETS and runs the Worker first for /connect and /connect/* only', (env) => {
+  // Every env the file declares (a fork has its own set; none is assumed), plus the top level.
+  const declaredEnvs = Object.keys((parse(readFileSync(CONFIG, 'utf8')) as { env?: object }).env ?? {})
+  it.each([undefined, ...declaredEnvs])('env %s binds ASSETS and runs the Worker first for /connect and /connect/* only', (env) => {
     const c = unstable_readConfig({ config: CONFIG, env })
     expect(c.assets?.binding).toBe('ASSETS')
     expect(c.assets?.run_worker_first).toEqual(['/connect', '/connect/*'])

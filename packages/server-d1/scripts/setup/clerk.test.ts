@@ -11,11 +11,11 @@ import { bootstrapD1 } from '../../src/bootstrap-d1.js'
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { runSetup, type SetupOutcome } from './run.js'
 import { ISSUER, OWNER_EMAIL, PK_TEST, SK_LIVE_SENTINEL, SK_TEST, jwkFor, makeClerk, type ClerkOptions, type FakeClerk } from './test/clerk-world.js'
-import { EXPECTED_MIGRATIONS, REAL_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
+import { EXPECTED_MIGRATIONS, FIXTURE_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const BASE = ['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-email', OWNER_EMAIL]
-const realConfig = readFileSync(REAL_CONFIG_PATH, 'utf8')
+const realConfig = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const states = (o: SetupOutcome) => o.results.map((r) => `${r.step}:${r.status}`)
 const text = (o: SetupOutcome, step = 'clerk') => {
   const r = o.results.find((x) => x.step === step)!

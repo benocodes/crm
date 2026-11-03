@@ -7,7 +7,7 @@ import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
 import type { Credentials, EnvFileProbe, ExecResult, SetupCmd, SetupDeps } from '../types.js'
 import { PK_TEST, SK_TEST, type FakeClerk } from './clerk-world.js'
 
-export const REAL_CONFIG_PATH = new URL('../../../wrangler.jsonc', import.meta.url)
+export const FIXTURE_CONFIG_PATH = new URL('./wrangler.fixture.jsonc', import.meta.url)
 export const EXPECTED_MIGRATIONS = MIGRATIONS.map((m) => m.name)
 export const SHA = 'a'.repeat(40)
 export const OLD_SHA = 'b'.repeat(40)
@@ -72,7 +72,7 @@ export interface World {
 
 export function makeWorld(o: WorldOptions): World {
   const state = {
-    configText: o.configText ?? readFileSync(REAL_CONFIG_PATH, 'utf8'),
+    configText: o.configText ?? readFileSync(FIXTURE_CONFIG_PATH, 'utf8'),
     envText: o.envText ?? '',
     configWrites: 0,
     d1s: [...(o.d1s ?? [])],

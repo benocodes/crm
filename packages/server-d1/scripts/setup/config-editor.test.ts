@@ -3,9 +3,9 @@ import { parse } from 'jsonc-parser'
 import { describe, expect, it } from 'vitest'
 import { PLACEHOLDER_DATABASE_ID } from '../remote.js'
 import { reconcileEnvBlock, type DesiredEnv } from './config-editor.js'
-import { REAL_CONFIG_PATH } from './test/world.js'
+import { FIXTURE_CONFIG_PATH } from './test/world.js'
 
-const real = readFileSync(REAL_CONFIG_PATH, 'utf8')
+const real = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const UUID = '13f7fb64-d909-44e7-9ce7-cc3c753bb3bc'
 const smoked1: DesiredEnv = { env: 'smoked1', workerName: 'vault-smoked1', d1Name: 'vault-smoked1', d1Id: UUID, r2Name: 'vault-smoked1-bodies', apiHost: 'api.smoked1.vibase.ai', corsOrigins: '' }
 const acme: DesiredEnv = { env: 'acme', workerName: 'vault-acme', d1Name: 'vault-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vault-acme-bodies', apiHost: 'api.acme.vibase.ai', corsOrigins: 'https://app.example.com' }
