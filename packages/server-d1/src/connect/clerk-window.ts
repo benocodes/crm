@@ -65,7 +65,8 @@ export function windowClerk(auth: NonNullable<Discovery['auth']>, deps: { loadSc
       await need().redirectToSignIn({ redirectUrl })
     },
     async signOut() {
-      await need().signOut()
+      // Back to this page: with no redirect Clerk sends the browser to the origin root, a 404 on the API.
+      await need().signOut({ redirectUrl: '/connect' })
     },
     profileUrl() {
       try {

@@ -62,6 +62,8 @@ pnpm -C packages/server-d1 exec playwright install chromium
 pnpm -C packages/server-d1 e2e:connect
 ```
 
+The E2E's Account Portal step signs in with a Backend-API sign-in token (`__clerk_ticket` on the portal URL), which works whatever sign-in methods the development instance offers; it does not rely on an email-code or password route.
+
 Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHABLE_KEY` in `.dev.vars` (see `.dev.vars.example`).
 
 ## Configuration

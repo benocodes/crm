@@ -61,12 +61,17 @@ test('2. the Account Portal round trip (settles the open question)', async ({ pa
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   expect(violations).toEqual([])
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL((u) => u.origin !== new URL(baseURL!).origin)
-  expect(new URL(page.url()).searchParams.get('redirect_url')).toBe(`${baseURL}/connect`)
-  // Sign in on the hosted page with the email code the development instance accepts for +clerk_test addresses.
-  await page.getByLabel(/email/i).first().fill(users.owner.email)
-  await page.getByRole('button', { name: /continue/i }).click()
-  await page.getByLabel(/code/i).first().fill('424242')
+  // The portal's own params can sit in the hash (`#/?redirect_url=...`) at the first cross-origin navigation: wait until they are there.
+  await page.waitForURL((u) => u.origin !== new URL(baseURL!).origin && (u.searchParams.has('redirect_url') || u.hash.includes('redirect_url')))
+  const u = new URL(page.url())
+  const back = u.searchParams.get('redirect_url') ?? new URLSearchParams(u.hash.replace(/^#\/?\??/, '')).get('redirect_url')
+  expect(back).toBe(`${baseURL}/connect`)
+  // Deterministic, whatever sign-in methods the instance offers: a server-side sign-in token for the owner, used as the `__clerk_ticket`
+  // on the portal URL (no email code or password route is relied on).
+  const res = await page.request.post(`${BAPI}/sign_in_tokens`, { headers: { authorization: `Bearer ${SECRET}` }, data: { user_id: users.owner.id } })
+  expect(res.ok()).toBe(true)
+  const { token } = (await res.json()) as { token: string }
+  await page.goto(`${page.url()}${page.url().includes('?') ? '&' : '?'}__clerk_ticket=${token}`)
   await page.waitForURL(`${baseURL}/connect`)
   await expect(page.getByText(users.owner.email)).toBeVisible()
   await expect(page.getByText(/role: owner/)).toBeVisible()
