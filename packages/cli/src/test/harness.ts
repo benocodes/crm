@@ -9,6 +9,7 @@ export interface Seen {
   url: string
   method: string
   headers: Record<string, string>
+  redirect: string
 }
 export interface Result {
   code: number
@@ -22,12 +23,20 @@ type Handler = (req: Request) => Response | Promise<Response> | undefined
 export function rig(opts: { fetch: (req: Request) => Response | Promise<Response>; env?: Record<string, string>; tty?: boolean; stdin?: string; stdinTTY?: boolean }) {
   const dir = mkdtempSync(join(tmpdir(), 'vibase-cli-'))
   const seen: Seen[] = []
+  // Like the real fetch: a 3xx is an error under redirect 'error', and is followed (headers kept, as a hostile server would hope) otherwise.
   const fetchImpl = (async (input: any, init?: any) => {
-    const req = new Request(input, init)
-    const headers: Record<string, string> = {}
-    req.headers.forEach((v, k) => (headers[k] = v))
-    seen.push({ url: req.url, method: req.method, headers })
-    return opts.fetch(req)
+    let req = new Request(input, init)
+    for (let hops = 0; ; hops++) {
+      const headers: Record<string, string> = {}
+      req.headers.forEach((v, k) => (headers[k] = v))
+      seen.push({ url: req.url, method: req.method, headers, redirect: req.redirect })
+      const res = await opts.fetch(req)
+      const location = res.headers.get('location')
+      if (res.status < 300 || res.status > 399 || !location || req.redirect === 'manual') return res
+      if (req.redirect === 'error') throw new TypeError('unexpected redirect')
+      if (hops > 5) throw new TypeError('too many redirects')
+      req = new Request(new URL(location, req.url), { method: 'GET', headers: req.headers })
+    }
   }) as typeof fetch
   const configFile = join(dir, 'vibase', 'config.json')
   const cacheDir = join(dir, 'vibase')

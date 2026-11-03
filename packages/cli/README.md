@@ -5,7 +5,7 @@ from `<server>/.well-known/vibase` and the two OpenAPI documents it names. No ru
 
 ```bash
 pnpm -C packages/cli build                       # writes dist/vibase.js
-node packages/cli/dist/vibase.js --help          # or: pnpm vibase --help from the repo root
+node packages/cli/dist/vibase.js --help
 
 printf '%s' "$KEY" | vibase login --api-key --server https://api.example.com   # the key is read from stdin, never argv
 vibase me get

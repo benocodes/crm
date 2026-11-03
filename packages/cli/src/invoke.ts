@@ -77,6 +77,8 @@ export async function parseInvocation(cmd: Command, args: string[], io: InvokeIo
   }
   let path = cmd.path
   cmd.pathParams.forEach((name, i) => {
+    // The URL parser resolves "." and ".." segments, so these would address another route.
+    if (['', '.', '..'].includes(positionals[i]!)) throw usage(`<${name}> must not be empty, "." or ".."`)
     path = path.replace(`{${name}}`, encodeURIComponent(positionals[i]!))
   })
   const all = values.all === true

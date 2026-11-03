@@ -48,6 +48,16 @@ describe('commands come from the live documents', () => {
     expect((await gone.r.run(['widgets', 'list'])).code).toBe(1)
   })
 
+  it('a "." or ".." path argument is exit 2 and no request carries the credential', async () => {
+    const { r } = setup()
+    await login(r)
+    for (const bad of ['.', '..']) {
+      expect((await r.run(['parts', 'delete', bad, 'p'])).code).toBe(2)
+      expect((await r.run(['parts', 'get', 'w', bad])).code).toBe(2)
+    }
+    expect(authed(r)).toEqual([])
+  })
+
   it('a command that is not in the documents exits 2 even if its name looks plausible', async () => {
     const { r } = setup()
     await login(r)
@@ -226,8 +236,11 @@ describe('same-origin rule for credentials (D18)', () => {
     const { r } = setup({ routes: () => new Response(null, { status: 302, headers: { location: `${EVIL}/x` } }) })
     await login(r)
     const res = await r.run(['me', 'get'])
-    expect(res.code).not.toBe(0)
+    expect(res.code).toBe(1)
     expect(r.seen.filter((s) => s.url.startsWith(EVIL))).toEqual([])
+    // every request the CLI makes refuses redirects
+    expect(r.seen.length).toBeGreaterThan(0)
+    for (const s of r.seen) expect(s.redirect).toBe('error')
   })
 
   it('http to a non-loopback host is refused, for --server and for login; https and loopback are accepted', async () => {

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { composeD1Worker } from '@vault/server-d1/compose'
 import { bootstrapD1 } from '@vault/server-d1/bootstrap'
 import { openWorkerD1, type WorkerD1 } from '@vault/server-d1/test'
@@ -15,6 +15,9 @@ afterAll(() => w.dispose())
 let key: string
 let hideOperation: string | undefined
 const rigs: ReturnType<typeof rig>[] = []
+afterEach(() => {
+  while (rigs.length) rigs.pop()!.dispose()
+})
 beforeEach(async () => {
   await w.reset()
   hideOperation = undefined
@@ -113,8 +116,6 @@ describe('against the D1 app', () => {
     expect(res.code).toBe(1)
     expect(res.stdout).toBe('')
     expect(JSON.parse(res.stderr).error.code).toMatch(/forbidden|insufficient/)
-    const probe = await r.run(['notes', 'create', '--data', '{}'])
-    void probe
   })
 
   it('commands are derived from the live document: an operation the server stops serving is no longer a command', async () => {

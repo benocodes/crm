@@ -86,6 +86,14 @@ describe('positional path parameters', () => {
     expect(inv.path).toBe('/api/v1/widgets/W1/parts/a%20b%2Fc')
   })
 
+  it('an empty, "." or ".." path argument is a usage error (the URL parser would collapse it)', async () => {
+    for (const bad of ['', '.', '..']) {
+      await usageError(parse('parts.get', [bad, 'p']))
+      await usageError(parse('parts.get', ['w', bad]))
+    }
+    expect((await parse('parts.get', ['...', 'a.b'])).path).toBe('/api/v1/widgets/.../parts/a.b')
+  })
+
   it('too few or too many positionals is a usage error', async () => {
     await usageError(parse('parts.get', ['only-one']))
     await usageError(parse('parts.get', ['a', 'b', 'c']))
