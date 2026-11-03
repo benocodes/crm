@@ -105,6 +105,14 @@ Next Action) and tells the user before any of these, and never works around one:
   OAuth applications, device grant, dynamic client registration) and create and delete test users on it.
   The root `.env` holds **live** Clerk keys: never use them in tests, E2E or scripts. Any other Clerk
   instance stays a hard stop.
+  **The Vibase team instance (`hq`, 2026-11-03):** production is `--env hq` (Worker `vault-hq`,
+  `api.hq.vibase.ai`), a later staging copy is `--env hq-staging` (`api.hq-staging.vibase.ai`). Their Clerk
+  keys live in the gitignored `.env.hq` and `.env.hq-staging`; agents never source or print those
+  files, and may not use them in tests, E2E or scripts. **Exception (user, 2026-11-03):** an agent working
+  directly with the user may read `.env.hq` to check that it is well formed and fix its formatting
+  (escape newlines in PEM keys, quoting, stray whitespace); it masks every value in anything it prints, and
+  never commits, copies or sends the file. Every deploy, migration or Clerk change on either env is a hard stop (the `smoked1` and
+  Clerk-dev exceptions above do not extend to them).
 - **public announcements:** releases, posts, emails or messages to people outside the repo;
 - **irreversible data changes:** dropping any database other than the vault's own test databases,
   force-pushing, deleting branches the sprint didn't create.
