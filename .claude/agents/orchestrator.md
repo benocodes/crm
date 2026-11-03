@@ -93,3 +93,15 @@ context: applying findings, fixing a failure. To re-run a suite or the gate on a
 separate, fresh agent (a new `coder` instance with `model: "sonnet"`, briefed "verify only, don't edit")
 in the same worktree. It reports counts; pass them to the coder only if something failed and needs fixing.
 Every extra run in the coder's own context bloats it for the rounds that matter.
+
+**You never run tests yourself, and you never read their output.** That covers the gate, a single package's
+suite, a "quick check" and a backgrounded run you poll for. Any run of tests, typecheck or build goes to a
+separate, fresh agent (a `coder` instance with `model: "sonnet"`, briefed "verify only, don't edit"), whose
+report carries the counts. Do not use the planner for it either. If you start a run by mistake, stop it
+before briefing the agent that should run it, so the two do not contend for the test database.
+
+**A planner review is only for new specced code.** Step 6 applies to a cycle that has a spec and a charter.
+A tests-only or mechanical bug fix (a fixture, a flaky test, a docs or config correction) has no review: a
+coder fixes it, a separate verify-only instance runs the gate, and you open the PR and merge. If the fix
+changes runtime behaviour, or you are unsure, say so to the user instead of widening the process.
+
