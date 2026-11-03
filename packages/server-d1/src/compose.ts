@@ -1,7 +1,8 @@
-import { createApp, createVaultRegistry, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
+import { createApp, createVaultRegistry, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
 import type { D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
+import { serveConnect, type AssetsLike } from './connect-serving.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
@@ -16,12 +17,16 @@ export interface D1WorkerEnv {
   AUTH_ROLE_CLAIM?: string
   /** The first-party CLI's public OAuth client id ([[CORE77]] D14, D16); optional. Set but blank is a configuration error. */
   AUTH_CLI_CLIENT_ID?: string
+  /** The Clerk publishable key, public ([[UI30]] D5): returned by discovery for the connect page; its Frontend API host must be `CLERK_ISSUER`'s. */
+  CLERK_PUBLISHABLE_KEY?: string
   CLERK_API_URL?: string
   CORS_ALLOWED_ORIGINS?: string
   /** The deployed commit, set by `deploy:remote` (`--var VERSION:<sha>`); `/health` reports it, `dev` when absent. */
   VERSION?: string
   /** The R2 bucket of message bodies and file bytes ([[CORE58]] P12). Absent: the two content routes answer `503 objects_unavailable`. */
   BODIES?: R2BucketLike
+  /** Workers Static Assets: the built `/connect` page ([[UI30]] D2). Absent: `/connect*` answers 404. */
+  ASSETS?: AssetsLike
 }
 
 /** The 503 body of every route but /health and the two OpenAPI documents while the deployment marker is absent. */
@@ -44,7 +49,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -64,10 +69,13 @@ export function composeD1Worker(
   let authAdapter: AuthAdapter | undefined
   let corsOrigins: readonly string[] = []
   let cliClientId: string | undefined
+  let publishableKey: string | undefined
   let configError = false
   try {
     authAdapter = createWorkspaceAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
     cliClientId = parseCliClientId(vars)
+    // Only with a provider: without one the key is ignored and discovery has no auth to put it in.
+    if (authAdapter) publishableKey = parsePublishableKey(vars)
     corsOrigins = parseOriginList(vars.CORS_ALLOWED_ORIGINS, 'CORS_ALLOWED_ORIGINS')
   } catch (err) {
     // The message names a variable ("AUTH_PROVIDER=clerk requires CLERK_JWT_KEY"); no adapter message carries a value.
@@ -83,6 +91,7 @@ export function composeD1Worker(
   const discovery = {
     provider: authAdapter ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() } : undefined,
     cliClientId,
+    publishableKey,
     declaredScopes: createVaultRegistry().declaredScopes(),
   }
 
@@ -147,6 +156,9 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
+        // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
+        const page = await serveConnect(req, { assets: env.ASSETS, issuer: discovery.provider?.issuer })
+        if (page) return page
         const spec = req.method === 'GET' && (url.pathname === openApiPath('api') || url.pathname === openApiPath('meta'))
         // Exempt from the migration and marker gates, not from a bad configuration (CORE84).
         const doc = discoveryResponse(req, discovery)

@@ -23,6 +23,7 @@ import {
   testIssuer,
 } from '@vault/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
+import { buildConnect } from './build-connect.js'
 
 let failures = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -44,6 +45,7 @@ const capture = (stream: NodeJS.ReadableStream) => {
 
 const workerDir = mkdtempSync(join(tmpdir(), 'vault-d1-worker-'))
 const bundle = join(workerDir, 'worker.mjs')
+const assetsDir = join(workerDir, 'assets')
 const entry = fileURLToPath(new URL('../src/worker.ts', import.meta.url))
 
 const issuer = await testIssuer()
@@ -67,6 +69,8 @@ try {
     logLevel: 'warning',
   })
   console.log(`bundle ${statSync(bundle).size} bytes (${bundle})`)
+  // [[UI30]] D2, D3: a fresh build of the connect page, mounted as Workers Static Assets the way wrangler maps run_worker_first.
+  await buildConnect(assetsDir)
 
   mf = new Miniflare({
     modules: true,
@@ -76,6 +80,7 @@ try {
     d1Databases: { DB: `smoke-${crypto.randomUUID()}` },
     d1Persist: false,
     r2Buckets: ['BODIES'],
+    assets: { directory: assetsDir, binding: 'ASSETS', routerConfig: { has_user_worker: true, static_routing: { user_worker: ['/connect', '/connect/*'] } } },
     handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
       capture(stdout)
       capture(stderr)
@@ -315,6 +320,36 @@ try {
   res = await call('GET', `/api/v1/messages/${withoutBody.id}/content`, { token: key })
   body = await json(res)
   check('19 GET /api/v1/messages/{id}/content without its object -> 404 content_unavailable', res.status === 404 && body.error?.code === 'content_unavailable', { status: res.status, body })
+
+  // 20-24: the connect page from workerd's real assets binding, with the headers a deploy would send ([[UI30]] D1, D2, D9)
+  const issuerOrigin = new URL(issuer.issuer).origin
+  res = await call('GET', '/connect')
+  const page = await res.text()
+  const policy = res.headers.get('content-security-policy') ?? ''
+  check(
+    '20 GET /connect -> 200 HTML from a fresh build, CSP from CLERK_ISSUER, nosniff, referrer policy, no-store',
+    res.status === 200 &&
+      (res.headers.get('content-type') ?? '').startsWith('text/html') &&
+      page.includes('/connect/connect.js') &&
+      policy.includes(`script-src 'self' ${issuerOrigin} `) &&
+      !/script-src[^;]*unsafe-/.test(policy) &&
+      policy.includes("frame-ancestors 'none'") &&
+      res.headers.get('x-content-type-options') === 'nosniff' &&
+      res.headers.get('referrer-policy') === 'strict-origin-when-cross-origin' &&
+      res.headers.get('cache-control') === 'no-store',
+    { status: res.status, policy },
+  )
+  res = await fetch(new URL('/connect/', base), { redirect: 'manual' })
+  check('21 GET /connect/ -> 308 to /connect, headers present', res.status === 308 && res.headers.get('location') === '/connect' && res.headers.get('x-content-type-options') === 'nosniff', { status: res.status })
+  res = await call('GET', '/connect/connect.js')
+  check('22 GET /connect/connect.js -> 200 javascript with the headers', res.status === 200 && (res.headers.get('content-type') ?? '').includes('javascript') && (res.headers.get('content-security-policy') ?? '') !== '', { status: res.status, type: res.headers.get('content-type') })
+  res = await call('GET', '/connect/nope')
+  check('23 GET /connect/nope -> 404 with the headers', res.status === 404 && (res.headers.get('content-security-policy') ?? '') !== '', { status: res.status })
+  res = await call('GET', '/connect.js')
+  check('24 GET /connect.js (an asset name outside /connect) -> not served', res.status !== 200 && !(res.headers.get('content-type') ?? '').includes('javascript'), { status: res.status })
+  res = await call('GET', '/.well-known/vibase')
+  body = await json(res)
+  check('25 GET /.well-known/vibase -> auth.publishable_key is null (no key configured)', res.status === 200 && body.auth?.publishable_key === null, body.auth)
 } catch (err) {
   failures++
   console.log(`FAIL smoke aborted -> ${err instanceof Error ? err.message : String(err)}`)

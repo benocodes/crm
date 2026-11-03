@@ -538,6 +538,25 @@ exceptions in AGENTS.md invariant 5. A new exception needs a spec decision.
 whether credentials were present and a truncated token prefix. **Never log full tokens**, and never log
 message bodies or addresses at info level (customer communications are personal data).
 
+## A static page on the API origin ([[UI30]])
+
+`/connect` is the pattern for any page the Worker serves (`packages/server-d1/src/connect-serving.ts`):
+- **Workers Static Assets with `run_worker_first` for the page's prefix only.** `assets` is the one block every
+  env inherits (unlike `vars`, `d1_databases`, `r2_buckets`, `routes`). Build into a directory that mirrors
+  the request prefix (`dist/assets/connect/…`), so no asset exists at any other path even if
+  `run_worker_first` were widened. In `smoke:worker`, Miniflare serves it with
+  `assets: { directory, binding, routerConfig: { has_user_worker: true, static_routing: { user_worker: [...] } } }`.
+- **The Worker sets the security headers on every response kind** (HTML, asset, `308`, `404`, `405`): a CSP
+  built per request from `CLERK_ISSUER`, `nosniff`, a referrer policy, and `no-store` on HTML. Test them
+  in an `afterEach` over every response the test saw, so a new branch cannot skip them.
+- **The page answers before the migration, marker and configuration gates.** It is static, and the API calls it
+  makes meet those gates.
+- **The page is an API client:** a Bearer session token per request, only existing operations, values
+  rendered as text (`textContent`), with a source guard against markup sinks and browser storage. DOM tests
+  run under `happy-dom` per file (`// @vitest-environment happy-dom`).
+- **Clerk's `signOut()` with no `redirectUrl` lands on the origin root**, which is the API's 404. Pass the page's
+  own path. Only a real browser run caught this.
+
 ## Large bytes and object storage
 
 - `ObjectStore` (`src/objects/store.ts`, [[CORE58]]) is `put`, `get`, `delete`: `r2ObjectStore(bucket)` over the structural

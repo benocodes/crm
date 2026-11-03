@@ -29,7 +29,7 @@ pnpm -C packages/server-d1 exec wrangler d1 migrations apply DB --local
 pnpm -C packages/server-d1 bootstrap -- --org "Acme" --issuer https://clerk.example.com --agent my-agent
 
 # 3. Start the Worker locally (leave it running; stop it with Ctrl-C).
-pnpm -C packages/server-d1 exec wrangler dev --local --port 8787
+pnpm -C packages/server-d1 dev   # builds the connect page first; or: build, then `wrangler dev --local --port 8787`
 ```
 
 In another terminal, with `KEY` set to the `vk_...` key step 2 printed:
@@ -47,6 +47,25 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
   | curl -s -X POST -H "authorization: Bearer $KEY" -H "content-type: application/json" --data-binary @- http://localhost:8787/identities/resolve
 ```
 
+## The connect page
+
+Every deployment serves **`/connect`** on its own API origin ([[UI30]]): sign in through Clerk's Account Portal, see who you are and how to
+connect an agent (`vibase login --server <origin>`, the API-key fallback, the MCP URL once the instance advertises one), and, as an owner,
+disable or enable connected agents. With no `CLERK_PUBLISHABLE_KEY` it says sign-in is not configured and shows the API-key directions. It
+calls only `me.get`, `agents.list` and `agents.update`, with a Clerk session token as a Bearer header, so the server's scopes decide everything.
+
+```bash
+pnpm -C packages/server-d1 build        # bundles src/connect/ into dist/assets/connect/ (gitignored); dev, smoke:worker and deploy:remote do it first
+pnpm -C packages/server-d1 dev          # build, then wrangler dev --local on :8787; open http://localhost:8787/connect
+# E2E (Playwright + @clerk/testing, Clerk development instance, keys from the gitignored .env.dev only; not part of `pnpm test`):
+pnpm -C packages/server-d1 exec playwright install chromium
+pnpm -C packages/server-d1 e2e:connect
+```
+
+The E2E's Account Portal step signs in with a Backend-API sign-in token (`__clerk_ticket` on the portal URL), which works whatever sign-in methods the development instance offers; it does not rely on an email-code or password route.
+
+Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHABLE_KEY` in `.dev.vars` (see `.dev.vars.example`).
+
 ## Configuration
 
 | Name | Kind | Purpose |
@@ -55,7 +74,9 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
 | `AUTH_PROVIDER` | var | empty: agent-only (API keys). `clerk`: also accept Clerk session tokens; the role is the `vibase_role` claim ([[CORE64]]), there is no webhook |
 | `CORS_ALLOWED_ORIGINS` | var | comma-separated origins for the email-client pane; empty allows none |
 | `CLERK_ISSUER` | var | public value, required with `AUTH_PROVIDER=clerk` |
-| `CLERK_AUTHORIZED_PARTIES` | var | optional on D1: comma-separated origins allowed as a session token's `azp`; unset, a token carrying an `azp` is 401 |
+| `CLERK_AUTHORIZED_PARTIES` | var | optional on D1: comma-separated origins allowed as a session token's `azp`; unset, a token carrying an `azp` is 401. The connect page's own origin must be listed (`setup:remote` adds `https://<api-host>`; locally `http://localhost:8787`) |
+| `CLERK_PUBLISHABLE_KEY` | var | public; returned as `auth.publishable_key` by `/.well-known/vibase` for the connect page. Its Frontend API host must be `CLERK_ISSUER`'s, or every request is `500 internal` (the variable is named, the value never). Unset: the page says sign-in is not configured |
+| `ASSETS` | assets binding | the built connect page (`dist/assets/connect/`), served only under `/connect*` by the Worker, which adds the security headers |
 | `CLERK_JWT_KEY`, `CLERK_SECRET_KEY` | secrets | required with `AUTH_PROVIDER=clerk`; the key is a PEM (line breaks, or `\n` escapes, optionally quoted) |
 | `AUTH_ROLE_CLAIM` | var | the session-token claim holding `owner`, `member` or `agent`; default `vibase_role`; an empty value fails closed |
 | `AUTH_CLI_CLIENT_ID` | var | the first-party CLI's public OAuth client id; its tokens act as the signed-in person, any other OAuth client is a delegated agent ([[CORE77]]). Unset: no CLI client; set but blank fails closed |
@@ -137,6 +158,33 @@ CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env smoked1 
 pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai --phase before --expect-version <sha>
 pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai --phase after --expect-version <sha>
 ```
+
+### Putting the connect page on `hq` (user-run: every step is a hard stop for agents)
+
+`hq` (Worker `vault-hq`, `https://api.hq.vibase.ai`, Clerk production, keys in the gitignored `.env.hq`) gets `/connect` with the next deploy,
+plus two vars: `CLERK_PUBLISHABLE_KEY` and `https://api.hq.vibase.ai` in `CLERK_AUTHORIZED_PARTIES`. Run, from the repository root:
+
+```bash
+# 1. Read-only plan. Expect config:write "update" naming env.hq.vars.CLERK_PUBLISHABLE_KEY and env.hq.vars.CLERK_AUTHORIZED_PARTIES, and nothing else.
+pnpm -C packages/server-d1 setup:remote -- --env hq --api-host api.hq.vibase.ai --owner-email <owner email> --clerk-production --dry-run
+
+# 2. The same without --dry-run: writes the two vars into wrangler.jsonc and stops.
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env hq --api-host api.hq.vibase.ai --owner-email <owner email> --clerk-production
+
+# 3. Review and commit the wrangler.jsonc change (a clean tree is required to deploy).
+git diff packages/server-d1/wrangler.jsonc
+git add packages/server-d1/wrangler.jsonc && git commit -m "chore(hq): CLERK_PUBLISHABLE_KEY and the api origin as an authorized party (UI30)"
+
+# 4. The same command again: migrate is a no-op, deploy is "update" (it builds the page first), secrets are left alone, verify is ok.
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env hq --api-host api.hq.vibase.ai --owner-email <owner email> --clerk-production
+
+# 5. Smoke (<sha> is `git rev-parse HEAD`), then open the page in a browser and sign in.
+pnpm -C packages/server-d1 smoke:remote -- --base https://api.hq.vibase.ai --phase after --expect-version <sha>
+curl -s https://api.hq.vibase.ai/.well-known/vibase    # auth.publishable_key is the pk_live_ key
+open https://api.hq.vibase.ai/connect
+```
+
+Optional, in the Clerk dashboard (Paths): set the Account Portal's after-sign-in URL to `https://api.hq.vibase.ai/connect`.
 
 Before the first remote bootstrap writes anything, the CLI proves on the live database that a failed `batch()` leaves no
 marker (`atomicity probe: atomic`); if it does not, it stops. Migrations are expand-only with respect to the running

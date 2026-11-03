@@ -3,7 +3,9 @@
 # AUTH_ROLE_CLAIM (default vibase_role) and AUTH_CLI_CLIENT_ID (the CLI's OAuth client id; leave the line out when unset, a blank value fails closed) are optional. CLERK_JWT_KEY is a PEM: real line breaks or literal \n escapes, optionally quoted.
 # There is no CLERK_WEBHOOK_SECRET on D1 (CORE64): membership lives in Clerk, as the vibase_role claim.
 CLERK_ISSUER=
-CLERK_AUTHORIZED_PARTIES=
+# The connect page (/connect) is served from the API origin, so that origin is an authorized party; the publishable key is public and its host must be CLERK_ISSUER's.
+CLERK_AUTHORIZED_PARTIES=http://localhost:8787
+CLERK_PUBLISHABLE_KEY=
 CLERK_JWT_KEY=
 CLERK_SECRET_KEY=
 AUTH_ROLE_CLAIM=

@@ -82,3 +82,44 @@ describe('reconcileEnvBlock (D9)', () => {
     expect(r.mismatches).toEqual(['env.smoked1.d1_databases.DB.database_id'])
   })
 })
+
+describe('reconcileEnvBlock, the Clerk vars of the connect page ([[UI30]] D7)', () => {
+  const PK = ['pk', 'test', btoa('acme-test-12.clerk.accounts.dev$')].join('_')
+  const API = 'https://api.acme.vibase.ai'
+  const clerk = (over: Partial<NonNullable<DesiredEnv['authVars']>> = {}): DesiredEnv => ({
+    ...acme,
+    authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: 'https://acme-test-12.clerk.accounts.dev', CLERK_PUBLISHABLE_KEY: PK, CLERK_AUTHORIZED_PARTIES: API, AUTH_CLI_CLIENT_ID: 'cli_1', ...over },
+  })
+  const vars = (text: string) => (parse(text) as { env: { acme: { vars: Record<string, string> } } }).env.acme.vars
+
+  it('a new block carries the publishable key and the authorized parties as vars', () => {
+    const r = reconcileEnvBlock(real, clerk())
+    expect(vars(r.text)).toMatchObject({ CLERK_PUBLISHABLE_KEY: PK, CLERK_AUTHORIZED_PARTIES: API })
+  })
+
+  it('a present empty value is filled in place, not a mismatch (the hq block today)', () => {
+    const base = reconcileEnvBlock(real, clerk({ CLERK_PUBLISHABLE_KEY: undefined, CLERK_AUTHORIZED_PARTIES: '' })).text
+    expect(vars(base).CLERK_AUTHORIZED_PARTIES).toBe('')
+    const r = reconcileEnvBlock(base, clerk())
+    expect(r.mismatches).toEqual([])
+    expect(r.changed.sort()).toEqual(['env.acme.vars.CLERK_AUTHORIZED_PARTIES', 'env.acme.vars.CLERK_PUBLISHABLE_KEY'])
+    expect(vars(r.text)).toMatchObject({ CLERK_PUBLISHABLE_KEY: PK, CLERK_AUTHORIZED_PARTIES: API })
+  })
+
+  it('authorized parties are a union: a missing one is appended, an extra one is kept, a complete list is untouched', () => {
+    const base = reconcileEnvBlock(real, clerk({ CLERK_AUTHORIZED_PARTIES: 'https://hand.example' })).text
+    const r = reconcileEnvBlock(base, clerk({ CLERK_AUTHORIZED_PARTIES: `${API},https://app.example.com` }))
+    expect(r.mismatches).toEqual([])
+    expect(vars(r.text).CLERK_AUTHORIZED_PARTIES).toBe(`https://hand.example,${API},https://app.example.com`)
+    const again = reconcileEnvBlock(r.text, clerk({ CLERK_AUTHORIZED_PARTIES: `${API},https://app.example.com` }))
+    expect(again.changed).toEqual([])
+    expect(again.text).toBe(r.text)
+  })
+
+  it('a different publishable key is a mismatch naming the variable', () => {
+    const base = reconcileEnvBlock(real, clerk({ CLERK_PUBLISHABLE_KEY: ['pk', 'test', btoa('other.clerk.accounts.dev$')].join('_') })).text
+    const r = reconcileEnvBlock(base, clerk())
+    expect(r.mismatches).toEqual(['env.acme.vars.CLERK_PUBLISHABLE_KEY'])
+    expect(r.text).toBe(base)
+  })
+})

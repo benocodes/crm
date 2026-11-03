@@ -94,6 +94,8 @@ export function migrateCommands(envName: string): Cmd[] {
 
 export function deployCommands(envName: string, sha: string): Cmd[] {
   return [
+    // The connect page is built first, so a deploy never ships stale assets ([[UI30]] D3).
+    { command: 'pnpm', args: ['-C', 'packages/server-d1', 'build'] },
     { command: 'pnpm', args: ['-C', 'packages/server-d1', 'typecheck'] },
     { command: 'pnpm', args: ['-C', 'packages/server-d1', 'test'] },
     { command: 'pnpm', args: ['exec', 'wrangler', 'deploy', '--env', envName, '--var', `VERSION:${sha}`] },
