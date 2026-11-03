@@ -85,6 +85,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   every deleted test title in RESULT.md beside its surviving counterpart (file and test name), or the reason it was
   only about the deleted mechanism. A falling test count hides lost coverage. [[CORE44]]'s map found three live
   behaviours that only the legacy suite had ever tested, and they got tests of their own.
+- **A fake transport must do what the code opts out of, or the opt-out is untested.** A fake `fetch` that never
+  follows redirects makes "does not follow a redirect carrying the credential" pass with or without
+  `redirect: 'error'` ([[API6]] review). Make the fake behave like the real thing for the property under test
+  (follow a 3xx unless `redirect === 'error'`, keeping headers as a hostile server would hope), record the
+  option on every request and assert it, and show the mutation (drop the option → red) per call site
+  (`packages/cli/src/test/harness.ts`).
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
 - **Assemble secret-shaped canaries at runtime** (`['sk', 'live', 'canary'].join('_')`), never as a literal.

@@ -171,7 +171,9 @@ step's idempotence, `/health.version`) reports a change, not `ok`: exclude that 
 
 Write the scenario so a tester can run it literally ([[CORE74]] needed two deviations and one false failure):
 - **Scopes in full** (`notes:read`, `notes:write`): the grammar is `resource:action` with no wildcard, so
-  `notes:*` cannot be granted.
+  `notes:*` cannot be granted. List the scope of **every** step's operation (a `schema get` step needs
+  `schema:read`), and do not plan to add scopes later through `bootstrap`: a second bootstrap on the same
+  org is refused, so the only fallback is a fresh local D1 ([[API6]] E2E).
 - **A migration over data seeds the old schema directly** (SQL against the database at the previous
   migration, or the previous build), never through the new Worker: since [[CORE61]] the new code answers
   `503 migrations_pending` until the database is current. List that `503` as an expected step.
