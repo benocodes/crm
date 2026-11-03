@@ -13,6 +13,8 @@ export interface Deps {
   stdinIsTTY: boolean
   /** Milliseconds since the epoch. */
   now(): number
+  /** Waits `ms` (device-login polling, lock waits). Tests pass a fake that moves their clock. */
+  sleep(ms: number): Promise<void>
   homedir: string
   version: string
 }

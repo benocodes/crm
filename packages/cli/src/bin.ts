@@ -19,6 +19,7 @@ const code = await run(process.argv.slice(2), {
   readStdin,
   stdinIsTTY: Boolean(process.stdin.isTTY),
   now: () => Date.now(),
+  sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
   homedir: homedir(),
   version: pkg.version,
 })

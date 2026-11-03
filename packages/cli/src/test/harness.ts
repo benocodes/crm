@@ -38,10 +38,11 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
       req = new Request(new URL(location, req.url), { method: 'GET', headers: req.headers })
     }
   }) as typeof fetch
+  const sleeps: number[] = []
   const configFile = join(dir, 'vibase', 'config.json')
   const cacheDir = join(dir, 'vibase')
   let clock = 1_800_000_000_000
-  const go = async (argv: string[], over: { env?: Record<string, string | undefined>; stdin?: string; tty?: boolean; stdinTTY?: boolean } = {}): Promise<Result> => {
+  const go = async (argv: string[], over: { env?: Record<string, string | undefined>; stdin?: string; tty?: boolean; stdinTTY?: boolean; sleep?: (ms: number) => Promise<void> } = {}): Promise<Result> => {
     const out: (string | Uint8Array)[] = []
     const err: string[] = []
     const stdout: Sink = { isTTY: over.tty ?? opts.tty ?? false, write: (c) => void out.push(c) }
@@ -54,6 +55,13 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
       readStdin: async () => over.stdin ?? opts.stdin ?? '',
       stdinIsTTY: over.stdinTTY ?? opts.stdinTTY ?? false,
       now: () => clock,
+      // Default: time passes at once (the fake clock moves by `ms`); a test that needs real interleaving passes `sleep`.
+      sleep: async (ms) => {
+        sleeps.push(ms)
+        if (over.sleep) return over.sleep(ms)
+        clock += ms
+        await new Promise((r) => setTimeout(r, 0))
+      },
       homedir: dir,
       version: '0.0.0-test',
     }
@@ -66,6 +74,8 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
     configFile,
     cacheDir,
     seen,
+    sleeps,
+    now: () => clock,
     run: go,
     advance: (ms: number) => void (clock += ms),
     dispose: () => rmSync(dir, { recursive: true, force: true }),
