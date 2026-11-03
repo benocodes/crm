@@ -241,6 +241,13 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    not write it as a tester step. Also check that tokens minted through the provider's API carry the same
    claims as browser tokens. [[CORE64]]: Clerk's session-token customisation is dashboard-only, and
    Backend-API session tokens carry no `azp`. That cost one blocked E2E run and one review round.
+   **Do not script a browser sign-in through one sign-in method** (email code `424242`, a password). Those
+   methods are dashboard state, and someone may change them between plan and run. Use the provider's
+   method-independent path: for Clerk, a Backend-API sign-in token (`POST /v1/sign_in_tokens`) passed as
+   `__clerk_ticket` on the Account Portal URL, or `@clerk/testing`'s `clerk.signIn` on the page's own Clerk.
+   **Quote an expected error body from the spec's error contract, never a paraphrase.** A configuration
+   error is a generic `500 internal`, and only the Worker log names the variable ([[CORE64]]). [[UI30]]'s
+   charter had both wrong, which cost the E2E a false failure and a tester round.
 7. **A cycle that adds a resource names the contract file and both runs.** Add it to the contract suite
    (`packages/api/src/contract.integration.d1.test.ts`) rather than hand-writing the checks, and say so in the
    charter. The file has a Postgres run and a D1 run; the D1 run registers its resources by hand, so a
