@@ -273,7 +273,8 @@ describe('the key never comes from argv (D10)', () => {
   it('a key passed as an argument is refused, in every spelling, and is never echoed or stored', async () => {
     const { r } = setup()
     for (const argv of [['login', '--api-key', KEY, '--server', SERVER], ['login', `--api-key=${KEY}`, '--server', SERVER], ['login', '--server', SERVER, '--api-key', '--key', KEY], ['login', KEY, '--api-key', '--server', SERVER]]) {
-      const res = await r.run(argv, { stdin: '' })
+      // stdin holds a usable key, so only the refusal of the argument can make this exit 2
+      const res = await r.run(argv, { stdin: ['vk', 'stdin'.repeat(6)].join('_') })
       expect(res.code).toBe(2)
       noKey(res)
     }
