@@ -28,12 +28,8 @@ Each board item has its own id (`PVTI_…`), distinct from the issue number; tha
 
 ## Identity and permissions
 
-**Known gap (2026-11-03):** `zooidbot` can see only the old project 2, not project 3, so the commands below fail with it
-(`NOT_FOUND`). Until the bot is given access to project 3, board and milestone writes use the human `gh` login (it has the
-`project` scope); the bot's IDs and queries are otherwise identical.
-
 Board writes go through `scripts/gh-zooidbot`. The bot's classic token (`repo`, `project`, `workflow`) has
-Write access to the project, verified 2026-10-17 by adding, editing and deleting a draft item. The
+Write access to the project, verified 2026-10-17 by adding, editing and deleting a draft item (on project 3, re-verified 2026-11-03 with a field write). The
 `gh project …` subcommands additionally demand the `read:org` scope and fail without it ("missing required
 scopes [read:org read:discussion]"). **Raw GraphQL works without it**, so the commands below use GraphQL for
 edits; add `read:org` to the token if you prefer `gh project item-edit`.
