@@ -51,6 +51,9 @@ describe('parseTrackerOutput (recorded wrangler d1 execute --json output)', () =
     expect(parseTrackerOutput(fixture('d1-execute-missing-table.json'))).toBeNull()
   })
   it('any other error or shape throws', () => {
+    // a real remote: the SQLite message is in `notes`, the `text` is the API wrapper (first hq run)
+    const real = '{"error":{"text":"A request to the Cloudflare API (/accounts/a/d1/database/b/query) failed.","notes":[{"text":"no such table: d1_migrations: SQLITE_ERROR [code: 7500]"}],"code":7500}}'
+    expect(parseTrackerOutput(real)).toBeNull()
     expect(() => parseTrackerOutput('{"error":{"text":"auth failed"}}')).toThrow('auth failed')
     expect(() => parseTrackerOutput('not json')).toThrow()
     expect(() => parseTrackerOutput('[{"nope":1}]')).toThrow()

@@ -67,10 +67,12 @@ export function parseMarkerOutput(stdout: string): MarkerRow | null | 'no-table'
   } catch {
     throw new Error('unreadable output from wrangler d1 execute')
   }
-  const error = (json as { error?: { text?: unknown } } | null)?.error
+  const error = (json as { error?: { text?: unknown; notes?: { text?: unknown }[] } } | null)?.error
   if (error) {
     const text = typeof error.text === 'string' ? error.text : ''
-    if (/no such table/i.test(text)) return 'no-table'
+    // wrangler puts the SQLite message in `notes` on a real remote; `text` is only the API wrapper.
+    const notes = Array.isArray(error.notes) ? error.notes.map((n) => (typeof n?.text === 'string' ? n.text : '')).join(' ') : ''
+    if (/no such table/i.test(`${text} ${notes}`)) return 'no-table'
     throw new Error(`wrangler d1 execute failed: ${text || 'unknown error'}`)
   }
   const results = Array.isArray(json) ? (json[0] as { results?: unknown } | undefined)?.results : undefined
