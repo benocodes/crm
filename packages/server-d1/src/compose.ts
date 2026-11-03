@@ -2,6 +2,7 @@ import { createApp, createVaultRegistry, discoveryResponse, openApiPath, createW
 import type { D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
+import type { AssetsLike } from './connect-serving.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
@@ -16,12 +17,16 @@ export interface D1WorkerEnv {
   AUTH_ROLE_CLAIM?: string
   /** The first-party CLI's public OAuth client id ([[CORE77]] D14, D16); optional. Set but blank is a configuration error. */
   AUTH_CLI_CLIENT_ID?: string
+  /** The Clerk publishable key, public ([[UI30]] D5): returned by discovery for the connect page; its Frontend API host must be `CLERK_ISSUER`'s. */
+  CLERK_PUBLISHABLE_KEY?: string
   CLERK_API_URL?: string
   CORS_ALLOWED_ORIGINS?: string
   /** The deployed commit, set by `deploy:remote` (`--var VERSION:<sha>`); `/health` reports it, `dev` when absent. */
   VERSION?: string
   /** The R2 bucket of message bodies and file bytes ([[CORE58]] P12). Absent: the two content routes answer `503 objects_unavailable`. */
   BODIES?: R2BucketLike
+  /** Workers Static Assets: the built `/connect` page ([[UI30]] D2). Absent: `/connect*` answers 404. */
+  ASSETS?: AssetsLike
 }
 
 /** The 503 body of every route but /health and the two OpenAPI documents while the deployment marker is absent. */
@@ -44,7 +49,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage

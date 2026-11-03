@@ -60,7 +60,7 @@ const acmeConfig = async (clientId = 'client_1') => {
   const { reconcileEnvBlock } = await import('./config-editor.js')
   return reconcileEnvBlock(realConfig, {
     env: 'acme', workerName: 'vault-acme', d1Name: 'vault-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vault-acme-bodies', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
-    authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_AUTHORIZED_PARTIES: '', AUTH_CLI_CLIENT_ID: clientId },
+    authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: PK_TEST, CLERK_AUTHORIZED_PARTIES: 'https://api.acme.vibase.ai', AUTH_CLI_CLIENT_ID: clientId },
   }).text
 }
 const onlyClerk = (extra: string[] = []) => [...BASE, '--only', 'clerk', ...extra]
@@ -335,7 +335,7 @@ describe('5. desired-state rows', () => {
       const { reconcileEnvBlock } = await import('./config-editor.js')
       const withBlock = reconcileEnvBlock(configText, {
         env: 'acme', workerName: 'vault-acme', d1Name: 'vault-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vault-acme-bodies', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
-        authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_AUTHORIZED_PARTIES: '', AUTH_CLI_CLIENT_ID: 'client_2' },
+        authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: PK_TEST, CLERK_AUTHORIZED_PARTIES: 'https://api.acme.vibase.ai', AUTH_CLI_CLIENT_ID: 'client_2' },
       }).text
       const { clerk, w } = setup(settled({ apps: [{ name: 'Vibase CLI', scopes: '' }, { name: 'Renamed', scopes: cliScopes.join(' ') }] }), { configText: withBlock })
       const o = await run(w, clerk, onlyClerk())
@@ -443,7 +443,7 @@ describe('full flow, 8. idempotence', () => {
     expect(states(first)).toEqual(['preflight:ok', 'config:resources:create', 'clerk:create', 'config:write:update'])
     expect(first.stoppedAfterConfigWrite).toBe(true)
     const cfg = (parse(w.state.configText) as { env: Record<string, { vars: Record<string, string> }> }).env.acme!.vars
-    expect(cfg).toEqual({ AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_AUTHORIZED_PARTIES: 'https://app.example.com', AUTH_CLI_CLIENT_ID: clerk.state.apps[0]!.client_id, CORS_ALLOWED_ORIGINS: 'https://app.example.com' })
+    expect(cfg).toEqual({ AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: PK_TEST, CLERK_AUTHORIZED_PARTIES: 'https://api.acme.vibase.ai,https://app.example.com', AUTH_CLI_CLIENT_ID: clerk.state.apps[0]!.client_id, CORS_ALLOWED_ORIGINS: 'https://app.example.com' })
     expect(clerk.state.allowedOrigins).toEqual(['https://app.example.com'])
 
     const second = await run(w, clerk, FLOW)
@@ -636,5 +636,85 @@ describe('bootstrap with the Clerk marker (D18, D38)', () => {
     await execute(d1Binding(db.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
     const o = await run(w, clerk, [...BASE, '--only', 'bootstrap'])
     expect(states(o)).toEqual(['bootstrap:fail'])
+  })
+})
+
+// [[UI30]] D7: the connect page's own origin is an authorized party, and the publishable key is a public var.
+describe('D7 the connect page origin and the publishable key', () => {
+  const vars = (w: World, env = 'acme') => (parse(w.state.configText) as { env: Record<string, { vars: Record<string, string> }> }).env[env]!.vars
+  const API = 'https://api.acme.vibase.ai'
+
+  it('--auth clerk writes CLERK_PUBLISHABLE_KEY and the api origin as the only authorized party; CORS and Clerk allowed_origins stay empty', async () => {
+    const { clerk, w } = setup()
+    await run(w, clerk, BASE)
+    expect(vars(w)).toMatchObject({ CLERK_PUBLISHABLE_KEY: PK_TEST, CLERK_AUTHORIZED_PARTIES: API, CORS_ALLOWED_ORIGINS: '' })
+    expect(clerk.state.allowedOrigins).toEqual([])
+    expect(clerk.writes().filter((r) => r.path === '/v1/instance' && (r.body as { allowed_origins?: unknown })?.allowed_origins !== undefined)).toEqual([])
+  })
+
+  it('beside --web-origin and --extra-origin: the api origin first, deduplicated; CORS and allowed_origins carry only what was passed', async () => {
+    const { clerk, w } = setup()
+    await run(w, clerk, [...BASE, '--web-origin', 'https://app.example.com', '--extra-origin', API, '--extra-origin', 'https://app.example.com'])
+    expect(vars(w).CLERK_AUTHORIZED_PARTIES).toBe(`${API},https://app.example.com`)
+    expect(vars(w).CORS_ALLOWED_ORIGINS).toBe(`https://app.example.com,${API},https://app.example.com`)
+    expect(clerk.state.allowedOrigins).toEqual(expect.arrayContaining(['https://app.example.com']))
+    expect(clerk.state.allowedOrigins).not.toContain(API)
+  })
+
+  it('a second run writes nothing', async () => {
+    const { clerk, w } = setup()
+    await run(w, clerk, BASE)
+    await run(w, clerk, BASE)
+    const before = w.state.configText
+    const writes = w.state.configWrites
+    const third = await run(w, clerk, BASE)
+    expect(states(third)).toContain('config:write:ok')
+    expect(w.state.configText).toBe(before)
+    expect(w.state.configWrites).toBe(writes)
+  })
+
+  it('a dry run over a block with an empty CLERK_AUTHORIZED_PARTIES and no key (as hq today) plans exactly those two vars', async () => {
+    const hqLike = (await acmeConfig()).replace(`"CLERK_PUBLISHABLE_KEY": "${PK_TEST}",`, '').replace('"CLERK_AUTHORIZED_PARTIES": "https://api.acme.vibase.ai"', '"CLERK_AUTHORIZED_PARTIES": ""')
+    expect(hqLike).not.toContain('CLERK_PUBLISHABLE_KEY')
+    const { clerk, w } = setup(settled(), { configText: hqLike })
+    const o = await run(w, clerk, [...BASE, '--dry-run'], {})
+    const write = states(o).find((x) => x.startsWith('config:write'))
+    expect(write).toBe('config:write:update')
+    expect(text(o, 'config:write')).toMatch(/vars\.CLERK_PUBLISHABLE_KEY/)
+    expect(text(o, 'config:write')).toMatch(/vars\.CLERK_AUTHORIZED_PARTIES/)
+    expect(text(o, 'config:write')).not.toMatch(/differs/)
+    expect(w.state.configText).toBe(hqLike)
+  })
+
+  it('a hand-added party survives (union, never removed)', async () => {
+    const withExtra = (await acmeConfig()).replace('"CLERK_AUTHORIZED_PARTIES": "https://api.acme.vibase.ai"', '"CLERK_AUTHORIZED_PARTIES": "https://hand.example,https://api.acme.vibase.ai"')
+    const { clerk, w } = setup(settled(), { configText: withExtra })
+    const o = await run(w, clerk, [...BASE, '--dry-run'], {})
+    expect(states(o).find((x) => x.startsWith('config:write'))).toBe('config:write:ok')
+  })
+
+  it('a different publishable key already in the config is a mismatch naming the variable; the file is untouched', async () => {
+    const other = (await acmeConfig()).replace(PK_TEST, ['pk', 'test', btoa('other.clerk.accounts.dev$')].join('_'))
+    const { clerk, w } = setup(settled(), { configText: other })
+    const o = await run(w, clerk, [...BASE, '--dry-run'], {})
+    expect(states(o).find((x) => x.startsWith('config:write'))).toBe('config:write:fail')
+    expect(text(o, 'config:write')).toContain('env.acme.vars.CLERK_PUBLISHABLE_KEY')
+    expect(w.state.configText).toBe(other)
+  })
+
+  it('--auth none writes neither variable', async () => {
+    const { clerk, w } = setup()
+    await runSetup(['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai'], CONFIRM, w.deps)
+    expect(clerk.requests).toEqual([])
+    const v = vars(w)
+    expect(v).toEqual({ AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' })
+  })
+
+  it('the secret key is in neither the written config nor the plan', async () => {
+    const { clerk, w } = setup()
+    await run(w, clerk, BASE)
+    expect(w.state.configText).not.toContain(SK_TEST)
+    const o = await run(w, clerk, [...BASE, '--dry-run'], {})
+    expect(text(o, 'config:write')).not.toContain(SK_TEST)
   })
 })

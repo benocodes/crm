@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { uuidv7 } from '@vault/storage'
 import { MIGRATIONS } from '@vault/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
@@ -51,7 +51,7 @@ describe('D21 GET /.well-known/vibase', () => {
     const body = (a: string) => ({
       api: `${a}/api/v1`,
       openapi: { api: `${a}/api/v1/openapi.json`, meta: `${a}/meta/v1/openapi.json` },
-      auth: { provider: 'clerk', issuer: kit.issuer.issuer, cli_client_id: CLI, protected_resource_metadata: `${a}${PRM}` },
+      auth: { provider: 'clerk', issuer: kit.issuer.issuer, cli_client_id: CLI, publishable_key: null, protected_resource_metadata: `${a}${PRM}` },
     })
     expect(await res.json()).toEqual(body(BASE))
     expect(await (await get(wk, VIBASE, {}, 'http://localhost:8787')).json()).toEqual(body('http://localhost:8787'))
@@ -62,7 +62,46 @@ describe('D21 GET /.well-known/vibase', () => {
     expect(none.auth).toBeNull()
     expect(none.api).toBe(`${BASE}/api/v1`)
     const noCli = (await (await get(worker({ AUTH_CLI_CLIENT_ID: undefined }), VIBASE)).json()) as any
-    expect(noCli.auth).toEqual({ provider: 'clerk', issuer: kit.issuer.issuer, cli_client_id: null, protected_resource_metadata: `${BASE}${PRM}` })
+    expect(noCli.auth).toEqual({ provider: 'clerk', issuer: kit.issuer.issuer, cli_client_id: null, publishable_key: null, protected_resource_metadata: `${BASE}${PRM}` })
+  })
+})
+
+// [[UI30]] D5: the publishable key, for the connect page and any custom app.
+describe('auth.publishable_key', () => {
+  const pk = (host: string) => ['pk', 'test', btoa(`${host}$`)].join('_')
+  const issuerHost = () => new URL(kit.issuer.issuer).host
+  const auth = async (extra: Partial<D1WorkerEnv>) => ((await (await get(worker(extra), VIBASE)).json()) as any).auth
+  const bad = (key: string) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    return { key, errors }
+  }
+  afterEach(() => vi.restoreAllMocks())
+
+  it('a key for the issuer host is returned', async () => {
+    expect((await auth({ CLERK_PUBLISHABLE_KEY: pk(issuerHost()) })).publishable_key).toBe(pk(issuerHost()))
+  })
+  it('unset or blank is null, and so is a key with no provider (auth is null)', async () => {
+    expect((await auth({})).publishable_key).toBeNull()
+    expect((await auth({ CLERK_PUBLISHABLE_KEY: ' ' })).publishable_key).toBeNull()
+    expect(await auth({ AUTH_PROVIDER: undefined, CLERK_PUBLISHABLE_KEY: pk(issuerHost()) })).toBeNull()
+  })
+  it.each([
+    ['a key for another Frontend API host', () => pk('other.clerk.accounts.dev')],
+    ['a malformed key', () => 'pk_test_' + 'x'.repeat(12) + '!!'],
+  ])('%s: discovery and the API are 500 internal, the variable is named in the log and the value is nowhere', async (_n, make) => {
+    const { key, errors } = bad(make())
+    const wk = worker({ CLERK_PUBLISHABLE_KEY: key })
+    for (const path of [VIBASE, PRM, '/api/v1/contacts']) {
+      const res = await get(wk, path)
+      expect(res.status).toBe(500)
+      const text = await res.text()
+      expect(JSON.parse(text).error.code).toBe('internal')
+      expect(text).not.toContain(key)
+    }
+    const logged = errors.mock.calls.flat().join('\n')
+    expect(logged).toContain('CLERK_PUBLISHABLE_KEY')
+    expect(logged).not.toContain(key)
+    expect(logged).not.toContain('other.clerk.accounts.dev')
   })
 })
 
