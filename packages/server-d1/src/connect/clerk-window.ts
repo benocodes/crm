@@ -34,7 +34,7 @@ function loadScript(src: string, publishableKey: string): Promise<void> {
   })
 }
 
-export function windowClerk(auth: NonNullable<Discovery['auth']>): ClerkLike {
+export function windowClerk(auth: NonNullable<Discovery['auth']>, deps: { loadScript?: (src: string, publishableKey: string) => Promise<void> } = {}): ClerkLike {
   let clerk: ClerkBrowser | undefined
   const need = (): ClerkBrowser => {
     if (!clerk) throw new Error('Clerk is not loaded')
@@ -42,7 +42,7 @@ export function windowClerk(auth: NonNullable<Discovery['auth']>): ClerkLike {
   }
   return {
     async load() {
-      await loadScript(clerkScriptUrl(auth.issuer), auth.publishable_key!)
+      await (deps.loadScript ?? loadScript)(clerkScriptUrl(auth.issuer), auth.publishable_key!)
       const c = (window as unknown as { Clerk?: ClerkBrowser }).Clerk
       if (!c) throw new Error('Clerk did not initialise')
       await c.load()
