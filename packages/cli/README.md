@@ -3,8 +3,14 @@
 The vault on the command line ([[API6]] cycle 1). Every operation of the instance it talks to becomes a command, discovered at run time
 from `<server>/.well-known/vibase` and the two OpenAPI documents it names. No runtime dependencies, Node 22.4 or later.
 
+From the repo root, `pnpm vibase <args>` runs the built CLI (it builds `dist/vibase.js` first if it is missing) in the directory you
+typed the command in, so relative `@file` and `--output` paths resolve against your directory, not the repo root. The same CLI runs as
+`node packages/cli/dist/vibase.js <args>`, or as a bare `vibase` on your PATH: `pnpm -C packages/cli build`, then `pnpm link --global`
+from `packages/cli` (the package declares `bin: vibase`). The examples below write `vibase` for whichever you use.
+
 ```bash
-pnpm -C packages/cli build                       # writes dist/vibase.js
+pnpm vibase --help                               # from the repo root; builds packages/cli/dist/vibase.js on first use
+pnpm -C packages/cli build                       # writes dist/vibase.js (rebuild after changing the CLI)
 node packages/cli/dist/vibase.js --help
 
 printf '%s' "$KEY" | vibase login --api-key --server https://api.example.com   # the key is read from stdin, never argv
