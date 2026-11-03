@@ -177,6 +177,12 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
   `503 migrations_pending` until the database is current. List that `503` as an expected step.
 - **Deletes as the spec defines them:** for a soft delete, say "`deleted_at` set, row kept". Left unsaid,
   the tester asserted that cascaded edges were gone, against [[CORE62]] D15.
+- **A refusal step is a full command line.** The tool validates its required flags before the check the step
+  targets, so a refusal written as "`--clerk-env-file .env` refuses" is refused for a missing `--api-host`
+  instead, and never reaches the key check ([[OPS87]] A4).
+- **A step meant to observe a provider's refusal creates the condition for it.** "Record Clerk's raw refusal"
+  observed nothing on an instance whose scope catalog was already complete; send one unknown key on purpose
+  (and clean up what it creates), or move the observation to an issue ([[OPS87]], #103).
 
 A scenario states, in order:
 - **Initial state:** what exists before (rows, tenants, credentials, fixtures) and how to set it up.
