@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "vibase": "node scripts/vibase.mjs",
     "test": "vitest run",
     "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "typecheck": "pnpm -r typecheck",
