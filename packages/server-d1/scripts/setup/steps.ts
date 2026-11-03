@@ -6,6 +6,8 @@ import { initDeploymentOperation } from '../../src/init-deployment.js'
 import { execute, uuidv7 } from '@vault/storage'
 import { MIGRATIONS, d1Binding } from '@vault/storage-d1'
 import { PLACEHOLDER_DATABASE_ID, RemoteRefusal, formatMigrationDiff, resolveTarget, statusOf, type ConfigLike, type Target } from '../remote.js'
+import { clerkStep, configuredCliClientId, signingKeyPem } from './clerk.js'
+import type { ClerkKeys } from './clerk-keys.js'
 import { reconcileEnvBlock, type DesiredEnv } from './config-editor.js'
 import {
   d1CreateCommand,
@@ -19,9 +21,12 @@ import {
   parseD1List,
   parseMarkerOutput,
   parseR2List,
+  parseSecretList,
   parseTrackerOutput,
   r2CreateCommand,
   r2ListCommand,
+  secretBulkCommand,
+  secretListCommand,
   trackerCommand,
 } from './commands.js'
 import type { Credentials, ExecResult, SetupCmd, SetupDeps, SetupOptions, StepName, StepResult } from './types.js'
@@ -46,6 +51,14 @@ export interface Ctx {
   stop?: boolean
   /** `bootstrap` wrote the operator key to `.env` in this run. */
   keyWritten?: boolean
+  /** `--auth clerk`: the instance's credentials, loaded before any request ([[OPS65]] D34). */
+  keys?: ClerkKeys
+  /** The `Vibase CLI` application's client id, once the `clerk` step found or created it. */
+  cliClientId?: string
+  /** The instance's signing key as PEM; a secret value, never printed. */
+  jwtPem?: string
+  /** The Clerk rows that are `manual`, repeated in verify's next steps ([[OPS65]] D21). */
+  manualRows?: string[]
 }
 
 type Step = (ctx: Ctx) => Promise<StepResult>
@@ -151,7 +164,13 @@ function lineDiff(before: string, after: string): string[] {
 
 const configWrite: Step = async (ctx) => {
   const facts = await readFacts(ctx)
+  const before0 = ctx.deps.readConfigText()
   const created = facts.d1s.find((d) => d.name === ctx.opts.d1Name)
+  const clerk = ctx.opts.auth === 'clerk'
+  const cliId = clerk ? (ctx.cliClientId ?? configuredCliClientId(before0, ctx.opts.env)) : undefined
+  if (clerk && cliId === undefined && !ctx.opts.dryRun) {
+    return result('config:write', 'fail', 'AUTH_CLI_CLIENT_ID is not known: the Vibase CLI application comes from the clerk step (run it, or set the variable in wrangler.jsonc)')
+  }
   const desired: DesiredEnv = {
     env: ctx.opts.env,
     workerName: ctx.opts.workerName,
@@ -160,6 +179,7 @@ const configWrite: Step = async (ctx) => {
     r2Name: ctx.opts.r2Name,
     apiHost: ctx.opts.apiHost,
     corsOrigins: ctx.opts.origins.join(','),
+    ...(clerk ? { authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ctx.keys!.issuer, CLERK_AUTHORIZED_PARTIES: ctx.opts.origins.join(','), AUTH_CLI_CLIENT_ID: cliId } } : {}),
   }
   const before = ctx.deps.readConfigText()
   const r = reconcileEnvBlock(before, desired)
@@ -171,7 +191,7 @@ const configWrite: Step = async (ctx) => {
   if (ctx.opts.dryRun) {
     ctx.pending = true
     ctx.blockedBy = 'config:write'
-    return result('config:write', 'update', `would write ${r.changed.join(', ')}`, diff)
+    return result('config:write', 'update', `would write ${r.changed.join(', ')}${clerk && cliId === undefined ? ' (AUTH_CLI_CLIENT_ID follows once the Vibase CLI application exists)' : ''}`, diff)
   }
   ctx.deps.writeConfigText(r.text)
   ctx.stop = true
@@ -203,39 +223,58 @@ const migrate: Step = async (ctx) => {
   return result('migrate', 'update', 'applied', formatMigrationDiff(after, EXPECTED))
 }
 
+/** The marker's link for this run: `clerk:<issuer>` or `none:<env>` ([[OPS65]] D18). */
+const wantedLink = (ctx: Ctx) => (ctx.opts.auth === 'clerk' ? { authProvider: 'clerk', authOrgId: ctx.keys!.issuer } : { authProvider: 'none', authOrgId: ctx.opts.env })
+
 const bootstrap: Step = async (ctx) => {
   const b = blocked(ctx, 'bootstrap')
   if (b) return b
   const t = target(ctx)
   const { opts } = ctx
+  const want = wantedLink(ctx)
+  const clerk = opts.auth === 'clerk'
   const marker = parseMarkerOutput((await run(ctx, markerCommand(t.env))).stdout)
   if (marker === 'no-table') return opts.dryRun ? result('bootstrap', 'blocked', 'the database is not migrated yet') : result('bootstrap', 'fail', 'the database is not migrated: run migrate first')
   if (marker !== null) {
-    if (marker.authProvider === 'none' && marker.authOrgId === opts.env) {
-      const flags = opts.operatorAgent !== undefined
-      return result('bootstrap', 'ok', flags ? `marker none:${opts.env} present: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)` : `marker none:${opts.env} present`)
+    if (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId) {
+      return result('bootstrap', 'fail', `the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`)
     }
-    return result('bootstrap', 'fail', `the database is marked ${marker.authProvider}:${marker.authOrgId}, not none:${opts.env}: it belongs to another deployment`)
+    // A Clerk bootstrap always makes the organisation (CORE64 D11); `none` without the operator flags is the marker alone (cycle 1).
+    if (!clerk || marker.organizations > 0) {
+      const flags = opts.operatorAgent !== undefined
+      const mark = `marker ${want.authProvider}:${want.authOrgId} present`
+      return result('bootstrap', 'ok', flags ? `${mark}: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)` : mark)
+    }
   }
   const operator = opts.operatorAgent !== undefined
   if (operator && new RegExp(`^\\s*(export\\s+)?${opts.keyEnv}=`, 'm').test(ctx.deps.readEnvText())) {
     return result('bootstrap', 'fail', `${opts.keyEnv} is already set in .env: refusing to overwrite a key`)
   }
-  const what = operator ? `marker none:${opts.env}, organisation ${opts.org}, operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})` : `marker none:${opts.env}`
+  const mark = `marker ${want.authProvider}:${want.authOrgId}`
+  const what = clerk
+    ? `${marker ? 'organisation' : `${mark}, organisation`} ${opts.org}${operator ? `, operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})` : ''}, no human (the owner arrives by invitation)`
+    : operator
+      ? `${mark}, organisation ${opts.org}, operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})`
+      : mark
   if (opts.dryRun) {
     ctx.pending = true
     return result('bootstrap', 'create', `would write ${what}`)
   }
   const { d1, dispose } = await ctx.deps.openD1(opts.env)
   try {
-    const link = { organizationId: uuidv7(), authProvider: 'none', authOrgId: opts.env }
-    const probe = await probeBatchAtomicity(d1, link)
-    if (probe === 'not-atomic') return result('bootstrap', 'fail', 'atomicity probe failed (a failed batch left a row): stopping')
-    if (!operator) {
+    const link = { organizationId: marker?.organizationId ?? uuidv7(), ...want }
+    if (marker === null) {
+      const probe = await probeBatchAtomicity(d1, link)
+      if (probe === 'not-atomic') return result('bootstrap', 'fail', 'atomicity probe failed (a failed batch left a row): stopping')
+    }
+    if (!clerk && !operator) {
       await execute(d1Binding(d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
       return result('bootstrap', 'create', `wrote ${what}`)
     }
-    const r = await bootstrapD1(d1, { organizationName: opts.org, email: opts.ownerEmail, agentName: opts.operatorAgent!, authProvider: 'none', authOrgId: opts.env, organizationId: link.organizationId })
+    const r = clerk
+      ? await bootstrapD1(d1, { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId })
+      : await bootstrapD1(d1, { organizationName: opts.org, email: opts.ownerEmail, agentName: opts.operatorAgent!, ...want, organizationId: link.organizationId })
+    if (r.key === null || r.agentId === null) return result('bootstrap', 'create', `wrote ${what}`)
     try {
       ctx.deps.appendEnvVar(opts.keyEnv!, r.key)
     } catch {
@@ -291,9 +330,85 @@ const deploy: Step = async (ctx) => {
   return result('deploy', 'update', `deployed ${sha.slice(0, 12)} (was ${seen})`)
 }
 
+/** The secrets the Worker needs with `--auth clerk` (D3, D12): the Clerk secret key and the derived signing key, nothing else. */
+const SECRET_NAMES = ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'] as const
+
+/**
+ * Decision (OPS87): secrets go in after the deploy with `wrangler secret bulk --env <name>` and JSON on stdin ([[OPS65]] D12). Present ones
+ * (`wrangler secret list`) are left alone without `--rotate-secrets`; the signing key is derived (a read) only when something is put.
+ */
+const secrets: Step = async (ctx) => {
+  const b = blocked(ctx, 'secrets')
+  if (b) return b
+  const t = target(ctx)
+  const list = await run(ctx, secretListCommand(t.env))
+  if (list.status !== 0) {
+    return ctx.opts.dryRun && ctx.pending
+      ? result('secrets', 'blocked', 'waits on the Worker planned above (wrangler secret list needs it to exist)')
+      : result('secrets', 'fail', `wrangler secret list failed (exit ${list.status}): is the Worker deployed?`)
+  }
+  const present = parseSecretList(list.stdout)
+  const put = SECRET_NAMES.filter((n) => ctx.opts.rotateSecrets || !present.includes(n))
+  if (put.length === 0) return result('secrets', 'ok', `${SECRET_NAMES.join(' and ')} are present (--rotate-secrets replaces them)`)
+  const rotating = put.filter((n) => present.includes(n))
+  const status = rotating.length === put.length ? 'update' : 'create'
+  if (ctx.opts.dryRun) return result('secrets', status, `would put ${put.join(', ')}`)
+  const values: Record<string, string> = {}
+  if (put.includes('CLERK_SECRET_KEY')) values.CLERK_SECRET_KEY = ctx.keys!.secretKey
+  if (put.includes('CLERK_JWT_KEY')) values.CLERK_JWT_KEY = await signingKeyPem(ctx)
+  const r = await run(ctx, secretBulkCommand(t.env, JSON.stringify(values)))
+  if (r.status !== 0) return result('secrets', 'fail', `wrangler secret bulk failed (exit ${r.status})`)
+  return result('secrets', status, `put ${put.join(', ')}`)
+}
+
+type Marker = Awaited<ReturnType<typeof readMarker>>
+async function readMarker(ctx: Ctx) {
+  try {
+    return parseMarkerOutput((await run(ctx, markerCommand(target(ctx).env))).stdout)
+  } catch {
+    return null
+  }
+}
+
+/** D39: the repair hint is a command that works on the env it is printed for. */
+function repairLines(ctx: Ctx, marker: Marker): string[] {
+  const { opts } = ctx
+  const want = wantedLink(ctx)
+  const none = `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${opts.env} --key-env <NAME> --org <name> --auth-provider none --auth-org-id ${opts.env} --email <email> --agent <name>`
+  const clerk = `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${opts.env} --key-env <NAME> --org <name> --issuer ${want.authOrgId} --agent <name>`
+  if (marker !== null && marker !== 'no-table' && (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId)) {
+    return [`the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`]
+  }
+  if (marker !== null && marker !== 'no-table' && marker.organizations > 0) {
+    return [`this env is bootstrapped; create agents and keys through agents.create and api_keys.create on /meta/v1 (${opts.auth === 'clerk' ? 'after vibase login' : 'with an existing owner key'})`]
+  }
+  return ['no operator key was created in this run; to create an agent and key:', `  ${opts.auth === 'clerk' ? clerk : none}`]
+}
+
+/** `/.well-known/vibase` `auth` must equal what setup configured ([[OPS65]] D21). */
+async function checkDiscovery(ctx: Ctx): Promise<string | null> {
+  const expectedIssuer = ctx.keys!.issuer
+  const expectedClient = ctx.cliClientId ?? configuredCliClientId(ctx.deps.readConfigText(), ctx.opts.env)
+  let auth: { issuer?: unknown; cli_client_id?: unknown } | null | undefined
+  try {
+    const res = await ctx.deps.fetch(`https://${ctx.opts.apiHost}/.well-known/vibase`)
+    if (res.status !== 200) return `https://${ctx.opts.apiHost}/.well-known/vibase answered ${res.status}`
+    auth = ((await res.json()) as { auth?: typeof auth }).auth
+  } catch {
+    return `https://${ctx.opts.apiHost}/.well-known/vibase did not answer`
+  }
+  if (!auth) return '/.well-known/vibase reports no auth provider: the Worker has no Clerk configuration (are the secrets and variables in place?)'
+  const bad: string[] = []
+  if (auth.issuer !== expectedIssuer) bad.push(`auth.issuer is ${String(auth.issuer)}, setup configured ${expectedIssuer}`)
+  if (expectedClient === undefined) bad.push('auth.cli_client_id cannot be compared: AUTH_CLI_CLIENT_ID is not in wrangler.jsonc (run the clerk step)')
+  else if (auth.cli_client_id !== expectedClient) bad.push(`auth.cli_client_id is ${String(auth.cli_client_id)}, setup configured ${expectedClient}`)
+  return bad.length ? `/.well-known/vibase disagrees: ${bad.join('; ')}` : null
+}
+
 /**
  * Decision (OPS65 cycle 1): the sha `verify` waits for is HEAD only when `deploy` ran in the same invocation; run alone
  * (`--only verify`, or after a no-op `--only` set without deploy) it requires `migrations.status = current` and reports the sha it found.
+ * Decision (OPS87): with `--auth clerk` it then compares `/.well-known/vibase` (D21) and prints the next steps with the manual rows.
  */
 const verify: Step = async (ctx) => {
   const b = blocked(ctx, 'verify')
@@ -301,29 +416,48 @@ const verify: Step = async (ctx) => {
   const ready = (h: Awaited<ReturnType<typeof readHealth>>) => h !== null && h.migrations === 'current' && (ctx.expectSha === undefined || h.version === ctx.expectSha)
   let health = await readHealth(ctx)
   if (ctx.opts.dryRun) {
-    if (ready(health)) return result('verify', 'ok', `https://${ctx.opts.apiHost}/health is current (${health!.version?.slice(0, 12) ?? 'no version'})`)
-    return ctx.pending ? result('verify', 'blocked', 'waits on the changes planned above') : result('verify', 'fail', `https://${ctx.opts.apiHost}/health is not at the expected version with migrations current`)
+    if (!ready(health)) return ctx.pending ? result('verify', 'blocked', 'waits on the changes planned above') : result('verify', 'fail', `https://${ctx.opts.apiHost}/health is not at the expected version with migrations current`)
+  } else {
+    const start = ctx.deps.now()
+    while (!ready(health) && ctx.deps.now() - start < VERIFY_BOUND_MS) {
+      await ctx.deps.sleep(VERIFY_INTERVAL_MS)
+      health = await readHealth(ctx)
+    }
+    if (!ready(health)) {
+      const seen = health === null ? 'no answer' : `version ${health.version ?? '?'}, migrations ${health.migrations ?? '?'}`
+      return result('verify', 'fail', `https://${ctx.opts.apiHost}/health did not become current within ${VERIFY_BOUND_MS / 1000}s (${seen})`)
+    }
   }
-  const start = ctx.deps.now()
-  while (!ready(health) && ctx.deps.now() - start < VERIFY_BOUND_MS) {
-    await ctx.deps.sleep(VERIFY_INTERVAL_MS)
-    health = await readHealth(ctx)
+  const detail = `https://${ctx.opts.apiHost}/health is current (${health!.version?.slice(0, 12) ?? 'no version'})`
+  if (ctx.opts.auth === 'clerk') {
+    const mismatch = await checkDiscovery(ctx)
+    if (mismatch) return result('verify', 'fail', mismatch)
   }
-  if (!ready(health)) {
-    const seen = health === null ? 'no answer' : `version ${health.version ?? '?'}, migrations ${health.migrations ?? '?'}`
-    return result('verify', 'fail', `https://${ctx.opts.apiHost}/health did not become current within ${VERIFY_BOUND_MS / 1000}s (${seen})`)
-  }
-  const repair = `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${ctx.opts.env} --key-env <NAME> --org <name> --auth-provider none --auth-org-id ${ctx.opts.env} --email <email> --agent <name>`
-  const next = [`API: https://${ctx.opts.apiHost}`, ...(ctx.keyWritten ? [`agents use the operator key in .env (${ctx.opts.keyEnv}) as a Bearer token`] : ['no operator key was created in this run; to create an agent and key:', `  ${repair}`])]
-  return result('verify', 'ok', `https://${ctx.opts.apiHost}/health is current (${health!.version?.slice(0, 12) ?? 'no version'})`, next)
+  const clerk = ctx.opts.auth === 'clerk'
+  const hint = ctx.keyWritten ? [`agents use the operator key in .env (${ctx.opts.keyEnv}) as a Bearer token`] : repairLines(ctx, await readMarker(ctx))
+  const next = [
+    `API: https://${ctx.opts.apiHost}`,
+    ...(clerk
+      ? [
+          `accept the owner invitation Clerk emailed to ${ctx.opts.ownerEmail}`,
+          `vibase login --server https://${ctx.opts.apiHost}`,
+          'GET /meta/v1/me must show role: owner (this is the C3 check: a missing vibase_role session-token claim refuses the sign-in)',
+          ...(ctx.manualRows ?? []).map((m) => `manual ${m}`),
+        ]
+      : []),
+    ...hint,
+  ]
+  return result('verify', 'ok', detail, next)
 }
 
 export const STEPS: Record<StepName, Step> = {
   preflight,
   'config:resources': configResources,
+  clerk: clerkStep,
   'config:write': configWrite,
   migrate,
   bootstrap,
   deploy,
+  secrets,
   verify,
 }

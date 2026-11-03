@@ -1,8 +1,9 @@
 // `setup:remote` ([[OPS65]] D6): parse and guard first (no subprocess, no network), then the steps in D11 order.
 import { RemoteRefusal, requireConfirm } from '../remote.js'
 import { parseSetupArgs } from './args.js'
+import { loadClerkKeys } from './clerk-keys.js'
 import { STEPS, type Ctx } from './steps.js'
-import { STEP_NAMES, type SetupDeps, type StepResult } from './types.js'
+import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupDeps, type StepResult } from './types.js'
 
 export interface SetupOutcome {
   exitCode: number
@@ -18,15 +19,21 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
   try {
     const opts = parseSetupArgs(argv)
     if (!opts.dryRun) requireConfirm(procEnv)
-    ctx = { opts, deps, creds: deps.loadEnv(), pending: false }
+    // The Clerk keys come from the instance's own file, before any request; the process environment is never read for them (D34).
+    const keys = opts.auth === 'clerk' ? loadClerkKeys(opts, deps) : undefined
+    ctx = { opts, deps, creds: deps.loadEnv(), pending: false, keys }
   } catch (err) {
     if (!(err instanceof RemoteRefusal)) throw err
     deps.log(`setup: ${err.message}`)
     return { exitCode: 1, results: [], stoppedAfterConfigWrite: false }
   }
   const { opts } = ctx
-  const selected = STEP_NAMES.filter((s) => opts.only === undefined || opts.only.includes(s))
+  const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)))
   deps.log(`setup:remote env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
+  if (ctx.keys) {
+    const k = ctx.keys
+    deps.log(`clerk instance: ${k.kind}${k.kind === 'development' ? ' (warning: a development instance is a test instance, with Clerk\'s user cap and dev-browser handshake)' : ''}, issuer ${k.issuer}, keys from ${k.file}`)
+  }
   const results: StepResult[] = []
   for (const name of selected) {
     let r: StepResult
@@ -40,10 +47,10 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     for (const l of r.lines ?? []) deps.log(`        ${l}`)
     if (r.status === 'fail' || ctx.stop) break
   }
-  const manual = results.filter((r) => r.status === 'manual')
+  const manual = [...results.filter((r) => r.status === 'manual').map((r) => `${r.step}: ${r.detail}`), ...results.flatMap((r) => r.manual ?? [])]
   if (manual.length > 0) {
     deps.log('manual:')
-    for (const r of manual) deps.log(`  ${r.step}: ${r.detail}`)
+    for (const m of manual) deps.log(`  ${m}`)
   }
   const failed = results.some((r) => r.status === 'fail')
   deps.log(failed ? 'setup: failed' : ctx.stop ? 'setup: stopped after writing wrangler.jsonc; commit it and re-run' : opts.dryRun ? 'setup: dry run complete, nothing was changed' : 'setup: done')

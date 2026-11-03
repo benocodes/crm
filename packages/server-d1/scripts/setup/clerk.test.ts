@@ -38,10 +38,10 @@ beforeEach(async () => {
   await db.reset()
 })
 
-function setup(c: ClerkOptions = {}, o: Partial<WorldOptions> = {}): { clerk: FakeClerk; w: World; opts: Partial<WorldOptions> } {
+function setup(c: ClerkOptions = {}, o: Partial<WorldOptions> = {}): { clerk: FakeClerk; w: World; opts: WorldOptions } {
   const clerk = makeClerk(c)
-  const opts = { clerk, ...o }
-  return { clerk, w: makeWorld({ d1: db.d1, ...opts }), opts }
+  const opts: WorldOptions = { d1: db.d1, clerk, ...o }
+  return { clerk, w: makeWorld(opts), opts }
 }
 /** An instance already as setup wants it (apart from the origins), so a row under test is the only thing that can write. */
 const settled = (c: ClerkOptions = {}): ClerkOptions => ({
@@ -54,6 +54,14 @@ const run = async (w: World, clerk: FakeClerk, args: string[], env: NodeJS.Proce
   const o = await runSetup(args, env, w.deps)
   expect(clerk.violations, 'a request outside the desired-state table (D25, D33)').toEqual([])
   return o
+}
+/** `wrangler.jsonc` with `env.acme` as the first run writes it, for runs that start from the later steps. */
+const acmeConfig = async (clientId = 'client_1') => {
+  const { reconcileEnvBlock } = await import('./config-editor.js')
+  return reconcileEnvBlock(realConfig, {
+    env: 'acme', workerName: 'vault-acme', d1Name: 'vault-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vault-acme-bodies', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
+    authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_AUTHORIZED_PARTIES: '', AUTH_CLI_CLIENT_ID: clientId },
+  }).text
 }
 const onlyClerk = (extra: string[] = []) => [...BASE, '--only', 'clerk', ...extra]
 const settingsWrites = (c: FakeClerk) => c.writes().filter((r) => r.path.startsWith('/v1/instance/oauth_application_settings'))
@@ -139,7 +147,7 @@ describe('3. kinds and --clerk-production (D35, D36): refusals before any reques
     expect(log).toContain(ISSUER)
     expect(log).not.toContain(SK_TEST)
     expect(log).not.toContain(PK_TEST)
-    expect(log.indexOf(ISSUER)).toBeLessThan(log.indexOf('clerk '))
+    expect(log.indexOf(ISSUER)).toBeLessThan(log.search(/^(ok|create|update|fail|manual)\s+clerk\s/m))
   })
 })
 
@@ -499,7 +507,7 @@ describe('10. no secret in any output', () => {
 describe('11. the secrets step (D12)', () => {
   const secrets = [...BASE, '--only', 'secrets']
   it('missing ones are put: exactly the two names, on stdin; ok afterwards with no further put', async () => {
-    const { clerk, w } = setup()
+    const { clerk, w } = setup({}, { configText: await acmeConfig() })
     const o = await run(w, clerk, secrets)
     expect(states(o)).toEqual(['secrets:create'])
     const bulks = w.argv.filter((c) => c.includes('bulk'))
@@ -510,31 +518,31 @@ describe('11. the secrets step (D12)', () => {
     expect(w.argv.filter((c) => c.includes('bulk'))).toHaveLength(1)
   })
   it('present secrets are left alone: no bulk, and the JWKS is not even read', async () => {
-    const { clerk, w } = setup({}, { secrets: ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'] })
+    const { clerk, w } = setup({}, { secrets: ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'], configText: await acmeConfig() })
     expect(states(await run(w, clerk, secrets))).toEqual(['secrets:ok'])
     expect(w.argv.some((c) => c.includes('bulk'))).toBe(false)
     expect(w.secretInputs).toEqual([])
   })
   it('one present: only the missing one is sent', async () => {
-    const { clerk, w } = setup({}, { secrets: ['CLERK_SECRET_KEY'] })
+    const { clerk, w } = setup({}, { secrets: ['CLERK_SECRET_KEY'], configText: await acmeConfig() })
     await run(w, clerk, secrets)
     expect(Object.keys(JSON.parse(w.secretInputs[0]!))).toEqual(['CLERK_JWT_KEY'])
   })
   it('--rotate-secrets re-puts both', async () => {
-    const { clerk, w } = setup({}, { secrets: ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'] })
+    const { clerk, w } = setup({}, { secrets: ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'], configText: await acmeConfig() })
     const o = await run(w, clerk, [...secrets, '--rotate-secrets'])
     expect(states(o)).toEqual(['secrets:update'])
     expect(Object.keys(JSON.parse(w.secretInputs[0]!)).sort()).toEqual(['CLERK_JWT_KEY', 'CLERK_SECRET_KEY'])
   })
   it('a dry run lists what it would put and issues no put', async () => {
-    const { clerk, w } = setup()
+    const { clerk, w } = setup({}, { configText: await acmeConfig() })
     const o = await run(w, clerk, [...secrets, '--dry-run'], {})
     expect(states(o)).toEqual(['secrets:create'])
     expect(w.argv.some((c) => c.includes('bulk'))).toBe(false)
     expect(w.writes()).toEqual([])
   })
   it('the derived PEM is the JWKS key', async () => {
-    const { clerk, w } = setup()
+    const { clerk, w } = setup({}, { configText: await acmeConfig() })
     await run(w, clerk, secrets)
     const sent = JSON.parse(w.secretInputs[0]!).CLERK_JWT_KEY as string
     expect(createPublicKey(sent).export({ format: 'jwk' })).toMatchObject({ n: jwkFor('ins_kid_1').n })
@@ -617,8 +625,8 @@ describe('bootstrap with the Clerk marker (D18, D38)', () => {
     expect(states(second)).toContain('bootstrap:create')
     expect(await readDeployment(db.d1)).toMatchObject({ authProvider: 'clerk', authOrgId: ISSUER })
     expect(w.state.envText).toMatch(/^ACME_KEY=.{17,}$/m)
-    const users = await db.d1.prepare('select count(*) as n from users').first<{ n: number }>()
-    expect(users?.n).toBe(0)
+    const users = await db.d1.prepare('select count(*) as n from users').first()
+    expect((users as { n: number } | null)?.n).toBe(0)
   })
   it('a marker for another issuer is a fail', async () => {
     const { clerk, w } = setup()

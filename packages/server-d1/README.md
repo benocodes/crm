@@ -74,23 +74,40 @@ usable database. The worked example is `smoked1` (Worker `vault-smoked1`, D1 `va
 `https://api.smoked1.vibase.ai`, API keys only). **A self-hoster** copies the `env.smoked1` block under their own name and
 replaces the env name, Worker `name`, D1 name and `database_id`, bucket name and hostname with their own.
 
-**One command (`--auth none`, API keys only).** `setup:remote` takes an env from nothing to a migrated, bootstrapped, deployed,
-verified Worker, one idempotent step at a time (`preflight`, `config:resources`, `config:write`, `migrate`, `bootstrap`, `deploy`,
-`verify`). Read the plan first: `--dry-run` only reads and needs no `CONFIRM_REMOTE`; a real run needs it. The first real run
-creates the D1 database and the R2 bucket, writes `env.<name>` into `wrangler.jsonc` (comments kept; a differing value you
+**One command.** `setup:remote` takes an env from nothing to a migrated, bootstrapped, deployed, verified Worker, one idempotent
+step at a time (`preflight`, `config:resources`, `clerk`, `config:write`, `migrate`, `bootstrap`, `deploy`, `secrets`, `verify`).
+Read the plan first: `--dry-run` only reads and needs no `CONFIRM_REMOTE`; a real run needs it. The first real run creates the D1
+database and the R2 bucket, configures Clerk, writes `env.<name>` into `wrangler.jsonc` (comments kept; a differing value you
 already have is a `fail`, never overwritten) and **stops**: review and commit the file, then run the same command again to
-migrate, bootstrap, deploy and verify. Re-running a finished setup changes nothing. The Clerk side (`--auth clerk`, the default
-later) is [[OPS87]]; until then pass `--auth none`.
+migrate, bootstrap, deploy, put the secrets and verify. Re-running a finished setup changes nothing.
+
+**`--auth clerk` (the default)** also configures a Clerk instance from its Backend API and checks what the API cannot do. The
+instance's keys live in **one gitignored env file per instance**, `.env.<env>` at the repo root by default (`--clerk-env-file`
+to name another), with `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` (or `VITE_CLERK_PUBLISHABLE_KEY`). The file is read on its
+own: never the root `.env` (the command refuses it), never the process environment, and no value is ever printed. A production
+instance (`sk_live_`) needs `--clerk-production` on every run, dry runs included; a development instance is accepted with a
+warning. `--owner-email` is required: the first owner is invited by Clerk, never created by bootstrap. The `clerk` step lists
+rows C1-C10: sign-up mode, Organizations, session-token claim, allowed origins, the scope catalog, dynamic client
+registration, the `Vibase CLI` OAuth application and the first owner. A row it cannot read is `manual` (the session-token
+claim and the sign-in methods always are); a dashboard row it can check and finds wrong is a `fail` that prints the exact
+dashboard path, and the run stops before `config:write`. After the invitation is accepted, `vibase login` and
+`GET /meta/v1/me` must show `role: owner`. The `secrets` step puts `CLERK_SECRET_KEY` and the derived `CLERK_JWT_KEY` with
+`wrangler secret bulk` (JSON on stdin) after the deploy and leaves present ones alone unless `--rotate-secrets`.
+
+**`--auth none`** is API keys only (`smoked1`): no Clerk steps, no secrets.
 
 ```bash
-pnpm -C packages/server-d1 setup:remote -- --env acme --auth none --api-host api.acme.example.com --dry-run
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --auth none --api-host api.acme.example.com \
+pnpm -C packages/server-d1 setup:remote -- --env acme --api-host api.acme.example.com --owner-email you@example.com --dry-run
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --api-host api.acme.example.com --owner-email you@example.com \
+  [--clerk-env-file .env.acme] [--clerk-production] [--no-dcr] [--rotate-secrets] \
   [--web-origin https://app.example.com] [--extra-origin https://other.example.com] \
-  [--operator-agent operator --key-env ACME_OPERATOR_KEY --owner-email you@example.com [--org <name>]] [--only migrate,verify]
+  [--operator-agent operator --key-env ACME_OPERATOR_KEY [--org <name>]] [--only clerk,secrets]
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env smoked1 --auth none --api-host api.smoked1.example.com \
+  [--operator-agent operator --key-env SMOKED1_KEY --owner-email you@example.com]
 ```
 
-`--api-host` is required (a custom domain on a zone in your account). Without `--operator-agent` the bootstrap writes only the
-deployment marker `none:<env>`. The commands below stay as the manual and repair path.
+`--api-host` is required (a custom domain on a zone in your account). With `--auth none` and no `--operator-agent` the bootstrap
+writes only the deployment marker `none:<env>`; with `--auth clerk` it writes `clerk:<issuer>` and the organisation (`--org`, default the env name), and an operator agent and key only with `--operator-agent`. The commands below stay as the manual and repair path.
 
 **The API token** (in the gitignored root `.env` as `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID`; see `.env.example`).
 Account level: Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Workers Tail Read, Account Settings Read. On the
