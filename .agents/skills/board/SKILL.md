@@ -17,11 +17,20 @@ Status   PVTSSF_lAHOBiXMOs4BnhC1zhmFSuI   Backlog=f75ad846 Ready=61e4505c "In pr
 Priority PVTSSF_lAHOBiXMOs4BnhC1zhmFS5g   P0=79628723 P1=0a877460 P2=da944a9c
 Size     PVTSSF_lAHOBiXMOs4BnhC1zhmFS5k   XS=6c6483d2 S=f784b110 M=7515a9f1 L=817d0097 XL=db339eb2
 Spec     PVTF_lAHOBiXMOs4BnhC1zhmFTUw     (text)
+Milestone PVTF_lAHOBiXMOs4BnhC1zhmFSuU    (built in; set it on the issue: `gh api repos/benocodes/crm/issues/<N> -X PATCH -F milestone=<n>`)
 ```
+
+**Milestones** are GitHub repo milestones, mirroring `knowledge/SPRINT.md`: **1 = `A: independent agents operate a shared
+CRM`**, **2 = `B: Vibase runs a real workflow`** (exact titles; use them with `--milestone`). Set one only on work that gates that milestone. The user's own tasks are the
+issues assigned to `benocodes`, so "my tasks blocking a milestone" is `assignee:benocodes milestone:"A: ..."`.
 
 Each board item has its own id (`PVTI_…`), distinct from the issue number; that is the `--id` for edits.
 
 ## Identity and permissions
+
+**Known gap (2026-11-03):** `zooidbot` can see only the old project 2, not project 3, so the commands below fail with it
+(`NOT_FOUND`). Until the bot is given access to project 3, board and milestone writes use the human `gh` login (it has the
+`project` scope); the bot's IDs and queries are otherwise identical.
 
 Board writes go through `scripts/gh-zooidbot`. The bot's classic token (`repo`, `project`, `workflow`) has
 Write access to the project, verified 2026-10-17 by adding, editing and deleting a draft item. The

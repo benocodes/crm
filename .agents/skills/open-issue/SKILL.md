@@ -23,7 +23,11 @@ The issue number is load-bearing: if triage later decides the issue warrants a s
 the spec ID (area code + issue number, see `spec-author` §1). That is why everything that might be
 spec-worthy is filed here and never transferred.
 
-Do not label, assign, deduplicate, add the issue to a project, set board fields, or otherwise triage it
+Do not label, assign, deduplicate, add the issue to a project, set board fields (Priority, Size, **Milestone**), or otherwise triage it
 unless the user explicitly asks. **One exception:** if you are filing the issue so that you can write its
 spec yourself, add `--label self-triaged` so `triage-issues` leaves it alone and nothing drafts a
 competing spec for the same ID (see `spec-author` §1).
+
+**Milestones.** If the issue is a task that gates a milestone in `knowledge/SPRINT.md` (A or B) and the user
+says so, pass `--milestone "<title>"` (titles are in the `board` skill); otherwise leave it for
+`triage-issues`, which owns the decision.

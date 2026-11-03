@@ -81,6 +81,11 @@ Reads (viewing, searching) can use plain `gh`.
    - **Priority** `P0`/`P1`/`P2` (P0 breaks the core flow now, P1 matters soon, P2 is a papercut or nice-to-have): judge from impact (breaks the core flow vs. papercut
      vs. nice-to-have), not from how the reporter phrased it.
    - **Size** `XS`–`XL`: your rough effort read.
+   - **Milestone** (repo milestone, shown on the board; numbers in the `board` skill): set `A` or `B` only if the
+     issue **gates** that milestone in `knowledge/SPRINT.md` (it appears in that milestone's table, or it is a
+     user task the demo run needs). Parked or unrelated work gets none. A user task (assigned to `benocodes`)
+     with a milestone is what the user filters on to see what blocks them, so be conservative: when unsure,
+     leave it empty and say so in the report.
    - **Spec**: grep `knowledge/specs/*/*.md` for a related, **non-shipped** spec (area codes in
      `AGENTS.md`). If a confident match exists, set `Spec` to its `[[ID]]`. This only *links*. If the
      issue looks design-significant (spans more than one package, needs a migration, or is a new concept:
