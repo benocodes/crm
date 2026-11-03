@@ -42,6 +42,42 @@
       ],
       "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-smoked1-bodies" }],
       "vars": { "AUTH_PROVIDER": "", "CORS_ALLOWED_ORIGINS": "" }
+    },
+    "hq": {
+      "name": "vault-hq",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [
+        {
+          "pattern": "api.hq.vibase.ai",
+          "custom_domain": true
+        }
+      ],
+      "observability": {
+        "enabled": true
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "vault-hq",
+          "database_id": "23fda5fd-1508-462a-b700-53ad047472e3",
+          "migrations_dir": "../storage-d1/migrations",
+          "remote": true
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "BODIES",
+          "bucket_name": "vault-hq-bodies"
+        }
+      ],
+      "vars": {
+        "AUTH_PROVIDER": "clerk",
+        "CLERK_ISSUER": "https://clerk.hq.vibase.ai",
+        "CLERK_AUTHORIZED_PARTIES": "",
+        "AUTH_CLI_CLIENT_ID": "Q5yzkwhHy7dhaYbt",
+        "CORS_ALLOWED_ORIGINS": ""
+      }
     }
   }
 }
