@@ -22,7 +22,7 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
 
 ## The loop
 
-1. **Checkpoint.** Run `/sprint-checkpoint`. Pick the next item from SPRINT.md's Sequence in order.
+1. **Checkpoint.** Run `/sprint-checkpoint`. Pick the next item from SPRINT.md's "Now / Next" list (the milestone tables show what each item unlocks).
    **When `main` moved under you** (a human merged a PR, especially one touching `AGENTS.md` or
    `.claude/agents/`), pull the main checkout and merge `origin/main` into the open cycle's branch before the next
    stage. Agents read `AGENTS.md` from their worktree and the permission checks read the session's, so a
@@ -62,7 +62,7 @@ each from an up-to-date `main`.
 
 ## Stopping
 
-Stop, update SPRINT.md (Position, Open Questions, Next Action), push it, and tell the user in a few
+Stop, update SPRINT.md (Status at a glance, Position, Open questions, Now / Next), push it, and tell the user in a few
 lines when:
 
 - a **hard stop** from AGENTS.md is next (money or accounts, production deploys and migrations, public

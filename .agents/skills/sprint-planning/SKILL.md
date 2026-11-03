@@ -28,8 +28,9 @@ is the team's; the deadline it usually implies is not part of this.
 
 ## Design note — one file, overwritten
 
-There is exactly **one** live sprint: `knowledge/SPRINT.md`. Checkpointing overwrites it in place;
-closing deletes it. Don't append, don't version, don't keep two. A finished sprint's record is its
+There is exactly **one** live sprint: `knowledge/SPRINT.md`, plus its append-only overflow
+`knowledge/sprint-archive.md`. Checkpointing rewrites the live file in place and moves whatever stopped being
+current to the archive; closing deletes both. Don't version, don't keep two live files. A finished sprint's record is its
 shipped specs, their cycles and their RETROs — a planning file lingering past that point is stale
 state competing with them, and `git log -- knowledge/SPRINT.md` serves anyone who wants the history.
 
@@ -67,7 +68,7 @@ Run this **after** the design conversation has settled and before writing any sp
 
 3. **Write `knowledge/SPRINT.md`** per the template below.
 
-4. **State the ordering rationale explicitly**, per edge, in the Sequence section. "B needs A" is
+4. **State the ordering rationale explicitly**, per edge, in the Now / Next list and the specs' Context. "B needs A" is
    not enough — name the mechanism. The ordering is the sprint's one irreducible piece of knowledge,
    and it is the piece most likely to be re-litigated wrongly by a later session.
 
@@ -92,6 +93,18 @@ Gather, in order — **evidence, not memory**:
    Ledger section and are the highest-value part of the file.
 5. **Open questions** put to the user and not yet answered, carried forward until they are.
 
+Then rewrite, in this order:
+
+1. **Milestone tables.** Update each row's State from the evidence above. A spec that appears in no
+   milestone table and not in Parked is a finding: place it. Update "Status at a glance" last, from the
+   tables, in plain words.
+2. **Now / Next / Later.** Name the single next item and its first action. Mark which order is ruled by the
+   user and which is the agents' proposal.
+3. **Archive overflow.** Position beyond five lines, Ledger beyond twelve, answered Open questions,
+   anything the budget in "The file" no longer allows: append verbatim to `sprint-archive.md` under the
+   matching section, then delete from `SPRINT.md`. Both files go in the same commit.
+4. **Glance test** (Quality Rule 11).
+
 ### `close` — finish the sprint
 
 Run when the last spec in the band has shipped.
@@ -101,66 +114,83 @@ Run when the last spec in the band has shipped.
    skipped, say so rather than fixing it silently here).
 3. Check the open questions are genuinely closed, not merely stale. An unanswered question at close
    is a finding — report it.
-4. Delete `knowledge/SPRINT.md` and commit the deletion in the knowledge repo (`git -C knowledge`) with a message naming the band, so
+4. Delete `knowledge/SPRINT.md` and `knowledge/sprint-archive.md` and commit the deletion in the knowledge repo (`git -C knowledge`) with a message naming the band, so
    `git log` reads as a record of what the sprint set out to do.
 
 ---
 
 ## The file
 
-Write `knowledge/SPRINT.md`:
+`knowledge/SPRINT.md` exists so that a human or an agent can open it and know **where the sprint stands within
+30 seconds**. It is a dashboard, not a diary. Everything that has stopped being current moves to
+`knowledge/sprint-archive.md` (verbatim, append-only).
+
+**Hard budget: the live file stays under about 150 lines.** If a checkpoint pushes it past that, archive
+until it fits. Sections, in this order:
 
 ```markdown
 # {Goal} — sprint
 
-**Band:** {seq range, e.g. 063–068}
-**Opened:** {YYYY-MM-DD}
-**Updated:** {YYYY-MM-DD}
+**Updated:** {YYYY-MM-DD} · **Archive:** [sprint-archive.md](sprint-archive.md)
 
----
+## Status at a glance
+
+{Three lines in a blockquote, no more. Per milestone: how far along, in plain words, and what is missing.
+Then: what is in flight, and the next item. A reader who stops here has the answer.}
 
 ## Goal
 
-{Two or three sentences: the outcome the whole band is for, in the user's terms. Not a summary of
-the specs — the thing that makes them one piece of work.}
+{Two to four sentences: the outcome the whole sprint is for, and the rulings that bound it.}
 
-## Sequence
+## Milestones
 
-{A table of the band in EXECUTION order: seq+ID, one-line scope, spec status, cycle status. Cycle
-status distinguishes "no cycle" / "plan generated (<sha>)" / "executed (<sha>)" / "shipped (retro)".}
+{One subsection per milestone (A, B, ...). Each has: a four-line pass summary, then a table
+`Needed | Spec | State` with one row per capability the milestone needs, in dependency order. State is one of
+✅ shipped · ⏭ next · in flight (cycle, branch) · approved / draft (not started) · ❌ gap (no spec) · not run.
+The last row of each milestone is its demo run. Every spec in the sprint appears in exactly one milestone
+table or in Parked; a spec in neither is a finding.}
 
-### Why this order
+## Now / Next / Later / Parked
 
-{One bullet per dependency edge, naming the MECHANISM — the function, table or column that makes
-the dependency real. Include any ordering that was proposed and rejected, with the reason: an
-ordering argued once and discarded will be argued again otherwise.}
+{Now: what is in flight. Next: a numbered list of the next items, each with the first action (spec, plan,
+code) and any blocker; say which order is ruled and which is proposed. Later: the following milestone's
+chain on one line. Parked: a table `Item | Why`, so a parked spec is visibly not a gate.}
+
+## Gaps
+
+{Things the milestones need that nothing owns yet (no spec, no issue, no charter).}
 
 ## Position
 
-{Where the sprint is right now, in a sentence or two. What was just finished; what is next.}
+{At most five lines: what just shipped (PR, sha), what stopped the run, the deployed state.}
 
-## Ledger
+## Owed by the user
 
-{Facts established by investigation that no spec, skill or doc records yet — the things a fresh
-agent would otherwise pay to rediscover. Each with its evidence. Migration numbers claimed but not
-yet landed belong here. Prune anything that has since been written into a skill or `AGENTS.md` by
-`retrospect`; this is a staging area, not a second home.}
+{Issue numbers and a few words each. Not paragraphs.}
 
-## Repo State
+## Open questions
 
-{Current branch, working-tree cleanliness, concurrent-session hazards, anything committed but not
-pushed, anything on an unexpected branch. Cheap to write, expensive to get wrong.}
+{Only questions that block a milestone or need a ruling. Delete a question when it is answered.}
 
-## Open Questions
+## Recent decisions (the Ledger)
 
-{Questions put to the user and not yet answered, oldest first, each with what it blocks. Carried
-across checkpoints until answered.}
+{One line per material decision, newest first, at most 12 lines. Facts a fresh agent would otherwise pay to
+rediscover go here only until `retrospect` ingests them into a skill, AGENTS.md or architecture.md.}
 
-## Next Action
+## Repo state
 
-{The single next concrete thing — which spec to read, which plan to generate, which command to run.
-Specific enough that a fresh agent doesn't re-derive it.}
+{Branch, cleanliness, open PRs, worktrees, next migration number, deployed sha. Two or three lines.}
 ```
+
+There is no table of every spec ever shipped, no "Why this order" essay and no "Next Action" section (that is
+Now / Next). The ordering rationale lives in the specs' own Context and in the Next list; a rejected ordering
+goes in the Ledger for a checkpoint and then to the archive.
+
+### Archive file
+
+`knowledge/sprint-archive.md` is append-only and has these sections: *Sequence table* (frozen rows),
+*Position diary*, *Ledger*, *Old open questions*, *Direction changes*, *Goal and milestone definitions as first
+agreed*. A checkpoint moves content here verbatim; nothing is summarised away.
 
 ---
 
@@ -169,7 +199,7 @@ Specific enough that a fresh agent doesn't re-derive it.}
 1. **Evidence-based, like a retro.** "Generated" means a committed plan with a sha. "Shipped" means
    a RETRO exists and the spec says `shipped`. Never report intent as state.
 
-2. **Point at sources; don't duplicate them.** The Sequence table gives status and a one-line scope;
+2. **Point at sources; don't duplicate them.** A milestone table row gives status in a few words;
    the spec file holds the design and the PLAN holds the cycle's scope and test obligations. A sprint file that restates a spec
    will drift from it, and the drift is invisible.
 
@@ -180,7 +210,7 @@ Specific enough that a fresh agent doesn't re-derive it.}
 4. **Reference specs and cycles by stable ID, never by seq-prefixed path.** `[[AGT43]]`, not
    `knowledge/specs/065-AGT43-suggestion-expiry/AGT43.md`. The seq is a reassignable ordering
    hint — and this skill *reassigns* it, which makes the rule load-bearing here rather than
-   theoretical. The one exception is the Sequence table, where the seq is the subject.
+   theoretical. The one exception is the archive's frozen Sequence table, where the seq is the subject.
 
 5. **Record the ordering rationale per edge, and record rejected orderings too.** The order is the
    sprint's irreducible knowledge. An edge justified only by "B needs A" will be reordered by a
@@ -193,7 +223,19 @@ Specific enough that a fresh agent doesn't re-derive it.}
 
 7. **Never `git add -A`** while foreign uncommitted changes are present. Stage by explicit path.
 
-8. **Concise.** A checkpoint, not a narrative.
+8. **Concise.** A checkpoint, not a narrative. Status cells are a few words; detail belongs in the spec,
+   the PLAN or the RETRO, which the row links to by ID.
+
+9. **Archive, don't accumulate.** Position keeps five lines, the Ledger twelve, Open questions only open
+   ones, and the whole file stays near 150 lines. Move overflow to `sprint-archive.md` verbatim in the same
+   commit. Shipped rows stay in their milestone table as ✅ until that milestone's demo has run, then move
+   to the archive.
+
+10. **Parked means parked.** A spec that gates no milestone goes in Parked with a reason, never in a
+    milestone table and never as an `approved` row that looks like work.
+
+11. **The glance test.** Before committing, read only "Status at a glance" and "Now / Next": could someone
+    who has never seen the sprint say where it is and what happens next? If not, rewrite those two sections.
 
 ---
 
@@ -202,7 +244,7 @@ Specific enough that a fresh agent doesn't re-derive it.}
 - **`spec-author`** owns each stub's format, the ID/seq rules, and supersession. `open` creates
   stubs that conform to it; this skill adds nothing to the spec format itself.
 - **`tdd-cycle-generator`** turns a spec into a cycle charter (PLAN). Checkpoint after each
-  generation so the cycle and its deferred issues land in the Sequence. Charters claim no migration
+  generation so the cycle and its deferred issues land in the milestone table and Next list. Charters claim no migration
   number; the coder picks it at implementation time (`execute-cycle`).
 - **`handoff`** takes over inside one cycle's execution. The two coexist: a sprint may have a live
   `knowledge/SPRINT.md` and an executing cycle with its own `HANDOFF.md`. Neither replaces the other.
