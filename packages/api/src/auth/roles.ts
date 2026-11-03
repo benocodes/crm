@@ -34,6 +34,12 @@ export const SCOPE_POLICY: ScopePolicy = {
   'agents:write': { member: false, agentGrantable: false },
 }
 
+/**
+ * One consent-screen sentence per declared scope ([[OPS65]] D40): `setup:remote` lists them as the Clerk scope catalog's descriptions.
+ * The same catalog test holds the keys equal to the declared scopes.
+ */
+export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {}
+
 /** Owner: every declared scope. Member: declared scopes flagged `member`; no entry means not granted (fail closed). */
 export function scopesForRole(role: Role, declared: readonly string[], policy: ScopePolicy = SCOPE_POLICY): ScopeSet {
   if (role === 'owner') return ScopeSet.parse(declared)

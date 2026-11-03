@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createVaultRegistry } from '../operations.js'
-import { SCOPE_POLICY, assertAgentGrantable, grantableScopes, isAgentGrantable, scopesForRole, type ScopePolicy } from './roles.js'
+import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, assertAgentGrantable, grantableScopes, isAgentGrantable, scopesForRole, type ScopePolicy } from './roles.js'
 
 const declared = ['a:read', 'a:write', 'b:read']
 const policy: ScopePolicy = {
@@ -31,6 +31,10 @@ describe('roles', () => {
   })
   it('catalog: policy keys equal declared scopes (P7)', () => {
     expect(Object.keys(SCOPE_POLICY).sort()).toEqual(createVaultRegistry().declaredScopes())
+  })
+  it('catalog (OPS65 D40): descriptions keys equal declared scopes, each one a non-empty sentence', () => {
+    expect(Object.keys(SCOPE_DESCRIPTIONS).sort()).toEqual(createVaultRegistry().declaredScopes())
+    for (const [scope, text] of Object.entries(SCOPE_DESCRIPTIONS)) expect(text.trim().length, scope).toBeGreaterThan(10)
   })
   it('catalog: owner holds every declared scope', () => {
     const declaredReal = createVaultRegistry().declaredScopes()

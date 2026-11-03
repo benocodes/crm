@@ -2,8 +2,10 @@
 // canned output shaped like wrangler's), an injected fetch standing in for Cloudflare's API and the Worker's /health, a text copy of
 // wrangler.jsonc, and the in-memory D1 behind the marker. Writes by a run change the state the next run reads.
 import { readFileSync } from 'node:fs'
+import { parse } from 'jsonc-parser'
 import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
-import type { Credentials, ExecResult, SetupCmd, SetupDeps } from '../types.js'
+import type { Credentials, EnvFileProbe, ExecResult, SetupCmd, SetupDeps } from '../types.js'
+import { PK_TEST, SK_TEST, type FakeClerk } from './clerk-world.js'
 
 export const REAL_CONFIG_PATH = new URL('../../../wrangler.jsonc', import.meta.url)
 export const EXPECTED_MIGRATIONS = MIGRATIONS.map((m) => m.name)
@@ -18,6 +20,7 @@ const WRITE_VERBS = [
   ['r2', 'bucket', 'create'],
   ['d1', 'migrations', 'apply'],
   ['deploy'],
+  ['secret', 'bulk'],
 ]
 /** True for a command that creates, applies or deploys (the writes a dry run must never issue). */
 export function isWriteCommand(argv: readonly string[]): boolean {
@@ -41,15 +44,27 @@ export interface WorldOptions {
   envText?: string
   /** When set, `/health` never reports current migrations. */
   healthNeverCurrent?: boolean
+  /** `--auth clerk`: the fake Clerk behind api.clerk.com and the issuer host. */
+  clerk?: FakeClerk
+  /** The Clerk env file's text; `null`: no such file. Default: a development pair. */
+  clerkEnvText?: string | null
+  clerkFileStatus?: 'ok' | 'root-env' | 'not-ignored'
+  /** Secret names already on the Worker. */
+  secrets?: string[]
+  /** What the Worker's `/.well-known/vibase` reports (`auth.issuer`, `auth.cli_client_id`); default: matches `state.configText`'s vars. */
+  vibase?: { issuer: string | null; cli_client_id: string | null } | 'absent'
 }
 
 export interface World {
   deps: SetupDeps
   argv: string[][]
   inputs: string[]
+  /** Stdin of `wrangler secret bulk`: the only place a secret may travel. */
+  secretInputs: string[]
+  probes: { arg: string | undefined; envName: string }[]
   fetched: string[]
   logs: string[]
-  state: { configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; deployedSha: string | null; sleeps: number[] }
+  state: { configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; deployedSha: string | null; sleeps: number[]; secrets: Record<string, string> }
   writes(): string[][]
   /** Every string that reached argv, stdin or a log line (fetched URLs carry the account id as an API path and are checked apart). */
   surface(): string
@@ -65,9 +80,12 @@ export function makeWorld(o: WorldOptions): World {
     applied: o.applied === undefined ? null : o.applied,
     deployedSha: o.deployedSha === undefined ? null : o.deployedSha,
     sleeps: [] as number[],
+    secrets: Object.fromEntries((o.secrets ?? []).map((n) => [n, 'present'])) as Record<string, string>,
   }
   const argv: string[][] = []
   const inputs: string[] = []
+  const secretInputs: string[] = []
+  const probes: { arg: string | undefined; envName: string }[] = []
   const fetched: string[] = []
   const logs: string[] = []
   let clock = 1_000_000
@@ -78,12 +96,17 @@ export function makeWorld(o: WorldOptions): World {
 
   async function exec(cmd: SetupCmd): Promise<ExecResult> {
     argv.push([cmd.command, ...cmd.args])
-    if (cmd.input !== undefined) inputs.push(cmd.input)
+    if (cmd.input !== undefined) (cmd.args.includes('secret') && cmd.args.includes('bulk') ? secretInputs : inputs).push(cmd.input)
     const a = cmd.args
     const has = (...w: string[]) => w.every((x) => a.includes(x))
     if (cmd.command === 'git') {
       if (has('rev-parse')) return text(`${head}\n`)
       if (has('status')) return text(o.dirty ? ' M packages/server-d1/wrangler.jsonc\n' : '')
+    }
+    if (has('secret', 'list')) return json(Object.keys(state.secrets).map((name) => ({ name, type: 'secret_text' })))
+    if (has('secret', 'bulk')) {
+      Object.assign(state.secrets, JSON.parse(cmd.input ?? '{}'))
+      return text('Success! Uploaded secrets\n')
     }
     if (has('d1', 'list')) return json(state.d1s.map((d) => ({ uuid: d.uuid, name: d.name, created_at: '2026-01-01', version: 'production', num_tables: 0, file_size: 0 })))
     if (has('d1', 'create')) {
@@ -122,10 +145,11 @@ export function makeWorld(o: WorldOptions): World {
     return { status: 1, stdout: '', stderr: `unexpected command: ${cmd.command} ${a.join(' ')}` }
   }
 
-  const fakeFetch = (async (input: RequestInfo | URL): Promise<Response> => {
+  const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = String(input)
     fetched.push(url)
     const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+    if (o.clerk?.handles(url)) return o.clerk.handle(url, init)
     if (url.startsWith('https://api.cloudflare.com/client/v4/')) {
       const path = url.slice('https://api.cloudflare.com/client/v4/'.length)
       const kind = path.startsWith('zones') ? 'zones' : path.includes('/d1/') ? 'd1' : path.includes('/r2/') ? 'r2' : path.includes('/workers/') ? 'workers' : 'other'
@@ -138,6 +162,12 @@ export function makeWorld(o: WorldOptions): World {
       if (state.deployedSha === null) return new Response('', { status: 522 })
       const initialised = (await o.d1.prepare('select 1 as x from deployment').first().catch(() => null)) !== null
       return reply(200, { status: 'ok', version: state.deployedSha, initialised, migrations: { status: o.healthNeverCurrent ? 'behind' : state.applied && EXPECTED_MIGRATIONS.every((n) => state.applied!.includes(n)) ? 'current' : 'behind' } })
+    }
+    if (url.endsWith('/.well-known/vibase')) {
+      if (o.vibase === 'absent') return reply(404, {})
+      const vars = (parse(state.configText) as { env?: Record<string, { vars?: Record<string, string> }> }).env?.[new URL(url).hostname.split('.')[1] ?? '']?.vars
+      const v = o.vibase ?? { issuer: vars?.CLERK_ISSUER ?? null, cli_client_id: vars?.AUTH_CLI_CLIENT_ID ?? null }
+      return reply(200, { auth: v.issuer === null ? null : { provider: 'clerk', issuer: v.issuer, cli_client_id: v.cli_client_id } })
     }
     return reply(404, {})
   }) as typeof fetch
@@ -152,6 +182,13 @@ export function makeWorld(o: WorldOptions): World {
       state.configWrites++
     },
     openD1: async () => ({ d1: o.d1, dispose: async () => {} }),
+    probeEnvFile: (arg, envName): EnvFileProbe => {
+      probes.push({ arg, envName })
+      const display = arg ?? `.env.${envName}`
+      if (o.clerkFileStatus && o.clerkFileStatus !== 'ok') return { display, status: o.clerkFileStatus }
+      const text = o.clerkEnvText === undefined ? `CLERK_SECRET_KEY=${SK_TEST}\nVITE_CLERK_PUBLISHABLE_KEY=${PK_TEST}\n` : o.clerkEnvText
+      return text === null ? { display, status: 'missing' } : { display, status: 'ok', text }
+    },
     readEnvText: () => state.envText,
     appendEnvVar: (name, value) => {
       if (new RegExp(`^${name}=`, 'm').test(state.envText)) throw new Error(`${name} is already set in .env`)
@@ -169,6 +206,8 @@ export function makeWorld(o: WorldOptions): World {
     deps,
     argv,
     inputs,
+    secretInputs,
+    probes,
     fetched,
     logs,
     state,

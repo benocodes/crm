@@ -1,7 +1,9 @@
 // Shared types of `setup:remote` ([[OPS65]] D6, D7): the step model and the seams the tests fake (command runner, fetch, files, D1).
 import type { D1Like } from '@vault/storage-d1'
 
-export const STEP_NAMES = ['preflight', 'config:resources', 'config:write', 'migrate', 'bootstrap', 'deploy', 'verify'] as const
+export const STEP_NAMES = ['preflight', 'config:resources', 'clerk', 'config:write', 'migrate', 'bootstrap', 'deploy', 'secrets', 'verify'] as const
+/** Steps that exist only with `--auth clerk` ([[OPS65]] D11). */
+export const CLERK_ONLY_STEPS: readonly StepName[] = ['clerk', 'secrets']
 export type StepName = (typeof STEP_NAMES)[number]
 
 /** `blocked` is this cycle's addition to the spec's five: a step that cannot be evaluated until an earlier planned change lands (a dry run's later steps). It never fails the run. */
@@ -13,6 +15,8 @@ export interface StepResult {
   detail: string
   /** Extra lines printed under the row (a diff, the next steps). */
   lines?: string[]
+  /** Dashboard items the command cannot do or check (the Clerk rows marked `manual`): listed last and again in verify's next steps ([[OPS65]] D8, D21). */
+  manual?: string[]
 }
 
 /** A subprocess: `pnpm` for wrangler and the package scripts, `git` for the commit and the tree. */
@@ -37,6 +41,14 @@ export interface Credentials {
   apiToken: string
 }
 
+export interface EnvFileProbe {
+  /** The path as shown to the owner (never a value). */
+  display: string
+  status: 'ok' | 'root-env' | 'missing' | 'not-ignored'
+  /** The file's text; present only when `status` is `ok`. */
+  text?: string
+}
+
 export interface SetupDeps {
   exec(cmd: SetupCmd): Promise<ExecResult>
   fetch: typeof fetch
@@ -46,6 +58,8 @@ export interface SetupDeps {
   writeConfigText(text: string): void
   /** The instance's remote D1 (a platform proxy in the real command). */
   openD1(envName: string): Promise<{ d1: D1Like; dispose(): Promise<void> }>
+  /** The Clerk env file ([[OPS65]] D34): resolves the path (default `.env.<env>` at the repo root), compares real paths with the root `.env`, asks git whether it is ignored, reads it. Never touches `process.env`. */
+  probeEnvFile(arg: string | undefined, envName: string): EnvFileProbe
   readEnvText(): string
   /** Appends `NAME=value` to the root `.env`; throws if it is already set. */
   appendEnvVar(name: string, value: string): void
@@ -57,7 +71,7 @@ export interface SetupDeps {
 export interface SetupOptions {
   env: string
   apiHost: string
-  auth: 'none'
+  auth: 'none' | 'clerk'
   org: string
   origins: string[]
   operatorAgent?: string
@@ -68,4 +82,10 @@ export interface SetupOptions {
   r2Name: string
   only?: StepName[]
   dryRun: boolean
+  /** `--clerk-env-file`; default `.env.<env>` at the repo root. */
+  clerkEnvFile?: string
+  clerkPublishableKey?: string
+  clerkProduction: boolean
+  noDcr: boolean
+  rotateSecrets: boolean
 }

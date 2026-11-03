@@ -45,15 +45,6 @@ describe('D8 guards', () => {
     expect(w.logs.join('\n')).toContain('CONFIRM_REMOTE=1')
   })
 
-  it('--auth clerk is refused naming OPS87 before any network call', async () => {
-    const w = world()
-    const o = await runSetup(['--env', 'acme', '--auth', 'clerk', '--api-host', 'api.acme.vibase.ai', '--dry-run'], {}, w.deps)
-    expect(o.exitCode).toBe(1)
-    expect(w.logs.join('\n')).toContain('OPS87')
-    expect(w.argv).toEqual([])
-    expect(w.fetched).toEqual([])
-  })
-
   it('--dry-run on an empty state issues no write command, writes no file, and plans every later step as blocked', async () => {
     const w = world()
     const o = await runSetup([...ACME, '--dry-run'], {}, w.deps)
