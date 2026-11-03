@@ -16,14 +16,19 @@ export const gitStatus = (): SetupCmd => ({ command: 'git', args: ['status', '--
 /** `deploy:remote`'s own commands (typecheck, the suite, `wrangler deploy --var VERSION:<sha>`), with its working directories ([[OPS4]] D12). */
 export const deployStepCommands = (env: string, sha: string): SetupCmd[] =>
   deployCommands(env, sha).map((c: Cmd) => ({ ...c, cwd: c.args.includes('deploy') ? ('package' as const) : ('root' as const), inherit: true }))
+/** The marker row and whether an organisation exists (D39), in one read. */
 export const markerCommand = (env: string): SetupCmd =>
-  wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', 'select organization_id, auth_provider, auth_org_id from deployment where singleton = 1'])
+  wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', 'select organization_id, auth_provider, auth_org_id, (select count(*) from organizations) as organizations from deployment where singleton = 1'])
+/** `wrangler secret list --format json`: `[{name, type}]`, the names only are read. */
+export const secretListCommand = (env: string): SetupCmd => wrangler(['secret', 'list', '--env', env, '--format', 'json'])
+/** `wrangler secret bulk --env <name>`: the JSON object `{NAME: value}` goes on stdin, never argv (D12). */
+export const secretBulkCommand = (env: string, json: string): SetupCmd => ({ ...wrangler(['secret', 'bulk', '--env', env]), input: json })
 
 /** Commands that create, apply or deploy: never issued in a dry run. */
 export function isWriteCommand(cmd: SetupCmd): boolean {
   if (cmd.command !== 'pnpm') return false
   const a = cmd.args.join(' ')
-  return /\bwrangler d1 create\b/.test(a) || /\bwrangler r2 bucket create\b/.test(a) || /\bwrangler d1 migrations apply\b/.test(a) || /\bwrangler deploy\b/.test(a)
+  return /\bwrangler d1 create\b/.test(a) || /\bwrangler r2 bucket create\b/.test(a) || /\bwrangler d1 migrations apply\b/.test(a) || /\bwrangler deploy\b/.test(a) || /\bwrangler secret bulk\b/.test(a)
 }
 
 /** `wrangler d1 list --json`: `[ { uuid, name, ... } ]`. */
@@ -51,6 +56,8 @@ export interface MarkerRow {
   organizationId: string
   authProvider: string
   authOrgId: string
+  /** How many organisations exist (0 when the read did not say). */
+  organizations: number
 }
 /** The marker read: `null` row when the table is empty, `'no-table'` when the database is not migrated; other errors throw. */
 export function parseMarkerOutput(stdout: string): MarkerRow | null | 'no-table' {
@@ -72,7 +79,19 @@ export function parseMarkerOutput(stdout: string): MarkerRow | null | 'no-table'
   if (!row) return null
   const { organization_id: organizationId, auth_provider: authProvider, auth_org_id: authOrgId } = row
   if (typeof organizationId !== 'string' || typeof authProvider !== 'string' || typeof authOrgId !== 'string') throw new Error('unexpected marker row shape')
-  return { organizationId, authProvider, authOrgId }
+  return { organizationId, authProvider, authOrgId, organizations: typeof row.organizations === 'number' ? row.organizations : 0 }
+}
+
+/** The secret names of `wrangler secret list --format json`. */
+export function parseSecretList(stdout: string): string[] {
+  let json: unknown
+  try {
+    json = JSON.parse(stdout)
+  } catch {
+    throw new Error('unreadable output from wrangler secret list')
+  }
+  if (!Array.isArray(json)) throw new Error('unexpected output shape from wrangler secret list')
+  return json.map((s) => (s as { name?: unknown } | null)?.name).filter((n): n is string => typeof n === 'string')
 }
 
 export { parseTrackerOutput }

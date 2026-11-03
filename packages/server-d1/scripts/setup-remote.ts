@@ -1,6 +1,7 @@
 // One guarded, idempotent command from nothing to a migrated, bootstrapped, deployed, verified instance ([[OPS65]] D6):
-//   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --auth none --api-host <host> [flags]
-//   pnpm -C packages/server-d1 setup:remote -- --env <name> --auth none --api-host <host> --dry-run     (reads only)
+//   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --api-host <host> --owner-email <email> [flags]   (--auth clerk is the default)
+//   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --auth none --api-host <host> [flags]            (API keys only)
+//   pnpm -C packages/server-d1 setup:remote -- --env <name> --api-host <host> --owner-email <email> --dry-run                   (reads only)
 // The steps and their guards live in scripts/setup/; this file only wires the real wrangler, git, fetch, files and D1.
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -8,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import type { D1Like } from '@vault/storage-d1'
 import { appendEnvVar, remoteProxyOptions } from './bootstrap.js'
 import { CONFIG_PATH, PACKAGE_DIR, REPO_ROOT, ROOT_ENV_PATH, loadRootEnv } from './remote.js'
+import { probeEnvFile } from './setup/env-file.js'
 import { runSetup } from './setup/run.js'
 import type { SetupDeps } from './setup/types.js'
 
@@ -34,6 +36,7 @@ export const realSetupDeps: SetupDeps = {
     const proxy = await getPlatformProxy<{ DB: D1Like }>(remoteProxyOptions(envName))
     return { d1: proxy.env.DB, dispose: () => proxy.dispose() }
   },
+  probeEnvFile: (arg, envName) => probeEnvFile(arg, envName, REPO_ROOT, ROOT_ENV_PATH),
   readEnvText: () => {
     try {
       return readFileSync(ROOT_ENV_PATH, 'utf8')

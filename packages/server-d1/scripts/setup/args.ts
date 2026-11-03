@@ -1,11 +1,12 @@
 import { parseArgs } from 'node:util'
 import { RemoteRefusal } from '../remote.js'
-import { STEP_NAMES, type SetupOptions, type StepName } from './types.js'
+import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupOptions, type StepName } from './types.js'
 
 const ENV_SHAPE = /^[a-z0-9][a-z0-9-]*$/
 const KEY_ENV_SHAPE = /^[A-Z][A-Z0-9_]*$/
 const HOST_SHAPE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
-const OPS87_FLAGS = ['clerk-publishable-key', 'clerk-key-env', 'no-dcr', 'rotate-secrets']
+/** Flags that only mean something with `--auth clerk` ([[OPS65]] Inputs). */
+const CLERK_FLAGS = ['clerk-env-file', 'clerk-publishable-key', 'clerk-production', 'no-dcr', 'rotate-secrets']
 
 /** One `https://` origin, no path, no wildcard ([[OPS65]] D20). */
 export function validateOrigin(flag: string, value: string): string {
@@ -42,7 +43,11 @@ export function parseSetupArgs(argv: string[]): SetupOptions {
         'r2-name': { type: 'string' },
         only: { type: 'string' },
         'dry-run': { type: 'boolean' },
-        ...Object.fromEntries(OPS87_FLAGS.map((f) => [f, { type: 'string' as const }])),
+        'clerk-env-file': { type: 'string' },
+        'clerk-publishable-key': { type: 'string' },
+        'clerk-production': { type: 'boolean' },
+        'no-dcr': { type: 'boolean' },
+        'rotate-secrets': { type: 'boolean' },
       },
       strict: true,
     }))
@@ -50,7 +55,6 @@ export function parseSetupArgs(argv: string[]): SetupOptions {
     throw new RemoteRefusal(err instanceof Error ? err.message : 'bad arguments')
   }
   const str = (k: string) => values[k] as string | undefined
-  for (const f of OPS87_FLAGS) if (values[f] !== undefined) throw new RemoteRefusal(`--${f} belongs to the Clerk side of setup, which arrives with OPS87 (#87)`)
 
   const env = str('env')
   if (!env) throw new RemoteRefusal('--env <name> is required')
@@ -59,18 +63,20 @@ export function parseSetupArgs(argv: string[]): SetupOptions {
   if (!apiHost) throw new RemoteRefusal('--api-host <host> is required (the API is served on a custom domain, OPS65 D19)')
   if (apiHost.includes('*') || !HOST_SHAPE.test(apiHost)) throw new RemoteRefusal(`--api-host ${apiHost}: expected a bare host name such as api.example.com (no scheme, path or wildcard)`)
 
-  const auth = str('auth')
-  if (auth === 'clerk') throw new RemoteRefusal('--auth clerk is not available yet: the Clerk side is OPS87 (#87); run with --auth none')
-  if (auth !== 'none') throw new RemoteRefusal('pass --auth none explicitly (the clerk default arrives with OPS87)')
+  const auth = str('auth') ?? 'clerk'
+  if (auth !== 'clerk' && auth !== 'none') throw new RemoteRefusal(`--auth ${auth}: expected clerk (the default) or none (API keys only)`)
+  if (auth === 'none') for (const f of CLERK_FLAGS) if (values[f] !== undefined) throw new RemoteRefusal(`--${f} only applies with --auth clerk`)
 
   const operatorAgent = str('operator-agent')
   const keyEnv = str('key-env')
   if ((operatorAgent === undefined) !== (keyEnv === undefined)) throw new RemoteRefusal('--operator-agent and --key-env go together')
   if (keyEnv !== undefined && !KEY_ENV_SHAPE.test(keyEnv)) throw new RemoteRefusal(`--key-env ${keyEnv} must be UPPER_SNAKE_CASE`)
   const ownerEmail = str('owner-email')
-  if (operatorAgent !== undefined && !ownerEmail) throw new RemoteRefusal('--owner-email is required with --operator-agent on --auth none (the API-key deployment needs a human owner, as bootstrap does)')
+  // `--owner-email` follows the auth mode ([[OPS65]] D38): the invitation target with clerk, the API-key owner with none.
+  if (auth === 'clerk' && !ownerEmail) throw new RemoteRefusal('--owner-email is required with --auth clerk (the first owner is invited, OPS65 D17)')
+  if (auth === 'none' && operatorAgent !== undefined && !ownerEmail) throw new RemoteRefusal('--owner-email is required with --operator-agent on --auth none (the API-key deployment needs a human owner, as bootstrap does)')
 
-  if (str('org') !== undefined && operatorAgent === undefined) throw new RemoteRefusal('--org only applies with --operator-agent on --auth none (without it only the deployment marker is written)')
+  if (auth === 'none' && str('org') !== undefined && operatorAgent === undefined) throw new RemoteRefusal('--org only applies with --operator-agent on --auth none (without it only the deployment marker is written)')
 
   const web = str('web-origin')
   const origins = [...(web ? [validateOrigin('--web-origin', web)] : []), ...((values['extra-origin'] as string[] | undefined) ?? []).map((o) => validateOrigin('--extra-origin', o))]
@@ -81,12 +87,13 @@ export function parseSetupArgs(argv: string[]): SetupOptions {
     only = onlyRaw.split(',').map((s) => s.trim()).filter(Boolean) as StepName[]
     const unknown = only.filter((s) => !(STEP_NAMES as readonly string[]).includes(s))
     if (unknown.length > 0 || only.length === 0) throw new RemoteRefusal(`--only: unknown step ${unknown.join(', ') || '(none given)'}; steps are ${STEP_NAMES.join(', ')}`)
+    if (auth === 'none' && only.some((s) => CLERK_ONLY_STEPS.includes(s))) throw new RemoteRefusal(`--only ${only.filter((s) => CLERK_ONLY_STEPS.includes(s)).join(', ')} needs --auth clerk`)
   }
 
   return {
     env,
     apiHost,
-    auth: 'none',
+    auth,
     org: str('org') ?? env,
     origins,
     operatorAgent,
@@ -97,5 +104,10 @@ export function parseSetupArgs(argv: string[]): SetupOptions {
     r2Name: str('r2-name') ?? `vault-${env}-bodies`,
     only,
     dryRun: values['dry-run'] === true,
+    clerkEnvFile: str('clerk-env-file'),
+    clerkPublishableKey: str('clerk-publishable-key'),
+    clerkProduction: values['clerk-production'] === true,
+    noDcr: values['no-dcr'] === true,
+    rotateSecrets: values['rotate-secrets'] === true,
   }
 }

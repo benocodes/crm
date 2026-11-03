@@ -3,6 +3,7 @@ import { RemoteRefusal } from '../remote.js'
 import { parseSetupArgs } from './args.js'
 
 const base = ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai']
+const clerk = ['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-email', 'o@example.com']
 
 describe('parseSetupArgs: valid input (D6, D9, D18, D20)', () => {
   it('derives names from the env and defaults the organisation to the env name', () => {
@@ -19,6 +20,20 @@ describe('parseSetupArgs: valid input (D6, D9, D18, D20)', () => {
   })
 })
 
+describe('parseSetupArgs: --auth clerk, the default (OPS87)', () => {
+  it('is the default, and takes the Clerk flags', () => {
+    const o = parseSetupArgs([...clerk, '--clerk-env-file', '.env.dev', '--clerk-publishable-key', 'pk_test_x', '--clerk-production', '--no-dcr', '--rotate-secrets', '--only', 'clerk,secrets'])
+    expect(o).toMatchObject({ auth: 'clerk', clerkEnvFile: '.env.dev', clerkPublishableKey: 'pk_test_x', clerkProduction: true, noDcr: true, rotateSecrets: true, ownerEmail: 'o@example.com', only: ['clerk', 'secrets'] })
+  })
+  it('--auth none keeps cycle 1: no Clerk flags set', () => {
+    expect(parseSetupArgs(base)).toMatchObject({ auth: 'none', clerkProduction: false, noDcr: false, rotateSecrets: false })
+  })
+  it('allows --operator-agent and --key-env with --org (D38), and --org alone (the Clerk bootstrap always creates the organisation)', () => {
+    expect(parseSetupArgs([...clerk, '--operator-agent', 'operator', '--key-env', 'K', '--org', 'Acme'])).toMatchObject({ operatorAgent: 'operator', keyEnv: 'K', org: 'Acme' })
+    expect(parseSetupArgs([...clerk, '--org', 'Acme'])).toMatchObject({ org: 'Acme' })
+  })
+})
+
 describe('parseSetupArgs: refusals before any network call (D19, D20, D18, D6)', () => {
   const cases: [string, string[], RegExp][] = [
     ['missing --env', ['--auth', 'none', '--api-host', 'api.acme.vibase.ai'], /--env/],
@@ -30,15 +45,21 @@ describe('parseSetupArgs: refusals before any network call (D19, D20, D18, D6)',
     ['web origin with a path', [...base, '--web-origin', 'https://app.example.com/app'], /path/],
     ['wildcard host origin', [...base, '--extra-origin', 'https://*.example.com'], /wildcard/],
     ['bare star origin', [...base, '--extra-origin', '*'], /wildcard|https/],
-    ['--auth clerk', ['--env', 'acme', '--auth', 'clerk', '--api-host', 'api.acme.vibase.ai'], /OPS87/],
-    ['--auth omitted', ['--env', 'acme', '--api-host', 'api.acme.vibase.ai'], /--auth none/],
+    ['--auth with another value', ['--env', 'acme', '--auth', 'oidc', '--api-host', 'api.acme.vibase.ai'], /--auth/],
     ['unknown step in --only', [...base, '--only', 'migrate,bogus'], /bogus/],
     ['operator agent without key env', [...base, '--operator-agent', 'operator'], /together/],
     ['key env without operator agent', [...base, '--key-env', 'ACME_KEY'], /together/],
     ['key env not UPPER_SNAKE', [...base, '--operator-agent', 'operator', '--key-env', 'lower', '--owner-email', 'o@example.com'], /UPPER_SNAKE/],
     ['operator without an owner email (none needs a human owner)', [...base, '--operator-agent', 'operator', '--key-env', 'K'], /--owner-email/],
     ['--org without an operator agent (only the marker is written, the name would be ignored)', [...base, '--org', 'Acme'], /--org/],
-    ['a Clerk-only flag', [...base, '--clerk-publishable-key', 'pk_test_x'], /OPS87/],
+    ['a Clerk-only flag with --auth none', [...base, '--clerk-publishable-key', 'pk_test_x'], /--auth clerk/],
+    ['--clerk-env-file with --auth none', [...base, '--clerk-env-file', '.env.dev'], /--auth clerk/],
+    ['--clerk-production with --auth none', [...base, '--clerk-production'], /--auth clerk/],
+    ['--rotate-secrets with --auth none', [...base, '--rotate-secrets'], /--auth clerk/],
+    ['--only clerk with --auth none', [...base, '--only', 'clerk'], /--auth clerk/],
+    ['--only secrets with --auth none', [...base, '--only', 'secrets'], /--auth clerk/],
+    ['--auth clerk without --owner-email (D17)', ['--env', 'acme', '--api-host', 'api.acme.vibase.ai'], /--owner-email/],
+    ['--clerk-key-env is gone (D34)', [...clerk, '--clerk-key-env', 'X'], /clerk-key-env/],
   ]
   it.each(cases)('%s', (_name, argv, message) => {
     let thrown: unknown

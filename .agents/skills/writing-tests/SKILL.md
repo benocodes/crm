@@ -87,6 +87,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   behaviours that only the legacy suite had ever tested, and they got tests of their own.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
+- **Assemble secret-shaped canaries at runtime** (`['sk', 'live', 'canary'].join('_')`), never as a literal.
+  GitHub push protection scans every pushed commit and rejects a literal that looks like a provider key (an
+  `sk_live_…` sentinel was taken for a Stripe key), so the red commit cannot be pushed ([[OPS87]]).
 - **An absence test is only red-then-green if the fixture triggers the producer under the old code.** A
   conditional producer makes a bare-minimum fixture pass trivially. Check the injected fault can actually
   turn the named test red: `set_config(..., false)` inside a transaction that rolls back is rolled back too,

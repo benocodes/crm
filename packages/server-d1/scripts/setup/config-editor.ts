@@ -13,6 +13,8 @@ export interface DesiredEnv {
   r2Name: string
   apiHost: string
   corsOrigins: string
+  /** `--auth clerk`: the Clerk variables ([[OPS65]] D3). `AUTH_CLI_CLIENT_ID` is absent while the CLI application is only planned. */
+  authVars?: { AUTH_PROVIDER: string; CLERK_ISSUER: string; CLERK_AUTHORIZED_PARTIES: string; AUTH_CLI_CLIENT_ID?: string }
 }
 export interface ReconcileResult {
   text: string
@@ -35,7 +37,7 @@ export function desiredBlock(d: DesiredEnv): Json {
     observability: { enabled: true },
     d1_databases: [{ binding: 'DB', database_name: d.d1Name, database_id: d.d1Id, migrations_dir: '../storage-d1/migrations', remote: true }],
     r2_buckets: [{ binding: 'BODIES', bucket_name: d.r2Name }],
-    vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: d.corsOrigins },
+    vars: d.authVars ? Object.fromEntries(Object.entries({ ...d.authVars, CORS_ALLOWED_ORIGINS: d.corsOrigins }).filter(([, v]) => v !== undefined)) : { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: d.corsOrigins },
   }
 }
 

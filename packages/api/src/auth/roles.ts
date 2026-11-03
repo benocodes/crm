@@ -34,6 +34,30 @@ export const SCOPE_POLICY: ScopePolicy = {
   'agents:write': { member: false, agentGrantable: false },
 }
 
+/**
+ * One consent-screen sentence per declared scope ([[OPS65]] D40): `setup:remote` lists them as the Clerk scope catalog's descriptions.
+ * The same catalog test holds the keys equal to the declared scopes.
+ */
+export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  'tasks:read': 'View tasks and their status',
+  'tasks:write': 'Create, change and complete tasks',
+  'contacts:read': 'View contacts and their details',
+  'contacts:write': 'Create, change and merge contacts',
+  'companies:read': 'View companies and their details',
+  'companies:write': 'Create, change and merge companies',
+  'interactions:read': 'See who talked to whom, and when, across email, calendar and chat',
+  'messages:read': 'Read the content of messages and threads',
+  'files:read': 'Read attachments and other stored files',
+  'associations:read': 'View the links between contacts, companies and other records',
+  'associations:write': 'Create and remove links between records',
+  'notes:read': 'View notes on records',
+  'notes:write': 'Create, change and delete notes',
+  'schema:read': 'Read the data schema: record types, fields and relations',
+  'members:read': 'View the members of the workspace',
+  'agents:read': 'View the workspace agents and their access',
+  'agents:write': 'Create, change and revoke agents and their API keys',
+}
+
 /** Owner: every declared scope. Member: declared scopes flagged `member`; no entry means not granted (fail closed). */
 export function scopesForRole(role: Role, declared: readonly string[], policy: ScopePolicy = SCOPE_POLICY): ScopeSet {
   if (role === 'owner') return ScopeSet.parse(declared)
