@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { McpError } from '@modelcontextprotocol/sdk/types.js'
+import { StreamableHTTPClientTransport, StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { McpError, ListResourcesResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { execute, uuidv7 } from '@vault/storage'
 import { d1Binding } from '@vault/storage-d1'
 import { createVaultRegistry, grantableScopes, toolName } from '@vault/api'
@@ -108,6 +108,23 @@ describe('interop with the reference client (D4)', () => {
     await expect(client.callTool({ name: 'no_such_tool', arguments: {} })).rejects.toThrow(McpError)
     await client.close()
   })
+
+  it('a method the server lacks rejects with McpError -32601, never a transport error: the 200 is what the client depends on', async () => {
+    await initWorkspace()
+    const wk = worker()
+    const { key } = await agentKey(wk, 'sdk')
+    const transport = new StreamableHTTPClientTransport(new URL(BASE + '/mcp'), {
+      requestInit: { headers: { authorization: `Bearer ${key}` } },
+      fetch: (input, init) => wk.fetch(new Request(input, init)),
+    })
+    const client = new Client({ name: 'test', version: '0' })
+    await client.connect(transport)
+    const err = await client.request({ method: 'resources/list' }, ListResourcesResultSchema).catch((e) => e)
+    expect(err).toBeInstanceOf(McpError)
+    expect(err).not.toBeInstanceOf(StreamableHTTPError)
+    expect((err as McpError).code).toBe(-32601)
+    await client.close()
+  })
 })
 
 describe('protocol faults (D1-D3, D10)', () => {
@@ -137,26 +154,54 @@ describe('protocol faults (D1-D3, D10)', () => {
     expect(call.json.result.isError).toBeUndefined()
   })
 
-  it('unparseable JSON is -32700, a batch -32600, an unknown method -32601, an unknown tool and non-object arguments -32602, all HTTP 200', async () => {
+  it('envelope faults are HTTP 400 with id null: unparseable JSON -32700; a batch, a non-object, a wrong jsonrpc, a bad id and a missing method -32600', async () => {
     await initWorkspace()
     const wk = worker()
     const { key } = await agentKey(wk, 'a')
-    const bad = await post(wk, key, null, {}, '{nope')
-    expect(bad.status).toBe(200)
-    expect(bad.json.error.code).toBe(-32700)
-    const batch = await post(wk, key, [rpc('ping')])
-    expect(batch.status).toBe(200)
-    expect(batch.json.error.code).toBe(-32600)
-    expect((await post(wk, key, { id: 1, method: 'ping' })).json.error.code).toBe(-32600)
-    const unknown = await post(wk, key, rpc('resources/list'))
-    expect(unknown.json.error.code).toBe(-32601)
-    expect(unknown.json.id).toBe(1)
-    expect((await callTool(wk, key, 'no_such_tool')).json.error.code).toBe(-32602)
-    expect((await callTool(wk, key, 'contacts_list', [1])).json.error.code).toBe(-32602)
-    expect((await callTool(wk, key, 'contacts_list', 'x')).json.error.code).toBe(-32602)
-    expect((await post(wk, key, rpc('tools/call', {}))).json.error.code).toBe(-32602)
-    // a binary operation is not a tool
-    expect((await callTool(wk, key, 'files_content', { id: uuidv7(NOW) })).json.error.code).toBe(-32602)
+    const faults: Array<[string, Rpc, number]> = [
+      ['unparseable', await post(wk, key, null, {}, '{nope'), -32700],
+      ['batch', await post(wk, key, [rpc('ping')]), -32600],
+      ['non-object', await post(wk, key, 42), -32600],
+      ['wrong jsonrpc', await post(wk, key, { jsonrpc: '1.0', id: 1, method: 'ping' }), -32600],
+      ['no jsonrpc', await post(wk, key, { id: 1, method: 'ping' }), -32600],
+      ['object id', await post(wk, key, { jsonrpc: '2.0', id: {}, method: 'ping' }), -32600],
+      ['null id', await post(wk, key, { jsonrpc: '2.0', id: null, method: 'ping' }), -32600],
+      ['missing method, valid id', await post(wk, key, { jsonrpc: '2.0', id: 7 }), -32600],
+      ['missing method, no id', await post(wk, key, { jsonrpc: '2.0' }), -32600],
+    ]
+    for (const [name, r, code] of faults) {
+      expect({ name, status: r.status }).toEqual({ name, status: 400 })
+      expect(r.headers.get('content-type')).toContain('application/json')
+      expect({ name, id: r.json.id, code: r.json.error.code }).toEqual({ name, id: null, code })
+    }
+  })
+
+  it('a message with a valid id but no method answers id null, not the id', async () => {
+    await initWorkspace()
+    const wk = worker()
+    const { key } = await agentKey(wk, 'a')
+    const r = await post(wk, key, { jsonrpc: '2.0', id: 7 })
+    expect(r.json.id).toBeNull()
+    expect(r.json.error.code).toBe(-32600)
+  })
+
+  it('request errors stay HTTP 200 with the request id echoed: -32601 unknown method, -32602 unknown tool, no name, bad arguments, a binary operation', async () => {
+    await initWorkspace()
+    const wk = worker()
+    const { key } = await agentKey(wk, 'a')
+    const cases: Array<[Rpc, number]> = [
+      [await post(wk, key, rpc('resources/list', undefined, 11)), -32601],
+      [await post(wk, key, rpc('tools/call', { name: 'no_such_tool', arguments: {} }, 12)), -32602],
+      [await post(wk, key, rpc('tools/call', { name: 'contacts_list', arguments: [1] }, 13)), -32602],
+      [await post(wk, key, rpc('tools/call', { name: 'contacts_list', arguments: 'x' }, 14)), -32602],
+      [await post(wk, key, rpc('tools/call', {}, 15)), -32602],
+      [await post(wk, key, rpc('tools/call', { name: 'files_content', arguments: { id: uuidv7(NOW) } }, 16)), -32602],
+    ]
+    cases.forEach(([r, code], i) => {
+      expect(r.status).toBe(200)
+      expect(r.json.id).toBe(11 + i)
+      expect(r.json.error.code).toBe(code)
+    })
   })
 
   it('a notification and a client response are 202 with no body', async () => {
