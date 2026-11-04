@@ -52,4 +52,18 @@ describe('tags over REST', () => {
     expect(res.body.error.message).toContain('tag_id')
     expect((await call(FULL, 'GET', `/api/v1/companies?tag_id=${a.id}`)).status).toBe(200)
   })
+
+  it('any repeated query parameter is refused, not only tag_id, on any operation (D10a); a single value still answers 200', async () => {
+    const co = (await call(FULL, 'POST', '/api/v1/companies', { name: 'Acme' })).body
+    for (const [path, name] of [
+      ['/api/v1/notes?limit=1&limit=2', 'limit'],
+      [`/api/v1/associations?type=companies&type=contacts&id=${co.id}`, 'type'],
+    ] as const) {
+      const res = await call([...FULL, 'notes:read'], 'GET', path)
+      expect([res.status, res.body.error.code], path).toEqual([400, 'validation_error'])
+      expect(res.body.error.message).toContain(`"${name}"`)
+    }
+    expect((await call([...FULL, 'notes:read'], 'GET', '/api/v1/notes?limit=1')).status).toBe(200)
+    expect((await call(FULL, 'GET', `/api/v1/associations?type=companies&id=${co.id}`)).status).toBe(200)
+  })
 })
