@@ -10,9 +10,9 @@ import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } fr
 // registers by DCR, gets a person's consent and works through /mcp as that person's delegated agent, which an owner then disables.
 //
 // Prerequisite, as for the connect E2E: a local Worker on E2E_BASE_URL (default http://localhost:8787) from this worktree (`pnpm -C packages/server-d1 dev`),
-// its local D1 migrated and bootstrapped on the Clerk path (`bootstrap -- --org <n> --issuer <CLERK_ISSUER>`), with the full Clerk configuration of
+// its local D1 migrated (`wrangler d1 migrations apply DB --local`, before `bootstrap`) and bootstrapped on the Clerk path (`bootstrap -- --org <n> --issuer <CLERK_ISSUER>`), with the full Clerk configuration of
 // `.dev.vars.example` from `.env.dev` (AUTH_PROVIDER=clerk, CLERK_ISSUER, CLERK_JWT_KEY, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, AUTH_CLI_CLIENT_ID,
-// CLERK_AUTHORIZED_PARTIES=<base URL>). The database it reads is that Worker's LOCAL D1 (`wrangler d1 execute DB --local`), never a remote one.
+// CLERK_AUTHORIZED_PARTIES=<base URL>); in `.dev.vars` the CLERK_JWT_KEY PEM needs its newlines escaped as \n. The database it reads is that Worker's LOCAL D1 (`wrangler d1 execute DB --local`), never a remote one.
 // Keys: `.env.dev` only (playwright.config.ts). Run with:  pnpm -C packages/server-d1 e2e:mcp-oauth
 //
 // How the grant is narrowed (step 6): the client asks for the challenge's scope list minus `tasks:write` (the SDK's `auth()` takes an explicit `scope`
@@ -116,15 +116,23 @@ test('2. the SDK discovers the document and Clerk, and registers by DCR', async 
 test('3. the member signs in with a sign-in ticket, consents on Clerk, and the code becomes tokens', async ({ page, context, request }) => {
   await setupClerkTestingToken({ context })
   let callback: URL | undefined
-  await page.route('http://127.0.0.1:43111/**', (route) => {
-    callback = new URL(route.request().url())
-    return route.fulfill({ status: 200, contentType: 'text/plain', body: 'captured' })
+  // The redirect to the loopback is made by the server's 302, so a route handler never fires: observe the request instead.
+  page.on('request', (r) => {
+    if (r.url().startsWith('http://127.0.0.1:43111/')) callback = new URL(r.url())
   })
   await page.goto(provider.authorizeUrl!.href)
   await page.waitForURL((u) => u.origin !== new URL(ISSUER).origin && (u.searchParams.has('redirect_url') || u.hash.includes('redirect_url')))
-  const { token } = (await bapi(request, 'POST', '/sign_in_tokens', { user_id: users.member.id })) as { token: string }
-  await page.goto(`${page.url()}${page.url().includes('?') ? '&' : '?'}__clerk_ticket=${token}`)
-  // Clerk's hosted consent screen: its button labels are not under our control, so match the usual ones and keep trying until the loopback is hit.
+  // Clerk's dev-browser redirect aborts the first navigation carrying the ticket: ignore that, let the page settle, then retry with a fresh token.
+  const ticketed = async (): Promise<void> => {
+    const { token } = (await bapi(request, 'POST', '/sign_in_tokens', { user_id: users.member.id })) as { token: string }
+    const u = new URL(page.url())
+    u.searchParams.set('__clerk_ticket', token)
+    await page.goto(u.href).catch(() => {})
+  }
+  await ticketed()
+  await page.waitForLoadState('networkidle').catch(() => {})
+  if (!callback) await ticketed()
+  // Clerk's hosted consent screen, if one is shown: its button labels are not ours, so an optional tolerant click while waiting for the loopback.
   const consent = page.getByRole('button', { name: /^(allow|authorize|accept|approve|continue)/i }).first()
   const deadline = Date.now() + 60_000
   while (!callback && Date.now() < deadline) {
@@ -179,6 +187,7 @@ test('7. the owner disables the agent and the client\'s next tools/list is 401 w
   await clerk.loaded({ page })
   await clerk.signIn({ page, emailAddress: users.owner.email })
   await page.goto('/connect')
+  await page.waitForFunction(() => (window as any).Clerk?.session, null, { timeout: 30000 })
   const owner = await page.evaluate(() => (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken())
   const patched = await request.patch(`/meta/v1/agents/${delegatedAgentId}`, { headers: { authorization: `Bearer ${owner}` }, data: { disabled: true } })
   expect(patched.status()).toBe(200)
