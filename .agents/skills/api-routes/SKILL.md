@@ -67,7 +67,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `scripts/smoke-worker.ts` (`pnpm -C packages/server-d1 smoke:worker`): esbuild bundle run in workerd through
     Miniflare. `outboundService` is the fake Clerk and fails on any other host, which proves no real network call.
   - The bundle needs **no `nodejs_compat`** (Web Crypto only). Keep Node built-ins out of `@vault/api` production
-    code; the smoke is the check.
+    code; the smoke is the check. A package whose entry imports Node built-ins at top level (`chat@4.43.0`) is
+    a devDependency imported type-only; `production-boundary.test.ts` enforces that for `chat` ([[CORE69]] D25).
+  - **workerd streams** ([[CORE69]]): R2's `put` refuses a `ReadableStream` of unknown length (`TypeError`), so pipe a
+    known-size stream through `FixedLengthStream(size)` and send an unknown-size one through `ObjectStore.putStream`
+    (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vault/api` only as
+    injected `StreamPrimitives` (`workerdStreams()`; Node versions in `@vault/api/test`). Node fakes accept any
+    stream, so only the smoke proves this path. A smoke-only entry (`scripts/smoke-pipeline-entry.ts`) may export
+    only its handler; constants it shares with the smoke go in a sibling module.
   - Test D1s come from `src/test/kit.ts` (a fresh in-memory D1 per test), so no clearing helper is needed.
   - **Per-request D1 budget** ([[CORE47]]). Workers Free allows 50 D1 queries per invocation (a `batch()` is one)
     and 50 subrequests, D1 queries and outbound fetches together. A prepared unit costs one read batch plus one

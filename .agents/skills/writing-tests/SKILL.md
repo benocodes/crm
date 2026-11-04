@@ -24,7 +24,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   implementation, see the named test turn red, restore it, and keep the raw output in RESULT.md. Examples
   from [[CORE35]]: replace the D1 batch with autocommit statements (7 atomicity tests fail); put the event in
   its own Postgres transaction (6 fail); emit `after` values as `before` (8 fail); hard-code the set cap; add
-  a `pg` import to an open package; erase a type with `any`; drop the writer lock.
+  a `pg` import to an open package; erase a type with `any`; drop the writer lock. The same holds for a check over
+  fixtures that exist before the code ([[CORE69]]: the zod half of the shape contract passed at once; retyping one
+  fixture field turned 14 red). **A vendored copy of a dependency's function** keeps a parity test against the
+  original in Node, proven by swapping in a near-miss implementation ([[CORE69]]: `mdast-util-to-string` for
+  `toPlainText`, 7 parity tests red).
 - **A mutation that stays green is suspect before the test is.** Check `git diff` shows an executable line
   changed: [[CORE38]]'s mutation 7 (`remoteBindings: true`) first replaced the word in a code comment and
   stayed green; applied to the `return` line it turned red. Record which attempt counted.
@@ -279,7 +283,7 @@ A test that fails once and then passes is a bug until its cause is found. Do not
   `fileParallelism: false`.
 - **Event order.** See "Assert emit order" in section 6; never order by `id` in a test.
 - **Known flake: `packages/server-d1/src/measured-limits.test.ts`** is intermittently off by one on pinned query counts,
-  on clean `main` too ([[CORE62]], [[API32]], [[API63]]; issue #79). Until #79 lands, when it fails, record the scenario
+  on clean `main` too ([[CORE62]], [[API32]], [[API63]], [[CORE69]] on `merge-100-links`; issue #79). Until #79 lands, when it fails, record the scenario
   names and counts in RESULT.md and rerun once; don't loosen `EXPECTED_QUERIES`.
 
 
