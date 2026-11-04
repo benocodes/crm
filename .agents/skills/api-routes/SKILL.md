@@ -548,8 +548,11 @@ message bodies or addresses at info level (customer communications are personal 
 - **`splitArguments`** sends path and query values over as strings (REST coerces them), the rest into the body;
   an unknown name goes into an object body (a strict schema refuses it) or, with no body, is
   `400 validation_error`. Execution is `executeOperation`, so errors, scopes and events are REST's.
-- **Status codes:** JSON-RPC errors (`-32700`, `-32600`, `-32601`, `-32602`) are HTTP `200`, because the SDK
-  client discards the body of any non-2xx. Transport refusals are plain HTTP with the REST error body
+- **Status codes ([[API117]]):** an envelope fault (`-32700`, `-32600`: the body is not one JSON-RPC message) is
+  HTTP `400` with `id: null` (`envelopeFault` in `src/mcp/handler.ts`); an error answering a well-formed request
+  (`-32601`, `-32602`) is HTTP `200` with the id echoed, because the SDK client discards the body of any non-2xx and
+  would lose the code. The SDK interop test in `packages/server-d1/src/mcp.test.ts` (an unknown method rejects with
+  `McpError -32601`) is what pins the `200`; a new request-level error belongs on the `200` side. Transport refusals are plain HTTP with the REST error body
   (`400` version, `401`, `403 origin_forbidden`, `405`, `413`, `415`). An `ApiError` from an operation is a tool
   result with `isError: true`.
 - **Origin** is checked in a `/mcp` middleware registered before CORS (an absent `Origin` passes, a present one
