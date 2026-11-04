@@ -77,11 +77,13 @@ test('2. the Account Portal round trip (settles the open question)', async ({ pa
   await expect(page.getByText(/role: owner/)).toBeVisible()
 })
 
-test('3. owner: instructions, no MCP section, disable and enable an API-key agent', async ({ page, request, baseURL }) => {
+test('3. owner: instructions, the MCP section, disable and enable an API-key agent', async ({ page, request, baseURL }) => {
   await open(page, 'owner')
   await expect(page.getByText(`vibase login --server ${baseURL}`)).toBeVisible()
   await expect(page.getByText('--api-key')).toBeVisible()
-  await expect(page.locator('[data-section="mcp"]')).toHaveCount(0)
+  // [[API115]] D17: every instance advertises its MCP URL, so the section shows it.
+  await expect(page.locator('[data-section="mcp"]')).toBeVisible()
+  await expect(page.locator('[data-section="mcp"]')).toContainText(`${baseURL}/mcp`)
   const row = page.locator('li.agent', { hasText: 'e2e-key' })
   await row.getByRole('button', { name: 'Disable' }).click()
   await expect(row.getByText(/disabled 20/)).toBeVisible()

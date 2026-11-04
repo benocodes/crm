@@ -354,3 +354,23 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   Fetch's decoder strips the BOM.
 - Postgres `NUMERIC` comes back from `pg` as a string even when a `sql<number>` annotation says otherwise.
   Convert at the DTO boundary and assert actual JSON value types in route tests.
+
+## 7. Browser E2E scripts (Playwright, Clerk)
+
+`packages/server-d1/e2e/*.e2e.ts` run Playwright + `@clerk/testing` against a local Worker and the Clerk dev
+instance (`.env.dev` only), outside the gate. They fail on browser and provider timing, not on vault logic, so
+write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oauth.e2e.ts`):
+
+- **`page.route` does not see the target of a server redirect.** An OAuth authorize endpoint answers `302` to
+  the client's `redirect_uri`; a route handler on that URL never fires. Capture a loopback callback with
+  `page.on('request')` or `page.waitForRequest`, which see every hop of a redirect chain.
+- **A navigation carrying `__clerk_ticket` can abort** (Clerk's dev-browser handshake redirects the page).
+  Catch the `goto` rejection, wait for the page to settle, and if the flow did not move on, retry with a fresh
+  BAPI sign-in token: they are single use.
+- **`window.Clerk.session` is not ready when `goto` resolves**, even after `clerk.signIn`. Wait for it
+  (`page.waitForFunction(() => window.Clerk?.session)`) before `session.getToken()`.
+- **A hosted provider screen's labels are not ours** (Clerk's consent button): match tolerantly and treat the
+  click as optional while waiting for the outcome you actually assert (the callback, a URL).
+- **Local setup:** `wrangler d1 migrations apply DB --local` before `bootstrap`; in `.dev.vars` write the
+  `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
+  its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.

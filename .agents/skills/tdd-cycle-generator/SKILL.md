@@ -177,6 +177,9 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
 - **A migration over data seeds the old schema directly** (SQL against the database at the previous
   migration, or the previous build), never through the new Worker: since [[CORE61]] the new code answers
   `503 migrations_pending` until the database is current. List that `503` as an expected step.
+- **A cycle that changes an existing E2E script's expectation** (a step that flips) names that script for the
+  tester too. [[API115]] flipped `e2e:connect`'s MCP step without naming it, and review had to add the run as a
+  pre-merge condition.
 - **Deletes as the spec defines them:** for a soft delete, say "`deleted_at` set, row kept". Left unsaid,
   the tester asserted that cascaded edges were gone, against [[CORE62]] D15.
 - **A refusal step is a full command line.** The tool validates its required flags before the check the step
