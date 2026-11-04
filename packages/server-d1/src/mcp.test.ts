@@ -175,7 +175,7 @@ describe('protocol faults (D1-D3, D10)', () => {
     const wk = worker()
     const { key } = await agentKey(wk, 'a')
     for (const method of ['GET', 'DELETE']) {
-      for (const headers of [{}, { authorization: `Bearer ${key}` }]) {
+      for (const headers of [{} as Record<string, string>, { authorization: `Bearer ${key}` }]) {
         const res = await wk.fetch(new Request(BASE + '/mcp', { method, headers }))
         expect(res.status).toBe(405)
         expect(res.headers.get('allow')).toBe('POST')

@@ -4,7 +4,7 @@
 // `outboundService` function; any other host fails the smoke (check 16), which proves the run made no real network call.
 //
 //   pnpm -C packages/server-d1 smoke:worker
-import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -350,6 +350,22 @@ try {
   res = await call('GET', '/.well-known/vibase')
   body = await json(res)
   check('25 GET /.well-known/vibase -> auth.publishable_key is null (no key configured)', res.status === 200 && body.auth?.publishable_key === null, body.auth)
+
+  // 26-29: the MCP endpoint ([[API106]] D4): hand-written JSON-RPC in the bundle, no SDK, no nodejs_compat (this Miniflare sets none).
+  const mcp = async (method: string, params?: unknown, id = 1) => {
+    const r = await call('POST', '/mcp', { token: key, headers: { 'content-type': 'application/json' }, body: { jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) } })
+    return { status: r.status, body: await json(r) }
+  }
+  let m = await mcp('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'smoke', version: '1' } })
+  check('26 POST /mcp initialize -> 2025-11-25, instructions, serverInfo', m.status === 200 && m.body.result?.protocolVersion === '2025-11-25' && typeof m.body.result?.instructions === 'string' && m.body.result?.serverInfo?.name === 'vibase', m)
+  m = await mcp('tools/list')
+  const toolNames: string[] = (m.body.result?.tools ?? []).map((t: { name: string }) => t.name)
+  check('27 POST /mcp tools/list -> the agent\'s tools, no human-only tool, no binary tool', m.status === 200 && toolNames.includes('tasks_create') && toolNames.includes('schema_get') && !toolNames.some((n) => n.startsWith('agents_')) && !toolNames.includes('files_content'), toolNames.length)
+  const mcpEventsBefore = await count('events')
+  m = await mcp('tools/call', { name: 'tasks_create', arguments: { title: 'from mcp' } })
+  const mcpActor = await rows("select actor_id from events where type = 'task.created' order by rowid desc limit 1")
+  check('28 POST /mcp tools/call tasks_create -> a task, one event attributed to the key\'s agent', m.status === 200 && m.body.result?.isError === undefined && m.body.result?.structuredContent?.title === 'from mcp' && (await count('events')) === mcpEventsBefore + 1 && mcpActor[0]?.actor_id === boot.agentId, m)
+  check('29 the bundle contains no MCP SDK', !readFileSync(bundle, 'utf8').includes('@modelcontextprotocol'), undefined)
 } catch (err) {
   failures++
   console.log(`FAIL smoke aborted -> ${err instanceof Error ? err.message : String(err)}`)

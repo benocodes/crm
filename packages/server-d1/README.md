@@ -47,6 +47,20 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
   | curl -s -X POST -H "authorization: Bearer $KEY" -H "content-type: application/json" --data-binary @- http://localhost:8787/identities/resolve
 ```
 
+## The MCP endpoint
+
+The Worker serves a remote MCP endpoint at `<api origin>/mcp` ((API106)): stateless Streamable HTTP, JSON responses, one tool per vault operation
+the caller's scopes allow (`schema_get`, `contacts_create`, ...). An API key works as a static header, for any MCP client that can send one:
+
+```bash
+curl -s -X POST http://localhost:8787/mcp -H "authorization: Bearer $KEY" -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+# Claude Code: claude mcp add --transport http vibase http://localhost:8787/mcp --header "Authorization: Bearer $KEY"
+```
+
+A request carrying an `Origin` header must come from `CORS_ALLOWED_ORIGINS` (empty: every browser is refused; clients with no `Origin` are unaffected).
+OAuth sign-in for MCP clients (discovery, the `/mcp` challenge) arrives with the next cycle.
+
 ## The connect page
 
 Every deployment serves **`/connect`** on its own API origin ([[UI30]]): sign in through Clerk's Account Portal, see who you are and how to
