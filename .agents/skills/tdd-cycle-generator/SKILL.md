@@ -129,6 +129,10 @@ general implementation that is tested only through its first case costs a review
 reviewer checks the branch against. It is not per-file test tables: say *what* must hold, not how the
 test is written.}
 
+{A "never in events" or "never leaks" obligation names every path that emits the resource's events, including
+programs owned by other resources (cascades from a parent's delete, merges), not only the resource's own create,
+update and delete. [[CORE131]] listed created/updated/merged; the company-delete cascade leaked and cost a review round.}
+
 - {behaviour or risk} — {evidence}
 
 ## E2E
