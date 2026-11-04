@@ -298,9 +298,11 @@ same numbers for your instance.
 
 ## Golden regeneration
 
-The golden transcripts are generated on the Postgres side and replayed on D1. A failing D1 replay is never fixed by
-editing the fixture on the D1 side: **fixtures are regenerated only on the enterprise side: ask a maintainer to run
-`pnpm -C packages/server-postgres golden:generate`.**
+The golden transcripts (`packages/api/fixtures/golden/`) are generated on D1, the oracle, and replayed on D1 in the
+test gate. After an intended behaviour change, run `pnpm -C packages/api golden:generate` (Miniflare, no database URL)
+and review the fixture diff line by line before committing it: every changed line must be explained by the change.
+`pnpm -C packages/api golden:check` exits non-zero when a fixture is stale. Never edit a fixture by hand to make a
+replay pass.
 
 ## Open and enterprise packages
 

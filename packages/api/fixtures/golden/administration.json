@@ -1,7 +1,7 @@
 {
   "format": 1,
   "resource": "administration",
-  "generated_by": "packages/server-postgres/scripts/golden.ts (postgres path)",
+  "generated_by": "packages/api/scripts/golden.ts (d1 path)",
   "named_differences": [],
   "scenarios": [
     {
@@ -59,11 +59,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -194,11 +194,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -211,11 +211,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:03:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -268,11 +268,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:03:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -285,11 +285,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:04:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -339,11 +339,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:04:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -356,11 +356,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:05:00.000Z",
                 "disabled_at": "2026-10-22T09:05:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -410,11 +410,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:05:00.000Z",
                 "disabled_at": "2026-10-22T09:05:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -427,11 +427,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:06:00.000Z",
                 "disabled_at": "2026-10-22T09:05:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -481,11 +481,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:06:00.000Z",
                 "disabled_at": "2026-10-22T09:05:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -498,11 +498,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:07:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -573,11 +573,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:09:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -628,11 +628,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -835,11 +835,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -1135,11 +1135,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               },
               "after": {
                 "id": "0190b2c4-0000-7000-8000-000001000001",
@@ -1151,11 +1151,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:08:00.000Z",
                 "disabled_at": "2026-10-22T09:08:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]
@@ -1302,11 +1302,11 @@
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:00:00.000Z",
                 "disabled_at": null,
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "auth_provider": null,
                 "auth_subject": null,
+                "delegated_by": null,
+                "auth_provider": null,
                 "auth_client_id": null,
-                "delegated_by": null
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
             }
           ]

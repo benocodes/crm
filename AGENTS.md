@@ -165,7 +165,7 @@ pnpm db:codegen
 pnpm -C packages/server-postgres dev               # Postgres dev server (DATABASE_URL, AUTH_PROVIDER)
 pnpm -C packages/server-postgres bootstrap -- --org <n> --email <e> --agent <a>
 pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need SMOKE_EXPECT_DATABASE
-pnpm -C packages/server-postgres golden:generate   # and golden:check
+pnpm -C packages/api golden:generate               # and golden:check; goldens generated on D1 (Miniflare), review the fixture diff
 pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the /connect page first
 pnpm -C packages/server-d1 build                   # the connect page (UI30) into dist/assets/connect/; `dev` runs it before `wrangler dev --local`
@@ -251,8 +251,8 @@ Carried over from the predecessor product, where each cost real time. Add new on
 9. **Resolve an approval's anchor at approval time, not draft time.**
 10. **Open packages never import enterprise code** (`@vault/storage-postgres`, `@vault/server-postgres`,
     `@vault/db`, `pg`); `packages/storage/src/import-boundary.test.ts` enforces it, with no allow-list entries for
-    `packages/api` ([[CORE35]] D14/D15, [[CORE36]] D22). Postgres composition (dev server, bootstrap, smokes, golden
-    generator) lives in `@vault/server-postgres`.
+    `packages/api` ([[CORE35]] D14/D15, [[CORE36]] D22). Postgres composition (dev server, bootstrap, smokes) lives in
+    `@vault/server-postgres`; the golden generator is open code in `@vault/api` ([[CORE72]]).
 
 ## Knowledge hygiene
 

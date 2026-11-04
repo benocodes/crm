@@ -77,6 +77,7 @@ export function pgGoldenBackend(opts: { pauseMs?: number } = {}): PgGoldenBacken
       })
     },
     async load(scenario) {
+      if (scenario.seed) throw new Error(`scenario ${scenario.name} seeds ${scenario.seed}, which the Postgres backend cannot (CORE72: messaging.json replays on D1 only)`)
       loadGoldenClerk(clerk!, scenario.clerk)
       if (!scenario.keys) return
       // The agent's two fixed keys (CORE41 P15): one valid, one that expired half an hour after the seed instant.

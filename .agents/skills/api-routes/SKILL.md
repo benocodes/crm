@@ -44,8 +44,9 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   `@vault/server-postgres` (AGENTS.md invariant 10):
   - `src/dev-server.ts` (`pnpm -C packages/server-postgres dev`; `AUTH_PROVIDER` empty runs agent-only);
   - `scripts/bootstrap.ts` (`pnpm -C packages/server-postgres bootstrap -- --org … --email … --agent …`);
-  - `scripts/smoke-auth.ts`, `scripts/smoke-admin.ts` (below);
-  - `scripts/golden.ts` (`golden:generate`, `golden:check`), reading `@vault/api/test/golden`.
+  - `scripts/smoke-auth.ts`, `scripts/smoke-admin.ts` (below).
+  The golden generator is not here: it is open code, `packages/api/scripts/golden.ts` (`pnpm -C packages/api
+  golden:generate|check`, on D1, [[CORE72]]).
 - **D1 composition** (`@vault/server-d1`, open, [[CORE38]]): the self-hosted module Worker on one D1 binding `DB`.
   Its boundary rules (`server-d1/src`, `server-d1/scripts`) forbid every enterprise import with no allow-list.
   - `src/compose.ts` (`composeD1Worker(env, deps?)`, Node-testable): the organisation comes from the **deployment
@@ -132,8 +133,9 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     earlier silently skips it. The `401` challenge (`WWW-Authenticate: Bearer resource_metadata="…"`, no `error=`)
     is one outer middleware in `createApp` that reads `c.res.status` after `next()` (so `onError`'s rendering is
     covered), active only with `workspace.adapter`; per-path setting missed paths in the absence mutation. Shared
-    CORS exposes `WWW-Authenticate` (not safelisted). The goldens come from the Postgres app, which has no
-    `workspace.adapter`, so D1-only auth behaviour is pinned in `server-d1` tests, not goldens (#72). A browser
+    CORS exposes `WWW-Authenticate` (not safelisted). The goldens come from `d1GoldenBackend`'s `createApp`, which has
+    no `workspace.adapter`, so workspace-adapter auth behaviour (the challenge, discovery) is pinned in `server-d1`
+    tests, not goldens. A browser
     preflight (`OPTIONS`) on the documents falls through to the shared CORS policy (no `*`): the MCP adapter spec
     revisits it.
     The Organizations authenticator stays for `@vault/server-postgres` and the engine-harness suites;

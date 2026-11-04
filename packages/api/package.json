@@ -16,7 +16,9 @@
   "scripts": {
     "test": "vitest run --config ../../vitest.config.ts",
     "test:postgres": "vitest run --config ../../vitest.postgres.config.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "golden:generate": "tsx scripts/golden.ts generate",
+    "golden:check": "tsx scripts/golden.ts check"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
@@ -37,6 +39,7 @@
     "@vault/storage-d1": "workspace:*",
     "@vault/storage-postgres": "workspace:*",
     "chat": "4.43.0",
+    "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vitest": "5.0.3"
   }

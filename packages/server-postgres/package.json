@@ -1,7 +1,7 @@
 {
   "name": "@vault/server-postgres",
   "private": true,
-  "description": "Enterprise tier (spec CORE36 D22): the Postgres composition of the vault API. The dev server, bootstrap CLI, smokes and golden generator. Open packages never import this one.",
+  "description": "Enterprise tier (spec CORE36 D22): the Postgres composition of the vault API. The dev server, bootstrap CLI and smokes. Open packages never import this one.",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -10,9 +10,7 @@
     "dev": "tsx src/dev-server.ts",
     "bootstrap": "tsx scripts/bootstrap.ts",
     "smoke:auth": "tsx scripts/smoke-auth.ts",
-    "smoke:admin": "tsx scripts/smoke-admin.ts",
-    "golden:generate": "tsx scripts/golden.ts generate",
-    "golden:check": "tsx scripts/golden.ts check"
+    "smoke:admin": "tsx scripts/smoke-admin.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.3",
