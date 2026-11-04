@@ -22,7 +22,7 @@
     "@hono/zod-openapi": "1.6.3",
     "@vault/storage": "workspace:*",
     "hono": "4.13.12",
-    "jose": "6.2.12",
+    "jose": "6.2.14",
     "kysely": "0.29.6",
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
