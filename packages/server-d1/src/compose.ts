@@ -127,7 +127,7 @@ export function composeD1Worker(
     }
     if (!link) return undefined
     const binding = d1Binding(env.DB, link)
-    app = createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, corsOrigins, clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
+    app = createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
     return app
   }
 

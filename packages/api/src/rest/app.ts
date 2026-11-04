@@ -19,6 +19,7 @@ import { internalEnv } from '../storage/internal.js'
 import { renderError, renderNotFound } from './errors.js'
 import { contentDisposition } from './binary.js'
 import { SURFACES, SURFACE_PREFIX, SURFACE_TITLE, fullPath, openApiPath } from '../surfaces.js'
+import { MCP_PATH, mcpMethodNotAllowed, mcpPost } from '../mcp/handler.js'
 import { documentOperation, honoPath, registerSecurityScheme } from './openapi.js'
 
 export type AppEnv = { Variables: { principal: Principal; storage: StorageBinding } }
@@ -53,8 +54,8 @@ export interface AppOptions {
 }
 
 async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationInput> {
-  let params: Record<string, unknown> = c.req.param()
-  let query: Record<string, unknown> = c.req.query()
+  const params: Record<string, unknown> = c.req.param()
+  const query: Record<string, unknown> = c.req.query()
   let body: unknown
   if (op.method === 'post' || op.method === 'patch') {
     const text = await c.req.text()
@@ -66,16 +67,30 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
       }
     }
   }
-  if (op.validation === 'adapter') {
-    if (op.request?.params) params = parseInput(op.request.params, params)
-    if (op.request?.query) query = parseInput(op.request.query, query)
-    if (op.request?.body) body = parseInput(op.request.body, body)
-  }
   return { params, query, body }
 }
 
-async function run(c: Context<AppEnv>, op: Operation, injected: Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects' | 'workspace'>): Promise<unknown> {
-  const input = await readInput(c, op)
+/** The adapter-validated operations ([[CORE36]]) parse their input here, before any scope check; handler-validated ones do it inside `prepare`. */
+function validateInput(op: Operation, input: OperationInput): OperationInput {
+  if (op.validation !== 'adapter') return input
+  const { params, query, body } = input
+  return {
+    params: op.request?.params ? parseInput(op.request.params, params) : params,
+    query: op.request?.query ? parseInput(op.request.query, query) : query,
+    body: op.request?.body ? parseInput(op.request.body, body) : body,
+  }
+}
+
+type Injected = Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects' | 'workspace'>
+
+const run = async (c: Context<AppEnv>, op: Operation, injected: Injected): Promise<unknown> => executeOperation(c, op, await readInput(c, op), injected)
+
+/**
+ * The executor both REST and MCP `tools/call` run ([[API106]] D12): scope checks, the account-operation rule, `prepare`, the storage
+ * unit, events and error mapping. `input` is already read; adapter-validated operations are validated first, as REST does.
+ */
+async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: OperationInput, injected: Injected): Promise<unknown> {
+  const input = validateInput(op, rawInput)
   const principal = c.var.principal
   if (op.kind === 'account') {
     if (principal.actor.kind !== 'user' && !(op.agents && injected.workspace)) {
@@ -149,13 +164,20 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   app.onError(renderError)
   app.notFound(renderNotFound)
   const corsOrigins = options.corsOrigins ?? []
+  // [[API106]] D20: the transport's DNS-rebinding rule. No Origin (server-side clients) passes; any Origin must be on the CORS list,
+  // so an empty list refuses every browser. Before the CORS middleware, so a refused origin gets no CORS answer either.
+  app.use(MCP_PATH, async (c, next) => {
+    const origin = c.req.header('origin')
+    if (origin !== undefined && !corsOrigins.includes(origin)) return c.json({ error: { code: 'origin_forbidden', message: 'this origin may not call the MCP endpoint' } }, 403)
+    await next()
+  })
   if (corsOrigins.length > 0) {
     app.use(
       '*',
       cors({
         origin: (origin) => (corsOrigins.includes(origin) ? origin : null),
         allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
-        allowHeaders: ['Authorization', 'X-Organization-Id', 'Content-Type'],
+        allowHeaders: ['Authorization', 'X-Organization-Id', 'Content-Type', 'MCP-Protocol-Version'],
         exposeHeaders: ['WWW-Authenticate'],
         maxAge: 600,
       }),
@@ -194,6 +216,19 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
       return c.json(result as never, op.response.status)
     })
   }
+
+  // [[API106]] D1, D12: root machinery, not an operation. GET and DELETE answer 405 without a credential (there is no stream or session).
+  app.post(
+    MCP_PATH,
+    auth,
+    mcpPost({
+      registry,
+      version: options.version ?? '0.0.0-dev',
+      workspace: options.workspace !== undefined,
+      execute: (c, op, input) => executeOperation(c, op, input, options),
+    }),
+  )
+  app.all(MCP_PATH, mcpMethodNotAllowed)
 
   // Plain route, not an operation: the Svix signature is its only credential, and it is not documented.
   if (options.authAdapter) app.post('/webhooks/clerk', clerkWebhookHandler(options.authAdapter, { clock: options.clock, newId: options.newId }))

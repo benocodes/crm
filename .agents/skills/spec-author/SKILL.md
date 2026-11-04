@@ -200,6 +200,9 @@ Use these headings in order. Skip ones that don't apply — an empty section is 
 1. **Context** — why this spec exists; what's broken or missing today.
 2. **Concept** — the core idea, names, and relationships being introduced. Prose, not code.
 3. **Design** — key technical decisions, interfaces, config shapes, data flows.
+   When a decision applies to a class of things ("binary operations are not tools"), state the rule by the
+   declaration that defines the class (`output: 'binary'`) and name members only as "today: X", checked
+   against the code; an enumerated list drifts ([[API106]] D11 named a JSON operation as binary).
 4. **Package structure** — which packages change or are created.
 5. **Relationship to other specs** — dependencies and interactions. Reference by ID.
 6. **Non-goals** — explicit scope exclusions. Make them precise.
