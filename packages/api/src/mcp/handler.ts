@@ -27,7 +27,10 @@ const rpcError = (id: Id, code: number, message: string) => ({ jsonrpc: '2.0' as
 const httpError = (c: Context<AppEnv>, status: 400 | 405 | 413 | 415, code: string, message: string, headers?: Record<string, string>) =>
   c.json({ error: { code, message } }, status, headers)
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+/** API117: the body was not one JSON-RPC message, so there is no request id to echo. */
+const envelopeFault = (c: Context<AppEnv>, code: -32700 | -32600, message: string) => c.json(rpcError(null, code, message), 400)
+
+const isObject =(v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
 /** Reads the body, refusing past the cap without buffering the rest. `undefined` means over the cap. */
 async function readCapped(req: Request): Promise<string | undefined> {
@@ -60,9 +63,10 @@ async function readCapped(req: Request): Promise<string | undefined> {
 export const mcpMethodNotAllowed = (c: Context<AppEnv>) => httpError(c, 405, 'method_not_allowed', 'POST a JSON-RPC message to this endpoint', { Allow: 'POST' })
 
 /**
- * D1, D3, D10: one stateless JSON-RPC message per `POST`. A JSON-RPC error is answered with HTTP 200 and the error in the body
- * (the reference client turns any non-2xx into a transport error and never reads the body); the transport's own refusals are
- * plain HTTP errors with the REST error body.
+ * D1, D3, D10: one stateless JSON-RPC message per `POST`. A body that is not one JSON-RPC message (an envelope fault: -32700,
+ * -32600) is HTTP 400 with the JSON-RPC error and `id: null`. An error answering a well-formed request (-32601, -32602) is
+ * HTTP 200 with the request's id: the reference client turns any non-2xx into a transport error and never reads the body, so
+ * it would lose the code. The transport's own refusals are plain HTTP errors with the REST error body.
  */
 export function mcpPost(deps: McpDeps) {
   return async (c: Context<AppEnv>): Promise<Response> => {
@@ -74,17 +78,17 @@ export function mcpPost(deps: McpDeps) {
     try {
       message = JSON.parse(text)
     } catch {
-      return c.json(rpcError(null, -32700, 'parse error'))
+      return envelopeFault(c, -32700, 'parse error')
     }
-    if (Array.isArray(message)) return c.json(rpcError(null, -32600, 'batches are not supported'))
-    if (!isObject(message) || message.jsonrpc !== '2.0') return c.json(rpcError(null, -32600, 'not a JSON-RPC 2.0 message'))
+    if (Array.isArray(message)) return envelopeFault(c, -32600, 'batches are not supported')
+    if (!isObject(message) || message.jsonrpc !== '2.0') return envelopeFault(c, -32600, 'not a JSON-RPC 2.0 message')
     const hasId = 'id' in message
     const id = message.id
-    if (hasId && typeof id !== 'string' && typeof id !== 'number') return c.json(rpcError(null, -32600, 'id must be a string or a number'))
+    if (hasId && typeof id !== 'string' && typeof id !== 'number') return envelopeFault(c, -32600, 'id must be a string or a number')
     if (typeof message.method !== 'string') {
       // A response from the client (to a server request we never send) is accepted and ignored.
       if (hasId && ('result' in message || 'error' in message)) return c.body(null, 202)
-      return c.json(rpcError(hasId ? (id as Id) : null, -32600, 'missing method'))
+      return envelopeFault(c, -32600, 'missing method')
     }
     const method = message.method
     const version = c.req.header('mcp-protocol-version')
