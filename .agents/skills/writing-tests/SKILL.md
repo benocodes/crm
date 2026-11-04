@@ -37,6 +37,14 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   pattern with the `describe` title (`-t "content operations on d1 file bytes and headers"`) and matched nothing for
   M2, M4 and M7; filtering by the test's own title ran both engines and all three went red. Before recording a mutation,
   check the output names the targeted test (`×` or `1 failed`); read the engine from the `describe > test` path.
+- **A mutation must keep the file loadable.** [[CORE129]]'s first golden mutation (M7) deleted one line of `tags.json`
+  and left invalid JSON. The suite failed at load ("no tests"), which also happens when the replay check itself is broken.
+  M7b deleted a whole valid entry, and the named replay test went red. A mutation of a fixture, a migration or a module
+  must still parse. Only a failure of the named test counts.
+- **A mechanism that is generalised beyond the charter's case takes the obligation with it.** If the charter asks for a
+  refusal of a repeated `tag_id` and the code refuses any repeated query parameter ([[CORE129]] D10a), a test that uses only
+  `tag_id` stays green when the code is narrowed back. Pin the general claim on a case other than the original (another
+  operation, another parameter, another type), and show the narrowing mutation red. Reviewers look for this first.
 - **A test that computes its expectation with the function under test cannot catch a fault in it.** [[CORE58]]'s
   "markdown content" case seeded the object at `messageBodyKey(contentKey, 1)` and the reader looked it up with the same
   builder, so breaking the builder (M3) moved both sides and stayed green. Pin at least one case to a literal
@@ -212,7 +220,9 @@ One program, two engines: the same assertions run on Postgres and D1.
   fixed `GOLDEN_SEED_AT` stamp on both engines, never a database default. A unit that mints a secret takes
   `env.randomBytes`, which golden backends inject as `goldenRandomBytes` (the n-th call fills with n)
   ([[CORE40]] P12). One file per area (`tasks.json`, `identity-model.json`, `administration.json`, `auth.json`,
-  `directory.json`, `messaging.json`, listed in `packages/api/src/test/golden/fixtures.ts` `FIXTURES`).
+  `directory.json`, `messaging.json`, `tags.json`, listed in `packages/api/src/test/golden/fixtures.ts` `FIXTURES`).
+  A scenario whose token needs more than `GOLDEN_SCOPES` declares `scopes` (D1 backend only, the Postgres backend throws),
+  so the seeded agent of older fixtures never changes ([[CORE129]] D16a).
   - Golden actors ([[CORE41]] P15): `'agent-key'` (a fixed seeded key), `{ clerk: subject, claim? }` (a real
     Clerk-signed token for the scenario's `clerk` fixtures) and `'webhook'` (a Svix-signed delivery of `body`). An
     `alg: none` token still goes to the fake authenticator, so older scenarios keep their actors and fixtures.
