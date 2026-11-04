@@ -23,6 +23,7 @@ import { contactFiles } from '../resources/contact-files.js'
 import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
 import { notes } from '../resources/notes.js'
+import { tags } from '../resources/tags.js'
 import { tasks } from '../resources/tasks.js'
 import { associations } from '../associations/definition.js'
 import { afterOf, beforeRead, receipt, selectRecord, toRecord } from '../storage/crud.js'
@@ -199,4 +200,9 @@ export function deleteTaskOperation(env: PreparedEnv, id: string): PreparedOpera
 /** `notes.delete`: soft-deletes the note and its live edges (`association.deleted` each, in id order). */
 export function deleteNoteOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
   return cascadeDelete({ parent: notes, children: [] }, env, id)
+}
+
+/** `tags.delete`: soft-deletes the tag and its live edges (`association.deleted` each, in id order); members are untouched ([[CORE129]] D11). */
+export function deleteTagOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
+  return cascadeDelete({ parent: tags, children: [] }, env, id)
 }

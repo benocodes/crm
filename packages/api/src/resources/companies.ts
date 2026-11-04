@@ -4,6 +4,7 @@ import { ApiError } from '../errors.js'
 import { deleteCompanyOperation } from '../identity/cascades.js'
 import { normalizeDomain } from '../identity/normalize.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { tagIdFilter } from './tag-filter.js'
 
 export type CompanyRecord = {
   id: string
@@ -43,6 +44,7 @@ export const companies = definePreparedResource({
   eventName: 'company',
   table: 'companies',
   associable: true,
+  joinFilters: { tag_id: tagIdFilter('companies') },
   record,
   create,
   update,

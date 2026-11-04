@@ -5,7 +5,7 @@ import type { ColumnOf, PreparedOperation, PublicColumn, PhysicalTable, QueryCon
 import type { Actor } from '../auth/types.js'
 import type { Surface } from '../surfaces.js'
 import type { CrudAction, Filter } from '../resources/define.js'
-import type { ScopeSet } from '../scopes.js'
+import type { Scope, ScopeSet } from '../scopes.js'
 
 /**
  * The tables a definition may name at the type level. A table without a physical D1/Postgres counterpart in
@@ -86,7 +86,11 @@ export type RecordShape<T extends Table, S, E extends EmbedMap = {}> = {
  * A list filter that is not a column of the table ([[CORE25]] D51): an engine-neutral predicate, e.g. an `EXISTS` over a
  * child table. Synchronous and DB-free like every extension: it returns a Kysely fragment and never runs a query.
  */
-export type JoinFilter = Filter & { readonly where: (qc: QueryContext, value: unknown) => Expression<SqlBool> }
+export type JoinFilter = Filter & {
+  readonly where: (qc: QueryContext, value: unknown) => Expression<SqlBool>
+  /** Scopes the caller needs on top of the list's own to use this filter ([[CORE129]] D12): checked before the query, `403 insufficient_scope` naming the first missing one. */
+  readonly requires?: readonly Scope[]
+}
 
 /**
  * A resource served by the generic prepared CRUD core ([[CORE35]] D3), generic over its concrete table.
@@ -109,6 +113,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    * (`scopeResource`), come from the registry's definitions; table names reach SQL from here, never from input.
    */
   readonly associable?: boolean
+  /**
+   * [[CORE129]] D8: the table types this one may be linked to. Absent: any associable type. `associations.create` refuses a pair when
+   * either end declares a list that does not contain the other (`400 validation_error`); the names are checked against the associable set at registry load.
+   */
+  readonly neighbours?: readonly string[]
   readonly agentWritable?: readonly string[]
   readonly filters?: { readonly [K in ColumnOf<T>]?: Filter }
   /** List filters that are not columns (their keys never are, and never also in `filters`): `where` is ANDed into the list query. */

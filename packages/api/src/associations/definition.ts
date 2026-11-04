@@ -39,6 +39,8 @@ export interface EndpointType {
   /** Whether rows have `organization_id` / `deleted_at` (threads and interactions have no `deleted_at`: they are live when they exist). */
   readonly hasOrganization: boolean
   readonly softDeletes: boolean
+  /** [[CORE129]] D8: the only types this one may be linked to; absent means any associable type. */
+  readonly neighbours?: readonly string[]
 }
 
 export type EndpointTypes = ReadonlyMap<string, EndpointType>
@@ -49,7 +51,7 @@ export function endpointTypesOf(defs: readonly PreparedResource<any, any>[]): En
   for (const def of defs) {
     if (!def.associable) continue
     const kinds = COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS] as Record<string, ColumnKind>
-    out.set(def.table, { type: def.table, read: { resource: scopeResourceOf(def), action: 'read' }, hasOrganization: 'organization_id' in kinds, softDeletes: 'deleted_at' in kinds })
+    out.set(def.table, { type: def.table, read: { resource: scopeResourceOf(def), action: 'read' }, hasOrganization: 'organization_id' in kinds, softDeletes: 'deleted_at' in kinds, ...(def.neighbours ? { neighbours: def.neighbours } : {}) })
   }
   return out
 }
@@ -57,3 +59,13 @@ export function endpointTypesOf(defs: readonly PreparedResource<any, any>[]): En
 /** Canonical order of two endpoints ([[CORE62]] D2): by type, then id (ASCII lowercase UUIDs, so code-unit order is byte order). */
 export type Endpoint = { type: string; id: string }
 export const isBefore = (x: Endpoint, y: Endpoint): boolean => x.type < y.type || (x.type === y.type && x.id < y.id)
+
+/** Whether the declared neighbour rules allow the pair: each end that lists neighbours must list the other. */
+export const mayLink = (x: EndpointType, y: EndpointType): boolean => (x.neighbours?.includes(y.type) ?? true) && (y.neighbours?.includes(x.type) ?? true)
+
+/** Load-time check ([[CORE129]] D8): every declared neighbour is itself an associable type, so a typo or a dropped resource fails at startup. */
+export function assertNeighbours(types: EndpointTypes): void {
+  for (const t of types.values()) {
+    for (const n of t.neighbours ?? []) if (!types.has(n)) throw new Error(`${t.type}: neighbour "${n}" is not an associable type`)
+  }
+}

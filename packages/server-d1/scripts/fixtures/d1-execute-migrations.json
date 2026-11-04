@@ -21,6 +21,9 @@
       },
       {
         "name": "0007_agent_principals.sql"
+      },
+      {
+        "name": "0008_tags.sql"
       }
     ],
     "success": true,

@@ -90,6 +90,20 @@ describe('splitting arguments (D9)', () => {
   })
 })
 
+describe('tags tools (CORE129 D14)', () => {
+  it('the five tags tools exist, and tag_id is an argument of the three taggable lists only', () => {
+    const named = tools.map((t) => t.tool.name).filter((n) => n.startsWith('tags_'))
+    expect(named).toEqual(['tags_list', 'tags_get', 'tags_create', 'tags_update', 'tags_delete'])
+    for (const n of ['companies_list', 'contacts_list', 'tasks_list']) expect(Object.keys((byName(n).tool.inputSchema as { properties: object }).properties), n).toContain('tag_id')
+    expect(Object.keys((byName('notes_list').tool.inputSchema as { properties: object }).properties)).not.toContain('tag_id')
+  })
+  it('the instructions tell an agent that lists are tags and membership is an association', () => {
+    expect(INSTRUCTIONS).toContain('tags_list')
+    expect(INSTRUCTIONS).toContain('tags_create')
+    expect(INSTRUCTIONS).toMatch(/associations_create/)
+  })
+})
+
 describe('instructions (D18)', () => {
   const names = new Set(tools.map((t) => t.tool.name))
   it('are at most 1,200 characters', () => {

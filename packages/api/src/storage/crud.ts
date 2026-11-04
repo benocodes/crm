@@ -22,6 +22,7 @@ import {
   type StorageDatabase,
 } from '@vault/storage'
 import { ApiError } from '../errors.js'
+import { formatScope } from '../scopes.js'
 import { eventStatement } from '../outbox.js'
 import { physicalTable, softDeletes, type Conflict, type PreparedEnv, type PreparedResource, type ReferenceTarget } from './definition.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
@@ -130,6 +131,12 @@ const missingReference = (found: { maybe(k: string): Row | null }, reads: Record
 
 export function listOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, raw: { after?: unknown; limit?: unknown; filters?: Record<string, string> }): PreparedOperation<ListResult<R>> {
   const { after, limit, filters } = prepareListQuery(def, raw)
+  // [[CORE129]] D12: a join filter may need scopes beyond the list's own; refused here, before any query is built.
+  for (const column of Object.keys(filters)) {
+    for (const scope of def.joinFilters?.[column]?.requires ?? []) {
+      if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to filter ${def.name} by ${column}`)
+    }
+  }
   return defineOperation<ListResult<R>>({
     name: `${def.name}.list`,
     mutates: false,

@@ -75,6 +75,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
     },
     async load(scenario) {
       loadGoldenClerk(clerk, scenario.clerk)
+      if (scenario.scopes) scopes = [...GOLDEN_SCOPES, ...scenario.scopes]
       if (scenario.seed === 'messaging') {
         scopes = [...GOLDEN_SCOPES, ...MESSAGING_SCOPES]
         now = new Date(GOLDEN_SEED_AT)

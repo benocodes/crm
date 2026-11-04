@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { deleteContactOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { tagIdFilter } from './tag-filter.js'
 
 export type ContactRecord = {
   id: string
@@ -38,6 +39,7 @@ export const contacts = definePreparedResource({
   eventName: 'contact',
   table: 'contacts',
   associable: true,
+  joinFilters: { tag_id: tagIdFilter('contacts') },
   record,
   create,
   update,

@@ -77,6 +77,7 @@ export function pgGoldenBackend(opts: { pauseMs?: number } = {}): PgGoldenBacken
       })
     },
     async load(scenario) {
+      if (scenario.scopes) throw new Error(`scenario ${scenario.name} needs scopes the Postgres backend lacks (CORE129: tags.json replays on D1 only)`)
       if (scenario.seed) throw new Error(`scenario ${scenario.name} seeds ${scenario.seed}, which the Postgres backend cannot (CORE72: messaging.json replays on D1 only)`)
       loadGoldenClerk(clerk!, scenario.clerk)
       if (!scenario.keys) return

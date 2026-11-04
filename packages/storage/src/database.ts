@@ -220,6 +220,17 @@ export interface NotesTable {
   created_by: string
   deleted_at: NullableTimestamp
 }
+/** [[CORE129]] D2: a named list; membership is an association. D1 only (no Postgres table). `name` is unique among live tags per organisation, case-insensitively. */
+export interface TagsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  name: string
+  description: string | null
+  created_by: string
+  deleted_at: NullableTimestamp
+}
 /** [[CORE62]] D1-D2: an undirected edge between two records, stored once in canonical order; D1 only (no Postgres table). */
 export interface AssociationsTable {
   id: string
@@ -311,6 +322,7 @@ export interface StorageDatabase {
   company_files: CompanyFilesTable
   associations: AssociationsTable
   notes: NotesTable
+  tags: TagsTable
   interaction_participants: InteractionParticipantsTable
   message_attachments: MessageAttachmentsTable
   message_sources: MessageSourcesTable
@@ -517,6 +529,16 @@ export const COLUMN_KINDS = {
     organization_id: 'uuid',
     title: 'text',
     content: 'text',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+  },
+  tags: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    name: 'text',
+    description: 'text',
     created_by: 'uuid',
     deleted_at: 'timestamp',
   },

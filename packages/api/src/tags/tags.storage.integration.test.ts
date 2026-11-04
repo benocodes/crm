@@ -291,13 +291,13 @@ describe('tags.delete cascades the live edges (D11)', () => {
   })
 
   const edgeRows = async (tagId: string, n: number) => {
-    for (let i = 0; i < n; i++) await e.insert('associations', { a_type: 'tags', a_id: tagId, b_type: 'companies', b_id: uuidv7(), relation: 'related_to' })
+    for (let i = 0; i < n; i++) await e.insert('associations', { a_type: 'companies', a_id: uuidv7(), b_type: 'tags', b_id: tagId, relation: 'related_to' })
   }
   it('exactly 100 live edges succeed; 101 is 400 set_limit_exceeded and nothing changes', async () => {
     const ok = await a.ent.tag('Hundred')
     await edgeRows(ok[1], 100)
     await a.call('tags.delete', { params: { id: ok[1] } })
-    expect((await a.edges()).filter((r) => r.a_id === ok[1])).toEqual([])
+    expect((await a.edges()).filter((r) => r.b_id === ok[1])).toEqual([])
 
     const big = await a.ent.tag('HundredAndOne')
     await edgeRows(big[1], 101)
@@ -305,7 +305,7 @@ describe('tags.delete cascades the live edges (D11)', () => {
     const err = await a.fail('tags.delete', { params: { id: big[1] } })
     expect([err.status, err.code]).toEqual([400, 'set_limit_exceeded'])
     expect((await e.rows('tags')).find((r) => r.id === big[1])!.deleted_at).toBeNull()
-    expect((await a.edges()).filter((r) => r.a_id === big[1])).toHaveLength(101)
+    expect((await a.edges()).filter((r) => r.b_id === big[1])).toHaveLength(101)
     expect((await e.rows('events')).length).toBe(mark)
   })
 
@@ -335,7 +335,7 @@ describe('contacts.merge with a shared tag (CORE62 D16)', () => {
     await a.k.run((env) => mergeOperation(env, s[1], r[1]))
     const live = (await a.edges()).filter((x) => x.a_type === 'tags' || x.b_type === 'tags')
     expect(live).toHaveLength(1)
-    expect(live[0]).toMatchObject({ a_id: t[1], b_id: s[1] })
+    expect(live[0]).toMatchObject({ a_id: s[1], b_id: t[1] })
     expect(ids(await a.call('contacts.list', { query: { tag_id: t[1] } }))).toEqual([s[1]])
   })
 })

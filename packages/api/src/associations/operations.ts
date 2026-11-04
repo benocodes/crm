@@ -8,7 +8,7 @@ import { formatScope } from '../scopes.js'
 import type { AnyResource, TenantOperation } from '../registry.js'
 import { afterOf, receipt, resultStep, selectRecord, toRecord } from '../storage/crud.js'
 import type { PreparedEnv } from '../storage/definition.js'
-import { associations, endpointTypesOf, isBefore, type AssociationRecord, type Endpoint, type EndpointType, type EndpointTypes } from './definition.js'
+import { associations, endpointTypesOf, isBefore, mayLink, type AssociationRecord, type Endpoint, type EndpointType, type EndpointTypes } from './definition.js'
 
 // The four association operations ([[CORE62]] D12, D13): hand-written units over the generic helpers. Table names reach SQL
 // only from the registry's definitions (D4): input types are looked up in the associable set and refused otherwise.
@@ -57,6 +57,10 @@ export function createAssociation(env: PreparedEnv, types: EndpointTypes, input:
   const body = parseInput(createBody, input) as { a_type: string; a_id: string; b_type: string; b_id: string }
   const typeA = endpointType(types, body.a_type, 'a_type')
   const typeB = endpointType(types, body.b_type, 'b_type')
+  if (!mayLink(typeA, typeB)) {
+    const restricted = typeA.neighbours ? typeA : typeB
+    throw new ApiError(400, 'validation_error', `${restricted.type} can only be linked to ${[...restricted.neighbours!].sort().join(', ')}`)
+  }
   requireRead(env, typeA)
   requireRead(env, typeB)
   const x: Endpoint = { type: typeA.type, id: lower(body.a_id) }

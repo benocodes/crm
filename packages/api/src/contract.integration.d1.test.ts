@@ -13,6 +13,7 @@ import { contacts } from './resources/contacts.js'
 import { identities } from './resources/identities.js'
 import { memberships } from './resources/memberships.js'
 import { notes } from './resources/notes.js'
+import { tags } from './resources/tags.js'
 import { tasks } from './resources/tasks.js'
 import { fixtures } from './test/fixtures.js'
 import { runContractSuite } from './test/contract.js'
@@ -28,6 +29,7 @@ runContractSuite({
     new Registry()
       .registerResource(tasks)
       .registerResource(notes)
+      .registerResource(tags)
       .registerResource(companies)
       .registerResource(contacts)
       .registerResource(identities)
@@ -44,6 +46,7 @@ runContractSuite({
   fixtures: {
     tasks: fixtures.tasks!,
     notes: fixtures.notes!,
+    tags: fixtures.tags!,
     companies: fixtures.companies!,
     contacts: fixtures.contacts!,
     identities: fixtures.identities!,
