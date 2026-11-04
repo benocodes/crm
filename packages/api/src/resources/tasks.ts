@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { codecs } from '@vault/storage'
 import { deleteTaskOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { tagIdFilter } from './tag-filter.js'
 
 export type TaskRecord = {
   id: string
@@ -63,6 +64,7 @@ export const tasks = definePreparedResource({
   eventName: 'task',
   table: 'tasks',
   associable: true,
+  joinFilters: { tag_id: tagIdFilter('tasks') },
   override: { delete: (env, id) => deleteTaskOperation(env, id as string) },
   record,
   create,

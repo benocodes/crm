@@ -263,6 +263,14 @@ export const CATALOG: Catalog = {
         content: 'The note body, Markdown.',
       },
     },
+    tags: {
+      label: 'Tags',
+      description: 'A named list. Records join a list through associations; a tag holds no members itself.',
+      columns: {
+        name: 'The list name, 1 to 100 characters; unique among live tags, ignoring case.',
+        description: 'Optional: what belongs in the list.',
+      },
+    },
     associations: {
       label: 'Associations',
       description: 'Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; the vault checks both ends exist).',

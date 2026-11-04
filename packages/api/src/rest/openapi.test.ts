@@ -15,6 +15,18 @@ describe('GET /api/v1/openapi.json', () => {
     expect(d.openapi).toBe('3.1.0')
     expect(d.info.title).toBe('Vault records API')
   })
+  it('documents the tags operations and the tag_id filter on the three taggable lists (CORE129 D14; the CLI derives its commands from this document)', async () => {
+    const d = await doc()
+    expect(d.paths['/api/v1/tags'].get.operationId).toBe('tags.list')
+    expect(d.paths['/api/v1/tags'].post.operationId).toBe('tags.create')
+    expect(d.paths['/api/v1/tags/{id}'].get.operationId).toBe('tags.get')
+    expect(d.paths['/api/v1/tags/{id}'].patch.operationId).toBe('tags.update')
+    expect(d.paths['/api/v1/tags/{id}'].delete.operationId).toBe('tags.delete')
+    for (const path of ['companies', 'contacts', 'tasks']) {
+      expect(d.paths[`/api/v1/${path}`].get.parameters.map((p: any) => p.name), path).toContain('tag_id')
+    }
+    expect(d.paths['/api/v1/notes'].get.parameters.map((p: any) => p.name)).not.toContain('tag_id')
+  })
   it('names operations', async () => {
     const d = await doc()
     expect(d.paths['/api/v1/tasks'].get.operationId).toBe('tasks.list')

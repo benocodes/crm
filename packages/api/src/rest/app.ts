@@ -56,6 +56,10 @@ export interface AppOptions {
 async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationInput> {
   const params: Record<string, unknown> = c.req.param()
   const query: Record<string, unknown> = c.req.query()
+  // [[CORE129]] D10a (any repeated query parameter): a repeated query parameter is refused, never answered with whichever value the router keeps (the first).
+  for (const [key, values] of Object.entries(c.req.queries())) {
+    if (values.length > 1) throw new ApiError(400, 'validation_error', `query parameter "${key}" was given ${values.length} times; send it once`)
+  }
   let body: unknown
   if (op.method === 'post' || op.method === 'patch') {
     const text = await c.req.text()

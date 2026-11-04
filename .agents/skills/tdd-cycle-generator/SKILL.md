@@ -114,7 +114,10 @@ implements: "[[<spec-ID>]]"
 ## In this cycle
 {The spec sections and decisions (D-numbers) this cycle delivers, one bullet each. Name the outcome,
 not the files. Where the spec is silent on a shape the tests will pin (an error code, an event payload),
-say so here: the coder decides it and records the decision, and review rules on it.}
+say so here: the coder decides it and records the decision, and review rules on it. Where the coder
+also decides a mechanism's *extent* (one parameter or all of them, one type or every type), the matching
+obligation says that the test pins whichever extent is chosen, on a case other than the original. Otherwise a
+general implementation that is tested only through its first case costs a review round ([[CORE129]] D10a).}
 
 ## Deferred
 - {item} → {[[cycle ID]] or #issue}

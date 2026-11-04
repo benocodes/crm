@@ -1,0 +1,489 @@
+{
+  "format": 1,
+  "resource": "tags",
+  "generated_by": "packages/api/scripts/golden.ts (d1 path)",
+  "named_differences": [],
+  "scenarios": [
+    {
+      "name": "tags-lifecycle",
+      "about": "a tag is a named list ([[CORE129]]): names are unique ignoring case (409 tag_exists), a rename keeps the members, tagging is an association and companies.list?tag_id returns the members, a tag cannot label another tag, and deleting a tag cascades its edges",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/tags",
+          "request": {
+            "name": "  Prospects  ",
+            "description": "GTM tools"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Prospects",
+            "description": "GTM tools",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "tag.created",
+              "resource_type": "tag",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Prospects",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "description": "GTM tools",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/tags",
+          "request": {
+            "name": "prospects"
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "tag_exists",
+              "message": "a tag named \"prospects\" already exists (0190b2c4-0000-7000-8000-000001000001)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/companies",
+          "request": {
+            "name": "Acme"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme",
+            "domain": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": "Acme",
+                "domain": null,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/companies",
+          "request": {
+            "name": "Untagged"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000007",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Untagged",
+            "domain": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "name": "Untagged",
+                "domain": null,
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "PATCH",
+          "path": "/api/v1/tags/{t}",
+          "request": {
+            "name": "Prospects 2026"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Prospects 2026",
+            "description": "GTM tools",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:04:00.000Z"
+          },
+          "events": [
+            {
+              "type": "tag.updated",
+              "resource_type": "tag",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:04:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Prospects",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "description": "GTM tools",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Prospects 2026",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "description": "GTM tools",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/associations",
+          "request": {
+            "a_type": "tags",
+            "a_id": "{t}",
+            "b_type": "companies",
+            "b_id": "{c}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000010",
+            "a_type": "companies",
+            "a_id": "0190b2c4-0000-7000-8000-000001000005",
+            "b_type": "tags",
+            "b_id": "0190b2c4-0000-7000-8000-000001000001",
+            "relation": "related_to",
+            "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+            "created_at": "2026-10-22T09:05:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": [
+            {
+              "type": "association.created",
+              "resource_type": "association",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000010",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "a_id": "0190b2c4-0000-7000-8000-000001000005",
+                "b_id": "0190b2c4-0000-7000-8000-000001000001",
+                "a_type": "companies",
+                "b_type": "tags",
+                "relation": "related_to",
+                "created_at": "2026-10-22T09:05:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:05:00.000Z"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/companies?tag_id={t}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Acme",
+                "domain": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/associations",
+          "request": {
+            "a_type": "tags",
+            "a_id": "{t}",
+            "b_type": "tags",
+            "b_id": "{t}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "tags can only be linked to companies, contacts, notes, tasks"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/associations/{e}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "association.deleted",
+              "resource_type": "association",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000010",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:08:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "a_id": "0190b2c4-0000-7000-8000-000001000005",
+                "b_id": "0190b2c4-0000-7000-8000-000001000001",
+                "a_type": "companies",
+                "b_type": "tags",
+                "relation": "related_to",
+                "created_at": "2026-10-22T09:05:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:05:00.000Z"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/companies?tag_id={t}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/associations",
+          "request": {
+            "a_type": "companies",
+            "a_id": "{c}",
+            "b_type": "tags",
+            "b_id": "{t}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "a_type": "companies",
+            "a_id": "0190b2c4-0000-7000-8000-000001000005",
+            "b_type": "tags",
+            "b_id": "0190b2c4-0000-7000-8000-000001000001",
+            "relation": "related_to",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:10:00.000Z",
+            "updated_at": "2026-10-22T09:10:00.000Z"
+          },
+          "events": [
+            {
+              "type": "association.created",
+              "resource_type": "association",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:10:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "a_id": "0190b2c4-0000-7000-8000-000001000005",
+                "b_id": "0190b2c4-0000-7000-8000-000001000001",
+                "a_type": "companies",
+                "b_type": "tags",
+                "relation": "related_to",
+                "created_at": "2026-10-22T09:10:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:10:00.000Z"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/tags/{t}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "tag.deleted",
+              "resource_type": "tag",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:11:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Prospects 2026",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "description": "GTM tools",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            },
+            {
+              "type": "association.deleted",
+              "resource_type": "association",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:11:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "a_id": "0190b2c4-0000-7000-8000-000001000005",
+                "b_id": "0190b2c4-0000-7000-8000-000001000001",
+                "a_type": "companies",
+                "b_type": "tags",
+                "relation": "related_to",
+                "created_at": "2026-10-22T09:10:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:10:00.000Z"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:12:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/companies?tag_id={t}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:13:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/associations?type=companies&id={c}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:14:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/tags",
+          "request": {
+            "name": "PROSPECTS 2026"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000017",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "PROSPECTS 2026",
+            "description": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:14:00.000Z",
+            "updated_at": "2026-10-22T09:14:00.000Z"
+          },
+          "events": [
+            {
+              "type": "tag.created",
+              "resource_type": "tag",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000017",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:14:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000017",
+                "name": "PROSPECTS 2026",
+                "created_at": "2026-10-22T09:14:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:14:00.000Z",
+                "description": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

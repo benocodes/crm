@@ -93,7 +93,7 @@ export function withDefaults(e: Engine, table: string, row: Record<string, unkno
 
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 const scopes = () =>
-  ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read', 'messages:read', 'interactions:read', 'files:read', 'associations:read', 'associations:write', 'notes:read', 'notes:write'])
+  ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read', 'messages:read', 'interactions:read', 'files:read', 'associations:read', 'associations:write', 'notes:read', 'notes:write', 'tags:read', 'tags:write'])
 
 /**
  * Opens the named engines (a both-engine suite's entry file names its own: `*.d1.test.ts` or `*.postgres.test.ts`). The Postgres

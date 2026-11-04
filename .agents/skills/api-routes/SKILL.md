@@ -287,12 +287,25 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   that are not columns (`interactions.contact_id`, `identity_id`, an `EXISTS` over a child table). A key may never be a
   column of the table nor also in `filters` (load-time throw); `where` is a synchronous Kysely/`sql` fragment ANDed into
   the list. `contact_id` joins through `identities` with `deleted_at IS NULL`, so it follows a merge and a deleted identity.
+  A join filter that reveals another resource or an edge declares the scopes it needs, `requires?: readonly Scope[]`
+  (`tag_id` on companies, contacts and tasks requires `tags:read` then `associations:read`, `src/resources/tag-filter.ts`).
+  The generic `listOperation` checks them in declaration order, before it builds the query, and answers `403
+  insufficient_scope` naming the first missing scope. Never check them ad hoc in an override ([[CORE129]] D12a). An `EXISTS`
+  over `associations` must match **both canonical sides** (the tag is `b` for companies, contacts and notes, `a` for tasks)
+  and only live edges. Prove each with its own absence mutation.
+- **A repeated query parameter is refused on REST** (`readInput` in `src/rest/app.ts`, [[CORE129]] D10a): Hono's
+  `c.req.query()` keeps the first value, so `?x=a&x=b` is `400 validation_error` naming `x`. MCP refuses an array argument
+  through the schema. The first operation that declares an array query parameter must exempt that parameter there and read
+  it with `c.req.queries()`.
 - **A read-only resource written by a program** (`threads`, `messages`, `interactions`, `files`): `operations: ['list',
   'get']`, no `create`/`update`, no `deleted_at` on the table. Until the capture program exists (CORE25 cycle 2) the
   fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vault/api/test/messaging`, `src/test/messaging-kit.ts`)
   through `Engine.insert` or the contract kit's `insert`. Production code has no other writer.
 - A `ReferenceTarget` may name `files` (no `deleted_at`, so never `live`). A link resource (`contact_files`) is create +
   soft delete only, with a `conflicts` read for the live pair (`409 link_exists`) and the partial unique index as backstop.
+  The backstop answers the generic mapper's `409 conflict` (retryable), not the named code: the named code (`link_exists`,
+  `domain_exists`, `tag_exists`) comes only from the `conflicts` pre-check. Removing the pre-check is the absence mutation that
+  shows both layers (named code becomes `conflict`, never a `500`) ([[CORE129]] D4a).
 - **Merge and delete know the links.** `CONTACT_REFERENCES` entries may carry `uniqueWith` (the re-point first soft-deletes
   the source rows that would duplicate a live survivor row, `<event>.deleted`, then moves the rest: both set statements are
   always emitted); `IDENTITY_REFERENCES` lists every FK onto `identities` with no re-point (`identity-catalog.integration.suite.ts`
@@ -305,6 +318,12 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   edges on either side automatically (`touches(table, id)` in `src/identity/cascades.ts`), so a new associable resource with a
   delete needs no extra code there, only a cascade test; `contacts.merge` re-points edges and lists `associations` in
   `CONTACT_NON_FK_REFERENCES`. Associations are custom operations over a prepared definition, not generic CRUD.
+  **Per-type neighbour rules** ([[CORE129]] D8a): a definition may list `neighbours` (the associable types it may link to;
+  `tags` lists companies, contacts, tasks, notes). The list is carried onto `EndpointType`, and `mayLink` checks it symmetrically, so
+  both argument orders behave the same, before the scope checks: a refused pair is `400 validation_error` naming the allowed types,
+  whatever the caller holds. `createVaultRegistry` validates that every listed neighbour is associable (`assertNeighbours`). This
+  is not done in `endpointTypesOf`, so partial test registries still build. `tags` ([[CORE129]], `src/resources/tags.ts`) is the
+  second plain associable resource after notes; its members are association edges, not a join table.
   `notes` ([[CORE74]], `src/resources/notes.ts`) is a plain associable resource on generic CRUD whose `override.delete` is
   `cascadeDelete` with no children: the flag alone brings the edge cascade. **`include=associations`** on an associable
   `get` (D6) needs `associations:read` (else `403`), parses `include` inside `prepare` (unknown value `400 validation_error`),

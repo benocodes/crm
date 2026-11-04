@@ -63,6 +63,8 @@ export interface GoldenScenario {
   keys?: true
   /** Seeds the messaging corpus through `captureMessages` with `FakeChannel` into a memory object store (CORE69 D22). D1 backend only. */
   seed?: 'messaging'
+  /** Scopes the token carries beyond GOLDEN_SCOPES (the seeded agent keeps GOLDEN_SCOPES). D1 backend only. */
+  scopes?: readonly string[]
   steps: readonly GoldenStep[]
 }
 
@@ -694,6 +696,32 @@ export const messagingScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(7), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' }, save: 'l2' },
       { as: 'user', at: at(8), method: 'GET', path: '/api/v1/company-files/{l}' },
       { as: 'user', at: at(9), method: 'GET', path: '/api/v1/company-files/{l2}' },
+    ],
+  },
+]
+
+export const tagScenarios: readonly GoldenScenario[] = [
+  {
+    name: 'tags-lifecycle',
+    scopes: ['tags:read', 'tags:write', 'associations:read', 'associations:write'],
+    about:
+      'a tag is a named list ([[CORE129]]): names are unique ignoring case (409 tag_exists), a rename keeps the members, tagging is an association and companies.list?tag_id returns the members, a tag cannot label another tag, and deleting a tag cascades its edges',
+    steps: [
+      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tags', body: { name: '  Prospects  ', description: 'GTM tools' }, save: 't' },
+      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/tags', body: { name: 'prospects' } },
+      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme' }, save: 'c' },
+      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/companies', body: { name: 'Untagged' } },
+      { as: 'user', at: at(4), method: 'PATCH', path: '/api/v1/tags/{t}', body: { name: 'Prospects 2026' } },
+      { as: 'agent', at: at(5), method: 'POST', path: '/api/v1/associations', body: { a_type: 'tags', a_id: '{t}', b_type: 'companies', b_id: '{c}' }, save: 'e' },
+      { as: 'user', at: at(6), method: 'GET', path: '/api/v1/companies?tag_id={t}' },
+      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/associations', body: { a_type: 'tags', a_id: '{t}', b_type: 'tags', b_id: '{t}' } },
+      { as: 'user', at: at(8), method: 'DELETE', path: '/api/v1/associations/{e}' },
+      { as: 'user', at: at(9), method: 'GET', path: '/api/v1/companies?tag_id={t}' },
+      { as: 'user', at: at(10), method: 'POST', path: '/api/v1/associations', body: { a_type: 'companies', a_id: '{c}', b_type: 'tags', b_id: '{t}' } },
+      { as: 'user', at: at(11), method: 'DELETE', path: '/api/v1/tags/{t}' },
+      { as: 'user', at: at(12), method: 'GET', path: '/api/v1/companies?tag_id={t}' },
+      { as: 'user', at: at(13), method: 'GET', path: '/api/v1/associations?type=companies&id={c}' },
+      { as: 'user', at: at(14), method: 'POST', path: '/api/v1/tags', body: { name: 'PROSPECTS 2026' } },
     ],
   },
 ]

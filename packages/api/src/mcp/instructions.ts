@@ -8,7 +8,7 @@ Start with me_get to see who you are and what you may do, then schema_get to lea
 
 Search before you create, so records are not duplicated: identities_resolve finds a person by email, companies_list with the domain filter finds a company. Update what exists instead of creating a second copy.
 
-Link records with associations (associations_create), and record where a fact came from as a note linked to the record it is about.
+Link records with associations (associations_create), and record where a fact came from as a note linked to the record it is about. Lists are tags (tags_list, tags_create); a record joins a list through associations_create.
 
 Lists page: pass the next_cursor of one answer as after in the next call.
 

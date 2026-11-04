@@ -25,6 +25,9 @@ export const SCOPE_POLICY: ScopePolicy = {
   // Notes ([[CORE74]] D8): any holder of notes:write may edit any note.
   'notes:read': { member: true, agentGrantable: true },
   'notes:write': { member: true, agentGrantable: true },
+  // Tags ([[CORE129]] D6): tagging a record is associations:write plus read on both ends, so tags:write is only for managing lists.
+  'tags:read': { member: true, agentGrantable: true },
+  'tags:write': { member: true, agentGrantable: true },
   // Schema discovery ([[API63]] D8): designing against the schema is expected agent work.
   'schema:read': { member: true, agentGrantable: true },
   // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
@@ -52,6 +55,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'associations:write': 'Create and remove links between records',
   'notes:read': 'View notes on records',
   'notes:write': 'Create, change and delete notes',
+  'tags:read': 'View tags (named lists)',
+  'tags:write': 'Create, rename and delete tags',
   'schema:read': 'Read the data schema: record types, fields and relations',
   'members:read': 'View the members of the workspace',
   'agents:read': 'View the workspace agents and their access',
