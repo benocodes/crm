@@ -65,6 +65,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   record schema, and both gain the field together, so a charter asking for its red run on a record-shape change
   cannot be met ([[CORE77]]). Pin a new field with a test that names it (the resource's record-shape test, a
   Worker test reading it, the golden), and ask for those red runs instead.
+- **Registering already-passing cases cannot be red.** Adding resources to a suite's registry (the D1 contract
+  fixture map, [[CORE72]] D17) runs cases that pass on the first run; a charter asks for the absence mutation (drop
+  one entry, see its named cases and the "every definition has a fixture" check fail), not a red run.
 - **A smoke script's assertions are untested code.** `packages/server-d1/scripts/smoke-remote.ts`'s `before`/`after`
   phase functions are reached by no test (only `afterHealthOk` is), so [[API32]]'s `before` phase asserted
   `GET /openapi.json` → `404` on an uninitialised deployment, where the cold app answers `503 not_initialised`; only
