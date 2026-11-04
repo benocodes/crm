@@ -171,8 +171,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `contract.ts` (`runContractSuite`);
   - `fixtures.ts`.
 - **Not yet built:**
-  - the Worker entry ([[OPS4]]);
-  - MCP (after the MVP).
+  - the Worker entry ([[OPS4]]).
 
 ## The registry and the REST adapter ([[CORE15]])
 
@@ -207,7 +206,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   3. `prepare(env, input)`, then `execute` with the operation's storage identity (`tenant` or `account`), errors
      through `mapStorageError`;
   4. respond with `c.json(result, status)`, or an empty 204.
-  Any new transport (MCP) must apply the same order.
+  This order lives in `executeOperation` (`src/rest/app.ts`), which REST and MCP `tools/call` both call
+  ([[API106]] D12). A new transport builds an `OperationInput` and calls it; it never re-implements the order.
 - **`createApp({ storage: (c) => StorageBinding, registry?, authAdapter? | userAuthenticator? | workspace?, clock?, newId?, randomBytes?, corsOrigins?, version? })`** ([[CORE44]] C1: `storage` is required, there is no `db`).
   - `authAdapter` builds the real authenticator over the registry's declared scopes; `userAuthenticator`
     is for tests and custom setups; `workspace` is the D1 workspace authenticator ([[CORE64]]). Passing more than one throws, so a test can't silently run the fake.
@@ -537,6 +537,28 @@ exceptions in AGENTS.md invariant 5. A new exception needs a spec decision.
 (Hono's `logger()` already emits one per request, skipped under `VITEST`). Auth failures log method, path,
 whether credentials were present and a truncated token prefix. **Never log full tokens**, and never log
 message bodies or addresses at info level (customer communications are personal data).
+
+## The MCP adapter ([[API106]])
+
+`POST /mcp` (`src/mcp/`) is root machinery, not an operation: stateless, one JSON-RPC message in, JSON out.
+- **Tools come from the registry** (`deriveTools`): every operation except `output: 'binary'` ones, named by
+  `toolName`, a flat input schema (params, query and body fields as siblings; a name collision is an
+  error at derivation). A new operation is a tool with no MCP code. `tools/list` filters by `isVisible` (the caller's scopes,
+  human-only meta operations never shown to agents) and runs no storage unit.
+- **`splitArguments`** sends path and query values over as strings (REST coerces them), the rest into the body;
+  an unknown name goes into an object body (a strict schema refuses it) or, with no body, is
+  `400 validation_error`. Execution is `executeOperation`, so errors, scopes and events are REST's.
+- **Status codes:** JSON-RPC errors (`-32700`, `-32600`, `-32601`, `-32602`) are HTTP `200`, because the SDK
+  client discards the body of any non-2xx. Transport refusals are plain HTTP with the REST error body
+  (`400` version, `401`, `403 origin_forbidden`, `405`, `413`, `415`). An `ApiError` from an operation is a tool
+  result with `isError: true`.
+- **Origin** is checked in a `/mcp` middleware registered before CORS (an absent `Origin` passes, a present one
+  must be in `corsOrigins`); `MCP-Protocol-Version` is in the CORS `allowHeaders`.
+- **The instructions text (`src/mcp/instructions.ts`) is pinned:** a test fails if it names a tool that doesn't
+  exist. Renaming an operation it mentions means editing the text.
+- **The reference client is the referee.** `@modelcontextprotocol/sdk` is an exact-pinned devDependency of
+  `@vault/server-d1` only; its `Client` runs against `composeD1Worker` in `src/mcp.test.ts`, and `smoke:worker`
+  checks the bundle does not contain it. Never import it from `packages/api/src` or `src/worker.ts`.
 
 ## A static page on the API origin ([[UI30]])
 

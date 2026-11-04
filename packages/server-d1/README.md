@@ -49,7 +49,7 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
 
 ## The MCP endpoint
 
-The Worker serves a remote MCP endpoint at `<api origin>/mcp` ((API106)): stateless Streamable HTTP, JSON responses, one tool per vault operation
+The Worker serves a remote MCP endpoint at `<api origin>/mcp` [[API106]]: stateless Streamable HTTP, JSON responses, one tool per vault operation
 the caller's scopes allow (`schema_get`, `contacts_create`, ...). An API key works as a static header, for any MCP client that can send one:
 
 ```bash
