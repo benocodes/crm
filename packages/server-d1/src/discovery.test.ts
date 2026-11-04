@@ -50,6 +50,7 @@ describe('D21 GET /.well-known/vibase', () => {
     expect(res.headers.get('content-type')).toMatch(/^application\/json/)
     const body = (a: string) => ({
       api: `${a}/api/v1`,
+      mcp: `${a}/mcp`,
       openapi: { api: `${a}/api/v1/openapi.json`, meta: `${a}/meta/v1/openapi.json` },
       auth: { provider: 'clerk', issuer: kit.issuer.issuer, cli_client_id: CLI, publishable_key: null, protected_resource_metadata: `${a}${PRM}` },
     })
