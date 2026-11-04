@@ -31,7 +31,7 @@ const POSTGRES_CLAIM = { status: 200, response: { data: [], next_cursor: null },
 
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
-  describe.each(SETS)('golden fixtures: %s', (_label, file, scenarios) => {
+  describe.each(SETS.filter(([, file]) => engineName === 'd1' || !D1_ONLY.has(file)))('golden fixtures: %s', (_label, file, scenarios) => {
     const fixture = read(file)
 
     /** The scenario a named Postgres difference is about: replayed on Postgres for its own outcome rather than for equality. */
@@ -43,7 +43,7 @@ export function engineSuite(engineName: EngineName): void {
       expect(fixture.named_differences).toEqual(NAMED_DIFFERENCES.filter((d) => scenarios.some((s) => s.name === d.scenario)))
     })
 
-    if (engineName === 'postgres' && !D1_ONLY.has(file)) describe('postgres path', () => {
+    if (engineName === 'postgres') describe('postgres path', () => {
       let pg: PgGoldenBackend
       beforeAll(() => {
         pg = pgGoldenBackend()
