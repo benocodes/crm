@@ -167,23 +167,24 @@ One program, two engines: the same assertions run on Postgres and D1.
   - `runContractSuite({ ..., backend })` runs the same assertions on the backend it is given (`d1Backend()`,
     `postgresBackend()` from `src/test/postgres-backend.ts`); `backend` is required, there is no default. D1 has one
     binding per tenant, never two tenants in one D1.
-  - Golden fixtures (`packages/api/fixtures/golden/`) come from the Postgres path. After an intended
-    behaviour change, run `pnpm -C packages/server-postgres golden:generate`; `golden:check` fails on drift.
-    Some golden values derive from the registry: the owner's scopes in `auth.json` are
-    `grantableScopes(declaredScopes())`, so a cycle that declares a scope regenerates `auth.json` by exactly those
+  - Golden fixtures (`packages/api/fixtures/golden/`) are generated on D1 ([[CORE69]] D19, [[CORE72]]): after an
+    intended behaviour change, run `pnpm -C packages/api golden:generate` (`d1GoldenBackend`, Miniflare, no database
+    URL) and commit the diff; `golden:check` exits non-zero on drift. Review the regenerated diff line by line: every
+    changed line is explained by the change, or it is a finding. Never hand-edit a fixture (the old workaround for the
+    Postgres-side generator is gone). Some golden values derive from the registry: the owner's scopes in `auth.json`
+    are `grantableScopes(declaredScopes())`, so a cycle that declares a scope regenerates `auth.json` by exactly those
     lines ([[CORE25]]). Before claiming "golden unchanged", check for such derived values.
-    The generator runs the Postgres path, so once a shared write path reads a D1-only table it cannot regenerate
-    every fixture. Until it runs on D1, edit a registry-derived line by hand to exactly what the generator would
-    emit (sorted scope names in `auth.json`), and say so in RESULT ([[CORE62]], [[CORE74]]; issue #72 moves the
-    generator to D1 and ends this). Since [[CORE62]] it cannot regenerate **any** fixture with a `DELETE`: every
-    delete cascades into `associations`, which has no Postgres table, so it records `500`. [[API32]] therefore
-    rewrote only the `path` fields by script and proved it with
-    `git diff -U0 packages/api/fixtures | grep '^[+-]' | grep -v '^+++\|^---' | grep -vc '"path":'` → `0`, plus
-    the D1 golden replay green. Do the same for any mechanical fixture edit until #72 lands.
+    Event payloads in a transcript are written in Postgres `jsonb` key order (shorter key first, then bytewise,
+    `jsonbOrder` in `d1-backend.ts`), so a regeneration does not churn when a program builds a payload in a different
+    order ([[CORE69]] D21 ruling).
     Tests that pin derived lists (the declared scopes in `identity-definitions.test.ts` and
     `messaging-definitions.test.ts`) also change when a scope is declared; fix them in the same change.
-    The generator lives in the enterprise package and reads the open fixture list, scenarios and Postgres
-    backend through `@vault/api/test/golden` ([[CORE44]] P12).
+    The generator (`packages/api/scripts/golden.ts`) is open code under the import-boundary rule for `api/scripts`;
+    the fixture list, scenarios and both backends are exported through `@vault/api/test/golden` ([[CORE44]] P12).
+    `messaging.json` is seeded through `captureMessages` with `FakeChannel` into the memory `ObjectStore` the app reads
+    (a scenario declares `seed: 'messaging'`, seeded in `load()`, not `reset()`); it replays on D1 only. A transcript
+    records a non-`application/json` response as `{ binary: { headers, sha256, size } }` ([[CORE69]] D23); read ids out
+    of list responses with a step's `pick`, never hard-code minted ids.
   - Apps that must run no unit (openapi, CORS, option checks) pass `coldStorage()`; probe operations in routing and
     auth suites return their value through `probeUnit(value)` (`src/test/storage.ts`). There is no legacy
     `withContext`, `asUser`/`asAgent` or contract `kit.ctx`: fixtures make prerequisite rows through `kit.post`
@@ -200,14 +201,15 @@ One program, two engines: the same assertions run on Postgres and D1.
   clock-parity case in `src/storage/identity-model.storage.integration.suite.ts`).
 - Golden fixtures pin behaviour across engines and across refactors. Name every deliberate difference in the
   fixture (`named_differences`, filtered per file from `NAMED_DIFFERENCES` in `packages/api/src/test/golden/fixtures.ts`). The one entry
-  is D1 fixed-organisation admission (scenario `foreign-organisation-claim`, [[CORE41]] P15). For a named scenario,
-  the D1 replay asserts the D1 outcome (every step `403 organization_forbidden`, no events, row counts unchanged)
-  instead of equality. Ids come from `goldenId(n)`, a
+  is `engine: 'postgres'` multi-organisation admission (scenario `foreign-organisation-claim`, [[CORE41]] P15,
+  flipped by [[CORE69]] D20): D1 generates the fixture, so the D1 replay asserts equality on every scenario (plus row
+  counts unchanged for that one), and the Postgres replay asserts Postgres's own outcome (the claim admitted) instead
+  of equality. Ids come from `goldenId(n)`, a
   four-digit counter that throws above 9999. Every seeded row a read can return gets a fixed id and the
   fixed `GOLDEN_SEED_AT` stamp on both engines, never a database default. A unit that mints a secret takes
   `env.randomBytes`, which golden backends inject as `goldenRandomBytes` (the n-th call fills with n)
   ([[CORE40]] P12). One file per area (`tasks.json`, `identity-model.json`, `administration.json`, `auth.json`,
-  `directory.json`, listed in `packages/api/src/test/golden/fixtures.ts` `FIXTURES`).
+  `directory.json`, `messaging.json`, listed in `packages/api/src/test/golden/fixtures.ts` `FIXTURES`).
   - Golden actors ([[CORE41]] P15): `'agent-key'` (a fixed seeded key), `{ clerk: subject, claim? }` (a real
     Clerk-signed token for the scenario's `clerk` fixtures) and `'webhook'` (a Svix-signed delivery of `body`). An
     `alg: none` token still goes to the fake authenticator, so older scenarios keep their actors and fixtures.

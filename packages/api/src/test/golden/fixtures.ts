@@ -1,5 +1,5 @@
 // The golden fixture list and the engine differences a fixture names ([[CORE35]] D17, [[CORE36]] D12, D22). Open test data:
-// the replays in @vault/api and the Postgres-side generator in @vault/server-postgres both read it from here.
+// the replays (D1 and Postgres) and the D1 generator (packages/api/scripts/golden.ts, [[CORE72]]) all read it from here.
 import { administrationScenarios, authScenarios, directoryScenarios, identityModelScenarios, messagingScenarios, taskScenarios } from './scenarios.js'
 
 /**
