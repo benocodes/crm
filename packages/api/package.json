@@ -21,17 +21,22 @@
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
     "@vault/storage": "workspace:*",
-    "chat": "4.43.0",
     "hono": "4.13.12",
     "jose": "6.2.12",
     "kysely": "0.29.6",
+    "remark-gfm": "4.0.1",
+    "remark-parse": "11.0.0",
+    "remark-stringify": "11.0.0",
+    "unified": "11.0.5",
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@types/mdast": "4.0.4",
     "@types/node": "^22",
     "@vault/db": "workspace:*",
     "@vault/storage-d1": "workspace:*",
     "@vault/storage-postgres": "workspace:*",
+    "chat": "4.43.0",
     "typescript": "7.0.2",
     "vitest": "5.0.3"
   }

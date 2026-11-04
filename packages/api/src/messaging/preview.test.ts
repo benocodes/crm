@@ -1,4 +1,4 @@
-import { parseMarkdown } from 'chat'
+import { parseMarkdown } from '../test/markdown.js'
 import { describe, expect, it } from 'vitest'
 import { messagePreview } from './preview.js'
 

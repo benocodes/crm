@@ -1,6 +1,7 @@
 // Test-only ([[CORE69]] D13). A `ChannelPort` over scripted messages and attachment bytes. It records every `open()` and
 // every `fetchAttachment` call, which is how a test proves an existing message fetched nothing. Not in the production barrel.
-import { parseMarkdown, toPlainText } from 'chat'
+import { toPlainText } from '../channels/markdown.js'
+import { parseMarkdown } from './markdown.js'
 import { AttachmentFetchError, type ChannelMessage, type ChannelPort, type ConnectionRef, type ParticipantRole } from '../channels/port.js'
 
 export interface FakeAttachmentScript {

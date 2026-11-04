@@ -1,4 +1,6 @@
-import { stringifyMarkdown } from 'chat'
+import { stringifyMarkdown as chatStringify, toPlainText as chatPlain, parseMarkdown as chatParse } from 'chat'
+import { parseMarkdown } from '../test/markdown.js'
+import { stringifyMarkdown, toPlainText } from './markdown.js'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { messagePreview } from '../messaging/preview.js'
@@ -90,5 +92,30 @@ describe('FakeChannel fixtures satisfy the port contract', () => {
 
   it('a skip is a plain reason', async () => {
     expect(await fake.readMessage({ id: 'c' }, 'skipped')).toEqual({ skip: 'draft' })
+  })
+})
+
+// ---- parity half: the vendored markdown functions equal chat's own ([[CORE69]] D25) --------------------------------------------
+// `chat` cannot load in the Worker, so its two functions are copied. This is the test that fails when a `chat` bump changes them.
+const PARITY: Record<string, string> = {
+  heading: '# Title\n\nSome *emphasis* and **strong** text.\n',
+  'gfm table': '| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n',
+  strikethrough: 'keep ~~this~~ that\n',
+  list: '- one\n- two\n  - nested\n\n1. first\n2. second\n',
+  'hard break': 'line one  \nline two\\\nline three\n',
+  'thematic break': 'above\n\n---\n\nbelow\n',
+  'quote, code and link': '> quoted\n\n```ts\nconst a = 1\n```\n\n[site](https://example.test) and `code` ![img](https://example.test/i.png "t")\n',
+  empty: '',
+}
+describe('vendored markdown functions equal chat 4.43.0', () => {
+  it.each(Object.entries(PARITY))('%s', (_name, md) => {
+    const ast = parseMarkdown(md)
+    expect(ast).toEqual(chatParse(md))
+    expect(stringifyMarkdown(ast)).toBe(chatStringify(ast))
+    expect(toPlainText(ast)).toBe(chatPlain(ast))
+  })
+  it('the fixtures exercise the cases that separate toPlainText from mdast-util-to-string', () => {
+    expect(toPlainText(parseMarkdown(PARITY['gfm table']!))).toBe('a\tb\n1\t2\n3\t4')
+    expect(toPlainText(parseMarkdown(PARITY['hard break']!))).toContain('\n')
   })
 })

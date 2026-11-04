@@ -21,6 +21,15 @@ describe('production boundary', () => {
     expect(offenders).toEqual([])
   })
 
+  it("`chat` is imported type-only everywhere in @vault/api/src except test files (it cannot load in workerd, D25)", () => {
+    const runtimeChat = /^\s*(?:import|export)\s+(?!type\b)[^;]*?from\s+['"]chat['"]|^\s*import\s+['"]chat['"]|\bimport\(\s*['"]chat['"]\s*\)/m
+    const offenders = walk(SRC)
+      .filter((f) => f.endsWith('.ts') && !/\.test\.ts$/.test(f))
+      .filter((f) => runtimeChat.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(SRC, f))
+    expect(offenders).toEqual([])
+  })
+
   it('the production set includes the new pipeline files (the walk is live)', () => {
     const names = production().map((f) => relative(SRC, f))
     for (const n of ['channels/port.ts', 'messaging/streams.ts', 'messaging/preview.ts', 'messaging/store-content.ts', 'messaging/pipeline.ts', 'objects/store.ts']) expect(names).toContain(n)

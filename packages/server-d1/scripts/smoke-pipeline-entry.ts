@@ -6,6 +6,7 @@ import { uuidv7 } from '@vault/storage'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { captureMessages, r2ObjectStore, workerdStreams, type R2BucketLike } from '@vault/api'
 import { bytesOf, FakeChannel } from '@vault/api/test/channels'
+import { ATTACHMENT_BYTES, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
 
 interface Env {
   DB: D1Like
@@ -13,9 +14,7 @@ interface Env {
   AUTH_ORG_ID: string
 }
 
-/** The scripted page: a normal attachment, a length mismatch, and an original of unknown size over 5 MiB (multipart). */
-export const ATTACHMENT_BYTES = 300
-export const ORIGINAL_BYTES = 5 * 1024 * 1024 + 123
+// The scripted page: a normal attachment, a length mismatch, and an original of unknown size over 5 MiB (multipart).
 
 export default {
   async fetch(_req: Request, env: Env): Promise<Response> {

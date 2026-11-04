@@ -27,9 +27,6 @@ importers:
       '@vault/storage':
         specifier: workspace:*
         version: link:../storage
-      chat:
-        specifier: 4.43.0
-        version: 4.43.0(zod@4.6.5)
       hono:
         specifier: 4.13.12
         version: 4.13.12
@@ -39,10 +36,25 @@ importers:
       kysely:
         specifier: 0.29.6
         version: 0.29.6
+      remark-gfm:
+        specifier: 4.0.1
+        version: 4.0.1
+      remark-parse:
+        specifier: 11.0.0
+        version: 11.0.0
+      remark-stringify:
+        specifier: 11.0.0
+        version: 11.0.0
+      unified:
+        specifier: 11.0.5
+        version: 11.0.5
       zod:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@types/mdast':
+        specifier: 4.0.4
+        version: 4.0.4
       '@types/node':
         specifier: ^22
         version: 22.20.5
@@ -55,6 +67,9 @@ importers:
       '@vault/storage-postgres':
         specifier: workspace:*
         version: link:../storage-postgres
+      chat:
+        specifier: 4.43.0
+        version: 4.43.0(zod@4.6.5)
       typescript:
         specifier: 7.0.2
         version: 7.0.2

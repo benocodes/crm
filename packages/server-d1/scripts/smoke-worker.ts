@@ -13,7 +13,7 @@ import { Miniflare } from 'miniflare'
 import { createHash } from 'node:crypto'
 import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, type R2BucketLike } from '@vault/api'
 import { bytesOf } from '@vault/api/test/channels'
-import { ATTACHMENT_BYTES, ORIGINAL_BYTES } from './smoke-pipeline-entry.js'
+import { ATTACHMENT_BYTES, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
 import { applyMigrations, createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
 import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
 import {

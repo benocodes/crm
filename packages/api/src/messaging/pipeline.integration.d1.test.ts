@@ -91,6 +91,8 @@ function engineSuite(): void {
       captureMessages(ctx, channel, opts.conn ?? C1, ids, opts.final === undefined ? undefined : { final: opts.final })
     return { channel, objects, ctx, probe, run }
   }
+  /** Messages with their own two addresses each, so with `cap: 2` every message is a chunk of its own. */
+  const solo = (i: number): FakeMessageScript => ({ providerMessageId: `solo-${i}`, from: `from${i}@solo.test`, to: [`to${i}@solo.test`] })
   const counts = async () => Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, (await e.rows(t)).length] as const)))
 
   /** A stand-in for a caller's own bookkeeping (CHN5's cursor): inserts one task. Labels are given so the composition must strip them. */
@@ -113,7 +115,7 @@ function engineSuite(): void {
       const result = await t.run(['plain', 'with-attachment', 'reaction'])
       expect(result).toEqual({ captured: 3, existing: 0, skipped: {}, attachments: { stored: 1, failed: 0, skipped: 0 }, orphaned_objects: 0 })
       const c = await counts()
-      expect(c).toMatchObject({ messages: 3, interactions: 3, files: 1, message_attachments: 1, message_sources: 3, threads: 3 })
+      expect(c).toMatchObject({ messages: 3, interactions: 3, files: 1, message_attachments: 1, message_sources: 3, threads: 2 })  // the reaction joins `plain`'s thread
       const types = (await e.rows('events')).map((r) => r.type as string)
       expect(types.filter((x) => x === 'message.created')).toHaveLength(3)
       expect(types.filter((x) => x === 'file.created')).toHaveLength(1)
@@ -181,8 +183,8 @@ function engineSuite(): void {
       expect(t.probe.captureUnits()).toHaveLength(2)
       expect(result).toMatchObject({ captured: 1, existing: 1 })
       // Two new messages of two attachments each need two chunks.
-      const t2 = setup([two, more], {}, { cap: 2 })
       await e.reset()
+      const t2 = setup([two, more], {}, { cap: 2 })
       await t2.run(['two', 'more'])
       expect(t2.probe.captureUnits()).toHaveLength(2)
     })
@@ -219,17 +221,17 @@ function engineSuite(): void {
 
   describe('the final seam', () => {
     it('is committed in the last chunk, and a failure of that unit leaves neither its rows nor the final write', async () => {
-      // cap 1 -> three chunks; fault the third unit.
-      const t = setup([S.plain!, S.parent!, S.reply!], { fault: (n) => (n === 3 ? 'first-event' : null) }, { cap: 1 })
-      await expect(t.run(['plain', 'parent', 'reply'], { final: finalInsert() })).rejects.toThrow()
+      // cap 2 and two private addresses per message -> three chunks; fault the third unit.
+      const t = setup([solo(1), solo(2), solo(3)], { fault: (n) => (n === 3 ? 'first-event' : null) }, { cap: 2 })
+      await expect(t.run(['solo-1', 'solo-2', 'solo-3'], { final: finalInsert() })).rejects.toThrow()
       const c = await counts()
       expect(c.messages).toBe(2) // the first two chunks committed
       expect(c.tasks).toBe(0) // and `final` did not ride with them
     })
 
     it('commits with the last chunk on success, exactly once', async () => {
-      const t = setup([S.plain!, S.parent!, S.reply!], {}, { cap: 1 })
-      await t.run(['plain', 'parent', 'reply'], { final: finalInsert() })
+      const t = setup([solo(1), solo(2), solo(3)], {}, { cap: 2 })
+      await t.run(['solo-1', 'solo-2', 'solo-3'], { final: finalInsert() })
       const c = await counts()
       expect(c).toMatchObject({ messages: 3, tasks: 1 })
       const units = t.probe.captureUnits()
@@ -254,11 +256,11 @@ function engineSuite(): void {
       const units = t.probe.captureUnits()
       expect(units).toHaveLength(3)
       expect(new Set(units.map((u) => u.steps)).size).toBe(1)
-      const bare = setup([S.plain!])
+      expect((await e.rows('tasks')).length).toBe(1)
       await e.reset()
+      const bare = setup([S.plain!])
       await bare.run(['plain'])
       expect(units[0]!.steps).toBeGreaterThan(bare.probe.captureUnits()[0]!.steps)
-      expect((await e.rows('tasks')).length).toBe(1)
     })
 
     it('an empty final does not change the unit shape', async () => {
