@@ -104,6 +104,27 @@ describe('tags tools (CORE129 D14)', () => {
   })
 })
 
+describe('derived contact activity ([[CORE131]] D12)', () => {
+  const SIX = ['contacted_since', 'not_contacted_since', 'never_contacted', 'interacted_since', 'not_interacted_since', 'never_interacted']
+  it('contacts_list takes the six filters with descriptions, and no sort parameter yet', () => {
+    const props = (byName('contacts_list').tool.inputSchema as { properties: Record<string, { description?: string }> }).properties
+    for (const f of SIX) {
+      expect(props[f], f).toBeDefined()
+      expect(props[f]!.description ?? '', `${f} description`).not.toBe('')
+    }
+    expect(props).not.toHaveProperty('sort')
+    expect(props).not.toHaveProperty('order')
+  })
+  it('the contacts_list output record carries the two fields, optional', () => {
+    const out = byName('contacts_list').tool.outputSchema as { properties: { data: { items: { properties: Record<string, unknown>; required?: string[] } } } }
+    const item = out.properties.data.items
+    for (const f of ['last_contacted_at', 'last_interacted_at']) {
+      expect(item.properties, f).toHaveProperty(f)
+      expect(item.required ?? [], f).not.toContain(f)
+    }
+  })
+})
+
 describe('instructions (D18)', () => {
   const names = new Set(tools.map((t) => t.tool.name))
   it('are at most 1,200 characters', () => {

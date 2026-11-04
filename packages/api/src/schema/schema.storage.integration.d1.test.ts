@@ -138,3 +138,47 @@ describe('catalog completeness (D16)', () => {
     expect(table(doc, 'events').resource).toBeNull()
   })
 })
+
+describe('derived fields ([[CORE131]] D11)', () => {
+  const FILTERS = {
+    last_contacted_at: ['contacted_since', 'not_contacted_since', 'never_contacted'],
+    last_interacted_at: ['interacted_since', 'not_interacted_since', 'never_interacted'],
+  } as const
+  it('every table lists derived, an empty array where it has none', async () => {
+    const doc = await getDoc()
+    for (const t of doc.tables) expect(Array.isArray(t.derived), `${t.name}.derived`).toBe(true)
+    for (const t of doc.tables) if (t.name !== 'contacts') expect(t.derived, t.name).toEqual([])
+  })
+  it('contacts lists the two fields in the spec shape, apart from the columns, with sortable false until CORE133', async () => {
+    const doc = await getDoc()
+    const derived = table(doc, 'contacts').derived
+    expect(derived.map((d: any) => d.name)).toEqual(['last_contacted_at', 'last_interacted_at'])
+    for (const d of derived) {
+      expect(d).toEqual({
+        name: d.name,
+        kind: 'timestamp',
+        nullable: true,
+        writable: false,
+        label: expect.any(String),
+        description: expect.any(String),
+        requires: 'interactions:read',
+        filters: FILTERS[d.name as keyof typeof FILTERS],
+        sortable: false,
+      })
+      expect(d.description.length, d.name).toBeGreaterThan(10)
+      expect(table(doc, 'contacts').columns.map((c: any) => c.name), 'derived fields are not columns').not.toContain(d.name)
+    }
+    expect(derived[0].label).toBe('Last contacted at')
+    expect(derived[0].description).toBe("When the latest outbound interaction with any of the contact's identities happened; null if none.")
+  })
+  it('the catalog describes every derived field of every registered resource (completeness)', async () => {
+    for (const def of registry.resources()) {
+      const names = Object.keys((def as { derived?: object }).derived ?? {})
+      for (const n of names) {
+        const entry = (CATALOG.tables[def.table]?.derived ?? {})[n]
+        expect(entry, `catalog text for ${def.table}.${n}`).toBeDefined()
+        expect(typeof entry === 'string' ? entry : entry!.description, `${def.table}.${n}`).toBeTruthy()
+      }
+    }
+  })
+})

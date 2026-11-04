@@ -21,7 +21,7 @@ afterEach(() => {
 beforeEach(async () => {
   await w.reset()
   hideOperation = undefined
-  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read'] })
+  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read', 'interactions:read'] })
   key = b.key
 })
 const session = async () => {
@@ -92,6 +92,20 @@ describe('against the D1 app', () => {
     expect(lines.map((l) => JSON.parse(l).id).sort()).toEqual([...ids].sort())
     const gets = r.seen.filter((s) => s.url.includes('/api/v1/contacts?') && s.url.includes('limit=1'))
     expect(gets.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('derived activity ([[CORE131]] D12): the filter flags come from the registry and filter in process', async () => {
+    const r = await session()
+    const ids: string[] = []
+    for (const name of ['A', 'B']) ids.push(JSON.parse((await ok(r, ['contacts', 'create', '--name', name])).stdout).id)
+    const never = JSON.parse((await ok(r, ['contacts', 'list', '--never-contacted', 'true'])).stdout)
+    expect(never.data.map((c: any) => c.id).sort()).toEqual([...ids].sort())
+    expect(never.data[0]).toMatchObject({ last_contacted_at: null, last_interacted_at: null })
+    const contacted = JSON.parse((await ok(r, ['contacts', 'list', '--contacted-since', '2026-01-01T00:00:00Z'])).stdout)
+    expect(contacted.data).toEqual([])
+    const stale = JSON.parse((await ok(r, ['contacts', 'list', '--not-contacted-since', '2026-01-01T00:00:00Z'])).stdout)
+    expect(stale.data).toHaveLength(2)
+    expect((await r.run(['contacts', 'list', '--never-contacted', 'maybe'])).code).toBe(2)
   })
 
   it('--all on an operation that is not a list is a usage error', async () => {
