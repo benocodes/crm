@@ -1,0 +1,16 @@
+# CORE69 D2, D25. `chat`, its adapters and the markdown packages whose versions `chat` resolves move together, weekly.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /packages/api
+    schedule:
+      interval: weekly
+    groups:
+      chat:
+        patterns:
+          - chat
+          - '@chat-adapter/*'
+          - unified
+          - 'remark-*'
+          - 'mdast-*'
+          - '@types/mdast'

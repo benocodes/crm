@@ -203,6 +203,12 @@ Use these headings in order. Skip ones that don't apply — an empty section is 
    When a decision applies to a class of things ("binary operations are not tools"), state the rule by the
    declaration that defines the class (`output: 'binary'`) and name members only as "today: X", checked
    against the code; an enumerated list drifts ([[API106]] D11 named a JSON operation as binary).
+   **Before pinning a library that Worker code will import, bundle it the way `smoke:worker` does:** a one-line
+   entry importing what the spec uses, through `esbuild --bundle --platform=browser
+   --conditions=workerd,worker,browser --format=esm`. Types and docs don't show a top-level Node import; the
+   bundle does ([[CORE69]]: `chat@4.43.0`'s only entry imports `crypto` and `async_hooks`, which cost a blocked
+   coder run and a mid-cycle ruling). If it fails, decide in the spec: vendor the functions, import it type-only,
+   or amend [[CORE38]] for `nodejs_compat`.
 4. **Package structure** — which packages change or are created.
 5. **Relationship to other specs** — dependencies and interactions. Reference by ID.
 6. **Non-goals** — explicit scope exclusions. Make them precise.

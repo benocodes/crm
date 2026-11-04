@@ -57,3 +57,103 @@ describe.each(kinds)('ObjectStore (%s)', (name, make) => {
     })
   }
 })
+
+// ---- putStream ([[CORE69]] D5) --------------------------------------------------------------------------------------------
+
+const MiB = 1024 * 1024
+const patterned = (n: number): Uint8Array => Uint8Array.from({ length: n }, (_, i) => (i * 7 + 3) & 255)
+const streamOf = (bytes: Uint8Array, chunk = 64 * 1024): ReadableStream<Uint8Array> => {
+  let at = 0
+  return new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (at >= bytes.byteLength) return c.close()
+      c.enqueue(bytes.slice(at, at + chunk))
+      at += chunk
+    },
+  })
+}
+const failingStream = (bytes: Uint8Array, after: number): ReadableStream<Uint8Array> => {
+  let sent = 0
+  return new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (sent >= after) return c.error(new Error('source broke'))
+      c.enqueue(bytes.slice(sent, sent + 64 * 1024))
+      sent += 64 * 1024
+    },
+  })
+}
+
+describe.each(kinds)('ObjectStore.putStream (%s)', (name, make) => {
+  it('known size: stores the bytes with the content type', async () => {
+    const store = make()
+    const bytes = patterned(1000)
+    await store.putStream('k', streamOf(bytes), { size: 1000, contentType: 'application/pdf' })
+    const got = await store.get('k')
+    expect([...(await readAll(got!.body))]).toEqual([...bytes])
+    expect(got!.size).toBe(1000)
+    expect(got!.contentType).toBe('application/pdf')
+  })
+  it('unknown size under 5 MiB: stores the bytes', async () => {
+    const store = make()
+    const bytes = patterned(5 * MiB)
+    await store.putStream('k', streamOf(bytes), { size: null })
+    expect([...(await readAll((await store.get('k'))!.body))]).toEqual([...bytes])
+  })
+  it('unknown size over 5 MiB: stores every byte', async () => {
+    const store = make()
+    const bytes = patterned(12 * MiB + 17)
+    await store.putStream('k', streamOf(bytes), { size: null })
+    const got = await store.get('k')
+    expect(got!.size).toBe(bytes.byteLength)
+    expect(Buffer.from(await readAll(got!.body)).equals(Buffer.from(bytes))).toBe(true)
+  })
+  it('a stream that errors mid-upload rejects and leaves no object', async () => {
+    const store = make()
+    await expect(store.putStream('k', failingStream(patterned(8 * MiB), 7 * MiB), { size: null })).rejects.toThrow('source broke')
+    expect(await store.get('k')).toBeNull()
+  })
+  if (name === 'r2') {
+    it('known size: one put of the stream, no multipart', async () => {
+      const bucket = fakeR2Bucket()
+      await r2ObjectStore(bucket).putStream('k', streamOf(patterned(300)), { size: 300, contentType: 'text/plain' })
+      expect(bucket.calls).toEqual([{ op: 'put', key: 'k', size: 300 }])
+      expect(bucket.contentTypes.get('k')).toBe('text/plain')
+    })
+    it('unknown size up to and including 5 MiB: exactly one put', async () => {
+      for (const n of [0, 1, 5 * MiB]) {
+        const bucket = fakeR2Bucket()
+        await r2ObjectStore(bucket).putStream('k', streamOf(patterned(n)), { size: null })
+        expect(bucket.calls, `size ${n}`).toEqual([{ op: 'put', key: 'k', size: n }])
+      }
+    })
+    it('unknown size over 5 MiB: multipart, every part 5 MiB but the last, completed once', async () => {
+      const bucket = fakeR2Bucket()
+      await r2ObjectStore(bucket).putStream('k', streamOf(patterned(12 * MiB + 17)), { size: null, contentType: 'message/rfc822' })
+      expect(bucket.calls).toEqual([
+        { op: 'create', key: 'k' },
+        { op: 'part', key: 'k', partNumber: 1, size: 5 * MiB },
+        { op: 'part', key: 'k', partNumber: 2, size: 5 * MiB },
+        { op: 'part', key: 'k', partNumber: 3, size: 2 * MiB + 17 },
+        { op: 'complete', key: 'k', parts: 3 },
+      ])
+      expect(bucket.contentTypes.get('k')).toBe('message/rfc822')
+    })
+    it('5 MiB plus one byte is a two-part upload with a one-byte last part', async () => {
+      const bucket = fakeR2Bucket()
+      await r2ObjectStore(bucket).putStream('k', streamOf(patterned(5 * MiB + 1)), { size: null })
+      expect(bucket.calls.filter((c) => c.op === 'part').map((c) => (c as { size: number }).size)).toEqual([5 * MiB, 1])
+    })
+    it('an error mid-upload aborts the multipart upload and leaves no object', async () => {
+      const bucket = fakeR2Bucket()
+      await expect(r2ObjectStore(bucket).putStream('k', failingStream(patterned(12 * MiB), 11 * MiB), { size: null })).rejects.toThrow('source broke')
+      expect(bucket.calls.at(-1)).toEqual({ op: 'abort', key: 'k' })
+      expect(bucket.calls.some((c) => c.op === 'complete')).toBe(false)
+      expect(bucket.objects.has('k')).toBe(false)
+    })
+    it('an error before the first part writes nothing at all', async () => {
+      const bucket = fakeR2Bucket()
+      await expect(r2ObjectStore(bucket).putStream('k', failingStream(patterned(2 * MiB), 1 * MiB), { size: null })).rejects.toThrow('source broke')
+      expect(bucket.calls).toEqual([])
+    })
+  }
+})

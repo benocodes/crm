@@ -10,7 +10,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
+import { createHash } from 'node:crypto'
 import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, type R2BucketLike } from '@vault/api'
+import { bytesOf } from '@vault/api/test/channels'
+import { ATTACHMENT_BYTES, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
 import { applyMigrations, createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
 import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
 import {
@@ -56,6 +59,7 @@ const profiles = new Map([
 const clerk = fakeClerkFetch(profiles)
 const hostsSeen = new Set<string>()
 let mf: Miniflare | undefined
+let pipelineMf: Miniflare | undefined
 
 try {
   await build({
@@ -377,11 +381,75 @@ try {
   res = await call('POST', '/mcp', { headers: { 'content-type': 'application/json' }, body: { jsonrpc: '2.0', id: 1, method: 'ping' } })
   check('33 POST /mcp without a credential -> 401 with the /mcp challenge', res.status === 401 && (res.headers.get('www-authenticate') ?? '').includes('oauth-protected-resource/mcp", scope="'), res.headers.get('www-authenticate'))
   check('29 the bundle contains no MCP SDK', !readFileSync(bundle, 'utf8').includes('@modelcontextprotocol'), undefined)
+
+  // 34-37: the content pipeline in workerd ([[CORE69]] D15). A second, smoke-only bundle (never deployed, not imported by worker.ts)
+  // runs `captureMessages` with FakeChannel, the real `workerdStreams()` and Miniflare's own D1 and R2.
+  const pipelineBundle = join(workerDir, 'pipeline.mjs')
+  await build({
+    entryPoints: [fileURLToPath(new URL('./smoke-pipeline-entry.ts', import.meta.url))],
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    conditions: ['workerd', 'worker', 'browser'],
+    target: 'es2022',
+    outfile: pipelineBundle,
+    logLevel: 'warning',
+  })
+  pipelineMf = new Miniflare({
+    modules: true,
+    scriptPath: pipelineBundle,
+    modulesRoot: workerDir,
+    compatibilityDate: '2026-07-30',
+    d1Databases: { DB: `pipeline-${crypto.randomUUID()}` },
+    d1Persist: false,
+    r2Buckets: ['BODIES'],
+    bindings: { AUTH_ORG_ID: 'org_pipeline' },
+  })
+  const pipelineBase = await pipelineMf.ready
+  const pd1 = (await pipelineMf.getD1Database('DB')) as unknown as D1Like
+  await applyMigrations(pd1)
+  await bootstrapD1(pd1, { organizationName: 'Pipeline', agentName: 'pipeline-bot', authOrgId: 'org_pipeline' })
+  const pBodies = (await pipelineMf.getR2Bucket('BODIES')) as unknown as { list(o: { prefix: string }): Promise<{ objects: Array<{ key: string; size: number }> }> }
+  const pRows = async (sqlText: string) => ((await pd1.prepare(sqlText).all()).results ?? []) as Array<Record<string, unknown>>
+  const run = await fetch(new URL('/run', pipelineBase))
+  const pipelineResult = (await run.json()) as { captured?: number; attachments?: { stored: number; failed: number; skipped: number }; error?: string }
+  const pOrg = String((await pRows('select organization_id as o from deployment'))[0]!.o)
+
+  const attachmentBytes = bytesOf(ATTACHMENT_BYTES)
+  const wantSha = createHash('sha256').update(attachmentBytes).digest('hex')
+  const fileRows = await pRows('select sha256, size_bytes, storage_key from files')
+  const blob = fileRows[0] ? await pBodies.list({ prefix: `${fileRows[0].storage_key}/` }) : { objects: [] }
+  check(
+    '34 the pipeline in workerd: an attachment is stored, its hash (crypto.DigestStream) and size match its bytes',
+    run.status === 200 && pipelineResult.captured === 3 && fileRows.length === 1 && fileRows[0]!.sha256 === wantSha && Number(fileRows[0]!.size_bytes) === ATTACHMENT_BYTES && blob.objects.length === 1 && blob.objects[0]!.size === ATTACHMENT_BYTES,
+    { status: run.status, pipelineResult, fileRows, blob },
+  )
+
+  const bigPrefix = await messageContentPrefix(pOrg, 'email', '<smoke-big@fake.test>')
+  const big = await pBodies.list({ prefix: `${bigPrefix}/v1/original` })
+  check('35 the pipeline in workerd: an original of unknown size over 5 MiB is stored whole (R2 multipart)', big.objects.length === 1 && big.objects[0]!.size === ORIGINAL_BYTES, big)
+
+  const mismatchRows = await pRows("select a.fetch_status as s, a.fetch_error as e, a.file_id as f from message_attachments a join messages m on m.id = a.message_id where m.external_id = '<smoke-mismatch@fake.test>'")
+  const blobs = await pBodies.list({ prefix: `orgs/${pOrg}/files/` })
+  check(
+    '36 the pipeline in workerd: a length mismatch is recorded failed with no object left (FixedLengthStream)',
+    mismatchRows.length === 1 && mismatchRows[0]!.s === 'failed' && mismatchRows[0]!.e === 'length_mismatch' && mismatchRows[0]!.f === null && blobs.objects.length === 1 && pipelineResult.attachments?.failed === 1,
+    { mismatchRows, blobs: blobs.objects.map((o) => o.key), pipelineResult },
+  )
+
+  const counts = Object.fromEntries(await Promise.all(['messages', 'interactions', 'message_sources', 'threads'].map(async (t) => [t, Number((await pRows(`select count(*) as n from ${t}`))[0]!.n)] as const)))
+  const eventTypes = (await pRows("select type from events where type in ('message.created', 'interaction.created', 'thread.created', 'file.created')")).map((r) => String(r.type))
+  check(
+    '37 the pipeline in workerd: rows and events exist',
+    counts.messages === 3 && counts.interactions === 3 && counts.message_sources === 3 && counts.threads === 3 && eventTypes.filter((t) => t === 'message.created').length === 3 && eventTypes.includes('file.created'),
+    { counts, eventTypes },
+  )
 } catch (err) {
   failures++
   console.log(`FAIL smoke aborted -> ${err instanceof Error ? err.message : String(err)}`)
 } finally {
   await mf?.dispose()
+  await pipelineMf?.dispose()
   rmSync(workerDir, { recursive: true, force: true })
 }
 
