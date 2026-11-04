@@ -248,6 +248,10 @@ describe('query plan (D10)', () => {
       expect(plan.filter((l) => new RegExp(`\\bSCAN ${table}\\b`).test(l)), `${table} is never scanned:\n${text}`).toEqual([])
     }
     for (const line of plan.filter((l) => /SEARCH (identities|interaction_participants|interactions)\b/.test(l))) expect(line, line).toMatch(/USING/)
+    // The walk of D10, not just any index: identities by contact, participants by identity, interactions by id.
+    expect(text).toMatch(/SEARCH identities USING INDEX idx_identities_contact_id \(contact_id=\?\)/)
+    expect(text).toMatch(/SEARCH interaction_participants USING COVERING INDEX idx_interaction_participants_identity \(organization_id=\? AND identity_id=\?\)/)
+    expect(text).toMatch(/SEARCH interactions USING INDEX \w+ \(organization_id=\? AND id=\?\)/)
   }
   it('a get, a page and a list with not_contacted_since search the three tables by index', async () => {
     const id = '0190b2c4-0000-7000-8000-0000000000aa'
@@ -255,7 +259,7 @@ describe('query plan (D10)', () => {
     const get = await planOf(getOperation(contacts, scoped, id))
     const page = await planOf(listOperation(contacts, scoped, { limit: 20 }))
     const filtered = await planOf(listOperation(contacts, scoped, { filters: { not_contacted_since: '2026-10-05T00:00:00.000Z' } }))
-    console.log('PLAN get\n' + get.join('\n') + '\nPLAN page\n' + page.join('\n') + '\nPLAN filtered\n' + filtered.join('\n'))
+    if (process.env.PLAN_OUT) (await import('node:fs')).writeFileSync(process.env.PLAN_OUT, 'PLAN get\n' + get.join('\n') + '\nPLAN page\n' + page.join('\n') + '\nPLAN filtered\n' + filtered.join('\n') + '\n')
     assertSearches(get)
     assertSearches(page)
     assertSearches(filtered)

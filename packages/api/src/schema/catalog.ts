@@ -12,6 +12,8 @@ export interface TableText {
   label: string
   description: string
   columns: Record<string, string | ColumnText>
+  /** Text of the table's derived record fields ([[CORE131]] D11), by field name. */
+  derived?: Record<string, string | ColumnText>
 }
 export interface Catalog {
   tables: Record<string, TableText>
@@ -103,6 +105,10 @@ export const CATALOG: Catalog = {
         name: 'The contact name; may be empty when only an address is known.',
         company_id: { label: 'Primary company', description: "The contact's primary company; further affiliations are associations." },
         merged_into_id: 'Set when this contact was merged into another; the row is then deleted and this points at the survivor.',
+      },
+      derived: {
+        last_contacted_at: "When the latest outbound interaction with any of the contact's identities happened; null if none.",
+        last_interacted_at: "When the latest interaction, in either direction, with any of the contact's identities happened; null if none.",
       },
     },
     identities: {

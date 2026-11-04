@@ -765,7 +765,9 @@
             "merged_into_id": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:03:00.000Z",
-            "updated_at": "2026-10-22T09:03:00.000Z"
+            "updated_at": "2026-10-22T09:03:00.000Z",
+            "last_contacted_at": null,
+            "last_interacted_at": null
           },
           "events": [
             {
@@ -1230,6 +1232,408 @@
       ]
     },
     {
+      "name": "contact-activity",
+      "about": "CORE131: contacts created by capture carry last_contacted_at and last_interacted_at (Jane was written to, Bob only wrote, Carol only wrote); the six filters partition them; an unparseable time and sort are validation errors; the golden actors hold interactions:read here (scenario scopes), so the keys are present",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000004",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "jane",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:20:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000006",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "owner",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000008",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "bob",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:30:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "carol",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": null,
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts/{jane}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000004",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "jane",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T08:00:00.000Z",
+            "updated_at": "2026-10-22T08:00:00.000Z",
+            "last_contacted_at": "2026-10-22T07:20:00.000Z",
+            "last_interacted_at": "2026-10-22T07:20:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?never_contacted=true",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "carol",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": null,
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?contacted_since=2026-10-22T07:20:00Z",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000004",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "jane",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:20:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000006",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "owner",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000008",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "bob",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:30:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?not_contacted_since=2026-10-22T07:20:00.000Z",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "carol",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": null,
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?interacted_since=2026-10-22T09:30:00%2B02:00",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000006",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "owner",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000008",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "bob",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:30:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "carol",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": null,
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?never_interacted=false",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000004",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "jane",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:20:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000006",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "owner",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000008",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "bob",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:30:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "carol",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": null,
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?contacted_since=2026-10-22",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "filter contacted_since: Invalid ISO datetime"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?sort=last_contacted_at",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "unknown filter: sort"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "PATCH",
+          "path": "/api/v1/contacts/{jane}",
+          "request": {
+            "name": "Jane A."
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000004",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Jane A.",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T08:00:00.000Z",
+            "updated_at": "2026-10-22T09:09:00.000Z",
+            "last_contacted_at": "2026-10-22T07:20:00.000Z",
+            "last_interacted_at": "2026-10-22T07:20:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.updated",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000004",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000004",
+                "name": "jane",
+                "company_id": null,
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000004",
+                "name": "Jane A.",
+                "company_id": null,
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "PATCH",
+          "path": "/api/v1/contacts/{jane}",
+          "request": {
+            "last_contacted_at": null
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "Unrecognized key: \"last_contacted_at\""
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
       "name": "files-list-get",
       "about": "files list and get (metadata only: no storage key); the sha256 filter normalises case; a missing id is 404",
       "steps": [
@@ -1409,7 +1813,9 @@
             "merged_into_id": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:01:00.000Z",
-            "updated_at": "2026-10-22T09:01:00.000Z"
+            "updated_at": "2026-10-22T09:01:00.000Z",
+            "last_contacted_at": null,
+            "last_interacted_at": null
           },
           "events": [
             {

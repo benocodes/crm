@@ -41,14 +41,23 @@ export type ListResult<R> = { data: R[]; next_cursor: string | null }
 
 /** The embeds of a definition (record fields rendered from a child table, [[CORE25]] D50). */
 export const embedsOf = (def: PreparedResource): Readonly<Record<string, EmbedSpec>> => def.embed ?? {}
-/** The physical columns of the record: its keys minus the embed fields. */
-export const columnsOf = (def: PreparedResource): string[] => Object.keys(def.record.shape).filter((k) => !(k in embedsOf(def)))
+/** The physical columns of the record: its keys minus the embed and derived fields. */
+export const columnsOf = (def: PreparedResource): string[] => Object.keys(def.record.shape).filter((k) => !(k in embedsOf(def)) && !(k in (def.derived ?? {})))
 /** What an event's `after` is rendered from: the stored row's columns plus the embedded children (one rendering for reads and events). */
 export const afterOf = (def: PreparedResource) => ({ table: physicalTable(def), columns: columnsOf(def), embeds: embedsOf(def) })
-/** A record select's projection: the columns (timestamps as ISO text) and each embed aliased to its field. */
-const projection = (def: PreparedResource, qc: QueryContext) => [
+/** The parent column reference a derived expression correlates on: `parent('id')` is `<table>.id`. */
+const parentOf = (def: PreparedResource) => (column: string) => sql.ref(`${def.table}.${column}`)
+/** The derived fields this caller may see ([[CORE131]] D5): those whose `requires` scopes it holds all. */
+export const visibleDerived = (def: PreparedResource, env: PreparedEnv): Array<[string, NonNullable<PreparedResource['derived']>[string]]> =>
+  Object.entries(def.derived ?? {}).filter(([, d]) => (d.requires ?? []).every((scope) => env.scopes.has(scope)))
+/** The derived fields of a record select, aliased to their names; only the ones the caller may see. */
+export const derivedProjection = (def: PreparedResource, qc: QueryContext, env: PreparedEnv) =>
+  visibleDerived(def, env).map(([field, d]) => sql`${d.expression(qc, parentOf(def))}`.as(field))
+/** A record select's projection: the columns (timestamps as ISO text), each embed aliased to its field, and the derived fields the caller may see. */
+const projection = (def: PreparedResource, qc: QueryContext, env?: PreparedEnv) => [
   ...recordColumns(qc, physicalTable(def), columnsOf(def)),
   ...Object.entries(embedsOf(def)).map(([field, spec]) => embedJson(qc, physicalTable(def), spec, 'select').as(field)),
+  ...(env ? derivedProjection(def, qc, env) : []),
 ]
 const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
 const ref = (def: PreparedResource, column: string) => sql.ref(`${def.table}.${column}`)
@@ -57,7 +66,7 @@ const invalidReference = () => new ApiError(400, 'invalid_reference', 'a referen
 
 /** A stored row in its public shape: timestamps already ISO text and booleans decoded (D1 reads 0/1), parsed by the definition's record schema. */
 export function toRecord<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, row: Row): R {
-  const kinds = kindsOf(def)
+  const kinds = { ...kindsOf(def), ...Object.fromEntries(Object.entries(def.derived ?? {}).map(([k, d]) => [k, d.kind])) } as Record<string, ColumnKind>
   const converted: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(row)) {
     converted[k] =
@@ -86,8 +95,9 @@ const live = (def: PreparedResource, env: PreparedEnv, id?: string) => [
   ...(id ? [sql<SqlBool>`${ref(def, 'id')} = ${id}`] : []),
 ]
 
-export const selectRecord = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id?: string) => {
-  let q = loose(qc).selectFrom(def.table).select(projection(def, qc))
+/** A live record select. `derived: false` leaves the derived fields out: what an event's `before` is rendered from (D2). */
+export const selectRecord = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id?: string, opts: { derived?: boolean } = {}) => {
+  let q = loose(qc).selectFrom(def.table).select(projection(def, qc, opts.derived === false ? undefined : env))
   for (const w of live(def, env, id)) q = q.where(w)
   return q
 }
@@ -188,7 +198,7 @@ export function getOperation<R extends { id: string }>(def: PreparedResource<Pre
 export const resultStep = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, eventId: string): Step => {
   const q = loose(qc)
     .selectFrom(def.table)
-    .select(projection(def, qc))
+    .select(projection(def, qc, env))
     .where(sql<SqlBool>`${ref(def, 'id')} = ${id}`)
     .where(sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`)
     .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`)
@@ -272,9 +282,9 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
   })
 }
 
-/** The before row, plus its exact stored `updated_at` for the drift guard. */
-export const beforeRead = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string) =>
-  readMaybe(selectRecord(def, qc, env, id).select(ts.exact(qc, `${def.table}.updated_at`).as('__stamp')))
+/** The before row, plus its exact stored `updated_at` for the drift guard. Without derived fields: it feeds events (D2). */
+export const beforeRead = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, opts: { derived?: boolean } = { derived: false }) =>
+  readMaybe(selectRecord(def, qc, env, id, opts).select(ts.exact(qc, `${def.table}.updated_at`).as('__stamp')))
 
 export function updateOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, rawId: string, input: unknown): PreparedOperation<R> {
   const values = prepareUpdate(def, env.actor, input)
@@ -287,7 +297,8 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
   return defineOperation<R>({
     name: `${def.name}.update`,
     mutates: !empty,
-    reads: (qc) => ({ before: beforeRead(def, qc, env, id), ...referenceReads(def, qc, env, stored), ...(empty ? {} : conflictReads(conflictsOf(qc))) }),
+    // An empty patch writes nothing and answers with the record as read, derived fields included; otherwise `before` feeds the event and carries none.
+    reads: (qc) => ({ before: beforeRead(def, qc, env, id, { derived: empty }), ...referenceReads(def, qc, env, stored), ...(empty ? {} : conflictReads(conflictsOf(qc))) }),
     build: (found, qc) => {
       const row = found.maybe('before')
       if (!row) throw notFound(def)

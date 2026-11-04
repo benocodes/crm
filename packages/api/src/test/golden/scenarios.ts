@@ -650,6 +650,25 @@ export const messagingScenarios: readonly GoldenScenario[] = [
     ],
   },
   {
+    name: 'contact-activity',
+    about:
+      'CORE131: contacts created by capture carry last_contacted_at and last_interacted_at (Jane was written to, Bob only wrote, Carol only wrote); the six filters partition them; an unparseable time and sort are validation errors; the golden actors hold interactions:read here (scenario scopes), so the keys are present',
+    seed: 'messaging',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/contacts', pick: { jane: (b) => b.data.find((c: any) => c.last_contacted_at !== null)?.id } },
+      { as: 'user', at: at(1), method: 'GET', path: '/api/v1/contacts/{jane}' },
+      { as: 'agent', at: at(2), method: 'GET', path: '/api/v1/contacts?never_contacted=true' },
+      { as: 'user', at: at(3), method: 'GET', path: '/api/v1/contacts?contacted_since=2026-10-22T07:20:00Z' },
+      { as: 'user', at: at(4), method: 'GET', path: '/api/v1/contacts?not_contacted_since=2026-10-22T07:20:00.000Z' },
+      { as: 'user', at: at(5), method: 'GET', path: '/api/v1/contacts?interacted_since=2026-10-22T09:30:00%2B02:00' },
+      { as: 'user', at: at(6), method: 'GET', path: '/api/v1/contacts?never_interacted=false' },
+      { as: 'user', at: at(7), method: 'GET', path: '/api/v1/contacts?contacted_since=2026-10-22' },
+      { as: 'user', at: at(8), method: 'GET', path: '/api/v1/contacts?sort=last_contacted_at' },
+      { as: 'user', at: at(9), method: 'PATCH', path: '/api/v1/contacts/{jane}', body: { name: 'Jane A.' } },
+      { as: 'user', at: at(10), method: 'PATCH', path: '/api/v1/contacts/{jane}', body: { last_contacted_at: null } },
+    ],
+  },
+  {
     name: 'files-list-get',
     about: 'files list and get (metadata only: no storage key); the sha256 filter normalises case; a missing id is 404',
     seed: 'messaging',
