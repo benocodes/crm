@@ -9,22 +9,35 @@ export interface StoredObject {
 
 export interface ObjectStore {
   put(key: string, body: Uint8Array | string, opts?: { contentType?: string }): Promise<void>
+  /** Streams `body` into `key` ([[CORE69]] D5). With a `size` the stream already has exactly that length. */
+  putStream(key: string, body: ReadableStream<Uint8Array>, opts: { size: number | null; contentType?: string }): Promise<void>
   get(key: string): Promise<StoredObject | null>
   /** A missing key is not an error. */
   delete(keys: string | readonly string[]): Promise<void>
 }
 
+/** The multipart subset of Cloudflare's `R2MultipartUpload` the store uses. */
+export interface R2MultipartUploadLike {
+  uploadPart(partNumber: number, value: ArrayBuffer | ArrayBufferView): Promise<{ partNumber: number; etag: string }>
+  complete(uploadedParts: { partNumber: number; etag: string }[]): Promise<unknown>
+  abort(): Promise<void>
+}
+
 /** The subset of Cloudflare's `R2Bucket` the store uses (structural: no @cloudflare/workers-types import). */
 export interface R2BucketLike {
-  put(key: string, value: ArrayBuffer | ArrayBufferView | string, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>
+  put(key: string, value: ArrayBuffer | ArrayBufferView | string | ReadableStream, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>
   get(key: string): Promise<{ body?: ReadableStream; size: number; httpMetadata?: { contentType?: string } } | null>
   delete(keys: string | string[]): Promise<void>
+  createMultipartUpload(key: string, options?: { httpMetadata?: { contentType?: string } }): Promise<R2MultipartUploadLike>
 }
 
 export function r2ObjectStore(bucket: R2BucketLike): ObjectStore {
   return {
     async put(key, body, opts) {
       await bucket.put(key, body, opts?.contentType === undefined ? undefined : { httpMetadata: { contentType: opts.contentType } })
+    },
+    async putStream() {
+      throw new Error('not implemented')
     },
     async get(key) {
       const object = await bucket.get(key)
@@ -44,6 +57,9 @@ export function memoryObjectStore(): ObjectStore {
     async put(key, body, opts) {
       const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body.slice()
       objects.set(key, { bytes, contentType: opts?.contentType ?? null })
+    },
+    async putStream() {
+      throw new Error('not implemented')
     },
     async get(key) {
       const object = objects.get(key)

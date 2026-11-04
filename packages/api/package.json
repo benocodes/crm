@@ -9,7 +9,9 @@
     "./test/clerk": "./src/test/clerk.ts",
     "./test/messaging": "./src/test/messaging-kit.ts",
     "./test/capture": "./src/test/capture-kit.ts",
-    "./test/objects": "./src/test/objects.ts"
+    "./test/objects": "./src/test/objects.ts",
+    "./test/channels": "./src/test/channels.ts",
+    "./test/streams": "./src/test/streams.ts"
   },
   "scripts": {
     "test": "vitest run --config ../../vitest.config.ts",
@@ -19,6 +21,7 @@
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
     "@vault/storage": "workspace:*",
+    "chat": "4.43.0",
     "hono": "4.13.12",
     "jose": "6.2.12",
     "kysely": "0.29.6",

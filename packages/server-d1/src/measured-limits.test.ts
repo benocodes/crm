@@ -3,8 +3,10 @@ import { execute, uuidv7 } from '@vault/storage'
 import { d1Binding } from '@vault/storage-d1'
 import { seedConversation } from '@vault/api/test/messaging'
 import { fakeR2Bucket } from '@vault/api/test/objects'
+import { bytesOf, FakeChannel } from '@vault/api/test/channels'
+import { nodeStreams } from '@vault/api/test/streams'
 import { captureMessage, tenantEnv } from '@vault/api/test/capture'
-import { fileBlobKey, messageBodyKey, recordMessagesOperation } from '@vault/api'
+import { captureMessages, fileBlobKey, messageBodyKey, r2ObjectStore, recordMessagesOperation } from '@vault/api'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { NOW, clerkKit, meterD1, openWorkerD1, type ClerkKit, type D1Meter, type InvocationMeasure, type WorkerD1 } from './test/kit.js'
@@ -41,6 +43,8 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'contact-delete-100-with-links': 3,
   'capture-chunk-1': 2, // read batch, write batch (no route: the unit is run directly, CORE68 D55)
   'capture-chunk-100': 2, // the same two, at the cap: 100 messages, 100 distinct addresses, 100 stored attachments
+  'pipeline-batch-25': 3, // CORE69 D16: pre-check read, then the unit's read batch and write batch (25 new messages, one chunk; objects are R2, not D1)
+  'pipeline-batch-25-existing': 3, // the same batch again: pre-check, then the unit's two batches (sources only)
 }
 
 let w: WorkerD1
@@ -84,7 +88,7 @@ beforeAll(async () => {
 })
 afterAll(() => w.dispose())
 
-const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'capture-chunk-1', 'capture-chunk-100'] as const
+const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'capture-chunk-1', 'capture-chunk-100', 'pipeline-batch-25', 'pipeline-batch-25-existing'] as const
 const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'cold-first-request': 200,
   'key-auth-stamp': 200,
@@ -102,6 +106,8 @@ const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'contact-delete-100-with-links': 204,
   'capture-chunk-1': 200,
   'capture-chunk-100': 200,
+  'pipeline-batch-25': 200,
+  'pipeline-batch-25-existing': 200,
 }
 
 describe('measured limits (local Miniflare, one request = one invocation)', () => {
@@ -194,6 +200,23 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     )
     await measure('capture-chunk-100', captureAt(hundred))
 
+    // CORE69 D16: a page of 25 through the content pipeline (FakeChannel, memory-fast Node streams, the fake bucket), then the same page again.
+    const channel = new FakeChannel(
+      Array.from({ length: 25 }, (_, i) => ({ providerMessageId: `pipe-${i}`, from: `ps${i}@measure.test`, to: [`pr${i}@measure.test`], attachments: [{ name: `p${i}.bin`, bytes: bytesOf(32, i) }] })),
+    )
+    const pageIds = Array.from({ length: 25 }, (_, i) => `pipe-${i}`)
+    const pipeline = () => async () => {
+      await captureMessages(
+        { binding, organizationId: orgId, actorId: creator, objects: r2ObjectStore(bucket), streams: nodeStreams(), clock: () => now, newId: () => uuidv7(now), randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)) },
+        channel,
+        { id: uuidv7(now) },
+        pageIds,
+      )
+      return { status: 200 }
+    }
+    await measure('pipeline-batch-25', pipeline())
+    await measure('pipeline-batch-25-existing', pipeline())
+
     for (const k of SCENARIOS) expect(measures.get(k)?.status, k).toBe(EXPECTED_STATUS[k])
   }, 240_000) // the messaging scenarios seed ~700 rows and ~350 requests before they measure one
 
@@ -225,7 +248,7 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
   })
 
   it('the messaging scenarios really ran at their sizes', async () => {
-    expect(await count('select count(*) as n from messages')).toBe(204) // 50 listed + the content scenarios' one + 50 interactions + the two attachment sets + the capture chunks' 1 and 100
+    expect(await count('select count(*) as n from messages')).toBe(229) // 50 listed + the content scenarios' one + 50 interactions + the two attachment sets + the capture chunks' 1 and 100, the pipeline's 25
     expect(await count("select count(*) as n from contact_files where deleted_at is not null")).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
   })
 })
