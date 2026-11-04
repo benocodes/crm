@@ -59,12 +59,17 @@ curl -s -X POST http://localhost:8787/mcp -H "authorization: Bearer $KEY" -H "co
 ```
 
 A request carrying an `Origin` header must come from `CORS_ALLOWED_ORIGINS` (empty: every browser is refused; clients with no `Origin` are unaffected).
-OAuth sign-in for MCP clients (discovery, the `/mcp` challenge) arrives with the next cycle.
+
+**OAuth sign-in** ([[API115]]): with Clerk configured, a standard MCP client given only `<origin>/mcp` signs a person in with no static key. Its first
+request is `401` with `WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", scope="<read and write scopes>"`;
+the document names the Clerk issuer, the client registers itself (DCR), the person consents on Clerk's screen, and the token resolves to a delegated
+agent for that (client, person) that an owner can disable on `/connect`. `/.well-known/vibase` carries the URL as `mcp`, and the three discovery
+documents answer a browser's `OPTIONS` preflight. `pnpm -C packages/server-d1 e2e:mcp-oauth` proves the whole flow (Playwright, Clerk dev instance, `.env.dev` only).
 
 ## The connect page
 
 Every deployment serves **`/connect`** on its own API origin ([[UI30]]): sign in through Clerk's Account Portal, see who you are and how to
-connect an agent (`vibase login --server <origin>`, the API-key fallback, the MCP URL once the instance advertises one), and, as an owner,
+connect an agent (`vibase login --server <origin>`, the API-key fallback, the MCP URL, which every instance advertises), and, as an owner,
 disable or enable connected agents. With no `CLERK_PUBLISHABLE_KEY` it says sign-in is not configured and shows the API-key directions. It
 calls only `me.get`, `agents.list` and `agents.update`, with a Clerk session token as a Bearer header, so the server's scopes decide everything.
 

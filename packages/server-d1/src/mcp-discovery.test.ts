@@ -154,15 +154,21 @@ describe('D14 the 401 challenge on /mcp', () => {
     expect((await post({ authorization: `Bearer ${expired}` })).headers.get('www-authenticate')).toBe(mcpChallenge(BASE))
   })
 
-  it('every other path keeps the root challenge byte for byte, and a path under /mcp is not /mcp', async () => {
+  it('every other path keeps the root challenge byte for byte; a path under /mcp is not /mcp', async () => {
     quiet()
     await boot()
     await tracker(NAMES)
     const wk = worker()
-    for (const path of ['/api/v1/contacts', '/meta/v1/me', '/mcp/x', '/mcpx']) {
+    for (const path of ['/api/v1/contacts', '/meta/v1/me']) {
       const res = await call(wk, path)
       expect(res.status, path).toBe(401)
       expect(res.headers.get('www-authenticate'), path).toBe(rootChallenge(BASE))
+    }
+    // not routes, so not 401s: no challenge of either kind
+    for (const path of ['/mcp/x', '/mcpx']) {
+      const res = await call(wk, path)
+      expect(res.status, path).toBe(404)
+      expect(res.headers.get('www-authenticate'), path).toBeNull()
     }
   })
 

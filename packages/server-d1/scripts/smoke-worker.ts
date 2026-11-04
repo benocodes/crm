@@ -365,6 +365,17 @@ try {
   m = await mcp('tools/call', { name: 'tasks_create', arguments: { title: 'from mcp' } })
   const mcpActor = await rows("select actor_id from events where type = 'task.created' order by rowid desc limit 1")
   check('28 POST /mcp tools/call tasks_create -> a task, one event attributed to the key\'s agent', m.status === 200 && m.body.result?.isError === undefined && m.body.result?.structuredContent?.title === 'from mcp' && (await count('events')) === mcpEventsBefore + 1 && mcpActor[0]?.actor_id === boot.agentId, m)
+  // 30-32: MCP OAuth discovery ([[API115]]): the path-specific document, the `mcp` field and the preflight, in workerd.
+  res = await call('GET', '/.well-known/oauth-protected-resource/mcp')
+  body = await json(res)
+  check('30 GET /.well-known/oauth-protected-resource/mcp -> 200, resource <origin>/mcp, no human-only scope', res.status === 200 && body.resource === `${String(base).replace(/\/$/, '')}/mcp` && Array.isArray(body.scopes_supported) && !body.scopes_supported.includes('agents:write') && body.scopes_supported.includes('contacts:write'), body)
+  res = await call('GET', '/.well-known/vibase')
+  body = await json(res)
+  check('31 GET /.well-known/vibase -> mcp is <origin>/mcp', res.status === 200 && body.mcp === `${String(base).replace(/\/$/, '')}/mcp`, body.mcp)
+  res = await call('OPTIONS', '/.well-known/oauth-protected-resource/mcp')
+  check('32 OPTIONS on the MCP document -> 204 with the preflight headers', res.status === 204 && res.headers.get('access-control-allow-origin') === '*' && res.headers.get('access-control-allow-methods') === 'GET, HEAD' && res.headers.get('access-control-max-age') === '600', { status: res.status })
+  res = await call('POST', '/mcp', { headers: { 'content-type': 'application/json' }, body: { jsonrpc: '2.0', id: 1, method: 'ping' } })
+  check('33 POST /mcp without a credential -> 401 with the /mcp challenge', res.status === 401 && (res.headers.get('www-authenticate') ?? '').includes('oauth-protected-resource/mcp", scope="'), res.headers.get('www-authenticate'))
   check('29 the bundle contains no MCP SDK', !readFileSync(bundle, 'utf8').includes('@modelcontextprotocol'), undefined)
 } catch (err) {
   failures++

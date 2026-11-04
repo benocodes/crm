@@ -3,7 +3,7 @@ import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import { execute, uuidv7, type StorageBinding } from '@vault/storage'
 import type { AuthAdapter } from '../auth/adapter.js'
-import { resourceMetadataChallenge } from '../discovery.js'
+import { mcpChallenge, resourceMetadataChallenge } from '../discovery.js'
 import { authMiddleware } from '../auth/middleware.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
@@ -188,7 +188,10 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   if (options.workspace?.adapter) {
     app.use('*', async (c, next) => {
       await next()
-      if (c.res.status === 401) c.res.headers.set('WWW-Authenticate', resourceMetadataChallenge(new URL(c.req.url).origin))
+      if (c.res.status !== 401) return
+      // [[API106]] D14: only the exact /mcp path carries the MCP challenge; every other path keeps [[CORE84]]'s.
+      const url = new URL(c.req.url)
+      c.res.headers.set('WWW-Authenticate', url.pathname === MCP_PATH ? mcpChallenge(url.origin, registry.declaredScopes()) : resourceMetadataChallenge(url.origin))
     })
   }
   app.use('*', async (c, next) => {
