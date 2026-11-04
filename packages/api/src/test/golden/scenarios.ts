@@ -50,6 +50,8 @@ export interface GoldenStep {
   body?: unknown
   /** Saves the response body's `id` under this name. */
   save?: string
+  /** Saves ids picked out of the response body (a list's n-th item, an embedded child) under these names; `undefined` saves nothing. */
+  pick?: Readonly<Record<string, (body: any) => string | undefined>>
 }
 export interface GoldenScenario {
   name: string
@@ -59,6 +61,8 @@ export interface GoldenScenario {
   clerk?: GoldenClerk
   /** Seeds the agent's two fixed API keys (`IDS.agentKey`, `IDS.expiredKey`). Off by default so the older fixtures, which list keys, stay byte-identical. */
   keys?: true
+  /** Seeds the messaging corpus through `captureMessages` with `FakeChannel` into a memory object store (CORE69 D22). D1 backend only. */
+  seed?: 'messaging'
   steps: readonly GoldenStep[]
 }
 
@@ -562,6 +566,132 @@ export const directoryScenarios: readonly GoldenScenario[] = [
       { as: 'webhook', at: at(0), method: 'POST', path: '/webhooks/clerk', body: DELIVERY('user.updated', { id: GOLDEN_SUBJECTS.user }) },
       { as: 'user', at: at(1), method: 'GET', path: `/meta/v1/users/${IDS.user}` },
       { as: 'webhook', at: at(2), method: 'POST', path: '/webhooks/clerk', body: DELIVERY('user.updated', { id: 'user_golden_nobody' }) },
+    ],
+  },
+]
+
+// ---- CORE72: messaging (threads, messages, interactions, files and their links), seeded through the capture pipeline ------
+// The corpus `seed: 'messaging'` loads (test/golden/messaging-seed.ts): thread 1 holds a parent with two attachments, a reply from the
+// connection with one, and a reaction; thread 2 holds one message whose only attachment cannot be fetched. Ids are not written here:
+// `pick` reads them out of list responses, so a scenario never depends on the order ids were minted in.
+const first = (body: any): string => body.data[0].id
+const messagesOf = (body: any) => body.data as Array<{ id: string; kind: string; external_id: string; attachments: Array<{ file_id: string | null }> }>
+const byExternal = (body: any, external: string) => messagesOf(body).find((m) => m.external_id === external)!
+
+export const messagingScenarios: readonly GoldenScenario[] = [
+  {
+    name: 'threads-list-get',
+    about: 'threads list in id order and get one; a channel filter keeps them, an unknown one is a validation error; a missing id is 404 (read-only: no write route)',
+    seed: 'messaging',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/threads', pick: { t: first } },
+      { as: 'user', at: at(1), method: 'GET', path: '/api/v1/threads/{t}' },
+      { as: 'agent', at: at(2), method: 'GET', path: '/api/v1/threads?channel=email' },
+      { as: 'user', at: at(3), method: 'GET', path: '/api/v1/threads?channel=sms' },
+      { as: 'user', at: at(4), method: 'GET', path: `/api/v1/threads/${IDS.missing}` },
+      { as: 'user', at: at(5), method: 'POST', path: '/api/v1/threads', body: { subject: 'nope' } },
+    ],
+  },
+  {
+    name: 'messages-list-get',
+    about: 'messages embed their attachments ordered by position; the thread, kind and external_id filters; a get returns the same record; a reaction has no attachments',
+    seed: 'messaging',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/messages', pick: { parent: (b) => byExternal(b, '<m1@fake.test>').id, thread: (b) => (b.data[0] as any).thread_id } },
+      { as: 'user', at: at(1), method: 'GET', path: '/api/v1/messages/{parent}' },
+      { as: 'user', at: at(2), method: 'GET', path: '/api/v1/messages?thread_id={thread}' },
+      { as: 'user', at: at(3), method: 'GET', path: '/api/v1/messages?kind=reaction' },
+      { as: 'agent', at: at(4), method: 'GET', path: '/api/v1/messages?external_id=%3Cm2%40fake.test%3E' },
+      { as: 'user', at: at(5), method: 'GET', path: `/api/v1/messages/${IDS.missing}` },
+    ],
+  },
+  {
+    name: 'interactions-and-join-filters',
+    about: 'interactions embed their participants (role, then identity id); identity_id filters by a participant; contact_id follows the identities that are live now, so linking an identity to a contact makes it match',
+    seed: 'messaging',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/interactions', pick: { one: first, ident: (b) => b.data[0].participants[0].identity_id } },
+      { as: 'user', at: at(1), method: 'GET', path: '/api/v1/interactions/{one}' },
+      { as: 'user', at: at(2), method: 'GET', path: '/api/v1/interactions?identity_id={ident}' },
+      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/contacts', body: { name: 'Jane' }, save: 'k' },
+      { as: 'user', at: at(4), method: 'GET', path: '/api/v1/interactions?contact_id={k}' },
+      { as: 'user', at: at(5), method: 'PATCH', path: '/api/v1/identities/{ident}', body: { contact_id: '{k}' } },
+      { as: 'user', at: at(6), method: 'GET', path: '/api/v1/interactions?contact_id={k}' },
+      { as: 'user', at: at(7), method: 'GET', path: '/api/v1/interactions?direction=outbound' },
+      { as: 'user', at: at(8), method: 'GET', path: '/api/v1/interactions?identity_id=not-a-uuid' },
+    ],
+  },
+  {
+    name: 'content-reads',
+    about:
+      'messages.content returns the markdown the pipeline wrote (body.md, JSON); a reaction is 404 content_unavailable; files.content serves the stored blob with the CORE25 D33 headers, recorded by status, headers, SHA-256 and size; a missing id is 404 not_found; a failed attachment has no file',
+    seed: 'messaging',
+    steps: [
+      {
+        as: 'user',
+        at: at(0),
+        method: 'GET',
+        path: '/api/v1/messages',
+        pick: {
+          parent: (b) => byExternal(b, '<m1@fake.test>').id,
+          reaction: (b) => messagesOf(b).find((m) => m.kind === 'reaction')!.id,
+          file1: (b) => byExternal(b, '<m1@fake.test>').attachments[0]!.file_id ?? undefined,
+          file2: (b) => byExternal(b, '<m1@fake.test>').attachments[1]!.file_id ?? undefined,
+        },
+      },
+      { as: 'user', at: at(1), method: 'GET', path: '/api/v1/messages/{parent}/content' },
+      { as: 'agent', at: at(2), method: 'GET', path: '/api/v1/messages/{reaction}/content' },
+      { as: 'user', at: at(3), method: 'GET', path: '/api/v1/files/{file1}/content' },
+      { as: 'user', at: at(4), method: 'GET', path: '/api/v1/files/{file2}/content' },
+      { as: 'user', at: at(5), method: 'GET', path: `/api/v1/messages/${IDS.missing}/content` },
+      { as: 'user', at: at(6), method: 'GET', path: `/api/v1/files/${IDS.missing}/content` },
+    ],
+  },
+  {
+    name: 'files-list-get',
+    about: 'files list and get (metadata only: no storage key); the sha256 filter normalises case; a missing id is 404',
+    seed: 'messaging',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/files', pick: { f: first, sha: (b) => b.data[0].sha256 } },
+      { as: 'user', at: at(1), method: 'GET', path: '/api/v1/files/{f}' },
+      { as: 'user', at: at(2), method: 'GET', path: '/api/v1/files?sha256={sha}' },
+      { as: 'user', at: at(3), method: 'GET', path: `/api/v1/files/${IDS.missing}` },
+      { as: 'user', at: at(4), method: 'DELETE', path: '/api/v1/files/{f}' },
+    ],
+  },
+  {
+    name: 'contact-files-links',
+    about:
+      'a contact links to a file (contact_file.created), a second live link for the pair is 409 link_exists (no 500, ON CONFLICT backstop), a file the organisation does not hold is 400 invalid_reference, delete emits contact_file.deleted, the pair can be linked again, filters list the links',
+    seed: 'messaging',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/files', pick: { f: first } },
+      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/contacts', body: { name: 'Jane' }, save: 'k' },
+      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: '{f}' }, save: 'l' },
+      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: '{f}' } },
+      { as: 'user', at: at(4), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: IDS.missing } },
+      { as: 'user', at: at(5), method: 'GET', path: '/api/v1/contact-files/{l}' },
+      { as: 'user', at: at(6), method: 'GET', path: '/api/v1/contact-files?contact_id={k}' },
+      { as: 'agent', at: at(7), method: 'DELETE', path: '/api/v1/contact-files/{l}' },
+      { as: 'user', at: at(8), method: 'GET', path: '/api/v1/contact-files?file_id={f}' },
+      { as: 'user', at: at(9), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: '{f}' } },
+      { as: 'user', at: at(10), method: 'DELETE', path: '/api/v1/contact-files/{l}' },
+    ],
+  },
+  {
+    name: 'company-files-links',
+    about: 'the same for companies: create, link_exists, invalid_reference for an unknown company, delete with its event, relink',
+    seed: 'messaging',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/files', pick: { f: first } },
+      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme', domain: 'acme.test' }, save: 'c' },
+      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' }, save: 'l' },
+      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' } },
+      { as: 'user', at: at(4), method: 'POST', path: '/api/v1/company-files', body: { company_id: IDS.missing, file_id: '{f}' } },
+      { as: 'user', at: at(5), method: 'GET', path: '/api/v1/company-files?company_id={c}' },
+      { as: 'user', at: at(6), method: 'DELETE', path: '/api/v1/company-files/{l}' },
+      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' } },
+      { as: 'user', at: at(8), method: 'GET', path: '/api/v1/company-files/{l}' },
     ],
   },
 ]

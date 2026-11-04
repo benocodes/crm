@@ -1,18 +1,20 @@
 // The golden fixture list and the engine differences a fixture names ([[CORE35]] D17, [[CORE36]] D12, D22). Open test data:
 // the replays in @vault/api and the Postgres-side generator in @vault/server-postgres both read it from here.
-import { administrationScenarios, authScenarios, directoryScenarios, identityModelScenarios, taskScenarios } from './scenarios.js'
+import { administrationScenarios, authScenarios, directoryScenarios, identityModelScenarios, messagingScenarios, taskScenarios } from './scenarios.js'
 
 /**
- * The engine differences a fixture names: D1 fixed-organisation admission ([[CORE36]] D19, [[CORE41]] P13) is the only one.
- * A fixture lists the entries whose scenario it holds, and the D1 replay asserts the D1 outcome for that scenario instead of
- * equality with the Postgres transcript.
+ * The engine differences a fixture names ([[CORE72]], [[CORE69]] D20). D1 is the oracle that generates every fixture and its replay
+ * asserts equality on every scenario; what is named here is where the parked Postgres engine differs. The only one: Postgres is
+ * multi-tenant, so a token claiming another provider organisation is admitted and repaired there, where a D1 serves one organisation
+ * and refuses it 403 before any SQL ([[CORE36]] D19, [[CORE41]] P13). The Postgres replay asserts its own outcome for that scenario
+ * instead of equality.
  */
 export const NAMED_DIFFERENCES: Array<{ engine: string; scenario: string; what: string; why: string }> = [
   {
-    engine: 'd1',
+    engine: 'postgres',
     scenario: 'foreign-organisation-claim',
-    what: 'a token claiming another organisation is refused 403 before any SQL',
-    why: 'CORE36 D19: one organisation per D1',
+    what: 'a token claiming another provider organisation is admitted (200) and its organisation and membership are created',
+    why: 'Postgres is multi-tenant: the organisation is repaired from the claim; a D1 serves one organisation (CORE36 D19)',
   },
 ]
 
@@ -22,4 +24,5 @@ export const FIXTURES = [
   { file: 'administration.json', resource: 'administration', scenarios: administrationScenarios },
   { file: 'auth.json', resource: 'auth', scenarios: authScenarios },
   { file: 'directory.json', resource: 'directory', scenarios: directoryScenarios },
+  { file: 'messaging.json', resource: 'messaging', scenarios: messagingScenarios },
 ] as const
