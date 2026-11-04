@@ -113,6 +113,10 @@ The `@vault/api` Postgres baseline is tracked in #89 (128 failures on `main` `7b
 compare the count against it, and if it rises name the D1 migration responsible ([[CORE84]] retro), instead of
 re-running a clean `main` to prove the failures predate the branch.
 The charter's E2E scenario is not part of the gate; in a sprint the e2e-tester runs it.
+When the scenario is a script you wrote (a Playwright `*.e2e.ts`) and it needs only a local Worker and
+`.env.dev`, run it once before you report and fix what is yours. The tester's run is still the evidence; yours
+catches script slips, which cost [[API115]] a full coder and tester round. Note the run (pass, or what failed and
+why) in RESULT.md.
 
 ## 6. RESULT.md, commit, push
 
