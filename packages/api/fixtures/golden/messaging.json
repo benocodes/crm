@@ -1,0 +1,1955 @@
+{
+  "format": 1,
+  "resource": "messaging",
+  "generated_by": "packages/api/scripts/golden.ts (d1 path)",
+  "named_differences": [],
+  "scenarios": [
+    {
+      "name": "threads-list-get",
+      "about": "threads list in id order and get one; a channel filter keeps them, an unknown one is a validation error; a missing id is 404 (read-only: no write route)",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/threads",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "subject": "Quarterly plan",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000021",
+                "channel": "email",
+                "subject": "Invoice",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/threads/{t}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000020",
+            "channel": "email",
+            "subject": "Quarterly plan",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T08:00:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/threads?channel=email",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "subject": "Quarterly plan",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000021",
+                "channel": "email",
+                "subject": "Invoice",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/threads?channel=sms",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "filter channel: Invalid input: expected \"email\""
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/threads/0190b2c4-0000-7000-8000-00000000dead",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "thread not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/threads",
+          "request": {
+            "subject": "nope"
+          },
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "no such route"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "messages-list-get",
+      "about": "messages embed their attachments ordered by position; the thread, kind and external_id filters; a get returns the same record; a reaction has no attachments",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000022",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m1@fake.test>",
+                "in_reply_to": null,
+                "author": {
+                  "user_id": "jane@acme.test",
+                  "user_name": "jane@acme.test",
+                  "full_name": "jane",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:10:00.000Z",
+                "preview": "Plan Hello world, the numbers are attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000031",
+                    "position": 0,
+                    "type": "file",
+                    "name": "plan.pdf",
+                    "mime_type": "application/pdf",
+                    "size_bytes": 300,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000030"
+                  },
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000033",
+                    "position": 1,
+                    "type": "image",
+                    "name": "logo.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 64,
+                    "inline": true,
+                    "content_id": "logo@fake.test",
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000032"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000024",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m2@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "owner@vault.test",
+                  "user_name": "owner@vault.test",
+                  "full_name": "owner",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "preview": "Thanks, notes attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000035",
+                    "position": 0,
+                    "type": "file",
+                    "name": "notes.txt",
+                    "mime_type": "text/plain",
+                    "size_bytes": 48,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000034"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000026",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "reaction",
+                "external_id": "<m3@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "bob@acme.test",
+                  "user_name": "bob@acme.test",
+                  "full_name": "bob",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:30:00.000Z",
+                "preview": "👍",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000028",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000021",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m4@fake.test>",
+                "in_reply_to": null,
+                "author": {
+                  "user_id": "carol@other.test",
+                  "user_name": "carol@other.test",
+                  "full_name": "carol",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:40:00.000Z",
+                "preview": "See the invoice.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000036",
+                    "position": 0,
+                    "type": "file",
+                    "name": "invoice.pdf",
+                    "mime_type": null,
+                    "size_bytes": 10,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "failed",
+                    "file_id": null
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages/{parent}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000022",
+            "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+            "channel": "email",
+            "kind": "message",
+            "external_id": "<m1@fake.test>",
+            "in_reply_to": null,
+            "author": {
+              "user_id": "jane@acme.test",
+              "user_name": "jane@acme.test",
+              "full_name": "jane",
+              "is_bot": false
+            },
+            "occurred_at": "2026-10-22T07:10:00.000Z",
+            "preview": "Plan Hello world, the numbers are attached.",
+            "version": 1,
+            "retracted_at": null,
+            "attachments": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000031",
+                "position": 0,
+                "type": "file",
+                "name": "plan.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 300,
+                "inline": false,
+                "content_id": null,
+                "fetch_status": "stored",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000033",
+                "position": 1,
+                "type": "image",
+                "name": "logo.png",
+                "mime_type": "image/png",
+                "size_bytes": 64,
+                "inline": true,
+                "content_id": "logo@fake.test",
+                "fetch_status": "stored",
+                "file_id": "0190b2c4-0000-7000-8000-000001000032"
+              }
+            ],
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T08:00:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages?thread_id={thread}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000022",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m1@fake.test>",
+                "in_reply_to": null,
+                "author": {
+                  "user_id": "jane@acme.test",
+                  "user_name": "jane@acme.test",
+                  "full_name": "jane",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:10:00.000Z",
+                "preview": "Plan Hello world, the numbers are attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000031",
+                    "position": 0,
+                    "type": "file",
+                    "name": "plan.pdf",
+                    "mime_type": "application/pdf",
+                    "size_bytes": 300,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000030"
+                  },
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000033",
+                    "position": 1,
+                    "type": "image",
+                    "name": "logo.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 64,
+                    "inline": true,
+                    "content_id": "logo@fake.test",
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000032"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000024",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m2@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "owner@vault.test",
+                  "user_name": "owner@vault.test",
+                  "full_name": "owner",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "preview": "Thanks, notes attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000035",
+                    "position": 0,
+                    "type": "file",
+                    "name": "notes.txt",
+                    "mime_type": "text/plain",
+                    "size_bytes": 48,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000034"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000026",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "reaction",
+                "external_id": "<m3@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "bob@acme.test",
+                  "user_name": "bob@acme.test",
+                  "full_name": "bob",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:30:00.000Z",
+                "preview": "👍",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages?kind=reaction",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000026",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "reaction",
+                "external_id": "<m3@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "bob@acme.test",
+                  "user_name": "bob@acme.test",
+                  "full_name": "bob",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:30:00.000Z",
+                "preview": "👍",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages?external_id=%3Cm2%40fake.test%3E",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000024",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m2@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "owner@vault.test",
+                  "user_name": "owner@vault.test",
+                  "full_name": "owner",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "preview": "Thanks, notes attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000035",
+                    "position": 0,
+                    "type": "file",
+                    "name": "notes.txt",
+                    "mime_type": "text/plain",
+                    "size_bytes": 48,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000034"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages/0190b2c4-0000-7000-8000-00000000dead",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "message not found"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "interactions-and-join-filters",
+      "about": "interactions embed their participants (role, then identity id); identity_id filters by a participant; contact_id follows the identities that are live now, so linking an identity to a contact makes it match",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/interactions",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000023",
+                "kind": "message",
+                "channel": "email",
+                "direction": "inbound",
+                "occurred_at": "2026-10-22T07:10:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000022",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000005",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000025",
+                "kind": "message",
+                "channel": "email",
+                "direction": "outbound",
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000024",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000009",
+                    "role": "cc"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000005",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000027",
+                "kind": "reaction",
+                "channel": "email",
+                "direction": "inbound",
+                "occurred_at": "2026-10-22T07:30:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000026",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000009",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000029",
+                "kind": "message",
+                "channel": "email",
+                "direction": "inbound",
+                "occurred_at": "2026-10-22T07:40:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000021",
+                "message_id": "0190b2c4-0000-7000-8000-000001000028",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000011",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/interactions/{one}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000023",
+            "kind": "message",
+            "channel": "email",
+            "direction": "inbound",
+            "occurred_at": "2026-10-22T07:10:00.000Z",
+            "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+            "message_id": "0190b2c4-0000-7000-8000-000001000022",
+            "participants": [
+              {
+                "identity_id": "0190b2c4-0000-7000-8000-000001000005",
+                "role": "from"
+              },
+              {
+                "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                "role": "to"
+              }
+            ],
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T08:00:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/interactions?identity_id={ident}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000023",
+                "kind": "message",
+                "channel": "email",
+                "direction": "inbound",
+                "occurred_at": "2026-10-22T07:10:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000022",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000005",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000025",
+                "kind": "message",
+                "channel": "email",
+                "direction": "outbound",
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000024",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000009",
+                    "role": "cc"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000005",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/contacts",
+          "request": {
+            "name": "Jane"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000065",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Jane",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000065",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000065",
+                "name": "Jane",
+                "company_id": null,
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/interactions?contact_id={k}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "PATCH",
+          "path": "/api/v1/identities/{ident}",
+          "request": {
+            "contact_id": "{k}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "kind": "email",
+            "value": "jane@acme.test",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+            "own": false,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T08:00:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": [
+            {
+              "type": "identity.updated",
+              "resource_type": "identity",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "email",
+                "value": "jane@acme.test",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000004",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "own": false,
+                "kind": "email",
+                "value": "jane@acme.test",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/interactions?contact_id={k}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000023",
+                "kind": "message",
+                "channel": "email",
+                "direction": "inbound",
+                "occurred_at": "2026-10-22T07:10:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000022",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000005",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000025",
+                "kind": "message",
+                "channel": "email",
+                "direction": "outbound",
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000024",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000009",
+                    "role": "cc"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000005",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/interactions?direction=outbound",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000025",
+                "kind": "message",
+                "channel": "email",
+                "direction": "outbound",
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000024",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000009",
+                    "role": "cc"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000005",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/interactions?identity_id=not-a-uuid",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "filter identity_id: Invalid UUID"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "content-reads",
+      "about": "messages.content returns the markdown the pipeline wrote (body.md, JSON); a reaction is 404 content_unavailable; files.content serves the stored blob with the CORE25 D33 headers, recorded by status, headers, SHA-256 and size; a missing id is 404 not_found; a failed attachment has no file",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000022",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m1@fake.test>",
+                "in_reply_to": null,
+                "author": {
+                  "user_id": "jane@acme.test",
+                  "user_name": "jane@acme.test",
+                  "full_name": "jane",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:10:00.000Z",
+                "preview": "Plan Hello world, the numbers are attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000031",
+                    "position": 0,
+                    "type": "file",
+                    "name": "plan.pdf",
+                    "mime_type": "application/pdf",
+                    "size_bytes": 300,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000030"
+                  },
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000033",
+                    "position": 1,
+                    "type": "image",
+                    "name": "logo.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 64,
+                    "inline": true,
+                    "content_id": "logo@fake.test",
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000032"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000024",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m2@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "owner@vault.test",
+                  "user_name": "owner@vault.test",
+                  "full_name": "owner",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "preview": "Thanks, notes attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000035",
+                    "position": 0,
+                    "type": "file",
+                    "name": "notes.txt",
+                    "mime_type": "text/plain",
+                    "size_bytes": 48,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000034"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000026",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "reaction",
+                "external_id": "<m3@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "bob@acme.test",
+                  "user_name": "bob@acme.test",
+                  "full_name": "bob",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:30:00.000Z",
+                "preview": "👍",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000028",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000021",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m4@fake.test>",
+                "in_reply_to": null,
+                "author": {
+                  "user_id": "carol@other.test",
+                  "user_name": "carol@other.test",
+                  "full_name": "carol",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:40:00.000Z",
+                "preview": "See the invoice.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000036",
+                    "position": 0,
+                    "type": "file",
+                    "name": "invoice.pdf",
+                    "mime_type": null,
+                    "size_bytes": 10,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "failed",
+                    "file_id": null
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages/{parent}/content",
+          "request": null,
+          "status": 200,
+          "response": {
+            "content_type": "text/markdown",
+            "content": "# Plan\n\nHello **world**, the numbers are attached.\n",
+            "version": 1
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages/{reaction}/content",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "content_unavailable",
+              "message": "no content is stored for this message"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files/{file1}/content",
+          "request": null,
+          "status": 200,
+          "response": {
+            "binary": {
+              "headers": {
+                "content-type": "application/pdf",
+                "content-length": "300",
+                "content-disposition": "attachment; filename=\"plan.pdf\"; filename*=UTF-8''plan.pdf",
+                "x-content-type-options": "nosniff",
+                "content-security-policy": "sandbox"
+              },
+              "sha256": "3d07c38b023c4cf286f2557f108673ed1d8a6228b600f6e76eac5e42ad040c62",
+              "size": 300
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files/{file2}/content",
+          "request": null,
+          "status": 200,
+          "response": {
+            "binary": {
+              "headers": {
+                "content-type": "image/png",
+                "content-length": "64",
+                "content-disposition": "attachment; filename=\"logo.png\"; filename*=UTF-8''logo.png",
+                "x-content-type-options": "nosniff",
+                "content-security-policy": "sandbox"
+              },
+              "sha256": "c6ab9724ade5b6a7a1edfffb12f3aa9181351355af8fd08c919952ad211339dd",
+              "size": 64
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages/0190b2c4-0000-7000-8000-00000000dead/content",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "message not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files/0190b2c4-0000-7000-8000-00000000dead/content",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "file not found"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "files-list-get",
+      "about": "files list and get (metadata only: no storage key); the sha256 filter normalises case; a missing id is 404",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000030",
+                "name": "plan.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 300,
+                "sha256": "3d07c38b023c4cf286f2557f108673ed1d8a6228b600f6e76eac5e42ad040c62",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000032",
+                "name": "logo.png",
+                "mime_type": "image/png",
+                "size_bytes": 64,
+                "sha256": "c6ab9724ade5b6a7a1edfffb12f3aa9181351355af8fd08c919952ad211339dd",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000034",
+                "name": "notes.txt",
+                "mime_type": "text/plain",
+                "size_bytes": 48,
+                "sha256": "6d8655d70dbace189cdf5176c6dcfb1e44e134aebc0a711dd85c059b220396e6",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files/{f}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000030",
+            "name": "plan.pdf",
+            "mime_type": "application/pdf",
+            "size_bytes": 300,
+            "sha256": "3d07c38b023c4cf286f2557f108673ed1d8a6228b600f6e76eac5e42ad040c62",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T08:00:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files?sha256={sha}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000030",
+                "name": "plan.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 300,
+                "sha256": "3d07c38b023c4cf286f2557f108673ed1d8a6228b600f6e76eac5e42ad040c62",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files/0190b2c4-0000-7000-8000-00000000dead",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "file not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/files/{f}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "no such route"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "contact-files-links",
+      "about": "a contact links to a file (contact_file.created), a second live link for the pair is 409 link_exists (no 500, ON CONFLICT backstop), a file the organisation does not hold is 400 invalid_reference, delete emits contact_file.deleted, the pair can be linked again, a deleted link deletes 404, filters list the links",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000030",
+                "name": "plan.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 300,
+                "sha256": "3d07c38b023c4cf286f2557f108673ed1d8a6228b600f6e76eac5e42ad040c62",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000032",
+                "name": "logo.png",
+                "mime_type": "image/png",
+                "size_bytes": 64,
+                "sha256": "c6ab9724ade5b6a7a1edfffb12f3aa9181351355af8fd08c919952ad211339dd",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000034",
+                "name": "notes.txt",
+                "mime_type": "text/plain",
+                "size_bytes": 48,
+                "sha256": "6d8655d70dbace189cdf5176c6dcfb1e44e134aebc0a711dd85c059b220396e6",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/contacts",
+          "request": {
+            "name": "Jane"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000065",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Jane",
+            "company_id": null,
+            "merged_into_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact.created",
+              "resource_type": "contact",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000065",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000065",
+                "name": "Jane",
+                "company_id": null,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "merged_into_id": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/contact-files",
+          "request": {
+            "contact_id": "{k}",
+            "file_id": "{f}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000067",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+            "file_id": "0190b2c4-0000-7000-8000-000001000030",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact_file.created",
+              "resource_type": "contact_file",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000067",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000067",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/contact-files",
+          "request": {
+            "contact_id": "{k}",
+            "file_id": "{f}"
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "link_exists",
+              "message": "a live link to file 0190b2c4-0000-7000-8000-000001000030 already exists (0190b2c4-0000-7000-8000-000001000067)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/contact-files",
+          "request": {
+            "contact_id": "{k}",
+            "file_id": "0190b2c4-0000-7000-8000-00000000dead"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contact-files/{l}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000067",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+            "file_id": "0190b2c4-0000-7000-8000-000001000030",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contact-files?contact_id={k}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000067",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/contact-files/{l}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "contact_file.deleted",
+              "resource_type": "contact_file",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000067",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:07:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000067",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contact-files?file_id={f}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/contact-files",
+          "request": {
+            "contact_id": "{k}",
+            "file_id": "{f}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000074",
+            "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+            "file_id": "0190b2c4-0000-7000-8000-000001000030",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:09:00.000Z",
+            "updated_at": "2026-10-22T09:09:00.000Z"
+          },
+          "events": [
+            {
+              "type": "contact_file.created",
+              "resource_type": "contact_file",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000074",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000074",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+                "created_at": "2026-10-22T09:09:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/contact-files/{l2}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "contact_file.deleted",
+              "resource_type": "contact_file",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000074",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:10:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000074",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "contact_id": "0190b2c4-0000-7000-8000-000001000065",
+                "created_at": "2026-10-22T09:09:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/contact-files/{l}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "contact_file not found"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "company-files-links",
+      "about": "the same for companies: create, link_exists, invalid_reference for an unknown company, delete with its event, relink; the old link stays deleted, the new one reads",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/files",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000030",
+                "name": "plan.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 300,
+                "sha256": "3d07c38b023c4cf286f2557f108673ed1d8a6228b600f6e76eac5e42ad040c62",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000032",
+                "name": "logo.png",
+                "mime_type": "image/png",
+                "size_bytes": 64,
+                "sha256": "c6ab9724ade5b6a7a1edfffb12f3aa9181351355af8fd08c919952ad211339dd",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000034",
+                "name": "notes.txt",
+                "mime_type": "text/plain",
+                "size_bytes": 48,
+                "sha256": "6d8655d70dbace189cdf5176c6dcfb1e44e134aebc0a711dd85c059b220396e6",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/companies",
+          "request": {
+            "name": "Acme",
+            "domain": "acme.test"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000065",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme",
+            "domain": "acme.test",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000065",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000065",
+                "name": "Acme",
+                "domain": "acme.test",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/company-files",
+          "request": {
+            "company_id": "{c}",
+            "file_id": "{f}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000067",
+            "company_id": "0190b2c4-0000-7000-8000-000001000065",
+            "file_id": "0190b2c4-0000-7000-8000-000001000030",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company_file.created",
+              "resource_type": "company_file",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000067",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000067",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "company_id": "0190b2c4-0000-7000-8000-000001000065",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/company-files",
+          "request": {
+            "company_id": "{c}",
+            "file_id": "{f}"
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "link_exists",
+              "message": "a live link to file 0190b2c4-0000-7000-8000-000001000030 already exists (0190b2c4-0000-7000-8000-000001000067)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/company-files",
+          "request": {
+            "company_id": "0190b2c4-0000-7000-8000-00000000dead",
+            "file_id": "{f}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "invalid_reference",
+              "message": "a referenced record does not exist"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/company-files?company_id={c}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000067",
+                "company_id": "0190b2c4-0000-7000-8000-000001000065",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/company-files/{l}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "company_file.deleted",
+              "resource_type": "company_file",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000067",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:06:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000067",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "company_id": "0190b2c4-0000-7000-8000-000001000065",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/company-files",
+          "request": {
+            "company_id": "{c}",
+            "file_id": "{f}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000074",
+            "company_id": "0190b2c4-0000-7000-8000-000001000065",
+            "file_id": "0190b2c4-0000-7000-8000-000001000030",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:07:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company_file.created",
+              "resource_type": "company_file",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000074",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:07:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000074",
+                "file_id": "0190b2c4-0000-7000-8000-000001000030",
+                "company_id": "0190b2c4-0000-7000-8000-000001000065",
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:07:00.000Z"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/company-files/{l}",
+          "request": null,
+          "status": 404,
+          "response": {
+            "error": {
+              "code": "not_found",
+              "message": "company_file not found"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/company-files/{l2}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000074",
+            "company_id": "0190b2c4-0000-7000-8000-000001000065",
+            "file_id": "0190b2c4-0000-7000-8000-000001000030",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:07:00.000Z"
+          },
+          "events": []
+        }
+      ]
+    }
+  ]
+}

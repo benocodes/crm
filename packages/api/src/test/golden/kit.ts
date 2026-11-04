@@ -1,6 +1,7 @@
 // Test-only. What both golden backends share for the auth and directory scenarios (CORE41 P15): the fake Clerk a scenario
 // loads, the authenticator that sends an alg:none token to the injected-principal stand-in and any other token to the REAL
 // authenticator, and one `send` that knows every kind of actor.
+import { createHash } from 'node:crypto'
 import type { Hono } from 'hono'
 import { createUserAuthenticator } from '../../auth/user-authenticator.js'
 import type { UserAuthenticator } from '../../auth/types.js'
@@ -67,6 +68,27 @@ export async function goldenSend(
     headers.authorization = `Bearer ${await mintClerkToken(world.clerk.issuer, { sub: actor.clerk, now, ...(actor.claim ? { extra: orgClaim(actor.claim.org, actor.claim.role) } : {}) })}`
   }
   const res = await world.app.request(path, { method, headers, body: payload })
+  // [[CORE69]] D23: a body that is not JSON is recorded as its status, the CORE25 D33 headers and the body's SHA-256 and size, not its bytes.
+  if (!(res.headers.get('content-type') ?? '').startsWith('application/json') && res.body !== null) {
+    const bytes = Buffer.from(await res.arrayBuffer())
+    if (bytes.byteLength > 0) {
+      const headerOf = (name: string) => res.headers.get(name)
+      return {
+        status: res.status,
+        body: {
+          binary: {
+            headers: Object.fromEntries(BINARY_HEADERS.map((h) => [h, headerOf(h)])),
+            sha256: createHash('sha256').update(bytes).digest('hex'),
+            size: bytes.byteLength,
+          },
+        },
+      }
+    }
+    return { status: res.status, body: null }
+  }
   const text = await res.text()
   return { status: res.status, body: text === '' ? null : JSON.parse(text) }
 }
+
+/** The response headers a binary transcript keeps ([[CORE25]] D33). */
+const BINARY_HEADERS = ['content-type', 'content-length', 'content-disposition', 'x-content-type-options', 'content-security-policy'] as const

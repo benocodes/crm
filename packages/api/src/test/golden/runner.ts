@@ -55,12 +55,18 @@ export async function runScenario(backend: GoldenBackend, scenario: GoldenScenar
   await backend.load(scenario)
   const saved = new Map<string, string>()
   const steps: TranscriptStep[] = []
-  let seen = 0
+  // Events a scenario's seeding wrote (the messaging corpus) belong to no step.
+  let seen = (await backend.events()).length
   for (const step of scenario.steps as readonly GoldenStep[]) {
     const path = fill(step.path, saved)
     const body = fillDeep(step.body, saved)
     const res = await backend.send(step.as, step.method, path, body, step.at)
     if (step.save && res.status < 300) saved.set(step.save, (res.body as { id: string }).id)
+    for (const [name, pick] of Object.entries(step.pick ?? {})) {
+      const id = res.status < 300 ? pick(res.body) : undefined
+      if (id === undefined) throw new Error(`scenario ${scenario.name}: pick "${name}" found nothing in the response to ${step.method} ${path}`)
+      saved.set(name, id)
+    }
     const events = await backend.events()
     steps.push({
       as: step.as,

@@ -662,7 +662,7 @@ export const messagingScenarios: readonly GoldenScenario[] = [
   {
     name: 'contact-files-links',
     about:
-      'a contact links to a file (contact_file.created), a second live link for the pair is 409 link_exists (no 500, ON CONFLICT backstop), a file the organisation does not hold is 400 invalid_reference, delete emits contact_file.deleted, the pair can be linked again, filters list the links',
+      'a contact links to a file (contact_file.created), a second live link for the pair is 409 link_exists (no 500, ON CONFLICT backstop), a file the organisation does not hold is 400 invalid_reference, delete emits contact_file.deleted, the pair can be linked again, a deleted link deletes 404, filters list the links',
     seed: 'messaging',
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/api/v1/files', pick: { f: first } },
@@ -674,13 +674,14 @@ export const messagingScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/contact-files?contact_id={k}' },
       { as: 'agent', at: at(7), method: 'DELETE', path: '/api/v1/contact-files/{l}' },
       { as: 'user', at: at(8), method: 'GET', path: '/api/v1/contact-files?file_id={f}' },
-      { as: 'user', at: at(9), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: '{f}' } },
-      { as: 'user', at: at(10), method: 'DELETE', path: '/api/v1/contact-files/{l}' },
+      { as: 'user', at: at(9), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: '{f}' }, save: 'l2' },
+      { as: 'user', at: at(10), method: 'DELETE', path: '/api/v1/contact-files/{l2}' },
+      { as: 'user', at: at(11), method: 'DELETE', path: '/api/v1/contact-files/{l}' },
     ],
   },
   {
     name: 'company-files-links',
-    about: 'the same for companies: create, link_exists, invalid_reference for an unknown company, delete with its event, relink',
+    about: 'the same for companies: create, link_exists, invalid_reference for an unknown company, delete with its event, relink; the old link stays deleted, the new one reads',
     seed: 'messaging',
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/api/v1/files', pick: { f: first } },
@@ -690,8 +691,9 @@ export const messagingScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(4), method: 'POST', path: '/api/v1/company-files', body: { company_id: IDS.missing, file_id: '{f}' } },
       { as: 'user', at: at(5), method: 'GET', path: '/api/v1/company-files?company_id={c}' },
       { as: 'user', at: at(6), method: 'DELETE', path: '/api/v1/company-files/{l}' },
-      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' } },
+      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' }, save: 'l2' },
       { as: 'user', at: at(8), method: 'GET', path: '/api/v1/company-files/{l}' },
+      { as: 'user', at: at(9), method: 'GET', path: '/api/v1/company-files/{l2}' },
     ],
   },
 ]
