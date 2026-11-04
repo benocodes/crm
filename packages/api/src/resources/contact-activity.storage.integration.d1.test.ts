@@ -4,6 +4,7 @@ import { sql } from 'kysely'
 import { z } from 'zod'
 import { ScopeSet } from '../scopes.js'
 import { mergeOperation } from '../identity/merge.js'
+import { deleteCompanyOperation } from '../identity/cascades.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from '../storage/crud.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { captureMessage, runCapture, type CaptureOverrides } from '../test/capture-kit.js'
@@ -221,6 +222,24 @@ describe('events never carry a derived key (D2)', () => {
   })
 })
 
+describe('cascade children events (D2)', () => {
+  it('companies.delete as an actor with interactions:read: the unlinked contact\'s contact.updated carries no derived key', async () => {
+    const company = (await e.insert('companies', { name: 'Acme' })).id as string
+    const a = (await e.insert('contacts', { name: 'Ada', company_id: company })).id as string
+    await identity(a, 'ada@x.test')
+    await outbound(['ada@x.test'], '2026-10-21T09:00:00.000Z')
+    expect((await get(a)).last_contacted_at).toBe('2026-10-21T09:00:00.000Z')
+    await e.run(deleteCompanyOperation(env(['companies:write', ...READ]), company))
+    const ev = (await e.rows('events')).filter((r) => r.type === 'contact.updated' && r.resource_id === a)
+    expect(ev).toHaveLength(1)
+    for (const side of [ev[0]!.before, ev[0]!.after] as Array<Record<string, unknown>>) {
+      expect(side.company_id === company || side.company_id === null).toBe(true)
+      expect(Object.keys(side)).not.toContain('last_contacted_at')
+      expect(Object.keys(side)).not.toContain('last_interacted_at')
+    }
+  })
+})
+
 describe('scope projection at the operation (D5, D6)', () => {
   it('keys are present with interactions:read and absent without it, on get, list, create and update', async () => {
     const a = await contact('Ada')
@@ -259,7 +278,6 @@ describe('query plan (D10)', () => {
     const get = await planOf(getOperation(contacts, scoped, id))
     const page = await planOf(listOperation(contacts, scoped, { limit: 20 }))
     const filtered = await planOf(listOperation(contacts, scoped, { filters: { not_contacted_since: '2026-10-05T00:00:00.000Z' } }))
-    if (process.env.PLAN_OUT) (await import('node:fs')).writeFileSync(process.env.PLAN_OUT, 'PLAN get\n' + get.join('\n') + '\nPLAN page\n' + page.join('\n') + '\nPLAN filtered\n' + filtered.join('\n') + '\n')
     assertSearches(get)
     assertSearches(page)
     assertSearches(filtered)

@@ -652,7 +652,7 @@ export const messagingScenarios: readonly GoldenScenario[] = [
   {
     name: 'contact-activity',
     about:
-      'CORE131: contacts created by capture carry last_contacted_at and last_interacted_at (Jane was written to, Bob only wrote, Carol only wrote); the six filters partition them; an unparseable time and sort are validation errors; the golden actors hold interactions:read here (scenario scopes), so the keys are present',
+      'CORE131: contacts created by capture carry last_contacted_at and last_interacted_at. The connection wrote to jane (cc bob) at 07:20, so both are contacted then; bob also reacted at 07:30; carol only wrote (interacted, never contacted); owner is a contact here because the messaging seed has no own identity. The six filters partition them; an unparseable time and sort are validation errors; the golden actors hold interactions:read in messaging scenarios, so the keys are present',
     seed: 'messaging',
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/api/v1/contacts', pick: { jane: (b) => b.data.find((c: any) => c.last_contacted_at !== null)?.id } },
