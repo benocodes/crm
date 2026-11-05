@@ -106,6 +106,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   (follow a 3xx unless `redirect === 'error'`, keeping headers as a hostile server would hope), record the
   option on every request and assert it, and show the mutation (drop the option → red) per call site
   (`packages/cli/src/test/harness.ts`).
+  The same holds for input streams: the harness's `readStdin` returns the content on the first read of a run and `''`
+  after, like `process.stdin` at its end. A fake that hands back the full input on every read hid a double read in the
+  CLI's stale-cache retry ([[CORE136]] review); the test that caught it runs the same bad `--data -` fresh, then on the
+  cached state, and asserts identical stderr and no request sent.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
 - **Assemble secret-shaped canaries at runtime** (`['sk', 'live', 'canary'].join('_')`), never as a literal.
