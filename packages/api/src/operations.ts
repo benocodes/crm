@@ -1,3 +1,4 @@
+import { connectionOperations, type ConnectionsRuntime } from './connections/operations.js'
 import { contentOperations } from './messaging/content-operations.js'
 import { adminOperations } from './admin/operations.js'
 import { accountOperations } from './account/operations.js'
@@ -11,6 +12,7 @@ import { agents } from './resources/agents.js'
 import { apiKeys } from './resources/api-keys.js'
 import { companies } from './resources/companies.js'
 import { companyFiles } from './resources/company-files.js'
+import { connections } from './resources/connections.js'
 import { contactFiles } from './resources/contact-files.js'
 import { contacts } from './resources/contacts.js'
 import { files } from './resources/files.js'
@@ -26,10 +28,15 @@ import { pipelines } from './resources/pipelines.js'
 import { tags } from './resources/tags.js'
 import { tasks } from './resources/tasks.js'
 
-/** A fresh registry per call: no module-level mutable registry. Later specs append here. */
-export function createVaultRegistry(): Registry {
+/**
+ * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
+ * authorize operation reads ([[CHN5]] D58); the registry has the same operations whatever it is.
+ */
+export function createVaultRegistry(options: { connections?: ConnectionsRuntime } = {}): Registry {
   const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes).registerResource(tags)
   registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
+  registry.registerResource(connections)
+  for (const op of connectionOperations(options.connections ?? null)) registry.register(op)
   for (const op of dealOperations()) registry.register(op)
   registry.registerResource(threads).registerResource(messages).registerResource(interactions).registerResource(files).registerResource(contactFiles).registerResource(companyFiles)
   assertNeighbours(endpointTypesOf(registry.resources()))

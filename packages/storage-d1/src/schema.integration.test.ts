@@ -461,8 +461,9 @@ describe('the messaging slice (CORE25 C1)', () => {
       company_files: [['organization_id,company_id', 'companies', 'organization_id,id'], ['organization_id,file_id', 'files', 'organization_id,id']],
       interaction_participants: [['organization_id,interaction_id', 'interactions', 'organization_id,id'], ['organization_id,identity_id', 'identities', 'organization_id,id']],
       message_attachments: [['organization_id,message_id', 'messages', 'organization_id,id'], ['organization_id,file_id', 'files', 'organization_id,id']],
-      message_sources: [['organization_id,message_id', 'messages', 'organization_id,id']],
-      thread_sources: [['organization_id,thread_id', 'threads', 'organization_id,id']],
+      // 0010 (CHN140 D27) rebuilt both source tables with the connection key; the rest is 0004's.
+      message_sources: [['organization_id,message_id', 'messages', 'organization_id,id'], ['organization_id,connection_id', 'channel_connections', 'organization_id,id']],
+      thread_sources: [['organization_id,thread_id', 'threads', 'organization_id,id'], ['organization_id,connection_id', 'channel_connections', 'organization_id,id']],
     }
     for (const t of ALL) {
       const fks = await all<{ id: number; table: string; from: string; to: string; seq: number; on_delete: string }>(`SELECT * FROM pragma_foreign_key_list('${t}') ORDER BY id, seq`)

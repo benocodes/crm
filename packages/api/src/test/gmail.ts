@@ -3,7 +3,7 @@
 // `format=raw` and attachment bodies in Gmail's wire form (JSON with one base64url member) in chunks it can vary. Web APIs only: the
 // workerd smoke bundles this file. Not in the production barrel.
 import { GmailApiError, type GmailClient } from '../channels/gmail/client.js'
-import type { GmailMessagePart, GmailMessageResource } from '../channels/gmail/types.js'
+import type { GmailMessagePart, GmailMessageResource, GmailProfile, GmailSendAs } from '../channels/gmail/types.js'
 
 const enc = new TextEncoder()
 
@@ -156,8 +156,15 @@ export class FakeGmail implements GmailClient {
   /** Chunk size of every streamed body (default 4096); a function varies it per chunk. */
   chunk: number | ((index: number) => number)
 
-  constructor(messages: Iterable<BuiltGmailMessage> = [], opts: { chunk?: number | ((index: number) => number) } = {}) {
+  /** The account calls (CHN140), in order: `profile` and `send_as`. Kept apart from `calls`, which are per message. */
+  readonly accountCalls: Array<'profile' | 'send_as'> = []
+  profile: GmailProfile
+  sendAs: GmailSendAs[]
+
+  constructor(messages: Iterable<BuiltGmailMessage> = [], opts: { chunk?: number | ((index: number) => number); profile?: GmailProfile; sendAs?: GmailSendAs[] } = {}) {
     this.chunk = opts.chunk ?? 4096
+    this.profile = opts.profile ?? { emailAddress: 'owner@vault.test', historyId: '1' }
+    this.sendAs = opts.sendAs ?? [{ sendAsEmail: this.profile.emailAddress, isPrimary: true }]
     for (const m of messages) this.add(m)
   }
 
@@ -181,6 +188,14 @@ export class FakeGmail implements GmailClient {
     return message
   }
 
+  async getProfile(): Promise<GmailProfile> {
+    this.accountCalls.push('profile')
+    return structuredClone(this.profile)
+  }
+  async listSendAs(): Promise<GmailSendAs[]> {
+    this.accountCalls.push('send_as')
+    return structuredClone(this.sendAs)
+  }
   async getMessageFull(messageId: string): Promise<GmailMessageResource> {
     return structuredClone(this.enter({ op: 'full', messageId }).resource)
   }

@@ -5,6 +5,7 @@
 //   thread 1: m1 (a parent with a pdf and an inline png), m2 (the connection's reply with a text file, cc bob), m3 (a reaction)
 //   thread 2: m4 (one message whose only attachment cannot be fetched: fetch_status failed, no file)
 import { AttachmentFetchError } from '../../channels/port.js'
+import { ensureConnection } from '../capture-kit.js'
 import { captureMessages, type PipelineContext } from '../../messaging/pipeline.js'
 import { bytesOf, FakeChannel, type FakeMessageScript } from '../channels.js'
 import { nodeStreams } from '../streams.js'
@@ -52,5 +53,8 @@ export const messagingCorpus = (): FakeMessageScript[] => [
 
 export async function seedMessaging(ctx: Omit<PipelineContext, 'streams'>): Promise<void> {
   const channel = new FakeChannel(messagingCorpus())
-  await captureMessages({ ...ctx, streams: nodeStreams() }, channel, { id: '0190b2c4-0000-7000-8000-00000000f001' }, ['m1', 'm2', 'm3', 'm4'])
+  const connection = { id: '0190b2c4-0000-7000-8000-00000000f001' }
+  // CHN140 D27: a source names a connection that exists; the seed makes one (deleted identity, so no golden read changes).
+  await ensureConnection(ctx.binding, { organizationId: ctx.organizationId, userId: ctx.actorId }, connection.id)
+  await captureMessages({ ...ctx, streams: nodeStreams() }, channel, connection, ['m1', 'm2', 'm3', 'm4'])
 }

@@ -184,6 +184,9 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
 - **A migration over data seeds the old schema directly** (SQL against the database at the previous
   migration, or the previous build), never through the new Worker: since [[CORE61]] the new code answers
   `503 migrations_pending` until the database is current. List that `503` as an expected step.
+- **An obligation that says "still" (a trigger, a constraint, a refusal kept) is checked against the migration
+  that created it.** [[CHN140]]'s charter said a rebuild kept `UPDATE` *and* `DELETE` refused; `0004` only ever
+  refused `UPDATE`, which cost a deviation. Open the original file before writing "still".
 - **A cycle that changes an existing E2E script's expectation** (a step that flips) names that script for the
   tester too. [[API115]] flipped `e2e:connect`'s MCP step without naming it, and review had to add the run as a
   pre-merge condition.

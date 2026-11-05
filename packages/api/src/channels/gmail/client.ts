@@ -1,8 +1,12 @@
 // `GmailClient` ([[CHN5]] D23, D44, D46): the REST calls the Gmail channel reads with. Cycle 1 has three; later cycles add their own
 // with their first caller. The two streaming calls return the response body UNDECODED (Gmail's JSON with one base64url member).
-import type { GmailMessageResource } from './types.js'
+import type { GmailMessageResource, GmailProfile, GmailSendAs } from './types.js'
 
 export interface GmailClient {
+  /** `users.getProfile`: the address and the current history id (the cursor the connect flow saves, [[CHN5]] D9). */
+  getProfile(): Promise<GmailProfile>
+  /** `users.settings.sendAs.list` ([[CHN5]] D10): the primary address and the aliases; an empty answer is an empty list. */
+  listSendAs(): Promise<GmailSendAs[]>
   /** `users.messages.get?format=full`, parsed. */
   getMessageFull(messageId: string): Promise<GmailMessageResource>
   /** `users.messages.get?format=raw`: the JSON body as a byte stream; the `raw` member is the RFC 822 original in base64url. */
@@ -37,10 +41,11 @@ export interface HttpGmailClientOptions {
   /** Called before every request; the client never caches or refreshes. */
   accessToken: () => Promise<string>
   fetch?: typeof fetch
+  /** The `users/me` base; default Gmail's. Injectable so no test reaches Google. */
   baseUrl?: string
 }
 
-const DEFAULT_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me/messages'
+const DEFAULT_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
 function retryAfterSeconds(value: string | null): number | null {
   if (value === null) return null
@@ -90,13 +95,21 @@ export class HttpGmailClient implements GmailClient {
     return res.body as ReadableStream<Uint8Array>
   }
 
+  async getProfile(): Promise<GmailProfile> {
+    return (await (await this.get('/profile')).json()) as GmailProfile
+  }
+  async listSendAs(): Promise<GmailSendAs[]> {
+    const body = (await (await this.get('/settings/sendAs')).json()) as { sendAs?: GmailSendAs[] }
+    return body.sendAs ?? []
+  }
+
   async getMessageFull(messageId: string): Promise<GmailMessageResource> {
-    return (await (await this.get(`/${encodeURIComponent(messageId)}?format=full`)).json()) as GmailMessageResource
+    return (await (await this.get(`/messages/${encodeURIComponent(messageId)}?format=full`)).json()) as GmailMessageResource
   }
   getMessageRaw(messageId: string): Promise<ReadableStream<Uint8Array>> {
-    return this.stream(`/${encodeURIComponent(messageId)}?format=raw`)
+    return this.stream(`/messages/${encodeURIComponent(messageId)}?format=raw`)
   }
   getAttachment(messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>> {
-    return this.stream(`/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`)
+    return this.stream(`/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`)
   }
 }

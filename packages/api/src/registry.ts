@@ -19,7 +19,8 @@ export interface BinaryBody {
   contentType: string
   filename: string
 }
-export type OperationInput = { params: Record<string, unknown>; query: Record<string, unknown>; body: unknown }
+/** `origin` is the request's own origin (`https://host`) where the transport knows it: REST sets it, MCP does not ([[CHN5]] D57's redirect URI). */
+export type OperationInput = { params: Record<string, unknown>; query: Record<string, unknown>; body: unknown; origin?: string }
 interface OperationBase {
   name: string
   /** [[API32]] D1: required, no default. `path` is relative to the surface; the wire path is `fullPath(op)`. */
@@ -32,6 +33,8 @@ interface OperationBase {
   request?: { params?: z.ZodObject; query?: z.ZodObject; body?: z.ZodType }
   validation?: 'adapter' | 'handler'
   response: { status: 200 | 201 | 204; schema?: z.ZodType }
+  /** [[CHN5]] D29: answers `501 not_implemented` on a storage binding that is not D1, before any unit runs. */
+  d1Only?: boolean
   /** `binary` responds with a `BinaryBody` from the `objects` stage; default `json`. */
   output?: 'json' | 'binary'
 }
@@ -152,7 +155,7 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
   const idParams = z.object({ id: z.uuid() })
   const rec: z.ZodType = def.record
   const getQuery = z.object({ include: includeQuery.optional() })
-  const base = { kind: 'tenant' as const, surface: def.surface, validation: 'handler' as const, tags: [def.name] }
+  const base = { kind: 'tenant' as const, surface: def.surface, validation: 'handler' as const, tags: [def.name], ...(def.d1Only ? { d1Only: true } : {}) }
   const ops: TenantOperation[] = []
   if (actions.has('list')) {
     // [[CORE133]] D8, D9: a list that declares `sorts` takes sort and order, and its cursor is an opaque string; every other list keeps a UUID cursor.
