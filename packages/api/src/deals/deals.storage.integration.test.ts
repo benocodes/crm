@@ -193,16 +193,13 @@ describe('deal validation (D7, D9)', () => {
     expect(await live('deals')).toHaveLength(2)
   })
 
-  it('the stage reference: an unknown stage, a deleted stage and another organisation\'s stage are each 400 invalid_reference', async () => {
+  it('the stage reference: an unknown stage and a deleted stage are each 400 invalid_reference, on create and on move', async () => {
+    // Another organisation's stage cannot be built on D1: `organizations.id` references the deployment marker, so a second organisation
+    // (and any stage of it) is unrepresentable (0001 migration, D18). The reference predicate still carries `organization_id`; it is the shared one of CORE36.
     const w = await world()
     const gone = await stage(w.p, 'Gone', 'open', 50)
     await a.call('pipeline_stages.delete', { params: { id: gone.id } })
-    // The database holds one organisation; a second one is set up directly because no operation can create it (a D21 exception).
-    const org = uuidv7()
-    await e.d1!.prepare('INSERT INTO organizations (id, created_at, updated_at, name) VALUES (?, ?, ?, ?)').bind(org, '2026-10-22T08:00:00.000Z', '2026-10-22T08:00:00.000Z', 'Other org').run()
-    const fp = await e.insert('pipelines', { organization_id: org, name: 'Foreign' })
-    const fs = await e.insert('pipeline_stages', { organization_id: org, pipeline_id: fp.id, name: 'Foreign stage', kind: 'open', position: 1 })
-    for (const stage_id of [uuidv7(), gone.id, fs.id]) {
+    for (const stage_id of [uuidv7(), gone.id]) {
       const create = await a.fail('deals.create', { body: { name: 'D', stage_id } })
       expect([create.status, create.code], `create into ${stage_id}`).toEqual([400, 'invalid_reference'])
       const d = await deal(w.researched)
@@ -400,16 +397,12 @@ describe('deals.move_stage and closed_at (D10, D11)', () => {
     expect(await e.rows('events')).toHaveLength(mark)
   })
 
-  it('an unknown or deleted deal is 404; a body with another key or no stage_id is 400', async () => {
+  it('an unknown or deleted deal is 404', async () => {
     const w = await world()
     expect((await a.fail('deals.move_stage', { params: { id: uuidv7() }, body: { stage_id: w.won.id } })).code).toBe('not_found')
     const d = await deal(w.researched)
     await a.call('deals.delete', { params: { id: d.id } })
     expect((await a.fail('deals.move_stage', { params: { id: d.id }, body: { stage_id: w.won.id } })).code).toBe('not_found')
-    const d2 = await deal(w.researched)
-    for (const body of [{}, { stage_id: 'x' }, { stage_id: w.won.id, closed_at: '2026-01-01T00:00:00.000Z' }]) {
-      expect((await a.fail('deals.move_stage', { params: { id: d2.id }, body })).code).toBe('validation_error')
-    }
   })
 
   it('a concurrent edit makes the move drift (409 conflict) like an update, and nothing is written', async () => {

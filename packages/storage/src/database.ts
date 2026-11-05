@@ -231,6 +231,46 @@ export interface TagsTable {
   created_by: string
   deleted_at: NullableTimestamp
 }
+/** [[CORE130]] D2: a named sales process. D1 only (no Postgres table). `name` is unique among live pipelines per organisation, case-insensitively. */
+export interface PipelinesTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  name: string
+  created_by: string
+  deleted_at: NullableTimestamp
+}
+/** [[CORE130]] D2-D4: one step of a pipeline. `kind` is fixed at creation; `position` orders the stages and is not unique. D1 only. */
+export interface PipelineStagesTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  pipeline_id: string
+  name: string
+  kind: 'open' | 'won' | 'lost'
+  position: number
+  created_by: string
+  deleted_at: NullableTimestamp
+}
+/** [[CORE130]] D2, D7, D9: a potential sale in one stage. `pipeline_id` is the stage's (composite foreign key); `closed_at` is set by the vault (D11). D1 only. */
+export interface DealsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  name: string
+  pipeline_id: string
+  stage_id: string
+  amount_minor: number | null
+  currency: string | null
+  expected_close_date: string | null
+  owner_id: string | null
+  closed_at: NullableTimestamp
+  created_by: string
+  deleted_at: NullableTimestamp
+}
 /** [[CORE62]] D1-D2: an undirected edge between two records, stored once in canonical order; D1 only (no Postgres table). */
 export interface AssociationsTable {
   id: string
@@ -323,6 +363,9 @@ export interface StorageDatabase {
   associations: AssociationsTable
   notes: NotesTable
   tags: TagsTable
+  pipelines: PipelinesTable
+  pipeline_stages: PipelineStagesTable
+  deals: DealsTable
   interaction_participants: InteractionParticipantsTable
   message_attachments: MessageAttachmentsTable
   message_sources: MessageSourcesTable
@@ -539,6 +582,43 @@ export const COLUMN_KINDS = {
     organization_id: 'uuid',
     name: 'text',
     description: 'text',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+  },
+  pipelines: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    name: 'text',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+  },
+  pipeline_stages: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    pipeline_id: 'uuid',
+    name: 'text',
+    kind: 'text',
+    position: 'integer',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+  },
+  deals: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    name: 'text',
+    pipeline_id: 'uuid',
+    stage_id: 'uuid',
+    amount_minor: 'integer',
+    currency: 'text',
+    expected_close_date: 'text',
+    owner_id: 'uuid',
+    closed_at: 'timestamp',
     created_by: 'uuid',
     deleted_at: 'timestamp',
   },

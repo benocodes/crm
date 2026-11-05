@@ -1,6 +1,7 @@
 import { contentOperations } from './messaging/content-operations.js'
 import { adminOperations } from './admin/operations.js'
 import { accountOperations } from './account/operations.js'
+import { dealOperations } from './deals/operations.js'
 import { identityOperations } from './identity/operations.js'
 import { assertNeighbours, endpointTypesOf } from './associations/definition.js'
 import { associationOperations } from './associations/operations.js'
@@ -19,12 +20,17 @@ import { messages } from './resources/messages.js'
 import { threads } from './resources/threads.js'
 import { memberships } from './resources/memberships.js'
 import { notes } from './resources/notes.js'
+import { deals } from './resources/deals.js'
+import { pipelineStages } from './resources/pipeline-stages.js'
+import { pipelines } from './resources/pipelines.js'
 import { tags } from './resources/tags.js'
 import { tasks } from './resources/tasks.js'
 
 /** A fresh registry per call: no module-level mutable registry. Later specs append here. */
 export function createVaultRegistry(): Registry {
   const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes).registerResource(tags)
+  registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
+  for (const op of dealOperations()) registry.register(op)
   registry.registerResource(threads).registerResource(messages).registerResource(interactions).registerResource(files).registerResource(contactFiles).registerResource(companyFiles)
   assertNeighbours(endpointTypesOf(registry.resources()))
   for (const op of associationOperations(() => registry.resources())) registry.register(op)

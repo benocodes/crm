@@ -105,7 +105,7 @@ export function deriveCommand(op: Operation): Command {
   const base = {
     operationId: op.id,
     resource: dot > 0 ? kebab(op.id.slice(0, dot)) : kebab(op.id),
-    action: dot > 0 ? op.id.slice(dot + 1) : '',
+    action: dot > 0 ? kebab(op.id.slice(dot + 1)) : '',
     method: op.method,
     path: op.path,
     summary: op.summary,

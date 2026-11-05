@@ -24,6 +24,9 @@
       },
       {
         "name": "0008_tags.sql"
+      },
+      {
+        "name": "0009_deals.sql"
       }
     ],
     "success": true,

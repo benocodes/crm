@@ -227,11 +227,17 @@ function boundValue(qc: QueryContext, kind: ColumnKind | undefined, value: unkno
   return bind(qc, kind, value)
 }
 
-/** `INSERT ... SELECT <bound values> WHERE <every reference guard holds>`: a reference that vanished makes the insert a no-op (D4). */
-function guardedInsert(def: PreparedResource, qc: QueryContext, row: Record<string, unknown>, guards: Expression<SqlBool>[]) {
+/**
+ * `INSERT ... SELECT <bound values> WHERE <every reference guard holds>`: a reference that vanished makes the insert a no-op (D4).
+ * `fromRows` are columns whose value is an expression over other rows ([[CORE130]] `createComputed`), selected beside the bound ones.
+ */
+function guardedInsert(def: PreparedResource, qc: QueryContext, row: Record<string, unknown>, guards: Expression<SqlBool>[], fromRows: Record<string, unknown> = {}) {
   const kinds = kindsOf(def)
-  const columns = Object.keys(row)
-  let select = loose(qc).selectNoFrom(columns.map((c) => boundValue(qc, kinds[c], row[c]).as(c)))
+  const columns = [...Object.keys(row), ...Object.keys(fromRows)]
+  let select = loose(qc).selectNoFrom([
+    ...Object.keys(row).map((c) => boundValue(qc, kinds[c], row[c]).as(c)),
+    ...Object.entries(fromRows).map(([c, v]) => sql`${v as Expression<unknown>}`.as(c)),
+  ])
   for (const g of guards) select = select.where(g)
   return loose(qc).insertInto(def.table).columns(columns).expression(select)
 }
@@ -252,9 +258,11 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
       refuseConflicts(found, conflictsOf(qc))
       const row: Record<string, unknown> = { ...columnsOnly(def, stored), id, organization_id: env.organizationId, created_by: env.actor.id, created_at: at, updated_at: at }
       const guards = referenceGuards(def, env, stored)
+      const fromRows = (def.createComputed?.({ eb: expressionBuilder<StorageDatabase, PreparedResource['table']>(), qc, env, values: stored }) ?? {}) as Record<string, unknown>
+      const guarded = guards.length > 0 || Object.keys(fromRows).length > 0
       return unit({
         steps: [
-          step(guards.length === 0 ? loose(qc).insertInto(def.table).values(row) : guardedInsert(def, qc, row, guards), 'first-mutation', guards.length === 0 ? {} : { expect: 'affected' }),
+          step(!guarded ? loose(qc).insertInto(def.table).values(row) : guardedInsert(def, qc, row, guards, fromRows), 'first-mutation', !guarded ? {} : { expect: 'affected' }),
           step(
             eventStatement(qc, {
               id: eventId,

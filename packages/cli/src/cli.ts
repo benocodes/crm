@@ -93,7 +93,7 @@ async function main(argv: string[], deps: Deps): Promise<number> {
   }
   const cacheDir = cacheDirPath(deps)
   let found = await discover(conn.server, deps, { cacheDir, refresh: g.refresh })
-  const lookup = (cmds: Command[]) => cmds.find((c) => c.resource === words[0]!.replace(/_/g, '-') && c.action === words[1])
+  const lookup = (cmds: Command[]) => cmds.find((c) => c.resource === words[0]!.replace(/_/g, '-') && c.action === words[1]!.replace(/_/g, '-'))
   let commands = deriveCommands(found.ops)
 
   if (words.length === 0) {

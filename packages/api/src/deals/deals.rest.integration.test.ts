@@ -71,6 +71,19 @@ describe('deals over REST', () => {
     expect((await call(FULL, 'DELETE', `/meta/v1/pipelines/${p.id}`)).status).toBe(204)
   })
 
+  it('move-stage validates its body at the route: no stage_id, a non-UUID, another key and an unknown deal id', async () => {
+    const { open } = await setup()
+    const d = (await call(FULL, 'POST', '/api/v1/deals', { name: 'D', stage_id: open.id })).body
+    for (const body of [{}, { stage_id: 'x' }, { stage_id: open.id, closed_at: '2026-01-01T00:00:00.000Z' }, { stage_id: open.id, pipeline_id: open.pipeline_id }]) {
+      const res = await call(FULL, 'POST', `/api/v1/deals/${d.id}/move-stage`, body)
+      expect([res.status, res.body.error.code], JSON.stringify(body)).toEqual([400, 'validation_error'])
+    }
+    const missing = await call(FULL, 'POST', '/api/v1/deals/00000000-0000-7000-8000-000000000000/move-stage', { stage_id: open.id })
+    expect([missing.status, missing.body.error.code]).toEqual([404, 'not_found'])
+    const unknown = await call(FULL, 'POST', `/api/v1/deals/${d.id}/move-stage`, { stage_id: '00000000-0000-7000-8000-000000000000' })
+    expect([unknown.status, unknown.body.error.code]).toEqual([400, 'invalid_reference'])
+  })
+
   it('the conflict and in-use refusals are 409 with the named codes', async () => {
     const { p, open } = await setup()
     expect((await call(FULL, 'POST', '/meta/v1/pipelines', { name: 'prospecting' })).body.error).toMatchObject({ code: 'pipeline_exists' })
