@@ -13,6 +13,8 @@ import { Miniflare } from 'miniflare'
 import { createHash } from 'node:crypto'
 import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, openToken, type R2BucketLike } from '@vault/api'
 import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vault/api/test/google'
+import { FakeGmail } from '@vault/api/test/gmail'
+import { gmailFixture } from '@vault/api/test/gmail-fixtures'
 import { bytesOf } from '@vault/api/test/channels'
 import { ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
 import { applyMigrations, createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
@@ -65,6 +67,14 @@ const GOOGLE_HOSTS = new Set(['https://oauth2.googleapis.com', 'https://www.goog
 const CREDENTIALS_KEY_BYTES = new Uint8Array(32).fill(11)
 const google = await FakeGoogle.create({ clientId: 'smoke-client.apps.test', clientSecret: 'smoke-client-secret' })
 const hostsSeen = new Set<string>()
+// [[CHN141]]: the mailbox the connect flow connects holds three messages, served over HTTP at Gmail's real hostname through the outbound service.
+const SYNC_MAILBOX_MESSAGES = ['w-1', 'w-2', 'w-3']
+const syncGmail = new FakeGmail(
+  SYNC_MAILBOX_MESSAGES.map((id, i) =>
+    gmailFixture('plain', (m) => ({ ...m, id, threadId: `t-${id}`, headers: m.headers.map(([k, v]): [string, string] => [k, k === 'Message-ID' ? `<${id}@smoke.test>` : v]), internalDate: Date.now() - 3_600_000 - i * 1000 })),
+  ),
+  { chunk: 2048, profile: { emailAddress: 'mailbox@smoke.test', historyId: '777' } },
+)
 let mf: Miniflare | undefined
 let pipelineMf: Miniflare | undefined
 
@@ -77,6 +87,7 @@ try {
     conditions: ['workerd', 'worker', 'browser'],
     target: 'es2022',
     outfile: bundle,
+    external: ['cloudflare:workers'],
     logLevel: 'warning',
   })
   console.log(`bundle ${statSync(bundle).size} bytes (${bundle})`)
@@ -91,6 +102,8 @@ try {
     d1Databases: { DB: `smoke-${crypto.randomUUID()}` },
     d1Persist: false,
     r2Buckets: ['BODIES'],
+    // [[CHN141]] D34: the real MailSyncWorkflow, exported by the real bundle, run by Miniflare's Workflows engine.
+    workflows: { MAIL_SYNC: { name: 'vault-smoke-mail-sync', className: 'MailSyncWorkflow' } },
     assets: { directory: assetsDir, binding: 'ASSETS', routerConfig: { has_user_worker: true, static_routing: { user_worker: ['/connect', '/connect/*'] } } },
     handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
       capture(stdout)
@@ -112,6 +125,7 @@ try {
     outboundService: async (req: Request) => {
       const url = new URL(req.url)
       hostsSeen.add(url.origin)
+      if (url.origin === 'https://gmail.googleapis.com' && /^\/gmail\/v1\/users\/me\/(history|messages)/.test(url.pathname)) return syncGmail.handle(req, (t) => google.isAccessToken(t))
       if (GOOGLE_HOSTS.has(url.origin)) {
         const rewritten = new URL(`${url.pathname}${url.search}`, FAKE_GOOGLE_ORIGIN)
         // The token endpoint lives at /token on the fake and at oauth2.googleapis.com/token for real: the path already matches.
@@ -328,6 +342,42 @@ try {
   )
   const connectLogs = logLines.join('\n')
   check('44a no Worker log line holds the refresh token, an access token or the client secret', !connectLogs.includes(refresh) && google.accessTokens.every((t) => !connectLogs.includes(t)) && !connectLogs.includes(google.clientSecret), undefined)
+
+  // W1-W5: the sync engine in workerd ([[CHN141]]): the callback above requested a sync, so the REAL `MailSyncWorkflow` (exported by this very bundle) ran in
+  // Miniflare's Workflows engine against Google faked at the outbound fetch. A backfill, the cursor, the lease and the owner as actor are read back from D1.
+  const connId = String(conn?.id ?? '')
+  const waitFor = async (what: string, ok: () => Promise<boolean>) => {
+    for (let i = 0; i < 150; i++) {
+      if (await ok()) return true
+      await new Promise((r) => setTimeout(r, 200))
+    }
+    console.log(`timed out waiting for ${what}`)
+    return false
+  }
+  const stateOf = async () => (await rows('select last_success_at, lease_until, run_id, sync_requested_at from mail_sync_state where connection_id = ?', connId))[0]
+  const done = await waitFor('the first sync run', async () => (await stateOf())?.last_success_at != null && (await stateOf())?.lease_until == null)
+  const firstSuccess = String((await stateOf())?.last_success_at ?? '')
+  const sourced = (await rows('select provider_message_id as p, created_by as c from message_sources where connection_id = ? order by provider_message_id', connId))
+  const syncCursor = (await rows('select history_id, page_token, last_synced_at from mail_sync_cursors where connection_id = ?', connId))[0]
+  const msgEvents = (await rows("select actor_id from events where type = 'message.created'"))
+  check(
+    'W1 the real MailSyncWorkflow ran from the real bundle in workerd: the callback\'s sync request backfilled the mailbox, released the lease and stamped last_success_at',
+    done && sourced.map((r) => r.p).join() === SYNC_MAILBOX_MESSAGES.join() && sourced.every((r) => r.c === conn?.owner_id) && syncCursor?.page_token === null && typeof syncCursor?.last_synced_at === 'string' && msgEvents.length === 3 && msgEvents.every((x) => x.actor_id === conn?.owner_id) && (await stateOf())?.run_id == null,
+    { done, sourced, syncCursor, state: await stateOf() },
+  )
+  res = await call('POST', `/meta/v1/connections/${connId}/sync`, { token: ownerNow })
+  body = await json(res)
+  const secondDone = await waitFor('the second sync run', async () => String((await stateOf())?.last_success_at ?? '') > firstSuccess && (await stateOf())?.lease_until == null)
+  const fullFetches = syncGmail.calls.filter((c) => c.op === 'full').length
+  check('W2 POST /meta/v1/connections/{id}/sync in workerd -> 202 requested_at, a second Workflow run finished, and nothing was captured or fetched twice', res.status === 202 && typeof body.requested_at === 'string' && secondDone && (await count('message_sources')) === 3 && fullFetches === 3, { status: res.status, body, secondDone, fullFetches })
+  await (await mf.getWorker()).scheduled({ cron: '0 0 1 1 *' })
+  await new Promise((r) => setTimeout(r, 200))
+  check('W3 an unknown cron expression reaches the Worker\'s scheduled handler in workerd and is logged, not thrown', logLines.some((l) => l.includes('unknown cron') && l.includes('0 0 1 1 *')), undefined)
+  await (await mf.getWorker()).scheduled({ cron: '*/15 * * * *' })
+  await new Promise((r) => setTimeout(r, 200))
+  check('W4 the */15 cron in workerd runs without an error line (the connection is fresh, so it requests nothing)', !logLines.some((l) => /\[cron\].*(error|failed)/i.test(l)) && (await count('message_sources')) === 3, undefined)
+  const syncLogs = logLines.join('\n')
+  check('W5 no Worker log line across the Workflow runs holds a refresh token, an access token or the client secret', google.refreshTokens.every((t) => !syncLogs.includes(t)) && google.accessTokens.length > 0 && google.accessTokens.every((t) => !syncLogs.includes(t)) && !syncLogs.includes(google.clientSecret), { accessTokens: google.accessTokens.length })
 
   // 16: the network guard
   // CHN140: the Google hosts are answered by the fake too (check 43); nothing else may be reached.

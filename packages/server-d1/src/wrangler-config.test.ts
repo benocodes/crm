@@ -63,3 +63,22 @@ describe('assets (UI30 D2)', () => {
     expect(resolve(dirname(CONFIG), c.assets!.directory!)).toMatch(/packages\/server-d1\/dist\/assets$/)
   })
 })
+
+// [[CHN141]] D34, D76: the Workflow and the cron are Worker configuration of the instance they run in. `workflows` and `triggers` are not
+// inherited by an env, so each states its own; `hq` has the binding and no cron until the supervised first backfill.
+describe('mail sync Workflow and cron (CHN141 D34, D76)', () => {
+  const CRON = '*/15 * * * *'
+  it.each([
+    [undefined, 'vault-mail-sync', [CRON]],
+    ['smoked1', 'vault-smoked1-mail-sync', [CRON]],
+    ['hq', 'vault-hq-mail-sync', []],
+  ] as const)('env %s binds MAIL_SYNC to %s with crons %j', (env, name, crons) => {
+    const c = unstable_readConfig({ config: CONFIG, env })
+    expect(c.workflows).toEqual([expect.objectContaining({ binding: 'MAIL_SYNC', name, class_name: 'MailSyncWorkflow' })])
+    expect(c.workflows).toHaveLength(1)
+    expect(c.triggers?.crons ?? []).toEqual(crons)
+  })
+  it('the Worker entry exports the Workflow class the binding names', () => {
+    expect(readFileSync(fileURLToPath(new URL('./worker.ts', import.meta.url)), 'utf8')).toMatch(/export \{[^}]*MailSyncWorkflow[^}]*\}/)
+  })
+})
