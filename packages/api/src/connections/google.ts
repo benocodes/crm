@@ -99,3 +99,19 @@ export async function verifyIdToken(idToken: string, p: { endpoints: GoogleEndpo
     throw new GoogleExchangeError('id_token')
   }
 }
+
+/** What a refresh answers: a fresh access token, and a NEW refresh token only when Google rotated it. */
+export interface RefreshedToken {
+  accessToken: string
+  refreshToken: string | null
+}
+/** A refresh that failed, as a short code only (never the body, the URL or a token). `invalid_grant` is Google's verdict on the grant itself ([[CHN5]] D68). */
+export class GoogleRefreshError extends Error {
+  override name = 'GoogleRefreshError'
+  constructor(readonly code: 'invalid_grant' | 'oauth_error' | 'token_endpoint' | 'bad_response') {
+    super(`Google refresh failed: ${code}`)
+  }
+}
+export async function refreshAccessToken(_p: { endpoints: GoogleEndpoints; clientId: string; clientSecret: string; refreshToken: string; fetch: typeof fetch }): Promise<RefreshedToken> {
+  throw new Error('not implemented')
+}

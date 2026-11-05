@@ -1,12 +1,16 @@
 // `GmailClient` ([[CHN5]] D23, D44, D46): the REST calls the Gmail channel reads with. Cycle 1 has three; later cycles add their own
 // with their first caller. The two streaming calls return the response body UNDECODED (Gmail's JSON with one base64url member).
-import type { GmailMessageResource, GmailProfile, GmailSendAs } from './types.js'
+import type { GmailHistoryPage, GmailMessageList, GmailMessageResource, GmailProfile, GmailSendAs } from './types.js'
 
 export interface GmailClient {
   /** `users.getProfile`: the address and the current history id (the cursor the connect flow saves, [[CHN5]] D9). */
   getProfile(): Promise<GmailProfile>
   /** `users.settings.sendAs.list` ([[CHN5]] D10): the primary address and the aliases; an empty answer is an empty list. */
   listSendAs(): Promise<GmailSendAs[]>
+  /** `users.history.list` ([[CHN5]] D12): one page of history records after `startHistoryId`. A start id Gmail no longer holds is a `GmailApiError` with status 404. */
+  listHistory(p: { startHistoryId: string; pageToken?: string | null; maxResults: number; historyTypes: readonly string[] }): Promise<GmailHistoryPage>
+  /** `users.messages.list` ([[CHN5]] D13, D67): one page of message ids matching `q`. */
+  listMessages(p: { q: string; pageToken?: string | null; maxResults: number }): Promise<GmailMessageList>
   /** `users.messages.get?format=full`, parsed. */
   getMessageFull(messageId: string): Promise<GmailMessageResource>
   /** `users.messages.get?format=raw`: the JSON body as a byte stream; the `raw` member is the RFC 822 original in base64url. */
@@ -35,6 +39,20 @@ export class GmailApiError extends Error {
     this.retryAfter = init.retryAfter ?? null
     this.retryAfterSeconds = init.retryAfterSeconds ?? null
   }
+}
+
+const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+const obj = (v: unknown): Record<string, unknown> => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
+const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
+
+/** Parses a `users.history.list` body leniently ([[CHN5]] D72): absent arrays are empty, unknown fields are ignored, only `messagesAdded` is read. */
+export function parseHistoryList(_body: unknown): GmailHistoryPage {
+  throw new Error('not implemented')
+}
+
+/** Parses a `users.messages.list` body leniently ([[CHN5]] D72): no `messages` member is an empty page. */
+export function parseMessageList(_body: unknown): GmailMessageList {
+  throw new Error('not implemented')
 }
 
 export interface HttpGmailClientOptions {
@@ -101,6 +119,18 @@ export class HttpGmailClient implements GmailClient {
   async listSendAs(): Promise<GmailSendAs[]> {
     const body = (await (await this.get('/settings/sendAs')).json()) as { sendAs?: GmailSendAs[] }
     return body.sendAs ?? []
+  }
+
+  async listHistory(p: { startHistoryId: string; pageToken?: string | null; maxResults: number; historyTypes: readonly string[] }): Promise<GmailHistoryPage> {
+    const q = new URLSearchParams({ startHistoryId: p.startHistoryId, maxResults: String(p.maxResults) })
+    for (const t of p.historyTypes) q.append('historyTypes', t)
+    if (p.pageToken) q.set('pageToken', p.pageToken)
+    return parseHistoryList(await (await this.get(`/history?${q}`)).json())
+  }
+  async listMessages(p: { q: string; pageToken?: string | null; maxResults: number }): Promise<GmailMessageList> {
+    const q = new URLSearchParams({ q: p.q, maxResults: String(p.maxResults) })
+    if (p.pageToken) q.set('pageToken', p.pageToken)
+    return parseMessageList(await (await this.get(`/messages?${q}`)).json())
   }
 
   async getMessageFull(messageId: string): Promise<GmailMessageResource> {

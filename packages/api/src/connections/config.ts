@@ -13,6 +13,10 @@ export interface GmailConfig {
   publicBaseUrl: string | null
   /** `CONNECT_RETURN_URL`: where the callback redirects; null shows the built-in page ([[CHN5]] D32). */
   returnUrl: string | null
+  /** `GMAIL_BACKFILL_DAYS`, default 30 ([[CHN5]] D71). */
+  backfillDays: number
+  /** `ATTACHMENT_MAX_BYTES`, default 50 MiB ([[CORE25]] D38). */
+  attachmentMaxBytes: number
 }
 
 const REQUIRED = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'] as const
@@ -54,6 +58,8 @@ export function parseGmailConfig(env: Record<string, string | undefined>): { con
       keyVersion,
       publicBaseUrl: present(env.PUBLIC_BASE_URL) ? env.PUBLIC_BASE_URL.trim().replace(/\/+$/, '') : null,
       returnUrl: present(env.CONNECT_RETURN_URL) ? env.CONNECT_RETURN_URL.trim() : null,
+      backfillDays: 30,
+      attachmentMaxBytes: 50 * 1024 * 1024,
     },
     problems: [],
   }
