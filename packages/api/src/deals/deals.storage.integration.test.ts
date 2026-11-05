@@ -722,7 +722,7 @@ describe('list filters (D15 column part)', () => {
       expect(await a.call('deals.list', { query })).toEqual({ data: [], next_cursor: null })
     }
     expect((await a.fail('deals.list', { query: { stage_id: 'nope' } })).code).toBe('validation_error')
-    expect((await a.fail('deals.list', { query: { company_id: uuidv7() } })).code).toBe('validation_error') // the join filters are CORE136
+    expect((await a.fail('deals.list', { query: { colour: uuidv7() } })).code).toBe('validation_error') // an unknown filter
   })
 
   it('pipelines.list filters name case-insensitively; pipeline_stages.list filters pipeline_id and kind', async () => {

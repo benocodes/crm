@@ -107,7 +107,7 @@ describe('the join filters of deals.list (D15)', () => {
     ['tag_id', 'tags', 'a', () => a.ent.tag('T')],
   ] as const)('%s returns exactly the deals with a live edge to the record (the deal is side %s), excluding other and deleted edges', async (filter, type, side, make) => {
     const target = await make()
-    const other = await make()
+    const other = type === 'tags' ? await a.ent.tag('Other') : await make()
     const d1 = await newDeal('d1')
     const d2 = await newDeal('d2')
     const d3 = await newDeal('d3')
@@ -217,11 +217,11 @@ describe('deals.delete cascades its live edges (D13/D14)', () => {
     const otherEdge = await a.link(other, neighbours[0]!)
     const mark = (await e.rows('events')).length
     await a.call('deals.delete', { params: { id: d[1] } })
-    expect((await e.rows('deals')).find((r) => r.id === d[1]).deleted_at).not.toBeNull()
+    expect((await e.rows('deals')).find((r) => r.id === d[1])!.deleted_at).not.toBeNull()
     const rows = await a.edges(false)
     for (const l of links) expect(rows.find((r) => r.id === l.id)!.deleted_at).not.toBeNull()
     for (const k of [keep, otherEdge]) expect(rows.find((r) => r.id === k.id)!.deleted_at).toBeNull()
-    for (const n of neighbours) expect((await e.rows(n[0])).find((r) => r.id === n[1])!.deleted_at).toBeNull()
+    for (const n of neighbours) expect((await e.rows(n[0])).find((r) => r.id === n[1])!.deleted_at ?? null).toBeNull() // threads do not soft-delete
     const evs = (await e.rows('events')).slice(mark)
     expect(evs[0]).toMatchObject({ type: 'deal.deleted', resource_id: d[1] })
     const edgeEvents = evs.filter((x) => x.type === 'association.deleted')
@@ -259,14 +259,14 @@ describe('deals.delete cascades its live edges (D13/D14)', () => {
   it('is atomic: an edge created between plan and commit aborts the unit, the deal stays live', async () => {
     const d = await newDeal('d')
     await a.link(d, await a.ent.company())
-    const mark = (await e.rows('events')).length
     const late = await a.ent.contact()
+    const mark = (await e.rows('events')).length
     e.betweenPlanAndCommit(async () => {
       await e.insert('associations', { a_type: 'contacts', a_id: late[1], b_type: 'deals', b_id: d[1], relation: 'related_to' })
     })
     const err = await a.call('deals.delete', { params: { id: d[1] } }).then(() => undefined, (x: unknown) => x)
     expect(err).toBeDefined()
-    expect((await e.rows('deals')).find((r) => r.id === d[1]).deleted_at).toBeNull()
+    expect((await e.rows('deals')).find((r) => r.id === d[1])!.deleted_at).toBeNull()
     expect((await a.edges()).filter((r) => r.deleted_at === null)).toHaveLength(2)
     expect((await e.rows('events')).length).toBe(mark) // the raw insert emits no event
   })
