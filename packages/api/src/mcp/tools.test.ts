@@ -125,6 +125,28 @@ describe('derived contact activity ([[CORE131]] D12)', () => {
   })
 })
 
+describe('deals tools (CORE130 D17)', () => {
+  it('lists every pipelines_*, pipeline_stages_* and deals_* tool, and the move command', () => {
+    const named = tools.map((t) => t.tool.name)
+    expect(named.filter((n) => n.startsWith('pipelines_'))).toEqual(['pipelines_list', 'pipelines_get', 'pipelines_create', 'pipelines_update', 'pipelines_delete'])
+    expect(named.filter((n) => n.startsWith('pipeline_stages_'))).toEqual(['pipeline_stages_list', 'pipeline_stages_get', 'pipeline_stages_create', 'pipeline_stages_update', 'pipeline_stages_delete'])
+    expect(named.filter((n) => n.startsWith('deals_'))).toEqual(['deals_list', 'deals_get', 'deals_create', 'deals_update', 'deals_delete', 'deals_move_stage'])
+  })
+  it('pipelines and stages are configuration tools; deals are record tools; the filters are arguments', () => {
+    expect(byName('pipelines_create').tool._meta['vibase/surface']).toBe('meta')
+    expect(byName('pipeline_stages_create').tool._meta['vibase/surface']).toBe('meta')
+    expect(byName('deals_create').tool._meta['vibase/surface']).toBe('api')
+    expect(byName('deals_move_stage').tool.description).toContain('Requires deals:write (records surface).')
+    const props = (n: string) => Object.keys((byName(n).tool.inputSchema as { properties: object }).properties)
+    expect(props('deals_list')).toEqual(expect.arrayContaining(['pipeline_id', 'stage_id', 'owner_id', 'created_by', 'status']))
+    expect(props('pipeline_stages_list')).toEqual(expect.arrayContaining(['pipeline_id', 'kind']))
+    expect(props('pipelines_list')).toContain('name')
+    expect(props('deals_move_stage')).toEqual(expect.arrayContaining(['id', 'stage_id']))
+    expect(props('deals_create')).not.toContain('pipeline_id')
+    expect(props('deals_update')).not.toContain('stage_id')
+  })
+})
+
 describe('instructions (D18)', () => {
   const names = new Set(tools.map((t) => t.tool.name))
   it('are at most 1,200 characters', () => {

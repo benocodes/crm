@@ -147,7 +147,7 @@ describe('derived fields ([[CORE131]] D11)', () => {
   it('every table lists derived, an empty array where it has none', async () => {
     const doc = await getDoc()
     for (const t of doc.tables) expect(Array.isArray(t.derived), `${t.name}.derived`).toBe(true)
-    for (const t of doc.tables) if (t.name !== 'contacts') expect(t.derived, t.name).toEqual([])
+    for (const t of doc.tables) if (t.name !== 'contacts' && t.name !== 'deals') expect(t.derived, t.name).toEqual([])
   })
   it('contacts lists the two fields in the spec shape, apart from the columns, with sortable false until CORE133', async () => {
     const doc = await getDoc()
@@ -180,5 +180,48 @@ describe('derived fields ([[CORE131]] D11)', () => {
         expect(typeof entry === 'string' ? entry : entry!.description, `${def.table}.${n}`).toBeTruthy()
       }
     }
+  })
+})
+
+describe('deals and pipelines ([[CORE130]] D18)', () => {
+  it('shows the three tables with their meaning, the resources on the right surface, and the composite foreign key', async () => {
+    const doc = await getDoc()
+    for (const name of ['pipelines', 'pipeline_stages', 'deals']) {
+      expect(table(doc, name), name).toBeDefined()
+      expect(table(doc, name).description.length, name).toBeGreaterThan(10)
+      expect(table(doc, name).origin).toBe('built_in')
+    }
+    expect(table(doc, 'pipelines').resource).toMatchObject({ surface: 'meta', path: '/meta/v1/pipelines', read_scope: 'pipelines:read', write_scope: 'pipelines:write' })
+    expect(table(doc, 'pipeline_stages').resource).toMatchObject({ surface: 'meta', path: '/meta/v1/pipeline-stages', read_scope: 'pipelines:read', write_scope: 'pipelines:write' })
+    expect(table(doc, 'deals').resource).toMatchObject({ surface: 'api', path: '/api/v1/deals', read_scope: 'deals:read', write_scope: 'deals:write' })
+    expect(table(doc, 'deals').foreign_keys).toContainEqual({ columns: ['pipeline_id', 'stage_id'], references: { table: 'pipeline_stages', columns: ['pipeline_id', 'id'] }, on_delete: 'NO ACTION' })
+    expect(column(doc, 'deals', 'pipeline_id').references).toEqual({ table: 'pipelines', column: 'id' })
+    expect(column(doc, 'deals', 'owner_id').references).toEqual({ table: 'principals', column: 'id' })
+    expect(column(doc, 'pipeline_stages', 'pipeline_id').references).toEqual({ table: 'pipelines', column: 'id' })
+  })
+  it('column texts: kind values, position, the minor-unit amount', async () => {
+    const doc = await getDoc()
+    expect(column(doc, 'pipeline_stages', 'kind').values).toEqual(['open', 'won', 'lost'])
+    expect(column(doc, 'pipeline_stages', 'position').description).toMatch(/order/i)
+    expect(column(doc, 'deals', 'amount_minor').description).toContain("currency's minor units")
+    expect(column(doc, 'deals', 'amount_minor').kind).toBe('integer')
+    expect(column(doc, 'deals', 'closed_at').description).toMatch(/won|lost/)
+    expect(column(doc, 'deals', 'currency').description).toMatch(/ISO 4217/)
+  })
+  it('deals.status is a derived field: writable false, no required scope, filterable by status, apart from the columns', async () => {
+    const doc = await getDoc()
+    const derived = table(doc, 'deals').derived
+    expect(derived).toEqual([
+      { name: 'status', kind: 'text', nullable: true, writable: false, label: 'Status', description: expect.any(String), requires: null, filters: ['status'], sortable: false },
+    ])
+    expect(derived[0].description).toMatch(/open.*won.*lost/s)
+    expect(table(doc, 'deals').columns.map((c: any) => c.name)).not.toContain('status')
+    expect(table(doc, 'pipelines').derived).toEqual([])
+    expect(table(doc, 'pipeline_stages').derived).toEqual([])
+  })
+  it('deals are not associable in this cycle (CORE136)', async () => {
+    const doc = await getDoc()
+    expect(doc.associations.associable).not.toContain('deals')
+    expect(table(doc, 'deals').associable).toBe(false)
   })
 })

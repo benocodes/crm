@@ -5,6 +5,16 @@ export const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
   notes: { input: async () => ({ title: 'Contract note', content: '# Contract\n\nA note.' }), patch: async () => ({ content: 'Edited' }) },
   tags: { input: async () => ({ name: `Contract tag ${randomUUID()}`, description: 'A contract list' }), patch: async () => ({ description: 'Edited' }) },
+  // Deals and pipelines (CORE130): a stage needs a pipeline and a deal needs a stage, created through the public API as prerequisites.
+  pipelines: { input: async () => ({ name: `Contract pipeline ${randomUUID()}` }), patch: async () => ({ name: `Renamed pipeline ${randomUUID()}` }) },
+  pipeline_stages: {
+    input: async (kit) => ({ pipeline_id: (await kit.post('/meta/v1/pipelines', { name: `P ${randomUUID()}` })).id, name: 'Researched', kind: 'open', position: 10 }),
+    patch: async () => ({ name: `Renamed stage ${randomUUID()}`, position: 20 }),
+  },
+  deals: {
+    input: async (kit) => ({ name: 'Contract deal', stage_id: await stageId(kit) }),
+    patch: async () => ({ name: 'Renamed deal', amount_minor: 1500, currency: 'usd' }),
+  },
   companies: {
     input: async () => ({ name: 'Contract company', domain: `c-${randomUUID()}.example.com` }),
     patch: async () => ({ name: 'Renamed company' }),
@@ -46,6 +56,12 @@ export const fixtures: Record<string, ContractFixture> = {
   company_files: {
     input: async (kit) => ({ company_id: (await kit.post('/api/v1/companies', { name: 'Linked co', domain: `l-${randomUUID()}.example.com` })).id, file_id: await storedFileId(kit) }),
   },
+}
+
+/** A fresh pipeline with one open stage, through the public API; returns the stage id. */
+async function stageId(kit: FixtureKit): Promise<string> {
+  const p = await kit.post('/meta/v1/pipelines', { name: `P ${randomUUID()}` })
+  return (await kit.post('/meta/v1/pipeline-stages', { pipeline_id: p.id, name: 'Researched', kind: 'open', position: 10 })).id
 }
 
 /** Captures a message with one stored attachment and returns the id of its file (read back through the public message). */

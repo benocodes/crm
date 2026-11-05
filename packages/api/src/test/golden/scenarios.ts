@@ -744,3 +744,36 @@ export const tagScenarios: readonly GoldenScenario[] = [
     ],
   },
 ]
+
+export const dealScenarios: readonly GoldenScenario[] = [
+  {
+    name: 'deals-lifecycle',
+    scopes: ['deals:read', 'deals:write', 'pipelines:read', 'pipelines:write'],
+    about:
+      'a pipeline and its stages are configuration (/meta/v1), a deal sits in one stage ([[CORE130]]): a duplicate stage name is 409 stage_exists, the pipeline follows the stage, a move to won sets closed_at and emits deal.stage_changed, back to open clears it, a stage holding a deal cannot be deleted (409 stage_in_use), and status is derived and filterable',
+    steps: [
+      { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/pipelines', body: { name: '  Prospecting ' }, save: 'p' },
+      { as: 'user', at: at(1), method: 'POST', path: '/meta/v1/pipelines', body: { name: 'prospecting' } },
+      { as: 'user', at: at(2), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'Researched', kind: 'open', position: 10 }, save: 's1' },
+      { as: 'user', at: at(3), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'Contacted', kind: 'open', position: 20 }, save: 's2' },
+      { as: 'user', at: at(4), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'Won', kind: 'won', position: 90 }, save: 's3' },
+      { as: 'user', at: at(5), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'CONTACTED', kind: 'open', position: 25 } },
+      { as: 'user', at: at(6), method: 'PATCH', path: '/meta/v1/pipeline-stages/{s1}', body: { kind: 'won' } },
+      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/deals', body: { name: 'Acme - pilot', stage_id: '{s1}', amount_minor: 1250000, currency: 'usd', expected_close_date: '2026-12-31' }, save: 'd' },
+      { as: 'user', at: at(8), method: 'POST', path: '/api/v1/deals', body: { name: 'No currency', stage_id: '{s1}', amount_minor: 5 } },
+      { as: 'agent', at: at(9), method: 'PATCH', path: '/api/v1/deals/{d}', body: { name: 'Acme - pilot (renewed)', amount_minor: 1500000 } },
+      { as: 'user', at: at(10), method: 'PATCH', path: '/api/v1/deals/{d}', body: { stage_id: '{s2}' } },
+      { as: 'user', at: at(11), method: 'POST', path: '/api/v1/deals/{d}/move-stage', body: { stage_id: '{s3}' } },
+      { as: 'user', at: at(12), method: 'POST', path: '/api/v1/deals/{d}/move-stage', body: { stage_id: '{s3}' } },
+      { as: 'user', at: at(13), method: 'GET', path: '/api/v1/deals?status=won&pipeline_id={p}' },
+      { as: 'user', at: at(14), method: 'DELETE', path: '/meta/v1/pipeline-stages/{s3}' },
+      { as: 'user', at: at(15), method: 'POST', path: '/api/v1/deals/{d}/move-stage', body: { stage_id: '{s1}' } },
+      { as: 'user', at: at(16), method: 'GET', path: '/api/v1/deals?status=open&stage_id={s1}' },
+      { as: 'user', at: at(17), method: 'GET', path: '/api/v1/deals?status=lost' },
+      { as: 'user', at: at(18), method: 'DELETE', path: '/meta/v1/pipelines/{p}' },
+      { as: 'user', at: at(19), method: 'DELETE', path: '/api/v1/deals/{d}' },
+      { as: 'user', at: at(20), method: 'DELETE', path: '/meta/v1/pipelines/{p}' },
+      { as: 'user', at: at(21), method: 'GET', path: '/meta/v1/pipeline-stages?pipeline_id={p}' },
+    ],
+  },
+]

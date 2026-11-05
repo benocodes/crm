@@ -28,6 +28,11 @@ export const SCOPE_POLICY: ScopePolicy = {
   // Tags ([[CORE129]] D6): tagging a record is associations:write plus read on both ends, so tags:write is only for managing lists.
   'tags:read': { member: true, agentGrantable: true },
   'tags:write': { member: true, agentGrantable: true },
+  // Deals and pipelines ([[CORE130]] D16): `pipelines:*` also covers the stages. deals:write alone files and moves a deal; the vault validates the stage.
+  'deals:read': { member: true, agentGrantable: true },
+  'deals:write': { member: true, agentGrantable: true },
+  'pipelines:read': { member: true, agentGrantable: true },
+  'pipelines:write': { member: true, agentGrantable: true },
   // Schema discovery ([[API63]] D8): designing against the schema is expected agent work.
   'schema:read': { member: true, agentGrantable: true },
   // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
@@ -57,6 +62,10 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'notes:write': 'Create, change and delete notes',
   'tags:read': 'View tags (named lists)',
   'tags:write': 'Create, rename and delete tags',
+  'deals:read': 'View deals (also called opportunities)',
+  'deals:write': 'Create, change, move and delete deals',
+  'pipelines:read': 'View pipelines and their stages',
+  'pipelines:write': 'Create, change and delete pipelines and stages',
   'schema:read': 'Read the data schema: record types, fields and relations',
   'members:read': 'View the members of the workspace',
   'agents:read': 'View the workspace agents and their access',

@@ -277,6 +277,40 @@ export const CATALOG: Catalog = {
         description: 'Optional: what belongs in the list.',
       },
     },
+    pipelines: {
+      label: 'Pipelines',
+      description: 'A named sales process of the organisation, configuration under /meta/v1. It holds ordered stages; deals sit in one of them.',
+      columns: {
+        name: 'The pipeline name, 1 to 100 characters; unique among live pipelines, ignoring case.',
+      },
+    },
+    pipeline_stages: {
+      label: 'Pipeline stages',
+      description: 'One step of a pipeline. Its kind says whether a deal in it is open, won or lost; its position orders the stages. Configuration under /meta/v1, covered by the pipelines scopes.',
+      columns: {
+        pipeline_id: 'The pipeline the stage belongs to; fixed when the stage is created.',
+        name: 'The stage name, 1 to 100 characters; unique among the live stages of the pipeline, ignoring case.',
+        kind: 'Whether a deal in this stage is open, won or lost; fixed when the stage is created.',
+        position: 'The stage\'s place in the pipeline order, an integer from 0; stages are shown by ascending position, ties by id. Leave gaps (10, 20, 30) so a stage can be inserted between.',
+      },
+    },
+    deals: {
+      label: 'Deals',
+      description: 'A potential sale (also called an opportunity): a name, an optional amount and expected close date, an owner, sitting in one stage of one pipeline. Change the stage with deals.move_stage; link companies and contacts through associations.',
+      columns: {
+        name: 'The deal name, 1 to 200 characters; not unique.',
+        pipeline_id: "The deal's pipeline; always the pipeline of its stage.",
+        stage_id: "The deal's stage; set when the deal is created and changed only with deals.move_stage.",
+        amount_minor: "The deal value in the currency's minor units (cents; for a currency without a minor unit such as JPY, the unit). Optional; needs a currency.",
+        currency: 'Optional ISO 4217 code such as USD, stored upper case. Required when an amount is set.',
+        expected_close_date: 'Optional calendar date (YYYY-MM-DD) the deal is expected to close.',
+        owner_id: 'Optional: the user or agent responsible for the deal.',
+        closed_at: 'When the deal last became won or lost; null while it is open. Set by the vault when the deal enters a won or lost stage (also at creation), cleared when it is reopened.',
+      },
+      derived: {
+        status: "The kind of the deal's stage: open, won or lost. Derived, read-only; filter with ?status=.",
+      },
+    },
     associations: {
       label: 'Associations',
       description: 'Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; the vault checks both ends exist).',

@@ -27,6 +27,11 @@ describe('derived declarations are checked when the definition is built (D1)', (
     const join = { schema: z.string(), where: () => sql<boolean>`1` }
     expect(() => define({ joinFilters: { age: join }, derived: { age: derivedField } })).toThrow(/derived "age".*filter/)
   })
+  it('a join filter of the derived field\'s own name is accepted when the field lists it (CORE130 D8: deals.status), a column filter never', () => {
+    const join = { schema: z.string(), where: () => sql<boolean>`1` }
+    expect(() => define({ joinFilters: { age: join }, derived: { age: { ...derivedField, filters: ['age'] } } })).not.toThrow()
+    expect(() => define({ filters: { age: { schema: z.string() } }, joinFilters: { age: join }, derived: { age: { ...derivedField, filters: ['age'] } } })).toThrow(/"age"/)
+  })
   it('a derived name that is not a field of the record is refused', () => {
     expect(() => define({ derived: { ghost: derivedField } })).toThrow(/derived "ghost".*not a field of the record/)
   })

@@ -211,6 +211,8 @@ export function runContractSuite(opts: {
         const parse = (action: CrudAction, json: unknown) => op(action).response.schema!.parse(json)
         const make = (t: ContractTenant): Promise<{ id: string }> => env.make(t, def, fixture)
         const eventCount = () => env.countEvents()
+        /** An event carries the stored record: the definition's derived fields are on reads only ([[CORE131]] D2). */
+        const recordOfEvent = (record: unknown) => Object.fromEntries(Object.entries(record as Record<string, unknown>).filter(([k]) => !(k in (def.derived ?? {}))))
         const types = (events: EventRow[], action: string) => events.filter((e) => e.type === `${def.eventName}.${action}`)
         const error = async (res: Response, status: number, code: string) => {
           expect(res.status).toBe(status)
@@ -236,7 +238,7 @@ export function runContractSuite(opts: {
                   actor_id: await env.principalId(a, actor, 'full'),
                   organization_id: a.organizationId,
                 })
-                expect(events[0]!.after).toEqual(body)
+                expect(events[0]!.after).toEqual(recordOfEvent(body))
               })
             }
             if (has('get')) {
@@ -268,7 +270,7 @@ export function runContractSuite(opts: {
                 const updated = types(await env.eventsOf(row.id), 'updated')
                 expect(updated).toHaveLength(1)
                 expect(updated[0]!.before).not.toBeNull()
-                expect(updated[0]!.after).toEqual(body)
+                expect(updated[0]!.after).toEqual(recordOfEvent(body))
                 expect(updated[0]!.actor_id).toBe(await env.principalId(a, actor, 'full'))
               })
             }
@@ -281,7 +283,7 @@ export function runContractSuite(opts: {
                 expect(await res.text()).toBe('')
                 const deleted = types(await env.eventsOf(row.id), 'deleted')
                 expect(deleted).toHaveLength(1)
-                expect(deleted[0]!.before).toEqual(last)
+                expect(deleted[0]!.before).toEqual(recordOfEvent(last))
                 expect(deleted[0]!.after).toBeNull()
                 await error(await env.call(a, actor, 'full', 'GET', pathOf(def, 'get', row.id)), 404, 'not_found')
               })

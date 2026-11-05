@@ -1,0 +1,800 @@
+{
+  "format": 1,
+  "resource": "deals",
+  "generated_by": "packages/api/scripts/golden.ts (d1 path)",
+  "named_differences": [],
+  "scenarios": [
+    {
+      "name": "deals-lifecycle",
+      "about": "a pipeline and its stages are configuration (/meta/v1), a deal sits in one stage ([[CORE130]]): a duplicate stage name is 409 stage_exists, the pipeline follows the stage, a move to won sets closed_at and emits deal.stage_changed, back to open clears it, a stage holding a deal cannot be deleted (409 stage_in_use), and status is derived and filterable",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/meta/v1/pipelines",
+          "request": {
+            "name": "  Prospecting "
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Prospecting",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "pipeline.created",
+              "resource_type": "pipeline",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Prospecting",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/meta/v1/pipelines",
+          "request": {
+            "name": "prospecting"
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "pipeline_exists",
+              "message": "a pipeline named \"prospecting\" already exists (0190b2c4-0000-7000-8000-000001000001)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/meta/v1/pipeline-stages",
+          "request": {
+            "pipeline_id": "{p}",
+            "name": "Researched",
+            "kind": "open",
+            "position": 10
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "name": "Researched",
+            "kind": "open",
+            "position": 10,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "pipeline_stage.created",
+              "resource_type": "pipeline_stage",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "kind": "open",
+                "name": "Researched",
+                "position": 10,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/meta/v1/pipeline-stages",
+          "request": {
+            "pipeline_id": "{p}",
+            "name": "Contacted",
+            "kind": "open",
+            "position": 20
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000007",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "name": "Contacted",
+            "kind": "open",
+            "position": 20,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "pipeline_stage.created",
+              "resource_type": "pipeline_stage",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "kind": "open",
+                "name": "Contacted",
+                "position": 20,
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/meta/v1/pipeline-stages",
+          "request": {
+            "pipeline_id": "{p}",
+            "name": "Won",
+            "kind": "won",
+            "position": 90
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000009",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "name": "Won",
+            "kind": "won",
+            "position": 90,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:04:00.000Z",
+            "updated_at": "2026-10-22T09:04:00.000Z"
+          },
+          "events": [
+            {
+              "type": "pipeline_stage.created",
+              "resource_type": "pipeline_stage",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:04:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "kind": "won",
+                "name": "Won",
+                "position": 90,
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/meta/v1/pipeline-stages",
+          "request": {
+            "pipeline_id": "{p}",
+            "name": "CONTACTED",
+            "kind": "open",
+            "position": 25
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "stage_exists",
+              "message": "a stage named \"CONTACTED\" already exists in this pipeline (0190b2c4-0000-7000-8000-000001000007)"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "PATCH",
+          "path": "/meta/v1/pipeline-stages/{s1}",
+          "request": {
+            "kind": "won"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "kind cannot be changed after creation"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/deals",
+          "request": {
+            "name": "Acme - pilot",
+            "stage_id": "{s1}",
+            "amount_minor": 1250000,
+            "currency": "usd",
+            "expected_close_date": "2026-12-31"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme - pilot",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+            "status": "open",
+            "amount_minor": 1250000,
+            "currency": "USD",
+            "expected_close_date": "2026-12-31",
+            "owner_id": null,
+            "closed_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:07:00.000Z"
+          },
+          "events": [
+            {
+              "type": "deal.created",
+              "resource_type": "deal",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:07:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme - pilot",
+                "currency": "USD",
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:07:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": 1250000,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": "2026-12-31"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/deals",
+          "request": {
+            "name": "No currency",
+            "stage_id": "{s1}",
+            "amount_minor": 5
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "an amount needs a currency: send currency with amount_minor"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "PATCH",
+          "path": "/api/v1/deals/{d}",
+          "request": {
+            "name": "Acme - pilot (renewed)",
+            "amount_minor": 1500000
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme - pilot (renewed)",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+            "status": "open",
+            "amount_minor": 1500000,
+            "currency": "USD",
+            "expected_close_date": "2026-12-31",
+            "owner_id": null,
+            "closed_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:09:00.000Z"
+          },
+          "events": [
+            {
+              "type": "deal.updated",
+              "resource_type": "deal",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:09:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme - pilot",
+                "currency": "USD",
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:07:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": 1250000,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": "2026-12-31"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme - pilot (renewed)",
+                "currency": "USD",
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": 1500000,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": "2026-12-31"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "PATCH",
+          "path": "/api/v1/deals/{d}",
+          "request": {
+            "stage_id": "{s2}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "stage_id cannot be changed after creation; use deals.move_stage to change the stage"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/deals/{d}/move-stage",
+          "request": {
+            "stage_id": "{s3}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme - pilot (renewed)",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "stage_id": "0190b2c4-0000-7000-8000-000001000009",
+            "status": "won",
+            "amount_minor": 1500000,
+            "currency": "USD",
+            "expected_close_date": "2026-12-31",
+            "owner_id": null,
+            "closed_at": "2026-10-22T09:11:00.000Z",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:11:00.000Z"
+          },
+          "events": [
+            {
+              "type": "deal.stage_changed",
+              "resource_type": "deal",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:11:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme - pilot (renewed)",
+                "currency": "USD",
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:09:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": 1500000,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": "2026-12-31"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme - pilot (renewed)",
+                "currency": "USD",
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000009",
+                "closed_at": "2026-10-22T09:11:00.000Z",
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:11:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": 1500000,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": "2026-12-31"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:12:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/deals/{d}/move-stage",
+          "request": {
+            "stage_id": "{s3}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme - pilot (renewed)",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "stage_id": "0190b2c4-0000-7000-8000-000001000009",
+            "amount_minor": 1500000,
+            "currency": "USD",
+            "expected_close_date": "2026-12-31",
+            "owner_id": null,
+            "closed_at": "2026-10-22T09:11:00.000Z",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:11:00.000Z",
+            "status": "won"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:13:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/deals?status=won&pipeline_id={p}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Acme - pilot (renewed)",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "stage_id": "0190b2c4-0000-7000-8000-000001000009",
+                "status": "won",
+                "amount_minor": 1500000,
+                "currency": "USD",
+                "expected_close_date": "2026-12-31",
+                "owner_id": null,
+                "closed_at": "2026-10-22T09:11:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "updated_at": "2026-10-22T09:11:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:14:00.000Z",
+          "method": "DELETE",
+          "path": "/meta/v1/pipeline-stages/{s3}",
+          "request": null,
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "stage_in_use",
+              "message": "stage \"Won\" holds 1 live deal (0190b2c4-0000-7000-8000-000001000013); move or delete them first"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:15:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/deals/{d}/move-stage",
+          "request": {
+            "stage_id": "{s1}"
+          },
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme - pilot (renewed)",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+            "status": "open",
+            "amount_minor": 1500000,
+            "currency": "USD",
+            "expected_close_date": "2026-12-31",
+            "owner_id": null,
+            "closed_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:15:00.000Z"
+          },
+          "events": [
+            {
+              "type": "deal.stage_changed",
+              "resource_type": "deal",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:15:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme - pilot (renewed)",
+                "currency": "USD",
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000009",
+                "closed_at": "2026-10-22T09:11:00.000Z",
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:11:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": 1500000,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": "2026-12-31"
+              },
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme - pilot (renewed)",
+                "currency": "USD",
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:15:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": 1500000,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": "2026-12-31"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:16:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/deals?status=open&stage_id={s1}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Acme - pilot (renewed)",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+                "status": "open",
+                "amount_minor": 1500000,
+                "currency": "USD",
+                "expected_close_date": "2026-12-31",
+                "owner_id": null,
+                "closed_at": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "updated_at": "2026-10-22T09:15:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:17:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/deals?status=lost",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:18:00.000Z",
+          "method": "DELETE",
+          "path": "/meta/v1/pipelines/{p}",
+          "request": null,
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "pipeline_in_use",
+              "message": "pipeline \"Prospecting\" holds 1 live deal (0190b2c4-0000-7000-8000-000001000013); move or delete them first"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:19:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/deals/{d}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "deal.deleted",
+              "resource_type": "deal",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:19:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "name": "Acme - pilot (renewed)",
+                "currency": "USD",
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000005",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:15:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": 1500000,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": "2026-12-31"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:20:00.000Z",
+          "method": "DELETE",
+          "path": "/meta/v1/pipelines/{p}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "pipeline.deleted",
+              "resource_type": "pipeline",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:20:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Prospecting",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            },
+            {
+              "type": "pipeline_stage.deleted",
+              "resource_type": "pipeline_stage",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:20:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "kind": "open",
+                "name": "Researched",
+                "position": 10,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            },
+            {
+              "type": "pipeline_stage.deleted",
+              "resource_type": "pipeline_stage",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:20:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "kind": "open",
+                "name": "Contacted",
+                "position": 20,
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            },
+            {
+              "type": "pipeline_stage.deleted",
+              "resource_type": "pipeline_stage",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:20:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "kind": "won",
+                "name": "Won",
+                "position": 90,
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:21:00.000Z",
+          "method": "GET",
+          "path": "/meta/v1/pipeline-stages?pipeline_id={p}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
+    }
+  ]
+}

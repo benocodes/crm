@@ -249,6 +249,11 @@ a route or an MCP tool that bypasses the registry.
   access from a handler).
 - Commands are ordinary registry entries exposed as POST routes (`POST /api/v1/contacts/{id}/merge`), so they get
   scopes, MCP tools and OpenAPI for free.
+- **The CLI derives its commands from a cached copy of the documents** (`packages/cli/src/derive.ts`, cache up to an hour
+  old). Any change to how commands are derived, and any new resource, must be tested against a cache written *before* the
+  change, for every invocation form (`vibase <resource>`, `vibase <resource> <action>`, `--help`): a stale cache must
+  refresh once and answer as a fresh one. [[CORE130]]'s kebab-cased action threw `TypeError` on `vibase deals` with a
+  pre-deals cache (`cli.integration.test.ts`, "a cache that predates deals" edits the cache file to build that state).
 - There is no Hono RPC (`hc`) typing: a registry built in a loop gives no static route types. A TypeScript
   consumer that needs typed calls should generate a client from `/api/v1/openapi.json` and `/meta/v1/openapi.json` ([[CORE15]], [[API32]]).
 
@@ -308,7 +313,8 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   and emits its events (a cascade, a merge, a bulk op) needs a test that runs it as an actor holding the `requires`
   scope and asserts the keys absent from both sides of the event. Pin the D1 join order of a correlated derivation with
   `cross join` and assert the exact index lines of `EXPLAIN QUERY PLAN`, not just "SEARCH" (plain joins let SQLite start
-  from the wide table, still a SEARCH, [[CORE131]] Decision 7).
+  from the wide table, still a SEARCH, [[CORE131]] Decision 7). A derived field may share its name with a join filter
+  only when it lists that filter in its own `filters` (`deals.status`, [[CORE130]]); any other clash is a load-time throw.
 - **A read-only resource written by a program** (`threads`, `messages`, `interactions`, `files`): `operations: ['list',
   'get']`, no `create`/`update`, no `deleted_at` on the table. Until the capture program exists (CORE25 cycle 2) the
   fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vault/api/test/messaging`, `src/test/messaging-kit.ts`)
@@ -323,6 +329,27 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   always emitted); `IDENTITY_REFERENCES` lists every FK onto `identities` with no re-point (`identity-catalog.integration.suite.ts`
   compares it to both engines). `cascadeDelete` takes several children in order (contact: identities then `contact_files`;
   company: contacts then `company_files`), each with the three set guards and its own set event.
+- **Definition mechanisms added for deals and pipelines** ([[CORE130]], `src/resources/deals.ts`, `pipelines.ts`,
+  `pipeline-stages.ts`). Reuse them; do not hand-roll a fourth shape:
+  - **`createOnly: { field: hint }`** (`src/storage/prepare.ts`): `prepareUpdate` refuses a listed key *before* the strict
+    update schema, `400 validation_error`, `<field> cannot be changed after creation; <hint>`. Without it the strict schema
+    still refuses, but with `Unrecognized key`, so a test that only checks the status passes with the mechanism removed
+    ([[CORE130]] M12b): assert the message, on every resource that uses it.
+  - **`createComputed`**: columns of an `INSERT ... SELECT` taken from other rows in the same statement (a deal's
+    `pipeline_id` and `closed_at` from its stage), beside the reference guards. Use it instead of a plan read whenever a
+    stored value is derived from a referenced row: a plan read goes stale, the `SELECT` cannot. A command's `UPDATE ... SET`
+    can do the same (`deals.move_stage`): the right-hand side sees the old row, and the target is re-checked in the `WHERE`.
+  - **`hold` on `cascadeDelete`** (`src/identity/cascades.ts`): a delete refused while live rows point at the parent
+    (`409 stage_in_use` / `pipeline_in_use`). The plan read counts and lists the first five ids for the message; the commit
+    guard is `assertStep(not exists ...)` with the **same predicate** (`holdRows`), placed right after the parent's tombstone,
+    so a row created between plan and commit aborts the unit. Each hold needs a race test and its own absence mutation.
+  - **`childrenFirst`**: allocates the children's event ids before the parent's, so the feed (ordered by event id) shows
+    children deleted, then the parent, while the physical insert order stays parent-first (children's statements are gated
+    on the parent's event). Other cascades keep the old order, which their goldens pin.
+  - Normalise input (upper-casing `currency`) in `prepare`, never with a zod `transform`: a transform cannot be rendered
+    into the OpenAPI or MCP schema.
+  - A command with `validation: 'adapter'` (`deals.move_stage`, `contacts.merge`) skips the body schema when the test kit
+    calls `prepare` directly; test its bad-body cases over REST.
 - **Associations** ([[CORE62]], `src/associations/`): a polymorphic edge `(a_type, a_id) ↔ (b_type, b_id)` stored once in
   canonical order. A table joins the graph with `associable: true` on its definition (load-time checks: an `id` column, a
   lowercase-identifier table name); the associable set and each type's read scope (`scopeResource`) come from the registry, and

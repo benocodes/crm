@@ -31,7 +31,7 @@ export type WriteMeta = { readonly op: 'create' | 'update'; readonly now: Date }
  * read (`400 invalid_reference`) and the commit-time guard use ONE predicate: `id = v`, plus `organization_id = the
  * unit's organisation` when the target table has that column, plus `deleted_at IS NULL` when `live`.
  */
-export type ReferenceTarget = { readonly table: 'principals' | 'companies' | 'contacts' | 'files'; readonly live?: boolean }
+export type ReferenceTarget = { readonly table: 'principals' | 'companies' | 'contacts' | 'files' | 'pipelines' | 'pipeline_stages'; readonly live?: boolean }
 
 /** A refusal decided from a plan read (a domain or an address already taken): the core runs `read`, then `refuse(row | null)`. */
 export interface Conflict {
@@ -159,6 +159,17 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly derived?: Readonly<Record<string, DerivedDecl>>
   /** Columns that must reference a visible row of a portable table (checked after existence, re-checked at commit). */
   readonly references?: { readonly [K in ColumnOf<T>]?: ReferenceTarget }
+  /**
+   * [[CORE130]] D3, D9: fields accepted on create and refused on update (`400 validation_error`), each with the sentence that says where
+   * to change it instead (empty: none). Checked before the update schema, so the answer names the field, not "unrecognized key".
+   */
+  readonly createOnly?: Readonly<Record<string, string>>
+  /**
+   * [[CORE130]] D9, D11: columns a create stores that come from other rows, read in the same statement as the insert (the deal's pipeline,
+   * the stage's kind): typed expressions per column, evaluated at commit with the reference guards, so no plan read can go stale.
+   * Synchronous and DB-free; the values are `stored` (prepared) input.
+   */
+  readonly createComputed?: (c: { eb: ExpressionBuilder<StorageDatabase, T>; qc: QueryContext; env: PreparedEnv; values: Values }) => Computed<T>
   /** Extension 1: pure normalization of a validated write; returns the column values to store. */
   readonly prepare?: SyncHook<{ values: Values; meta: WriteMeta }, Stored<T>>
   /**
@@ -222,7 +233,8 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
   for (const [field, spec] of Object.entries(full.derived ?? {})) {
     if (field in kindsOfTable) throw new Error(`derived "${field}" is a column of ${full.table} (${full.name})`)
     if (field in (full.embed ?? {})) throw new Error(`derived "${field}" is also an embed (${full.name})`)
-    if (field in (full.filters ?? {}) || field in (full.joinFilters ?? {})) throw new Error(`derived "${field}" is also a filter key (${full.name})`)
+    // [[CORE130]] D8: the derived field may be filtered by a join filter of its own name (`?status=`) - that is what `filters` declares - but a column filter may not take it.
+    if (field in (full.filters ?? {}) || (field in (full.joinFilters ?? {}) && !(spec.filters ?? []).includes(field))) throw new Error(`derived "${field}" is also a filter key (${full.name})`)
     if (!(field in full.record.shape)) throw new Error(`derived "${field}" is not a field of the record (${full.name})`)
     for (const f of spec.filters ?? []) if (!(f in (full.joinFilters ?? {}))) throw new Error(`derived "${field}" names filter "${f}", which is not a join filter (${full.name})`)
   }

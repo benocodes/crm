@@ -27,6 +27,14 @@ describe('GET /api/v1/openapi.json', () => {
     }
     expect(d.paths['/api/v1/notes'].get.parameters.map((p: any) => p.name)).not.toContain('tag_id')
   })
+  it('documents deals and move-stage on the records surface and keeps pipelines and stages off it (CORE130 D1, D17)', async () => {
+    const d = await doc()
+    expect(d.paths['/api/v1/deals'].get.operationId).toBe('deals.list')
+    expect(d.paths['/api/v1/deals/{id}'].patch.operationId).toBe('deals.update')
+    expect(d.paths['/api/v1/deals/{id}/move-stage'].post.operationId).toBe('deals.move_stage')
+    expect(d.paths['/api/v1/deals'].get.parameters.map((p: any) => p.name)).toEqual(expect.arrayContaining(['pipeline_id', 'stage_id', 'owner_id', 'created_by', 'status']))
+    expect(Object.keys(d.paths).filter((p) => /pipeline/.test(p))).toEqual([])
+  })
   it('names operations', async () => {
     const d = await doc()
     expect(d.paths['/api/v1/tasks'].get.operationId).toBe('tasks.list')

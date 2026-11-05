@@ -35,8 +35,17 @@ export function prepareCreate(def: PreparedResource, actor: Actor, input: unknow
   return normalize(def, parsed)
 }
 
+/** [[CORE130]] D3, D9: a create-only field in an update body is refused by name, before the (strict) update schema sees it. */
+function checkCreateOnly(def: PreparedResource, input: unknown): void {
+  if (!def.createOnly || input === null || typeof input !== 'object' || Array.isArray(input)) return
+  for (const [field, hint] of Object.entries(def.createOnly)) {
+    if (field in input) throw new ApiError(400, 'validation_error', `${field} cannot be changed after creation${hint ? `; ${hint}` : ''}`)
+  }
+}
+
 export function prepareUpdate(def: PreparedResource, actor: Actor, input: unknown): Values {
   if (!def.update) throw new Error(`${def.name} has no update schema`)
+  checkCreateOnly(def, input)
   const parsed = parseInput(def.update, input)
   checkAgentFields(def, actor, parsed)
   return normalize(def, parsed)

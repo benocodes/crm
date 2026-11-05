@@ -18,7 +18,9 @@ const place = (surface: Surface, resource: string, actions: string[]) => {
   for (const a of actions) PLACEMENT[`${resource}.${a}`] = surface
 }
 const CRUD = ['list', 'get', 'create', 'update', 'delete']
-for (const r of ['tasks', 'companies', 'contacts', 'notes', 'tags']) place('api', r, CRUD)
+for (const r of ['tasks', 'companies', 'contacts', 'notes', 'tags', 'deals']) place('api', r, CRUD)
+place('api', 'deals', ['move_stage'])
+for (const r of ['pipelines', 'pipeline_stages']) place('meta', r, CRUD)
 place('api', 'identities', [...CRUD, 'resolve'])
 place('api', 'contacts', ['merge'])
 for (const r of ['threads', 'messages', 'interactions', 'files', 'contact_files', 'company_files']) place('api', r, CRUD)
@@ -59,10 +61,11 @@ describe('placement (D6)', () => {
       'api_keys.create', 'api_keys.get', 'api_keys.list', 'api_keys.revoke',
       'me.get',
       'memberships.get', 'memberships.list',
+      ...['pipelines', 'pipeline_stages'].flatMap((r) => CRUD.map((a) => `${r}.${a}`)),
       'schema.get',
       'users.get', 'users.list',
-    ])
-    expect(ops.length).toBe(68)
+    ].sort())
+    expect(ops.length).toBe(84)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)
