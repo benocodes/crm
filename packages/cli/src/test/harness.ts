@@ -44,6 +44,7 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
   const cacheDir = join(dir, 'vibase')
   let clock = 1_800_000_000_000
   const go = async (argv: string[], over: { env?: Record<string, string | undefined>; stdin?: string; tty?: boolean; stdinTTY?: boolean; sleep?: (ms: number) => Promise<void> } = {}): Promise<Result> => {
+    let stdinRead = 0
     const out: (string | Uint8Array)[] = []
     const err: string[] = []
     const stdout: Sink = { isTTY: over.tty ?? opts.tty ?? false, write: (c) => void out.push(c) }
@@ -53,7 +54,8 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
       env: { XDG_CONFIG_HOME: dir, XDG_CACHE_HOME: dir, ...opts.env, ...over.env },
       stdout,
       stderr,
-      readStdin: async () => over.stdin ?? opts.stdin ?? '',
+      // Like process.stdin: a second read of the same run finds the stream ended.
+      readStdin: async () => (stdinRead++ === 0 ? (over.stdin ?? opts.stdin ?? '') : ''),
       stdinIsTTY: over.stdinTTY ?? opts.stdinTTY ?? false,
       now: () => clock,
       // Default: time passes at once (the fake clock moves by `ms`); a test that needs real interleaving passes `sleep`.

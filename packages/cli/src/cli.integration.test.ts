@@ -172,6 +172,18 @@ describe('against the D1 app', () => {
     expect(res.code).toBe(0) // the chosen behaviour (decision): one refresh, then the filter
   })
 
+  it('a genuine usage error on a cached (non-fresh) command line answers as on a fresh cache: stdin is read once, nothing is sent ([[CORE136]] review)', async () => {
+    const r = await session()
+    const fresh = await r.run(['contacts', 'create', '--data', '-'], { stdin: '{not json' }) // no cache yet: discovery is fresh
+    expect(fresh.code).toBe(2)
+    const before = r.seen.length
+    const cached = await r.run(['contacts', 'create', '--data', '-'], { stdin: '{not json' }) // the cache written by the run above
+    expect(cached.code).toBe(2)
+    expect(cached.stderr).toBe(fresh.stderr)
+    expect(cached.stderr).toContain('--data is not valid JSON')
+    expect(r.seen.slice(before).filter((x) => x.method === 'POST')).toEqual([])
+  })
+
   it('--all on an operation that is not a list is a usage error', async () => {
     const r = await session()
     expect((await r.run(['me', 'get', '--all'])).code).toBe(2)
