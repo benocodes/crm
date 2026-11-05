@@ -49,3 +49,21 @@ export interface GmailMessageResource {
   sizeEstimate?: number
   payload?: GmailMessagePart
 }
+
+/** One history record, reduced to what capture reads ([[CHN5]] D6): only `messagesAdded`. Labels, deletions and the record's other message lists are dropped at the parser. */
+export interface GmailHistoryRecord {
+  id: string
+  messagesAdded: Array<{ message: { id: string; threadId?: string; labelIds?: string[] } }>
+}
+/** A `users.history.list` page. Gmail omits `history` on an empty page and `nextPageToken` on the last; the parser makes those `[]` and `null`. */
+export interface GmailHistoryPage {
+  history: GmailHistoryRecord[]
+  nextPageToken: string | null
+  /** The mailbox's current history id, as of this response. */
+  historyId: string | null
+}
+/** A `users.messages.list` page (ids only). Gmail omits `messages` when nothing matches and `nextPageToken` on the last page. */
+export interface GmailMessageList {
+  messages: Array<{ id: string; threadId?: string }>
+  nextPageToken: string | null
+}

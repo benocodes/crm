@@ -99,3 +99,48 @@ export async function verifyIdToken(idToken: string, p: { endpoints: GoogleEndpo
     throw new GoogleExchangeError('id_token')
   }
 }
+
+/** What a refresh answers: a fresh access token, and a NEW refresh token only when Google rotated it. */
+export interface RefreshedToken {
+  accessToken: string
+  refreshToken: string | null
+}
+/** A refresh that failed, as a short code only (never the body, the URL or a token). `invalid_grant` is Google's verdict on the grant itself ([[CHN5]] D68). */
+export class GoogleRefreshError extends Error {
+  override name = 'GoogleRefreshError'
+  constructor(readonly code: 'invalid_grant' | 'oauth_error' | 'token_endpoint' | 'bad_response') {
+    super(`Google refresh failed: ${code}`)
+  }
+}
+/**
+ * The refresh-token grant ([[CHN5]] D68): one POST of `grant_type=refresh_token`, the refresh token, client id and secret, as a form. A 400 whose
+ * `error` is `invalid_grant` is Google's verdict on the grant. Every other failure (another OAuth error, a non-2xx, a network error) is a different
+ * code. Nothing returned or thrown carries a response body, the URL, a token or the secret.
+ */
+export async function refreshAccessToken(p: { endpoints: GoogleEndpoints; clientId: string; clientSecret: string; refreshToken: string; fetch: typeof fetch }): Promise<RefreshedToken> {
+  let res: Response
+  try {
+    res = await p.fetch(p.endpoints.tokenUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: p.refreshToken, client_id: p.clientId, client_secret: p.clientSecret }).toString(),
+    })
+  } catch {
+    throw new GoogleRefreshError('token_endpoint')
+  }
+  let body: Record<string, unknown> = {}
+  try {
+    body = (await res.json()) as Record<string, unknown>
+  } catch {
+    // not JSON: classified by status below
+  }
+  if (!res.ok) {
+    if (res.status === 400 && body.error === 'invalid_grant') throw new GoogleRefreshError('invalid_grant')
+    if (res.status < 500 && typeof body.error === 'string') throw new GoogleRefreshError('oauth_error')
+    throw new GoogleRefreshError('token_endpoint')
+  }
+  const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+  const accessToken = str(body.access_token)
+  if (!accessToken) throw new GoogleRefreshError('bad_response')
+  return { accessToken, refreshToken: str(body.refresh_token) }
+}

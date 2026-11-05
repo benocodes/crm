@@ -53,6 +53,12 @@ export class FakeGoogle {
   private readonly grants = new Map<string, Grant>()
   private account: FakeAccount | null = null
   private tokenFailure: number | null = null
+  /** Refresh requests, as the form fields the vault sent (test-only: holds the refresh token the vault sent). */
+  readonly refreshRequests: Array<Record<string, string>> = []
+  private readonly validRefresh = new Set<string>()
+  private readonly revoked = new Set<string>()
+  private refreshFailure: 'invalid_client' | 'network' | number | null = null
+  private rotate = false
   /** The clock ID tokens are stamped with (epoch ms); a test that injects the app's clock sets this to follow it. */
   clock: () => number = () => Date.now()
   private n = 0
@@ -73,6 +79,29 @@ export class FakeGoogle {
   /** The token endpoint answers this status (and no tokens) from now on. */
   failToken(status: number | null): void {
     this.tokenFailure = status
+  }
+  /** A refresh token Google would accept, as if a person had consented (setup for a capture test that skips the connect flow). */
+  issueRefreshToken(): string {
+    const rt = `rt-${crypto.randomUUID()}`
+    this.refreshTokens.push(rt)
+    this.validRefresh.add(rt)
+    return rt
+  }
+  /** Google now answers `invalid_grant` for this refresh token (the person revoked access). */
+  revoke(refreshToken: string): void {
+    this.revoked.add(refreshToken)
+  }
+  /** Refresh requests fail as `invalid_client`, with an HTTP status, or by a network error; null restores. */
+  failRefresh(mode: 'invalid_client' | 'network' | number | null): void {
+    this.refreshFailure = mode
+  }
+  /** A refresh response carries a NEW refresh token (the old one stays valid, as Google keeps it until used elsewhere). */
+  rotateRefreshTokens(on: boolean): void {
+    this.rotate = on
+  }
+  /** True for an access token this fake issued. */
+  isAccessToken(t: string): boolean {
+    return this.accessTokens.includes(t)
   }
   /** The account whose Gmail endpoints answer (set by `consent`). */
   signedInAs(account: FakeAccount): void {
@@ -148,9 +177,29 @@ export class FakeGoogle {
     return auth.startsWith('Bearer ') && this.accessTokens.includes(auth.slice(7))
   }
 
+  private refresh(form: URLSearchParams): Response {
+    this.refreshRequests.push(Object.fromEntries(form.entries()))
+    if (this.refreshFailure === 'network') throw new TypeError('fetch failed')
+    if (typeof this.refreshFailure === 'number') return this.json({ error: 'backend_error', error_description: 'secret provider text' }, this.refreshFailure)
+    const bad = (error: string, status = 400) => this.json({ error, error_description: 'secret provider text' }, status)
+    if (this.refreshFailure === 'invalid_client' || form.get('client_id') !== this.clientId || form.get('client_secret') !== this.clientSecret) return bad('invalid_client', 401)
+    const rt = form.get('refresh_token') ?? ''
+    if (!this.validRefresh.has(rt) || this.revoked.has(rt)) return bad('invalid_grant')
+    const access = `at-${crypto.randomUUID()}`
+    this.accessTokens.push(access)
+    let next: string | null = null
+    if (this.rotate) {
+      next = `rt-${crypto.randomUUID()}`
+      this.refreshTokens.push(next)
+      this.validRefresh.add(next)
+    }
+    return this.json({ access_token: access, expires_in: 3599, scope: 'openid email https://www.googleapis.com/auth/gmail.readonly', token_type: 'Bearer', ...(next ? { refresh_token: next } : {}) })
+  }
+
   private async token(req: Request): Promise<Response> {
     if (this.tokenFailure !== null) return this.json({ error: 'invalid_request', error_description: 'secret provider text' }, this.tokenFailure)
     const form = new URLSearchParams(await req.text())
+    if (form.get('grant_type') === 'refresh_token') return this.refresh(form)
     const grant = this.grants.get(form.get('code') ?? '')
     const bad = (error: string) => this.json({ error, error_description: 'secret provider text' }, 400)
     if (form.get('grant_type') !== 'authorization_code') return bad('unsupported_grant_type')
@@ -159,6 +208,7 @@ export class FakeGoogle {
     if (form.get('redirect_uri') !== grant.redirectUri) return bad('redirect_uri_mismatch')
     if ((await sha256Url(form.get('code_verifier') ?? '')) !== grant.challenge) return bad('invalid_grant')
     grant.used = true
+    if (grant.refreshToken) this.validRefresh.add(grant.refreshToken)
     const access = `at-${crypto.randomUUID()}`
     this.accessTokens.push(access)
     const now = Math.floor(this.clock() / 1000)

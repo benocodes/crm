@@ -12,6 +12,7 @@
     "./test/objects": "./src/test/objects.ts",
     "./test/channels": "./src/test/channels.ts",
     "./test/gmail": "./src/test/gmail.ts",
+    "./test/gmail-sync": "./src/test/gmail-sync.ts",
     "./test/google": "./src/test/google.ts",
     "./test/gmail-fixtures": "./src/test/gmail-fixtures.ts",
     "./test/streams": "./src/test/streams.ts"

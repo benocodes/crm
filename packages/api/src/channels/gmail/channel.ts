@@ -18,7 +18,11 @@ function fetchErrorCode(err: unknown): string {
 export class GmailChannel implements ChannelPort<GmailConnection> {
   readonly channel = 'email' as const
 
-  constructor(private readonly client: GmailClient) {}
+  /** `accept`, when given, is the label rule applied to the FETCHED message ([[CHN5]] D70): the scans use it, since a list returns no labels. A refusal is the skip `label`. */
+  constructor(
+    private readonly client: GmailClient,
+    private readonly opts: { accept?: (labelIds: readonly string[] | undefined) => boolean } = {},
+  ) {}
 
   async readMessage(conn: GmailConnection, providerMessageId: string): Promise<ChannelMessage | { skip: string }> {
     let resource
@@ -29,6 +33,7 @@ export class GmailChannel implements ChannelPort<GmailConnection> {
       if (err instanceof GmailApiError && err.status === 404) return { skip: 'not_found' }
       throw err
     }
+    if (this.opts.accept && !this.opts.accept(resource.labelIds)) return { skip: 'label' }
     return mapGmailMessage({
       conn,
       resource,

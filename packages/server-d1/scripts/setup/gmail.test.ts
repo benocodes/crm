@@ -143,6 +143,9 @@ describe('validation: each rule refuses its bad case, by variable name, before a
     ['GMAIL_BACKFILL_DAYS negative', { GMAIL_BACKFILL_DAYS: '-3' }],
     ['GMAIL_BACKFILL_DAYS words', { GMAIL_BACKFILL_DAYS: 'thirty' }],
     ['ATTACHMENT_MAX_BYTES zero', { ATTACHMENT_MAX_BYTES: '0' }],
+    // [[CHN149]] D71: only the Worker's own parser refuses a ten-digit value (setup's former rule allowed sixteen digits).
+    ['GMAIL_BACKFILL_DAYS of 10 digits', { GMAIL_BACKFILL_DAYS: '1234567890' }],
+    ['ATTACHMENT_MAX_BYTES of 10 digits', { ATTACHMENT_MAX_BYTES: '1234567890' }],
     ['PUBLIC_BASE_URL over http', { PUBLIC_BASE_URL: 'http://sentinel-public.example.test' }],
     ['PUBLIC_BASE_URL relative', { PUBLIC_BASE_URL: '/sentinel/path' }],
     ['CONNECT_RETURN_URL over http', { CONNECT_RETURN_URL: 'http://sentinel-return.example.test' }],

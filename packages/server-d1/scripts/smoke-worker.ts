@@ -37,14 +37,15 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 
 /** Every line Miniflare and the Worker's console print (workerd's stdout and stderr), kept for the secret-absence check. */
 const logLines: string[] = []
-const capture = (stream: NodeJS.ReadableStream) => {
+const pipelineLogLines: string[] = []
+const capture = (stream: NodeJS.ReadableStream, into: string[] = logLines) => {
   let rest = ''
   stream.on('data', (chunk: Buffer) => {
     const parts = (rest + chunk.toString()).split('\n')
     rest = parts.pop() ?? ''
-    logLines.push(...parts)
+    into.push(...parts)
   })
-  stream.on('end', () => rest && logLines.push(rest))
+  stream.on('end', () => rest && into.push(rest))
 }
 
 const workerDir = mkdtempSync(join(tmpdir(), 'vault-d1-worker-'))
@@ -463,6 +464,10 @@ try {
     d1Databases: { DB: `pipeline-${crypto.randomUUID()}` },
     d1Persist: false,
     r2Buckets: ['BODIES'],
+    handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
+      capture(stdout, pipelineLogLines)
+      capture(stderr, pipelineLogLines)
+    },
     bindings: { AUTH_ORG_ID: 'org_pipeline' },
   })
   const pipelineBase = await pipelineMf.ready
@@ -529,6 +534,23 @@ try {
   const gRows = await pRows("select count(*) as n from message_sources where provider_message_id like 'g-%'")
   const gEvents = await pRows("select count(*) as n from events where type = 'message.created'")
   check('42 the Gmail path in workerd: four messages with sources and events beside the FakeChannel ones', Number(gRows[0]!.n) === 4 && Number(gEvents[0]!.n) === 7, { gRows, gEvents })
+
+  // P1-P4: the capture pages in workerd ([[CHN149]]): a backfill, then a history page, through the smoke pipeline bundle (which holds the page code;
+  // `src/worker.ts` tree-shakes it). A fake token endpoint, Web Crypto sealing and opening of the refresh token, Miniflare's D1 and R2.
+  const pagesRun = await fetch(new URL('/gmail-pages', pipelineBase))
+  const pages = (await pagesRun.json()) as { run?: { outcome: string; captured: number; scans: string[]; pages: number }; connectionId?: string; hosts?: string[]; secrets?: string[]; error?: string }
+  const pageSources = await pRows("select provider_message_id as p, created_by as c from message_sources where provider_message_id like 'p-%'")
+  const pageCursor = ((await pd1.prepare('select history_id, page_token, last_synced_at from mail_sync_cursors where connection_id = ?').bind(pages.connectionId ?? '').first()) as Record<string, unknown> | null)
+  check(
+    'P1 the capture pages in workerd: a backfill then a history page capture the mail through the pipeline',
+    pagesRun.status === 200 && pages.run?.outcome === 'complete' && pages.run.captured === 3 && pages.run.scans.join() === 'backfill' && pageSources.map((r) => r.p).sort().join() === 'p-in,p-new,p-sent',
+    { status: pagesRun.status, pages, pageSources },
+  )
+  check('P2 the capture pages in workerd: the cursor holds the history page\'s id and the last-synced stamp', pageCursor?.history_id === '1002' && pageCursor?.page_token === null && typeof pageCursor.last_synced_at === 'string', pageCursor)
+  const credRows = await pRows('select refresh_token_ciphertext as c from channel_credentials')
+  check('P3 the capture pages in workerd: only the faked token host was reached, and the stored credential is not the refresh token', JSON.stringify(pages.hosts) === JSON.stringify(['https://oauth2.googleapis.com']) && credRows.length >= 1 && credRows.every((r) => !(pages.secrets ?? []).some((s) => String(r.c).includes(s))), { hosts: pages.hosts })
+  const pageLogText = pipelineLogLines.join('\n')
+  check('P4 the capture pages in workerd: no token or client secret in any runtime log line', (pages.secrets ?? []).length > 2 && (pages.secrets ?? []).every((s) => !pageLogText.includes(s)), { lines: pipelineLogLines.length })
 } catch (err) {
   failures++
   console.log(`FAIL smoke aborted -> ${err instanceof Error ? err.message : String(err)}`)

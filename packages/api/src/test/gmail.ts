@@ -2,8 +2,8 @@
 // tree that yields BOTH the `format=full` resource and the RFC 822 original, and `FakeGmail`, a `GmailClient` over them that serves
 // `format=raw` and attachment bodies in Gmail's wire form (JSON with one base64url member) in chunks it can vary. Web APIs only: the
 // workerd smoke bundles this file. Not in the production barrel.
-import { GmailApiError, type GmailClient } from '../channels/gmail/client.js'
-import type { GmailMessagePart, GmailMessageResource, GmailProfile, GmailSendAs } from '../channels/gmail/types.js'
+import { GmailApiError, parseHistoryList, parseMessageList, type GmailClient } from '../channels/gmail/client.js'
+import type { GmailHistoryPage, GmailMessageList, GmailMessagePart, GmailMessageResource, GmailProfile, GmailSendAs } from '../channels/gmail/types.js'
 
 const enc = new TextEncoder()
 
@@ -146,7 +146,17 @@ export function chunkedStream(bytes: Uint8Array, size: number | ((index: number)
   })
 }
 
-export type FakeGmailCall = { op: 'full' | 'raw' | 'attachment'; messageId: string; attachmentId?: string }
+/** `messageId` is '' for the two list calls, which carry `startHistoryId` / `q` and `pageToken` instead. */
+export type FakeGmailCall = { op: 'full' | 'raw' | 'attachment' | 'history' | 'list'; messageId: string; attachmentId?: string; startHistoryId?: string; q?: string; pageToken?: string | null }
+
+/** One scripted history record ([[CHN5]] D72). `added` entries carry labels as Gmail sends them on the record; `labels: undefined` omits `labelIds`. */
+export interface FakeHistoryRecord {
+  id: string
+  added?: Array<{ id: string; labels?: string[] }>
+  /** Records of the kinds capture ignores ([[CHN5]] D6). */
+  labelsAdded?: Array<{ id: string; labelIds: string[] }>
+  deleted?: string[]
+}
 
 export class FakeGmail implements GmailClient {
   /** Every call, in order. */
@@ -160,6 +170,14 @@ export class FakeGmail implements GmailClient {
   readonly accountCalls: Array<'profile' | 'send_as'> = []
   profile: GmailProfile
   sendAs: GmailSendAs[]
+  /** The mailbox's history, in id order. Served by `listHistory` in Gmail's wire form, omissions included. */
+  readonly history: FakeHistoryRecord[] = []
+  /** A `startHistoryId` below this is Gmail's `404` (history no longer held). */
+  expireHistoryBefore = 0
+  /** Ids a list returns whatever the query says (a label can change between the list and the get). */
+  readonly extraListed: string[] = []
+  /** When set, called before every message, history and list call: the access token source, the way `HttpGmailClient` asks per request. A token `valid` refuses is a `401`. */
+  private tokenSource: { token: () => Promise<string>; valid: (t: string) => boolean } | null = null
 
   constructor(messages: Iterable<BuiltGmailMessage> = [], opts: { chunk?: number | ((index: number) => number); profile?: GmailProfile; sendAs?: GmailSendAs[] } = {}) {
     this.chunk = opts.chunk ?? 4096
@@ -171,6 +189,76 @@ export class FakeGmail implements GmailClient {
   add(message: BuiltGmailMessage): this {
     this.messages.set(message.resource.id, message)
     return this
+  }
+
+  clearFailures(): this {
+    this.failures.length = 0
+    return this
+  }
+
+  /** Makes every call ask `token()` first and answer `401` unless `valid(token)`. A token source that throws fails the call before it is logged. */
+  withToken(token: () => Promise<string>, valid: (t: string) => boolean): this {
+    this.tokenSource = { token, valid }
+    return this
+  }
+  private async authenticate(): Promise<void> {
+    if (!this.tokenSource) return
+    const t = await this.tokenSource.token()
+    if (!this.tokenSource.valid(t)) throw new GmailApiError({ status: 401, gmailStatus: 'UNAUTHENTICATED' })
+  }
+  private enterList(call: FakeGmailCall): void {
+    this.calls.push(call)
+    const failure = this.failures.find((f) => f.match(call))
+    if (failure) throw failure.error
+  }
+
+  /** Gmail's `users.history.list` body for a request: no `history` member when empty, no `nextPageToken` on the last page. */
+  historyWire(startHistoryId: string, pageToken: string | null | undefined, maxResults: number): Record<string, unknown> {
+    if (Number(startHistoryId) < this.expireHistoryBefore) throw new GmailApiError({ status: 404, gmailStatus: 'NOT_FOUND', reason: 'notFound' })
+    const all = this.history.filter((r) => Number(r.id) > Number(startHistoryId))
+    const at = pageToken ? Number(pageToken.replace(/^h/, '')) : 0
+    const slice = all.slice(at, at + maxResults)
+    const wire = (r: FakeHistoryRecord) => {
+      const msg = (id: string, labels?: string[]) => ({ id, threadId: this.messages.get(id)?.resource.threadId ?? `t-${id}`, ...(labels ? { labelIds: labels } : {}) })
+      return {
+        id: r.id,
+        messages: [...(r.added ?? []).map((a) => msg(a.id))],
+        ...((r.added?.length ?? 0) > 0 ? { messagesAdded: r.added!.map((a) => ({ message: msg(a.id, a.labels) })) } : {}),
+        ...(r.deleted?.length ? { messagesDeleted: r.deleted.map((id) => ({ message: msg(id) })) } : {}),
+        ...(r.labelsAdded?.length ? { labelsAdded: r.labelsAdded.map((l) => ({ message: msg(l.id), labelIds: l.labelIds })) } : {}),
+      }
+    }
+    return {
+      ...(slice.length > 0 ? { history: slice.map(wire) } : {}),
+      ...(at + maxResults < all.length ? { nextPageToken: `h${at + maxResults}` } : {}),
+      historyId: this.profile.historyId,
+    }
+  }
+  /** Gmail's `users.messages.list` body: matches of `after:<unix seconds> {in:inbox in:sent}` plus `extraListed`; no `messages` member when empty. */
+  messageListWire(q: string, pageToken: string | null | undefined, maxResults: number): Record<string, unknown> {
+    const after = Number(/after:(\d+)/.exec(q)?.[1] ?? 0)
+    const matching = [...this.messages.values()].filter((m) => {
+      const labels = m.resource.labelIds ?? []
+      return (labels.includes('INBOX') || labels.includes('SENT')) && Number(m.resource.internalDate) / 1000 >= after
+    })
+    const ids = [...new Set([...matching.map((m) => m.resource.id), ...this.extraListed])]
+    const at = pageToken ? Number(pageToken.replace(/^m/, '')) : 0
+    const slice = ids.slice(at, at + maxResults)
+    return {
+      ...(slice.length > 0 ? { messages: slice.map((id) => ({ id, threadId: this.messages.get(id)?.resource.threadId ?? `t-${id}` })) } : {}),
+      ...(at + maxResults < ids.length ? { nextPageToken: `m${at + maxResults}` } : {}),
+      resultSizeEstimate: ids.length,
+    }
+  }
+  async listHistory(p: { startHistoryId: string; pageToken?: string | null; maxResults: number; historyTypes: readonly string[] }): Promise<GmailHistoryPage> {
+    await this.authenticate()
+    this.enterList({ op: 'history', messageId: '', startHistoryId: p.startHistoryId, pageToken: p.pageToken ?? null })
+    return parseHistoryList(this.historyWire(p.startHistoryId, p.pageToken, p.maxResults))
+  }
+  async listMessages(p: { q: string; pageToken?: string | null; maxResults: number }): Promise<GmailMessageList> {
+    await this.authenticate()
+    this.enterList({ op: 'list', messageId: '', q: p.q, pageToken: p.pageToken ?? null })
+    return parseMessageList(this.messageListWire(p.q, p.pageToken, p.maxResults))
   }
 
   /** Makes calls matching `match` throw `error`. */
@@ -197,12 +285,15 @@ export class FakeGmail implements GmailClient {
     return structuredClone(this.sendAs)
   }
   async getMessageFull(messageId: string): Promise<GmailMessageResource> {
+    await this.authenticate()
     return structuredClone(this.enter({ op: 'full', messageId }).resource)
   }
   async getMessageRaw(messageId: string): Promise<ReadableStream<Uint8Array>> {
+    await this.authenticate()
     return chunkedStream(rawWire(this.enter({ op: 'raw', messageId })), this.chunk)
   }
   async getAttachment(messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>> {
+    await this.authenticate()
     const message = this.enter({ op: 'attachment', messageId, attachmentId })
     const bytes = message.attachments.get(attachmentId)
     if (!bytes) throw new GmailApiError({ status: 404, gmailStatus: 'NOT_FOUND', reason: 'notFound' })

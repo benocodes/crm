@@ -52,3 +52,31 @@ describe('parseGmailConfig (D58)', () => {
     for (const value of [FULL.GOOGLE_CLIENT_ID, FULL.OAUTH_STATE_SECRET, 'bad-key-value-zzz']) expect(notice).not.toContain(value)
   })
 })
+
+// [[CHN5]] D71 ([[CHN149]]): the two capture values are parsed here, with defaults, and a malformed one is named without its value.
+describe('GMAIL_BACKFILL_DAYS and ATTACHMENT_MAX_BYTES (D71)', () => {
+  it('default to 30 days and 50 MiB', () => {
+    expect(parseGmailConfig(FULL).config).toMatchObject({ backfillDays: 30, attachmentMaxBytes: 50 * 1024 * 1024 })
+  })
+  it('read both values', () => {
+    expect(parseGmailConfig({ ...FULL, GMAIL_BACKFILL_DAYS: '7', ATTACHMENT_MAX_BYTES: '1048576' }).config).toMatchObject({ backfillDays: 7, attachmentMaxBytes: 1048576 })
+  })
+  it.each([
+    ['GMAIL_BACKFILL_DAYS', '0'],
+    ['GMAIL_BACKFILL_DAYS', '-3'],
+    ['GMAIL_BACKFILL_DAYS', 'thirty'],
+    ['GMAIL_BACKFILL_DAYS', '1.5'],
+    ['GMAIL_BACKFILL_DAYS', '1234567890'],
+    ['ATTACHMENT_MAX_BYTES', '0'],
+    ['ATTACHMENT_MAX_BYTES', '12 MB'],
+    ['ATTACHMENT_MAX_BYTES', '1234567890'],
+  ])('%s "%s" is a named problem that turns the surface off, and the notice carries no value', (name, value) => {
+    const { config, problems } = parseGmailConfig({ ...FULL, [name]: value })
+    expect(config).toBeNull()
+    expect(problems).toEqual([name])
+    expect(gmailConfigNotice(problems)).not.toContain(value)
+  })
+  it('the largest accepted value has nine digits', () => {
+    expect(parseGmailConfig({ ...FULL, GMAIL_BACKFILL_DAYS: '999999999' }).config?.backfillDays).toBe(999999999)
+  })
+})

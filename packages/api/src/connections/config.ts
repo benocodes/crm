@@ -1,6 +1,8 @@
 // The Gmail surface's configuration ([[CHN5]] D58, "Configuration"). The surface is configured when the four required values are set and
 // `CREDENTIALS_KEY` decodes (base64) to exactly 32 bytes; anything else is a problem NAMED here, never a value (the notice is logged).
 
+import { ATTACHMENT_MAX_BYTES } from '../messaging/store-content.js'
+
 export interface GmailConfig {
   clientId: string
   clientSecret: string
@@ -13,6 +15,10 @@ export interface GmailConfig {
   publicBaseUrl: string | null
   /** `CONNECT_RETURN_URL`: where the callback redirects; null shows the built-in page ([[CHN5]] D32). */
   returnUrl: string | null
+  /** `GMAIL_BACKFILL_DAYS`, default 30 ([[CHN5]] D71). */
+  backfillDays: number
+  /** `ATTACHMENT_MAX_BYTES`, default 50 MiB ([[CORE25]] D38). */
+  attachmentMaxBytes: number
 }
 
 const REQUIRED = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'] as const
@@ -44,6 +50,18 @@ export function parseGmailConfig(env: Record<string, string | undefined>): { con
     if (!/^[1-9]\d{0,8}$/.test(raw)) problems.push('CREDENTIALS_KEY_VERSION')
     else keyVersion = Number(raw)
   }
+  const positive = (name: 'GMAIL_BACKFILL_DAYS' | 'ATTACHMENT_MAX_BYTES', fallback: number): number => {
+    const raw = env[name]
+    if (raw === undefined) return fallback
+    const t = raw.trim()
+    if (!/^[1-9]\d{0,8}$/.test(t)) {
+      problems.push(name)
+      return fallback
+    }
+    return Number(t)
+  }
+  const backfillDays = positive('GMAIL_BACKFILL_DAYS', 30)
+  const attachmentMaxBytes = positive('ATTACHMENT_MAX_BYTES', ATTACHMENT_MAX_BYTES)
   if (problems.length > 0) return { config: null, problems: [...new Set(problems)] }
   return {
     config: {
@@ -54,6 +72,8 @@ export function parseGmailConfig(env: Record<string, string | undefined>): { con
       keyVersion,
       publicBaseUrl: present(env.PUBLIC_BASE_URL) ? env.PUBLIC_BASE_URL.trim().replace(/\/+$/, '') : null,
       returnUrl: present(env.CONNECT_RETURN_URL) ? env.CONNECT_RETURN_URL.trim() : null,
+      backfillDays,
+      attachmentMaxBytes,
     },
     problems: [],
   }
