@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { composeD1Worker } from '@vault/server-d1/compose'
 import { bootstrapD1 } from '@vault/server-d1/bootstrap'
@@ -125,6 +127,20 @@ describe('against the D1 app', () => {
     expect(refused.code).toBe(1)
     expect(JSON.parse(refused.stderr).error.message).toContain('deals.move_stage')
     expect((await json(['pipelines', 'get', p.id])).name).toBe('Prospecting')
+  })
+
+  it('a cache that predates deals: `deals` alone refreshes and gives resource help, exit 2, no TypeError', async () => {
+    const r = await session()
+    await ok(r, ['contacts', 'list']) // writes the discovery cache
+    const file = join(r.cacheDir, readdirSync(r.cacheDir).find((f) => f.startsWith('discovery-'))!)
+    const cache = JSON.parse(readFileSync(file, 'utf8'))
+    cache.ops = cache.ops.filter((o: any) => !/^(deals|pipelines|pipeline_stages)\./.test(o.id))
+    writeFileSync(file, JSON.stringify(cache))
+    const res = await r.run(['deals'])
+    expect(res.stderr).not.toMatch(/TypeError/)
+    expect(res.code).toBe(2)
+    expect(res.stdout).toContain('move-stage')
+    expect(res.stdout).toContain('create')
   })
 
   it('--all on an operation that is not a list is a usage error', async () => {
