@@ -46,13 +46,31 @@ const obj = (v: unknown): Record<string, unknown> => (v !== null && typeof v ===
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
 
 /** Parses a `users.history.list` body leniently ([[CHN5]] D72): absent arrays are empty, unknown fields are ignored, only `messagesAdded` is read. */
-export function parseHistoryList(_body: unknown): GmailHistoryPage {
-  throw new Error('not implemented')
+export function parseHistoryList(body: unknown): GmailHistoryPage {
+  const b = obj(body)
+  const history = arr(b.history).flatMap((r) => {
+    const rec = obj(r)
+    const messagesAdded = arr(rec.messagesAdded).flatMap((a) => {
+      const m = obj(obj(a).message)
+      const id = str(m.id)
+      if (id === null) return []
+      const threadId = str(m.threadId)
+      return [{ message: { id, ...(threadId ? { threadId } : {}), ...(Array.isArray(m.labelIds) ? { labelIds: m.labelIds.filter((l): l is string => typeof l === 'string') } : {}) } }]
+    })
+    return [{ id: str(rec.id) ?? '', messagesAdded }]
+  })
+  return { history, nextPageToken: str(b.nextPageToken), historyId: str(b.historyId) }
 }
 
 /** Parses a `users.messages.list` body leniently ([[CHN5]] D72): no `messages` member is an empty page. */
-export function parseMessageList(_body: unknown): GmailMessageList {
-  throw new Error('not implemented')
+export function parseMessageList(body: unknown): GmailMessageList {
+  const b = obj(body)
+  const messages = arr(b.messages).flatMap((m) => {
+    const id = str(obj(m).id)
+    const threadId = str(obj(m).threadId)
+    return id === null ? [] : [{ id, ...(threadId ? { threadId } : {}) }]
+  })
+  return { messages, nextPageToken: str(b.nextPageToken) }
 }
 
 export interface HttpGmailClientOptions {

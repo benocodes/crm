@@ -34,7 +34,6 @@ export interface Gmail {
   file: string
 }
 
-const positiveInt = (v: string) => /^[1-9]\d{0,15}$/.test(v)
 const httpsUrl = (v: string) => {
   try {
     return new URL(v).protocol === 'https:'
@@ -42,14 +41,14 @@ const httpsUrl = (v: string) => {
     return false
   }
 }
-/** `CREDENTIALS_KEY` and `CREDENTIALS_KEY_VERSION` are judged by the Worker's own parser (`parseGmailConfig`), so setup can never accept what the Worker rejects. */
+/** `CREDENTIALS_KEY`, `CREDENTIALS_KEY_VERSION`, `GMAIL_BACKFILL_DAYS` and `ATTACHMENT_MAX_BYTES` are judged by the Worker's own parser (`parseGmailConfig`), so setup can never accept what the Worker rejects. */
 const WORKER_RULES: Record<string, string> = {
   CREDENTIALS_KEY: 'must be standard-alphabet, padded base64 that decodes to exactly 32 bytes (what the Worker accepts)',
   CREDENTIALS_KEY_VERSION: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
+  GMAIL_BACKFILL_DAYS: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
+  ATTACHMENT_MAX_BYTES: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
 }
 const RULES: Record<string, [(v: string) => boolean, string]> = {
-  GMAIL_BACKFILL_DAYS: [positiveInt, 'must be a positive integer'],
-  ATTACHMENT_MAX_BYTES: [positiveInt, 'must be a positive integer'],
   PUBLIC_BASE_URL: [httpsUrl, 'must be an absolute https URL'],
   CONNECT_RETURN_URL: [httpsUrl, 'must be an absolute https URL'],
   GMAIL_TOPIC_NAME: [(v) => /^projects\/[^/\s]+\/topics\/[^/\s]+$/.test(v), 'must look like projects/<project>/topics/<topic>'],

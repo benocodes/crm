@@ -245,6 +245,7 @@ describe('backfill', () => {
 
   it('an empty mailbox completes and sets last_synced_at', async () => {
     const s = await setup({ synced: null })
+    s.gmail.profile.historyId = '1000'
     const run = await runGmailSync(s.deps, s.id)
     expect(run).toMatchObject({ outcome: 'complete', captured: 0, scans: ['backfill'] })
     expect(await cursor()).toMatchObject({ history_id: '1000', page_token: null, last_synced_at: now.toISOString() })
