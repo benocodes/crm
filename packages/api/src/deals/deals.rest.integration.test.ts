@@ -95,6 +95,27 @@ describe('deals over REST', () => {
   })
 })
 
+describe('deal links over REST (CORE136)', () => {
+  it('links a deal to a company, filters by company_id, embeds the edges, and the filter needs contacts:read for contact_id', async () => {
+    const { open } = await setup()
+    const ALL = [...FULL, 'companies:read', 'companies:write', 'contacts:read', 'associations:read', 'associations:write']
+    const d = (await call(ALL, 'POST', '/api/v1/deals', { name: 'D', stage_id: open.id })).body
+    await call(ALL, 'POST', '/api/v1/deals', { name: 'Other', stage_id: open.id })
+    const co = (await call(ALL, 'POST', '/api/v1/companies', { name: 'Acme' })).body
+    expect((await call(ALL, 'POST', '/api/v1/associations', { a_type: 'companies', a_id: co.id, b_type: 'deals', b_id: d.id })).status).toBe(201)
+    expect((await call(ALL, 'GET', `/api/v1/deals?company_id=${co.id}`)).body.data.map((x: any) => x.id)).toEqual([d.id])
+    expect((await call(ALL, 'GET', `/api/v1/deals/${d.id}?include=associations`)).body.associations).toHaveLength(1)
+    const noContacts = ALL.filter((x) => x !== 'contacts:read')
+    const denied = await call(noContacts, 'GET', `/api/v1/deals?contact_id=${co.id}`)
+    expect([denied.status, denied.body.error.code]).toEqual([403, 'insufficient_scope'])
+    expect(denied.body.error.message).toContain('contacts:read')
+    const noAssoc = await call(ALL.filter((x) => x !== 'associations:read'), 'GET', `/api/v1/deals?company_id=${co.id}`)
+    expect([noAssoc.status, noAssoc.body.error.code]).toEqual([403, 'insufficient_scope'])
+    expect(noAssoc.body.error.message).toContain('associations:read')
+    expect((await call(ALL, 'POST', '/api/v1/associations', { a_type: 'deals', a_id: d.id, b_type: 'deals', b_id: d.id })).status).toBe(400)
+  })
+})
+
 describe('scopes (D16)', () => {
   it('deals:write alone creates and moves a deal, with no pipelines:read; it cannot read deals or pipelines', async () => {
     const { open, won } = await setup()

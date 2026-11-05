@@ -5,8 +5,8 @@ import { createVaultRegistry } from '../operations.js'
 describe('associations registration', () => {
   const registry = createVaultRegistry()
 
-  it('exactly contacts, companies, tasks, notes, tags, threads and interactions are associable', () => {
-    expect(registry.resources().filter((d) => d.associable).map((d) => d.table).sort()).toEqual(['companies', 'contacts', 'interactions', 'notes', 'tags', 'tasks', 'threads'])
+  it('exactly contacts, companies, deals, tasks, notes, tags, threads and interactions are associable', () => {
+    expect(registry.resources().filter((d) => d.associable).map((d) => d.table).sort()).toEqual(['companies', 'contacts', 'deals', 'interactions', 'notes', 'tags', 'tasks', 'threads'])
   })
 
   it('declares associations.create/get/delete/list under the associations scopes', () => {
