@@ -106,14 +106,30 @@ describe('tags tools (CORE129 D14)', () => {
 
 describe('derived contact activity ([[CORE131]] D12)', () => {
   const SIX = ['contacted_since', 'not_contacted_since', 'never_contacted', 'interacted_since', 'not_interacted_since', 'never_interacted']
-  it('contacts_list takes the six filters with descriptions, and no sort parameter yet', () => {
-    const props = (byName('contacts_list').tool.inputSchema as { properties: Record<string, { description?: string }> }).properties
+  it('contacts_list takes the six filters with descriptions, and sort and order ([[CORE133]] D12)', () => {
+    const props = (byName('contacts_list').tool.inputSchema as { properties: Record<string, { description?: string; enum?: string[]; type?: string; format?: string }> }).properties
     for (const f of SIX) {
       expect(props[f], f).toBeDefined()
       expect(props[f]!.description ?? '', `${f} description`).not.toBe('')
     }
-    expect(props).not.toHaveProperty('sort')
-    expect(props).not.toHaveProperty('order')
+    expect(props.sort!.enum).toEqual(['last_contacted_at', 'last_interacted_at'])
+    expect(props.order!.enum).toEqual(['asc', 'desc'])
+    expect(props.sort!.description ?? '').toMatch(/repeat in asc/)
+  })
+  it('contacts_list types after and next_cursor as plain opaque strings; other lists keep uuid ([[CORE133]] D9)', () => {
+    const input = byName('contacts_list').tool.inputSchema as { properties: Record<string, Record<string, unknown>> }
+    expect(input.properties.after).toMatchObject({ type: 'string' })
+    expect(input.properties.after).not.toHaveProperty('format')
+    expect(String(input.properties.after!.description)).toMatch(/opaque/i)
+    const out = byName('contacts_list').tool.outputSchema as { properties: { next_cursor: Record<string, unknown> } }
+    expect(JSON.stringify(out.properties.next_cursor)).not.toContain('uuid')
+    expect(JSON.stringify(out.properties.next_cursor)).toContain('string')
+    for (const n of ['tasks_list', 'deals_list', 'companies_list']) {
+      const other = byName(n).tool
+      expect(JSON.stringify((other.inputSchema as { properties: Record<string, unknown> }).properties.after), n).toContain('uuid')
+      expect(JSON.stringify((other.outputSchema as { properties: Record<string, unknown> }).properties.next_cursor), n).toContain('uuid')
+      expect(Object.keys((other.inputSchema as { properties: object }).properties), n).not.toContain('sort')
+    }
   })
   it('the contacts_list output record carries the two fields, optional', () => {
     const out = byName('contacts_list').tool.outputSchema as { properties: { data: { items: { properties: Record<string, unknown>; required?: string[] } } } }

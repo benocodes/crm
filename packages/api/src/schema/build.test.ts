@@ -112,9 +112,16 @@ describe('derived fields ([[CORE131]] D11)', () => {
       description: 'When we last wrote.',
       requires: 'interactions:read',
       filters: ['contacted_since', 'not_contacted_since', 'never_contacted'],
-      sortable: false,
+      sortable: true,
     })
     expect(table(doc, 'contacts').derived[1]).toMatchObject({ label: 'Last interacted at', description: 'When we last talked.' })
+  })
+  it('sortable reads from the definition\'s sorts: true for both contact fields, false for a derived field outside sorts (deals.status)', () => {
+    const doc = build({ catalog: withText })
+    expect(table(doc, 'contacts').derived.map((d: any) => [d.name, d.sortable])).toEqual([['last_contacted_at', true], ['last_interacted_at', true]])
+    const deals = resourcesByTable(defs).get('deals')
+    expect(deals?.derived?.status).toBeDefined()
+    expect(deals?.sorts ?? []).not.toContain('status')
   })
   it('a derived field without catalog text is listed with description null (the completeness test, not the builder, fails it)', () => {
     expect(table(build(), 'contacts').derived[0].description).toBeNull()

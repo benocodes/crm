@@ -39,3 +39,23 @@ describe('derived declarations are checked when the definition is built (D1)', (
     expect(() => define({ derived: { age: { ...derivedField, filters: ['nope'] } } })).toThrow(/derived "age".*nope/)
   })
 })
+
+describe('sorts are checked when the definition is built ([[CORE133]] D8)', () => {
+  it('a sorts name that is a derived field is accepted', () => {
+    expect(() => define({ derived: { age: derivedField }, sorts: ['age'] })).not.toThrow()
+  })
+  it('a sorts name that is not a derived field is refused: a column, a record field, or nothing at all', () => {
+    expect(() => define({ derived: { age: derivedField }, sorts: ['title'] })).toThrow(/sorts "title".*not a derived field/)
+    expect(() => define({ derived: { age: derivedField }, sorts: ['ghost'] })).toThrow(/sorts "ghost".*not a derived field/)
+    expect(() => define({ sorts: ['age'] })).toThrow(/sorts "age".*not a derived field/)
+  })
+  it('a derived field of a kind with no order (boolean) is refused', () => {
+    expect(() => define({ record: record({ flag: z.boolean().nullable().optional() }), derived: { flag: { kind: 'boolean', expression } }, sorts: ['flag'] })).toThrow(/sorts "flag".*boolean/)
+  })
+  it('a list that declares sorts cannot also have a filter named sort or order, or a repeated name', () => {
+    expect(() => define({ derived: { age: derivedField }, sorts: ['age'], filters: { sort: { schema: z.string() } } })).toThrow(/"sort"/)
+    const join = { schema: z.string(), where: () => sql<boolean>`1` }
+    expect(() => define({ derived: { age: derivedField }, sorts: ['age'], joinFilters: { order: join } })).toThrow(/"order"/)
+    expect(() => define({ derived: { age: derivedField }, sorts: ['age', 'age'] })).toThrow(/sorts "age".*twice/)
+  })
+})

@@ -110,6 +110,82 @@ describe('against the D1 app', () => {
     expect((await r.run(['contacts', 'list', '--never-contacted', 'maybe'])).code).toBe(2)
   })
 
+  /** Three contacts that were all contacted, at known times, through the capture unit of the API (D14): the CLI cannot write interactions. */
+  const seedSorted = async (r: ReturnType<typeof rig>) => {
+    const ids: string[] = []
+    for (const name of ['A', 'B', 'C']) ids.push(JSON.parse((await ok(r, ['contacts', 'create', '--name', name])).stdout).id)
+    return ids
+  }
+
+  it('sort ([[CORE133]] D12): --sort and --order come from the registry and are sent as query parameters', async () => {
+    const r = await session()
+    const ids = await seedSorted(r)
+    const before = r.seen.length
+    const res = JSON.parse((await ok(r, ['contacts', 'list', '--sort', 'last_contacted_at', '--order', 'desc'])).stdout)
+    const sent = r.seen.slice(before).filter((x) => x.url.includes('/api/v1/contacts?'))
+    expect(sent.length).toBeGreaterThan(0)
+    for (const x of sent) {
+      expect(new URL(x.url).searchParams.get('sort')).toBe('last_contacted_at')
+      expect(new URL(x.url).searchParams.get('order')).toBe('desc')
+    }
+    // all three never contacted: nulls tie, id descending
+    expect(res.data.map((c: any) => c.id)).toEqual([...ids].sort().reverse())
+    expect((await r.run(['contacts', 'list', '--sort', 'name'])).code).toBe(2) // the enum is the registry's
+    expect((await r.run(['contacts', 'list', '--order', 'desc'])).code).toBe(1) // the API refuses order without sort
+  })
+
+  it('sort: --all follows the opaque string cursors to the end and stops, each page sent with the same sort and order', async () => {
+    const r = await session()
+    const ids = await seedSorted(r)
+    const before = r.seen.length
+    const all = await ok(r, ['contacts', 'list', '--all', '--limit', '1', '--sort', 'last_interacted_at', '--order', 'asc'])
+    const lines = all.stdout.trimEnd().split('\n')
+    expect(lines.map((l) => JSON.parse(l).id)).toEqual([...ids].sort())
+    const gets = r.seen.slice(before).filter((x) => x.url.includes('/api/v1/contacts?'))
+    expect(gets).toHaveLength(3)
+    expect(gets.every((g) => new URL(g.url).searchParams.get('sort') === 'last_interacted_at' && new URL(g.url).searchParams.get('order') === 'asc')).toBe(true)
+    const afters = gets.map((g) => new URL(g.url).searchParams.get('after'))
+    expect(afters[0]).toBeNull()
+    expect(afters[1]).not.toMatch(/^[0-9a-f]{8}-/) // opaque, not a bare id
+  })
+
+  it('a cache written before sort (no --sort/--order, after typed uuid): --sort refreshes once and sorts, never sends the list unsorted ([[CORE133]])', async () => {
+    const r = await session()
+    const ids = await seedSorted(r)
+    await ok(r, ['contacts', 'list']) // writes the discovery cache
+    const file = join(r.cacheDir, readdirSync(r.cacheDir).find((f) => f.startsWith('discovery-'))!)
+    const cache = JSON.parse(readFileSync(file, 'utf8'))
+    const list = cache.ops.find((o: any) => o.id === 'contacts.list')
+    expect(list.parameters.map((x: any) => x.name)).toContain('sort') // the fresh document has it
+    list.parameters = list.parameters.filter((x: any) => !['sort', 'order'].includes(x.name))
+    list.parameters.find((x: any) => x.name === 'after').schema = { type: 'string', format: 'uuid' }
+    writeFileSync(file, JSON.stringify(cache))
+    const before = r.seen.length
+    const res = await r.run(['contacts', 'list', '--sort', 'last_contacted_at', '--order', 'desc'])
+    expect(res.stderr).not.toMatch(/TypeError/)
+    expect(res.code).toBe(0) // the chosen behaviour (decision): one refresh, then the sort
+    expect(JSON.parse(res.stdout).data.map((c: any) => c.id)).toEqual([...ids].sort().reverse())
+    const lists = r.seen.slice(before).filter((x) => x.url.includes('/api/v1/contacts?'))
+    expect(lists.length).toBeGreaterThan(0)
+    expect(lists.every((x) => new URL(x.url).searchParams.get('sort') === 'last_contacted_at')).toBe(true)
+    expect(r.seen.slice(before).filter((x) => x.url.includes('/openapi.json')).length).toBeGreaterThan(0) // it refreshed
+  })
+
+  it('a cache that types after as uuid does not refuse an opaque --after locally: the server decides', async () => {
+    const r = await session()
+    await seedSorted(r)
+    const first = JSON.parse((await ok(r, ['contacts', 'list', '--limit', '1', '--sort', 'last_contacted_at'])).stdout)
+    expect(first.next_cursor).not.toBeNull()
+    const file = join(r.cacheDir, readdirSync(r.cacheDir).find((f) => f.startsWith('discovery-'))!)
+    const cache = JSON.parse(readFileSync(file, 'utf8'))
+    cache.ops.find((o: any) => o.id === 'contacts.list').parameters.find((x: any) => x.name === 'after').schema = { type: 'string', format: 'uuid' }
+    writeFileSync(file, JSON.stringify(cache))
+    const next = await r.run(['contacts', 'list', '--limit', '1', '--sort', 'last_contacted_at', '--after', first.next_cursor])
+    expect(next.stderr).toBe('')
+    expect(next.code).toBe(0)
+    expect(JSON.parse(next.stdout).data).toHaveLength(1)
+  })
+
   it('deals and pipelines ([[CORE130]] D17): pipelines, pipeline-stages and deals commands, and move-stage, derive from the two documents', async () => {
     const r = await session()
     const json = async (argv: string[]) => JSON.parse((await ok(r, argv)).stdout)

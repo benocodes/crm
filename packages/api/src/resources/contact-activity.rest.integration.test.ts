@@ -230,7 +230,6 @@ describe('the OpenAPI document (D12)', () => {
       expect(String(params[f].description ?? params[f].schema?.description ?? ''), `${f} description`).not.toBe('')
       expect(params[f].required).not.toBe(true)
     }
-    expect(params.sort).toBeUndefined()
     const schema = get.responses['200'].content['application/json'].schema
     const item = schema.properties.data.items
     const props = (item.$ref ? doc.components.schemas[item.$ref.split('/').pop()] : item).properties

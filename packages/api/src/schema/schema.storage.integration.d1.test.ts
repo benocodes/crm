@@ -149,7 +149,7 @@ describe('derived fields ([[CORE131]] D11)', () => {
     for (const t of doc.tables) expect(Array.isArray(t.derived), `${t.name}.derived`).toBe(true)
     for (const t of doc.tables) if (t.name !== 'contacts' && t.name !== 'deals') expect(t.derived, t.name).toEqual([])
   })
-  it('contacts lists the two fields in the spec shape, apart from the columns, with sortable false until CORE133', async () => {
+  it('contacts lists the two fields in the spec shape, apart from the columns, with sortable true ([[CORE133]] D11)', async () => {
     const doc = await getDoc()
     const derived = table(doc, 'contacts').derived
     expect(derived.map((d: any) => d.name)).toEqual(['last_contacted_at', 'last_interacted_at'])
@@ -163,7 +163,7 @@ describe('derived fields ([[CORE131]] D11)', () => {
         description: expect.any(String),
         requires: 'interactions:read',
         filters: FILTERS[d.name as keyof typeof FILTERS],
-        sortable: false,
+        sortable: true,
       })
       expect(d.description.length, d.name).toBeGreaterThan(10)
       expect(table(doc, 'contacts').columns.map((c: any) => c.name), 'derived fields are not columns').not.toContain(d.name)
