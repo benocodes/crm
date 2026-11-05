@@ -103,7 +103,7 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
     for (const body of [{ kind: 'won' }, { pipeline_id: other.id }, { name: 'ok', kind: 'lost' }]) {
       const err = await a.fail('pipeline_stages.update', { params: { id: w.researched.id }, body })
       expect([err.status, err.code], JSON.stringify(body)).toEqual([400, 'validation_error'])
-      expect(err.message).toMatch(/kind|pipeline_id/)
+      expect(err.message).toMatch(/^(kind|pipeline_id) cannot be changed after creation/) // the shared create-only mechanism, not the schema's unrecognized-key text
     }
     expect(await a.call('pipeline_stages.get', { params: { id: w.researched.id } })).toMatchObject({ kind: 'open', pipeline_id: w.p.id, name: 'Sourced' })
   })
@@ -313,8 +313,8 @@ describe('deal validation (D7, D9)', () => {
     const w = await world()
     const d = await deal(w.researched)
     const s = (await a.call('pipeline_stages.get', { params: { id: w.researched.id } })) as Rec
-    expect((await a.fail('pipeline_stages.update', { params: { id: s.id }, body: { kind: 'lost' } })).code).toBe('validation_error')
-    expect((await a.fail('deals.update', { params: { id: d.id }, body: { stage_id: w.won.id } })).code).toBe('validation_error')
+    expect((await a.fail('pipeline_stages.update', { params: { id: s.id }, body: { kind: 'lost' } })).message).toContain('cannot be changed after creation')
+    expect((await a.fail('deals.update', { params: { id: d.id }, body: { stage_id: w.won.id } })).message).toContain('cannot be changed after creation')
     expect((await a.call('pipeline_stages.update', { params: { id: s.id }, body: { name: 'Fine' } })).name).toBe('Fine')
     expect((await a.call('deals.update', { params: { id: d.id }, body: { name: 'Fine' } })).name).toBe('Fine')
   })
