@@ -2,6 +2,7 @@
 import { RemoteRefusal, requireConfirm } from '../remote.js'
 import { parseSetupArgs } from './args.js'
 import { loadClerkKeys } from './clerk-keys.js'
+import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from './gmail.js'
 import { STEPS, type Ctx } from './steps.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupDeps, type StepResult } from './types.js'
 
@@ -20,20 +21,28 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     const opts = parseSetupArgs(argv)
     if (!opts.dryRun) requireConfirm(procEnv)
     // The Clerk keys come from the instance's own file, before any request; the process environment is never read for them (D34).
-    const keys = opts.auth === 'clerk' ? loadClerkKeys(opts, deps) : undefined
-    ctx = { opts, deps, creds: deps.loadEnv(), pending: false, keys }
+    // The same file also holds the Gmail group ([[OPS150]]), on `--auth none` too: one probe, the same refusals.
+    const probe = deps.probeEnvFile(opts.clerkEnvFile, opts.env)
+    const keys = opts.auth === 'clerk' ? loadClerkKeys(opts, deps, probe) : undefined
+    const gmail = loadGmail(opts, probe)
+    ctx = { opts, deps, creds: deps.loadEnv(), pending: false, keys, gmail }
   } catch (err) {
     if (!(err instanceof RemoteRefusal)) throw err
     deps.log(`setup: ${err.message}`)
     return { exitCode: 1, results: [], stoppedAfterConfigWrite: false }
   }
   const { opts } = ctx
-  const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)))
+  const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)) && !(s === 'secrets' && opts.only === undefined && opts.auth === 'none' && !ctx.gmail))
   deps.log(`setup:remote env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
   if (ctx.keys) {
     const k = ctx.keys
     deps.log(`clerk instance: ${k.kind}${k.kind === 'development' ? ' (warning: a development instance is a test instance, with Clerk\'s user cap and dev-browser handshake)' : ''}, issuer ${k.issuer}, keys from ${k.file}`)
   }
+  deps.log(
+    ctx.gmail
+      ? `gmail: on, from ${ctx.gmail.file}: secrets ${GMAIL_SECRET_NAMES.join(', ')}; vars ${Object.keys(ctx.gmail.vars).sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never)).join(', ')}`
+      : 'gmail: skipped (none of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_STATE_SECRET, CREDENTIALS_KEY in the env file)',
+  )
   const results: StepResult[] = []
   for (const name of selected) {
     let r: StepResult

@@ -472,11 +472,11 @@ describe('full flow, 8. idempotence', () => {
     expect(states(o)).toContain('clerk:create')
     expect(states(o)).toContain('config:write:update')
   })
-  it('--auth none makes no Clerk request and asks for no env file', async () => {
+  it('--auth none makes no Clerk request and reads the env file only for the Gmail group (OPS150), never for Clerk keys', async () => {
     const { clerk, w } = setup()
     await runSetup(['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai'], CONFIRM, w.deps)
     expect(clerk.requests).toEqual([])
-    expect(w.probes).toEqual([])
+    expect(w.probes).toEqual([{ arg: undefined, envName: 'acme' }])
   })
 })
 

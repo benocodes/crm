@@ -5,8 +5,8 @@ import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupOptions, type StepName } from '
 const ENV_SHAPE = /^[a-z0-9][a-z0-9-]*$/
 const KEY_ENV_SHAPE = /^[A-Z][A-Z0-9_]*$/
 const HOST_SHAPE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
-/** Flags that only mean something with `--auth clerk` ([[OPS65]] Inputs). */
-const CLERK_FLAGS = ['clerk-env-file', 'clerk-publishable-key', 'clerk-production', 'no-dcr', 'rotate-secrets']
+/** Flags that only mean something with `--auth clerk` ([[OPS65]] Inputs). `--clerk-env-file` and `--rotate-secrets` also serve the Gmail group on `--auth none` ([[OPS65]] D41). */
+const CLERK_FLAGS = ['clerk-publishable-key', 'clerk-production', 'no-dcr']
 
 /** One `https://` origin, no path, no wildcard ([[OPS65]] D20). */
 export function validateOrigin(flag: string, value: string): string {

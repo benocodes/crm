@@ -4,7 +4,7 @@ import { createPublicKey } from 'node:crypto'
 import { parseEnv } from 'node:util'
 import { publishableKeyHost } from '@vault/api'
 import { RemoteRefusal } from '../remote.js'
-import type { SetupDeps, SetupOptions } from './types.js'
+import type { EnvFileProbe, SetupDeps, SetupOptions } from './types.js'
 
 export interface ClerkKeys {
   secretKey: string
@@ -31,8 +31,8 @@ export function pemFromJwk(jwk: unknown): string {
 }
 
 /** Throws `RemoteRefusal` before any request: every refusal names the file or the flag, never a value. */
-export function loadClerkKeys(opts: SetupOptions, deps: SetupDeps): ClerkKeys {
-  const probe = deps.probeEnvFile(opts.clerkEnvFile, opts.env)
+export function loadClerkKeys(opts: SetupOptions, deps: SetupDeps, taken?: EnvFileProbe): ClerkKeys {
+  const probe = taken ?? deps.probeEnvFile(opts.clerkEnvFile, opts.env)
   const f = probe.display
   if (probe.status === 'root-env') throw new RemoteRefusal(`--clerk-env-file ${f} is the root .env, which holds another instance's keys: use the instance's own file (.env.${opts.env} by default)`)
   if (probe.status === 'missing') throw new RemoteRefusal(`Clerk env file ${f} not found: create it (gitignored) with CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY, or point --clerk-env-file at one`)
