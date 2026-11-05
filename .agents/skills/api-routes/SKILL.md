@@ -321,6 +321,28 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   `cross join` and assert the exact index lines of `EXPLAIN QUERY PLAN`, not just "SEARCH" (plain joins let SQLite start
   from the wide table, still a SEARCH, [[CORE131]] Decision 7). A derived field may share its name with a join filter
   only when it lists that filter in its own `filters` (`deals.status`, [[CORE130]]); any other clash is a load-time throw.
+- **Sorting by a derived field** ([[CORE133]], `sorts: [...]` on a definition, cursor codec in `src/resources/sort-cursor.ts`,
+  keyset in `src/storage/crud.ts` `afterPosition`). Only a list that declares `sorts` gets `sort` and `order`. On every
+  other list, both stay unknown filters with the same message as before. A `sorts` name must be a non-boolean derived field
+  (load-time throw); stored columns are the later extension point. `null` is the oldest value and ties break on `id` in
+  the request's direction. The keyset has four branches, one for each order and cursor-value-null pair. In `asc nulls
+  first`, after a null: `(v is not null or id > c)`; after a value: `(v > x or (v = x and id > c))`. In `desc nulls last`,
+  after a null: `(v is null and id < c)`; after a value: `(v < x or v is null or (v = x and id < c))`. The WHERE
+  re-evaluates the derived expression (keep its `cross join` order; Postgres forbids a select alias there). ORDER BY uses
+  the alias with `NULLS FIRST/LAST` spelled out. The cursor value comes from the raw row, the same text the predicate
+  compares. Prove each branch and the `id` tie-break with its own absence mutation, over a walk at several page sizes
+  where the breaks fall inside the nulls and inside a tie.
+  - **Check order: every `400`, then every `403`.** `prepareListQuery` parses limit, sort, order, the cursor and the filters
+    first. Join-filter `requires` come next, then the sort field's `requires`, all before a query is built. A malformed
+    cursor then reveals nothing about the caller's scopes, and a caller without the scope never receives a cursor that
+    carries the value.
+  - **Cursor typing is per list.** On a list that declares `sorts`, `after` and `next_cursor` are a plain `string`
+    described as opaque (the cursor is `base64url(JSON [sort, order, value|null, id])`, accepted only with the same sort
+    and order). Every other list keeps `uuid`. A sorted cursor typed `uuid` is a false contract that strict clients would
+    refuse. Assert the typing on the sorted list and on at least two others, in OpenAPI and in the MCP tool schemas.
+    The CLI never reads `format`, so it passes an opaque `--after` through.
+  - The `sort` description carries the keyset caveat: values can rise between pages, so a record may repeat in `asc` or
+    be missed in `desc`, and a complete walk uses the default order. Pin that the text reaches the OpenAPI document.
 - **A read-only resource written by a program** (`threads`, `messages`, `interactions`, `files`): `operations: ['list',
   'get']`, no `create`/`update`, no `deleted_at` on the table. Until the capture program exists (CORE25 cycle 2) the
   fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vault/api/test/messaging`, `src/test/messaging-kit.ts`)

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
+import { SORT_ORDERS, decodeCursor, type SortKind, type SortOrder, type SortRequest } from './sort-cursor.js'
 
 export type Filter = {
   schema: z.ZodType
@@ -22,20 +23,39 @@ export function parseInput(schema: z.ZodType, input: unknown): Record<string, un
 
 const LIMIT = z.coerce.number().int().min(1).max(200)
 
+/**
+ * What parseListQuery needs of a definition. `sorts` names derived fields ([[CORE133]] D8): only a list that declares them takes `sort` and
+ * `order`; on any other list those are not parameters, so `sort` is an unknown filter as it always was.
+ */
+type ListDef = { filters?: Record<string, Filter>; joinFilters?: Record<string, Filter>; sorts?: readonly string[]; derived?: Record<string, { kind: string }> }
+
 export function parseListQuery(
-  def: { filters?: Record<string, Filter>; joinFilters?: Record<string, Filter> },
-  raw: { after?: unknown; limit?: unknown; filters?: Record<string, string> },
-): { after: string | null; limit: number; filters: Record<string, unknown> } {
+  def: ListDef,
+  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> },
+): { after: string | null; limit: number; filters: Record<string, unknown>; sort: SortRequest | null } {
   let limit = 50
   if (raw.limit !== undefined) {
     const l = LIMIT.safeParse(raw.limit)
     if (!l.success) throw new ApiError(400, 'validation_error', `limit: ${issues(l.error)}`)
     limit = l.data
   }
+  const sorts = def.sorts ?? []
+  for (const key of ['sort', 'order'] as const) if (sorts.length === 0 && raw[key] !== undefined) throw new ApiError(400, 'validation_error', `unknown filter: ${key}`)
+  let sort: SortRequest | null = null
+  if (raw.sort !== undefined) {
+    if (typeof raw.sort !== 'string' || !sorts.includes(raw.sort)) throw new ApiError(400, 'validation_error', `sort must be one of: ${sorts.join(', ')}`)
+    let order: SortOrder = 'asc'
+    if (raw.order !== undefined) {
+      if (typeof raw.order !== 'string' || !(SORT_ORDERS as readonly string[]).includes(raw.order)) throw new ApiError(400, 'validation_error', `order must be one of: ${SORT_ORDERS.join(', ')}`)
+      order = raw.order as SortOrder
+    }
+    const kind = def.derived?.[raw.sort]?.kind as SortKind
+    sort = { field: raw.sort, order, kind, position: raw.after === undefined || raw.after === null ? null : decodeCursor(raw.after, raw.sort, order, kind) }
+  } else if (raw.order !== undefined) throw new ApiError(400, 'validation_error', 'order needs sort')
   let after: string | null = null
-  if (raw.after !== undefined && raw.after !== null) {
+  if (sort === null && raw.after !== undefined && raw.after !== null) {
     const a = z.uuid().safeParse(raw.after)
-    if (!a.success) throw new ApiError(400, 'validation_error', 'after must be a UUID')
+    if (!a.success) throw new ApiError(400, 'validation_error', sorts.length > 0 ? 'after must be a UUID (a sorted cursor needs the sort and order it came from)' : 'after must be a UUID')
     after = a.data
   }
   const declared = { ...(def.filters ?? {}), ...(def.joinFilters ?? {}) }
@@ -61,5 +81,5 @@ export function parseListQuery(
       throw new ApiError(400, 'validation_error', `filter ${key}: ${err instanceof Error ? err.message : 'invalid'}`)
     }
   }
-  return { after, limit, filters }
+  return { after, limit, filters, sort }
 }

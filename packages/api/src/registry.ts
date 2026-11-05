@@ -135,6 +135,15 @@ export class Registry {
 /** The MCP/CLI-safe name derived from a dotted operation name. */
 export const toolName = (name: string): string => name.replaceAll('.', '_')
 
+const SORTED_AFTER = z
+  .string()
+  .describe('Opaque cursor: pass the next_cursor of the previous page back unchanged. With sort it must come from a page with the same sort and order; without sort it is the id of the last record.')
+const SORTED_NEXT = z.string().nullable().describe('Opaque cursor for the next page, or null at the end. Pass it back as after, with the same sort and order.')
+/** The `sort` parameter text, with the cursor-stability caveat ([[CORE133]] D9). */
+const sortDescription = (def: PreparedResource<any, any>): string =>
+  `Sort by ${(def.sorts ?? []).join(' or ')} (a derived field: it needs the scopes that show it). null, never, sorts as the oldest value: first in asc, last in desc. Ties break on id in the same direction. ` +
+  `Without sort the list is in id order. Paging is by keyset, not a snapshot: values can rise between pages, so a record may repeat in asc or be missed in desc. A complete walk uses the default order.`
+
 /** The generic CRUD operations of a definition, in CRUD_ACTIONS order, for the actions it generates. */
 export function resourceOperations(def: PreparedResource<any, any>, types: () => EndpointTypes = () => endpointTypesOf([def])): TenantOperation[] {
   const p = resourcePath(def)
@@ -146,8 +155,15 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
   const base = { kind: 'tenant' as const, surface: def.surface, validation: 'handler' as const, tags: [def.name] }
   const ops: TenantOperation[] = []
   if (actions.has('list')) {
-    const query: Record<string, z.ZodType> = { after: z.uuid().optional(), limit: z.coerce.number().int().min(1).max(200).optional() }
+    // [[CORE133]] D8, D9: a list that declares `sorts` takes sort and order, and its cursor is an opaque string; every other list keeps a UUID cursor.
+    const sorts = def.sorts ?? []
+    const query: Record<string, z.ZodType> = sorts.length > 0 ? { after: SORTED_AFTER.optional() } : { after: z.uuid().optional() }
+    query.limit = z.coerce.number().int().min(1).max(200).optional()
     for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.joinFilters ?? {}) })) query[key] = (f as { schema: z.ZodType }).schema.optional()
+    if (sorts.length > 0) {
+      query.sort = z.enum(sorts as [string, ...string[]]).describe(sortDescription(def)).optional()
+      query.order = z.enum(['asc', 'desc']).describe('Sort direction: asc (default) or desc. Needs sort.').optional()
+    }
     ops.push({
       ...base,
       name: `${def.name}.list`,
@@ -156,10 +172,11 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
       path: p,
       scope: { resource: s, action: 'read' },
       request: { query: z.object(query) },
-      response: { status: 200, schema: z.object({ data: z.array(rec), next_cursor: z.uuid().nullable() }) },
+      response: { status: 200, schema: z.object({ data: z.array(rec), next_cursor: sorts.length > 0 ? SORTED_NEXT : z.uuid().nullable() }) },
       prepare: (env, input) => {
-        const { after, limit, ...filters } = input.query
-        const raw = { after, limit, filters: filters as Record<string, string> }
+        const { after, limit, sort, order, ...filters } = input.query as Record<string, unknown>
+        // Without `sorts`, `sort` and `order` are not parameters: they stay in `filters`, where they are unknown filters, as they always were.
+        const raw = sorts.length > 0 ? { after, limit, sort, order, filters: filters as Record<string, string> } : { after, limit, filters: { ...(sort !== undefined ? { sort } : {}), ...(order !== undefined ? { order } : {}), ...filters } as Record<string, string> }
         return def.override?.list ? def.override.list(env, raw) : listOperation(def, env, raw)
       },
     })

@@ -652,7 +652,7 @@ export const messagingScenarios: readonly GoldenScenario[] = [
   {
     name: 'contact-activity',
     about:
-      'CORE131: contacts created by capture carry last_contacted_at and last_interacted_at. The connection wrote to jane (cc bob) at 07:20, so both are contacted then; bob also reacted at 07:30; carol only wrote (interacted, never contacted); owner is a contact here because the messaging seed has no own identity. The six filters partition them; an unparseable time and sort are validation errors; the golden actors hold interactions:read in messaging scenarios, so the keys are present',
+      'CORE131: contacts created by capture carry last_contacted_at and last_interacted_at. The connection wrote to jane (cc bob) at 07:20, so both are contacted then; bob also reacted at 07:30; carol only wrote (interacted, never contacted); owner is a contact here because the messaging seed has no own identity. The six filters partition them; an unparseable time is a validation error; CORE133: contacts sorted by last_contacted_at desc, a first page with its opaque next_cursor and the second page fetched with it (null last), and order without sort is a validation error; the golden actors hold interactions:read in messaging scenarios, so the keys are present',
     seed: 'messaging',
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/api/v1/contacts', pick: { jane: (b) => b.data.find((c: any) => c.last_contacted_at !== null)?.id } },
@@ -663,9 +663,11 @@ export const messagingScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(5), method: 'GET', path: '/api/v1/contacts?interacted_since=2026-10-22T09:30:00%2B02:00' },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/contacts?never_interacted=false' },
       { as: 'user', at: at(7), method: 'GET', path: '/api/v1/contacts?contacted_since=2026-10-22' },
-      { as: 'user', at: at(8), method: 'GET', path: '/api/v1/contacts?sort=last_contacted_at' },
-      { as: 'user', at: at(9), method: 'PATCH', path: '/api/v1/contacts/{jane}', body: { name: 'Jane A.' } },
-      { as: 'user', at: at(10), method: 'PATCH', path: '/api/v1/contacts/{jane}', body: { last_contacted_at: null } },
+      { as: 'user', at: at(8), method: 'GET', path: '/api/v1/contacts?sort=last_contacted_at&order=desc&limit=2', pick: { next: (b) => b.next_cursor } },
+      { as: 'user', at: at(9), method: 'GET', path: '/api/v1/contacts?sort=last_contacted_at&order=desc&limit=2&after={next}' },
+      { as: 'user', at: at(10), method: 'GET', path: '/api/v1/contacts?order=desc' },
+      { as: 'user', at: at(11), method: 'PATCH', path: '/api/v1/contacts/{jane}', body: { name: 'Jane A.' } },
+      { as: 'user', at: at(12), method: 'PATCH', path: '/api/v1/contacts/{jane}', body: { last_contacted_at: null } },
     ],
   },
   {

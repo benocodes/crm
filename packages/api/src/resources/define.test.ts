@@ -18,7 +18,7 @@ async function code(fn: () => unknown): Promise<{ status?: number; code?: string
 
 describe('parseListQuery', () => {
   it('defaults', () => {
-    expect(parseListQuery(tasks, {})).toEqual({ after: null, limit: 50, filters: {} })
+    expect(parseListQuery(tasks, {})).toEqual({ after: null, limit: 50, filters: {}, sort: null })
   })
   it.each([0, 201, 'abc', 1.5])('rejects limit %j', async (limit) => {
     expect(await code(() => parseListQuery(tasks, { limit }))).toMatchObject({ status: 400, code: 'validation_error' })
