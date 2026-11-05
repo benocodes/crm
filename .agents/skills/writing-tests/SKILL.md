@@ -300,6 +300,11 @@ A test that fails once and then passes is a bug until its cause is found. Do not
 - Never run two suites against one database at once (`pgrep -f vitest`); run the `db` and `api` suites
   serially. Inside a package, Vitest 4+ has no `poolOptions.forks.singleFork`: use `pool: 'forks'` with
   `fileParallelism: false`.
+- **Run the heavy suites one package at a time.** `packages/api` (the `contract.integration.d1` file especially), `packages/cli`
+  and `packages/server-d1` interfere when they run side by side on the development machine. You get hook timeouts at
+  10000 ms, `ECONNRESET`, a `deployment.singleton` collision and off-by-one query counts in `measured-limits.test.ts`, and
+  a different test fails on each rerun ([[CORE133]] gate). For the gate, run `pnpm -C packages/<pkg> test` serially. A
+  failure seen only in a parallel run is contention: rerun that package alone before you treat it as a regression.
 - **Event order.** See "Assert emit order" in section 6; never order by `id` in a test.
 - **Known flake: `packages/server-d1/src/measured-limits.test.ts`** is intermittently off by one on pinned query counts,
   on clean `main` too ([[CORE62]], [[API32]], [[API63]], [[CORE69]] on `merge-100-links`; issue #79). Until #79 lands, when it fails, record the scenario
