@@ -21,7 +21,7 @@ afterEach(() => {
 beforeEach(async () => {
   await w.reset()
   hideOperation = undefined
-  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read', 'interactions:read'] })
+  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read', 'interactions:read', 'deals:read', 'deals:write', 'pipelines:read', 'pipelines:write'] })
   key = b.key
 })
 const session = async () => {
@@ -106,6 +106,25 @@ describe('against the D1 app', () => {
     const stale = JSON.parse((await ok(r, ['contacts', 'list', '--not-contacted-since', '2026-01-01T00:00:00Z'])).stdout)
     expect(stale.data).toHaveLength(2)
     expect((await r.run(['contacts', 'list', '--never-contacted', 'maybe'])).code).toBe(2)
+  })
+
+  it('deals and pipelines ([[CORE130]] D17): pipelines, pipeline-stages and deals commands, and move-stage, derive from the two documents', async () => {
+    const r = await session()
+    const json = async (argv: string[]) => JSON.parse((await ok(r, argv)).stdout)
+    const p = await json(['pipelines', 'create', '--name', 'Prospecting'])
+    const open = await json(['pipeline-stages', 'create', '--pipeline-id', p.id, '--name', 'Researched', '--kind', 'open', '--position', '10'])
+    const won = await json(['pipeline_stages', 'create', '--pipeline-id', p.id, '--name', 'Won', '--kind', 'won', '--position', '90'])
+    expect((await json(['pipeline-stages', 'list', '--pipeline-id', p.id, '--kind', 'won'])).data.map((x: any) => x.id)).toEqual([won.id])
+    const d = await json(['deals', 'create', '--name', 'Acme - pilot', '--stage-id', open.id, '--amount-minor', '5000', '--currency', 'usd'])
+    expect(d).toMatchObject({ pipeline_id: p.id, status: 'open', currency: 'USD' })
+    const moved = await json(['deals', 'move-stage', d.id, '--stage-id', won.id])
+    expect(moved).toMatchObject({ id: d.id, stage_id: won.id, status: 'won' })
+    expect((await json(['deals', 'move_stage', d.id, '--stage-id', open.id])).status).toBe('open')
+    expect((await json(['deals', 'list', '--status', 'open', '--pipeline-id', p.id])).data.map((x: any) => x.id)).toEqual([d.id])
+    const refused = await r.run(['deals', 'update', d.id, '--data', JSON.stringify({ stage_id: won.id })]) // create-only: the API refuses, naming deals.move_stage
+    expect(refused.code).toBe(1)
+    expect(JSON.parse(refused.stderr).error.message).toContain('deals.move_stage')
+    expect((await json(['pipelines', 'get', p.id])).name).toBe('Prospecting')
   })
 
   it('--all on an operation that is not a list is a usage error', async () => {

@@ -12,7 +12,10 @@ import { threads } from './resources/threads.js'
 import { contacts } from './resources/contacts.js'
 import { identities } from './resources/identities.js'
 import { memberships } from './resources/memberships.js'
+import { deals } from './resources/deals.js'
 import { notes } from './resources/notes.js'
+import { pipelineStages } from './resources/pipeline-stages.js'
+import { pipelines } from './resources/pipelines.js'
 import { tags } from './resources/tags.js'
 import { tasks } from './resources/tasks.js'
 import { fixtures } from './test/fixtures.js'
@@ -30,6 +33,9 @@ runContractSuite({
       .registerResource(tasks)
       .registerResource(notes)
       .registerResource(tags)
+      .registerResource(pipelines)
+      .registerResource(pipelineStages)
+      .registerResource(deals)
       .registerResource(companies)
       .registerResource(contacts)
       .registerResource(identities)
@@ -47,6 +53,9 @@ runContractSuite({
     tasks: fixtures.tasks!,
     notes: fixtures.notes!,
     tags: fixtures.tags!,
+    pipelines: fixtures.pipelines!,
+    pipeline_stages: fixtures.pipeline_stages!,
+    deals: fixtures.deals!,
     companies: fixtures.companies!,
     contacts: fixtures.contacts!,
     identities: fixtures.identities!,
