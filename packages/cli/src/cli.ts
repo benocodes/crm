@@ -135,7 +135,9 @@ async function main(argv: string[], deps: Deps): Promise<number> {
   }
   if (!cmd) throw usage(`unknown command "${words.join(' ')}" on ${conn.server}: run \`vibase --help\` to list the commands`)
 
-  const io = { readFile: (p: string) => readFile(p, 'utf8'), readStdin: () => deps.readStdin() }
+  // Memoised: the retry below re-parses, and stdin can be consumed once.
+  let stdin: Promise<string> | undefined
+  const io = { readFile: (p: string) => readFile(p, 'utf8'), readStdin: () => (stdin ??= deps.readStdin()) }
   let inv: Awaited<ReturnType<typeof parseInvocation>>
   try {
     inv = await parseInvocation(cmd, rest, io)
