@@ -198,13 +198,6 @@ describe('the six filters (D7)', () => {
       expect([res.status, res.body.error.code], q).toEqual([400, 'validation_error'])
     }
   })
-
-  it('sort and order do not exist yet: they are refused as unknown filters', async () => {
-    await seedFour()
-    const res = await list('sort=last_contacted_at')
-    expect([res.status, res.body.error.code]).toEqual([400, 'validation_error'])
-    expect(res.body.error.message).toContain('sort')
-  })
 })
 
 describe('never writable (D1)', () => {

@@ -74,11 +74,12 @@ describe('task preparation is pure and keeps the old validation', () => {
   })
 
   it('list query defaults to 50, lowercases the cursor and filter ids', () => {
-    expect(prepareListQuery(tasks, {})).toEqual({ after: null, limit: 50, filters: {} })
+    expect(prepareListQuery(tasks, {})).toEqual({ after: null, limit: 50, filters: {}, sort: null })
     expect(prepareListQuery(tasks, { after: '0190B2C4-0000-7000-8000-00000000B002', filters: { assignee_id: '0190B2C4-0000-7000-8000-00000000B002' } })).toEqual({
       after: '0190b2c4-0000-7000-8000-00000000b002',
       limit: 50,
       filters: { assignee_id: '0190b2c4-0000-7000-8000-00000000b002' },
+      sort: null,
     })
   })
 })
