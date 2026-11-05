@@ -8,6 +8,7 @@ import { MIGRATIONS, d1Binding } from '@vault/storage-d1'
 import { PLACEHOLDER_DATABASE_ID, RemoteRefusal, formatMigrationDiff, resolveTarget, statusOf, type ConfigLike, type Target } from '../remote.js'
 import { clerkStep, configuredCliClientId, signingKeyPem } from './clerk.js'
 import type { ClerkKeys } from './clerk-keys.js'
+import { GMAIL_SECRET_NAMES, NEVER_REPLACED, hideGmailValues, type Gmail } from './gmail.js'
 import { reconcileEnvBlock, type DesiredEnv } from './config-editor.js'
 import {
   d1CreateCommand,
@@ -55,6 +56,8 @@ export interface Ctx {
   keys?: ClerkKeys
   /** The `Vibase CLI` application's client id, once the `clerk` step found or created it. */
   cliClientId?: string
+  /** The Gmail group from the env file ([[OPS150]]); `null` when skipped. */
+  gmail?: Gmail | null
   /** The instance's signing key as PEM; a secret value, never printed. */
   jwtPem?: string
   /** The Clerk rows that are `manual`, repeated in verify's next steps ([[OPS65]] D21). */
@@ -179,6 +182,7 @@ const configWrite: Step = async (ctx) => {
     r2Name: ctx.opts.r2Name,
     apiHost: ctx.opts.apiHost,
     corsOrigins: ctx.opts.origins.join(','),
+    ...(ctx.gmail ? { gmailVars: ctx.gmail.vars } : {}),
     // [[UI30]] D7: the connect page's own origin is an authorized party (never a CORS origin, never a Clerk allowed origin), and the
     // publishable key is a public var. `--auth none` writes neither.
     ...(clerk
@@ -199,7 +203,7 @@ const configWrite: Step = async (ctx) => {
     return result('config:write', 'fail', `wrangler.jsonc differs from the desired value at ${r.mismatches.join(', ')}; it is never overwritten: fix it or the flag`, r.mismatches.map((k) => `differs: ${k}`))
   }
   if (r.changed.length === 0) return result('config:write', 'ok', `env.${ctx.opts.env} in wrangler.jsonc is as desired`)
-  const diff = lineDiff(before, r.text)
+  const diff = lineDiff(before, r.text).map(hideGmailValues)
   if (ctx.opts.dryRun) {
     ctx.pending = true
     ctx.blockedBy = 'config:write'
@@ -342,16 +346,20 @@ const deploy: Step = async (ctx) => {
   return result('deploy', 'update', `deployed ${sha.slice(0, 12)} (was ${seen})`)
 }
 
-/** The secrets the Worker needs with `--auth clerk` (D3, D12): the Clerk secret key and the derived signing key, nothing else. */
-const SECRET_NAMES = ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'] as const
+/** The secrets the Worker needs with `--auth clerk` (D3, D12): the Clerk secret key and the derived signing key. */
+const CLERK_SECRET_NAMES = ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'] as const
 
 /**
  * Decision (OPS87): secrets go in after the deploy with `wrangler secret bulk --env <name>` and JSON on stdin ([[OPS65]] D12). Present ones
  * (`wrangler secret list`) are left alone without `--rotate-secrets`; the signing key is derived (a read) only when something is put.
+ * Decision (OPS150, D41): the Gmail secrets join the same bulk, on `--auth none` too; `CREDENTIALS_KEY` is put only when absent, never rotated.
  */
 const secrets: Step = async (ctx) => {
   const b = blocked(ctx, 'secrets')
   if (b) return b
+  const clerk = ctx.opts.auth === 'clerk'
+  const names: string[] = [...(clerk ? CLERK_SECRET_NAMES : []), ...(ctx.gmail ? GMAIL_SECRET_NAMES : [])]
+  if (names.length === 0) return result('secrets', 'ok', 'no secrets for this configuration (--auth none, no Gmail group)')
   const t = target(ctx)
   const list = await run(ctx, secretListCommand(t.env))
   if (list.status !== 0) {
@@ -360,17 +368,19 @@ const secrets: Step = async (ctx) => {
       : result('secrets', 'fail', `wrangler secret list failed (exit ${list.status}): is the Worker deployed?`)
   }
   const present = parseSecretList(list.stdout)
-  const put = SECRET_NAMES.filter((n) => ctx.opts.rotateSecrets || !present.includes(n))
-  if (put.length === 0) return result('secrets', 'ok', `${SECRET_NAMES.join(' and ')} are present (--rotate-secrets replaces them)`)
+  const put = names.filter((n) => (n === NEVER_REPLACED && ctx.gmail ? !present.includes(n) : ctx.opts.rotateSecrets || !present.includes(n)))
+  const kept = ctx.gmail && ctx.opts.rotateSecrets && present.includes(NEVER_REPLACED) ? [`${NEVER_REPLACED} kept: stored credentials are encrypted under it (rotate through CREDENTIALS_KEY_VERSION, not setup)`] : []
+  if (put.length === 0) return result('secrets', 'ok', `${names.join(' and ')} are present (--rotate-secrets replaces them${ctx.gmail ? `, except ${NEVER_REPLACED}` : ''})`, kept.length ? kept : undefined)
   const rotating = put.filter((n) => present.includes(n))
   const status = rotating.length === put.length ? 'update' : 'create'
-  if (ctx.opts.dryRun) return result('secrets', status, `would put ${put.join(', ')}`)
+  if (ctx.opts.dryRun) return result('secrets', status, `would put ${put.join(', ')}`, kept.length ? kept : undefined)
   const values: Record<string, string> = {}
   if (put.includes('CLERK_SECRET_KEY')) values.CLERK_SECRET_KEY = ctx.keys!.secretKey
   if (put.includes('CLERK_JWT_KEY')) values.CLERK_JWT_KEY = await signingKeyPem(ctx)
+  for (const n of GMAIL_SECRET_NAMES) if (put.includes(n)) values[n] = ctx.gmail!.secrets[n]!
   const r = await run(ctx, secretBulkCommand(t.env, JSON.stringify(values)))
   if (r.status !== 0) return result('secrets', 'fail', `wrangler secret bulk failed (exit ${r.status})`)
-  return result('secrets', status, `put ${put.join(', ')}`)
+  return result('secrets', status, `put ${put.join(', ')}`, kept.length ? kept : undefined)
 }
 
 type Marker = Awaited<ReturnType<typeof readMarker>>

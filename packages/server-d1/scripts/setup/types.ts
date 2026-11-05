@@ -2,8 +2,8 @@
 import type { D1Like } from '@vault/storage-d1'
 
 export const STEP_NAMES = ['preflight', 'config:resources', 'clerk', 'config:write', 'migrate', 'bootstrap', 'deploy', 'secrets', 'verify'] as const
-/** Steps that exist only with `--auth clerk` ([[OPS65]] D11). */
-export const CLERK_ONLY_STEPS: readonly StepName[] = ['clerk', 'secrets']
+/** Steps that exist only with `--auth clerk` ([[OPS65]] D11); `secrets` also runs on `--auth none` for the Gmail group ([[OPS65]] D41). */
+export const CLERK_ONLY_STEPS: readonly StepName[] = ['clerk']
 export type StepName = (typeof STEP_NAMES)[number]
 
 /** `blocked` is this cycle's addition to the spec's five: a step that cannot be evaluated until an earlier planned change lands (a dry run's later steps). It never fails the run. */

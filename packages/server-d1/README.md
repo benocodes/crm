@@ -100,6 +100,18 @@ Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHA
 | `AUTH_ROLE_CLAIM` | var | the session-token claim holding `owner`, `member` or `agent`; default `vibase_role`; an empty value fails closed |
 | `AUTH_CLI_CLIENT_ID` | var | the first-party CLI's public OAuth client id; its tokens act as the signed-in person, any other OAuth client is a delegated agent ([[CORE77]]). Unset: no CLI client; set but blank fails closed |
 | `CLERK_API_URL` | var | optional |
+| `GOOGLE_CLIENT_ID` | var | the Google OAuth client id of the Gmail channel; one of the four core Gmail names (all four or none); set by `setup:remote` from `.env.<env>` |
+| `GOOGLE_CLIENT_SECRET` | secret | the Google OAuth client secret; core; set by `setup:remote` from `.env.<env>` (`wrangler secret bulk`) |
+| `OAUTH_STATE_SECRET` | secret | signs the OAuth `state` of the connect flow; core; set by `setup:remote` from `.env.<env>` |
+| `CREDENTIALS_KEY` | secret | base64, exactly 32 bytes: encrypts stored channel credentials; core; put once, never replaced by `setup:remote` (not even with `--rotate-secrets`); set by `setup:remote` from `.env.<env>` |
+| `CREDENTIALS_KEY_VERSION` | var | positive integer naming the key in use (rotation raises it, [[CHN5]] D4); optional; set by `setup:remote` from `.env.<env>` |
+| `GMAIL_TOPIC_NAME` | var | `projects/<p>/topics/<t>`, the Pub/Sub topic Gmail watches publish to; optional; set by `setup:remote` from `.env.<env>` |
+| `GMAIL_PUSH_SUBSCRIPTION` | var | `projects/<p>/subscriptions/<s>`, the push subscription; optional; set by `setup:remote` from `.env.<env>` |
+| `GMAIL_PUSH_SERVICE_ACCOUNT` | var | the service account email Pub/Sub signs push requests as; optional; set by `setup:remote` from `.env.<env>` |
+| `PUBLIC_BASE_URL` | var | absolute `https` URL of the Worker, for OAuth redirects and push; default `https://<api-host>` when the Gmail group is set; set by `setup:remote` from `.env.<env>` |
+| `CONNECT_RETURN_URL` | var | absolute `https` URL the connect flow returns to; optional; set by `setup:remote` from `.env.<env>` |
+| `GMAIL_BACKFILL_DAYS` | var | positive integer, days of mail to backfill on connect; optional; set by `setup:remote` from `.env.<env>` |
+| `ATTACHMENT_MAX_BYTES` | var | positive integer, the largest attachment kept; optional; set by `setup:remote` from `.env.<env>` |
 | `VERSION` | var | the deployed git sha, set by `deploy:remote`; `/health` reports it (`dev` when absent) |
 | `BODIES` | R2 binding | the object store (`ObjectStore`): message bodies and file bytes served by `messages.content` and `files.content`; without it those two routes answer `503 objects_unavailable` |
 
@@ -134,7 +146,20 @@ dashboard path, and the run stops before `config:write`. After the invitation is
 `GET /meta/v1/me` must show `role: owner`. The `secrets` step puts `CLERK_SECRET_KEY` and the derived `CLERK_JWT_KEY` with
 `wrangler secret bulk` (JSON on stdin) after the deploy and leaves present ones alone unless `--rotate-secrets`.
 
-**`--auth none`** is API keys only (`smoked1`): no Clerk steps, no secrets.
+**`--auth none`** is API keys only (`smoked1`): no Clerk steps, and no secrets unless the Gmail group below is set.
+
+**The Gmail group (optional, either auth mode).** If the same env file (`.env.<env>`, or `--clerk-env-file`) holds the four
+core names `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_STATE_SECRET` and `CREDENTIALS_KEY`, `setup:remote` carries the
+Gmail values to the Worker: the three secrets in the `secrets` step's one `wrangler secret bulk`, and the vars
+(`GOOGLE_CLIENT_ID`, `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT`, `PUBLIC_BASE_URL`,
+`CONNECT_RETURN_URL`, `CREDENTIALS_KEY_VERSION`, `GMAIL_BACKFILL_DAYS`, `ATTACHMENT_MAX_BYTES`) into `env.<name>.vars`, so
+`deploy:remote` keeps them. None of the four core names: the group is skipped (the report says so; on `--auth none` a missing
+file is a skip too). Some but not all: refused before any command, naming the missing ones. Values are checked first
+(`CREDENTIALS_KEY` base64 of 32 bytes, integers, `https` URLs, topic and subscription paths), and a refusal names the variable,
+never the value. Only these names are read; any other name in the file is ignored. Re-runs follow the usual rules: a present
+secret or equal var is left alone, a var that differs in `wrangler.jsonc` is a `fail`, a var the file omits is never deleted,
+and `CREDENTIALS_KEY` is never replaced (`--rotate-secrets` replaces the other two; rotating the key is a new
+`CREDENTIALS_KEY_VERSION`, not setup's job). The Google Cloud side (project, OAuth client, topic) is a separate guide.
 
 ```bash
 pnpm -C packages/server-d1 setup:remote -- --env acme --api-host api.acme.example.com --owner-email you@example.com --dry-run
