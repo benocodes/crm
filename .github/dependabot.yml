@@ -1,8 +1,9 @@
-# CORE69 D2, D25. `chat`, its adapters and the markdown packages whose versions `chat` resolves move together, weekly.
+# CORE69 D2, D25. `chat`, its adapters and the markdown and hast packages whose versions `chat` resolves move together, weekly.
+# The `npm` entry sits at the workspace root, where the one `pnpm-lock.yaml` lives (#121 item 3).
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: /packages/api
+    directory: /
     schedule:
       interval: weekly
     groups:
@@ -13,4 +14,6 @@ updates:
           - unified
           - 'remark-*'
           - 'mdast-*'
+          - 'hast-*'
           - '@types/mdast'
+          - '@types/hast'

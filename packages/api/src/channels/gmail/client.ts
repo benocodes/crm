@@ -1,0 +1,102 @@
+// `GmailClient` ([[CHN5]] D23, D44, D46): the REST calls the Gmail channel reads with. Cycle 1 has three; later cycles add their own
+// with their first caller. The two streaming calls return the response body UNDECODED (Gmail's JSON with one base64url member).
+import type { GmailMessageResource } from './types.js'
+
+export interface GmailClient {
+  /** `users.messages.get?format=full`, parsed. */
+  getMessageFull(messageId: string): Promise<GmailMessageResource>
+  /** `users.messages.get?format=raw`: the JSON body as a byte stream; the `raw` member is the RFC 822 original in base64url. */
+  getMessageRaw(messageId: string): Promise<ReadableStream<Uint8Array>>
+  /** `users.messages.attachments.get`: the JSON body as a byte stream; the `data` member is the attachment in base64url. */
+  getAttachment(messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>>
+}
+
+/** A non-2xx Gmail response. Carries no request data: neither the URL nor the token. Classifying it ([[CHN5]] D16) is the caller's. */
+export class GmailApiError extends Error {
+  override name = 'GmailApiError'
+  readonly status: number
+  /** Gmail's `error.status`, for example `NOT_FOUND` or `RESOURCE_EXHAUSTED`; null when the body did not say. */
+  readonly gmailStatus: string | null
+  /** Gmail's first `error.errors[].reason`, for example `rateLimitExceeded`; null when absent. */
+  readonly reason: string | null
+  /** The `Retry-After` header as sent; null when absent. */
+  readonly retryAfter: string | null
+  /** `retryAfter` as whole seconds from now (a delay or an HTTP date); null when absent or unparseable. */
+  readonly retryAfterSeconds: number | null
+  constructor(init: { status: number; gmailStatus?: string | null; reason?: string | null; retryAfter?: string | null; retryAfterSeconds?: number | null }) {
+    super(`Gmail API error ${init.status}${init.gmailStatus ? ` ${init.gmailStatus}` : ''}${init.reason ? ` (${init.reason})` : ''}`)
+    this.status = init.status
+    this.gmailStatus = init.gmailStatus ?? null
+    this.reason = init.reason ?? null
+    this.retryAfter = init.retryAfter ?? null
+    this.retryAfterSeconds = init.retryAfterSeconds ?? null
+  }
+}
+
+export interface HttpGmailClientOptions {
+  /** Called before every request; the client never caches or refreshes. */
+  accessToken: () => Promise<string>
+  fetch?: typeof fetch
+  baseUrl?: string
+}
+
+const DEFAULT_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me/messages'
+
+function retryAfterSeconds(value: string | null): number | null {
+  if (value === null) return null
+  const trimmed = value.trim()
+  if (/^\d+$/.test(trimmed)) return Number(trimmed)
+  const at = Date.parse(trimmed)
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - Date.now()) / 1000))
+}
+
+/** Reads what Gmail said about a failure, best effort: a body that is not Gmail's JSON error gives status only. Never touches the request. */
+async function apiError(res: Response): Promise<GmailApiError> {
+  let gmailStatus: string | null = null
+  let reason: string | null = null
+  try {
+    const parsed = JSON.parse(await res.text()) as { error?: { status?: unknown; errors?: Array<{ reason?: unknown }> } }
+    if (typeof parsed.error?.status === 'string') gmailStatus = parsed.error.status
+    const r = parsed.error?.errors?.[0]?.reason
+    if (typeof r === 'string') reason = r
+  } catch {
+    // not JSON
+  }
+  const retryAfter = res.headers.get('retry-after')
+  return new GmailApiError({ status: res.status, gmailStatus, reason, retryAfter, retryAfterSeconds: retryAfterSeconds(retryAfter) })
+}
+
+export class HttpGmailClient implements GmailClient {
+  private readonly accessToken: () => Promise<string>
+  private readonly doFetch: typeof fetch
+  private readonly base: string
+
+  constructor(options: HttpGmailClientOptions) {
+    this.accessToken = options.accessToken
+    this.doFetch = options.fetch ?? ((input, init) => fetch(input, init))
+    this.base = options.baseUrl ?? DEFAULT_BASE
+  }
+
+  private async get(path: string): Promise<Response> {
+    const token = await this.accessToken()
+    const res = await this.doFetch(`${this.base}${path}`, { method: 'GET', headers: { authorization: `Bearer ${token}` } })
+    if (!res.ok) throw await apiError(res)
+    return res
+  }
+
+  private async stream(path: string): Promise<ReadableStream<Uint8Array>> {
+    const res = await this.get(path)
+    if (!res.body) throw new GmailApiError({ status: res.status, reason: 'empty_body' })
+    return res.body as ReadableStream<Uint8Array>
+  }
+
+  async getMessageFull(messageId: string): Promise<GmailMessageResource> {
+    return (await (await this.get(`/${encodeURIComponent(messageId)}?format=full`)).json()) as GmailMessageResource
+  }
+  getMessageRaw(messageId: string): Promise<ReadableStream<Uint8Array>> {
+    return this.stream(`/${encodeURIComponent(messageId)}?format=raw`)
+  }
+  getAttachment(messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>> {
+    return this.stream(`/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`)
+  }
+}

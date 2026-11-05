@@ -264,3 +264,10 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    resource in the D1 gate must be added to that registry and fixture map. [[CORE68]]'s plan named a
    nonexistent file and said "both backends" without the D1 step, so the fixtures it switched had no red
    run and ran only on Postgres.
+8. **Check that every obligation names a case the code can reach.** An error-path obligation must name a state
+   where the failure can be seen: [[CHN5]] cycle 1 asked for "the source sees `cancel` when `put` rejects (buffered
+   path)", but on that path the source is already drained, so no test could see the cancel. The coder tested the
+   known-size path instead. A measurement obligation names the artifact to measure. "The Worker bundle size before and
+   after" could not show the cost, because `src/worker.ts` tree-shakes a module with no route yet. Name the bundle
+   that contains the module (there, the smoke pipeline bundle), or defer the measurement to the cycle that wires the
+   route.

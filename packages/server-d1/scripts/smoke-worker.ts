@@ -13,7 +13,7 @@ import { Miniflare } from 'miniflare'
 import { createHash } from 'node:crypto'
 import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, type R2BucketLike } from '@vault/api'
 import { bytesOf } from '@vault/api/test/channels'
-import { ATTACHMENT_BYTES, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
+import { ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
 import { applyMigrations, createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
 import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
 import {
@@ -395,6 +395,7 @@ try {
     outfile: pipelineBundle,
     logLevel: 'warning',
   })
+  console.log(`pipeline bundle ${statSync(pipelineBundle).size} bytes`)
   pipelineMf = new Miniflare({
     modules: true,
     scriptPath: pipelineBundle,
@@ -444,6 +445,31 @@ try {
     counts.messages === 3 && counts.interactions === 3 && counts.message_sources === 3 && counts.threads === 3 && eventTypes.filter((t) => t === 'message.created').length === 3 && eventTypes.includes('file.created'),
     { counts, eventTypes },
   )
+
+  // 38-42: the Gmail channel in workerd ([[CHN5]] cycle 1): `GmailChannel` over `FakeGmail`'s wire form through the same pipeline.
+  // The fake serves JSON with one base64url member in uneven chunks, so the real streaming decoder, `hast-util-from-html` and
+  // `hast-util-to-mdast` all run in workerd, and the original is stored from a stream of unknown length.
+  const gmailRun = await fetch(new URL('/gmail', pipelineBase))
+  const gmailResult = (await gmailRun.json()) as { captured?: number; attachments?: { stored: number; failed: number; skipped: number }; error?: string }
+  const gAttBytes = bytesOf(ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED)
+  const gFiles = await pRows("select f.sha256 as sha256, f.size_bytes as size_bytes, f.storage_key as k from files f join message_attachments a on a.file_id = f.id join messages m on m.id = a.message_id where m.external_id = 'g-att@acme.test'")
+  const gBlob = gFiles[0] ? await pBodies.list({ prefix: `${gFiles[0].k}/` }) : { objects: [] }
+  check(
+    '38 the Gmail path in workerd: an attachment decoded from the wire form is stored with matching hash and size',
+    gmailRun.status === 200 && gmailResult.captured === 4 && gFiles.length === 1 && gFiles[0]!.sha256 === createHash('sha256').update(gAttBytes).digest('hex') && Number(gFiles[0]!.size_bytes) === ATTACHMENT_BYTES && gBlob.objects.length === 1 && gBlob.objects[0]!.size === ATTACHMENT_BYTES,
+    { status: gmailRun.status, gmailResult, gFiles, gBlob },
+  )
+  const gBigPrefix = await messageContentPrefix(pOrg, 'email', 'g-big@acme.test')
+  const gBig = await pBodies.list({ prefix: `${gBigPrefix}/v1/original` })
+  check('39 the Gmail path in workerd: an original over 5 MiB, decoded from the wire form, is stored whole by multipart', gBig.objects.length === 1 && gBig.objects[0]!.size === ORIGINAL_BYTES, gBig)
+  const gMismatch = await pRows("select a.fetch_status as s, a.fetch_error as e, a.file_id as f from message_attachments a join messages m on m.id = a.message_id where m.external_id = 'g-mismatch@acme.test'")
+  check('40 the Gmail path in workerd: a declared size that is not the decoded size is a failed link with no file', gMismatch.length === 1 && gMismatch[0]!.s === 'failed' && gMismatch[0]!.e === 'length_mismatch' && gMismatch[0]!.f === null && gmailResult.attachments?.failed === 1, { gMismatch, gmailResult })
+  const tableObject = await (pBodies as unknown as { get(k: string): Promise<{ text(): Promise<string> } | null> }).get(messageBodyKey(await messageContentPrefix(pOrg, 'email', 'g-table@acme.test'), 1))
+  const tableMd = tableObject ? await tableObject.text() : ''
+  check('41 the Gmail path in workerd: the HTML part becomes markdown with its table (hast-util-to-mdast)', tableMd.includes('| Item    | Qty |') && tableMd.includes('# Quarterly') && !tableMd.includes('PLAIN VERSION'), tableMd)
+  const gRows = await pRows("select count(*) as n from message_sources where provider_message_id like 'g-%'")
+  const gEvents = await pRows("select count(*) as n from events where type = 'message.created'")
+  check('42 the Gmail path in workerd: four messages with sources and events beside the FakeChannel ones', Number(gRows[0]!.n) === 4 && Number(gEvents[0]!.n) === 7, { gRows, gEvents })
 } catch (err) {
   failures++
   console.log(`FAIL smoke aborted -> ${err instanceof Error ? err.message : String(err)}`)

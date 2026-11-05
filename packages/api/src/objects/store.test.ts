@@ -157,3 +157,55 @@ describe.each(kinds)('ObjectStore.putStream (%s)', (name, make) => {
     })
   }
 })
+
+// ---- putStream cancels its source when the store rejects (#121 item 2) -----------------------------------------------------
+// A provider response (CHN5's Gmail fetch) must not stay open until the invocation ends. `cancel` reaches the source only while
+// the source is still open, so the cases are the ones where the store fails before the stream is drained.
+function watchedStream(bytes: Uint8Array): { stream: ReadableStream<Uint8Array>; cancelled: () => { reason: unknown } | null } {
+  let got: { reason: unknown } | null = null
+  let at = 0
+  const stream = new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (at >= bytes.byteLength) return c.close()
+      c.enqueue(bytes.slice(at, at + 64 * 1024))
+      at += 64 * 1024
+    },
+    cancel(reason) {
+      got = { reason }
+    },
+  })
+  return { stream, cancelled: () => got }
+}
+
+describe('ObjectStore.putStream cancels the source on a store error (r2)', () => {
+  it('multipart: uploadPart rejects -> the multipart upload is aborted and the source sees cancel with the error', async () => {
+    const boom = new Error('part rejected')
+    const bucket = fakeR2Bucket()
+    const inner = bucket.createMultipartUpload.bind(bucket)
+    bucket.createMultipartUpload = async (key, options) => ({ ...(await inner(key, options)), uploadPart: async () => { throw boom } })
+    const src = watchedStream(patterned(12 * MiB))
+    await expect(r2ObjectStore(bucket).putStream('k', src.stream, { size: null })).rejects.toBe(boom)
+    expect(src.cancelled()).toEqual({ reason: boom })
+    expect(bucket.calls.at(-1)).toEqual({ op: 'abort', key: 'k' })
+  })
+
+  it('known size: put rejects without reading -> the source sees cancel with the error', async () => {
+    const boom = new Error('put rejected')
+    const bucket = { ...fakeR2Bucket(), put: async () => { throw boom } }
+    const src = watchedStream(patterned(1000))
+    await expect(r2ObjectStore(bucket).putStream('k', src.stream, { size: 1000 })).rejects.toBe(boom)
+    expect(src.cancelled()).toEqual({ reason: boom })
+  })
+
+  it('a source that is already errored does not mask the original error with a cancel failure', async () => {
+    const bucket = fakeR2Bucket()
+    await expect(r2ObjectStore(bucket).putStream('k', failingStream(patterned(8 * MiB), 7 * MiB), { size: null })).rejects.toThrow('source broke')
+  })
+
+  it('a cancel that itself rejects is swallowed (best effort)', async () => {
+    const boom = new Error('put rejected')
+    const bucket = { ...fakeR2Bucket(), put: async () => { throw boom } }
+    const stream = new ReadableStream<Uint8Array>({ pull(c) { c.enqueue(new Uint8Array(4)) }, cancel() { throw new Error('cancel exploded') } })
+    await expect(r2ObjectStore(bucket).putStream('k', stream, { size: 4 })).rejects.toBe(boom)
+  })
+})

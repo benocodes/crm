@@ -11,6 +11,8 @@
     "./test/capture": "./src/test/capture-kit.ts",
     "./test/objects": "./src/test/objects.ts",
     "./test/channels": "./src/test/channels.ts",
+    "./test/gmail": "./src/test/gmail.ts",
+    "./test/gmail-fixtures": "./src/test/gmail-fixtures.ts",
     "./test/streams": "./src/test/streams.ts"
   },
   "scripts": {
@@ -23,6 +25,8 @@
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
     "@vault/storage": "workspace:*",
+    "hast-util-from-html": "2.0.3",
+    "hast-util-to-mdast": "10.1.2",
     "hono": "4.13.12",
     "jose": "6.2.12",
     "kysely": "0.29.6",
@@ -33,6 +37,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@types/hast": "3.0.5",
     "@types/mdast": "4.0.4",
     "@types/node": "^22",
     "@vault/db": "workspace:*",

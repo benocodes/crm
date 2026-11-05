@@ -76,6 +76,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     injected `StreamPrimitives` (`workerdStreams()`; Node versions in `@vault/api/test`). Node fakes accept any
     stream, so only the smoke proves this path. A smoke-only entry (`scripts/smoke-pipeline-entry.ts`) may export
     only its handler; constants it shares with the smoke go in a sibling module.
+  - **Provider bodies as JSON with one base64url member** (Gmail's `raw` and attachment `data`, [[CHN5]] D25): pipe the
+    response body through `base64UrlMemberDecoder(member)` (`src/channels/gmail/decoder.ts`, a `TransformStream` that
+    matches the member at JSON depth 1 only and errors on anything not base64url); never `res.json()` a body that
+    can be megabytes. A client returning such a body returns `res.body` unread; its test asserts the stream was not
+    consumed. `putStream` cancels its source (best effort) when `put` or `uploadPart` rejects (#121).
+  - **Importing types from a transitive package** (`hast` through `hast-util-to-mdast`): pnpm's strict resolution
+    hides it, so add its `@types/*` as an exact devDependency and add it to the Dependabot `chat` group with the
+    runtime packages it versions with ([[CHN5]] cycle 1).
   - Test D1s come from `src/test/kit.ts` (a fresh in-memory D1 per test), so no clearing helper is needed.
   - **Per-request D1 budget** ([[CORE47]]). Workers Free allows 50 D1 queries per invocation (a `batch()` is one)
     and 50 subrequests, D1 queries and outbound fetches together. A prepared unit costs one read batch plus one

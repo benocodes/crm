@@ -6,6 +6,8 @@ import { z } from 'zod'
 import { messagePreview } from '../messaging/preview.js'
 import { FakeChannel, standardScripts } from '../test/channels.js'
 import type { ChannelMessage, VaultMessage } from './port.js'
+import { allGmailFixtures, FIXTURE_NAMES, MAILBOX, type FixtureName } from '../test/gmail-fixtures.js'
+import { mapGmailMessage } from './gmail/mapper.js'
 
 // [[CORE69]] D14, [[CORE25]] D15. The vault depends on `chat` for the SHAPE of `Message` and two functions. A bump that renames or
 // retypes a picked field must fail loudly: half one at `pnpm -r typecheck`, half two here. [[CHN5]] adds the Gmail mapper's
@@ -92,6 +94,47 @@ describe('FakeChannel fixtures satisfy the port contract', () => {
 
   it('a skip is a plain reason', async () => {
     expect(await fake.readMessage({ id: 'c' }, 'skipped')).toEqual({ skip: 'draft' })
+  })
+})
+
+// ---- the Gmail mapper's fixtures join the table ([[CHN5]] D35) ---------------------------------------------------------------
+const GMAIL_EXPECTED: Record<FixtureName, { markdown: string; preview: string }> = {
+  plain: { markdown: 'Hello Owner,\n\nPlease see below.\nThanks\n', preview: 'Hello Owner, Please see below. Thanks' },
+  htmlOnly: { markdown: '# Title\n\nSome *emphasis* and **strong** with [a link](https://example.test/x).\n\n> quoted\n', preview: 'Title Some emphasis and strong with a link. quoted' },
+  alternativeTable: {
+    markdown: '# Quarterly\n\n| Item    | Qty |\n| ------- | --- |\n| Widgets | 3   |\n| Gadgets | 5   |\n\nThanks, **Jane**\n',
+    preview: 'Quarterly Item Qty Widgets 3 Gadgets 5 Thanks, Jane',
+  },
+  inlineImage: { markdown: 'Logo: ![logo](cid:logo1@acme.test)\n', preview: 'Logo: logo' },
+  attachment: { markdown: 'Report attached\n', preview: 'Report attached' },
+  nonAscii: { markdown: 'Grüße ✓\n', preview: 'Grüße ✓' },
+  noMessageId: { markdown: 'body without a Message-ID\n', preview: 'body without a Message-ID' },
+  selfAddressed: { markdown: 'a note to myself\n', preview: 'a note to myself' },
+  reply: { markdown: 'Re: hello\n', preview: 'Re: hello' },
+}
+describe('Gmail mapper fixtures satisfy the port contract', () => {
+  const map = (name: FixtureName, fixtures = allGmailFixtures()): ChannelMessage => {
+    const out = mapGmailMessage({ conn: { id: 'c', mailbox: MAILBOX }, resource: fixtures[name].resource, openRaw: async () => new Blob([]).stream() as ReadableStream<Uint8Array> })
+    if ('skip' in out) throw new Error(out.skip)
+    return out
+  }
+  it.each(FIXTURE_NAMES)('%s: message and facts match the schemas, attachments line up, no bytes inline', (name) => {
+    const out = map(name)
+    expect(messageSchema.parse(out.message)).toBeTruthy()
+    expect(factsSchema.parse(out.facts)).toBeTruthy()
+    expect(out.facts.attachments).toHaveLength(out.message.attachments.length)
+    for (const a of out.message.attachments) expect(a).not.toHaveProperty('data')
+  })
+  it.each(FIXTURE_NAMES)('%s: markdown and preview equal the stored expectation', (name) => {
+    const out = map(name)
+    expect(stringifyMarkdown(out.message.formatted)).toBe(GMAIL_EXPECTED[name].markdown)
+    expect(messagePreview(out.message, out.facts.kind)).toBe(GMAIL_EXPECTED[name].preview)
+  })
+  it('a changed fixture field changes the result (the expectations are not vacuous)', () => {
+    const fixtures = allGmailFixtures()
+    const part = fixtures.plain.resource.payload!
+    part.body!.data = Buffer.from('Changed body').toString('base64url')
+    expect(stringifyMarkdown(map('plain', fixtures).message.formatted)).not.toBe(GMAIL_EXPECTED.plain.markdown)
   })
 })
 
