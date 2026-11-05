@@ -134,6 +134,9 @@ describe('validation: each rule refuses its bad case, by variable name, before a
   const bad: [string, Record<string, string>][] = [
     ['CREDENTIALS_KEY of 31 bytes', { CREDENTIALS_KEY: Buffer.alloc(31, 7).toString('base64') }],
     ['CREDENTIALS_KEY of 33 bytes', { CREDENTIALS_KEY: Buffer.alloc(33, 7).toString('base64') }],
+    ['CREDENTIALS_KEY unpadded (43 characters)', { CREDENTIALS_KEY: KEY32.replace(/=+$/, '') }],
+    ['CREDENTIALS_KEY in the URL-safe alphabet', { CREDENTIALS_KEY: Buffer.alloc(32, 0xfb).toString('base64').replace(/\+/g, '-').replace(/\//g, '_') }],
+    ['CREDENTIALS_KEY_VERSION of 10 digits', { CREDENTIALS_KEY_VERSION: '1234567890' }],
     ['CREDENTIALS_KEY that is not base64', { CREDENTIALS_KEY: 'not base64 at all !!!' }],
     ['CREDENTIALS_KEY_VERSION zero', { CREDENTIALS_KEY_VERSION: '0' }],
     ['CREDENTIALS_KEY_VERSION not an integer', { CREDENTIALS_KEY_VERSION: '1.5' }],

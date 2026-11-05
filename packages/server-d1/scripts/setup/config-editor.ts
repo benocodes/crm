@@ -14,9 +14,9 @@ export interface DesiredEnv {
   apiHost: string
   corsOrigins: string
   /** `--auth clerk`: the Clerk variables ([[OPS65]] D3). `AUTH_CLI_CLIENT_ID` is absent while the CLI application is only planned. */
+  authVars?: { AUTH_PROVIDER: string; CLERK_ISSUER: string; CLERK_PUBLISHABLE_KEY?: string; CLERK_AUTHORIZED_PARTIES: string; AUTH_CLI_CLIENT_ID?: string }
   /** The Gmail group's public vars ([[OPS150]]); only names from the allow-list ever get here. */
   gmailVars?: Record<string, string>
-  authVars?: { AUTH_PROVIDER: string; CLERK_ISSUER: string; CLERK_PUBLISHABLE_KEY?: string; CLERK_AUTHORIZED_PARTIES: string; AUTH_CLI_CLIENT_ID?: string }
 }
 export interface ReconcileResult {
   text: string

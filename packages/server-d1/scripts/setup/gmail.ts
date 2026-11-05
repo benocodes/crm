@@ -2,6 +2,7 @@
 // instance's own env file (the Clerk keys' file, D34), with `--auth none` as well. Secrets go to the Worker by `wrangler secret bulk`, vars into the
 // env's `vars` block. Shapes are checked before any command. Nothing here ever puts a value in a message: refusals name the variable.
 import { parseEnv } from 'node:util'
+import { parseGmailConfig } from '@vault/api'
 import { RemoteRefusal } from '../remote.js'
 import type { EnvFileProbe, SetupOptions } from './types.js'
 
@@ -41,9 +42,12 @@ const httpsUrl = (v: string) => {
     return false
   }
 }
+/** `CREDENTIALS_KEY` and `CREDENTIALS_KEY_VERSION` are judged by the Worker's own parser (`parseGmailConfig`), so setup can never accept what the Worker rejects. */
+const WORKER_RULES: Record<string, string> = {
+  CREDENTIALS_KEY: 'must be standard-alphabet, padded base64 that decodes to exactly 32 bytes (what the Worker accepts)',
+  CREDENTIALS_KEY_VERSION: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
+}
 const RULES: Record<string, [(v: string) => boolean, string]> = {
-  CREDENTIALS_KEY: [(v) => /^[A-Za-z0-9+/_-]+={0,2}$/.test(v) && Buffer.from(v, 'base64').length === 32, 'must be base64 that decodes to exactly 32 bytes'],
-  CREDENTIALS_KEY_VERSION: [positiveInt, 'must be a positive integer'],
   GMAIL_BACKFILL_DAYS: [positiveInt, 'must be a positive integer'],
   ATTACHMENT_MAX_BYTES: [positiveInt, 'must be a positive integer'],
   PUBLIC_BASE_URL: [httpsUrl, 'must be an absolute https URL'],
@@ -79,6 +83,9 @@ export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null
     if (rule && !rule[0](v)) throw new RemoteRefusal(`${name} in ${f} ${rule[1]}`)
     ;(GMAIL_SECRET_NAMES as readonly string[]).includes(name) ? (secrets[name] = v) : (vars[name] = v)
   }
+  const { problems } = parseGmailConfig({ ...secrets, ...vars })
+  const bad = problems.filter((n) => n in WORKER_RULES)
+  if (bad.length > 0) throw new RemoteRefusal(bad.map((n) => `${n} in ${f} ${WORKER_RULES[n]}`).join('; '))
   vars.PUBLIC_BASE_URL ??= `https://${opts.apiHost}`
   return { secrets, vars, file: f }
 }
