@@ -28,7 +28,7 @@
     "hast-util-from-html": "2.0.3",
     "hast-util-to-mdast": "10.1.2",
     "hono": "4.13.12",
-    "jose": "6.2.12",
+    "jose": "6.2.14",
     "kysely": "0.29.6",
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
