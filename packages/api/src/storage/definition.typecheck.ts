@@ -47,6 +47,16 @@ definePreparedResource({ surface: 'api',
 })
 export const okKeys = definePreparedResource({ surface: 'api', name: 'api_keys', eventName: 'api_key', table: 'api_keys', record: z.object({ id: z.uuid(), prefix: z.string() }) })
 
+// CHN140 D41: the credential's ciphertext is a secret column. Removing `channel_credentials` from SecretColumns makes the directive below unused: a typecheck failure.
+definePreparedResource({ surface: 'meta',
+  name: 'channel_credentials',
+  eventName: 'channel_credential',
+  table: 'channel_credentials',
+  // @ts-expect-error refresh_token_ciphertext is a secret column
+  record: z.object({ id: z.uuid(), refresh_token_ciphertext: z.string() }),
+})
+export const okCredentialShape = definePreparedResource({ surface: 'meta', name: 'channel_credentials', eventName: 'channel_credential', table: 'channel_credentials', record: z.object({ id: z.uuid(), key_version: z.number() }) })
+
 // record value incompatible with the column
 definePreparedResource({ surface: 'api',
   name: 'tasks',

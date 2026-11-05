@@ -65,6 +65,7 @@ const buildApp = (envVars: Record<string, string | undefined>, over: { roleOf?: 
 beforeAll(async () => {
   e = await openD1Engine()
   google = await FakeGoogle.create({ clientId: ENV.GOOGLE_CLIENT_ID, clientSecret: ENV.GOOGLE_CLIENT_SECRET })
+  google.clock = () => now.getTime()
 })
 afterAll(async () => {
   await e.close()
@@ -157,7 +158,9 @@ describe('connect, happy path (one unit, acting as the user)', () => {
       headers: { authorization: `Bearer ${token(e.userId, ['connections:write'])}`, 'content-type': 'application/json' },
       body: JSON.stringify({ provider: 'google' }),
     })
-    const url = new URL(((await res.json()) as { authorize_url: string }).authorize_url)
+    const authBody = (await res.json()) as { authorize_url: string }
+    expect(res.status, JSON.stringify(authBody)).toBe(200)
+    const url = new URL(authBody.authorize_url)
     expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:8787/oauth/google/callback')
     // And the callback of the same origin completes the flow (the redirect URI must match at the token endpoint).
     const back = new URL(await google.consent(url.toString(), ANN))
@@ -259,7 +262,7 @@ describe('reconnect (D31, D56)', () => {
 
 describe('every callback refusal writes nothing and emits nothing (D9, D33, D57)', () => {
   const stateOf = (cb: URL) => cb.searchParams.get('state')!
-  const cases: Array<[string, string, () => Parameters<typeof connect>[1]]> = [
+  const cases: Array<[string, string, () => NonNullable<Parameters<typeof connect>[1]>]> = [
     ['an expired state', 'state_invalid', () => ({ mutateCallback: () => void (now = new Date(now.getTime() + 11 * 60_000)) })],
     ['a tampered state', 'state_invalid', () => ({ mutateCallback: (u) => u.searchParams.set('state', stateOf(u).replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'))) })],
     ['a missing state', 'state_invalid', () => ({ mutateCallback: (u) => u.searchParams.delete('state') })],

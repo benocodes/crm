@@ -160,7 +160,8 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
           .where(sql<SqlBool>`${sql.ref(`${k.child.table}.${k.column}`)} = ${id}`)
           .where(sql<SqlBool>`${sql.ref(`${k.child.table}.organization_id`)} = ${env.organizationId}`)
           .where(sql<SqlBool>`${sql.ref(`${k.child.table}.deleted_at`)} is null`)
-          .where(memberOf(qc, physicalTable(k.child), 'id', ids))
+          // A cascaded child is a resource, so it has an `id`; the machinery tables ([[CHN5]] D22) key on `connection_id` and are never children, which is why the union of every table no longer types `id`.
+          .where(memberOf(qc, physicalTable(k.child) as 'contacts', 'id', ids))
           .where(eventExists(parentEventId))
         steps.push(
           ...exactly(qc, step(changeChildren), ids.length),

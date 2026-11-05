@@ -5,7 +5,7 @@ import { withFault } from '@vault/storage/test'
 import type { Program } from '../identity/program.js'
 import { memoryObjectStore } from '../objects/store.js'
 import { bytesOf, FakeChannel, standardScripts, type FakeMessageScript } from '../test/channels.js'
-import { captureMessage, runCapture, storedAttachment } from '../test/capture-kit.js'
+import { captureMessage, ensureConnection, runCapture, storedAttachment } from '../test/capture-kit.js'
 import { openEngines, type Engine } from '../test/engines.js'
 import { recordingObjectStore } from '../test/objects.js'
 import { nodeStreams } from '../test/streams.js'
@@ -39,6 +39,9 @@ function engineSuite(): void {
   })
   beforeEach(async () => {
     await e.reset()
+    // The sources name a connection that exists (CHN5 D27); seeded here so the drift hooks below meet only the unit under test.
+    await ensureConnection(e.binding, e, C1.id)
+    await ensureConnection(e.binding, e, C2.id)
   })
 
   /** The engine's binding with every execution logged (operation name and statement count) and the chosen faults injected. */
@@ -87,8 +90,10 @@ function engineSuite(): void {
       randomBytes: (k) => crypto.getRandomValues(new Uint8Array(k)),
       ...over,
     }
-    const run = (ids: string[], opts: { final?: Program<unknown>; conn?: { id: string } } = {}) =>
-      captureMessages(ctx, channel, opts.conn ?? C1, ids, opts.final === undefined ? undefined : { final: opts.final })
+    const run = async (ids: string[], opts: { final?: Program<unknown>; conn?: { id: string } } = {}) => {
+      await ensureConnection(e.binding, e, (opts.conn ?? C1).id)
+      return captureMessages(ctx, channel, opts.conn ?? C1, ids, opts.final === undefined ? undefined : { final: opts.final })
+    }
     return { channel, objects, ctx, probe, run }
   }
   /** Messages with their own two addresses each, so with `cap: 2` every message is a chunk of its own. */

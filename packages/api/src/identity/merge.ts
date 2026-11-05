@@ -55,7 +55,10 @@ export const CONTACT_REFERENCES: readonly ContactReference[] = [
  * these rows need no re-point action; `identity-catalog.integration.test.ts` compares the list to the foreign keys on both
  * engines, so a new FK onto identities is a conscious decision (a later identity merge starts from this list).
  */
-export const IDENTITY_REFERENCES: readonly { table: string; column: string }[] = [{ table: 'interaction_participants', column: 'identity_id' }]
+export const IDENTITY_REFERENCES: readonly { table: string; column: string }[] = [
+  { table: 'interaction_participants', column: 'identity_id' },
+  { table: 'channel_connections', column: 'identity_id' },
+]
 
 /**
  * References to contacts that are NOT foreign keys ([[CORE62]] D16): an association endpoint is a table name plus an id, so the

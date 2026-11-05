@@ -53,6 +53,8 @@ export class FakeGoogle {
   private readonly grants = new Map<string, Grant>()
   private account: FakeAccount | null = null
   private tokenFailure: number | null = null
+  /** The clock ID tokens are stamped with (epoch ms); a test that injects the app's clock sets this to follow it. */
+  clock: () => number = () => Date.now()
   private n = 0
 
   private constructor(
@@ -159,7 +161,7 @@ export class FakeGoogle {
     grant.used = true
     const access = `at-${crypto.randomUUID()}`
     this.accessTokens.push(access)
-    const now = Math.floor(Date.now() / 1000)
+    const now = Math.floor(this.clock() / 1000)
     const o = grant.idToken
     const idToken = await new SignJWT({ email: grant.account.email, email_verified: o.emailVerified ?? grant.account.emailVerified ?? true })
       .setProtectedHeader({ alg: 'RS256', kid: 'fake-google-1' })

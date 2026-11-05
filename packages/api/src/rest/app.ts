@@ -7,7 +7,12 @@ import { mcpChallenge, resourceMetadataChallenge } from '../discovery.js'
 import { authMiddleware } from '../auth/middleware.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
-import { createWorkspaceAuthenticator } from '../auth/workspace-authenticator.js'
+import { createProfileCache, createWorkspaceAuthenticator, workspaceRole } from '../auth/workspace-authenticator.js'
+import { SCOPE_POLICY, type Role, type ScopePolicy } from '../auth/roles.js'
+import { googleCallbackHandler } from '../connections/callback.js'
+import { gmailConfigNotice, gmailUnconfigured, type GmailConfig } from '../connections/config.js'
+import { CALLBACK_PATH } from '../connections/operations.js'
+import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js'
 import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
@@ -22,6 +27,22 @@ import { SURFACES, SURFACE_PREFIX, SURFACE_TITLE, fullPath, openApiPath } from '
 import { MCP_PATH, mcpMethodNotAllowed, mcpPost } from '../mcp/handler.js'
 import { documentOperation, honoPath, registerSecurityScheme } from './openapi.js'
 
+/** The Gmail surface of an app ([[CHN5]] D58). `config` null is "unconfigured": the callback answers 404 and `connections.authorize` 501. */
+export interface GmailAppOptions {
+  config: GmailConfig | null
+  /** From `parseGmailConfig`: the variables that are missing or malformed (named in a startup log line, never their values). */
+  problems?: readonly string[]
+  /** Google's endpoints; default the real ones. Injected in tests and the workerd smoke. */
+  endpoints?: GoogleEndpoints
+  /** The `fetch` every Google and Gmail call uses; default the global one. */
+  fetch?: typeof fetch
+  /** The `users/me` base of the Gmail API; default Gmail's. */
+  gmailBaseUrl?: string
+  /** The role source of the callback's re-check ([[CHN5]] D33). Default: the workspace adapter's cached profile read ([[CORE77]] D12); none without a provider. */
+  roleOf?: (authSubject: string) => Promise<Role | null>
+  /** The scope policy the role re-check applies; default the vault's. */
+  policy?: ScopePolicy
+}
 export type AppEnv = { Variables: { principal: Principal; storage: StorageBinding } }
 export interface AppOptions {
   /**
@@ -49,12 +70,15 @@ export interface AppOptions {
   corsOrigins?: readonly string[]
   /** `info.version` in the document. */
   version?: string
+  /** The Gmail connect surface ([[CHN5]] D9, D58). Absent: unconfigured. D1 only; the routes answer `501` on another engine. */
+  gmail?: GmailAppOptions
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
   objects?: ObjectStore
 }
 
 async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationInput> {
   const params: Record<string, unknown> = c.req.param()
+  const origin = new URL(c.req.url).origin
   const query: Record<string, unknown> = c.req.query()
   // [[CORE129]] D10a (any repeated query parameter): a repeated query parameter is refused, never answered with whichever value the router keeps (the first).
   for (const [key, values] of Object.entries(c.req.queries())) {
@@ -71,14 +95,15 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
       }
     }
   }
-  return { params, query, body }
+  return { params, query, body, origin }
 }
 
 /** The adapter-validated operations ([[CORE36]]) parse their input here, before any scope check; handler-validated ones do it inside `prepare`. */
 function validateInput(op: Operation, input: OperationInput): OperationInput {
   if (op.validation !== 'adapter') return input
-  const { params, query, body } = input
+  const { params, query, body, origin } = input
   return {
+    ...(origin !== undefined ? { origin } : {}),
     params: op.request?.params ? parseInput(op.request.params, params) : params,
     query: op.request?.query ? parseInput(op.request.query, query) : query,
     body: op.request?.body ? parseInput(op.request.body, body) : body,
@@ -125,6 +150,8 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
   if (!principal.scopes.has(op.scope)) {
     throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}`)
   }
+  // [[CHN5]] D29: a D1-only operation on another engine is not implemented there; refused after the scope checks, before any unit runs.
+  if (op.d1Only && c.var.storage.kind !== 'd1') throw new ApiError(501, 'not_implemented', 'this operation is implemented for D1 only')
   // D52: a composition without a store refuses before any unit runs; the scope checks above stay the first refusals.
   if (op.objects && !injected.objects) {
     throw new ApiError(503, 'objects_unavailable', 'object storage is not configured')
@@ -156,13 +183,17 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   if ([options.authAdapter, options.userAuthenticator, options.workspace].filter(Boolean).length > 1) {
     throw new Error('createApp: pass only one of authAdapter, userAuthenticator and workspace')
   }
-  const registry = options.registry ?? createVaultRegistry()
+  const gmail = options.gmail
+  const registry = options.registry ?? createVaultRegistry({ connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}) } })
+  // [[CHN5]] D58: a partial configuration is a startup log line naming what is wrong; nothing configured at all is simply "off".
+  if (gmail?.problems && gmail.problems.length > 0 && !gmailUnconfigured(gmail.problems)) console.warn(gmailConfigNotice(gmail.problems))
+  const profiles = options.workspace?.adapter ? createProfileCache(options.workspace.adapter) : null
   const userAuthenticator =
     options.userAuthenticator ??
     (options.authAdapter
       ? createUserAuthenticator({ adapter: options.authAdapter, declaredScopes: registry.declaredScopes() })
       : options.workspace?.adapter
-        ? createWorkspaceAuthenticator({ adapter: options.workspace.adapter, declaredScopes: registry.declaredScopes(), cliClientId: options.workspace.cliClientId })
+        ? createWorkspaceAuthenticator({ adapter: options.workspace.adapter, declaredScopes: registry.declaredScopes(), cliClientId: options.workspace.cliClientId, profiles: profiles! })
         : undefined)
   const app = new OpenAPIHono<AppEnv>()
   app.onError(renderError)
@@ -236,6 +267,31 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     }),
   )
   app.all(MCP_PATH, mcpMethodNotAllowed)
+
+  // [[CHN5]] D9: the Google OAuth callback. A plain route at the root: the browser carries no bearer token, the signed state is its credential.
+  app.get(
+    CALLBACK_PATH,
+    googleCallbackHandler({
+      config: gmail?.config ?? null,
+      endpoints: gmail?.endpoints ?? GOOGLE_ENDPOINTS,
+      fetch: gmail?.fetch ?? ((input, init) => fetch(input, init)),
+      ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}),
+      roleOf:
+        gmail?.roleOf ??
+        (profiles
+          ? async (subject) => {
+              const profile = await profiles.profileOf(subject, (options.clock ?? (() => new Date()))().getTime())
+              return profile ? workspaceRole(profile.role) : null
+            }
+          : null),
+      policy: gmail?.policy ?? SCOPE_POLICY,
+      declaredScopes: registry.declaredScopes(),
+      storage: options.storage,
+      clock: options.clock,
+      newId: options.newId,
+      randomBytes: options.randomBytes,
+    }),
+  )
 
   // Plain route, not an operation: the Svix signature is its only credential, and it is not documented.
   if (options.authAdapter) app.post('/webhooks/clerk', clerkWebhookHandler(options.authAdapter, { clock: options.clock, newId: options.newId }))

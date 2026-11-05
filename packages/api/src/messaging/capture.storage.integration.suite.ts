@@ -3,7 +3,7 @@ import { SetLimitExceeded, uuidv7 } from '@vault/storage'
 import { withFault } from '@vault/storage/test'
 import { ApiError, mapStorageError } from '../errors.js'
 import { openEngines, type Engine, type EngineName, type RawRow } from '../test/engines.js'
-import { captureMessage, runCapture, storedAttachment, type CaptureOverrides } from '../test/capture-kit.js'
+import { captureMessage, ensureConnection, runCapture, storedAttachment, type CaptureOverrides } from '../test/capture-kit.js'
 import { recordMessages, recordMessagesOperation, type CaptureMessage } from './capture.js'
 
 // The capture unit on both engines ([[CORE68]], spec [[CORE25]] "Capture write path" step 5). D1 is the gate; Postgres is
@@ -13,6 +13,8 @@ const C1 = '0190b2c4-0000-7000-8000-0000000000c1'
 const C2 = '0190b2c4-0000-7000-8000-0000000000c2'
 const NOW = '2026-10-22T10:00:00.000Z'
 const CAPTURE_TABLES = ['threads', 'messages', 'files', 'message_attachments', 'interactions', 'interaction_participants', 'message_sources', 'thread_sources'] as const
+/** `e.rows`, without the own identity `ensureConnection` seeds for the connection ([[CHN5]] D27: a source names a connection that exists). */
+const ownRowsOf = async (e: Engine, t: string) => (await e.rows(t)).filter((r) => !(t === 'identities' && String(r.value).endsWith('@seed.test')))
 const ALL_TABLES = [...CAPTURE_TABLES, 'contacts', 'identities', 'events'] as const
 const settle = (p: Promise<unknown>) => p.then(() => null, (err: unknown) => err)
 
@@ -33,12 +35,16 @@ export function engineSuite(engineName: EngineName): void {
     })
     beforeEach(async () => {
       await e.reset()
+      await ensureConnection(e.binding, e, C1)
+      await ensureConnection(e.binding, e, C2)
     })
+
+    const ownRows = (t: string) => ownRowsOf(e, t)
 
     const msg = (over: CaptureOverrides = {}): CaptureMessage => captureMessage(e.organizationId, over)
     const cap = (messages: CaptureMessage[], opts: { connection?: string; as?: 'user' | 'agent' } = {}) =>
       runCapture(e, { connection_id: opts.connection ?? C1, messages }, opts.as)
-    const counts = async (tables: readonly string[] = ALL_TABLES) => Object.fromEntries(await Promise.all(tables.map(async (t) => [t, (await e.rows(t)).length] as const)))
+    const counts = async (tables: readonly string[] = ALL_TABLES) => Object.fromEntries(await Promise.all(tables.map(async (t) => [t, (await ownRows(t)).length] as const)))
     const types = async () => (await e.rows('events')).map((r) => r.type as string)
     const threadOf = async (m: CaptureMessage) => (await e.rows('messages')).find((r) => r.external_id === m.external_id)!.thread_id as string
     const identity = async (value: string) => (await e.rows('identities')).find((r) => r.value === value && r.deleted_at === null)!
@@ -121,7 +127,7 @@ export function engineSuite(engineName: EngineName): void {
       it('attributes every row and event to the calling agent', async () => {
         await cap([msg({ attachments: 1 })], { as: 'agent' })
         for (const t of ['threads', 'messages', 'files', 'message_attachments', 'interactions', 'interaction_participants', 'message_sources', 'thread_sources', 'contacts', 'identities']) {
-          const rows = await e.rows(t)
+          const rows = await ownRows(t)
           expect(rows.length, t).toBeGreaterThan(0)
           expect(rows.every((r) => r.created_by === e.agentId), t).toBe(true)
         }
@@ -145,7 +151,7 @@ export function engineSuite(engineName: EngineName): void {
             ],
           }),
         ])
-        expect(await e.rows('identities')).toHaveLength(2)
+        expect(await ownRows('identities')).toHaveLength(2)
         expect((await e.rows('interaction_participants')).map((p) => p.role).sort()).toEqual(['cc', 'from', 'to'])
       })
 
@@ -571,7 +577,7 @@ export function engineSuite(engineName: EngineName): void {
 
     const refused = async (messages: CaptureMessage[]) => {
       expect(await settle(runCapture(e, { connection_id: C1, messages }))).toBeInstanceOf(SetLimitExceeded)
-      for (const t of ALL_TABLES) expect((await e.rows(t)).length, t).toBe(0)
+      for (const t of ALL_TABLES) expect((await ownRowsOf(e, t)).length, t).toBe(0)
     }
     const m = (over: CaptureOverrides = {}) => captureMessage(e.organizationId, over)
 

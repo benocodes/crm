@@ -8,6 +8,7 @@ import { createApp } from '../../rest/app.js'
 import { hashApiKey } from '../../auth/api-keys.js'
 import { goldenAuthenticator, goldenClerk, goldenSend, loadGoldenClerk, mountGoldenWebhook } from './kit.js'
 import { GOLDEN_SCOPES, GOLDEN_SEED_AT, goldenId, goldenRandomBytes } from './pg-backend.js'
+import { forgetEnsuredConnections } from '../capture-kit.js'
 import { MESSAGING_SCOPES, seedMessaging } from './messaging-seed.js'
 import type { EventView, GoldenBackend } from './runner.js'
 import { GOLDEN_AGENT_KEY, GOLDEN_EXPIRED_KEY, GOLDEN_ORG_LINK, GOLDEN_SUBJECTS, IDS, type GoldenActor } from './scenarios.js'
@@ -62,6 +63,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
   return {
     async reset() {
       await clearD1(d1)
+      forgetEnsuredConnections(binding)
       counter = 0
       random.n = 0
       store = memoryObjectStore()

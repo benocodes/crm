@@ -22,6 +22,22 @@ export interface GmailMessagePart {
   parts?: GmailMessagePart[]
 }
 
+/** `users.getProfile`: the mailbox address and the history id a sync starts from. */
+export interface GmailProfile {
+  emailAddress: string
+  historyId: string
+  messagesTotal?: number
+  threadsTotal?: number
+}
+/** One entry of `users.settings.sendAs.list`. The primary address has `isPrimary` and no `verificationStatus`; an alias is usable once `verificationStatus` is `accepted`. */
+export interface GmailSendAs {
+  sendAsEmail: string
+  isPrimary?: boolean
+  verificationStatus?: string
+  displayName?: string
+  treatAsAlias?: boolean
+}
+
 export interface GmailMessageResource {
   id: string
   threadId: string
