@@ -287,12 +287,12 @@ export class FakeGmail implements GmailClient {
         const message = this.enter({ op: 'attachment', messageId: decodeURIComponent(attachment[1]!), attachmentId: decodeURIComponent(attachment[2]!) })
         const bytes = message.attachments.get(decodeURIComponent(attachment[2]!))
         if (!bytes) return json({ error: { code: 404, status: 'NOT_FOUND' } }, 404)
-        return new Response(attachmentWire(bytes), { headers: { 'content-type': 'application/json' } })
+        return new Response(attachmentWire(bytes) as unknown as BodyInit, { headers: { 'content-type': 'application/json' } })
       }
       const one = /^\/messages\/([^/]+)$/.exec(path)
       if (one) {
         const id = decodeURIComponent(one[1]!)
-        if (q.get('format') === 'raw') return new Response(rawWire(this.enter({ op: 'raw', messageId: id })), { headers: { 'content-type': 'application/json' } })
+        if (q.get('format') === 'raw') return new Response(rawWire(this.enter({ op: 'raw', messageId: id })) as unknown as BodyInit, { headers: { 'content-type': 'application/json' } })
         return json(this.enter({ op: 'full', messageId: id }).resource)
       }
       return json({ error: { code: 404, status: 'NOT_FOUND' } }, 404)

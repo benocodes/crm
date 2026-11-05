@@ -123,7 +123,13 @@ function cursorProgram(deps: GmailSyncDeps, connectionId: string, set: { history
 }
 
 /** `invalid_grant` ([[CHN5]] D69): one unit as the owner sets `reauth_required`, records the error and emits one `connection.updated`; guarded on `active`, so a repeat writes nothing. */
-async function markReauth(deps: GmailSyncDeps, connectionId: string, ownerId: string): Promise<void> {
+const markReauth = (deps: GmailSyncDeps, connectionId: string, ownerId: string): Promise<void> => markConnectionStatus(deps, connectionId, ownerId, 'reauth_required', 'invalid_grant')
+
+/**
+ * The status change both failures share ([[CHN5]] D16, D69; the sync run's `suspended`, D33): one unit as the owner sets the status, records `errorCode` on the
+ * state row and emits one `connection.updated`; guarded on `active`, so a repeat writes and emits nothing.
+ */
+export async function markConnectionStatus(deps: GmailSyncDeps, connectionId: string, ownerId: string, status: 'reauth_required' | 'suspended', errorCode: string): Promise<void> {
   const env = envOf(deps, ownerId)
   const at = env.now.toISOString()
   const eventId = env.newId()
@@ -150,7 +156,7 @@ async function markReauth(deps: GmailSyncDeps, connectionId: string, ownerId: st
           step(
             qc.db
               .updateTable('channel_connections')
-              .set({ status: 'reauth_required', updated_at: at })
+              .set({ status, updated_at: at })
               .where('channel_connections.id', '=', before.id)
               .where('channel_connections.organization_id', '=', env.organizationId)
               .where('channel_connections.deleted_at', 'is', null)
@@ -160,7 +166,7 @@ async function markReauth(deps: GmailSyncDeps, connectionId: string, ownerId: st
             { expect: 'affected' },
           ),
           step(eventStatement(qc, { id: eventId, at, organizationId: env.organizationId, actorId: ownerId, type: 'connection.updated', resourceType: 'connection', resourceId: before.id, before, after: afterOf(connections) }), 'first-event'),
-          step(qc.db.updateTable('mail_sync_state').set({ last_error_code: 'invalid_grant', last_error_at: at }).where('connection_id', '=', before.id).where('organization_id', '=', env.organizationId)),
+          step(qc.db.updateTable('mail_sync_state').set({ last_error_code: errorCode, last_error_at: at }).where('connection_id', '=', before.id).where('organization_id', '=', env.organizationId)),
           assertStep(qc, eventExists),
         ],
         events: [receipt],

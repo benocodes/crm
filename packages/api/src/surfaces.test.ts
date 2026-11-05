@@ -28,7 +28,7 @@ place('api', 'messages', ['content'])
 place('api', 'files', ['content'])
 place('api', 'associations', ['list', 'get', 'create', 'delete'])
 place('meta', 'agents', CRUD)
-place('meta', 'connections', ['list', 'get', 'delete', 'authorize'])
+place('meta', 'connections', ['list', 'get', 'delete', 'authorize', 'sync'])
 place('meta', 'api_keys', [...CRUD, 'revoke'])
 place('meta', 'memberships', CRUD)
 place('meta', 'users', ['list', 'get'])
@@ -60,14 +60,14 @@ describe('placement (D6)', () => {
     expect(ops.filter((o) => o.surface === 'meta').map((o) => o.name).sort()).toEqual([
       'agents.create', 'agents.get', 'agents.list', 'agents.update',
       'api_keys.create', 'api_keys.get', 'api_keys.list', 'api_keys.revoke',
-      'connections.authorize', 'connections.delete', 'connections.get', 'connections.list',
+      'connections.authorize', 'connections.delete', 'connections.get', 'connections.list', 'connections.sync',
       'me.get',
       'memberships.get', 'memberships.list',
       ...['pipelines', 'pipeline_stages'].flatMap((r) => CRUD.map((a) => `${r}.${a}`)),
       'schema.get',
       'users.get', 'users.list',
     ].sort())
-    expect(ops.length).toBe(88)
+    expect(ops.length).toBe(89)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

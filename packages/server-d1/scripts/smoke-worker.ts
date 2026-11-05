@@ -370,10 +370,10 @@ try {
   const secondDone = await waitFor('the second sync run', async () => String((await stateOf())?.last_success_at ?? '') > firstSuccess && (await stateOf())?.lease_until == null)
   const fullFetches = syncGmail.calls.filter((c) => c.op === 'full').length
   check('W2 POST /meta/v1/connections/{id}/sync in workerd -> 202 requested_at, a second Workflow run finished, and nothing was captured or fetched twice', res.status === 202 && typeof body.requested_at === 'string' && secondDone && (await count('message_sources')) === 3 && fullFetches === 3, { status: res.status, body, secondDone, fullFetches })
-  await (await mf.getWorker()).scheduled({ cron: '0 0 1 1 *' })
+  await ((await mf.getWorker()) as unknown as { scheduled(o: { cron: string }): Promise<unknown> }).scheduled({ cron: '0 0 1 1 *' })
   await new Promise((r) => setTimeout(r, 200))
   check('W3 an unknown cron expression reaches the Worker\'s scheduled handler in workerd and is logged, not thrown', logLines.some((l) => l.includes('unknown cron') && l.includes('0 0 1 1 *')), undefined)
-  await (await mf.getWorker()).scheduled({ cron: '*/15 * * * *' })
+  await ((await mf.getWorker()) as unknown as { scheduled(o: { cron: string }): Promise<unknown> }).scheduled({ cron: '*/15 * * * *' })
   await new Promise((r) => setTimeout(r, 200))
   check('W4 the */15 cron in workerd runs without an error line (the connection is fresh, so it requests nothing)', !logLines.some((l) => /\[cron\].*(error|failed)/i.test(l)) && (await count('message_sources')) === 3, undefined)
   const syncLogs = logLines.join('\n')

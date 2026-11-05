@@ -1,15 +1,18 @@
 import { z } from 'zod'
-import { defineOperation, unit, type PreparedOperation } from '@vault/storage'
+import { defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import type { TenantOperation } from '../registry.js'
 import type { GmailConfig } from './config.js'
 import { GOOGLE_ENDPOINTS, buildAuthorizeUrl, type GoogleEndpoints } from './google.js'
 import { pkceChallenge, pkceVerifier, signState } from './state.js'
+import { instanceId, type MailSyncInstances } from '../sync/request.js'
 
 /** What the registry needs to answer `connections.authorize`: the Gmail configuration (null: unconfigured, D58) and Google's endpoints. */
 export interface ConnectionsRuntime {
   config: GmailConfig | null
   endpoints?: GoogleEndpoints
+  /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured`. */
+  instances?: MailSyncInstances
 }
 
 /** [[CHN5]] D9: the state outlives the person's visit to Google's consent screen by ten minutes. */
@@ -27,6 +30,9 @@ const response = z.object({
   authorize_url: z.string().describe("Open this URL in a browser: Google's consent screen. The vault records the connection when Google sends the person back."),
   expires_at: z.string().describe('When the link stops working (ten minutes).'),
 })
+
+const syncParams = z.strictObject({ id: z.uuid() })
+const syncResponse = z.object({ requested_at: z.string().describe('When the request was recorded. The mailbox is read by a background run that starts now; read connections.get for last_synced_at and last_error_code.') })
 
 const readOnly = <T>(name: string, value: T): PreparedOperation<T> => defineOperation<T>({ name, mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => value }) })
 
@@ -66,6 +72,59 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
           authorize_url: buildAuthorizeUrl({ endpoints: runtime?.endpoints ?? GOOGLE_ENDPOINTS, clientId: config.clientId, redirectUri, state, challenge }),
           expires_at: new Date(expiresAt).toISOString(),
         })
+      },
+    },
+    {
+      kind: 'tenant',
+      surface: 'meta',
+      name: 'connections.sync',
+      summary: "Ask the vault to read a connected mailbox now, instead of waiting for the next scheduled read",
+      description:
+        "Human only. Records a sync request and starts a background run; answers 202 at once, before anything is read. The run captures new mail, and a mailbox that has never synced starts with a backfill. Read connections.get for last_synced_at (when it finished) and last_error_code (why it did not). 404 for an unknown or disconnected connection; 409 connection_inactive when the connection needs a reconnect (reauth_required or suspended); 501 provider_not_configured when this deployment cannot sync.",
+      tags: ['connections'],
+      method: 'post',
+      path: '/connections/{id}/sync',
+      scope: { resource: 'connections', action: 'write' },
+      validation: 'adapter',
+      d1Only: true,
+      request: { params: syncParams },
+      response: { status: 202, schema: syncResponse },
+      prepare: (env, input) => {
+        // Refusal order (D75): the scope and `d1Only` are checked before `prepare`; then who, then configuration, then the connection.
+        if (env.actor.kind !== 'user') throw new ApiError(403, 'user_required', 'syncing a mailbox needs a signed-in person')
+        if (!runtime?.config || !runtime.instances) throw new ApiError(501, 'provider_not_configured', 'this deployment cannot sync mailboxes: Google or the sync Workflow is not configured')
+        const id = (input.params as { id: string }).id
+        const org = env.organizationId
+        const at = env.now.toISOString()
+        const instance = instanceId(id, env.newId())
+        return defineOperation<{ requested_at: string; connection_id: string; instance_id: string }>({
+          name: 'connections.sync',
+          mutates: true,
+          reads: (qc) => ({
+            connection: readMaybe(qc.db.selectFrom('channel_connections').select('channel_connections.status').where('channel_connections.id', '=', id).where('channel_connections.organization_id', '=', org).where('channel_connections.deleted_at', 'is', null)),
+          }),
+          build: (found, qc) => {
+            const row = found.maybe('connection')
+            if (!row) throw new ApiError(404, 'not_found', 'no such connection')
+            if (row.status !== 'active') throw new ApiError(409, 'connection_inactive', 'the connection needs a reconnect before it can sync')
+            return unit({
+              steps: [step(qc.db.updateTable('mail_sync_state').set({ sync_requested_at: at }).where('connection_id', '=', id).where('organization_id', '=', org))],
+              events: [],
+              decode: () => ({ requested_at: at, connection_id: id, instance_id: instance }),
+            })
+          },
+        })
+      },
+      // After the request is committed: one instance. A failure leaves the request recorded (the cron serves it) and says so.
+      after: async (value) => {
+        const v = value as { requested_at: string; connection_id: string; instance_id: string }
+        try {
+          await runtime!.instances!.create({ id: v.instance_id, params: { connection_id: v.connection_id } })
+        } catch (err) {
+          console.error(`[sync] connections.sync: instance not created: ${err instanceof Error ? err.name : 'error'}`)
+          throw new ApiError(503, 'sync_unavailable', 'the sync request was recorded but the run could not be started; it will be picked up by the next scheduled read')
+        }
+        return { requested_at: v.requested_at }
       },
     },
   ]

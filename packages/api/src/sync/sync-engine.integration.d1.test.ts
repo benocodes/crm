@@ -286,7 +286,10 @@ describe('again (D11)', () => {
     const s = await setup()
     const shim = makeWorkerdStepShim({
       beforeStep: async (name) => {
-        if (name === 'p1-finish') await raw('update mail_sync_state set sync_requested_at = ?', new Date(now.getTime() + 1000).toISOString())
+        if (name === 'p1-finish') {
+          await raw('update mail_sync_state set sync_requested_at = ?', new Date(now.getTime() + 1000).toISOString())
+          now = new Date(now.getTime() + 2000) // the pass ends after the request, so the next pass starts later than it
+        }
       },
     })
     expect(await run(s, shim)).toEqual({ end: 'complete', passes: 2 })
@@ -371,13 +374,14 @@ describe('reauth and suspended (D16, D33, D69)', () => {
     addHistory(s.gmail, '1001', ['m1'])
     s.state.roles.delete('user_engine_1')
     const before = (await eventsOf('connection.updated')).length
+    const refreshes = google.refreshRequests.length
     expect(await run(s)).toEqual({ end: 'suspended', passes: 0 })
     expect((await connection()).status).toBe('suspended')
     const events = await eventsOf('connection.updated')
     expect(events.length - before).toBe(1)
     expect(events.at(-1)!.actor_id).toBe(e.userId)
     expect(s.gmail.calls).toEqual([])
-    expect(google.refreshRequests ?? []).toEqual([])
+    expect(google.refreshRequests.length).toBe(refreshes)
     expect(await stateRow()).toMatchObject({ run_id: null, lease_until: null })
   })
   it('a role without connections:write is suspended too', async () => {

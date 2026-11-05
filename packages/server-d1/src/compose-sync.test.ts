@@ -6,6 +6,7 @@ import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vault/api/test/google'
 import { FakeGmail } from '@vault/api/test/gmail'
 import { gmailFixture } from '@vault/api/test/gmail-fixtures'
 import { seedGmailConnection } from '@vault/api/test/gmail-sync'
+import { nodeStreams } from '@vault/api/test/streams'
 import { makeWorkerdStepShim } from '@vault/api/test/workerd-boundary'
 import { MIGRATIONS, d1Binding } from '@vault/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
@@ -112,7 +113,7 @@ describe('the composed run (runMailSync)', () => {
     const refresh = google.issueRefreshToken()
     const id = await seed(t, refresh)
     const gmail = new FakeGmail([msg('c1'), msg('c2')])
-    const worker = composeD1Worker(env({ BODIES: fakeR2Bucket() }), { fetch: fake(gmail) })
+    const worker = composeD1Worker(env({ BODIES: fakeR2Bucket() }), { fetch: fake(gmail), streams: nodeStreams() })
     const shim = makeWorkerdStepShim()
     const out = await worker.runMailSync({ payload: { connection_id: id } }, shim.step)
     expect(out).toEqual({ end: 'complete', passes: 1 })
@@ -122,7 +123,7 @@ describe('the composed run (runMailSync)', () => {
     const t = await boot()
     const id = await seed(t)
     await tracker(MIGRATIONS.map((m) => m.name).slice(0, -1))
-    const worker = composeD1Worker(env({ BODIES: fakeR2Bucket() }), { fetch: fake(new FakeGmail([])) })
+    const worker = composeD1Worker(env({ BODIES: fakeR2Bucket() }), { fetch: fake(new FakeGmail([])), streams: nodeStreams() })
     await expect(worker.runMailSync({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(/behind/)
     expect((await w.d1.prepare('select run_id from mail_sync_state').first())!.run_id).toBeNull()
   })

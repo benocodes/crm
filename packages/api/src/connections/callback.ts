@@ -15,6 +15,7 @@ import { sealToken } from './credentials.js'
 import { GMAIL_READONLY, GoogleExchangeError, exchangeCode, verifyIdToken, type GoogleEndpoints } from './google.js'
 import { redirectUriOf } from './operations.js'
 import { pkceVerifier, verifyState } from './state.js'
+import { requestSync, type MailSyncInstances } from '../sync/request.js'
 
 export type ConnectError = 'state_invalid' | 'consent_denied' | 'scope_missing' | 'not_a_member' | 'exchange_failed' | 'temporarily_unavailable'
 
@@ -42,6 +43,8 @@ export interface CallbackDeps {
   roleOf: ((authSubject: string) => Promise<Role | null>) | null
   policy: ScopePolicy
   declaredScopes: readonly string[]
+  /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D55, D75). Absent: the connection is committed and no sync is requested. */
+  instances?: MailSyncInstances
   storage: (c: Context) => StorageBinding
   clock?: () => Date
   newId?: () => string
@@ -63,7 +66,7 @@ const page = (title: string, bodyHtml: string, status: number): Response =>
   )
 
 /** The user's sign-in subject: a read unit, because the role source is keyed by it. */
-function userSubjectOperation(userId: string): PreparedOperation<string | null> {
+export function userSubjectOperation(userId: string): PreparedOperation<string | null> {
   return defineOperation<string | null>({
     name: 'connections.callback_subject',
     mutates: false,
@@ -169,6 +172,16 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
           connectOperation(env, { google_sub: identity.sub, mailbox, own_addresses: [...own], granted_scopes: tokens.scopes, ciphertext, key_version: config.keyVersion, history_id: profile.historyId }),
         )
       ).value
+      // After the unit has committed (D9): a request before it could name a connection that never existed. A failure here never undoes the connect; the cron serves it.
+      if (deps.instances) {
+        try {
+          await requestSync({ binding, organizationId, clock: () => now, newId: env.newId, instances: deps.instances }, result.connection_id)
+        } catch (err) {
+          console.error(`[gmail] sync request failed after connect: ${err instanceof Error ? err.name : 'error'}`)
+        }
+      } else {
+        console.warn('[gmail] connected, but no sync was requested: the MAIL_SYNC Workflow binding is missing')
+      }
       if (config.returnUrl) return redirectTo(config.returnUrl, { connection_id: result.connection_id })
       return page('Connected', `<p>Connected <code>${escapeHtml(mailbox)}</code>. You can close this tab.</p>`, 200)
     } catch (err) {
