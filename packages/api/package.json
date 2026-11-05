@@ -11,6 +11,8 @@
     "./test/capture": "./src/test/capture-kit.ts",
     "./test/objects": "./src/test/objects.ts",
     "./test/channels": "./src/test/channels.ts",
+    "./test/gmail": "./src/test/gmail.ts",
+    "./test/gmail-fixtures": "./src/test/gmail-fixtures.ts",
     "./test/streams": "./src/test/streams.ts"
   },
   "scripts": {
