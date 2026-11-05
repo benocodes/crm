@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
 import { createHash } from 'node:crypto'
-import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, type R2BucketLike } from '@vault/api'
+import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, openToken, type R2BucketLike } from '@vault/api'
+import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vault/api/test/google'
 import { bytesOf } from '@vault/api/test/channels'
 import { ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
 import { applyMigrations, createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
@@ -53,10 +54,15 @@ const entry = fileURLToPath(new URL('../src/worker.ts', import.meta.url))
 
 const issuer = await testIssuer()
 const profiles = new Map([
-  ['user_owner', clerkUser({ id: 'user_owner', email: 'owner@smoke.test' })],
+  ['user_owner', clerkUser({ id: 'user_owner', email: 'owner@smoke.test', role: 'owner' })],
   ['user_new', clerkUser({ id: 'user_new', email: 'new@smoke.test' })],
 ])
 const clerk = fakeClerkFetch(profiles)
+// CHN140: the connect flow runs against a fake Google. The Worker calls Google's real hostnames; the outbound service below answers
+// exactly these by rewriting them onto the fake's origin, and still refuses every other host.
+const GOOGLE_HOSTS = new Set(['https://oauth2.googleapis.com', 'https://www.googleapis.com', 'https://gmail.googleapis.com'])
+const CREDENTIALS_KEY_BYTES = new Uint8Array(32).fill(11)
+const google = await FakeGoogle.create({ clientId: 'smoke-client.apps.test', clientSecret: 'smoke-client-secret' })
 const hostsSeen = new Set<string>()
 let mf: Miniflare | undefined
 let pipelineMf: Miniflare | undefined
@@ -97,11 +103,20 @@ try {
       CLERK_SECRET_KEY: SECRET_KEY,
       CLERK_API_URL: API_URL,
       CORS_ALLOWED_ORIGINS: '',
+      GOOGLE_CLIENT_ID: google.clientId,
+      GOOGLE_CLIENT_SECRET: google.clientSecret,
+      OAUTH_STATE_SECRET: 'smoke-state-secret',
+      CREDENTIALS_KEY: Buffer.from(CREDENTIALS_KEY_BYTES).toString('base64'),
     },
     outboundService: async (req: Request) => {
       const url = new URL(req.url)
       hostsSeen.add(url.origin)
-      if (url.origin !== API_URL) return new Response('blocked by the smoke: not the fake Clerk host', { status: 502 })
+      if (GOOGLE_HOSTS.has(url.origin)) {
+        const rewritten = new URL(`${url.pathname}${url.search}`, FAKE_GOOGLE_ORIGIN)
+        // The token endpoint lives at /token on the fake and at oauth2.googleapis.com/token for real: the path already matches.
+        return google.fetch(rewritten.toString(), { method: req.method, headers: req.headers, body: req.method === 'POST' ? await req.text() : undefined })
+      }
+      if (url.origin !== API_URL) return new Response('blocked by the smoke: not the fake Clerk or Google host', { status: 502 })
       return clerk(req.url, { headers: req.headers, method: req.method })
     },
   })
@@ -270,8 +285,52 @@ try {
     inLog: logText.includes(key) || logText.includes(keyHash),
   })
 
+
+  // 43-44: the Gmail connect flow in workerd ([[CHN140]] D1, D4, D9, D57): authorize, Google's consent (faked), the callback. Web Crypto
+  // AES-GCM and HMAC, `jose` against the fake's JWKS, and the one D1 unit all run in the real bundle. Nothing watches, nothing syncs (D55).
+  // Before check 16 on purpose: the network guard must see the Google hosts the flow reached.
+  const ownerNow = await mintClerkToken(issuer, { sub: 'user_owner', extra: { vibase_role: 'owner' } })
+  res = await call('POST', '/meta/v1/connections/authorize', { token: ownerNow, body: { provider: 'google' } })
+  body = await json(res)
+  const authorizeUrl = String(body.authorize_url ?? '')
+  check('43 POST /meta/v1/connections/authorize as an owner -> 200, a Google URL with the Worker origin as redirect_uri and an S256 challenge', res.status === 200 && authorizeUrl.startsWith('https://accounts.google.com/o/oauth2/v2/auth?') && new URL(authorizeUrl).searchParams.get('redirect_uri') === `${String(base).replace(/\/$/, '')}/oauth/google/callback` && new URL(authorizeUrl).searchParams.get('code_challenge_method') === 'S256', { status: res.status, body })
+  const eventsBeforeConnect = await count('events')
+  const callbackUrl = new URL(await google.consent(authorizeUrl.replace('https://accounts.google.com', FAKE_GOOGLE_ORIGIN), { sub: 'smoke-sub', email: 'Mailbox@Smoke.test', historyId: '777', sendAs: [{ sendAsEmail: 'mailbox@smoke.test', isPrimary: true }, { sendAsEmail: 'alias@smoke.test', verificationStatus: 'accepted' }] }))
+  res = await call('GET', `${callbackUrl.pathname}${callbackUrl.search}`)
+  const connectedPage = await res.text()
+  const conn = (await rows('select * from channel_connections'))[0]
+  const cred = (await rows('select * from channel_credentials'))[0]
+  const refresh = google.refreshTokens.at(-1) ?? ''
+  const opened = cred ? await openToken(CREDENTIALS_KEY_BYTES, String(cred.refresh_token_ciphertext)).catch(() => '') : ''
+  const ownValues = (await rows('select value from identities where own = 1 order by value')).map((r) => String(r.value))
+  const newEvents = (await rows('select type, actor_id from events order by rowid')).slice(eventsBeforeConnect)
+  const cursor = (await rows('select * from mail_sync_cursors'))[0]
+  check(
+    '44 the callback in workerd -> 200 built-in page; one connection owned by the user, an encrypted credential that opens to the refresh token, the cursor, own identities and the events; no watch',
+    res.status === 200 &&
+      connectedPage.includes('You can close this tab') &&
+      (await count('channel_connections')) === 1 &&
+      conn?.account_id === 'smoke-sub' &&
+      conn?.status === 'active' &&
+      refresh !== '' &&
+      String(cred?.refresh_token_ciphertext ?? '') !== '' &&
+      !String(cred?.refresh_token_ciphertext).includes(refresh) &&
+      opened === refresh &&
+      cursor?.history_id === '777' &&
+      (await count('mail_sync_state')) === 1 &&
+      (await count('gmail_watches')) === 0 &&
+      ownValues.join() === 'alias@smoke.test,mailbox@smoke.test' &&
+      newEvents.filter((x) => x.type === 'connection.created').length === 1 &&
+      newEvents.filter((x) => x.type === 'identity.created').length === 2 &&
+      newEvents.every((x) => x.actor_id === conn?.owner_id),
+    { status: res.status, connectedPage: connectedPage.slice(0, 300), conn, newEvents },
+  )
+  const connectLogs = logLines.join('\n')
+  check('44a no Worker log line holds the refresh token, an access token or the client secret', !connectLogs.includes(refresh) && google.accessTokens.every((t) => !connectLogs.includes(t)) && !connectLogs.includes(google.clientSecret), undefined)
+
   // 16: the network guard
-  check('16 the Worker reached only the fake Clerk host', hostsSeen.size > 0 && [...hostsSeen].every((h) => h === API_URL), [...hostsSeen])
+  // CHN140: the Google hosts are answered by the fake too (check 43); nothing else may be reached.
+  check('16 the Worker reached only the fake Clerk host and the faked Google hosts', hostsSeen.size > 0 && [...hostsSeen].every((h) => h === API_URL || GOOGLE_HOSTS.has(h)), [...hostsSeen])
 
   // 17-19: message content and file bytes from workerd's real R2 binding (CORE58)
   const bodies = (await mf.getR2Bucket('BODIES')) as unknown as R2BucketLike
