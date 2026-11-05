@@ -422,6 +422,17 @@ describe('gate (D37)', () => {
     await expect(run(s)).rejects.toThrow(/behind/)
     expect(await snapshot()).toEqual(before)
   })
+  it('the claim step that finds the database behind throws and writes no lease; so does the finish step, stamping nothing', async () => {
+    const s = await setup({ messages: [mk('m1')] })
+    addHistory(s.gmail, '1001', ['m1'])
+    const atClaim = makeWorkerdStepShim({ beforeStep: (name) => void (name === 'claim' && (s.state.behind = true)) })
+    await expect(run(s, atClaim)).rejects.toThrow(/behind/)
+    expect(await stateRow()).toMatchObject({ run_id: null, lease_until: null })
+    s.state.behind = false
+    const atFinish = makeWorkerdStepShim({ beforeStep: (name) => void (name === 'p1-finish' && (s.state.behind = true)) })
+    await expect(run(s, atFinish)).rejects.toThrow(/behind/)
+    expect((await stateRow()).last_success_at).toBeNull()
+  })
   it('a page step that finds the database behind throws and writes no page', async () => {
     const s = await setup({ messages: [mk('m1')] })
     addHistory(s.gmail, '1001', ['m1'])
