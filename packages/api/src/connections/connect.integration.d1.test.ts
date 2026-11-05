@@ -11,7 +11,7 @@ import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 import { parseGmailConfig, type GmailConfig } from './config.js'
 import { openToken } from './credentials.js'
 import { connectOperation } from './connect.js'
-import { GMAIL_READONLY } from './google.js'
+import { GMAIL_READONLY, GMAIL_SEND } from './google.js'
 import { signState } from './state.js'
 
 // CHN140 D3, D4, D9, D10, D31, D55-D57: the connect flow end to end on a local D1 binding: authorize, Google's consent (faked), the
@@ -25,7 +25,7 @@ const ENV = {
   PUBLIC_BASE_URL: 'https://vault.test',
 }
 const BASE = 'https://vault.test'
-const SCOPES_ALL = ['openid', 'email', GMAIL_READONLY]
+const SCOPES_ALL = ['openid', 'email', GMAIL_READONLY, GMAIL_SEND]
 const ANN: FakeAccount = { sub: 'sub-ann', email: 'ann@example.test', historyId: '555', sendAs: [{ sendAsEmail: 'ann@example.test', isPrimary: true }, { sendAsEmail: 'Sales@Example.test', verificationStatus: 'accepted' }, { sendAsEmail: 'pending@example.test', verificationStatus: 'pending' }] }
 const CONNECTION_TABLES = ['channel_connections', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'identities', 'contacts', 'events'] as const
 
@@ -191,6 +191,25 @@ describe('connect, happy path (one unit, acting as the user)', () => {
   })
 })
 
+describe('requested and granted Gmail scopes (user decision 2026-11-05)', () => {
+  it('asks for gmail.readonly and gmail.send in one consent', async () => {
+    const scope = new URL((await authorize()).authorize_url).searchParams.get('scope')!.split(' ')
+    expect(scope).toEqual(['openid', 'email', GMAIL_READONLY, GMAIL_SEND])
+  })
+
+  it('a grant with readonly but without send still connects, and the stored grant records what was granted', async () => {
+    expect((await connect(ANN, { consent: { granted: ['openid', 'email', GMAIL_READONLY] } })).status).toBe(200)
+    expect((await rows('channel_connections'))[0]!.granted_scopes).toEqual(['openid', 'email', GMAIL_READONLY])
+  })
+
+  it('a grant with send but without readonly is scope_missing and writes nothing', async () => {
+    const before = await snapshot()
+    const res = await connect(ANN, { consent: { granted: ['openid', 'email', GMAIL_SEND] } })
+    expect(await res.text()).toContain('<code>scope_missing</code>')
+    expect(await snapshot()).toEqual(before)
+  })
+})
+
 describe('own identities (D10)', () => {
   it('an address already on a contact moves to own (identity.updated), the contact stays', async () => {
     await e.run(resolveOperation(e.env(), [{ kind: 'email', value: 'sales@example.test', name: 'Sales Desk' }]))
@@ -223,7 +242,7 @@ describe('own identities (D10)', () => {
 
 describe('reconnect (D31, D56)', () => {
   it('the same Google account by another connections:write holder updates the row: owner moves, active again, scopes replaced, created_by stays, one new credential replaces the old', async () => {
-    await connect(ANN, { consent: { granted: [...SCOPES_ALL, 'https://www.googleapis.com/auth/gmail.send'] } })
+    await connect(ANN, { consent: { granted: [...SCOPES_ALL, 'https://www.googleapis.com/auth/calendar.readonly'] } })
     const first = (await rows('channel_connections'))[0]!
     const firstCred = (await rows('channel_credentials'))[0]!
     await e.update('channel_connections', first.id as string, { status: 'reauth_required' })
@@ -269,7 +288,7 @@ describe('every callback refusal writes nothing and emits nothing (D9, D33, D57)
     ['a state signed with another secret', 'state_invalid', () => ({ mutateCallback: async (u) => u.searchParams.set('state', await signState('another-secret', { user_id: e.userId, nonce: 'n', expires_at: now.getTime() + 60_000 })) })],
     ['a missing code', 'exchange_failed', () => ({ mutateCallback: (u) => u.searchParams.delete('code') })],
     ['the person pressing Cancel', 'consent_denied', () => ({ consent: { deny: true } })],
-    ['Gmail unticked on the consent screen', 'scope_missing', () => ({ consent: { granted: ['openid', 'email'] } })],
+    ['Gmail unticked on the consent screen (no gmail.readonly)', 'scope_missing', () => ({ consent: { granted: ['openid', 'email'] } })],
     ['an ID token for another audience', 'exchange_failed', () => ({ consent: { idToken: { aud: 'someone-else' } } })],
     ['an ID token from another issuer', 'exchange_failed', () => ({ consent: { idToken: { iss: 'https://evil.test' } } })],
     ['an unverified email', 'exchange_failed', () => ({ consent: { idToken: { emailVerified: false } } })],

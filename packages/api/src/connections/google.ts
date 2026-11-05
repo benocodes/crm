@@ -15,8 +15,12 @@ export const GOOGLE_ENDPOINTS: GoogleEndpoints = {
   jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
 }
 export const GMAIL_READONLY = 'https://www.googleapis.com/auth/gmail.readonly'
-/** D1: the scopes requested. `gmail.readonly` only (D2); `sendAs.list` is covered by it (D10). */
-export const REQUESTED_SCOPES: readonly string[] = ['openid', 'email', GMAIL_READONLY]
+export const GMAIL_SEND = 'https://www.googleapis.com/auth/gmail.send'
+/**
+ * The scopes requested (user decision 2026-11-05, replacing D2's readonly-only): read and send, so one consent covers both. Nothing in the vault calls send
+ * yet and agents never send (invariant 4). `gmail.readonly` is required (its absence is `scope_missing`); `gmail.send` is recorded if granted. `sendAs.list` is covered by readonly (D10).
+ */
+export const REQUESTED_SCOPES: readonly string[] = ['openid', 'email', GMAIL_READONLY, GMAIL_SEND]
 const ISSUERS = ['https://accounts.google.com', 'accounts.google.com']
 
 /** `access_type=offline` and `prompt=consent` are what make Google return a refresh token on a reconnect too (D1). */

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { FAKE_ENDPOINTS, FakeGoogle } from '../test/google.js'
-import { GMAIL_READONLY, GoogleExchangeError, REQUESTED_SCOPES, buildAuthorizeUrl, exchangeCode, verifyIdToken, GOOGLE_ENDPOINTS } from './google.js'
+import { GMAIL_READONLY, GMAIL_SEND, GoogleExchangeError, REQUESTED_SCOPES, buildAuthorizeUrl, exchangeCode, verifyIdToken, GOOGLE_ENDPOINTS } from './google.js'
 import { pkceChallenge, pkceVerifier } from './state.js'
 
 // CHN140 D1, D9, D57: the authorize URL, the code exchange and the ID token check, against a fake Google that mints real signed tokens.
@@ -29,7 +29,7 @@ describe('buildAuthorizeUrl (D1)', () => {
       client_id: 'cid',
       redirect_uri: REDIRECT,
       response_type: 'code',
-      scope: 'openid email https://www.googleapis.com/auth/gmail.readonly',
+      scope: 'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
       access_type: 'offline',
       prompt: 'consent',
       include_granted_scopes: 'true',
@@ -37,7 +37,7 @@ describe('buildAuthorizeUrl (D1)', () => {
       code_challenge: 'the-challenge',
       code_challenge_method: 'S256',
     })
-    expect(REQUESTED_SCOPES).toEqual(['openid', 'email', GMAIL_READONLY])
+    expect(REQUESTED_SCOPES).toEqual(['openid', 'email', GMAIL_READONLY, GMAIL_SEND])
   })
 })
 
@@ -46,7 +46,7 @@ describe('exchangeCode', () => {
     const r = await exchange(await code())
     expect(r.refreshToken).toMatch(/^rt-/)
     expect(r.accessToken).toMatch(/^at-/)
-    expect(r.scopes).toEqual(['openid', 'email', GMAIL_READONLY])
+    expect(r.scopes).toEqual(['openid', 'email', GMAIL_READONLY, GMAIL_SEND])
     expect(r.idToken.split('.')).toHaveLength(3)
   })
 
