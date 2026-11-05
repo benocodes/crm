@@ -2,7 +2,9 @@ import { sql } from 'kysely'
 import { z } from 'zod'
 import { codecs, readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
+import { deleteDealOperation } from '../identity/cascades.js'
 import { definePreparedResource, type DerivedDecl, type JoinFilter } from '../storage/definition.js'
+import { linkedToFilter } from './tag-filter.js'
 
 export type DealRecord = {
   id: string
@@ -93,7 +95,16 @@ export const deals = definePreparedResource({
   update,
   createOnly: { stage_id: 'use deals.move_stage to change the stage', pipeline_id: 'a deal moves between stages of its pipeline with deals.move_stage' },
   filters: { pipeline_id: { schema: z.uuid() }, stage_id: { schema: z.uuid() }, owner_id: { schema: z.uuid() }, created_by: { schema: z.uuid() } },
-  joinFilters: { status: statusFilter },
+  associable: true,
+  // [[CORE130]] D14: a deal links to the records around it; deal-deal and deal-interaction links are refused (the 400 names this list).
+  neighbours: ['companies', 'contacts', 'notes', 'tags', 'tasks', 'threads'],
+  override: { delete: (env, id) => deleteDealOperation(env, id as string) },
+  joinFilters: {
+    status: statusFilter,
+    tag_id: linkedToFilter('deals', 'tags', 'Only deals linked to this tag.'),
+    company_id: linkedToFilter('deals', 'companies', 'Only deals linked to this company (an association).'),
+    contact_id: linkedToFilter('deals', 'contacts', 'Only deals linked to this contact (an association).'),
+  },
   references: { stage_id: { table: 'pipeline_stages', live: true }, owner_id: { table: 'principals' } },
   prepare: ({ values, meta }) => {
     // Pure parts of the amount rule; a patch that sets only one of the pair is judged against the stored row in `conflicts`.

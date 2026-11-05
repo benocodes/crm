@@ -254,6 +254,12 @@ a route or an MCP tool that bypasses the registry.
   change, for every invocation form (`vibase <resource>`, `vibase <resource> <action>`, `--help`): a stale cache must
   refresh once and answer as a fresh one. [[CORE130]]'s kebab-cased action threw `TypeError` on `vibase deals` with a
   pre-deals cache (`cli.integration.test.ts`, "a cache that predates deals" edits the cache file to build that state).
+  A new list flag on a stale cache is refused as unknown by `parseInvocation`, so `main` refreshes once and re-parses
+  against the live document ([[CORE136]]); it never sends the list without the flag it was asked for.
+- **A retry that re-runs a parser must not consume one-shot input twice.** stdin (`--data -`) can be read once per
+  process: the stale-cache re-parse in `packages/cli/src/cli.ts` reads it through a memoised `io.readStdin`
+  (`stdin ??= deps.readStdin()`), so a genuine usage error (bad JSON) answers the same on a cached run as on a fresh
+  one. Any new retry around input parsing reuses that `io`, never `deps.readStdin` directly ([[CORE136]] review).
 - There is no Hono RPC (`hc`) typing: a registry built in a loop gives no static route types. A TypeScript
   consumer that needs typed calls should generate a client from `/api/v1/openapi.json` and `/meta/v1/openapi.json` ([[CORE15]], [[API32]]).
 

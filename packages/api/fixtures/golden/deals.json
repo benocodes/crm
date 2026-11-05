@@ -795,6 +795,640 @@
           "events": []
         }
       ]
+    },
+    {
+      "name": "deals-linking",
+      "about": "a deal links to companies and tags through associations ([[CORE130]] D14, [[CORE136]]): deals.list?company_id= and ?tag_id= return the linked deals, a deal cannot link to another deal or to an interaction (400, the allowed types are named), a deleted edge leaves the filter, deals.get?include=associations embeds the live edges, and deleting a deal cascades its edges",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/meta/v1/pipelines",
+          "request": {
+            "name": "Sales"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Sales",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "pipeline.created",
+              "resource_type": "pipeline",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "name": "Sales",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/meta/v1/pipeline-stages",
+          "request": {
+            "pipeline_id": "{p}",
+            "name": "Researched",
+            "kind": "open",
+            "position": 10
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "name": "Researched",
+            "kind": "open",
+            "position": 10,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "pipeline_stage.created",
+              "resource_type": "pipeline_stage",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "kind": "open",
+                "name": "Researched",
+                "position": 10,
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/deals",
+          "request": {
+            "name": "Acme - pilot",
+            "stage_id": "{s}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme - pilot",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "stage_id": "0190b2c4-0000-7000-8000-000001000003",
+            "status": "open",
+            "amount_minor": null,
+            "currency": null,
+            "expected_close_date": null,
+            "owner_id": null,
+            "closed_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "deal.created",
+              "resource_type": "deal",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": "Acme - pilot",
+                "currency": null,
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000003",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/deals",
+          "request": {
+            "name": "Unlinked",
+            "stage_id": "{s}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000007",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Unlinked",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "stage_id": "0190b2c4-0000-7000-8000-000001000003",
+            "status": "open",
+            "amount_minor": null,
+            "currency": null,
+            "expected_close_date": null,
+            "owner_id": null,
+            "closed_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:03:00.000Z",
+            "updated_at": "2026-10-22T09:03:00.000Z"
+          },
+          "events": [
+            {
+              "type": "deal.created",
+              "resource_type": "deal",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000007",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:03:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000007",
+                "name": "Unlinked",
+                "currency": null,
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000003",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:03:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:03:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/companies",
+          "request": {
+            "name": "Acme"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000009",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme",
+            "domain": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:04:00.000Z",
+            "updated_at": "2026-10-22T09:04:00.000Z"
+          },
+          "events": [
+            {
+              "type": "company.created",
+              "resource_type": "company",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000009",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:04:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000009",
+                "name": "Acme",
+                "domain": null,
+                "created_at": "2026-10-22T09:04:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:04:00.000Z",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/tags",
+          "request": {
+            "name": "Q4"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000011",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Q4",
+            "description": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:05:00.000Z",
+            "updated_at": "2026-10-22T09:05:00.000Z"
+          },
+          "events": [
+            {
+              "type": "tag.created",
+              "resource_type": "tag",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000011",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:05:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000011",
+                "name": "Q4",
+                "created_at": "2026-10-22T09:05:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:05:00.000Z",
+                "description": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/associations",
+          "request": {
+            "a_type": "deals",
+            "a_id": "{d}",
+            "b_type": "companies",
+            "b_id": "{c}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000013",
+            "a_type": "companies",
+            "a_id": "0190b2c4-0000-7000-8000-000001000009",
+            "b_type": "deals",
+            "b_id": "0190b2c4-0000-7000-8000-000001000005",
+            "relation": "related_to",
+            "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+            "created_at": "2026-10-22T09:06:00.000Z",
+            "updated_at": "2026-10-22T09:06:00.000Z"
+          },
+          "events": [
+            {
+              "type": "association.created",
+              "resource_type": "association",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:06:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "a_id": "0190b2c4-0000-7000-8000-000001000009",
+                "b_id": "0190b2c4-0000-7000-8000-000001000005",
+                "a_type": "companies",
+                "b_type": "deals",
+                "relation": "related_to",
+                "created_at": "2026-10-22T09:06:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:06:00.000Z"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:07:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/associations",
+          "request": {
+            "a_type": "tags",
+            "a_id": "{t}",
+            "b_type": "deals",
+            "b_id": "{d}"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000015",
+            "a_type": "deals",
+            "a_id": "0190b2c4-0000-7000-8000-000001000005",
+            "b_type": "tags",
+            "b_id": "0190b2c4-0000-7000-8000-000001000011",
+            "relation": "related_to",
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:07:00.000Z",
+            "updated_at": "2026-10-22T09:07:00.000Z"
+          },
+          "events": [
+            {
+              "type": "association.created",
+              "resource_type": "association",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000015",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:07:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000015",
+                "a_id": "0190b2c4-0000-7000-8000-000001000005",
+                "b_id": "0190b2c4-0000-7000-8000-000001000011",
+                "a_type": "deals",
+                "b_type": "tags",
+                "relation": "related_to",
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:07:00.000Z"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:08:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/deals?company_id={c}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Acme - pilot",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "stage_id": "0190b2c4-0000-7000-8000-000001000003",
+                "status": "open",
+                "amount_minor": null,
+                "currency": null,
+                "expected_close_date": null,
+                "owner_id": null,
+                "closed_at": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:09:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/deals?tag_id={t}&status=open",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "Acme - pilot",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "stage_id": "0190b2c4-0000-7000-8000-000001000003",
+                "status": "open",
+                "amount_minor": null,
+                "currency": null,
+                "expected_close_date": null,
+                "owner_id": null,
+                "closed_at": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/associations",
+          "request": {
+            "a_type": "deals",
+            "a_id": "{d}",
+            "b_type": "deals",
+            "b_id": "{d}"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "deals can only be linked to companies, contacts, notes, tags, tasks, threads"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/associations",
+          "request": {
+            "a_type": "deals",
+            "a_id": "{d}",
+            "b_type": "interactions",
+            "b_id": "0190b2c4-0000-7000-8000-000000000001"
+          },
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "deals can only be linked to companies, contacts, notes, tags, tasks, threads"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:12:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/deals/{d}?include=associations",
+          "request": null,
+          "status": 200,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "name": "Acme - pilot",
+            "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+            "stage_id": "0190b2c4-0000-7000-8000-000001000003",
+            "status": "open",
+            "amount_minor": null,
+            "currency": null,
+            "expected_close_date": null,
+            "owner_id": null,
+            "closed_at": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z",
+            "associations": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000015",
+                "relation": "related_to",
+                "neighbour_type": "tags",
+                "neighbour_id": "0190b2c4-0000-7000-8000-000001000011",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:07:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "relation": "related_to",
+                "neighbour_type": "companies",
+                "neighbour_id": "0190b2c4-0000-7000-8000-000001000009",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "created_at": "2026-10-22T09:06:00.000Z"
+              }
+            ],
+            "associations_truncated": false
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:13:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/associations/{e1}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "association.deleted",
+              "resource_type": "association",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000013",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:13:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000013",
+                "a_id": "0190b2c4-0000-7000-8000-000001000009",
+                "b_id": "0190b2c4-0000-7000-8000-000001000005",
+                "a_type": "companies",
+                "b_type": "deals",
+                "relation": "related_to",
+                "created_at": "2026-10-22T09:06:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000c001",
+                "updated_at": "2026-10-22T09:06:00.000Z"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:14:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/deals?company_id={c}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:15:00.000Z",
+          "method": "DELETE",
+          "path": "/api/v1/deals/{d}",
+          "request": null,
+          "status": 204,
+          "response": null,
+          "events": [
+            {
+              "type": "deal.deleted",
+              "resource_type": "deal",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:15:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "name": "Acme - pilot",
+                "currency": null,
+                "owner_id": null,
+                "stage_id": "0190b2c4-0000-7000-8000-000001000003",
+                "closed_at": null,
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
+                "amount_minor": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "expected_close_date": null
+              },
+              "after": null
+            },
+            {
+              "type": "association.deleted",
+              "resource_type": "association",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000015",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:15:00.000Z",
+              "before": {
+                "id": "0190b2c4-0000-7000-8000-000001000015",
+                "a_id": "0190b2c4-0000-7000-8000-000001000005",
+                "b_id": "0190b2c4-0000-7000-8000-000001000011",
+                "a_type": "deals",
+                "b_type": "tags",
+                "relation": "related_to",
+                "created_at": "2026-10-22T09:07:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:07:00.000Z"
+              },
+              "after": null
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:16:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/deals?tag_id={t}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:17:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/associations?type=tags&id={t}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [],
+            "next_cursor": null
+          },
+          "events": []
+        }
+      ]
     }
   ]
 }

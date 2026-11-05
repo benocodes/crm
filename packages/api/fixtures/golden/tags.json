@@ -274,7 +274,7 @@
           "response": {
             "error": {
               "code": "validation_error",
-              "message": "tags can only be linked to companies, contacts, notes, tasks"
+              "message": "tags can only be linked to companies, contacts, deals, notes, tasks"
             }
           },
           "events": []

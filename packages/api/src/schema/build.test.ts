@@ -139,7 +139,7 @@ describe('document shape (D10, D11)', () => {
     const doc = build({ columns: [...COLUMNS].reverse() })
     expect(doc.tables.map((t: any) => t.name)).toEqual(['api_keys', 'companies', 'contacts', 'events', 'interactions', 'messages', 'mystery', 'organizations', 'principals', 'tasks', 'threads'])
     expect(table(doc, 'interactions').columns.map((c: any) => c.name)).toEqual(['id', 'organization_id', 'thread_id', 'message_id'])
-    expect(doc.associations.associable).toEqual(['companies', 'contacts', 'interactions', 'notes', 'tags', 'tasks', 'threads'])
+    expect(doc.associations.associable).toEqual(['companies', 'contacts', 'deals', 'interactions', 'notes', 'tags', 'tasks', 'threads'])
     expect(doc.associations.table).toBe('associations')
     expect(doc.associations.relations).toEqual(['related_to'])
   })

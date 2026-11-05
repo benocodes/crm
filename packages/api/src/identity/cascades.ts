@@ -255,6 +255,11 @@ export function deleteTaskOperation(env: PreparedEnv, id: string): PreparedOpera
   return cascadeDelete({ parent: tasks, children: [] }, env, id)
 }
 
+/** `deals.delete`: soft-deletes the deal and its live edges (`association.deleted` each, in id order). The parent is read without derived fields, so `status` never reaches `deal.deleted` ([[CORE130]] D8). */
+export function deleteDealOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
+  return cascadeDelete({ parent: deals, children: [] }, env, id)
+}
+
 /** `notes.delete`: soft-deletes the note and its live edges (`association.deleted` each, in id order). */
 export function deleteNoteOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
   return cascadeDelete({ parent: notes, children: [] }, env, id)

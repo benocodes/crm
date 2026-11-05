@@ -135,7 +135,22 @@ async function main(argv: string[], deps: Deps): Promise<number> {
   }
   if (!cmd) throw usage(`unknown command "${words.join(' ')}" on ${conn.server}: run \`vibase --help\` to list the commands`)
 
-  const inv = await parseInvocation(cmd, rest, { readFile: (p) => readFile(p, 'utf8'), readStdin: () => deps.readStdin() })
+  // Memoised: the retry below re-parses, and stdin can be consumed once.
+  let stdin: Promise<string> | undefined
+  const io = { readFile: (p: string) => readFile(p, 'utf8'), readStdin: () => (stdin ??= deps.readStdin()) }
+  let inv: Awaited<ReturnType<typeof parseInvocation>>
+  try {
+    inv = await parseInvocation(cmd, rest, io)
+  } catch (e) {
+    // A cache written before the server learned a flag refuses it as unknown: refresh once and parse against the live document, so the filter is
+    // never dropped and a real usage error still answers as on a fresh cache ([[CORE136]]).
+    if (!(e instanceof CliError) || found.fresh) throw e
+    found = await discover(conn.server, deps, { cacheDir, refresh: true })
+    commands = deriveCommands(found.ops)
+    cmd = lookup(commands)
+    if (!cmd) throw e
+    inv = await parseInvocation(cmd, rest, io)
+  }
   const withKey = resolveConnection(cfg, g, deps.env, { needKey: true })
   if (!withKey.oauth) return execute(cmd, inv, { server: withKey.server, key: withKey.key! }, deps)
   // An OAuth grant: refreshed ahead of expiry, and once more when the server answers 401 (D20).

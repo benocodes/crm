@@ -10,6 +10,8 @@ Search before you create, so records are not duplicated: identities_resolve find
 
 Link records with associations (associations_create), and record where a fact came from as a note linked to the record it is about. Lists are tags (tags_list, tags_create); a record joins a list through associations_create.
 
+A deal sits in one pipeline stage (pipelines_list, pipeline_stages_list), changes stage with deals_move_stage, and links to its companies and contacts with associations_create.
+
 Lists page: pass the next_cursor of one answer as after in the next call.
 
 Every write is attributed to you and shows in the record's history. Only the tools you are shown are open to you; a refusal names the scope you lack.`

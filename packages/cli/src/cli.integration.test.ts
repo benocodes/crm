@@ -23,7 +23,7 @@ afterEach(() => {
 beforeEach(async () => {
   await w.reset()
   hideOperation = undefined
-  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read', 'interactions:read', 'deals:read', 'deals:write', 'pipelines:read', 'pipelines:write'] })
+  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read', 'interactions:read', 'deals:read', 'deals:write', 'pipelines:read', 'pipelines:write', 'companies:read', 'companies:write', 'associations:read', 'associations:write'] })
   key = b.key
 })
 const session = async () => {
@@ -141,6 +141,47 @@ describe('against the D1 app', () => {
     expect(res.code).toBe(2)
     expect(res.stdout).toContain('move-stage')
     expect(res.stdout).toContain('create')
+  })
+
+  it('a cache written before deals.list took company_id: --company-id refreshes once and filters, never sends the list unfiltered ([[CORE136]])', async () => {
+    const r = await session()
+    const json = async (argv: string[]) => JSON.parse((await ok(r, argv)).stdout)
+    const p = await json(['pipelines', 'create', '--name', 'Sales'])
+    const stage = await json(['pipeline-stages', 'create', '--pipeline-id', p.id, '--name', 'Researched', '--kind', 'open', '--position', '10'])
+    const linked = await json(['deals', 'create', '--name', 'Linked', '--stage-id', stage.id])
+    await json(['deals', 'create', '--name', 'Other', '--stage-id', stage.id])
+    const co = await json(['companies', 'create', '--name', 'Acme'])
+    await json(['associations', 'create', '--data', JSON.stringify({ a_type: 'companies', a_id: co.id, b_type: 'deals', b_id: linked.id })])
+    const file = join(r.cacheDir, readdirSync(r.cacheDir).find((f) => f.startsWith('discovery-'))!)
+    const cache = JSON.parse(readFileSync(file, 'utf8'))
+    const list = cache.ops.find((o: any) => o.id === 'deals.list')
+    expect(list.parameters.map((x: any) => x.name)).toContain('company_id') // the fresh document has it
+    list.parameters = list.parameters.filter((x: any) => !['company_id', 'contact_id', 'tag_id'].includes(x.name))
+    writeFileSync(file, JSON.stringify(cache))
+    const before = r.seen.length
+    const res = await r.run(['deals', 'list', '--company-id', co.id])
+    expect(res.stderr).not.toMatch(/TypeError/)
+    if (res.code === 0) {
+      expect(JSON.parse(res.stdout).data.map((d: any) => d.id)).toEqual([linked.id])
+      expect(r.seen.slice(before).filter((s) => s.url.includes('/api/v1/deals?')).every((s) => s.url.includes('company_id='))).toBe(true)
+    } else {
+      expect(res.code).toBe(2)
+      expect(res.stderr).toContain('company-id')
+      expect(r.seen.slice(before).filter((s) => s.url.includes('/api/v1/deals?'))).toEqual([])
+    }
+    expect(res.code).toBe(0) // the chosen behaviour (decision): one refresh, then the filter
+  })
+
+  it('a genuine usage error on a cached (non-fresh) command line answers as on a fresh cache: stdin is read once, nothing is sent ([[CORE136]] review)', async () => {
+    const r = await session()
+    const fresh = await r.run(['contacts', 'create', '--data', '-'], { stdin: '{not json' }) // no cache yet: discovery is fresh
+    expect(fresh.code).toBe(2)
+    const before = r.seen.length
+    const cached = await r.run(['contacts', 'create', '--data', '-'], { stdin: '{not json' }) // the cache written by the run above
+    expect(cached.code).toBe(2)
+    expect(cached.stderr).toBe(fresh.stderr)
+    expect(cached.stderr).toContain('--data is not valid JSON')
+    expect(r.seen.slice(before).filter((x) => x.method === 'POST')).toEqual([])
   })
 
   it('--all on an operation that is not a list is a usage error', async () => {

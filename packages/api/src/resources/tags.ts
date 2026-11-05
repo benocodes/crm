@@ -33,7 +33,7 @@ const create = z.strictObject(fields)
 const update = create.partial()
 
 /** The records a tag can label ([[CORE129]] D8); `associations.create` refuses any other neighbour for a tag. */
-export const TAGGABLE = ['companies', 'contacts', 'tasks', 'notes'] as const
+export const TAGGABLE = ['companies', 'contacts', 'deals', 'tasks', 'notes'] as const
 
 /**
  * Tags ([[CORE129]]): a named list on the generic CRUD core, shaped like notes. The name is unique among live tags,

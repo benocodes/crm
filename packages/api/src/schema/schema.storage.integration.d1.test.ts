@@ -219,9 +219,11 @@ describe('deals and pipelines ([[CORE130]] D18)', () => {
     expect(table(doc, 'pipelines').derived).toEqual([])
     expect(table(doc, 'pipeline_stages').derived).toEqual([])
   })
-  it('deals are not associable in this cycle (CORE136)', async () => {
+  it('deals are associable (CORE136, CORE130 D18); pipelines and stages are not', async () => {
     const doc = await getDoc()
-    expect(doc.associations.associable).not.toContain('deals')
-    expect(table(doc, 'deals').associable).toBe(false)
+    expect(doc.associations.associable).toEqual(['companies', 'contacts', 'deals', 'interactions', 'notes', 'tags', 'tasks', 'threads'])
+    expect(table(doc, 'deals').associable).toBe(true)
+    expect(table(doc, 'pipelines').associable).toBe(false)
+    expect(table(doc, 'pipeline_stages').associable).toBe(false)
   })
 })

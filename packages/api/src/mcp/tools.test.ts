@@ -138,7 +138,7 @@ describe('deals tools (CORE130 D17)', () => {
     expect(byName('deals_create').tool._meta['vibase/surface']).toBe('api')
     expect(byName('deals_move_stage').tool.description).toContain('Requires deals:write (records surface).')
     const props = (n: string) => Object.keys((byName(n).tool.inputSchema as { properties: object }).properties)
-    expect(props('deals_list')).toEqual(expect.arrayContaining(['pipeline_id', 'stage_id', 'owner_id', 'created_by', 'status']))
+    expect(props('deals_list')).toEqual(expect.arrayContaining(['pipeline_id', 'stage_id', 'owner_id', 'created_by', 'status', 'tag_id', 'company_id', 'contact_id']))
     expect(props('pipeline_stages_list')).toEqual(expect.arrayContaining(['pipeline_id', 'kind']))
     expect(props('pipelines_list')).toContain('name')
     expect(props('deals_move_stage')).toEqual(expect.arrayContaining(['id', 'stage_id']))
@@ -152,6 +152,11 @@ describe('instructions (D18)', () => {
   it('are at most 1,200 characters', () => {
     expect(INSTRUCTIONS.length).toBeGreaterThan(200)
     expect(INSTRUCTIONS.length).toBeLessThanOrEqual(1200)
+  })
+  it('tell an agent how deals work: stages, moving, linking ([[CORE136]] D17)', () => {
+    for (const name of ['pipelines_list', 'pipeline_stages_list', 'deals_move_stage', 'associations_create']) expect(INSTRUCTIONS, name).toContain(name)
+    expect(INSTRUCTIONS).toMatch(/deals?\b/i)
+    expect(INSTRUCTIONS).toMatch(/compan/)
   })
   it('mention only tools that exist, and mention the ones the spec lists', () => {
     const mentioned = [...INSTRUCTIONS.matchAll(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g)].map((m) => m[0]).filter((w) => w !== 'next_cursor')
