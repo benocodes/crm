@@ -43,7 +43,13 @@ export function r2ObjectStore(bucket: R2BucketLike): ObjectStore {
       const options = opts.contentType === undefined ? undefined : { httpMetadata: { contentType: opts.contentType } }
       // Known size: the caller's stream already has exactly that length (D6 pipes it through `fixedLength`), which R2's `put` needs.
       if (opts.size !== null) {
-        await bucket.put(key, body, options)
+        try {
+          await bucket.put(key, body, options)
+        } catch (err) {
+          // Best effort (#121): a rejected put may leave the source open, and a provider response must not outlive the call.
+          await body.cancel(err).catch(() => {})
+          throw err
+        }
         return
       }
       // Unknown size: buffer up to one part. If the stream ends there, one `put`; otherwise a multipart upload in PART_BYTES parts
@@ -92,6 +98,8 @@ export function r2ObjectStore(bucket: R2BucketLike): ObjectStore {
         await upload.complete(parts)
       } catch (err) {
         if (upload !== null) await upload.abort().catch(() => {})
+        // Best effort (#121): when `put` or `uploadPart` rejected, the source is still open; cancelling it releases the provider response.
+        await reader.cancel(err).catch(() => {})
         throw err
       }
     },

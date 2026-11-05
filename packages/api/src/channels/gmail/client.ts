@@ -40,17 +40,63 @@ export interface HttpGmailClientOptions {
   baseUrl?: string
 }
 
+const DEFAULT_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me/messages'
+
+function retryAfterSeconds(value: string | null): number | null {
+  if (value === null) return null
+  const trimmed = value.trim()
+  if (/^\d+$/.test(trimmed)) return Number(trimmed)
+  const at = Date.parse(trimmed)
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - Date.now()) / 1000))
+}
+
+/** Reads what Gmail said about a failure, best effort: a body that is not Gmail's JSON error gives status only. Never touches the request. */
+async function apiError(res: Response): Promise<GmailApiError> {
+  let gmailStatus: string | null = null
+  let reason: string | null = null
+  try {
+    const parsed = JSON.parse(await res.text()) as { error?: { status?: unknown; errors?: Array<{ reason?: unknown }> } }
+    if (typeof parsed.error?.status === 'string') gmailStatus = parsed.error.status
+    const r = parsed.error?.errors?.[0]?.reason
+    if (typeof r === 'string') reason = r
+  } catch {
+    // not JSON
+  }
+  const retryAfter = res.headers.get('retry-after')
+  return new GmailApiError({ status: res.status, gmailStatus, reason, retryAfter, retryAfterSeconds: retryAfterSeconds(retryAfter) })
+}
+
 export class HttpGmailClient implements GmailClient {
-  constructor(_options: HttpGmailClientOptions) {
-    throw new Error('not implemented')
+  private readonly accessToken: () => Promise<string>
+  private readonly doFetch: typeof fetch
+  private readonly base: string
+
+  constructor(options: HttpGmailClientOptions) {
+    this.accessToken = options.accessToken
+    this.doFetch = options.fetch ?? ((input, init) => fetch(input, init))
+    this.base = options.baseUrl ?? DEFAULT_BASE
   }
-  getMessageFull(_messageId: string): Promise<GmailMessageResource> {
-    throw new Error('not implemented')
+
+  private async get(path: string): Promise<Response> {
+    const token = await this.accessToken()
+    const res = await this.doFetch(`${this.base}${path}`, { method: 'GET', headers: { authorization: `Bearer ${token}` } })
+    if (!res.ok) throw await apiError(res)
+    return res
   }
-  getMessageRaw(_messageId: string): Promise<ReadableStream<Uint8Array>> {
-    throw new Error('not implemented')
+
+  private async stream(path: string): Promise<ReadableStream<Uint8Array>> {
+    const res = await this.get(path)
+    if (!res.body) throw new GmailApiError({ status: res.status, reason: 'empty_body' })
+    return res.body as ReadableStream<Uint8Array>
   }
-  getAttachment(_messageId: string, _attachmentId: string): Promise<ReadableStream<Uint8Array>> {
-    throw new Error('not implemented')
+
+  async getMessageFull(messageId: string): Promise<GmailMessageResource> {
+    return (await (await this.get(`/${encodeURIComponent(messageId)}?format=full`)).json()) as GmailMessageResource
+  }
+  getMessageRaw(messageId: string): Promise<ReadableStream<Uint8Array>> {
+    return this.stream(`/${encodeURIComponent(messageId)}?format=raw`)
+  }
+  getAttachment(messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>> {
+    return this.stream(`/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`)
   }
 }
