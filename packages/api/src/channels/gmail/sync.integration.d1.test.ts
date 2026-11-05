@@ -125,6 +125,18 @@ describe('history page', () => {
     expect(events.every((ev) => ev.actor_id === e.userId)).toBe(true)
   })
 
+  it('a record without labelIds is fetched and the label rule runs on the fetched message; a record with labels is still filtered before any fetch', async () => {
+    const msgs = [mk('nl-in'), mk('nl-sent', { labels: ['SENT'] }), mk('nl-spam', { labels: ['SPAM', 'INBOX'] }), mk('nl-archived', { labels: ['IMPORTANT'] }), mk('labelled-spam', { labels: ['SPAM'] })]
+    const s = await setup({ messages: msgs })
+    addHistory(s.gmail, '1001', [{ id: 'nl-in' }, { id: 'nl-sent' }, { id: 'nl-spam' }, { id: 'nl-archived' }, { id: 'labelled-spam', labels: ['SPAM'] }])
+    s.gmail.profile.historyId = '1002'
+    const r = page(await captureHistoryPage(s.deps, s.id))
+    expect(r).toMatchObject({ captured: 2, skipped: 3 })
+    expect((await e.rows('messages')).map((m) => m.external_id).sort()).toEqual(['nl-in@acme.test', 'nl-sent@acme.test'])
+    // The unlabelled records were fetched (that is how the rule saw them); the labelled one was not.
+    expect(calls(s.gmail, 'full').map((c) => c.messageId).sort()).toEqual(['nl-archived', 'nl-in', 'nl-sent', 'nl-spam'])
+  })
+
   it('a middle page writes page_token and keeps history_id; the last writes the response historyId, clears page_token and sets last_synced_at', async () => {
     const msgs = Array.from({ length: 30 }, (_, i) => mk(`h${i}`))
     const s = await setup({ messages: msgs })
@@ -396,7 +408,7 @@ describe('invalid_grant and other refresh failures', () => {
     expect(google.refreshRequests.length).toBe(requests + 1)
   })
 
-  it('invalid_grant during a scan start is the same outcome', async () => {
+  it('invalid_grant on a scan page is the reauth outcome; a backfill start makes no Google call', async () => {
     const s = await setup({ synced: null })
     google.revoke(s.refreshToken)
     expect(await beginScan(s.deps, s.id, 'backfill')).toEqual({ outcome: 'scan', scan: expect.anything() })
