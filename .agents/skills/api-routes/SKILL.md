@@ -776,3 +776,7 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
 - Unit tests that mock the Hono context; use an integration test against the real DB.
 - Normalizing a stored string value (an error code, a status) without first grepping the OLD spelling across
   **every** package, not just the one being touched.
+- Re-writing, in a script or another package, the rule the Worker uses to accept a configuration value (a key's
+  encoding, an integer's range). Export the Worker's parser from `@vault/api` and call it, mapping its problem
+  *names* to the message: a hand copy drifts (OPS150: setup's lenient base64 accepted URL-safe and unpadded
+  `CREDENTIALS_KEY`s that `parseGmailConfig` rejects, so setup would have put a key the Worker then refuses).
