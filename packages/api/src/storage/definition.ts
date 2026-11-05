@@ -157,6 +157,12 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    * each as an optional field: it is absent for a caller without the field's `requires` scopes.
    */
   readonly derived?: Readonly<Record<string, DerivedDecl>>
+  /**
+   * [[CORE133]] D8: the derived fields a list can be sorted by (names from `derived`; stored columns come later). A list that declares them takes
+   * `sort` and `order`, pages sorted results with an opaque cursor bound to that sort, and types `after`/`next_cursor` as strings.
+   * `null` sorts as the oldest value and ties break on `id` in the same direction.
+   */
+  readonly sorts?: readonly string[]
   /** Columns that must reference a visible row of a portable table (checked after existence, re-checked at commit). */
   readonly references?: { readonly [K in ColumnOf<T>]?: ReferenceTarget }
   /**
@@ -237,6 +243,18 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
     if (field in (full.filters ?? {}) || (field in (full.joinFilters ?? {}) && !(spec.filters ?? []).includes(field))) throw new Error(`derived "${field}" is also a filter key (${full.name})`)
     if (!(field in full.record.shape)) throw new Error(`derived "${field}" is not a field of the record (${full.name})`)
     for (const f of spec.filters ?? []) if (!(f in (full.joinFilters ?? {}))) throw new Error(`derived "${field}" names filter "${f}", which is not a join filter (${full.name})`)
+  }
+  const sorts = full.sorts ?? []
+  sorts.forEach((field, i) => {
+    const d = (full.derived ?? {})[field]
+    if (!d) throw new Error(`sorts "${field}" is not a derived field of ${full.name}`)
+    if (d.kind === 'boolean') throw new Error(`sorts "${field}" is a boolean derived field, which has no order (${full.name})`)
+    if (sorts.indexOf(field) !== i) throw new Error(`sorts "${field}" is listed twice (${full.name})`)
+  })
+  if (sorts.length > 0) {
+    for (const key of ['sort', 'order']) {
+      if (key in (full.filters ?? {}) || key in (full.joinFilters ?? {})) throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${full.name})`)
+    }
   }
   if (full.associable) {
     const kinds = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[full.table]!

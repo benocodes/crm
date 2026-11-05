@@ -1233,7 +1233,7 @@
     },
     {
       "name": "contact-activity",
-      "about": "CORE131: contacts created by capture carry last_contacted_at and last_interacted_at. The connection wrote to jane (cc bob) at 07:20, so both are contacted then; bob also reacted at 07:30; carol only wrote (interacted, never contacted); owner is a contact here because the messaging seed has no own identity. The six filters partition them; an unparseable time and sort are validation errors; the golden actors hold interactions:read in messaging scenarios, so the keys are present",
+      "about": "CORE131: contacts created by capture carry last_contacted_at and last_interacted_at. The connection wrote to jane (cc bob) at 07:20, so both are contacted then; bob also reacted at 07:30; carol only wrote (interacted, never contacted); owner is a contact here because the messaging seed has no own identity. The six filters partition them; an unparseable time is a validation error; CORE133: contacts sorted by last_contacted_at desc, a first page with its opaque next_cursor and the second page fetched with it (null last), and order without sort is a validation error; the golden actors hold interactions:read in messaging scenarios, so the keys are present",
       "steps": [
         {
           "as": "user",
@@ -1551,20 +1551,96 @@
           "as": "user",
           "at": "2026-10-22T09:08:00.000Z",
           "method": "GET",
-          "path": "/api/v1/contacts?sort=last_contacted_at",
+          "path": "/api/v1/contacts?sort=last_contacted_at&order=desc&limit=2",
           "request": null,
-          "status": 400,
+          "status": 200,
           "response": {
-            "error": {
-              "code": "validation_error",
-              "message": "unknown filter: sort"
-            }
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000008",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "bob",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:30:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000006",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "owner",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              }
+            ],
+            "next_cursor": "WyJsYXN0X2NvbnRhY3RlZF9hdCIsImRlc2MiLCIyMDI2LTEwLTIyVDA3OjIwOjAwLjAwMFoiLCIwMTkwYjJjNC0wMDAwLTcwMDAtODAwMC0wMDAwMDEwMDAwMDYiXQ"
           },
           "events": []
         },
         {
           "as": "user",
           "at": "2026-10-22T09:09:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?sort=last_contacted_at&order=desc&limit=2&after={next}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000004",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "jane",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": "2026-10-22T07:20:00.000Z",
+                "last_interacted_at": "2026-10-22T07:20:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000010",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "name": "carol",
+                "company_id": null,
+                "merged_into_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z",
+                "updated_at": "2026-10-22T08:00:00.000Z",
+                "last_contacted_at": null,
+                "last_interacted_at": "2026-10-22T07:40:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:10:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/contacts?order=desc",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "order needs sort"
+            }
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:11:00.000Z",
           "method": "PATCH",
           "path": "/api/v1/contacts/{jane}",
           "request": {
@@ -1579,7 +1655,7 @@
             "merged_into_id": null,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T08:00:00.000Z",
-            "updated_at": "2026-10-22T09:09:00.000Z",
+            "updated_at": "2026-10-22T09:11:00.000Z",
             "last_contacted_at": "2026-10-22T07:20:00.000Z",
             "last_interacted_at": "2026-10-22T07:20:00.000Z"
           },
@@ -1590,7 +1666,7 @@
               "resource_id": "0190b2c4-0000-7000-8000-000001000004",
               "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
               "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-              "created_at": "2026-10-22T09:09:00.000Z",
+              "created_at": "2026-10-22T09:11:00.000Z",
               "before": {
                 "id": "0190b2c4-0000-7000-8000-000001000004",
                 "name": "jane",
@@ -1607,7 +1683,7 @@
                 "company_id": null,
                 "created_at": "2026-10-22T08:00:00.000Z",
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
-                "updated_at": "2026-10-22T09:09:00.000Z",
+                "updated_at": "2026-10-22T09:11:00.000Z",
                 "merged_into_id": null,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               }
@@ -1616,7 +1692,7 @@
         },
         {
           "as": "user",
-          "at": "2026-10-22T09:10:00.000Z",
+          "at": "2026-10-22T09:12:00.000Z",
           "method": "PATCH",
           "path": "/api/v1/contacts/{jane}",
           "request": {

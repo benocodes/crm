@@ -1,6 +1,7 @@
 import { sql } from 'kysely'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { resourceOperations } from '../registry.js'
 import { definePreparedResource } from './definition.js'
 
 // [[CORE131]] D1: the load-time checks of a derived declaration, on a synthetic definition (not `contacts`).
@@ -57,5 +58,25 @@ describe('sorts are checked when the definition is built ([[CORE133]] D8)', () =
     const join = { schema: z.string(), where: () => sql<boolean>`1` }
     expect(() => define({ derived: { age: derivedField }, sorts: ['age'], joinFilters: { order: join } })).toThrow(/"order"/)
     expect(() => define({ derived: { age: derivedField }, sorts: ['age', 'age'] })).toThrow(/sorts "age".*twice/)
+  })
+})
+
+describe('the list operation of a synthetic sorted definition ([[CORE133]] D8, D9)', () => {
+  const sorted = () => define({ derived: { age: derivedField }, sorts: ['age'] }) as never
+  const listOf = (def: never) => resourceOperations(def).find((o) => o.name === 'tasks.list')!
+  const keys = (def: never) => Object.keys((listOf(def).request!.query as z.ZodObject).shape)
+  it('gets sort and order, an opaque string after and next_cursor, from the declaration alone', () => {
+    const op = listOf(sorted())
+    expect(keys(sorted())).toEqual(expect.arrayContaining(['after', 'limit', 'sort', 'order']))
+    const shape = (op.request!.query as z.ZodObject).shape
+    expect(z.toJSONSchema(shape.sort as z.ZodType)).toMatchObject({ enum: ['age'] })
+    expect(JSON.stringify(z.toJSONSchema(shape.after as z.ZodType))).not.toContain('uuid')
+    expect(JSON.stringify(z.toJSONSchema((op.response.schema as z.ZodObject).shape.next_cursor as z.ZodType))).not.toContain('uuid')
+  })
+  it('a definition without sorts has neither parameter and keeps the uuid cursor', () => {
+    const plain = define({ derived: { age: derivedField } }) as never
+    expect(keys(plain)).not.toContain('sort')
+    expect(keys(plain)).not.toContain('order')
+    expect(JSON.stringify(z.toJSONSchema((listOf(plain).request!.query as z.ZodObject).shape.after as z.ZodType))).toContain('uuid')
   })
 })

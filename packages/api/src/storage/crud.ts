@@ -26,6 +26,7 @@ import { formatScope } from '../scopes.js'
 import { eventStatement } from '../outbox.js'
 import { physicalTable, softDeletes, type Conflict, type PreparedEnv, type PreparedResource, type ReferenceTarget } from './definition.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
+import { encodeCursor, type SortRequest } from '../resources/sort-cursor.js'
 
 // The generic prepared CRUD core ([[CORE35]] C4): list, get, create, update and soft delete for any
 // `PreparedResource`, as pure programs over typed Kysely fragments. Every mutation is plan -> one unit:
@@ -139,12 +140,38 @@ function refuseConflicts(found: { maybe(k: string): Row | null }, conflicts: rea
 const missingReference = (found: { maybe(k: string): Row | null }, reads: Record<string, unknown>): boolean =>
   Object.keys(reads).some((k) => found.maybe(k) === null)
 
-export function listOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, raw: { after?: unknown; limit?: unknown; filters?: Record<string, string> }): PreparedOperation<ListResult<R>> {
-  const { after, limit, filters } = prepareListQuery(def, raw)
+/**
+ * The keyset predicate of a sorted page ([[CORE133]] D9): the rows strictly after `(value, id)` in the order of the request, where `null` is the
+ * oldest value and ties break on `id` in the same direction. It re-evaluates the correlated derived expression, so it keeps the expression's
+ * own join order (D10a); it never names the select alias, which Postgres does not allow in a WHERE.
+ */
+function afterPosition(def: PreparedResource, qc: QueryContext, sort: SortRequest & { position: NonNullable<SortRequest['position']> }): Expression<SqlBool> {
+  const v = def.derived![sort.field]!.expression(qc, parentOf(def))
+  const { value, id } = sort.position
+  const idRef = ref(def, 'id')
+  if (sort.order === 'asc') {
+    return value === null
+      ? sql<SqlBool>`(${v} is not null or ${idRef} > ${id})`
+      : sql<SqlBool>`(${v} > ${value} or (${v} = ${value} and ${idRef} > ${id}))`
+  }
+  return value === null
+    ? sql<SqlBool>`(${v} is null and ${idRef} < ${id})`
+    : sql<SqlBool>`(${v} < ${value} or ${v} is null or (${v} = ${value} and ${idRef} < ${id}))`
+}
+
+export function listOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> }): PreparedOperation<ListResult<R>> {
+  // 400s first (a malformed query is refused whatever the caller may see), then 403s ([[CORE133]] D5); both before any query is built.
+  const { after, limit, filters, sort } = prepareListQuery(def, raw)
   // [[CORE129]] D12: a join filter may need scopes beyond the list's own; refused here, before any query is built.
   for (const column of Object.keys(filters)) {
     for (const scope of def.joinFilters?.[column]?.requires ?? []) {
       if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to filter ${def.name} by ${column}`)
+    }
+  }
+  // [[CORE133]] D5: sorting by a derived field needs the scopes that show it; a caller without them never gets a cursor carrying its value.
+  if (sort) {
+    for (const scope of def.derived![sort.field]!.requires ?? []) {
+      if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to sort ${def.name} by ${sort.field}`)
     }
   }
   return defineOperation<ListResult<R>>({
@@ -152,12 +179,15 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
     mutates: false,
     reads: (qc) => {
       let q = selectRecord(def, qc, env)
-      if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
+      if (sort?.position) q = q.where(afterPosition(def, qc, { ...sort, position: sort.position }))
+      else if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
       for (const [column, value] of Object.entries(filters)) {
         const join = def.joinFilters?.[column]
         q = q.where(join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`)
       }
-      return { page: readAll(q.orderBy(ref(def, 'id')).limit(limit + 1)) }
+      // `null` is the oldest value: first ascending, last descending. Spelled out because Postgres would put it the other way round.
+      if (sort) q = q.orderBy(sql`${sql.ref(sort.field)} ${sort.order === 'asc' ? sql`asc nulls first` : sql`desc nulls last`}`)
+      return { page: readAll(q.orderBy(ref(def, 'id'), sort?.order ?? 'asc').limit(limit + 1)) }
     },
     build: (found) =>
       unit({
@@ -166,9 +196,15 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
         decode: () => {
           const rows = found.all('page')
           const page = rows.slice(0, limit)
+          const last = page[page.length - 1]
+          const cursor = (): string => {
+            if (!sort) return last!.id as string
+            const value = last![sort.field]
+            return encodeCursor(sort.field, sort.order, value === null || value === undefined ? null : sort.kind === 'integer' ? Number(value) : String(value), last!.id as string)
+          }
           return {
             data: page.map((r) => toRecord(def, r)),
-            next_cursor: rows.length > limit ? (page[page.length - 1]!.id as string) : null,
+            next_cursor: rows.length > limit ? cursor() : null,
           }
         },
       }),

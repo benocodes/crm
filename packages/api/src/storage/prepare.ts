@@ -2,6 +2,7 @@ import { COLUMN_KINDS, codecs, type ColumnKind } from '@vault/storage'
 import type { Actor } from '../auth/types.js'
 import { ApiError } from '../errors.js'
 import { parseInput, parseListQuery } from '../resources/define.js'
+import type { SortRequest } from '../resources/sort-cursor.js'
 import { physicalTable, type PreparedResource, type Values } from './definition.js'
 
 // Pure preparation of a write or a list query: validation, the agent-field check and normalization.
@@ -53,10 +54,10 @@ export function prepareUpdate(def: PreparedResource, actor: Actor, input: unknow
 
 export function prepareListQuery(
   def: PreparedResource,
-  raw: { after?: unknown; limit?: unknown; filters?: Record<string, string> },
-): { after: string | null; limit: number; filters: Record<string, unknown> } {
+  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> },
+): { after: string | null; limit: number; filters: Record<string, unknown>; sort: SortRequest | null } {
   const q = parseListQuery(def, raw)
-  return { after: q.after === null ? null : q.after.toLowerCase(), limit: q.limit, filters: normalize(def, q.filters) }
+  return { after: q.after === null ? null : q.after.toLowerCase(), limit: q.limit, filters: normalize(def, q.filters), sort: q.sort }
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

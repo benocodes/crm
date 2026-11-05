@@ -55,6 +55,7 @@ export const contacts = definePreparedResource({
   associable: true,
   joinFilters: { tag_id: tagIdFilter('contacts'), ...contactActivityFilters },
   derived: contactDerived,
+  sorts: ['last_contacted_at', 'last_interacted_at'],
   record,
   create,
   update,
