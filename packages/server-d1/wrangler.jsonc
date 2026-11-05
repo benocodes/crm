@@ -80,7 +80,13 @@
         "CLERK_AUTHORIZED_PARTIES": "https://api.hq.vibase.ai",
         "AUTH_CLI_CLIENT_ID": "Q5yzkwhHy7dhaYbt",
         "CORS_ALLOWED_ORIGINS": "",
-        "CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuaHEudmliYXNlLmFpJA"
+        "CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuaHEudmliYXNlLmFpJA",
+        "GOOGLE_CLIENT_ID": "525762252590-76slg8klsir57t6g22fgt06fpm9iot6l.apps.googleusercontent.com",
+        "GMAIL_TOPIC_NAME": "projects/vibase-hq/topics/gmail.watch",
+        "GMAIL_PUSH_SUBSCRIPTION": "projects/vibase-hq/subscriptions/gmail.push",
+        "GMAIL_PUSH_SERVICE_ACCOUNT": "gmail-push@vibase-hq.iam.gserviceaccount.com",
+        "PUBLIC_BASE_URL": "https://api.hq.vibase.ai",
+        "CREDENTIALS_KEY_VERSION": "1"
       }
     }
   }
