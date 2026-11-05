@@ -58,6 +58,12 @@ with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never
   migrations folder) right before creating one.
 - **Third-party APIs:** fetch the current docs before writing code that calls them. Invented endpoints,
   payload shapes and signature headers sink whole phases.
+  **Check that the fetch reached the part you need.** A long reference page comes back truncated
+  (WebFetch read the first 100000 of 113437 characters of Google's OAuth page and stopped before the refresh
+  example, [[CHN149]]). When the section you rely on is missing, fetch it again by its anchor or a narrower
+  page; if that fails too, list in `RESULT.md` which facts are unconfirmed and where they came from instead.
+  Where the reference and common practice disagree (the history reference omits `labelIds` that real
+  responses carry), parse the field when present and treat its absence as unknown, never as a value.
 - **No speculative dependencies.** Prefer the platform and Node builtins. A new dependency gets its own
   commit.
 
@@ -91,7 +97,9 @@ output (filtered to the failing test names and messages, saying what you filtere
 
 **Decisions.** Where the spec and charter are silent on something the tests pin (an error code, a
 payload field, an ordering), decide it, prefer what existing code does, and list it in `RESULT.md` and
-your report. Where the gap changes a contract another spec relies on, or a behaviour the spec states,
+your report. **A decision that adds a branch needs a test that takes each side of it**, with an
+absence mutation per side: a recorded but untested decision is a review round ([[CHN149]] D-b: records
+without `labelIds` fetched and judged after the fetch, untested until round 2). Where the gap changes a contract another spec relies on, or a behaviour the spec states,
 don't guess: stop and report `blocked` with the question.
 
 ## 5. Gate
