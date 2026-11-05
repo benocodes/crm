@@ -233,6 +233,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     the operation and the webhook reuse that binding (`c.var.storage`).
   - Auth is mounted on each registry route, never on `*`. A plain route the caller adds to the returned
     app (`/health`, a webhook receiver) gets `c.var.storage`, no auth, and no OpenAPI entry.
+  - **`d1Only`** on a resource definition or a hand-written operation ([[CHN140]], [[CHN5]] D63): `executeOperation`
+    answers `501 not_implemented` on a non-D1 binding after the scope checks, before any unit. Use it for any table
+    the Postgres adapter does not have, instead of a check in each handler; test it with `coldStorage()`.
+  - **`OperationInput.origin`** is the request's origin, set by REST only (MCP leaves it undefined, and
+    `validateInput` preserves it). Read it only where a spec names the request origin as a fallback.
+  - **The Google OAuth callback** (`GET /oauth/google/callback`, `src/connections/callback.ts`) is the second plain
+    route: the signed state is its credential, every refusal is a fixed code (redirect parameter or built-in page)
+    that writes nothing, and log lines carry the code or error class only. A new OAuth-style callback follows it.
   - `GET /api/v1/openapi.json` (`Vault records API`) and `GET /meta/v1/openapi.json` (`Vault meta API`) are
     unauthenticated; each lists only its surface's operations at full paths. There is no root document and no
     root resource path ([[API32]] D4, D5, D8). Machinery (`/health`, `/webhooks/clerk`) stays at the root,

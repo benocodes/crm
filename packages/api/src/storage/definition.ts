@@ -136,6 +136,8 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly update?: z.ZodObject
   readonly operations?: readonly CrudAction[]
   readonly scopeResource?: string
+  /** [[CHN5]] D29: the table exists on D1 only, so every generated operation answers `501 not_implemented` on another engine (checked before any unit runs). */
+  readonly d1Only?: boolean
   /**
    * [[CORE62]] D9: the table may be an endpoint of an association. The associable set, and each type's read scope
    * (`scopeResource`), come from the registry's definitions; table names reach SQL from here, never from input.

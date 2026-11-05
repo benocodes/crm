@@ -177,7 +177,16 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **The D1 splitter knows triggers.** `splitStatements` (`@vault/storage-d1/test`) ends a `CREATE TRIGGER` at the line that
   closes it with `END;`; wrangler applies the same file as written.
 - **Source tables are machinery** (`message_sources`, `thread_sources`): no events, no API; the provider's ids map to ours.
-  A `connection_id` has no foreign key until `channel_connections` exists.
+  Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `channel_connections`.
+- **Adding a foreign key to an existing D1 table is a rebuild** (`0010_gmail_capture.sql` is the worked example):
+  `PRAGMA defer_foreign_keys = on;`, create `<t>_new` with the key, `INSERT … SELECT` the explicit column list, `DROP`,
+  `RENAME`, then re-create **every** index and trigger the old table had (they go with the drop). Diff the new definition
+  against the original migration's, column by column. Test it as a migration over data (apply up to the previous file
+  into a database with rows, then the new one alone; snapshot the other tables) and with an absence mutation that drops one
+  re-created trigger. Expect a ripple: every test kit and smoke that raw-inserts the child rows must now seed the parent
+  first (CHN140 added `ensureConnection` to `packages/api/src/test/capture-kit.ts` and fixed seeds in `server-d1`'s
+  `compose.test.ts` and `measured-limits.test.ts`). Before migrating a deployed database, check the child table holds no
+  row the new key would refuse: the copy aborts the whole migration.
 - **Vocabulary CHECKs are named identically on both engines** (`<table>_<purpose>`) so the schema audit needs no difference.
   Widening one later is a Postgres `DROP/ADD CONSTRAINT` and, on D1, a table rebuild under `PRAGMA defer_foreign_keys`: budget for it.
 - **A new FK onto `identities` joins `IDENTITY_REFERENCES`** (`packages/api/src/identity/merge.ts`), like a FK onto contacts joins `CONTACT_REFERENCES`.

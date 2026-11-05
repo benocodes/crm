@@ -33,6 +33,9 @@ export const SCOPE_POLICY: ScopePolicy = {
   'deals:write': { member: true, agentGrantable: true },
   'pipelines:read': { member: true, agentGrantable: true },
   'pipelines:write': { member: true, agentGrantable: true },
+  // Connections ([[CHN5]] D20): members connect their own mailboxes; writing needs a person at Google's consent screen, so it is human-only.
+  'connections:read': { member: true, agentGrantable: true },
+  'connections:write': { member: true, agentGrantable: false },
   // Schema discovery ([[API63]] D8): designing against the schema is expected agent work.
   'schema:read': { member: true, agentGrantable: true },
   // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
@@ -66,6 +69,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'deals:write': 'Create, change, move and delete deals',
   'pipelines:read': 'View pipelines and their stages',
   'pipelines:write': 'Create, change and delete pipelines and stages',
+  'connections:read': 'See which mailboxes are connected and whether they are syncing',
+  'connections:write': 'Connect and disconnect mailboxes',
   'schema:read': 'Read the data schema: record types, fields and relations',
   'members:read': 'View the members of the workspace',
   'agents:read': 'View the workspace agents and their access',

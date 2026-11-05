@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vault/storage'
 import { memoryObjectStore } from '../../objects/store.js'
 import { captureMessages, type PipelineContext } from '../../messaging/pipeline.js'
+import { ensureConnection } from '../../test/capture-kit.js'
 import { bytesOf } from '../../test/channels.js'
 import { openEngines, type Engine } from '../../test/engines.js'
 import { FakeGmail, type BuiltGmailMessage } from '../../test/gmail.js'
@@ -50,7 +51,10 @@ describe('Gmail capture through the pipeline (D1)', () => {
       ...over,
     }
     const channel = new GmailChannel(gmail)
-    const run = (ids: string[], conn = C1) => captureMessages(ctx, channel, conn, ids)
+    const run = async (ids: string[], conn = C1) => {
+      await ensureConnection(e.binding, e, conn.id)
+      return captureMessages(ctx, channel, conn, ids)
+    }
     return { gmail, objects, run }
   }
   const fx = (name: FixtureName, adjust?: (s: MessageSpec) => MessageSpec) => gmailFixture(name, adjust)

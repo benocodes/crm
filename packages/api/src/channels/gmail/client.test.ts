@@ -101,3 +101,39 @@ describe('HttpGmailClient errors', () => {
     expect(err.message).toContain('401')
   })
 })
+
+// CHN140 D46: the two account calls the connect flow adds.
+describe('HttpGmailClient account calls (CHN140)', () => {
+  const U = 'https://gmail.googleapis.com/gmail/v1/users/me'
+
+  it('getProfile: GET users/me/profile with the bearer token, parsed', async () => {
+    const h = harness(() => json({ emailAddress: 'ann@example.test', historyId: '4242', messagesTotal: 3, threadsTotal: 2 }))
+    expect(await h.client.getProfile()).toMatchObject({ emailAddress: 'ann@example.test', historyId: '4242' })
+    expect(h.seen).toEqual([{ url: `${U}/profile`, method: 'GET', authorization: `Bearer ${TOKEN}` }])
+  })
+
+  it('listSendAs: GET users/me/settings/sendAs and returns the entries (an empty answer is an empty list)', async () => {
+    const h = harness(() => json({ sendAs: [{ sendAsEmail: 'ann@example.test', isPrimary: true }, { sendAsEmail: 'sales@example.test', verificationStatus: 'accepted' }] }))
+    expect(await h.client.listSendAs()).toEqual([{ sendAsEmail: 'ann@example.test', isPrimary: true }, { sendAsEmail: 'sales@example.test', verificationStatus: 'accepted' }])
+    expect(h.seen[0]!.url).toBe(`${U}/settings/sendAs`)
+    expect(await harness(() => json({})).client.listSendAs()).toEqual([])
+  })
+
+  it('a non-2xx on either is a GmailApiError carrying neither the token nor the URL', async () => {
+    for (const call of ['getProfile', 'listSendAs'] as const) {
+      const h = harness(() => json({ error: { status: 'UNAUTHENTICATED' } }, { status: 401 }))
+      const err = await h.client[call]().catch((e: Error) => e)
+      expect(err).toBeInstanceOf(GmailApiError)
+      expect(String((err as Error).message)).not.toContain(TOKEN)
+      expect((err as GmailApiError).status).toBe(401)
+    }
+  })
+
+  it('the FakeGmail counterparts answer the same shapes and record their calls', async () => {
+    const { FakeGmail } = await import('../../test/gmail.js')
+    const fake = new FakeGmail([], { profile: { emailAddress: 'ann@example.test', historyId: '77' }, sendAs: [{ sendAsEmail: 'ann@example.test', isPrimary: true }] })
+    expect(await fake.getProfile()).toEqual({ emailAddress: 'ann@example.test', historyId: '77' })
+    expect(await fake.listSendAs()).toEqual([{ sendAsEmail: 'ann@example.test', isPrimary: true }])
+    expect(fake.accountCalls).toEqual(['profile', 'send_as'])
+  })
+})

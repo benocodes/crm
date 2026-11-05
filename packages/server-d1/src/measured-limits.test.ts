@@ -5,7 +5,7 @@ import { seedConversation } from '@vault/api/test/messaging'
 import { fakeR2Bucket } from '@vault/api/test/objects'
 import { bytesOf, FakeChannel } from '@vault/api/test/channels'
 import { nodeStreams } from '@vault/api/test/streams'
-import { captureMessage, tenantEnv } from '@vault/api/test/capture'
+import { captureMessage, ensureConnection, tenantEnv } from '@vault/api/test/capture'
 import { captureMessages, fileBlobKey, messageBodyKey, r2ObjectStore, recordMessagesOperation } from '@vault/api'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -138,10 +138,15 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
 
     // CORE25 C1 (D55): the read and merge scenarios. Conversations are seeded by direct inserts on the unmetered D1.
     const orgId = ((await w.d1.prepare('select organization_id as o from deployment').first()) as { o: string }).o
-    const creator = ((await w.d1.prepare('select id from principals limit 1').first()) as { id: string }).id
+    // A user, not the first principal (an agent): a connection's owner is a user (CHN140 D31), and the seeded sources name a connection.
+    const creator = uuidv7(now)
+    await w.d1.batch([
+      w.d1.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(creator, 'user', now.toISOString()),
+      w.d1.prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)').bind(creator, now.toISOString(), now.toISOString(), 'measure-owner@measure.test'),
+    ])
     const insert = async (table: string, row: Record<string, unknown>) => {
       const full: Record<string, unknown> = { id: uuidv7(now), organization_id: orgId, created_by: creator, created_at: now.toISOString(), ...row }
-      if (['contact_files', 'company_files'].includes(table)) full.updated_at ??= now.toISOString()
+      if (['contact_files', 'company_files', 'identities', 'channel_connections'].includes(table)) full.updated_at ??= now.toISOString()
       const cols = Object.keys(full)
       const vals = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : full[c] !== null && typeof full[c] === 'object' ? JSON.stringify(full[c]) : (full[c] ?? null)))
       await w.d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...vals).run()
@@ -184,8 +189,11 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
 
     // CORE68 D55: the capture unit at 1 and at the cap (100 messages, 100 distinct addresses, 100 stored attachments), run through the metered binding.
     const binding = d1Binding(meter.d1, { organizationId: orgId, authProvider: 'clerk', authOrgId: 'org_acme' })
+    // CHN140 D27: the sources name a connection, so the measured captures name one that exists.
+    const captureConnection = uuidv7(now)
+    await ensureConnection(binding, { organizationId: orgId, userId: creator }, captureConnection)
     const captureAt = (messages: ReturnType<typeof captureMessage>[]) => async () => {
-      await execute(binding, { kind: 'tenant', actorId: creator, organizationId: orgId }, recordMessagesOperation(tenantEnv({ organizationId: orgId, userId: creator, agentId: creator }, now), { connection_id: uuidv7(now), messages }))
+      await execute(binding, { kind: 'tenant', actorId: creator, organizationId: orgId }, recordMessagesOperation(tenantEnv({ organizationId: orgId, userId: creator, agentId: creator }, now), { connection_id: captureConnection, messages }))
       return { status: 200 }
     }
     await measure('capture-chunk-1', captureAt([captureMessage(orgId, { attachments: 1 })]))
@@ -205,11 +213,13 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
       Array.from({ length: 25 }, (_, i) => ({ providerMessageId: `pipe-${i}`, from: `ps${i}@measure.test`, to: [`pr${i}@measure.test`], attachments: [{ name: `p${i}.bin`, bytes: bytesOf(32, i) }] })),
     )
     const pageIds = Array.from({ length: 25 }, (_, i) => `pipe-${i}`)
+    const pipelineConnection = uuidv7(now)
+    await ensureConnection(binding, { organizationId: orgId, userId: creator }, pipelineConnection)
     const pipeline = () => async () => {
       await captureMessages(
         { binding, organizationId: orgId, actorId: creator, objects: r2ObjectStore(bucket), streams: nodeStreams(), clock: () => now, newId: () => uuidv7(now), randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)) },
         channel,
-        { id: uuidv7(now) },
+        { id: pipelineConnection },
         pageIds,
       )
       return { status: 200 }

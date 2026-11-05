@@ -18,6 +18,32 @@ const PROFILE_CACHE_MAX = 1000
 
 const forbidden = () => new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
 
+/** The cached profile read ([[CORE77]] D12), one per isolate: what the authenticator and the Gmail callback's role re-check ([[CHN5]] D33) both read. */
+export interface ProfileCache {
+  /** The provider's profile for a subject; null when the provider says it is gone (a 404, cached too); throws on any other failure (not cached). */
+  profileOf(subject: string, nowMs: number): Promise<AuthProfile | null>
+}
+export function createProfileCache(adapter: AuthAdapter): ProfileCache {
+  // The profile cache (D12): per isolate, by subject. A refusal (`null`) is cached too; a Backend failure is not.
+  const cache = new Map<string, { until: number; profile: AuthProfile | null }>()
+  return {
+    async profileOf(subject, nowMs) {
+      const hit = cache.get(subject)
+      if (hit && hit.until > nowMs) return hit.profile
+      let profile: AuthProfile | null
+      try {
+        profile = await adapter.fetchProfile(subject)
+      } catch (err) {
+        if (!(err instanceof ProfileNotFoundError)) throw err
+        profile = null
+      }
+      if (cache.size >= PROFILE_CACHE_MAX) for (const [k, v] of cache) if (v.until <= nowMs) cache.delete(k)
+      cache.set(subject, { until: nowMs + PROFILE_CACHE_MS, profile })
+      return profile
+    },
+  }
+}
+
 /**
  * The D1 workspace authenticator ([[CORE64]] D8-D10, D24; [[CORE77]] D12-D17). A verified Clerk token resolves to one of three principals:
  *
@@ -36,28 +62,16 @@ export function createWorkspaceAuthenticator(opts: {
   declaredScopes: readonly string[]
   cliClientId?: string
   policy?: ScopePolicy
+  /** Shared with the Gmail callback's role re-check; default: a cache of this authenticator's own. */
+  profiles?: ProfileCache
 }): UserAuthenticator {
   const { adapter, declaredScopes, cliClientId } = opts
   const policy = opts.policy ?? SCOPE_POLICY
+  const profiles = opts.profiles ?? createProfileCache(adapter)
   const declared = new Set(declaredScopes)
   const grantable = declaredScopes.filter((s) => isAgentGrantable(s, policy)).sort()
 
-  // The profile cache (D12): per isolate, by subject. A refusal (`null`) is cached too; a Backend failure is not.
-  const cache = new Map<string, { until: number; profile: AuthProfile | null }>()
-  async function profileOf(subject: string, nowMs: number): Promise<AuthProfile | null> {
-    const hit = cache.get(subject)
-    if (hit && hit.until > nowMs) return hit.profile
-    let profile: AuthProfile | null
-    try {
-      profile = await adapter.fetchProfile(subject)
-    } catch (err) {
-      if (!(err instanceof ProfileNotFoundError)) throw err
-      profile = null
-    }
-    if (cache.size >= PROFILE_CACHE_MAX) for (const [k, v] of cache) if (v.until <= nowMs) cache.delete(k)
-    cache.set(subject, { until: nowMs + PROFILE_CACHE_MS, profile })
-    return profile
-  }
+  const profileOf = (subject: string, nowMs: number) => profiles.profileOf(subject, nowMs)
 
   const meet = (...lists: ReadonlyArray<readonly string[]>): string[] =>
     declaredScopes.filter((s) => lists.every((l) => l.includes(s))).sort()

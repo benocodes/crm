@@ -25,7 +25,7 @@ export interface Catalog {
  * D9: tables that are engine or channel mechanism, never listed: the D1 tenancy marker, the runtime's assertion table, and
  * the channel provider-id maps ([[CORE25]] D17). `_cf_*`, `sqlite_*` and `d1_migrations` are excluded in SQL, by prefix.
  */
-export const HIDDEN_TABLES: readonly string[] = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources']
+export const HIDDEN_TABLES: readonly string[] = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors']
 
 /** D6: a column's default label is its name with `_` as spaces and the first letter capitalised (`due_at` -> "Due at"). */
 export const defaultLabel = (name: string): string => {
@@ -309,6 +309,23 @@ export const CATALOG: Catalog = {
       },
       derived: {
         status: "The kind of the deal's stage: open, won or lost. Derived, read-only; filter with ?status=.",
+      },
+    },
+    channel_connections: {
+      label: 'Connections',
+      description: "A mailbox connected to the vault through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
+      columns: {
+        provider: 'The provider of the account; google only for now.',
+        account_id: "The provider's stable id for the account (Google's sub), not the address, which can change. Unique among live connections.",
+        identity_id: "The own identity that is the connected mailbox's address.",
+        owner_id: 'The user who owns the connection now. A reconnect of the same account by another person moves it.',
+        status: 'active works; reauth_required when the provider refused the stored grant; suspended when the owner is no longer admitted. A reconnect makes it active again.',
+        granted_scopes: 'The OAuth scopes the person granted at the provider, as a JSON array.',
+        connected_at: 'When the connection was made or last reconnected.',
+      },
+      derived: {
+        last_synced_at: 'When the mailbox was last brought up to date; null until a sync has finished. Derived from the sync cursor, read-only.',
+        last_error_code: 'A short code for the last sync failure; null when the last run was fine or none ran. Derived from the sync state, read-only.',
       },
     },
     associations: {

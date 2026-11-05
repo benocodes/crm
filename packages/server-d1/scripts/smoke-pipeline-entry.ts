@@ -7,6 +7,7 @@
 import { uuidv7 } from '@vault/storage'
 import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { captureMessages, r2ObjectStore, workerdStreams, type PipelineContext, type R2BucketLike } from '@vault/api'
+import { ensureConnection } from '@vault/api/test/capture'
 import { bytesOf, FakeChannel } from '@vault/api/test/channels'
 import { FakeGmail, type MessageSpec } from '@vault/api/test/gmail'
 import { gmailFixture, MAILBOX } from '@vault/api/test/gmail-fixtures'
@@ -47,7 +48,15 @@ export default {
     ])
     const now = new Date('2026-10-30T09:00:00.000Z')
     const org = String(((await env.DB.prepare('select organization_id as o from deployment').first()) as { o: string }).o)
-    const actor = String(((await env.DB.prepare('select id from principals order by rowid limit 1').first()) as { id: string }).id)
+    // CHN140 D27, D31: the sources name a connection, and a connection's owner is a user. This Worker has only the bootstrap agent, so it makes a user once.
+    let actor = ((await env.DB.prepare("select id from principals where kind = 'user' order by rowid limit 1").first()) as { id: string } | null)?.id
+    if (!actor) {
+      actor = uuidv7(now)
+      await env.DB.batch([
+        env.DB.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(actor, 'user', now.toISOString()),
+        env.DB.prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)').bind(actor, now.toISOString(), now.toISOString(), 'pipeline-owner@smoke.test'),
+      ])
+    }
     const ctx: PipelineContext = {
       binding: d1Binding(env.DB, { organizationId: org, authProvider: 'clerk', authOrgId: env.AUTH_ORG_ID }),
       organizationId: org,
@@ -59,10 +68,12 @@ export default {
       randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
     }
     const gmailConn = { id: uuidv7(now), mailbox: MAILBOX }
+    const fakeConn = { id: uuidv7(now) }
+    for (const c of [gmailConn, fakeConn]) await ensureConnection(ctx.binding, { organizationId: org, userId: actor }, c.id)
     const result =
       channel instanceof GmailChannel
         ? await captureMessages(ctx, channel, gmailConn, ['g-att', 'g-table', 'g-mismatch', 'g-big'])
-        : await captureMessages(ctx, channel, { id: uuidv7(now) }, ['smoke-att', 'smoke-mismatch', 'smoke-big'])
+        : await captureMessages(ctx, channel, fakeConn, ['smoke-att', 'smoke-mismatch', 'smoke-big'])
     return Response.json(result)
   },
 }

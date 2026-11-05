@@ -271,6 +271,67 @@ export interface DealsTable {
   created_by: string
   deleted_at: NullableTimestamp
 }
+/**
+ * [[CHN5]] D3, D31: a grant to one Google account, owned by a user. D1 only. `account_id` is Google's `sub`; `granted_scopes` is a
+ * JSON array of text. `last_synced_at` and `last_error_code` are joined into the read ([[CHN5]] D42), not stored here.
+ */
+export interface ChannelConnectionsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  provider: 'google'
+  account_id: string
+  identity_id: string
+  owner_id: string
+  status: 'active' | 'reauth_required' | 'suspended'
+  granted_scopes: StringArrayColumn
+  connected_at: Timestamp
+}
+/** [[CHN5]] D4, D41: the refresh token as AES-256-GCM ciphertext (base64url of iv || ciphertext || tag). Insert-only; the newest row is live. Machinery, no events. D1 only. */
+export interface ChannelCredentialsTable {
+  id: string
+  organization_id: string
+  created_by: string
+  created_at: Timestamp
+  connection_id: string
+  refresh_token_ciphertext: string
+  key_version: IntegerColumn
+}
+/** [[CHN5]] D14: the Gmail `watch` registration of a connection. Machinery; nothing writes it until CHN141. D1 only. */
+export interface GmailWatchesTable {
+  connection_id: string
+  organization_id: string
+  created_by: string
+  created_at: Timestamp
+  mailbox: string
+  expires_at: Timestamp
+}
+/** [[CHN5]] D11: the lease and health of a connection's sync. Machinery. D1 only. */
+export interface MailSyncStateTable {
+  connection_id: string
+  organization_id: string
+  created_by: string
+  created_at: Timestamp
+  sync_requested_at: NullableTimestamp
+  lease_until: NullableTimestamp
+  run_id: string | null
+  last_success_at: NullableTimestamp
+  last_error_code: string | null
+  last_error_at: NullableTimestamp
+}
+/** [[CHN5]] D9, D12: where a connection's history walk stands. Machinery. D1 only. */
+export interface MailSyncCursorsTable {
+  connection_id: string
+  organization_id: string
+  created_by: string
+  created_at: Timestamp
+  history_id: string
+  page_token: string | null
+  last_synced_at: NullableTimestamp
+}
 /** [[CORE62]] D1-D2: an undirected edge between two records, stored once in canonical order; D1 only (no Postgres table). */
 export interface AssociationsTable {
   id: string
@@ -366,6 +427,11 @@ export interface StorageDatabase {
   pipelines: PipelinesTable
   pipeline_stages: PipelineStagesTable
   deals: DealsTable
+  channel_connections: ChannelConnectionsTable
+  channel_credentials: ChannelCredentialsTable
+  gmail_watches: GmailWatchesTable
+  mail_sync_state: MailSyncStateTable
+  mail_sync_cursors: MailSyncCursorsTable
   interaction_participants: InteractionParticipantsTable
   message_attachments: MessageAttachmentsTable
   message_sources: MessageSourcesTable
@@ -384,6 +450,8 @@ export interface SecretColumns {
   /** [[CORE25]] D23: the object keys never appear in a read schema; the content operations read them with `selectColumns`. */
   messages: 'content_key'
   files: 'storage_key'
+  /** [[CHN5]] D41: the ciphertext of the refresh token; only the credentials module selects it, by an explicit column list. */
+  channel_credentials: 'refresh_token_ciphertext'
 }
 export type PublicColumn<T extends Table> = Exclude<ColumnOf<T>, T extends keyof SecretColumns ? SecretColumns[T] : never>
 
@@ -621,6 +689,52 @@ export const COLUMN_KINDS = {
     closed_at: 'timestamp',
     created_by: 'uuid',
     deleted_at: 'timestamp',
+  },
+  channel_connections: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    provider: 'text',
+    account_id: 'text',
+    identity_id: 'uuid',
+    owner_id: 'uuid',
+    status: 'text',
+    granted_scopes: 'string_array',
+    connected_at: 'timestamp',
+  },
+  channel_credentials: {
+    id: 'uuid',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    created_at: 'timestamp',
+    connection_id: 'uuid',
+    refresh_token_ciphertext: 'text',
+    key_version: 'integer',
+  },
+  gmail_watches: { connection_id: 'uuid', organization_id: 'uuid', created_by: 'uuid', created_at: 'timestamp', mailbox: 'text', expires_at: 'timestamp' },
+  mail_sync_state: {
+    connection_id: 'uuid',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    created_at: 'timestamp',
+    sync_requested_at: 'timestamp',
+    lease_until: 'timestamp',
+    run_id: 'text',
+    last_success_at: 'timestamp',
+    last_error_code: 'text',
+    last_error_at: 'timestamp',
+  },
+  mail_sync_cursors: {
+    connection_id: 'uuid',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    created_at: 'timestamp',
+    history_id: 'text',
+    page_token: 'text',
+    last_synced_at: 'timestamp',
   },
   associations: {
     id: 'uuid',

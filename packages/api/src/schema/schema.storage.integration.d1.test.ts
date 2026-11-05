@@ -27,7 +27,7 @@ const column = (doc: any, t: string, c: string) => table(doc, t).columns.find((x
 const all = async (sqlText: string, ...binds: unknown[]) => ((await d1.d1!.prepare(sqlText).bind(...binds).all()).results as Record<string, any>[])
 
 // Written out, independent of the code under test.
-const HIDDEN = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources']
+const HIDDEN = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors']
 const PRESENT = ['events', 'principals', 'api_keys', 'notes', 'associations', 'organizations', 'users', 'memberships', 'agents']
 const realTables = async () =>
   (await all("select name from sqlite_schema where type = 'table' order by name")).map((r) => r.name as string)
@@ -147,7 +147,7 @@ describe('derived fields ([[CORE131]] D11)', () => {
   it('every table lists derived, an empty array where it has none', async () => {
     const doc = await getDoc()
     for (const t of doc.tables) expect(Array.isArray(t.derived), `${t.name}.derived`).toBe(true)
-    for (const t of doc.tables) if (t.name !== 'contacts' && t.name !== 'deals') expect(t.derived, t.name).toEqual([])
+    for (const t of doc.tables) if (!['contacts', 'deals', 'channel_connections'].includes(t.name)) expect(t.derived, t.name).toEqual([])
   })
   it('contacts lists the two fields in the spec shape, apart from the columns, with sortable true ([[CORE133]] D11)', async () => {
     const doc = await getDoc()

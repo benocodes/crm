@@ -212,9 +212,14 @@ describe('message content through BODIES (CORE58 P12)', () => {
   const seed = async () => {
     const r = await boot()
     const orgId = ((await w.d1.prepare('select organization_id as o from deployment').first()) as { o: string }).o
-    const creator = ((await w.d1.prepare('select id from principals limit 1').first()) as { id: string }).id
+    // A user: the seeded sources name a connection, and a connection's owner is a user (CHN140 D27, D31).
+    const creator = uuidv7(NOW)
+    await w.d1.batch([
+      w.d1.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(creator, 'user', NOW.toISOString()),
+      w.d1.prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)').bind(creator, NOW.toISOString(), NOW.toISOString(), 'seed-owner@compose.test'),
+    ])
     const insert = async (table: string, row: Record<string, unknown>) => {
-      const full: Record<string, unknown> = { id: uuidv7(NOW), organization_id: orgId, created_by: creator, created_at: NOW.toISOString(), ...row }
+      const full: Record<string, unknown> = { id: uuidv7(NOW), organization_id: orgId, created_by: creator, created_at: NOW.toISOString(), ...(['identities', 'channel_connections'].includes(table) ? { updated_at: NOW.toISOString() } : {}), ...row }
       const cols = Object.keys(full)
       const vals = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : full[c] !== null && typeof full[c] === 'object' ? JSON.stringify(full[c]) : (full[c] ?? null)))
       await w.d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...vals).run()

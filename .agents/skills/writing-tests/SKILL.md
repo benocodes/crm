@@ -243,7 +243,9 @@ One program, two engines: the same assertions run on Postgres and D1.
   `reset`. `engine.runAs(identity, op)` runs an `account` or `internal` unit.
 - **D1 drift is tested deterministically, not by racing.** `engine.betweenPlanAndCommit(hook)` (D1 only) runs
   `hook` after the next unit's read batch and before its commit batch, so a test can delete, merge, insert or
-  swap rows between plan and commit and assert `409 conflict` with nothing changed. For every set write, cover
+  swap rows between plan and commit and assert `409 conflict` with nothing changed. The hook fires on the **next unit of
+  any kind**, so a helper that lazily writes a prerequisite (CHN140's `ensureConnection`) consumes it: seed every
+  prerequisite before arming. For every set write, cover
   a row added, a row removed and **a swap that keeps the count** (the swap case caught a real gap in the
   [[CORE36]] review). **When a write carries two guards and one subsumes the other on the common path**
   (a revoke guarded on `revoked_at IS NULL` and on the `updated_at` stamp, where every real revoke also moves
