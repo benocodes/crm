@@ -297,6 +297,18 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   `c.req.query()` keeps the first value, so `?x=a&x=b` is `400 validation_error` naming `x`. MCP refuses an array argument
   through the schema. The first operation that declares an array query parameter must exempt that parameter there and read
   it with `c.req.queries()`.
+- **Derived fields** ([[CORE131]], `derived: { name: { kind, expression(qc, parent), requires?, filters? } }` on a
+  definition; contacts' `last_contacted_at` / `last_interacted_at` in `src/resources/contact-activity.ts`): a read-only
+  value computed by a correlated subquery, rendered by the crud core's `projection` only when the caller holds every
+  `requires` scope (absent, not null, without it). **Never in events** (D2): `afterOf`/`columnsOf` exclude them, and
+  `beforeRead` defaults to `{ derived: false }`, but **`selectRecord` defaults to derived on** (it serves get and list).
+  So any read whose rows become an event's `before`/`after` must pass `{ derived: false }` explicitly: the cascade
+  children in `src/identity/cascades.ts` missed it, and `companies.delete` leaked an `interactions:read` value into each
+  unlinked contact's `contact.updated` ([[CORE131]] review F1). A new program that reads a resource with derived fields
+  and emits its events (a cascade, a merge, a bulk op) needs a test that runs it as an actor holding the `requires`
+  scope and asserts the keys absent from both sides of the event. Pin the D1 join order of a correlated derivation with
+  `cross join` and assert the exact index lines of `EXPLAIN QUERY PLAN`, not just "SEARCH" (plain joins let SQLite start
+  from the wide table, still a SEARCH, [[CORE131]] Decision 7).
 - **A read-only resource written by a program** (`threads`, `messages`, `interactions`, `files`): `operations: ['list',
   'get']`, no `create`/`update`, no `deleted_at` on the table. Until the capture program exists (CORE25 cycle 2) the
   fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vault/api/test/messaging`, `src/test/messaging-kit.ts`)

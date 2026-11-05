@@ -23,7 +23,7 @@ import { eventSetStatement, eventStatement } from '../outbox.js'
 import { contactFiles } from '../resources/contact-files.js'
 import { contacts, type ContactRecord } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
-import { afterOf, beforeRead, columnsOf, selectRecord, toRecord } from '../storage/crud.js'
+import { afterOf, beforeRead, columnsOf, derivedProjection, selectRecord, toRecord } from '../storage/crud.js'
 import type { PreparedEnv, PreparedResource } from '../storage/definition.js'
 import { associations } from '../associations/definition.js'
 import { operationOf } from './program.js'
@@ -337,7 +337,7 @@ export function mergeOperation(
         step(
           qc.db
             .selectFrom('contacts')
-            .select(recordColumns(qc, 'contacts', contactColumns))
+            .select([...recordColumns(qc, 'contacts', contactColumns), ...derivedProjection(contacts, qc, env)])
             .where(sql<SqlBool>`${sql.ref('contacts.id')} = ${survivorId}`)
             .where(sql<SqlBool>`${sql.ref('contacts.organization_id')} = ${env.organizationId}`)
             .where(eventExists(mergedEventId)),

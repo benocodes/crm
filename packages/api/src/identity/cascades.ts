@@ -74,7 +74,8 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
         c.children.map((k) => [
           childrenKey(k),
           readSet(
-            selectRecord(k.child, qc, env)
+            // No derived fields: these rows feed the children's events (CORE131 D2).
+            selectRecord(k.child, qc, env, undefined, { derived: false })
               .where(sql<SqlBool>`${sql.ref(`${k.child.table}.${k.column}`)} = ${id}`)
               .orderBy(sql.ref(`${k.child.table}.id`)),
           ),

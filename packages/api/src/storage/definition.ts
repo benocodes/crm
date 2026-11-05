@@ -62,12 +62,40 @@ export type EmbedKeys<E> = string extends keyof E ? never : keyof E
 export type EmbedInput<E extends EmbedMap> = { readonly [F in keyof E]: EmbedDecl<E[F]> }
 
 /**
+ * A derived field of a record ([[CORE131]] D1): read-only, computed from other tables when the record is read, never stored and
+ * never in an event. `kind` is a column kind its value decodes as; `expression` returns a scalar fragment correlated on the parent row
+ * (`parent('id')` is a reference to the parent table's column), already in the stored form of the kind (timestamps as ISO text).
+ * Synchronous and DB-free like an embed. The field is rendered only for callers holding every scope in `requires`; `filters`
+ * names the definition's join filters that filter on it (schema discovery lists them).
+ */
+export type DerivedKind = 'timestamp' | 'text' | 'integer' | 'boolean'
+export type DerivedDecl<K extends DerivedKind = DerivedKind> = {
+  readonly kind: K
+  readonly expression: (qc: QueryContext, parent: (column: string) => Expression<unknown>) => Expression<unknown>
+  readonly requires?: readonly Scope[]
+  readonly filters?: readonly string[]
+}
+/** What a derived field of each kind decodes to. */
+type DerivedValue = { timestamp: string; text: string; integer: number; boolean: boolean }
+/** Derived field name -> kind, as inferred from the `derived` declaration. */
+export type DerivedMap = Readonly<Record<string, DerivedKind>>
+/** The derived fields, or none when D could not be inferred. */
+export type DerivedKeys<D> = string extends keyof D ? never : keyof D
+export type DerivedInput<D extends DerivedMap> = { readonly [F in keyof D]: DerivedDecl<D[F]> }
+
+/**
  * A record shape is valid for table `T` when every key is a PUBLIC column of `T` (secret columns are excluded)
  * and each field's output type fits the stored column, or an embed field of the definition whose schema is an array.
  * Anything else maps to `never`, so the call site fails.
  */
-export type RecordShape<T extends Table, S, E extends EmbedMap = {}> = {
-  [K in keyof S]: K extends EmbedKeys<E>
+export type RecordShape<T extends Table, S, E extends EmbedMap = {}, D extends DerivedMap = {}> = {
+  [K in keyof S]: K extends DerivedKeys<D>
+    ? S[K] extends z.ZodType<infer O>
+      ? [O] extends [DerivedValue[D[K & keyof D]] | null | undefined]
+        ? S[K]
+        : never
+      : never
+    : K extends EmbedKeys<E>
     ? S[K] extends z.ZodType<infer O>
       ? [O] extends [readonly unknown[]]
         ? S[K]
@@ -124,6 +152,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly joinFilters?: Readonly<Record<string, JoinFilter>>
   /** Embedded child rows rendered into the record and into an event's `after` (the record names the field as an array). */
   readonly embed?: Readonly<Record<string, EmbedSpec>>
+  /**
+   * [[CORE131]] D1: record fields computed from other tables (read-only, not columns, never in events). The record schema must name
+   * each as an optional field: it is absent for a caller without the field's `requires` scopes.
+   */
+  readonly derived?: Readonly<Record<string, DerivedDecl>>
   /** Columns that must reference a visible row of a portable table (checked after existence, re-checked at commit). */
   readonly references?: { readonly [K in ColumnOf<T>]?: ReferenceTarget }
   /** Extension 1: pure normalization of a validated write; returns the column values to store. */
@@ -152,8 +185,8 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
 type Output<S extends z.ZodRawShape> = z.output<z.ZodObject<S>> extends infer O extends { id: string } ? O : never
 
 /** Validates a definition. The record's shape is checked against the table at the call site (`RecordShape`). */
-export function definePreparedResource<T extends Table, S extends z.ZodRawShape & RecordShape<T, S, E> & { id: z.ZodType<string> }, E extends EmbedMap = {}>(
-  def: Omit<PreparedResource<T, Output<S>>, 'record' | 'embed'> & { readonly record: z.ZodObject<S>; readonly embed?: EmbedInput<E> },
+export function definePreparedResource<T extends Table, S extends z.ZodRawShape & RecordShape<T, S, E, D> & { id: z.ZodType<string> }, E extends EmbedMap = {}, D extends DerivedMap = {}>(
+  def: Omit<PreparedResource<T, Output<S>>, 'record' | 'embed' | 'derived'> & { readonly record: z.ZodObject<S>; readonly embed?: EmbedInput<E>; readonly derived?: DerivedInput<D> },
 ): PreparedResource<T, Output<S>> {
   // The ONE reviewed cast of the definition layer: zod's conditional output type cannot be related to `Output<S>`
   // inside the generic body. Call sites are checked by `RecordShape` and proven by definition.typecheck.ts.
@@ -185,6 +218,13 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
     }
     if (field in kindsOfTable) throw new Error(`embed "${field}" is also a column of ${full.table} (${full.name})`)
     if (!(field in full.record.shape)) throw new Error(`embed "${field}" is not a field of the record (${full.name})`)
+  }
+  for (const [field, spec] of Object.entries(full.derived ?? {})) {
+    if (field in kindsOfTable) throw new Error(`derived "${field}" is a column of ${full.table} (${full.name})`)
+    if (field in (full.embed ?? {})) throw new Error(`derived "${field}" is also an embed (${full.name})`)
+    if (field in (full.filters ?? {}) || field in (full.joinFilters ?? {})) throw new Error(`derived "${field}" is also a filter key (${full.name})`)
+    if (!(field in full.record.shape)) throw new Error(`derived "${field}" is not a field of the record (${full.name})`)
+    for (const f of spec.filters ?? []) if (!(f in (full.joinFilters ?? {}))) throw new Error(`derived "${field}" names filter "${f}", which is not a join filter (${full.name})`)
   }
   if (full.associable) {
     const kinds = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[full.table]!

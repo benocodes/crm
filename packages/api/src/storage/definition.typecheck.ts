@@ -389,3 +389,39 @@ definePreparedResource({ surface: 'api',
 })
 export const okHiddenMessages = definePreparedResource({ surface: 'api', name: 'messages', eventName: 'message', table: 'messages', record: z.object({ id: z.uuid(), version: z.number().int() }) })
 export const okHiddenFiles = definePreparedResource({ surface: 'api', name: 'files', eventName: 'file', table: 'files', record: z.object({ id: z.uuid(), name: z.string() }) })
+
+// --- CORE131: derived fields ---------------------------------------------------------------------------
+
+const lengthOf = { kind: 'integer', expression: () => sql`1` } as const
+// positive sibling: an optional nullable integer field fits a derived integer
+export const withDerived = definePreparedResource({
+  surface: 'api',
+  name: 'tasks',
+  eventName: 'task',
+  table: 'tasks',
+  record: z.object({ id: z.uuid(), title: z.string(), title_length: z.number().int().nullable().optional() }),
+  derived: { title_length: lengthOf },
+})
+export const derivedValue: number | null | undefined = withDerived.record.parse({}).title_length
+
+// a derived key whose zod output does not fit the kind (integer vs string)
+definePreparedResource({
+  surface: 'api',
+  name: 'tasks',
+  eventName: 'task',
+  table: 'tasks',
+  // @ts-expect-error title_length is a derived integer, the record says string
+  record: z.object({ id: z.uuid(), title_length: z.string() }),
+  derived: { title_length: lengthOf },
+})
+
+// a record key that is neither a column, an embed nor a derived field
+definePreparedResource({
+  surface: 'api',
+  name: 'tasks',
+  eventName: 'task',
+  table: 'tasks',
+  // @ts-expect-error bogus is not declared derived
+  record: z.object({ id: z.uuid(), bogus: z.number() }),
+  derived: { title_length: lengthOf },
+})

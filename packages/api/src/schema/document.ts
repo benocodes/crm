@@ -17,6 +17,18 @@ export const schemaColumn = z.object({
   references: reference.nullable().describe('The table and primary-key column this column points at.'),
 })
 
+export const schemaDerived = z.object({
+  name: z.string(),
+  kind: z.string().describe('The logical kind of the value (see `kinds`).'),
+  nullable: z.boolean(),
+  writable: z.literal(false).describe('Derived fields are computed when the record is read and can never be written.'),
+  label: z.string(),
+  description: z.string().nullable(),
+  requires: z.string().nullable().describe('The scope needed to see the field (it is absent from the record without it), or null.'),
+  filters: z.array(z.string()).describe('The list filters on this field.'),
+  sortable: z.boolean().describe('Whether the list can be sorted by this field.'),
+})
+
 export const schemaForeignKey = z.object({
   columns: z.array(z.string()),
   references: z.object({ table: z.string(), columns: z.array(z.string()) }),
@@ -40,6 +52,7 @@ export const schemaTable = z.object({
   associable: z.boolean(),
   resource: schemaResource.nullable(),
   columns: z.array(schemaColumn),
+  derived: z.array(schemaDerived).describe('Record fields computed from other tables when read; not columns.'),
   foreign_keys: z.array(schemaForeignKey),
 })
 

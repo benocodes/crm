@@ -161,6 +161,21 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
             references: referenceOf.get(c.name) ?? null,
           }
         }),
+        // [[CORE131]] D11: derived record fields, apart from the columns; `sortable` stays false until CORE133 adds `sort`.
+        derived: Object.entries(def?.derived ?? {}).map(([field, d]) => {
+          const own = textOf(text?.derived?.[field])
+          return {
+            name: field,
+            kind: d.kind,
+            nullable: true,
+            writable: false as const,
+            label: own.label ?? defaultLabel(field),
+            description: own.description ?? null,
+            requires: d.requires && d.requires.length > 0 ? d.requires.map(formatScope).join(', ') : null,
+            filters: [...(d.filters ?? [])],
+            sortable: false,
+          }
+        }),
         foreign_keys: fks,
       }
     })

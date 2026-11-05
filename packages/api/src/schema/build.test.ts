@@ -88,12 +88,48 @@ const build = (over: Record<string, unknown> = {}) =>
 const table = (doc: any, name: string) => doc.tables.find((t: any) => t.name === name)
 const column = (doc: any, t: string, c: string) => table(doc, t).columns.find((x: any) => x.name === c)
 
+describe('derived fields ([[CORE131]] D11)', () => {
+  const withText: Catalog = {
+    ...CATALOG,
+    tables: {
+      ...CATALOG.tables,
+      contacts: { ...CATALOG.tables.contacts!, derived: { last_contacted_at: { label: 'Last contacted', description: 'When we last wrote.' }, last_interacted_at: 'When we last talked.' } },
+    },
+  }
+  it('is an empty array on a table without derived fields, and on a table no resource serves', () => {
+    const doc = build()
+    expect(table(doc, 'tasks').derived).toEqual([])
+    expect(table(doc, 'mystery').derived).toEqual([])
+  })
+  it('lists a resource\'s derived fields with the catalog text, the formatted scope and the filter names', () => {
+    const doc = build({ catalog: withText })
+    expect(table(doc, 'contacts').derived[0]).toEqual({
+      name: 'last_contacted_at',
+      kind: 'timestamp',
+      nullable: true,
+      writable: false,
+      label: 'Last contacted',
+      description: 'When we last wrote.',
+      requires: 'interactions:read',
+      filters: ['contacted_since', 'not_contacted_since', 'never_contacted'],
+      sortable: false,
+    })
+    expect(table(doc, 'contacts').derived[1]).toMatchObject({ label: 'Last interacted at', description: 'When we last talked.' })
+  })
+  it('a derived field without catalog text is listed with description null (the completeness test, not the builder, fails it)', () => {
+    expect(table(build(), 'contacts').derived[0].description).toBeNull()
+  })
+  it('a derived field is not a column and does not change the columns list', () => {
+    expect(table(build({ catalog: withText }), 'contacts').columns.map((c: any) => c.name)).toEqual(table(build(), 'contacts').columns.map((c: any) => c.name))
+  })
+})
+
 describe('document shape (D10, D11)', () => {
   it('has exactly the documented top-level, table, column and foreign-key fields', () => {
     const doc = build()
     expect(Object.keys(doc)).toEqual(['engine', 'kinds', 'tables', 'associations'])
     expect(doc.engine).toBe('d1')
-    expect(Object.keys(table(doc, 'contacts'))).toEqual(['name', 'origin', 'label', 'description', 'associable', 'resource', 'columns', 'foreign_keys'])
+    expect(Object.keys(table(doc, 'contacts'))).toEqual(['name', 'origin', 'label', 'description', 'associable', 'resource', 'columns', 'derived', 'foreign_keys'])
     expect(Object.keys(column(doc, 'contacts', 'company_id'))).toEqual(['name', 'type', 'kind', 'nullable', 'primary_key', 'default', 'label', 'description', 'values', 'exposed', 'references'])
     expect(Object.keys(table(doc, 'contacts').foreign_keys[0])).toEqual(['columns', 'references', 'on_delete'])
     expect(Object.keys(doc.associations)).toEqual(['table', 'relations', 'associable', 'description'])

@@ -88,7 +88,9 @@ export function engineSuite(engineName: EngineName): void {
       const merged = ev.filter((x) => x.type === 'contact.merged')
       expect(merged).toHaveLength(1)
       expect(merged[0]).toMatchObject({ resource_id: r.id, resource_type: 'contact', actor_id: e.userId })
-      expect(merged[0]!.before).toEqual(r)
+      // The record shows the derived activity fields (CORE131); the event's `before` is the stored row and never carries them (D2).
+      const { last_contacted_at: _c, last_interacted_at: _i, ...stored } = r as Record<string, unknown>
+      expect(merged[0]!.before).toEqual(stored)
       expect(merged[0]!.after).toMatchObject({ id: r.id, merged_into_id: s.id })
       expect(ev.filter((x) => x.type === 'contact.deleted')).toHaveLength(0)
     })

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { deleteContactOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { contactActivityFilters, contactDerived } from './contact-activity.js'
 import { tagIdFilter } from './tag-filter.js'
 
 export type ContactRecord = {
@@ -12,6 +13,9 @@ export type ContactRecord = {
   created_by: string
   created_at: string
   updated_at: string
+  /** Derived ([[CORE131]]): present only for a caller holding `interactions:read`. */
+  last_contacted_at?: string | null
+  last_interacted_at?: string | null
 }
 
 const record = z.object({
@@ -23,6 +27,16 @@ const record = z.object({
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
+  last_contacted_at: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("When the latest outbound interaction with any of the contact's identities happened; null if none. Derived, read-only; present only with interactions:read."),
+  last_interacted_at: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("When the latest interaction, in either direction, with any of the contact's identities happened; null if none. Derived, read-only; present only with interactions:read."),
 })
 
 const fields = {
@@ -39,7 +53,8 @@ export const contacts = definePreparedResource({
   eventName: 'contact',
   table: 'contacts',
   associable: true,
-  joinFilters: { tag_id: tagIdFilter('contacts') },
+  joinFilters: { tag_id: tagIdFilter('contacts'), ...contactActivityFilters },
+  derived: contactDerived,
   record,
   create,
   update,
