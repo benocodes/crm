@@ -141,7 +141,7 @@ describe('lease (D11)', () => {
     expect(await claimLease(lease(), s.id, 'run-b')).toBe(false)
     expect(await stateRow()).toEqual(held)
     expect(await claimLease(lease(), s.id, 'run-a')).toBe(true) // its own, retried after its unit committed
-    expect((await stateRow()).run_id).toBe('run-a')
+    expect(await stateRow()).toMatchObject({ run_id: 'run-a', lease_until: new Date(now.getTime() + LEASE_MS).toISOString() }) // and pushed it out again
     now = new Date(now.getTime() + LEASE_MS + 1)
     expect(await claimLease(lease(), s.id, 'run-b')).toBe(true) // expired
     expect((await stateRow()).run_id).toBe('run-b')
