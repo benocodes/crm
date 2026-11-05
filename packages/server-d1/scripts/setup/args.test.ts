@@ -28,6 +28,9 @@ describe('parseSetupArgs: --auth clerk, the default (OPS87)', () => {
   it('--auth none keeps cycle 1: no Clerk flags set', () => {
     expect(parseSetupArgs(base)).toMatchObject({ auth: 'none', clerkProduction: false, noDcr: false, rotateSecrets: false })
   })
+  it('--auth none takes the env file, --rotate-secrets and --only secrets for the Gmail group (OPS150, OPS65 D41)', () => {
+    expect(parseSetupArgs([...base, '--clerk-env-file', '.env.dev', '--rotate-secrets', '--only', 'secrets'])).toMatchObject({ auth: 'none', clerkEnvFile: '.env.dev', rotateSecrets: true, only: ['secrets'] })
+  })
   it('allows --operator-agent and --key-env with --org (D38), and --org alone (the Clerk bootstrap always creates the organisation)', () => {
     expect(parseSetupArgs([...clerk, '--operator-agent', 'operator', '--key-env', 'K', '--org', 'Acme'])).toMatchObject({ operatorAgent: 'operator', keyEnv: 'K', org: 'Acme' })
     expect(parseSetupArgs([...clerk, '--org', 'Acme'])).toMatchObject({ org: 'Acme' })
@@ -53,11 +56,8 @@ describe('parseSetupArgs: refusals before any network call (D19, D20, D18, D6)',
     ['operator without an owner email (none needs a human owner)', [...base, '--operator-agent', 'operator', '--key-env', 'K'], /--owner-email/],
     ['--org without an operator agent (only the marker is written, the name would be ignored)', [...base, '--org', 'Acme'], /--org/],
     ['a Clerk-only flag with --auth none', [...base, '--clerk-publishable-key', 'pk_test_x'], /--auth clerk/],
-    ['--clerk-env-file with --auth none', [...base, '--clerk-env-file', '.env.dev'], /--auth clerk/],
     ['--clerk-production with --auth none', [...base, '--clerk-production'], /--auth clerk/],
-    ['--rotate-secrets with --auth none', [...base, '--rotate-secrets'], /--auth clerk/],
     ['--only clerk with --auth none', [...base, '--only', 'clerk'], /--auth clerk/],
-    ['--only secrets with --auth none', [...base, '--only', 'secrets'], /--auth clerk/],
     ['--auth clerk without --owner-email (D17)', ['--env', 'acme', '--api-host', 'api.acme.vibase.ai'], /--owner-email/],
     ['--clerk-key-env is gone (D34)', [...clerk, '--clerk-key-env', 'X'], /clerk-key-env/],
   ]
