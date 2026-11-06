@@ -42,8 +42,9 @@ describe('reviewers (D7, D23, D38)', () => {
 
   it('proposal-only and read-only reviewers and a writer on the wrong resource get 403 insufficient_scope; the request stays pending', async () => {
     const id = (await propose(proposer, { id: await task(), title: 'x' })).body.id
-    const wrong = await k.actor('wrong', 'agent', ['contacts:write', 'tasks:read'])
-    const readOnly = await k.actor('readonly', 'agent', ['tasks:read'])
+    // They can read the queue, so D46's order applies to them (a caller who can read nothing of it is told 404, D58).
+    const wrong = await k.actor('wrong', 'agent', ['contacts:write', 'tasks:read', 'action_requests:read'])
+    const readOnly = await k.actor('readonly', 'agent', ['tasks:read', 'action_requests:read'])
     for (const who of [proposer, readOnly, wrong]) {
       for (const action of ['approve', 'reject']) {
         const r = await k.call(who, 'POST', `${AR}/${id}/${action}`)

@@ -105,10 +105,13 @@ retros to fix recurring problems.
 
 **Cost.** One line, so the size budget in `tdd-cycle-generator` is tuned from real numbers:
 `coder <tokens>k / <tool calls> calls (<runs> runs, incl. handoffs) · +<code> / +<test> lines, <files> files ·
-Size line <as chartered> · review rounds <n>`. Token and call counts come from the orchestrator's brief
+Size line <as chartered> · review rounds <n> · Worker bundle <bytes> bytes (<delta bytes>, <delta %> vs baseline)`. Token and call counts come from the orchestrator's brief
 (outside a sprint, write "not measured"); lines from `git diff --numstat main...<branch>` split on test
 files. If the cost was out of line with the Size line, say which count hid the work (a matrix, a rider, an
-E2E part), and propose the budget change in Lessons.
+E2E part), and propose the budget change in Lessons. For a Worker change, use the before/after
+`worker.js` measurements from `wrangler deploy --dry-run` with the same env; report unavailable rather
+than treating an older measurement as the final bundle. AGT165's final review added 1,680 bytes after
+its first bundle measurement (`knowledge/specs/008-AGT165-execution-rail/RETRO.md`).
 
 ## Follow-ups
 {Optional. Deferred work and known caveats, with the spec ID that owns each.}

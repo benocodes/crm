@@ -95,6 +95,14 @@ only adds an interim state where old and new mechanisms live side by side. Say s
 
 These numbers are a first calibration (2026-11-06). Each retro records the cost against them ([[retrospect]]),
 and they move when the retros say so.
+
+**AGT165 calibration** (`knowledge/specs/008-AGT165-execution-rail/RETRO.md`): its pre-budget charter
+had 12 test groups (2 matrix), 13 new spec decisions and the #168 rider; the original implementation
+was reported at about 503k tokens / 171 calls, before the final fix round. Its natural cut was four
+cycles: table and queued approval; runner and retries; cron and expiry sweep; #168's visibility fix.
+Those independently provable units were available before coding. The runner's proposed ~1,500-line
+tripwire did not protect the whole cycle. Apply the existing budget up front; this example adds no
+exception and does not lower the current limits.
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code

@@ -174,6 +174,7 @@ pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in wor
 pnpm -C packages/server-d1 build                   # the connect page (UI30) into dist/assets/connect/; `dev` runs it before `wrangler dev --local`
 pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
+pnpm -C packages/server-d1 e2e:rail -- --base https://api.smoked1.vibase.ai --expect-version <sha>  # on-demand real-cron expiry check, not in the gate; runnable once #173 supplies owner-bound administration of newly added scopes
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --api-host <host> --owner-email <e> [--auth clerk|none] [--clerk-env-file .env.<name>] [--dry-run]  # one guarded idempotent setup of a self-managed env (OPS65, OPS87); Clerk keys from .env.<name>, never the root .env; --dry-run reads only
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env <name>    # applied vs expected; exit 0 only when current (CORE61)
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env <name>   # remote D1 migrations (OPS4); migrate before deploy
@@ -245,10 +246,16 @@ Carried over from the predecessor product, where each cost real time. Add new on
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).
    Writes that skip events are allowed only when they are not resources and a spec decision names them.
-   Today that means four: identity bookkeeping (`principals`, `users` on first sight and on a provider
+   Today that means five: identity bookkeeping (`principals`, `users` on first sight and on a provider
    profile refresh, [[CORE3]] D12, [[CORE41]] P11), channel machinery tables (credentials, subscriptions,
-   sync state and cursors, [[CHN5]] D22; the provider-id maps `message_sources` and `thread_sources`, [[CORE25]] D17), the dev/ops `bootstrap` script ([[CORE15]]), and the API-key
-   usage stamp (`api_keys.last_used_at` only, at most once a minute, never `updated_at`, [[CORE36]] D17). If such a write has a tenant-visible consequence (a
+   sync state and cursors, [[CHN5]] D22; the provider-id maps `message_sources` and `thread_sources`, [[CORE25]] D17), the dev/ops `bootstrap` script ([[CORE15]]), the API-key
+   usage stamp (`api_keys.last_used_at` only, at most once a minute, never `updated_at`, [[CORE36]] D17), and
+   execution machinery tables' lease columns: claim, dispatch stamp, retry scheduling and lease recovery
+   write `action_executions.attempts`, `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`,
+   `last_error_code` (and the `queued`/`claimed` status they move between) without an event and without
+   changing `updated_at`; creation and the final outcome of an execution, and the linked request's
+   `executed`/`failed`, are resources and emit `action_execution.created|completed|failed` and
+   `action_request.executed|failed` ([[AGT8]] D56). If such a write has a tenant-visible consequence (a
    membership, a connection's status), that consequence must still emit its event. Add a new exception
    through a spec decision, never ad hoc.
 6. **Raw bodies stay out of the database**, Postgres and D1 alike (R2 behind `ObjectStore`).

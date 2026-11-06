@@ -81,6 +81,15 @@ describe('against the D1 app', () => {
     expect(updated.name).toBe('Renamed')
   })
 
+  it('the execution reads are commands derived from the registry: action-executions list answers an empty page when nothing is enqueued, and get of any id is 404 ([[AGT8]] D57)', async () => {
+    const r = await session()
+    expect(JSON.parse((await ok(r, ['action-executions', 'list'])).stdout)).toEqual({ data: [], next_cursor: null })
+    const missing = await r.run(['action-executions', 'get', '0190b2c4-0000-7000-8000-00000000dead'])
+    expect(missing.code).not.toBe(0)
+    expect(missing.stderr).toContain('not_found')
+    expect((await ok(r, ['action-executions', '--help'])).stdout).toMatch(/list|get/)
+  })
+
   it('list --all follows next_cursor across pages and prints one NDJSON line per record', async () => {
     const r = await session()
     const ids: string[] = []
