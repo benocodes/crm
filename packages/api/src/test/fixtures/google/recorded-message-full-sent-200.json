@@ -1,0 +1,145 @@
+{
+  "name": "recorded-message-full-sent-200",
+  "recording": {
+    "source": "recorded",
+    "kind": "message_full",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages/0a6sksv7bx2z754m",
+      "query": [
+        [
+          "format",
+          "full"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "id": "0a6sksv7bx2z754m",
+        "threadId": "9h2wsk7880f41y9q",
+        "labelIds": [
+          "SENT"
+        ],
+        "snippet": "Xx xxxxxxxx, Xxxxx xxx xxx xxxx xxxx xxxxxxxxx! Xx xxx x xxxxxxxx xxxxxxx xxx xxx. Xx xxx xxxxxxx xxxx xxx xxxxxxxxx xxxxxxx, X&#00;x xxxx xxxx xx xxx xx xxxx x xxxxxxx xxxx xxxx xx: xxxxx://xxx.xxx/",
+        "payload": {
+          "partId": "",
+          "mimeType": "multipart/alternative",
+          "filename": "",
+          "headers": [
+            {
+              "name": "MIME-Version",
+              "value": "0.0"
+            },
+            {
+              "name": "Date",
+              "value": "Xxx, 0 Xxx 0000 00:00:00 +0000"
+            },
+            {
+              "name": "Message-ID",
+              "value": "<XXXXxXXX0xXXX00X=x0xX0_x=xx+0xxxxx0XxXx0+0XXxXxX0xx@xxxx.xxxxx.xxx>"
+            },
+            {
+              "name": "Subject",
+              "value": "Xxxxxxxx XXX xxxxxxx"
+            },
+            {
+              "name": "From",
+              "value": "Xxx Xxx <xxx@xxxxxxxxx.xx>"
+            },
+            {
+              "name": "To",
+              "value": "\"xxxx@xxxxxxxx.xx\" <xxxx@xxxxxxxx.xx>, xxxxx@xxxxxxxx.xx, \"xxxxxxxxxxx@xxxxxxxx.xx\" <xxxxxxxxxxx@xxxxxxxx.xx>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "multipart/alternative; boundary=\"000000000000000x00000x0000xx\""
+            }
+          ],
+          "body": {
+            "size": 0
+          },
+          "parts": [
+            {
+              "partId": "0",
+              "mimeType": "text/plain",
+              "filename": "",
+              "headers": [
+                {
+                  "name": "Content-Type",
+                  "value": "text/plain; charset=\"XXX-0\""
+                }
+              ],
+              "body": {
+                "size": 496,
+                "data": {
+                  "length": 664,
+                  "padding": 2,
+                  "alphabet_ok": true,
+                  "decoded_bytes": 496
+                }
+              }
+            },
+            {
+              "partId": "1",
+              "mimeType": "text/html",
+              "filename": "",
+              "headers": [
+                {
+                  "name": "Content-Type",
+                  "value": "text/html; charset=\"XXX-0\""
+                },
+                {
+                  "name": "Content-Transfer-Encoding",
+                  "value": "quoted-printable"
+                }
+              ],
+              "body": {
+                "size": 1102,
+                "data": {
+                  "length": 1472,
+                  "padding": 2,
+                  "alphabet_ok": true,
+                  "decoded_bytes": 1102
+                }
+              }
+            }
+          ]
+        },
+        "sizeEstimate": 2315,
+        "historyId": "1600071",
+        "internalDate": "0000000000000"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "mapped": true,
+      "attachments": 0,
+      "provider_message_id": "0a6sksv7bx2z754m",
+      "participants": [
+        {
+          "role": "from",
+          "named": true
+        },
+        {
+          "role": "to",
+          "named": false
+        },
+        {
+          "role": "to",
+          "named": false
+        },
+        {
+          "role": "to",
+          "named": false
+        }
+      ]
+    }
+  }
+}

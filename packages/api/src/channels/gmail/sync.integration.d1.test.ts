@@ -9,7 +9,10 @@ import { gmailFixture } from '../../test/gmail-fixtures.js'
 import { runGmailSync, seedGmailConnection } from '../../test/gmail-sync.js'
 import { recordingObjectStore } from '../../test/objects.js'
 import { nodeStreams } from '../../test/streams.js'
-import { GmailApiError } from './client.js'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { wireResponse, type RecordingFixture } from '../../test/recording-replay.js'
+import { GmailApiError, HttpGmailClient } from './client.js'
 import { beginScan, captureHistoryPage, captureScanPage, type GmailSyncDeps, type PageResult, type Scan, type ScanStart } from './sync.js'
 
 // [[CHN149]] / [[CHN5]] cycle 3: the capture pages (history, backfill, recovery) and the token resolver on local D1, over FakeGmail (wire forms), FakeGoogle's
@@ -87,7 +90,7 @@ async function setup(opts: { messages?: BuiltGmailMessage[]; synced?: string | n
   }
   return { gmail, deps, id, refreshToken, objects }
 }
-const addHistory = (g: FakeGmail, id: string, added: Array<string | { id: string; labels?: string[] }>) =>
+const addHistory = (g: FakeGmail, id: string, added: Array<string | { id: string; labels?: string[] | null }>) =>
   g.history.push({ id, added: added.map((a) => (typeof a === 'string' ? { id: a, labels: ['INBOX'] } : a)) })
 const cursor = async () => (await e.rows('mail_sync_cursors'))[0]!
 const count = async (t: string) => (await e.rows(t)).length
@@ -128,7 +131,7 @@ describe('history page', () => {
   it('a record without labelIds is fetched and the label rule runs on the fetched message; a record with labels is still filtered before any fetch', async () => {
     const msgs = [mk('nl-in'), mk('nl-sent', { labels: ['SENT'] }), mk('nl-spam', { labels: ['SPAM', 'INBOX'] }), mk('nl-archived', { labels: ['IMPORTANT'] }), mk('labelled-spam', { labels: ['SPAM'] })]
     const s = await setup({ messages: msgs })
-    addHistory(s.gmail, '1001', [{ id: 'nl-in' }, { id: 'nl-sent' }, { id: 'nl-spam' }, { id: 'nl-archived' }, { id: 'labelled-spam', labels: ['SPAM'] }])
+    addHistory(s.gmail, '1001', [{ id: 'nl-in', labels: null }, { id: 'nl-sent', labels: null }, { id: 'nl-spam', labels: null }, { id: 'nl-archived', labels: null }, { id: 'labelled-spam', labels: ['SPAM'] }])
     s.gmail.profile.historyId = '1002'
     const r = page(await captureHistoryPage(s.deps, s.id))
     expect(r).toMatchObject({ captured: 2, skipped: 3 })
@@ -469,8 +472,8 @@ describe('throttle', () => {
 
   it.each([
     ['429 with Retry-After', err(429, null, 12), 12],
-    ['429 without Retry-After', err(429), 30],
-    ['403 rateLimitExceeded', err(403, 'rateLimitExceeded'), 30],
+    ['429 without Retry-After', err(429), null],
+    ['403 rateLimitExceeded', err(403, 'rateLimitExceeded'), null],
     ['403 userRateLimitExceeded with Retry-After', err(403, 'userRateLimitExceeded', 7), 7],
   ])('%s on a history list is throttled', async (_name, error, seconds) => {
     const s = await setup()
@@ -574,3 +577,100 @@ describe('secrecy and step returns', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// [[CHN5]] D70, D82, D83 ([[CHN153b]]): the recorded `hq` pages served to the real client and the page service.
+const FIXTURES = fileURLToPath(new URL('../../test/fixtures/google/', import.meta.url))
+const recorded = (name: string): RecordingFixture => JSON.parse(readFileSync(`${FIXTURES}${name}.json`, 'utf8')) as RecordingFixture
+/** A client over HTTP: the fake serves every request, except those `override` answers (a fresh Response per call, so a body is never read twice). */
+const viaHttp = (gmail: FakeGmail, override: (url: URL) => Response | null) => (accessToken: () => Promise<string>) =>
+  new HttpGmailClient({
+    accessToken,
+    fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+      return override(url) ?? gmail.handle(new Request(url, init), (t) => google.isAccessToken(t))
+    }) as typeof fetch,
+  })
+
+describe('the recorded history page (D70, D82)', () => {
+  it('INBOX and SENT records are fetched; DRAFT and SPAM records are skipped with no fetch, counted as label', async () => {
+    const rec = recorded('recorded-history-list-200')
+    const records = (rec.recording.response.body as { history: Array<{ messagesAdded: Array<{ message: { id: string; threadId: string; labelIds: string[] } }> }> }).history
+    const messages = records.map((r) => r.messagesAdded[0]!.message)
+    const s = await setup({ messages: messages.map((m) => mk(m.id, { labels: m.labelIds })) })
+    s.deps.clientFor = viaHttp(s.gmail, (url) => (url.pathname.endsWith('/history') ? wireResponse(rec.recording) : null))
+    const r = page(await captureHistoryPage(s.deps, s.id))
+    const fetched = messages.filter((m) => m.labelIds.includes('INBOX') || m.labelIds.includes('SENT')).map((m) => m.id).sort()
+    expect(fetched).toHaveLength(8)
+    expect(calls(s.gmail, 'full').map((c) => c.messageId).sort()).toEqual(fetched)
+    expect(calls(s.gmail, 'raw').map((c) => c.messageId).sort()).toEqual(fetched)
+    expect(r).toMatchObject({ outcome: 'page', next_page_token: null, captured: 8, existing: 0, skipped: 12 })
+    expect(await count('messages')).toBe(8)
+  })
+})
+
+describe('a quota 403 is a throttle on every call kind the page makes (D83)', () => {
+  const quota = (): Response => wireResponse(recorded('recorded-messages-list-403').recording)
+  const scan: Scan = { kind: 'backfill', after: 1, history_id: null }
+  const throttled = { outcome: 'throttled', retry_after_seconds: null }
+
+  it('the recorded 403 has no Retry-After and the rate reason', () => {
+    const res = quota()
+    expect(res.status).toBe(403)
+    expect(res.headers.get('retry-after')).toBeNull()
+  })
+
+  it.each([
+    ['a scan list', (url: URL) => url.pathname.endsWith('/messages')],
+    ['a message get (format=full)', (url: URL) => /\/messages\/[^/]+$/.test(url.pathname) && url.searchParams.get('format') === 'full'],
+    ['a message get (format=raw)', (url: URL) => /\/messages\/[^/]+$/.test(url.pathname) && url.searchParams.get('format') === 'raw'],
+    ['an attachment get', (url: URL) => url.pathname.includes('/attachments/')],
+  ])('%s', async (_name, hit) => {
+    const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
+    s.deps.clientFor = viaHttp(s.gmail, (url) => (hit(url) ? quota() : null))
+    expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual(throttled)
+    expect(await count('messages')).toBe(0)
+    expect((await e.rows('message_attachments')).filter((a) => a.fetch_status === 'failed')).toEqual([])
+  })
+
+  it('a history list too', async () => {
+    const s = await setup()
+    s.deps.clientFor = viaHttp(s.gmail, (url) => (url.pathname.endsWith('/history') ? quota() : null))
+    expect(await captureHistoryPage(s.deps, s.id)).toEqual(throttled)
+  })
+
+  it('an attachment throttle leaves no failed link; the retry captures the message with its attachment stored', async () => {
+    const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
+    let hits = 1
+    s.deps.clientFor = viaHttp(s.gmail, (url) => (url.pathname.includes('/attachments/') && hits-- > 0 ? quota() : null))
+    expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual(throttled)
+    expect(await count('message_attachments')).toBe(0)
+    const again = page(await captureScanPage(s.deps, s.id, scan, null))
+    expect(again).toMatchObject({ captured: 1 })
+    const rows = await e.rows('message_attachments')
+    expect(rows.map((a) => [a.fetch_status, a.fetch_error])).toEqual([['stored', null]])
+    expect(calls(s.gmail, 'attachment')).toHaveLength(2)
+  })
+
+  it('a 429 on an attachment is a throttle too, and its Retry-After is carried', async () => {
+    const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
+    s.gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 429, gmailStatus: 'RESOURCE_EXHAUSTED', retryAfter: '11', retryAfterSeconds: 11 }))
+    expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual({ outcome: 'throttled', retry_after_seconds: 11 })
+    expect(await count('messages')).toBe(0)
+  })
+
+  it('a 403 that is not a rate reason on an attachment stays access_denied (stored as a failed link; the message is captured)', async () => {
+    const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
+    s.gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'forbidden' }))
+    expect(page(await captureScanPage(s.deps, s.id, scan, null))).toMatchObject({ captured: 1 })
+    expect((await e.rows('message_attachments')).map((a) => [a.fetch_status, a.fetch_error])).toEqual([['failed', 'access_denied']])
+  })
+
+  it('a 404 and a 5xx on an attachment keep their codes', async () => {
+    const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
+    s.gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 503 }))
+    expect(page(await captureScanPage(s.deps, s.id, scan, null))).toMatchObject({ captured: 1 })
+    expect((await e.rows('message_attachments')).map((a) => [a.fetch_status, a.fetch_error])).toEqual([['failed', 'http_503']])
+  })
+})
+

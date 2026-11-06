@@ -1,0 +1,35 @@
+{
+  "name": "recorded-attachment-get-200",
+  "recording": {
+    "source": "recorded",
+    "kind": "attachment_get",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages/3q3jmvy82593mz90/attachments/ZEJihZ_968wR5tScG86JgJj2Gf8yjRWnttY9BWr-1LPofUFlk7L9F441Ue5zOVlBdmmYM2FQGADZYaK_BHwXelmYvXpa-Y4tIR5tLNoBMk-ofsp62QOSyqyMfRqpLloICjCmXuB1yA_Q4WndaDdEjPrBztH_Hs94m-QJlPXbVc-2yQAJE4ZLxo8nk_3LvmdB3gHHkRZ6FhwEJ53sFs6ODHfQd6R-CsM8SN1AnBBjYKz1iHBYzFF-PFhtg_oqb9npfDzJM9b-p_TkBl48FOwDYgQDfyPYD5JKCag3It-c0F2FLuIToHlVLmVzm529ew3",
+      "query": [],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "size": 247235,
+        "data": {
+          "length": 329648,
+          "padding": 1,
+          "alphabet_ok": true,
+          "decoded_bytes": 247235
+        }
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "data_length": 329648,
+      "decoded_bytes": 247235
+    }
+  }
+}

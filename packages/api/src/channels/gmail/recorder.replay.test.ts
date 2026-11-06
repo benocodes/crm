@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { buildSyntheticRecordings } from '../../test/google-recordings.js'
 import { replay, type RecordingFixture } from '../../test/recording-replay.js'
+import { dishonestStrings } from '../../test/recorded-honesty.js'
 
 // [[CHN5]] D80 ([[CHN153]]): every file under test/fixtures/google/ is served, rebuilt to Google's wire form, to the real client, token code, channel and mapper.
 // Adding a recording needs a file and its `expect`, no code here.
@@ -42,7 +43,7 @@ describe('replay through the real parsers', () => {
   for (const f of files) it(`${f}`, async () => check(load(f)))
 
   it('every fixture is replayed (a new file is picked up with no test code)', () => {
-    expect(files.length).toBeGreaterThanOrEqual(15)
+    expect(files.length).toBeGreaterThanOrEqual(25)
   })
 
   it('absence mutation: a list page without its `messages` member no longer replays', async () => {
@@ -68,3 +69,50 @@ describe('replay through the real parsers', () => {
     await expect(check(fx)).rejects.toThrow()
   })
 })
+
+// [[CHN5]] D86 ([[CHN153b]]): the files of the user's supervised `hq` backfill, committed as they were pulled.
+const recordedFiles = files.filter((f) => load(f).recording.source === 'recorded')
+describe('recorded files (D86)', () => {
+  it('cover the kinds and statuses the real run produced', () => {
+    const seen = new Set(recordedFiles.map((f) => `${load(f).recording.kind}:${load(f).recording.response.status}`))
+    for (const k of ['token_refresh:200', 'messages_list:200', 'messages_list:403', 'message_full:200', 'message_full:403', 'message_raw:200', 'message_raw:403', 'attachment_get:200', 'history_list:200']) expect(seen.has(k), k).toBe(true)
+    expect(recordedFiles.length).toBe(10)
+  })
+  it('the inbox and the sent message are both there (quoted-printable HTML; a quoted display name equal to the address in a To list)', () => {
+    const labels = recordedFiles.map((f) => load(f).recording).filter((r) => r.kind === 'message_full' && r.response.status === 200).map((r) => (r.response.body as { labelIds: string[] }).labelIds)
+    expect(labels.some((l) => l.includes('INBOX'))).toBe(true)
+    expect(labels.some((l) => l.includes('SENT'))).toBe(true)
+  })
+  for (const f of recordedFiles) {
+    it(`${f}: every string is allow-listed or in mask, pseudonym or <redacted> form`, () => {
+      expect(dishonestStrings(load(f).recording)).toEqual([])
+    })
+  }
+  it('absence mutation: one plain word hand-inserted into a recorded file turns the check red', () => {
+    for (const [file, edit] of [
+      ['recorded-message-full-inbox-200.json', (b: { snippet: string }) => void (b.snippet = 'hello Maria')],
+      ['recorded-messages-list-403.json', (b: { error: { errors: Array<{ message: string }> } }) => void (b.error.errors[0]!.message = 'Maria called')],
+      ['recorded-history-list-200.json', (b: { history: Array<{ id: string }> }) => void (b.history[0]!.id = 'a b')],
+    ] as const) {
+      const fx = load(file)
+      expect(dishonestStrings(fx.recording)).toEqual([])
+      ;(edit as (b: unknown) => void)(fx.recording.response.body)
+      expect(dishonestStrings(fx.recording), file).not.toEqual([])
+    }
+  })
+  it('absence mutation: dropping `messages` from the recorded list page turns its replay red', async () => {
+    const fx = load('recorded-messages-list-200.json')
+    delete (fx.recording.response.body as Record<string, unknown>).messages
+    await expect(check(fx)).rejects.toThrow()
+  })
+  it('absence mutation: a recorded history record without its labelIds turns its replay red', async () => {
+    const fx = load('recorded-history-list-200.json')
+    delete (fx.recording.response.body as { history: Array<{ messagesAdded: Array<{ message: Record<string, unknown> }> }> }).history[0]!.messagesAdded[0]!.message.labelIds
+    await expect(check(fx)).rejects.toThrow()
+  })
+  it('the generator test covers exactly the synthetic files: a recorded file is never regenerated', async () => {
+    const built = await buildSyntheticRecordings()
+    expect(built.map((b) => b.name).some((n) => n.startsWith('recorded-'))).toBe(false)
+  })
+})
+

@@ -1,0 +1,57 @@
+{
+  "name": "recorded-token-refresh-200",
+  "recording": {
+    "source": "recorded",
+    "kind": "token_refresh",
+    "request": {
+      "method": "POST",
+      "host": "oauth2.googleapis.com",
+      "path": "/token",
+      "query": [],
+      "form": {
+        "grant_type": "refresh_token",
+        "refresh_token": "<redacted>",
+        "client_id": "<redacted>",
+        "client_secret": "<redacted>"
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "access_token": "<redacted>",
+        "expires_in": 3599,
+        "scope": "https://www.googleapis.com/auth/gmail.readonly openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email",
+        "token_type": "Bearer",
+        "id_token": {
+          "alg": "RS256",
+          "claims": {
+            "iss": "string",
+            "azp": "string",
+            "aud": "string",
+            "sub": "string",
+            "hd": "string",
+            "email": "string",
+            "email_verified": "boolean",
+            "at_hash": "string",
+            "name": "string",
+            "given_name": "string",
+            "family_name": "string",
+            "iat": "number",
+            "exp": "number"
+          },
+          "iss": "https://accounts.google.com",
+          "email_verified": true
+        }
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "access_token": true,
+      "rotated": false
+    }
+  }
+}

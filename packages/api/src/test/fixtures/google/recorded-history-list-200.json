@@ -1,0 +1,702 @@
+{
+  "name": "recorded-history-list-200",
+  "recording": {
+    "source": "recorded",
+    "kind": "history_list",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/history",
+      "query": [
+        [
+          "startHistoryId",
+          "3760184"
+        ],
+        [
+          "maxResults",
+          "25"
+        ],
+        [
+          "historyTypes",
+          "messageAdded"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "history": [
+          {
+            "id": "5859281",
+            "messages": [
+              {
+                "id": "8w9iz08863ge5z9l",
+                "threadId": "8w9iz08863ge5z9l"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "8w9iz08863ge5z9l",
+                  "threadId": "8w9iz08863ge5z9l",
+                  "labelIds": [
+                    "CATEGORY_PROMOTIONS",
+                    "UNREAD",
+                    "INBOX"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "3322037",
+            "messages": [
+              {
+                "id": "0x2eoj8e428b6363",
+                "threadId": "0x2eoj8e428b6363"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "0x2eoj8e428b6363",
+                  "threadId": "0x2eoj8e428b6363",
+                  "labelIds": [
+                    "UNREAD",
+                    "IMPORTANT",
+                    "CATEGORY_UPDATES",
+                    "INBOX"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "7861179",
+            "messages": [
+              {
+                "id": "5t7ms2200o23ddpo",
+                "threadId": "5t7ms2200o23ddpo"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "5t7ms2200o23ddpo",
+                  "threadId": "5t7ms2200o23ddpo",
+                  "labelIds": [
+                    "UNREAD",
+                    "CATEGORY_PERSONAL",
+                    "SPAM"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "2996240",
+            "messages": [
+              {
+                "id": "9u0lv94233r2x0cr",
+                "threadId": "9u0lv94233r2x0cr"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "9u0lv94233r2x0cr",
+                  "threadId": "9u0lv94233r2x0cr",
+                  "labelIds": [
+                    "UNREAD",
+                    "CATEGORY_UPDATES",
+                    "INBOX"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "2571209",
+            "messages": [
+              {
+                "id": "2t2fod2w0359qiio",
+                "threadId": "2t2fod2w0359qiio"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "2t2fod2w0359qiio",
+                  "threadId": "2t2fod2w0359qiio",
+                  "labelIds": [
+                    "UNREAD",
+                    "IMPORTANT",
+                    "CATEGORY_UPDATES",
+                    "INBOX"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "5462327",
+            "messages": [
+              {
+                "id": "7t3gdc128jjq9co2",
+                "threadId": "7t3gdc128jjq9co2"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "7t3gdc128jjq9co2",
+                  "threadId": "7t3gdc128jjq9co2",
+                  "labelIds": [
+                    "CATEGORY_PROMOTIONS",
+                    "UNREAD",
+                    "INBOX"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "5427247",
+            "messages": [
+              {
+                "id": "9h2wsk7880f41y9q",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "9h2wsk7880f41y9q",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "2780010",
+            "messages": [
+              {
+                "id": "0l5kov0e01jcr468",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "0l5kov0e01jcr468",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "4346747",
+            "messages": [
+              {
+                "id": "3i1adze7jj232s6a",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "3i1adze7jj232s6a",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "7903093",
+            "messages": [
+              {
+                "id": "0t1kfaz9dn1g562r",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "0t1kfaz9dn1g562r",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "2785613",
+            "messages": [
+              {
+                "id": "5p3xudm616c3gx22",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "5p3xudm616c3gx22",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "9630443",
+            "messages": [
+              {
+                "id": "7t3pmhrl3350z55v",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "7t3pmhrl3350z55v",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "7032850",
+            "messages": [
+              {
+                "id": "3z9vqchb4g6362z3",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "3z9vqchb4g6362z3",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "4626193",
+            "messages": [
+              {
+                "id": "7m0bgczj88o1272c",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "7m0bgczj88o1272c",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "5533707",
+            "messages": [
+              {
+                "id": "8r2lkfp89vz22u12",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "8r2lkfp89vz22u12",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "6778680",
+            "messages": [
+              {
+                "id": "0e0erdht15h79787",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "0e0erdht15h79787",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "7183971",
+            "messages": [
+              {
+                "id": "3q3pbpbo0c75g577",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "3q3pbpbo0c75g577",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "DRAFT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "5666101",
+            "messages": [
+              {
+                "id": "0a6sksv7bx2z754m",
+                "threadId": "9h2wsk7880f41y9q"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "0a6sksv7bx2z754m",
+                  "threadId": "9h2wsk7880f41y9q",
+                  "labelIds": [
+                    "SENT"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "0966890",
+            "messages": [
+              {
+                "id": "2j0t3362xgos22j4",
+                "threadId": "2j0t3362xgos22j4"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "2j0t3362xgos22j4",
+                  "threadId": "2j0t3362xgos22j4",
+                  "labelIds": [
+                    "UNREAD",
+                    "CATEGORY_UPDATES",
+                    "INBOX"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "7294278",
+            "messages": [
+              {
+                "id": "7i9w854mo7576gxt",
+                "threadId": "2j0t3362xgos22j4"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "7i9w854mo7576gxt",
+                  "threadId": "2j0t3362xgos22j4",
+                  "labelIds": [
+                    "UNREAD",
+                    "CATEGORY_UPDATES",
+                    "INBOX"
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "historyId": "5711872"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "history": [
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "CATEGORY_PROMOTIONS",
+                  "UNREAD",
+                  "INBOX"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "UNREAD",
+                  "IMPORTANT",
+                  "CATEGORY_UPDATES",
+                  "INBOX"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "UNREAD",
+                  "CATEGORY_PERSONAL",
+                  "SPAM"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "UNREAD",
+                  "CATEGORY_UPDATES",
+                  "INBOX"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "UNREAD",
+                  "IMPORTANT",
+                  "CATEGORY_UPDATES",
+                  "INBOX"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "CATEGORY_PROMOTIONS",
+                  "UNREAD",
+                  "INBOX"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "DRAFT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "SENT"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "UNREAD",
+                  "CATEGORY_UPDATES",
+                  "INBOX"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "UNREAD",
+                  "CATEGORY_UPDATES",
+                  "INBOX"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "nextPageToken": null,
+      "historyId": "$string"
+    }
+  }
+}
