@@ -51,7 +51,11 @@ const W = { id: '', key: '' }
 let taskId = ''
 let firstRequest = ''
 let secondRequest = ''
-const sessionToken = (page: Page) => page.evaluate(() => (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken())
+const sessionToken = async (page: Page) => {
+  // Clerk loads after the navigation: wait for the session before reading it (the pattern of mcp-oauth.e2e.ts).
+  await page.waitForFunction(() => (window as any).Clerk?.session, null, { timeout: 30000 })
+  return page.evaluate(() => (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken())
+}
 const cli = (key: string, ...args: string[]): { status: number; stdout: string; stderr: string } => {
   try {
     const stdout = execFileSync('node', [CLI, ...args], { encoding: 'utf8', env: { ...process.env, VIBASE_SERVER: process.env.E2E_BASE_URL ?? 'http://localhost:8787', VIBASE_API_KEY: key, XDG_CONFIG_HOME: mkdtempSync(join(tmpdir(), 'vibase-cfg-')), XDG_CACHE_HOME: mkdtempSync(join(tmpdir(), 'vibase-cache-')) } })
