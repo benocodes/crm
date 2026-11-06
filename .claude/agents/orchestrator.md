@@ -33,7 +33,10 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    `approved`, and adds one line per material decision to SPRINT.md's Ledger.
 3. **Plan.** planner, mode `plan`: it runs `tdd-cycle-generator` and writes a short charter: what this
    cycle delivers versus what is deferred (opening the deferred cycles' issues), what must be tested
-   before review, and the E2E decision.
+   before review, and the E2E decision. Check the charter's **Size** line against the budget in
+   `tdd-cycle-generator`; if any count is over (and it doesn't claim the mechanical exception), send it back
+   to the planner to split before any coder starts. Note each coder run's tokens and tool calls from its
+   completion notification, and pass the totals to the retro brief (step 7).
 4. **Code.** coder, in the cycle's worktree, following `execute-cycle`: it surveys the code, proves every
    obligation, and runs the gate (suites, typecheck, build), which must be green before it reports. It
    commits and pushes the branch but opens no PR. Copy each line of its report's `Decisions` into

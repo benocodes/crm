@@ -55,14 +55,46 @@ and the reason in the charter's **Scope** section.
    - **Follow-on cycle (plan-only):** the new folder's owning note `<new-ID>.md`, with
      `implements: "[[<spec-ID>]]"`. If a `PLAN.md` already exists in the spec's folder, the answer is
      always follow-on. Never overwrite an existing plan.
-2. **Scope.** Which spec sections and decisions this cycle delivers. Split when one PR would be too big
-   to review in one sitting, or when part of the spec depends on something not yet merged. A good cut
-   leaves `main` working and every deferred item nameable. Size by review effort, not by diff size: a
-   large mechanical change (renames, file splits) that one check proves whole, such as a before/after
-   test-name manifest, is one cycle. Splitting it only adds an interim state where old and new mechanisms
-   live side by side ([[OPS92]], where the user dropped a two-cycle split).
+2. **Scope.** Which spec sections and decisions this cycle delivers, within the **size budget** below.
+   Split when the budget is exceeded, or when part of the spec depends on something not yet merged.
 3. **Short name.** Kebab-case, describing *this cycle's* scope (`contacts-resource`, `webhook-delivery`).
 
+#### A cycle is a complete, verifiable unit of work, not a complete feature
+
+A cycle merges to `main` with the gate green, leaves `main` working, and proves every one of its own
+obligations inside the cycle: no obligation whose test can only pass once a later cycle lands. Within those
+three rules it may ship code nothing in production calls yet: a mechanism reached only through a test-only
+operation, a route behind a config switch that is off, a table no operation writes until the next cycle.
+**Dormant is fine. Unproven is not.**
+
+So these are **not** reasons to keep a cycle whole: "a split would ship a runner nothing enqueues", "a route
+nothing calls", "a table nothing writes". Nor is "the last cycle was larger and passed review in one round":
+review rounds were never the problem with big cycles. Their cost was coder tokens (AGT8 cycle 1 about 550k,
+[[CHN155]] about 390k, [[AGT165]] over 480k before E2E), context pressure, and expensive resumes. A good cut
+gives each piece obligations it can prove on its own (often the mechanism first, proven through a test kit,
+then its entry points, then its riders) and names every deferred item.
+
+#### Size budget
+
+Count these before you write the charter, and put the counts in its **Size** line:
+
+| Measure | Budget |
+|---|---|
+| "Must be tested" groups (one bullet = one group) | **≤ 6** |
+| matrix-shaped groups (a case per resource, per credential path, per policy × outcome) | **≤ 1** |
+| spec decisions (D-numbers) delivered | **≤ 8** |
+| migrations | **≤ 1** |
+| E2E parts (a local run and a remote deploy check are two) | **≤ 1** |
+| riders: another issue's fix, a docs guide, a recorder kind, an env's cron line | **0** if it brings its own obligation |
+
+Over budget on any line means split, at plan time. Do not write a fallback cut ("split if the runner passes
+~1,500 lines"): a coder deep in a cycle does not stop to split it, and lines do not predict tokens ([[AGT165]]
+D47's tripwire never fired). The one exception is OPS92's: a large mechanical change (renames, file
+splits) that one check proves whole, such as a before/after test-name manifest, is one cycle, because a split
+only adds an interim state where old and new mechanisms live side by side. Say so in the Size line.
+
+These numbers are a first calibration (2026-11-06). Each retro records the cost against them ([[retrospect]]),
+and they move when the retros say so.
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code
@@ -110,6 +142,8 @@ implements: "[[<spec-ID>]]"
 
 **Spec:** [[<spec-ID>]] · **Goal:** {one line, scoped to this cycle}
 **Assumes merged:** [[...]] {prior cycles this builds on, or "nothing beyond main"}
+**Size:** {n} test groups ({m} matrix) · {d} decisions · {migration or none} · E2E {0|1} part · riders {none | list}
+{Every count within the size budget, or the OPS92 mechanical exception named.}
 
 ## In this cycle
 {The spec sections and decisions (D-numbers) this cycle delivers, one bullet each. Name the outcome,
@@ -156,9 +190,9 @@ must be fetched first, a remote resource the user must create (rule 4). Omit the
 | drift case per guard | a D1 set write or a write with more than one guard |
 
 Pick the obligations by risk: tenancy and attribution, the AGENTS.md invariants the cycle touches, every
-refusal and error path the spec defines, and anything a past cycle of this spec got wrong. Five to fifteen
-bullets is typical. A behaviour the spec states but this cycle doesn't deliver belongs under Deferred, not
-here.
+refusal and error path the spec defines, and anything a past cycle of this spec got wrong. At most six
+groups (the size budget); if the risks need more, the cycle is too big. A behaviour the spec states but
+this cycle doesn't deliver belongs under Deferred, not here.
 
 **E2E: include a scenario** only when the cycle adds behaviour across a real seam the deterministic tests
 fake or skip: a new externally reachable surface (REST route, MCP tool, CLI command, the pane, a channel
@@ -213,6 +247,7 @@ A scenario states, in order:
 
 1. No seq-prefixed spec path in the text (`grep -nE 'knowledge/specs/[0-9]{3}-' <plan>` is empty).
 2. Every deferred item has a cycle or issue; the spec's **Implementation cycles** block lists them.
+   The **Size** line's counts match the charter and sit within the budget.
 3. Every "Must be tested" bullet names its evidence.
 4. Commit straight to the knowledge repo's `main` and push (no PR; the coder and the reviewer must read the
    same charter):

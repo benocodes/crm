@@ -61,8 +61,9 @@ The lifecycle is issue-driven. Skills live in `.agents/skills/`:
 Domain skills: `db-schema-and-migrations`, `api-routes`, `writing-tests`, `hyperdrive-pg-rls`, `cloudflare-workflows`.
 
 **Vocabulary.** A **cycle** is one unit of work: a folder under `knowledge/specs/` that ends in one
-branch, one retro and (usually) one PR. A **spec** is the design (*what and why*); a spec can be
-delivered by several cycles.
+branch, one retro and (usually) one PR. A cycle need not ship a complete feature; it must ship a
+complete, verifiable unit of work, inside the size budget in `tdd-cycle-generator`. A **spec** is the
+design (*what and why*); a spec can be delivered by several cycles.
 
 ## Running a sprint (orchestration)
 

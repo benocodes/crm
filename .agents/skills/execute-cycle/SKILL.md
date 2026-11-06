@@ -150,6 +150,12 @@ leaves the orchestrator waiting for one ([[API63]] round 1).
 
 If you run low on context, run `/handoff` in the cycle folder and report `handed off`.
 
+**Checkpoint.** The safety net for a cycle that turned out bigger than its charter said. Once your context
+has been compacted, or after about 150 tool calls without a green gate, stop at the next clean point:
+commit what is green, push, run `/handoff`, and report `handed off` with what remains. The orchestrator
+resumes with a fresh brief. Note in RESULT.md where the charter underestimated the work, so the retro can
+recalibrate the size budget.
+
 ## 7. Report
 
 End with this, whether the cycle finished, handed off or is blocked. Facts from this session only, each

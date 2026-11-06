@@ -28,7 +28,9 @@ Relationship to other specs, Non-goals, Open questions only where genuinely defe
 Use `tdd-cycle-generator`. The charter has two jobs: **scope** (what this cycle delivers, what is
 deferred to which cycle or issue) and **test obligations** (what must be proven before review, with the
 evidence that counts), plus the E2E decision. Make the skill's Step 2 choices yourself: shape, scope,
-short name. Split a spec into several cycles when one PR would be too large to review in one sitting;
+short name. A cycle ships a complete, verifiable unit of work, not a complete feature: split whenever
+the charter's Size line exceeds the skill's size budget, at plan time, and do not argue past it ("a split
+would leave code nothing calls" is not a reason; dormant code with its own proofs is a fine cycle);
 open the deferred cycles' issues with `open-issue` (`--label self-triaged`) and update the spec's
 Implementation cycles block.
 
