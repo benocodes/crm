@@ -31,7 +31,7 @@ export function describeOperation(op: Operation): string {
   const lines = [op.summary]
   if (op.description) lines.push(op.description)
   if (op.kind === 'tenant') {
-    const needs = op.scope ? formatScope(op.scope) : op.authority === 'write' ? '<resource>:write on the target operation\'s resource' : '<resource>:request_approval (or write) on the target operation\'s resource'
+    const needs = op.scope ? formatScope(op.scope) : op.authority === 'read' ? 'the read scope of the execution\'s operation (for example messages:read)' : op.authority === 'write' ? '<resource>:write on the target operation\'s resource' : '<resource>:request_approval (or write) on the target operation\'s resource'
     lines.push(`Requires ${needs} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`)
     const p = proposalMeta(op)
     if (p.eligible) lines.push(`Proposable: ${p.request_scope} lets a caller propose this through action_requests.create (operation=${op.name})${p.also_requires ? `; also needs ${p.also_requires}` : ''}.`)
@@ -98,7 +98,7 @@ export function isVisible(op: Operation, principal: Principal, workspace: boolea
   if (principal.organizationForbidden || principal.organizationId === null) return false
   if (op.scope !== null) return principal.scopes.has(op.scope)
   // [[AGT8]] D7: a decision command has the target's authority; it is shown to a caller holding that action on any resource.
-  const action = op.authority === 'write' ? ':write' : ':request_approval'
+  const action = op.authority === 'write' ? ':write' : op.authority === 'read' ? ':read' : ':request_approval'
   return principal.scopes.toStrings().some((s) => s.endsWith(action))
 }
 

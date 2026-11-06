@@ -21,6 +21,7 @@ import { createVaultRegistry } from '../operations.js'
 import type { ObjectStore } from '../objects/store.js'
 import { validateOperationInput, type BinaryBody, type Operation, type OperationInput, type PrepareContext, type Registry } from '../registry.js'
 import { proposalHint } from '../proposal.js'
+import { runExecution } from '../executions/runner.js'
 import type { TransportRegistry } from '../executions/transport.js'
 import { parseInput } from '../resources/define.js'
 import { ScopeSet, formatScope } from '../scopes.js'
@@ -115,9 +116,31 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   return { params, query, body, origin }
 }
 
-type Injected = Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects' | 'workspace'>
+type Injected = Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects' | 'workspace' | 'executions'> & { registry: Registry }
 
 const run = async (c: Context<AppEnv>, op: Operation, injected: Injected): Promise<unknown> => executeOperation(c, op, await readInput(c, op), injected)
+
+/**
+ * The after-commit kick of the execution rail ([[AGT8]] D13, D49): starts the runner on one execution, best effort. A kick that throws, is dropped by the
+ * runtime or finds no execution context changes nothing the caller was told: the execution stays queued and the per-minute cron runs it.
+ */
+function kickRunner(c: Context<AppEnv>, injected: Injected, executionId: string): void {
+  const rail = injected.executions
+  if (!rail || c.var.storage.kind !== 'd1') return
+  const clock = injected.clock ?? (() => new Date())
+  const deps = { binding: c.var.storage, registry: injected.registry, transports: rail.transports, clock, newId: () => uuidv7(clock()) }
+  const run = () =>
+    runExecution(deps, executionId).then(
+      () => undefined,
+      (err) => console.error(`[rail] execution ${executionId} failed to run: ${err instanceof Error ? err.name : 'error'}`),
+    )
+  try {
+    if (rail.start) rail.start(run)
+    else c.executionCtx.waitUntil(run())
+  } catch {
+    // No execution context, or the runtime refused: the cron is the guarantee.
+  }
+}
 
 /**
  * The executor both REST and MCP `tools/call` run ([[API106]] D12): scope checks, the account-operation rule, `prepare`, the storage
@@ -192,7 +215,7 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
     throw mapStorageError(err)
   }
   // The after-commit stage ([[CHN141]]): outside the storage error mapping too; it throws the ApiError it means.
-  if (op.after) value = await op.after(value, { kick: () => {} })
+  if (op.after) value = await op.after(value, { kick: (executionId) => kickRunner(c, injected, executionId) })
   // The object stage runs after the unit, outside the storage error mapping: an ApiError propagates, anything else is masked.
   return op.objects ? op.objects(value, injected.objects!) : value
 }
@@ -256,11 +279,12 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   })
 
   registerSecurityScheme(app)
+  const injected: Injected = { clock: options.clock, newId: options.newId, randomBytes: options.randomBytes, objects: options.objects, workspace: options.workspace, executions: options.executions, registry }
   const auth = authMiddleware({ userAuthenticator, env: () => internalEnv(options), declaredScopes: registry.declaredScopes() })
   for (const op of registry.operations()) {
     documentOperation(app, op)
     app.on(op.method.toUpperCase(), honoPath(fullPath(op)), auth, async (c) => {
-      const result = await run(c, op, options)
+      const result = await run(c, op, injected)
       if (op.response.status === 204) return c.body(null, 204)
       if (op.output === 'binary') {
         const file = result as BinaryBody
@@ -284,7 +308,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
       registry,
       version: options.version ?? '0.0.0-dev',
       workspace: options.workspace !== undefined,
-      execute: (c, op, input) => executeOperation(c, op, input, options),
+      execute: (c, op, input) => executeOperation(c, op, input, injected),
     }),
   )
   app.all(MCP_PATH, mcpMethodNotAllowed)

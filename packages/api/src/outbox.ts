@@ -1,4 +1,4 @@
-import { sql, type Kysely, type RawBuilder, type SqlBool } from 'kysely'
+import { sql, type Expression, type Kysely, type RawBuilder, type SqlBool } from 'kysely'
 import { appliedPrev, bind, jsonRows, recordJson, type EmbedSpec, type PhysicalTable, type QueryContext, type QueryLike } from '@vault/storage'
 
 // ---- prepared units ([[CORE35]]) ----------------------------------------------------------------------
@@ -68,6 +68,11 @@ export function eventSetStatement(
     resourceType: string
     after: EventAfter | null
     rows: readonly { eventId: string; resourceId: string; before: Record<string, unknown> | null }[]
+    /**
+     * A predicate over the joined stored rows, for a set whose update is guarded per row ([[AGT8]] D55): an event only for the rows this unit changed.
+     * Needs `after` (the join).
+     */
+    where?: Expression<SqlBool>
   },
 ): QueryLike {
   // A labelled escape hatch: dynamic-table INSERT...SELECT from a one-parameter set (reviewed with eventStatement).
@@ -84,5 +89,6 @@ export function eventSetStatement(
     select ${sql.ref('r.event_id')}, ${bind(qc, 'timestamp', e.at)}, ${bind(qc, 'uuid', e.organizationId)}, ${bind(qc, 'text', e.type)},
       ${bind(qc, 'text', e.resourceType)}, ${sql.ref('r.resource_id')}, ${bind(qc, 'uuid', e.actorId)}, ${sql.ref('r.before')}, ${after}
     from ${set} ${join}
+    ${e.where && e.after ? sql`where ${e.where}` : sql``}
     order by ${sql.ref('r.ord')}`.compile(qc.db)
 }

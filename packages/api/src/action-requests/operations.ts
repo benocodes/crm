@@ -19,7 +19,11 @@ import { systemPrincipalRead, systemPrincipalSteps, SYSTEM_PRINCIPAL_READ } from
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { noReads, proposableOperations, proposerScopes, proposalScopeOf } from '../proposal.js'
-import { validateOperationInput, type PrepareContext, type Registry, type TenantOperation } from '../registry.js'
+import { validateOperationInput, type ExecutionDecl, type PrepareContext, type Registry, type TenantOperation } from '../registry.js'
+import { actionExecutions } from '../executions/definition.js'
+import { inputHash } from '../executions/canonical.js'
+import { ownArguments } from '../executions/enqueue.js'
+import { DEADLINE_MS, clientRefOf, insertExecution } from '../executions/rows.js'
 import { parseInput } from '../resources/define.js'
 import { formatScope, type Scope } from '../scopes.js'
 import { afterOf, beforeRead, receipt, resultStep, selectRecord, toRecord } from '../storage/crud.js'
@@ -87,6 +91,18 @@ const expiredNow = (r: ActionRequestRecord, now: Date) => Date.parse(r.expires_a
 const expired = () => new ApiError(409, 'action_request_expired', 'the action request has expired; it can no longer be decided')
 const insufficient = (scope: Scope) => new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)}`)
 
+const queueRead: Scope = { resource: 'action_requests', action: 'read' }
+/**
+ * [[AGT8]] D58 (#168): whether a decision command may tell this caller that the request exists. A caller who can read the queue, or holds the target's authority
+ * at the command's level, is told the truth in D46's order; any other caller gets the 404 a missing id gets, whatever the request's status or expiry.
+ */
+function mayKnow(env: PreparedEnv, registry: Registry, record: ActionRequestRecord, level: 'write' | 'request_approval'): boolean {
+  if (env.scopes.has(queueRead)) return true
+  const target = registry.get(record.operation)
+  if (target?.kind !== 'tenant' || target.scope === null) return false
+  return env.scopes.has(level === 'write' ? target.scope : proposalScopeOf(target.scope))
+}
+
 /** The stored row is still the pending one the plan read (and, when `live`, not yet expired): else the whole unit aborts as drift. */
 const stillPending = (qc: QueryContext, id: string, stamp: string, at: string | null) =>
   assertStep(
@@ -98,7 +114,7 @@ type Transition = {
   env: PreparedEnv
   qc: QueryContext
   plan: Plan
-  to: 'rejected' | 'withdrawn' | 'expired' | 'superseded' | 'executed'
+  to: 'approved' | 'rejected' | 'withdrawn' | 'expired' | 'superseded' | 'executed'
   by: string
   at: string
   eventId: string
@@ -158,6 +174,12 @@ async function createRequest(registry: Registry, env: PreparedEnv, input: unknow
   const target = targetOf(registry, body.operation)
   // D7, D34: proposing needs the target's request_approval (write contains it); the target then validates the call as it would a direct one.
   if (!env.scopes.has(proposalScopeOf(target.scope!))) throw insufficient(proposalScopeOf(target.scope!))
+  if (target.execution) {
+    // [[AGT8]] D49, D51: an enqueued operation is validated against its own arguments (an idempotency_key in a proposal is ignored); the rest is the approver's
+    // `authorise` at approval (D9). It has no stored record to name, so there is no target to look up.
+    ownArguments(target.execution, body.arguments)
+    return buildCreate(env, target, body, { params: {} })
+  }
   const targetInput = validateOperationInput(target, splitArguments(target, body.arguments, { keepNull: true }))
   // A target's own refusal is the proposer's refusal (D34). `prepare` may be async.
   await target.prepare({ ...env, scopes: proposerScopes(env.scopes, target) }, targetInput, noReads)
@@ -342,6 +364,7 @@ async function withdrawRequest(registry: Registry, env: PreparedEnv, ctx: Prepar
   const id = canonicalId(actionRequests, rawId)
   const plan = await ctx.read(readRequest(env, id))
   if (!plan) throw notFound()
+  if (plan.record.created_by !== env.actor.id && !mayKnow(env, registry, plan.record, 'request_approval')) throw notFound()
   if (plan.record.created_by !== env.actor.id) throw new ApiError(403, 'not_request_source', 'only the principal that proposed the request can withdraw it')
   if (plan.record.status !== 'pending') throw notPending(plan.record.status)
   // The source still needs proposal authority on the target as it stands now (D38).
@@ -355,7 +378,7 @@ async function rejectRequest(registry: Registry, env: PreparedEnv, ctx: PrepareC
   const body = parseInput(decisionBody, input ?? {}) as z.infer<typeof decisionBody>
   const id = canonicalId(actionRequests, rawId)
   const plan = await ctx.read(readRequest(env, id))
-  if (!plan) throw notFound()
+  if (!plan || !mayKnow(env, registry, plan.record, 'write')) throw notFound()
   if (plan.record.status !== 'pending') throw notPending(plan.record.status)
   if (expiredNow(plan.record, env.now)) throw expired()
   const target = targetOf(registry, plan.record.operation)
@@ -399,12 +422,14 @@ async function approveRequest(registry: Registry, env: PreparedEnv, ctx: Prepare
   const body = parseInput(approveBody, input ?? {}) as z.infer<typeof approveBody>
   const id = canonicalId(actionRequests, rawId)
   const plan = await ctx.read(readRequest(env, id))
-  if (!plan) throw notFound()
+  if (!plan || !mayKnow(env, registry, plan.record, 'write')) throw notFound()
   if (plan.record.status !== 'pending') throw notPending(plan.record.status)
   if (expiredNow(plan.record, env.now)) throw expired()
   const target = targetOf(registry, plan.record.operation)
   if (!env.scopes.has(target.scope!)) throw insufficient(target.scope!)
   const effective = body.edited_arguments ?? plan.record.arguments
+  // [[AGT8]] D49: an enqueued operation is authorised, not run: the approval creates its execution in the same unit.
+  if (target.execution) return queuedApproval(env, ctx, plan, target, target.execution, effective, body)
   const targetInput = validateOperationInput(target, splitArguments(target, effective, { keepNull: true }))
   const inner = (await target.prepare(env, targetInput, noReads)) as PreparedOperation<unknown>
   const at = codecs.timestamp.write(env.now)
@@ -450,6 +475,90 @@ async function approveRequest(registry: Registry, env: PreparedEnv, ctx: Prepare
           receipt(actionRequests, approvedEventId, 'approved', plan.record.id),
           receipt(actionRequests, executedEventId, 'executed', plan.record.id),
         ],
+        decode: (rows) => {
+          if (rows.length === 0) throw new UnitDriftError('action_requests.approve')
+          return toRecord(actionRequests, rows[0]!)
+        },
+      })
+    },
+  })
+}
+
+/**
+ * The approval of an enqueued operation ([[AGT8]] D48-D50). The operation's own arguments are validated (a schema failure is a 400) and authorised as the approver:
+ * its `authorise` resolves what must be true at this instant (an anchor, D9) and may refuse; a refusal answers its error and writes nothing, so the request stays
+ * pending. ONE unit then holds the guarded pending -> `approved` transition (its commit-time resolution guards in the WHERE), `action_request.approved`, the execution row
+ * gated on that event, `action_execution.created` and the request as the result gated on the last event: a decision that lost a race, or a guard that failed, leaves
+ * no execution at all. The request stays `approved`; the runner moves it to `executed` or `failed` with the execution's outcome.
+ */
+async function queuedApproval(
+  env: PreparedEnv,
+  ctx: PrepareContext,
+  plan: Plan,
+  target: TenantOperation,
+  execution: ExecutionDecl,
+  effective: Record<string, unknown>,
+  body: z.infer<typeof approveBody>,
+): Promise<PreparedOperation<ActionRequestRecord>> {
+  const args = ownArguments(execution, effective)
+  const auth = (await execution.authorise?.(env, args, ctx)) ?? {}
+  const hash = await inputHash(target.name, args)
+  const at = codecs.timestamp.write(env.now)
+  const deadline = codecs.timestamp.write(new Date(env.now.getTime() + DEADLINE_MS))
+  const approvedEventId = env.newId()
+  const createdEventId = env.newId()
+  const executionId = env.newId()
+  return defineOperation<ActionRequestRecord>({
+    name: 'action_requests.approve',
+    mutates: true,
+    reads: () => ({}),
+    build: (_found, qc) => {
+      const guards = auth.guards?.(qc) ?? []
+      const own = transition({
+        env,
+        qc,
+        plan,
+        to: 'approved',
+        by: env.actor.id,
+        at,
+        eventId: approvedEventId,
+        eventType: 'action_request.approved',
+        ...(guards.length > 0 ? { gate: sql<SqlBool>`${sql.join(guards, sql` and `)}` } : {}),
+        set: {
+          ...(body.edited_arguments !== undefined ? { edited_arguments: JSON.stringify(body.edited_arguments) } : {}),
+          ...(body.decision_reason !== undefined ? { decision_reason: body.decision_reason } : {}),
+        },
+        label: true,
+      })
+      return unit({
+        steps: [
+          ...own,
+          step(
+            insertExecution(
+              qc,
+              {
+                id: executionId,
+                at,
+                organizationId: env.organizationId,
+                createdBy: plan.record.created_by,
+                authorisedBy: env.actor.id,
+                actionRequestId: plan.record.id,
+                operation: target.name,
+                arguments: args,
+                resolution: auth.resolution ?? {},
+                clientRef: clientRefOf(executionId, auth.clientRefDomain),
+                idempotencyKey: null,
+                inputHash: hash,
+                deadlineAt: deadline,
+              },
+              [eventExists(approvedEventId)],
+              { onConflictNothing: false },
+            ),
+          ),
+          step(eventStatement(qc, { id: createdEventId, at, organizationId: env.organizationId, actorId: env.actor.id, type: 'action_execution.created', resourceType: 'action_execution', resourceId: executionId, before: null, after: afterOf(actionExecutions) })),
+          resultStep(actionRequests, qc, env, plan.record.id, createdEventId),
+        ],
+        events: [receipt(actionRequests, approvedEventId, 'approved', plan.record.id), receipt(actionExecutions, createdEventId, 'created', executionId)],
         decode: (rows) => {
           if (rows.length === 0) throw new UnitDriftError('action_requests.approve')
           return toRecord(actionRequests, rows[0]!)
@@ -532,6 +641,12 @@ export function actionRequestOperations(registry: Registry): TenantOperation[] {
       request: { params: idParams, body: approveBody },
       response: { status: 200, schema: actionRequests.record },
       prepare: (env, input, ctx) => approveRequest(registry, env, needCtx(ctx), input.params.id as string, input.body),
+      // [[AGT8]] D49: a queued approval starts the runner after commit, best effort; an inline one answers `executed` and starts nothing.
+      after: async (value, afterCtx) => {
+        const r = value as ActionRequestRecord
+        if (r.status === 'approved' && r.execution_id) afterCtx.kick(r.execution_id)
+        return value
+      },
     },
     {
       ...base,

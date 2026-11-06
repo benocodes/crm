@@ -169,9 +169,12 @@ export class Registry {
     if (op.kind === 'tenant') {
       if (op.scope === null && !op.authority) throw new Error(`operation ${op.name}: a null scope needs an authority`)
       if (op.method !== 'get' && !op.proposal) throw new Error(`operation ${op.name}: every tenant operation that changes data declares its proposal metadata (eligible, or ineligible with a reason)`)
+      if (op.execution) checkEnqueued(op, op.execution)
       if (op.proposal?.eligible) {
         if (op.scope === null || op.scope.action !== 'write') throw new Error(`operation ${op.name}: a proposable operation requires a write scope`)
-        if (op.after || op.objects || op.d1Only) throw new Error(`operation ${op.name}: a proposable operation runs inline: no after-commit or object stage, no d1Only`)
+        // An enqueued operation is not inline: its after stage starts the runner and it is D1 only ([[AGT8]] D26, D49).
+        if (!op.execution && (op.after || op.objects || op.d1Only)) throw new Error(`operation ${op.name}: a proposable operation runs inline: no after-commit or object stage, no d1Only`)
+        if (op.objects) throw new Error(`operation ${op.name}: an enqueued operation has no object stage`)
       }
     }
     this.ops.push(op)
@@ -220,6 +223,22 @@ export class Registry {
     }
     return [...out].sort()
   }
+}
+
+/** [[AGT8]] D2, D51, D57: what an enqueued operation must look like, checked at registration (a mistake of the author, so a plain Error). */
+function checkEnqueued(op: TenantOperation, execution: ExecutionDecl): void {
+  const fail = (what: string): never => {
+    throw new Error(`operation ${op.name}: an enqueued operation ${what}`)
+  }
+  if (op.method !== 'post') fail('is called with post')
+  if (op.response.status !== 202) fail('answers 202 with the execution receipt')
+  if (op.scope === null || op.scope.action !== 'write') fail('requires a write scope')
+  if (execution.readScope.action !== 'read') fail('declares a read scope for its executions (an action `read`)')
+  if (op.request?.params || op.request?.query) fail('takes its arguments in the body: no path or query parameters')
+  const body = op.request?.body
+  const key = body instanceof z.ZodObject ? body.shape.idempotency_key : undefined
+  if (!(body instanceof z.ZodObject) || key === undefined || key.safeParse(undefined).success) fail('requires an idempotency_key in its body')
+  if (!op.proposal?.eligible) fail('is proposable (an approved request creates the same execution)')
 }
 
 /** The MCP/CLI-safe name derived from a dotted operation name. */

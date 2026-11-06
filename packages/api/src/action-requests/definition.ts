@@ -1,3 +1,4 @@
+import { sql } from 'kysely'
 import { z } from 'zod'
 import { definePreparedResource } from '../storage/definition.js'
 
@@ -22,10 +23,11 @@ const record = z.object({
   decided_at: z.string().nullable(),
   decision_reason: z.string().nullable(),
   superseded_by_id: z.uuid().nullable(),
-  result: z.unknown().describe('What approval did: { events: [{ type, resource_type, resource_id }] }, the events the operation wrote; null until executed.'),
+  result: z.unknown().describe('What approval did: for an inline operation { events: [{ type, resource_type, resource_id }] }, the events it wrote; for a queued one the execution\'s result. Null until executed.'),
   error_code: z.string().nullable(),
   error_message: z.string().nullable(),
   executed_at: z.string().nullable(),
+  execution_id: z.uuid().nullable().optional().describe('The execution a queued approval created; absent or null until then and for operations that run inline.'),
   created_by: z.uuid().describe('The principal that proposed it: the source.'),
   created_at: z.string(),
   updated_at: z.string(),
@@ -46,6 +48,13 @@ export const actionRequests = definePreparedResource({
   d1Only: true,
   operations: ['list', 'get'],
   record,
+  // [[AGT8]] D48: the request reads its execution through the execution's own link; `action_requests` stores no copy.
+  derived: {
+    execution_id: {
+      kind: 'text',
+      expression: (_qc, parent) => sql`(select "action_executions"."id" from "action_executions" where "action_executions"."action_request_id" = ${parent('id')})`,
+    },
+  },
   filters: {
     status: { schema: z.enum(ACTION_REQUEST_STATUSES) },
     operation: { schema: z.string().min(1).max(100) },

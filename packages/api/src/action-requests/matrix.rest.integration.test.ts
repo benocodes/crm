@@ -64,7 +64,8 @@ describe.each(ops.map((o) => [o.name, o] as const))('%s', (name, op) => {
       expect((await k.events()).slice(before).map((e) => e.type)).toEqual(['action_request.created'])
 
       // The approval: write on the target, never request_approval, never read.
-      const a = await k.call(who, 'POST', `/api/v1/action-requests/${c.body.id}/approve`)
+      // The reviewer can read the queue, so D46's order tells it what is wrong (a caller who cannot is told 404, D58: hidden-existence.rest.integration.test.ts).
+      const a = await k.call(k.as(who, reviewerScopes), 'POST', `/api/v1/action-requests/${c.body.id}/approve`)
       if (variant === 'proposal') {
         expect([a.status, a.body.error.code], `${name} approve as proposal`).toEqual([403, 'insufficient_scope'])
         expect(a.body.error.message).toContain(`${r}:write`)
@@ -73,15 +74,17 @@ describe.each(ops.map((o) => [o.name, o] as const))('%s', (name, op) => {
         expect(a.status, `${name} approve as write: ${JSON.stringify(a.body)}`).toBe(200)
         expect(a.body).toMatchObject({ status: 'executed', decided_by: who.id })
       }
-      void reviewerScopes
     }
     // Approve with no scopes and with read only is refused too (a request made by the owner).
     for (const variant of ['none', 'read'] as const) {
       const who = await k.actor(`${variant}`, 'agent', variants[variant])
       const c = await k.call(k.owner, 'POST', '/api/v1/action-requests', { operation: name, arguments: await next(), reason: 'matrix' })
       expect(c.status).toBe(201)
-      const a = await k.call(who, 'POST', `/api/v1/action-requests/${c.body.id}/approve`)
+      const a = await k.call(k.as(who, [...variants[variant], 'action_requests:read']), 'POST', `/api/v1/action-requests/${c.body.id}/approve`)
       expect([a.status, a.body.error.code], `${name} approve as ${variant}`).toEqual([403, 'insufficient_scope'])
+      // Without the queue read it is the 404 of a missing id (D58).
+      const blind = await k.call(who, 'POST', `/api/v1/action-requests/${c.body.id}/approve`)
+      expect([blind.status, blind.body.error.code], `${name} approve as ${variant}, no queue read`).toEqual([404, 'not_found'])
     }
   })
 })
