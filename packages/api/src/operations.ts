@@ -34,7 +34,7 @@ import { actionRequestOperations } from './action-requests/operations.js'
  * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
  * authorize operation reads ([[CHN5]] D58); the registry has the same operations whatever it is.
  */
-export function createVaultRegistry(options: { connections?: ConnectionsRuntime } = {}): Registry {
+export function createVaultRegistry(options: { connections?: ConnectionsRuntime; /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */ operations?: (registry: Registry) => void } = {}): Registry {
   const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes).registerResource(tags)
   registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
   registry.registerResource(connections)
@@ -49,6 +49,7 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime 
   for (const op of adminOperations()) registry.register(op)
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
+  options.operations?.(registry)
   // [[AGT8]] D33: last, because the `operation` enum of `action_requests.create` lists the proposal-eligible operations registered before it.
   registry.registerResource(actionRequests)
   for (const op of actionRequestOperations(registry)) registry.register(op)

@@ -33,6 +33,9 @@
       },
       {
         "name": "0011_action_requests.sql"
+      },
+      {
+        "name": "0012_action_executions.sql"
       }
     ],
     "success": true,

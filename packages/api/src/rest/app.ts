@@ -21,6 +21,7 @@ import { createVaultRegistry } from '../operations.js'
 import type { ObjectStore } from '../objects/store.js'
 import { validateOperationInput, type BinaryBody, type Operation, type OperationInput, type PrepareContext, type Registry } from '../registry.js'
 import { proposalHint } from '../proposal.js'
+import type { TransportRegistry } from '../executions/transport.js'
 import { parseInput } from '../resources/define.js'
 import { ScopeSet, formatScope } from '../scopes.js'
 import { internalEnv } from '../storage/internal.js'
@@ -81,6 +82,13 @@ export interface AppOptions {
   version?: string
   /** The Gmail connect surface ([[CHN5]] D9, D58). Absent: unconfigured. D1 only; the routes answer `501` on another engine. */
   gmail?: GmailAppOptions
+  /**
+   * [[AGT8]] D13, D49: the execution rail of this app. `transports` are the ones the runner resolves by name; the kick after an authorisation starts the runner
+   * through `start` (default: the request's `waitUntil`). Absent: nothing starts after commit and the per-minute cron is the only entry.
+   */
+  executions?: { transports: TransportRegistry; start?: (run: () => Promise<unknown>) => void }
+  /** Extra operations registered before the queue's (Node tests; see `createVaultRegistry`). Ignored when `registry` is given. */
+  extraOperations?: (registry: Registry) => void
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
   objects?: ObjectStore
 }
@@ -184,7 +192,7 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
     throw mapStorageError(err)
   }
   // The after-commit stage ([[CHN141]]): outside the storage error mapping too; it throws the ApiError it means.
-  if (op.after) value = await op.after(value)
+  if (op.after) value = await op.after(value, { kick: () => {} })
   // The object stage runs after the unit, outside the storage error mapping: an ApiError propagates, anything else is masked.
   return op.objects ? op.objects(value, injected.objects!) : value
 }
@@ -195,7 +203,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   }
   const gmail = options.gmail
   const push: PushConfig | null = gmail?.config && gmail.instances && gmail.push ? gmail.push : null
-  const registry = options.registry ?? createVaultRegistry({ connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}), push, ...(gmail?.fetch ? { fetch: gmail.fetch } : {}), ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}) } })
+  const registry = options.registry ?? createVaultRegistry({ operations: options.extraOperations, connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}), push, ...(gmail?.fetch ? { fetch: gmail.fetch } : {}), ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}) } })
   // [[CHN5]] D58: a partial configuration is a startup log line naming what is wrong; nothing configured at all is simply "off".
   if (gmail?.problems && gmail.problems.length > 0 && !gmailUnconfigured(gmail.problems)) console.warn(gmailConfigNotice(gmail.problems))
   if (gmail?.pushProblems && gmail.pushProblems.length > 0) console.warn(`[gmail] push is off: set or fix ${gmail.pushProblems.join(', ')}`)

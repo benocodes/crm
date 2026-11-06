@@ -7,7 +7,9 @@ import { d1Binding, type D1Like } from '@vault/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
 import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { createVaultRegistry } from '../operations.js'
-import { createApp, type AppEnv } from '../rest/app.js'
+import { createApp, type AppEnv, type AppOptions } from '../rest/app.js'
+import type { Registry } from '../registry.js'
+import type { D1Binding } from '@vault/storage'
 import { decodeRow, interceptD1, type RawRow } from './engines.js'
 import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 
@@ -20,6 +22,9 @@ export type Res = { status: number; body: any }
 export interface ActionKit {
   app: OpenAPIHono<AppEnv>
   d1: D1Like
+  /** The binding the app (and a runner) uses; its D1 is the intercepted one. */
+  binding: D1Binding
+  registry: Registry
   organizationId: string
   /** The owner: a user with every declared scope. */
   owner: Actor
@@ -41,20 +46,24 @@ export interface ActionKit {
 export const ALL_DECLARED = createVaultRegistry().declaredScopes()
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 
-export async function openActionKit(opts: { now?: Date } = {}): Promise<ActionKit> {
+export async function openActionKit(opts: { now?: Date; registry?: Registry; executions?: AppOptions['executions'] } = {}): Promise<ActionKit> {
   const local: LocalD1 = await openLocalD1(['ACTION'])
   const raw = local.bindings.ACTION!
   const pending: { hook: (() => Promise<void>) | null } = { hook: null }
   const d1 = interceptD1(raw, pending)
-  const registry = createVaultRegistry()
+  const registry = opts.registry ?? createVaultRegistry()
   let clock = opts.now ?? new Date('2026-11-06T10:00:00.000Z')
-  const kit = { organizationId: '', owner: { id: '', kind: 'user', scopes: ALL_DECLARED } as Actor, app: undefined as unknown as OpenAPIHono<AppEnv> }
+  const kit = { binding: undefined as unknown as D1Binding, organizationId: '', owner: { id: '', kind: 'user', scopes: ALL_DECLARED } as Actor, app: undefined as unknown as OpenAPIHono<AppEnv> }
   const known = new Map<string, Actor>()
   const k: ActionKit = {
     get app() {
       return kit.app
     },
     d1: raw,
+    get binding() {
+      return kit.binding
+    },
+    registry,
     get organizationId() {
       return kit.organizationId
     },
@@ -105,7 +114,8 @@ export async function openActionKit(opts: { now?: Date } = {}): Promise<ActionKi
       kit.organizationId = ids.organizationId
       kit.owner = { id: ids.userId, kind: 'user', scopes: ALL_DECLARED }
       const binding = d1Binding(d1, { organizationId: ids.organizationId, authProvider: 'clerk', authOrgId: 'org_action' })
-      kit.app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding, clock: () => clock })
+      kit.binding = binding
+      kit.app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding, clock: () => clock, ...(opts.executions ? { executions: opts.executions } : {}) })
     },
     close: () => local.dispose(),
   }
