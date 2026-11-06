@@ -95,7 +95,8 @@
         "GMAIL_PUSH_SUBSCRIPTION": "projects/vibase-hq/subscriptions/gmail.push",
         "GMAIL_PUSH_SERVICE_ACCOUNT": "gmail-push@vibase-hq.iam.gserviceaccount.com",
         "PUBLIC_BASE_URL": "https://api.hq.vibase.ai",
-        "CREDENTIALS_KEY_VERSION": "1"
+        "CREDENTIALS_KEY_VERSION": "1",
+        "GOOGLE_RECORDING_UNTIL": "2026-11-09T00:00:00Z"
       }
     }
   }
