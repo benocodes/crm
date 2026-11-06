@@ -29,6 +29,7 @@ import { tags } from './resources/tags.js'
 import { tasks } from './resources/tasks.js'
 import { actionRequests } from './action-requests/definition.js'
 import { actionRequestOperations } from './action-requests/operations.js'
+import { actionExecutions, executionReadOperations } from './executions/definition.js'
 
 /**
  * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
@@ -53,6 +54,9 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime;
   // [[AGT8]] D33: last, because the `operation` enum of `action_requests.create` lists the proposal-eligible operations registered before it.
   registry.registerResource(actionRequests)
   for (const op of actionRequestOperations(registry)) registry.register(op)
+  // [[AGT8]] D57: the execution reads, after every enqueued operation so a caller's readable set is the registry's whole.
+  registry.registerResource(actionExecutions)
+  for (const op of executionReadOperations(registry)) registry.register(op)
   for (const op of schemaOperations(() => registry.resources())) registry.register(op)
   return registry
 }

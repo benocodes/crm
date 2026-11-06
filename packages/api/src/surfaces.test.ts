@@ -69,7 +69,7 @@ describe('placement (D6)', () => {
       'schema.get',
       'users.get', 'users.list',
     ].sort())
-    expect(ops.length).toBe(95)
+    expect(ops.length).toBe(97)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

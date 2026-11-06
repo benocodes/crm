@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { openRailKit, TEST_OPS, type RailKit } from '../test/rail-kit.js'
 import type { Actor } from '../test/action-kit.js'
+import { deriveTools } from '../mcp/tools.js'
 
 // [[AGT8]] D11, D48-D51: an enqueued operation, called directly or approved from a request, authorises exactly one durable execution. The concurrent
 // writer is the kit's `beforeCommit` hook (after a unit's plan reads, before its commit batch).
@@ -252,6 +253,16 @@ describe('discovery (D40, D51, D57)', () => {
     expect(op['x-vault-proposal']).toMatchObject({ eligible: true, request_scope: 'tasks:request_approval' })
     const enumValues = (doc.paths['/api/v1/action-requests'].post.requestBody.content['application/json'].schema.properties.operation.enum as string[]) ?? []
     expect(enumValues).toContain(TEST_OPS.reconcile)
+  })
+
+  it('MCP derives the same: the enqueued tool requires idempotency_key, and the two execution reads are tools', () => {
+    const tools = new Map(deriveTools(k.registry).map((t) => [t.tool.name, t.tool]))
+    const send = tools.get('test_enqueue')!
+    expect((send.inputSchema as any).required).toEqual(expect.arrayContaining(['text', 'idempotency_key']))
+    expect(send.description).toContain('idempotency_key is required')
+    expect(send.description).toContain('Proposable: tasks:request_approval')
+    expect(tools.has('action_executions_list')).toBe(true)
+    expect(tools.get('action_executions_get')!.annotations.readOnlyHint).toBe(true)
   })
 
   it('the executions are readable through the registry: action_executions.list and .get on /api/v1', async () => {

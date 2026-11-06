@@ -24,7 +24,7 @@ describe('tools derive from the registry', () => {
       expect(tool._meta['vibase/surface']).toBe(op.surface)
       if (op.kind === 'tenant' && op.scope) expect(tool.description).toContain(`Requires ${op.scope.resource}:${op.scope.action} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`)
       // A decision command has the target's authority, which its description says ([[AGT8]] D7).
-      if (op.kind === 'tenant' && !op.scope) expect(tool.description).toContain('on the target operation')
+      if (op.kind === 'tenant' && !op.scope) expect(tool.description).toContain(op.authority === 'read' ? 'read scope of the execution' : 'on the target operation')
     }
   })
 

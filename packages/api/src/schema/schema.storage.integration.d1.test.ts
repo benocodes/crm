@@ -147,7 +147,7 @@ describe('derived fields ([[CORE131]] D11)', () => {
   it('every table lists derived, an empty array where it has none', async () => {
     const doc = await getDoc()
     for (const t of doc.tables) expect(Array.isArray(t.derived), `${t.name}.derived`).toBe(true)
-    for (const t of doc.tables) if (!['contacts', 'deals', 'channel_connections'].includes(t.name)) expect(t.derived, t.name).toEqual([])
+    for (const t of doc.tables) if (!['contacts', 'deals', 'channel_connections', 'action_requests'].includes(t.name)) expect(t.derived, t.name).toEqual([])
   })
   it('contacts lists the two fields in the spec shape, apart from the columns, with sortable true ([[CORE133]] D11)', async () => {
     const doc = await getDoc()
