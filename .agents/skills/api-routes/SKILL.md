@@ -241,6 +241,19 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     instance, a queue send), never inside the unit, so a rolled-back unit has no effect outside it. Its failure must
     leave the committed state meaningful and answer a stable code (`503 sync_unavailable` keeps the request for the
     cron); test both the success and the failure path, and that a failed unit never reaches `after`.
+  - **`Registry.decorate(name, change)`** ([[CHN155]]) adds a hand-written stage (extra reads, an `after`) to a generated
+    operation without forking it; name, method and path must not move. The decorated `decode` replaces the value `after`
+    receives, so `after` must return the response itself (a delete's `undefined` → `204`): never let a decorator's internal
+    value (a ciphertext read for the side effect) reach the response. Install it only when its side effect is configured.
+  - **Generated delete `after` statements are not gated on D1** (#163): a prepared resource's `def.after` statements run
+    even when the soft-delete drifts (the D1 runtime ignores `expect: 'affected'`), so a `409` can still have removed the
+    machinery rows. Until #163 lands, never put a statement there whose loss leaves a live row broken without a test of
+    the drift case.
+  - **A plain route that verifies a remote-signed token** (`POST /gmail/push`, [[CHN5]] D87) does every local check
+    first (bearer present, JWT-shaped, the header's `alg`) and only then fetches keys, so an unauthenticated caller cannot
+    make the Worker call out per request; it reads the body only after the token passes, with a cap. For a sender that
+    retries every non-2xx for days (Pub/Sub), a verified payload that cannot decode, or is oversized, is acknowledged
+    (`204` and a log line), and only a transient failure (keys unreachable `503`, D1 `500`) asks for a retry.
   - **`OperationInput.origin`** is the request's origin, set by REST only (MCP leaves it undefined, and
     `validateInput` preserves it). Read it only where a spec names the request origin as a fallback.
   - **The Google OAuth callback** (`GET /oauth/google/callback`, `src/connections/callback.ts`) is the second plain
