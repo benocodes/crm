@@ -24,7 +24,8 @@
   // The Gmail sync run ([[CHN141]], CHN5 D34): a Workflow whose class `src/worker.ts` exports, and the 15-minute cron that requests syncs. Neither is
   // inherited by an env: each env states its own. They come into being with `deploy:remote`, like a route.
   "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-mail-sync", "class_name": "MailSyncWorkflow" }],
-  "triggers": { "crons": ["*/15 * * * *"] },
+  // The second cron ([[AGT8]] D54) is the execution rail: the expiry sweep and the runner sweep, every minute. The first keeps the Gmail tick on its own cadence.
+  "triggers": { "crons": ["*/15 * * * *", "* * * * *"] },
   // Secrets (CLERK_JWT_KEY, CLERK_SECRET_KEY) are never put here: .dev.vars locally, wrangler secret put when deployed.
   "vars": {
     "AUTH_PROVIDER": "",
@@ -49,7 +50,7 @@
       ],
       "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-smoked1-bodies" }],
       "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-smoked1-mail-sync", "class_name": "MailSyncWorkflow" }],
-      "triggers": { "crons": ["*/15 * * * *"] },
+      "triggers": { "crons": ["*/15 * * * *", "* * * * *"] },
       "vars": { "AUTH_PROVIDER": "", "CORS_ALLOWED_ORIGINS": "" }
     },
     "hq": {
@@ -82,8 +83,9 @@
       ],
       // The binding and the 15-minute cron ([[CHN5]] D76, D92): the supervised first backfill ran, so the cron renews watches and serves missed pushes. It takes
       // effect only when the user deploys (a hard stop for agents).
+      // [[AGT8]] D54: and the per-minute cron of the execution rail; it registers only when the user next deploys `hq`.
       "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-hq-mail-sync", "class_name": "MailSyncWorkflow" }],
-      "triggers": { "crons": ["*/15 * * * *"] },
+      "triggers": { "crons": ["*/15 * * * *", "* * * * *"] },
       "vars": {
         "AUTH_PROVIDER": "clerk",
         "CLERK_ISSUER": "https://clerk.hq.vibase.ai",

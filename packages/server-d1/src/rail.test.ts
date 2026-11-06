@@ -41,6 +41,8 @@ afterAll(() => w.dispose())
 beforeEach(async () => {
   now = NOW
   await w.reset()
+  // A test that made the database look behind leaves its tracker: wrangler's tracker is migration state, which `reset` keeps (CORE61 D10).
+  await w.d1.prepare('drop table if exists d1_migrations').run()
   transport.reset()
   const r = await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', scopes: SCOPES }, { now: NOW, newId: () => uuidv7(NOW) })
   key = r.key
@@ -71,14 +73,16 @@ describe('the waitUntil kick (D49)', () => {
     expect((await json(await call(wk, 'GET', `/api/v1/action-requests/${proposed.body.id}`))).body.status).toBe('executed')
   })
 
-  it('a kick that throws or is absent leaves the execution queued and does not change the answer', async () => {
-    const thrower = { waitUntil: () => { throw new Error('dropped') } }
+  it('a kick that throws or is absent does not change the answer; with no execution context the execution stays queued for the cron', async () => {
+    const dropped: Promise<unknown>[] = []
+    const thrower = { waitUntil: (p: Promise<unknown>) => { dropped.push(p); throw new Error('dropped') } }
     const a = await enqueue(worker(), thrower)
     expect(a.status).toBe(202)
+    await Promise.all(dropped)
     const b = await enqueue(worker()) // no execution context at all
     expect(b.status).toBe(202)
-    expect([await status(a.body.id), await status(b.body.id)]).toEqual(['queued', 'queued'])
-    expect(transport.dispatches).toHaveLength(0)
+    expect(await status(b.body.id)).toBe('queued')
+    expect(transport.dispatches.map((d) => d.executionId)).not.toContain(b.body.id)
   })
 })
 
@@ -161,11 +165,14 @@ describe('bounded sweeps (CORE47)', () => {
       const r = await json(await call(wk, 'POST', '/api/v1/action-requests', { operation: 'tasks.create', arguments: { title: `t${i}` }, reason: 'r', expires_at: new Date(now.getTime() + 60_000 + i * 1000).toISOString() }))
       expect(r.status).toBe(201)
     }
-    advance(3_600_000)
+    advance(200_000) // past every expiry (60 s + i s), inside every execution's ten-minute deadline
     meter.start()
     await metered.scheduled({ cron: '* * * * *' })
     const m = meter.take()
     console.log('MEASURE ' + JSON.stringify({ key: 'rail-tick-100-5', ...m }))
+    // Pinned from the first green run (a new round trip is a reviewed change): the deployment marker 1, the expiry sweep 2 (plan read, one write batch), the due list 1,
+    // and 4 per execution (claim 1, stamp 1, finish plan read 1, finish batch 1) times 5 = 24. Workers Free allows 50.
+    expect(m.queries).toBe(24)
     expect(m.queries).toBeLessThanOrEqual(50)
     expect(m.maxParameters).toBeLessThanOrEqual(100)
     expect(m.maxStatementBytes).toBeLessThanOrEqual(100_000)
@@ -192,6 +199,6 @@ describe('the test kit never reaches the Worker bundle (D52)', () => {
     expect(text.length).toBeGreaterThan(100_000)
     for (const marker of ['test.enqueue', 'test-enqueue', 'FakeTransport', 'registerTestOperations', 'test_refused', 'rail-kit']) expect(text, marker).not.toContain(marker)
     // The rail itself is in it.
-    expect(text).toContain('action_execution.completed')
+    expect(text).toContain('action_executions.finish')
   })
 })

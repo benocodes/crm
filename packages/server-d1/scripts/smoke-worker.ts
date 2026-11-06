@@ -400,6 +400,12 @@ try {
   await ((await mf.getWorker()) as unknown as { scheduled(o: { cron: string }): Promise<unknown> }).scheduled({ cron: '*/15 * * * *' })
   await new Promise((r) => setTimeout(r, 200))
   check('W4 the */15 cron in workerd runs without an error line (the connection is fresh, so it requests nothing)', !logLines.some((l) => /\[cron\].*(error|failed)/i.test(l)) && (await count('message_sources')) === 3, undefined)
+  // W6, W7 ([[AGT8]] D54, D52): the per-minute rail cron runs on the real bundle in workerd (an empty queue, so nothing is dispatched), and the bundle holds no test kit.
+  await ((await mf.getWorker()) as unknown as { scheduled(o: { cron: string }): Promise<unknown> }).scheduled({ cron: '* * * * *' })
+  await new Promise((r) => setTimeout(r, 200))
+  check('W6 the * * * * * cron in workerd runs the rail tick on the real bundle: its line is logged, with no error line and nothing expired or attempted', logLines.some((l) => l.includes('[cron] * * * * *: rail expired 0 request(s), attempted 0 execution(s)')) && !logLines.some((l) => /\[cron\] \* \* \* \* \*.*(error|failed)/i.test(l)), logLines.filter((l) => l.includes('[cron]')).slice(-4))
+  const bundleText = readFileSync(bundle, 'utf8')
+  check('W7 the Worker bundle holds the rail but none of the test kit (no test operation, no fake transport)', bundleText.includes('action_executions.finish') && ['test.enqueue', 'test-enqueue', 'FakeTransport', 'registerTestOperations'].every((m) => !bundleText.includes(m)), undefined)
   const syncLogs = logLines.join('\n')
   check('W5 no Worker log line across the Workflow runs holds a refresh token, an access token or the client secret', google.refreshTokens.every((t) => !syncLogs.includes(t)) && google.accessTokens.length > 0 && google.accessTokens.every((t) => !syncLogs.includes(t)) && !syncLogs.includes(google.clientSecret), { accessTokens: google.accessTokens.length })
 
