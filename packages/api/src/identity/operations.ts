@@ -30,6 +30,7 @@ export function identityOperations(): TenantOperation[] {
       method: 'post',
       path: '/identities/resolve',
       scope: { resource: 'contacts', action: 'write' },
+      proposal: { eligible: true },
       validation: 'adapter',
       request: { body: resolveBody },
       response: {
@@ -59,6 +60,7 @@ export function identityOperations(): TenantOperation[] {
       method: 'post',
       path: '/contacts/{id}/merge',
       scope: { resource: 'contacts', action: 'write' },
+      proposal: { eligible: true, target: { table: 'contacts', idArg: 'id', notFound: 'contact not found', live: true } },
       validation: 'adapter',
       request: { params: z.object({ id: z.uuid() }), body: z.strictObject({ source_id: z.uuid() }) },
       response: { status: 200, schema: contacts.record },

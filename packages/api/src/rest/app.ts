@@ -1,7 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
-import { execute, uuidv7, type StorageBinding } from '@vault/storage'
+import { UnitDriftError, execute, uuidv7, type StorageBinding } from '@vault/storage'
 import type { AuthAdapter } from '../auth/adapter.js'
 import { mcpChallenge, resourceMetadataChallenge } from '../discovery.js'
 import { authMiddleware } from '../auth/middleware.js'
@@ -19,7 +19,8 @@ import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
 import type { ObjectStore } from '../objects/store.js'
-import type { BinaryBody, Operation, OperationInput, Registry } from '../registry.js'
+import { validateOperationInput, type BinaryBody, type Operation, type OperationInput, type PrepareContext, type Registry } from '../registry.js'
+import { proposalHint } from '../proposal.js'
 import { parseInput } from '../resources/define.js'
 import { ScopeSet, formatScope } from '../scopes.js'
 import { internalEnv } from '../storage/internal.js'
@@ -106,18 +107,6 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   return { params, query, body, origin }
 }
 
-/** The adapter-validated operations ([[CORE36]]) parse their input here, before any scope check; handler-validated ones do it inside `prepare`. */
-function validateInput(op: Operation, input: OperationInput): OperationInput {
-  if (op.validation !== 'adapter') return input
-  const { params, query, body, origin } = input
-  return {
-    ...(origin !== undefined ? { origin } : {}),
-    params: op.request?.params ? parseInput(op.request.params, params) : params,
-    query: op.request?.query ? parseInput(op.request.query, query) : query,
-    body: op.request?.body ? parseInput(op.request.body, body) : body,
-  }
-}
-
 type Injected = Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects' | 'workspace'>
 
 const run = async (c: Context<AppEnv>, op: Operation, injected: Injected): Promise<unknown> => executeOperation(c, op, await readInput(c, op), injected)
@@ -127,7 +116,7 @@ const run = async (c: Context<AppEnv>, op: Operation, injected: Injected): Promi
  * unit, events and error mapping. `input` is already read; adapter-validated operations are validated first, as REST does.
  */
 async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: OperationInput, injected: Injected): Promise<unknown> {
-  const input = validateInput(op, rawInput)
+  const input = validateOperationInput(op, rawInput)
   const principal = c.var.principal
   if (op.kind === 'account') {
     if (principal.actor.kind !== 'user' && !(op.agents && injected.workspace)) {
@@ -155,15 +144,6 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
   if (principal.organizationId === null) {
     throw new ApiError(403, 'organization_required', 'an organisation is required (sign in with an active organisation)')
   }
-  if (!principal.scopes.has(op.scope)) {
-    throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}`)
-  }
-  // [[CHN5]] D29: a D1-only operation on another engine is not implemented there; refused after the scope checks, before any unit runs.
-  if (op.d1Only && c.var.storage.kind !== 'd1') throw new ApiError(501, 'not_implemented', 'this operation is implemented for D1 only')
-  // D52: a composition without a store refuses before any unit runs; the scope checks above stay the first refusals.
-  if (op.objects && !injected.objects) {
-    throw new ApiError(503, 'objects_unavailable', 'object storage is not configured')
-  }
   const { actor, organizationId, scopes } = principal
   const storage = c.var.storage
   const clock = injected.clock ?? (() => new Date())
@@ -176,10 +156,30 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
     newId: injected.newId ?? (() => uuidv7(now)),
     randomBytes: injected.randomBytes ?? ((n: number) => crypto.getRandomValues(new Uint8Array(n))),
   }
+  if (op.scope !== null && !scopes.has(op.scope)) {
+    // The one refusal path of REST and MCP alike: a caller that can propose this call is told how ([[AGT8]] D42).
+    const hint = await proposalHint(op, env, input)
+    throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}${hint ? `; ${hint}` : ''}`)
+  }
+  // [[CHN5]] D29: a D1-only operation on another engine is not implemented there; refused after the scope checks, before any unit runs.
+  if (op.d1Only && c.var.storage.kind !== 'd1') throw new ApiError(501, 'not_implemented', 'this operation is implemented for D1 only')
+  // D52: a composition without a store refuses before any unit runs; the scope checks above stay the first refusals.
+  if (op.objects && !injected.objects) {
+    throw new ApiError(503, 'objects_unavailable', 'object storage is not configured')
+  }
+  const identity = { kind: 'tenant', actorId: actor.id, organizationId } as const
+  const ctx: PrepareContext = { read: async (program) => (await execute(storage, identity, program)).value }
   let value: unknown
   try {
     // `prepare` may be async (it can hash a secret) and may refuse with an ApiError: both map like a storage error.
-    value = (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, await op.prepare(env, input))).value
+    // [[AGT8]] D28: a decision command whose unit drifted is planned afresh and run once more; a second drift is `409 conflict`.
+    const attempt = async () => (await execute(storage, identity, await op.prepare(env, input, ctx))).value
+    try {
+      value = await attempt()
+    } catch (err) {
+      if (!(op.replanOnDrift && err instanceof UnitDriftError)) throw err
+      value = await attempt()
+    }
   } catch (err) {
     throw mapStorageError(err)
   }
@@ -248,7 +248,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   })
 
   registerSecurityScheme(app)
-  const auth = authMiddleware({ userAuthenticator, env: () => internalEnv(options) })
+  const auth = authMiddleware({ userAuthenticator, env: () => internalEnv(options), declaredScopes: registry.declaredScopes() })
   for (const op of registry.operations()) {
     documentOperation(app, op)
     app.on(op.method.toUpperCase(), honoPath(fullPath(op)), auth, async (c) => {

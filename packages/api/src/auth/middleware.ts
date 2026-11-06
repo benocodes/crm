@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler } from 'hono'
 import { ApiError } from '../errors.js'
+import { ScopeSet } from '../scopes.js'
 import type { AppEnv } from '../rest/app.js'
 import type { InternalEnv } from '../storage/internal.js'
 import { authenticateApiKey } from './api-keys.js'
@@ -28,7 +29,8 @@ function unauthenticated(method: string, path: string, token: string | undefined
  * One Bearer credential per request, dispatched by shape: a JWT-shaped token goes to the user
  * authenticator ([[CORE3]]), anything else is an API key. Mounted on registry routes only.
  */
-export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator; env: (c: Context<AppEnv>) => InternalEnv }): MiddlewareHandler<AppEnv> {
+export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator; env: (c: Context<AppEnv>) => InternalEnv; declaredScopes?: readonly string[] }): MiddlewareHandler<AppEnv> {
+  const declared = opts.declaredScopes ? new Set(opts.declaredScopes) : undefined
   return async (c, next) => {
     const { method, path } = c.req
     const token = BEARER.exec(c.req.header('authorization') ?? '')?.[1]
@@ -56,7 +58,8 @@ export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator; en
       if (organizationHeader !== undefined && organizationHeader.toLowerCase() !== found.organizationId?.toLowerCase()) {
         throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
       }
-      principal = found
+      // [[AGT8]] D31: a key's stored grants are closed under write => request_approval here, so an API key is checked like every other credential.
+      principal = { ...found, scopes: ScopeSet.closed(found.scopes.toStrings(), declared) }
     }
     c.set('principal', principal)
     await next()

@@ -27,6 +27,8 @@ import { pipelineStages } from './resources/pipeline-stages.js'
 import { pipelines } from './resources/pipelines.js'
 import { tags } from './resources/tags.js'
 import { tasks } from './resources/tasks.js'
+import { actionRequests } from './action-requests/definition.js'
+import { actionRequestOperations } from './action-requests/operations.js'
 
 /**
  * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
@@ -47,6 +49,9 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime 
   for (const op of adminOperations()) registry.register(op)
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
+  // [[AGT8]] D33: last, because the `operation` enum of `action_requests.create` lists the proposal-eligible operations registered before it.
+  registry.registerResource(actionRequests)
+  for (const op of actionRequestOperations(registry)) registry.register(op)
   for (const op of schemaOperations(() => registry.resources())) registry.register(op)
   return registry
 }

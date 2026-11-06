@@ -53,6 +53,7 @@ const derived = {
  * D1 only (D29): on another engine every operation answers `501 not_implemented`.
  */
 export const connections = definePreparedResource({
+  notProposable: 'connection management is not proposable',
   surface: 'meta',
   name: 'connections',
   eventName: 'connection',

@@ -19,6 +19,7 @@ export function dealOperations(): TenantOperation[] {
       method: 'post',
       path: '/deals/{id}/move-stage',
       scope: { resource: 'deals', action: 'write' },
+      proposal: { eligible: true, target: { table: 'deals', idArg: 'id', notFound: 'deal not found', live: true } },
       validation: 'adapter',
       request: { params: z.object({ id: z.uuid() }), body: moveBody },
       response: { status: 200, schema: deals.record },

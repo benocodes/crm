@@ -1,6 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import type { Operation } from '../registry.js'
 import { fullPath } from '../surfaces.js'
+import { proposalMeta } from '../proposal.js'
 import type { AppEnv } from './app.js'
 
 /** `/tasks/{id}` -> `/tasks/:id`. */
@@ -18,10 +19,12 @@ export function documentOperation(app: OpenAPIHono<AppEnv>, op: Operation): void
     description: op.description,
     tags: op.tags,
     security: [{ bearerAuth: [] }],
+    // [[AGT8]] D40: every tenant operation says whether it can be proposed, and with which scope.
+    ...(op.kind === 'tenant' ? { 'x-vault-proposal': proposalMeta(op) } : {}),
     request: {
       params: request?.params,
       query: request?.query,
-      body: request?.body ? { required: true, ...json(request.body) } : undefined,
+      body: request?.body ? { required: op.optionalBody !== true, ...json(request.body) } : undefined,
     },
     responses: {
       [response.status]: {

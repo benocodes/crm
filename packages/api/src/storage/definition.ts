@@ -139,6 +139,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   /** [[CHN5]] D29: the table exists on D1 only, so every generated operation answers `501 not_implemented` on another engine (checked before any unit runs). */
   readonly d1Only?: boolean
   /**
+   * [[AGT8]] D32: set (with the reason a client is told) when the definition's generated writes may not be the target of an action
+   * request. Absent: its create, update and delete are proposable (the manifest test pins the resulting list).
+   */
+  readonly notProposable?: string
+  /**
    * [[CORE62]] D9: the table may be an endpoint of an association. The associable set, and each type's read scope
    * (`scopeResource`), come from the registry's definitions; table names reach SQL from here, never from input.
    */

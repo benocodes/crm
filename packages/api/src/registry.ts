@@ -2,14 +2,27 @@ import { z } from 'zod'
 import type { Actor } from './auth/types.js'
 import type { Role } from './auth/roles.js'
 import { formatScope, type Scope, type ScopeSet } from './scopes.js'
-import type { PreparedOperation } from '@vault/storage'
+import type { PhysicalTable, PreparedOperation } from '@vault/storage'
 import type { ObjectStore } from './objects/store.js'
-import type { PreparedEnv, PreparedResource } from './storage/definition.js'
+import { softDeletes, type PreparedEnv, type PreparedResource } from './storage/definition.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
 import { endpointTypesOf, type EndpointTypes } from './associations/definition.js'
 import { embeddedFields, getWithAssociations, includeQuery } from './associations/embed.js'
 import { fullPath, type Surface } from './surfaces.js'
 import { crudActions, parseInput, resourcePath, scopeResourceOf, type CrudAction } from './resources/define.js'
+
+/**
+ * [[AGT8]] D32: whether an operation may be the target of an action request. `eligible: true` may name the stored record an id-bearing
+ * operation acts on (`target`: checked at proposal time, D34) and any read the call needs beyond its scope that only its arguments
+ * show (`alsoRequires`, for discovery). `eligible: false` carries the reason a client is told (`400 operation_not_proposable`).
+ */
+export type ProposalDecl =
+  | { eligible: true; target?: { table: PhysicalTable; idArg: string; notFound: string; live: boolean }; alsoRequires?: string }
+  | { eligible: false; reason: string }
+/** What `prepare` may call besides building: a read-only unit on the request's own storage identity ([[AGT8]] D28: plan reads before a decision command). */
+export interface PrepareContext {
+  read<T>(op: PreparedOperation<T>): Promise<T>
+}
 
 export type HttpMethod = 'get' | 'post' | 'patch' | 'delete'
 /** What a binary operation's object stage returns ([[CORE58]] P8, P10): the app turns it into the response. */
@@ -35,6 +48,8 @@ interface OperationBase {
   response: { status: 200 | 201 | 202 | 204; schema?: z.ZodType }
   /** [[CHN5]] D29: answers `501 not_implemented` on a storage binding that is not D1, before any unit runs. */
   d1Only?: boolean
+  /** The documented request body may be omitted (the OpenAPI document and the CLI then do not require it): the decision commands, whose body is all optional. */
+  optionalBody?: boolean
   /** `binary` responds with a `BinaryBody` from the `objects` stage; default `json`. */
   output?: 'json' | 'binary'
 }
@@ -44,8 +59,18 @@ interface OperationBase {
  */
 export interface TenantOperation extends OperationBase {
   kind: 'tenant'
-  scope: Scope
-  prepare: (env: PreparedEnv, input: OperationInput) => PreparedOperation<unknown> | Promise<PreparedOperation<unknown>>
+  /**
+   * The scope the operation requires. `null` ([[AGT8]] D7, D38): the authority is the target's and is decided in `prepare` (the
+   * `action_requests` decision commands); `authority` then says which action of which target resource it takes, for discovery and
+   * tool visibility.
+   */
+  scope: Scope | null
+  authority?: 'request_approval' | 'write'
+  /** [[AGT8]] D32: required on every tenant operation that is not a read (checked at registration). */
+  proposal?: ProposalDecl
+  /** [[AGT8]] D28: a unit that drifts is planned and run once more, then answers `409 conflict`. */
+  replanOnDrift?: boolean
+  prepare: (env: PreparedEnv, input: OperationInput, ctx?: PrepareContext) => PreparedOperation<unknown> | Promise<PreparedOperation<unknown>>
   /**
    * The object stage ([[CORE25]] D52): runs after the read unit with the unit's value and the composition's store, so a
    * unit never calls R2. Its return is the response (JSON) or a `BinaryBody` (binary).
@@ -110,6 +135,14 @@ export class Registry {
         if (!(m[1]! in params.shape)) throw new Error(`operation ${op.name}: path parameter {${m[1]}} is not declared`)
       }
     }
+    if (op.kind === 'tenant') {
+      if (op.scope === null && !op.authority) throw new Error(`operation ${op.name}: a null scope needs an authority`)
+      if (op.method !== 'get' && !op.proposal) throw new Error(`operation ${op.name}: every tenant operation that changes data declares its proposal metadata (eligible, or ineligible with a reason)`)
+      if (op.proposal?.eligible) {
+        if (op.scope === null || op.scope.action !== 'write') throw new Error(`operation ${op.name}: a proposable operation requires a write scope`)
+        if (op.after || op.objects || op.d1Only) throw new Error(`operation ${op.name}: a proposable operation runs inline: no after-commit or object stage, no d1Only`)
+      }
+    }
     this.ops.push(op)
     return this
   }
@@ -143,10 +176,17 @@ export class Registry {
     return this.ops.find((o) => o.name === name)
   }
 
-  /** Every scope a tenant operation requires, formatted, sorted and unique. */
+  /**
+   * Every scope a tenant operation requires, formatted, sorted and unique, plus `<resource>:request_approval` for each resource that
+   * has a proposable operation ([[AGT8]] D30).
+   */
   declaredScopes(): string[] {
     const out = new Set<string>()
-    for (const op of this.ops) if (op.kind === 'tenant') out.add(formatScope(op.scope))
+    for (const op of this.ops) {
+      if (op.kind !== 'tenant' || op.scope === null) continue
+      out.add(formatScope(op.scope))
+      if (op.proposal?.eligible) out.add(formatScope({ resource: op.scope.resource, action: 'request_approval' }))
+    }
     return [...out].sort()
   }
 }
@@ -172,6 +212,8 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
   const rec: z.ZodType = def.record
   const getQuery = z.object({ include: includeQuery.optional() })
   const base = { kind: 'tenant' as const, surface: def.surface, validation: 'handler' as const, tags: [def.name], ...(def.d1Only ? { d1Only: true } : {}) }
+  const notProposable = (): ProposalDecl => ({ eligible: false, reason: def.notProposable ?? 'not proposable' })
+  const targeted = (): ProposalDecl => (def.notProposable !== undefined ? notProposable() : { eligible: true, target: { table: def.table as PhysicalTable, idArg: 'id', notFound: `${def.eventName} not found`, live: softDeletes(def) } })
   const ops: TenantOperation[] = []
   if (actions.has('list')) {
     // [[CORE133]] D8, D9: a list that declares `sorts` takes sort and order, and its cursor is an opaque string; every other list keeps a UUID cursor.
@@ -227,6 +269,7 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
       method: 'post',
       path: p,
       scope: { resource: s, action: 'write' },
+      proposal: def.notProposable !== undefined ? notProposable() : { eligible: true },
       request: { body: def.create },
       response: { status: 201, schema: rec },
       prepare: (env, input) => (def.override?.create ? def.override.create(env, input.body) : createOperation(def, env, input.body)),
@@ -240,6 +283,7 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
       method: 'patch',
       path: `${p}/{id}`,
       scope: { resource: s, action: 'write' },
+      proposal: targeted(),
       request: { params: idParams, body: def.update },
       response: { status: 200, schema: rec },
       prepare: (env, input) =>
@@ -256,10 +300,23 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
       method: 'delete',
       path: `${p}/{id}`,
       scope: { resource: s, action: 'write' },
+      proposal: targeted(),
       request: { params: idParams },
       response: { status: 204 },
       prepare: (env, input) => (def.override?.delete ? def.override.delete(env, input.params.id) : deleteOperation(def, env, input.params.id as string)),
     })
   }
   return ops
+}
+
+/** The adapter-validated operations ([[CORE36]]) parse their input here, before any scope check; handler-validated ones do it inside `prepare`. */
+export function validateOperationInput(op: Operation, input: OperationInput): OperationInput {
+  if (op.validation !== 'adapter') return input
+  const { params, query, body, origin } = input
+  return {
+    ...(origin !== undefined ? { origin } : {}),
+    params: op.request?.params ? parseInput(op.request.params, params) : params,
+    query: op.request?.query ? parseInput(op.request.query, query) : query,
+    body: op.request?.body ? parseInput(op.request.body, body) : body,
+  }
 }
