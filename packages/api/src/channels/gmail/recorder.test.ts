@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeR2Bucket, type FakeR2Bucket } from '../../test/objects.js'
 import { RECORDINGS_INDEX_KEY, RECORDING_CAP, createRecordingFetch, googleRecording, maskText, parseRecordingSwitch, summarizeBase64, type RecordedExchange } from './recorder.js'
 
@@ -139,6 +139,8 @@ const CANARIES = {
   unknownNested: 'CANARYunknownNESTED43',
   ctParam: 'CANARYctPARAM54',
   nonAscii: 'CANARYunicodeÉÜ65',
+  semiName: 'CANARYsemiNAMEparam76',
+  semiFile: 'CANARYsemiFILEparam87',
 } as const
 const jwt = (claims: object): string => `${b64url('{"alg":"RS256","kid":"k1","typ":"JWT"}')}.${b64url(JSON.stringify(claims))}.${b64url('signature-bytes')}`
 
@@ -183,6 +185,7 @@ async function recordCanaryRun() {
           body: { size: 0 },
           parts: [
             { partId: '0', mimeType: 'text/plain', filename: '', headers: [{ name: 'Content-Type', value: 'text/plain; charset="UTF-8"' }], body: { size: C.bodyData.length, data: b64url(C.bodyData) } },
+            { partId: '2', mimeType: 'text/plain', filename: '', headers: [{ name: 'Content-Type', value: `text/plain; name="a;${C.semiName}=1"` }, { name: 'Content-Disposition', value: `attachment; filename="Invoice; ${C.semiFile}=Q3.pdf"` }], body: { size: 0 } },
             { partId: '1', mimeType: 'application/pdf', filename: `${C.filename}.pdf`, headers: [{ name: 'Content-Disposition', value: `attachment; filename="${C.filename}.pdf"` }], body: { size: 9, attachmentId: 'ATT1' } },
           ],
         },
@@ -250,15 +253,22 @@ describe('no secret or content survives (canary suite)', () => {
   })
   it('header names, Content-Type media types and parameter names stay; values, RFC 2047 text and parameter values are masked', async () => {
     const bucket = await recordCanaryRun()
-    const full = recorded(bucket).find((r) => r.rec.kind === 'message_full')!.rec.response.body as { payload: { headers: Array<{ name: string; value: string }>; parts: Array<{ headers: Array<{ name: string; value: string }>; filename: string }> } }
+    const full = recorded(bucket).find((r) => r.rec.kind === 'message_full')!.rec.response.body as { payload: { headers: Array<{ name: string; value: string }>; parts: Array<{ partId: string; headers: Array<{ name: string; value: string }>; filename: string }> } }
     const h = Object.fromEntries(full.payload.headers.map((x) => [x.name, x.value]))
     expect(Object.keys(h)).toEqual(['From', 'To', 'Subject', 'X-Encoded', 'Content-Type', 'X-Unicode'])
     expect(h.From).toBe(maskText(`"${CANARIES.from}" <${CANARIES.fromAddr}>`))
     expect(h['X-Encoded']).toMatch(/^=\?UTF-8\?B\?[xX0+/=]+\?= xxxx$/)
     expect(h['Content-Type']).toBe(`multipart/mixed; boundary="${maskText(CANARIES.ctParam)}"`)
     expect(h['X-Unicode']).toMatch(/^[xX0]+$/)
-    expect(full.payload.parts[1]!.headers[0]!.value).toBe(`attachment; filename="${maskText(`${CANARIES.filename}.pdf`)}"`)
-    expect(full.payload.parts[1]!.filename).toBe(maskText(`${CANARIES.filename}.pdf`))
+    expect(full.payload.parts.find((p: any) => p.partId === '1')!.headers[0]!.value).toBe(`attachment; filename="${maskText(`${CANARIES.filename}.pdf`)}"`)
+    expect(full.payload.parts.find((p: any) => p.partId === '1')!.filename).toBe(maskText(`${CANARIES.filename}.pdf`))
+  })
+  it('a ";" inside a quoted parameter value does not split the parameter: nothing after it is kept as a parameter name', async () => {
+    const bucket = await recordCanaryRun()
+    const full = recorded(bucket).find((r) => r.rec.kind === 'message_full')!.rec.response.body as { payload: { parts: Array<{ partId: string; headers: Array<{ name: string; value: string }> }> } }
+    const part = full.payload.parts.find((p) => p.partId === '2')!
+    expect(part.headers[0]!.value).toBe(`text/plain; name="${maskText(`a;${CANARIES.semiName}=1`)}"`)
+    expect(part.headers[1]!.value).toBe(`attachment; filename="${maskText(`Invoice; ${CANARIES.semiFile}=Q3.pdf`)}"`)
   })
   it('a body that is not JSON is recorded as a byte count only', async () => {
     const { f, bucket } = rig(() => new Response('<html>CANARYhtmlBODY error page</html>', { status: 502, headers: { 'content-type': 'text/html' } }))
@@ -428,6 +438,55 @@ describe('recording failure is harmless', () => {
     const { f } = rig(() => jsonRes({ emailAddress: 'a@b.test', historyId: '5' }), { bucket })
     await drain(await f(`${G}/profile`))
     expect(recorded(bucket)).toHaveLength(1)
+  })
+})
+
+describe('the index is never overwritten from a failed read, and never hangs a call (D81 a, e)', () => {
+  const profile = () => jsonRes({ emailAddress: 'a@b.test', historyId: '5' })
+  afterEach(() => vi.useRealTimers())
+  const indexKeys = (bucket: FakeR2Bucket): string[] => (JSON.parse(dec.decode(bucket.objects.get(RECORDINGS_INDEX_KEY)!)) as { objects: Array<{ key: string }> }).objects.map((o) => o.key)
+
+  it('a transient GET error on the index skips the index write: the earlier entries stay listed', async () => {
+    const log: string[] = []
+    const { f, bucket } = rig(profile, { log })
+    await drain(await f(`${G}/profile`))
+    const first = indexKeys(bucket)
+    expect(first).toHaveLength(1)
+    const real = bucket.get.bind(bucket)
+    bucket.get = async (k: string) => {
+      if (k === RECORDINGS_INDEX_KEY) throw Object.assign(new Error('r2 hiccup CANARYidx'), { name: 'R2Error' })
+      return real(k)
+    }
+    await drain(await f(`${G}/profile`))
+    expect(recorded(bucket)).toHaveLength(2) // the object itself was written
+    expect(indexKeys(bucket)).toEqual(first) // the index was not rewritten without it
+    expect(log.some((l) => l.includes('index') && l.includes('R2Error'))).toBe(true)
+    expect(log.join('\n')).not.toContain('CANARY')
+  })
+  it('an unparsable index is left as it is, not replaced', async () => {
+    const { f, bucket } = rig(profile)
+    await drain(await f(`${G}/profile`))
+    bucket.objects.set(RECORDINGS_INDEX_KEY, enc.encode('not json {'))
+    await drain(await f(`${G}/profile`))
+    expect(dec.decode(bucket.objects.get(RECORDINGS_INDEX_KEY)!)).toBe('not json {')
+  })
+  it('an absent index is an empty one: the first write creates it', async () => {
+    const { f, bucket } = rig(profile)
+    expect(bucket.objects.has(RECORDINGS_INDEX_KEY)).toBe(false)
+    await drain(await f(`${G}/profile`))
+    expect(indexKeys(bucket)).toHaveLength(1)
+  })
+  it('an index GET that never resolves does not hang the call: it returns its body unchanged after the timeout', async () => {
+    vi.useFakeTimers()
+    const log: string[] = []
+    const { f, bucket } = rig(profile, { log })
+    bucket.get = () => new Promise(() => {})
+    const pending = f(`${G}/profile`)
+    await vi.advanceTimersByTimeAsync(10_000)
+    const res = await pending
+    expect(await res.json()).toEqual({ emailAddress: 'a@b.test', historyId: '5' })
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(log.some((l) => l.includes('index'))).toBe(true)
   })
 })
 
