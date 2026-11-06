@@ -1,0 +1,56 @@
+{
+  "name": "messages-list",
+  "recording": {
+    "source": "synthetic",
+    "kind": "messages_list",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages",
+      "query": [
+        [
+          "q",
+          "after:2026/10/07"
+        ],
+        [
+          "maxResults",
+          "25"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "messages": [
+          {
+            "id": "69b0x8oe67q5j8b5",
+            "threadId": "69b0x8oe67q5j8b5"
+          },
+          {
+            "id": "65l2e8dj68b7q4n9",
+            "threadId": "69b0x8oe67q5j8b5"
+          }
+        ],
+        "nextPageToken": "78444561030848730012",
+        "resultSizeEstimate": 201
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "messages": [
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        }
+      ],
+      "nextPageToken": "$string"
+    }
+  }
+}

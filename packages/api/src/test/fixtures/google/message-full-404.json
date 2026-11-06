@@ -1,0 +1,44 @@
+{
+  "name": "message-full-404",
+  "recording": {
+    "source": "synthetic",
+    "kind": "message_full",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages/59m6h5yx82e6h8z1",
+      "query": [
+        [
+          "format",
+          "full"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 404,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "error": {
+          "code": 404,
+          "message": "Requested entity was not found.",
+          "errors": [
+            {
+              "message": "Xxxxxxxxx xxxxxx xxx xxx xxxxx.",
+              "domain": "global",
+              "reason": "notFound"
+            }
+          ],
+          "status": "NOT_FOUND"
+        }
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "skip": "not_found"
+    }
+  }
+}

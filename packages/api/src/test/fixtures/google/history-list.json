@@ -1,0 +1,102 @@
+{
+  "name": "history-list",
+  "recording": {
+    "source": "synthetic",
+    "kind": "history_list",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/history",
+      "query": [
+        [
+          "startHistoryId",
+          "5906950"
+        ],
+        [
+          "maxResults",
+          "100"
+        ],
+        [
+          "historyTypes",
+          "messageAdded"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "history": [
+          {
+            "id": "0678518",
+            "messages": [
+              {
+                "id": "75u5l2ea57s8b7q4",
+                "threadId": "75u5l2ea57s8b7q4"
+              }
+            ],
+            "messagesAdded": [
+              {
+                "message": {
+                  "id": "75u5l2ea57s8b7q4",
+                  "threadId": "75u5l2ea57s8b7q4",
+                  "labelIds": [
+                    "INBOX",
+                    "UNREAD"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "3978444",
+            "messages": [
+              {
+                "id": "56h0v0im87d0i1g9",
+                "threadId": "75u5l2ea57s8b7q4"
+              }
+            ],
+            "labelsAdded": [
+              {
+                "message": {
+                  "id": "56h0v0im87d0i1g9",
+                  "threadId": "75u5l2ea57s8b7q4"
+                },
+                "labelIds": [
+                  "STARRED"
+                ]
+              }
+            ]
+          }
+        ],
+        "nextPageToken": "35505472523534027713",
+        "historyId": "0907009"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "history": [
+        {
+          "messagesAdded": [
+            {
+              "message": {
+                "labelIds": [
+                  "INBOX",
+                  "UNREAD"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "messagesAdded": []
+        }
+      ],
+      "nextPageToken": "$string"
+    }
+  }
+}

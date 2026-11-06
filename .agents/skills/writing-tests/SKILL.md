@@ -112,6 +112,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   cached state, and asserts identical stderr and no request sent.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
+- **A redaction canary suite needs structure-injection canaries**, not only content canaries. For every parser in the
+  redactor that keeps some structure (a `;` split, a `name=` prefix, a quoted string, an escape, an RFC 2047 frame, a JSON
+  key path), plant a canary *shaped like that structure inside the content*: `filename="Invoice; CANARY=Q3.pdf"`,
+  `name="a\"; CANARY=1"`. A suite of plain-word canaries passed while a quoted `;` let content out as a "parameter name"
+  ([[CHN153]] review). Then run one absence mutation per branch of each parser (drop the quote tracking, drop the escape
+  handling): a branch whose mutation leaves the suite green is unproven, however correct it reads.
+- **A read-modify-write must not treat a failed read as absent.** `read().catch(() => [])` before a write overwrites good
+  state after one transient error. Absent (the store answers null) is empty; a throw, timeout or unparsable value skips the
+  write. Test all three ([[CHN153]] review, `packages/api/src/channels/gmail/recorder.ts`).
 - **Assemble secret-shaped canaries at runtime** (`['sk', 'live', 'canary'].join('_')`), never as a literal.
   GitHub push protection scans every pushed commit and rejects a literal that looks like a provider key (an
   `sk_live_…` sentinel was taken for a Stripe key), so the red commit cannot be pushed ([[OPS87]]).

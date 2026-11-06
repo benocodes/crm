@@ -1,0 +1,43 @@
+{
+  "name": "history-list-empty",
+  "recording": {
+    "source": "synthetic",
+    "kind": "history_list",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/history",
+      "query": [
+        [
+          "startHistoryId",
+          "5906950"
+        ],
+        [
+          "maxResults",
+          "100"
+        ],
+        [
+          "historyTypes",
+          "messageAdded"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "historyId": "5906950"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "history": [],
+      "nextPageToken": null,
+      "historyId": "$string"
+    }
+  }
+}

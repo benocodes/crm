@@ -1,0 +1,34 @@
+{
+  "name": "profile",
+  "recording": {
+    "source": "synthetic",
+    "kind": "profile",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/profile",
+      "query": [],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "emailAddress": "xxxxx@xxxxx.xxxx",
+        "messagesTotal": 4821,
+        "threadsTotal": 3102,
+        "historyId": "6950382"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "emailAddress": "xxxxx@xxxxx.xxxx",
+      "historyId": "$string",
+      "messagesTotal": 4821,
+      "threadsTotal": 3102
+    }
+  }
+}

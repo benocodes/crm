@@ -29,6 +29,7 @@ export interface D1BindingConfig {
 export interface ConfigLike {
   name?: string
   d1_databases?: D1BindingConfig[]
+  r2_buckets?: Array<{ binding: string; bucket_name?: string }>
 }
 export interface Target {
   env: string

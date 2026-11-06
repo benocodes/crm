@@ -23,6 +23,9 @@ export interface WorkflowStepLike {
 }
 export interface WorkflowEventLike<P> {
   payload: P
+  /** The Workflow instance id and creation time Cloudflare's event carries; the Google recorder names its run by them ([[CHN153]]). Absent in tests. */
+  instanceId?: string
+  timestamp?: Date
 }
 /** What every step re-resolves from module factories; none of it is ever returned from a step. */
 export interface MailSyncRuntime {

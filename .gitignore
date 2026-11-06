@@ -21,3 +21,6 @@ vendor/
 
 # Built CLI (API6)
 dist/
+
+# Pulled Google recordings (CHN153): reviewed by the user before anything is committed
+packages/server-d1/recordings-pull/

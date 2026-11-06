@@ -1,0 +1,48 @@
+{
+  "name": "token-refresh-ok",
+  "recording": {
+    "source": "synthetic",
+    "kind": "token_refresh",
+    "request": {
+      "method": "POST",
+      "host": "oauth2.googleapis.com",
+      "path": "/token",
+      "query": [],
+      "form": {
+        "grant_type": "refresh_token",
+        "refresh_token": "<redacted>",
+        "client_id": "<redacted>",
+        "client_secret": "<redacted>"
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "access_token": "<redacted>",
+        "expires_in": 3599,
+        "scope": "openid https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+        "token_type": "Bearer",
+        "id_token": {
+          "alg": "RS256",
+          "claims": {
+            "iss": "string",
+            "sub": "string",
+            "email": "string",
+            "email_verified": "boolean"
+          },
+          "iss": "https://accounts.google.com",
+          "email_verified": true
+        }
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "access_token": true,
+      "rotated": false
+    }
+  }
+}
