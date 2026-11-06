@@ -2,7 +2,7 @@
   "name": "@vault/storage-postgres",
   "private": true,
   "description": "Enterprise tier (spec CORE35 D14): the multi-tenant Postgres runtime. Open packages never import this one.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

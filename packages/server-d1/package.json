@@ -2,7 +2,7 @@
   "name": "@vault/server-d1",
   "private": true,
   "description": "Open tier (spec CORE38): the vault as a Cloudflare module Worker on one D1 database. The Worker entry, its composition, the local D1 bootstrap CLI and wrangler.jsonc.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "main": "src/worker.ts",
   "exports": {

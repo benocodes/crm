@@ -2,7 +2,7 @@
   "name": "@vault/server-postgres",
   "private": true,
   "description": "Enterprise tier (spec CORE36 D22): the Postgres composition of the vault API. The dev server, bootstrap CLI and smokes. Open packages never import this one.",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "test": "echo \"no tests\"",
