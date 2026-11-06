@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@vault/storage": "workspace:*",
-    "kysely": "0.29.6"
+    "kysely": "0.29.8"
   },
   "devDependencies": {
     "@types/node": "^22",

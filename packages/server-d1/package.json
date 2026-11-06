@@ -34,7 +34,7 @@
     "@vault/api": "workspace:*",
     "@vault/storage": "workspace:*",
     "@vault/storage-d1": "workspace:*",
-    "kysely": "0.29.6"
+    "kysely": "0.29.8"
   },
   "devDependencies": {
     "@clerk/testing": "2.2.47",
