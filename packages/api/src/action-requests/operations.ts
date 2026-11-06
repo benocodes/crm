@@ -158,7 +158,7 @@ async function createRequest(registry: Registry, env: PreparedEnv, input: unknow
   const target = targetOf(registry, body.operation)
   // D7, D34: proposing needs the target's request_approval (write contains it); the target then validates the call as it would a direct one.
   if (!env.scopes.has(proposalScopeOf(target.scope!))) throw insufficient(proposalScopeOf(target.scope!))
-  const targetInput = validateOperationInput(target, splitArguments(target, body.arguments))
+  const targetInput = validateOperationInput(target, splitArguments(target, body.arguments, { keepNull: true }))
   // A target's own refusal is the proposer's refusal (D34). `prepare` may be async.
   await target.prepare({ ...env, scopes: proposerScopes(env.scopes, target) }, targetInput, noReads)
   return buildCreate(env, target, body, targetInput)
@@ -405,7 +405,7 @@ async function approveRequest(registry: Registry, env: PreparedEnv, ctx: Prepare
   const target = targetOf(registry, plan.record.operation)
   if (!env.scopes.has(target.scope!)) throw insufficient(target.scope!)
   const effective = body.edited_arguments ?? plan.record.arguments
-  const targetInput = validateOperationInput(target, splitArguments(target, effective))
+  const targetInput = validateOperationInput(target, splitArguments(target, effective, { keepNull: true }))
   const inner = (await target.prepare(env, targetInput, noReads)) as PreparedOperation<unknown>
   const at = codecs.timestamp.write(env.now)
   const approvedEventId = env.newId()

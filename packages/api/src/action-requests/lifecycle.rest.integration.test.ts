@@ -110,6 +110,16 @@ describe('reviewers (D7, D23, D38)', () => {
   })
 })
 
+describe('a null argument clears a field, as over REST', () => {
+  it('a proposed null reaches the operation on approval; the stored arguments keep it', async () => {
+    const t = (await k.call(owner, 'POST', '/api/v1/tasks', { title: 'a', notes: 'to clear' })).body.id as string
+    const id = (await propose(proposer, { id: t, notes: null })).body.id
+    expect((await rowOf(id)).arguments).toEqual({ id: t, notes: null })
+    expect((await k.call(writer, 'POST', `${AR}/${id}/approve`)).status).toBe(200)
+    expect((await k.call(owner, 'GET', `/api/v1/tasks/${t}`)).body.notes).toBeNull()
+  })
+})
+
 describe('voluntary review (D6)', () => {
   it('a write-capable agent\'s request leaves the target untouched until approval; events name both identities', async () => {
     const t = await task('before')

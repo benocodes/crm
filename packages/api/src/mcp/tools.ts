@@ -109,7 +109,7 @@ const asString = (v: unknown): string => (typeof v === 'string' ? v : typeof v =
  * them over, so validation and coercion are the REST ones. Any other name is a body field (a strict body schema refuses it);
  * an operation with no body field to put it in refuses it as a validation error, never drops it.
  */
-export function splitArguments(op: Operation, args: Record<string, unknown>): OperationInput {
+export function splitArguments(op: Operation, args: Record<string, unknown>, opts: { keepNull?: boolean } = {}): OperationInput {
   const paramKeys = op.request?.params?.shape ?? {}
   const queryKeys = op.request?.query?.shape ?? {}
   const bodySchema = op.request?.body
@@ -120,7 +120,9 @@ export function splitArguments(op: Operation, args: Record<string, unknown>): Op
   let whole: unknown
   const unknown: string[] = []
   for (const [k, v] of Object.entries(args)) {
-    if (v === undefined || v === null) continue
+    if (v === undefined) continue
+    // `keepNull` ([[AGT8]] D33): a request's `arguments` are stored as sent, and a null body field (clear this field) must reach the operation as it would over REST.
+    if (v === null && !(opts.keepNull && objectBody && !(k in paramKeys) && !(k in queryKeys))) continue
     if (k in paramKeys) params[k] = asString(v)
     else if (k in queryKeys) query[k] = asString(v)
     else if (objectBody) bodyFields[k] = v
