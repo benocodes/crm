@@ -2,7 +2,8 @@ import { z } from 'zod'
 import type { Actor } from './auth/types.js'
 import type { Role } from './auth/roles.js'
 import { formatScope, type Scope, type ScopeSet } from './scopes.js'
-import type { PhysicalTable, PreparedOperation } from '@vault/storage'
+import type { Expression, SqlBool } from 'kysely'
+import type { PhysicalTable, PreparedOperation, QueryContext } from '@vault/storage'
 import type { ObjectStore } from './objects/store.js'
 import { softDeletes, type PreparedEnv, type PreparedResource } from './storage/definition.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
@@ -22,6 +23,34 @@ export type ProposalDecl =
 /** What `prepare` may call besides building: a read-only unit on the request's own storage identity ([[AGT8]] D28: plan reads before a decision command). */
 export interface PrepareContext {
   read<T>(op: PreparedOperation<T>): Promise<T>
+}
+
+/** [[AGT8]] D2, D53: how a possibly delivered attempt is treated before it is repeated. `reconcile` (the default) asks the transport; `idempotent` repeats it; `never` gives up with `outcome_unknown`. */
+export type RetryPolicy = 'reconcile' | 'idempotent' | 'never'
+/** What an enqueued operation resolves at authorisation ([[AGT8]] D9, D52): fixed on the execution row and identical on every attempt. */
+export interface Authorisation {
+  /** An anchor, a connection: whatever the transport needs that was true when the call was authorised. */
+  resolution?: Record<string, unknown>
+  /** The domain of the execution's `client_ref` (`{execution_id}@{domain}`); default `vault.invalid`. */
+  clientRefDomain?: string
+  /** Commit-time guards on what `resolution` rests on: false at commit and the authorisation writes nothing. */
+  guards?: (qc: QueryContext) => Expression<SqlBool>[]
+}
+/**
+ * [[AGT8]] D2, D51, D52, D57: an operation declared `execution: enqueued`. Called directly it answers `202` with an execution receipt; approved from a
+ * request it creates the same execution; the runner then drives the transport. `input` is the operation's own arguments, without `idempotency_key`.
+ */
+export interface ExecutionDecl {
+  retry?: RetryPolicy
+  transport: string
+  /** The scope that lets a caller read this operation's executions ([[AGT8]] D57). */
+  readScope: Scope
+  input: z.ZodObject
+  authorise?: (env: PreparedEnv, args: Record<string, unknown>, ctx: PrepareContext) => Promise<Authorisation | void>
+}
+/** What an after-commit stage can ask of the composition: start the runner on an execution, best effort ([[AGT8]] D13, D49). */
+export interface AfterContext {
+  kick(executionId: string): void
 }
 
 export type HttpMethod = 'get' | 'post' | 'patch' | 'delete'
@@ -65,7 +94,7 @@ export interface TenantOperation extends OperationBase {
    * tool visibility.
    */
   scope: Scope | null
-  authority?: 'request_approval' | 'write'
+  authority?: 'read' | 'request_approval' | 'write'
   /** [[AGT8]] D32: required on every tenant operation that is not a read (checked at registration). */
   proposal?: ProposalDecl
   /** [[AGT8]] D28: a unit that drifts is planned and run once more, then answers `409 conflict`. */
@@ -80,7 +109,9 @@ export interface TenantOperation extends OperationBase {
    * The after-commit stage ([[CHN141]] D75): runs after the unit has committed, with its value, and returns the response. For a side effect that must
    * not happen unless the unit did (a Workflow instance for a recorded sync request). An `ApiError` it throws is the response.
    */
-  after?: (value: unknown) => Promise<unknown>
+  after?: (value: unknown, ctx: AfterContext) => Promise<unknown>
+  /** [[AGT8]] D2: declared by `enqueuedOperation`; absent: the operation runs inline. */
+  execution?: ExecutionDecl
 }
 /**
  * What an account operation sees ([[CORE41]] C2, P12): the signed-in user, the active organisation and its scopes when

@@ -431,7 +431,40 @@ export interface ActionRequestsTable {
   executed_at: NullableTimestamp
 }
 
+/**
+ * [[AGT8]] D11, D59: a durable asynchronous execution (D1 only). `arguments`, `resolution` and `result` are JSON. The lease columns (`attempts`,
+ * `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`, `last_error_code`) are machinery: written without an event ([[AGT8]] D56).
+ */
+export interface ActionExecutionsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  authorised_by: string
+  action_request_id: string | null
+  operation: string
+  arguments: JsonValue
+  resolution: JsonValue
+  status: 'queued' | 'claimed' | 'done' | 'failed'
+  client_ref: string
+  idempotency_key: string | null
+  input_hash: string
+  deadline_at: Timestamp
+  dispatched_at: NullableTimestamp
+  done_at: NullableTimestamp
+  attempts: IntegerColumn
+  next_attempt_at: Timestamp
+  lease_until: NullableTimestamp
+  lease_token: string | null
+  last_error_code: string | null
+  result: JsonValue
+  error_code: string | null
+  error_message: string | null
+}
+
 export interface StorageDatabase {
+  action_executions: ActionExecutionsTable
   action_requests: ActionRequestsTable
   organizations: OrganizationsTable
   principals: PrincipalsTable
@@ -840,6 +873,33 @@ export const COLUMN_KINDS = {
     error_code: 'text',
     error_message: 'text',
     executed_at: 'timestamp',
+  },
+  action_executions: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    authorised_by: 'uuid',
+    action_request_id: 'uuid',
+    operation: 'text',
+    arguments: 'json',
+    resolution: 'json',
+    status: 'text',
+    client_ref: 'text',
+    idempotency_key: 'text',
+    input_hash: 'text',
+    deadline_at: 'timestamp',
+    dispatched_at: 'timestamp',
+    done_at: 'timestamp',
+    attempts: 'integer',
+    next_attempt_at: 'timestamp',
+    lease_until: 'timestamp',
+    lease_token: 'text',
+    last_error_code: 'text',
+    result: 'json',
+    error_code: 'text',
+    error_message: 'text',
   },
   thread_sources: {
     id: 'uuid',

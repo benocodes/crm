@@ -1,4 +1,4 @@
-import { CALLBACK_PATH, MAIL_SYNC_CRON, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type StreamPrimitives, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
+import { CALLBACK_PATH, MAIL_SYNC_CRON, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
 import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -56,6 +56,11 @@ export interface D1WorkerEnv {
   MAIL_SYNC?: MailSyncInstances
 }
 
+/** What the runtime hands `fetch` besides the request: only `waitUntil` is used ([[AGT8]] D49). */
+export interface ExecutionContextLike {
+  waitUntil(promise: Promise<unknown>): void
+}
+
 /** What the runtime hands `scheduled` (Cloudflare's `ScheduledController`, reduced to what is read). */
 export interface ScheduledControllerLike {
   cron: string
@@ -94,8 +99,8 @@ const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES'
  */
 export function composeD1Worker(
   env: D1WorkerEnv,
-  deps: { fetch?: typeof fetch; /** Node tests only: workerd's stream primitives are absent there. */ streams?: StreamPrimitives; clock?: () => Date; newId?: () => string; /** Milliseconds for the migration-state re-read window; defaults to `Date.now`. */ nowMs?: () => number } = {},
-): { fetch(req: Request): Promise<Response>; scheduled(controller: ScheduledControllerLike): Promise<void>; runMailSync(event: WorkflowEventLike<MailSyncParams>, step: WorkflowStepLike): Promise<MailSyncSummary> } {
+  deps: { fetch?: typeof fetch; /** Node tests only ([[AGT8]] D52): operations registered before the queue's, and the transports the runner resolves. The Worker passes neither. */ operations?: (registry: Registry) => void; transports?: TransportRegistry; /** Node tests only: workerd's stream primitives are absent there. */ streams?: StreamPrimitives; clock?: () => Date; newId?: () => string; /** Milliseconds for the migration-state re-read window; defaults to `Date.now`. */ nowMs?: () => number } = {},
+): { fetch(req: Request, ctx?: ExecutionContextLike): Promise<Response>; scheduled(controller: ScheduledControllerLike): Promise<void>; runMailSync(event: WorkflowEventLike<MailSyncParams>, step: WorkflowStepLike): Promise<MailSyncSummary> } {
   const vars: Record<string, string | undefined> = {}
   for (const name of STRING_VARS) vars[name] = typeof env[name] === 'string' ? env[name] : undefined
 

@@ -17,7 +17,8 @@
     "./test/push": "./src/test/push.ts",
     "./test/gmail-fixtures": "./src/test/gmail-fixtures.ts",
     "./test/streams": "./src/test/streams.ts",
-    "./test/workerd-boundary": "./src/test/workerd-boundary.ts"
+    "./test/workerd-boundary": "./src/test/workerd-boundary.ts",
+    "./test/rail": "./src/test/rail-kit.ts"
   },
   "scripts": {
     "test": "vitest run --config ../../vitest.config.ts",
