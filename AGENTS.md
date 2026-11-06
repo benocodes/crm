@@ -6,8 +6,10 @@ Guidance for coding agents working in this repository.
 
 A **headless CRM** (working name: the vault). No app of its own: every interaction (email, calendar,
 WhatsApp, later calls and iMessage) lands in one database, agents the customer
-brings read it over REST, MCP or hooks, and they **propose** actions as action requests that a person or a
-rule approves; the vault executes. The only screen is a pane in the user's email client.
+brings access it over REST, MCP or CLI, with hooks for incoming events. Owners grant per-resource
+`read`, `request_approval` or `write` permissions: `write` includes proposing for approval, while reads
+remain independent. Agents may execute authorised writes, including sends, or choose review by an
+authorised person or agent. The vault holds provider credentials and executes both paths. Human clients are independent apps or the CLI.
 
 **Current focus (2026-10-30, [[discussions/2026-10-30-d1-only-mvp]]): the MVP is Cloudflare D1 only,
 self-managed, one D1 database per organisation/workspace in the customer's Cloudflare account.** No
@@ -233,7 +235,11 @@ Carried over from the predecessor product, where each cost real time. Add new on
    database. See `writing-tests`.
 3. **Catching `23505` inside a transaction does not save it**: the transaction is already aborted. Use
    `ON CONFLICT` instead.
-4. **Agents never send.** Agents submit action requests; the vault executes them with credentials it holds.
+4. **Agents act within owner-granted authority** (user revision, 2026-11-05, [[AGT8]]). Per-resource
+   `write` includes `request_approval`; `read` is independent. Agents with write permission may send
+   directly through the vault, or propose the same registered operation for approval by a user or agent
+   with the target write authority. Proposal-only permission never authorises execution. Both paths use the same validation, audit and execution rail;
+   provider credentials stay in the vault. This replaces the former "agents never send" rule.
 5. **Every write emits an event** to the outbox in the same unit. Nothing else inserts into a
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).
@@ -248,7 +254,8 @@ Carried over from the predecessor product, where each cost real time. Add new on
 7. **A workflow step's return value must be structured-cloneable by workerd**, which is stricter than
    Node. Return plain data, never class instances (see `cloudflare-workflows`).
 8. **A migration's number can go stale** between plan and implementation; re-check before creating it.
-9. **Resolve an approval's anchor at approval time, not draft time.**
+9. **Resolve an operation's anchor at authorisation time, not draft time:** approval time for a
+   proposal, submission time for an authorised direct send ([[AGT8]]).
 10. **Open packages never import enterprise code** (`@vault/storage-postgres`, `@vault/server-postgres`,
     `@vault/db`, `pg`); `packages/storage/src/import-boundary.test.ts` enforces it, with no allow-list entries for
     `packages/api` ([[CORE35]] D14/D15, [[CORE36]] D22). Postgres composition (dev server, bootstrap, smokes) lives in

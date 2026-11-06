@@ -48,7 +48,7 @@ skills on the load-bearing claims:
 - tenancy axis (organisation, never user) and which wrappers are mandated
 - the test pool is production-like (nothing preset) vs. any skill that presets tenancy
 - LLM SDK (Vercel AI SDK only)
-- agents never send; suggestions then execution rail
+- owner-granted resource authority ([[AGT8]], 2026-11-05): write includes request_approval; read is independent; users or agents with target write can review; direct and reviewed sends share the vault execution rail (planned, not yet implemented)
 - one operation registry feeds REST and MCP (no second surface hand-written)
 - test stacks and commands per package
 - the spec ID scheme (area code + issue number) and the area code list

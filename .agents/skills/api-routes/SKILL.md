@@ -614,8 +614,12 @@ service context enforces it, so scope checks are written once.
     declares a scope fails CI until it decides both flags in the same change. Owners hold every declared
     scope. A scope without a row is held by no member and granted to no agent (fail closed).
   - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
-- **Agents never get send rights.** An agent's write surface is "submit a suggestion"; sending is performed
-  by the vault's execution rail with credentials it holds.
+- **Owner-granted resource authority** ([[AGT8]], user revision 2026-11-05; planned extension):
+  resource write includes request_approval; read stays independent. Agents may send directly with
+  messages:write or choose review. A user or agent with target write authority can approve. Requests
+  reference registry operations and arguments; both paths reuse validation, audit and execution.
+  Provider credentials remain in the vault. Do not reintroduce a human-only decision scope or separate
+  three-kind mutation catalog. Existing code has not yet implemented this extension.
 - **A provisioner that creates a parent and a child on first sight** (`src/auth/first-sight.ts`, [[CORE41]] P7): any
   network call (the profile fetch) and normalisation **before** the unit. Then plan-read every unique key the insert
   can collide on, insert the parent with an app-minted id, the child with `ON CONFLICT DO NOTHING`, and
