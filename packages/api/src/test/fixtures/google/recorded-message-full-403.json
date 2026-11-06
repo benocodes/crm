@@ -1,0 +1,74 @@
+{
+  "name": "recorded-message-full-403",
+  "recording": {
+    "source": "recorded",
+    "kind": "message_full",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages/1e462h545uok0748",
+      "query": [
+        [
+          "format",
+          "full"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "error": {
+          "code": 403,
+          "message": "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com' for consumer 'xxxxxxx_xxxxxx:000000000000'.",
+          "errors": [
+            {
+              "message": "Xxxxx xxxxxxxx xxx xxxxx xxxxxx 'Xxxxx Xxxxx Xxxx' xxx xxxxx 'Xxxxx xxx xxxxxx xxx xxxx' xx xxxxxxx 'xxxxx.xxxxxxxxxx.xxx' xxx xxxxxxxx 'xxxxxxx_xxxxxx:000000000000'.",
+              "domain": "usageLimits",
+              "reason": "rateLimitExceeded"
+            }
+          ],
+          "status": "PERMISSION_DENIED",
+          "details": [
+            {
+              "@type": "xxxx.xxxxxxxxxx.xxx/xxxxxx.xxx.XxxxxXxxx",
+              "reason": "XXXX_XXXXX_XXXXXXXX",
+              "domain": "xxxxxxxxxx.xxx",
+              "metadata": {
+                "quota_limit": "xxxxxXxxxxXxxxXxxXxxxxxXxxXxxx",
+                "quota_limit_value": "0000",
+                "service": "xxxxx.xxxxxxxxxx.xxx",
+                "quota_metric": "xxxxx.xxxxxxxxxx.xxx/xxxxx_xxxxx_xxxx",
+                "consumer": "xxxxxxxx/000000000000",
+                "window_start_time": "0000000000",
+                "quota_unit": "0/xxx/{xxxxxxx}/{xxxx}",
+                "quota_location": "xxxxxx"
+              }
+            },
+            {
+              "@type": "xxxx.xxxxxxxxxx.xxx/xxxxxx.xxx.Xxxx",
+              "links": [
+                {
+                  "description": "Xxxxxxx x xxxxxx xxxxx xxxxx.",
+                  "url": "xxxxx://xxxxx.xxxxxx.xxx/xxxx/xxxxxx/xxxx/xxxxxxx_xxxxxxxx"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expect": {
+    "error": {
+      "type": "GmailApiError",
+      "status": 403,
+      "gmailStatus": "PERMISSION_DENIED",
+      "reason": "rateLimitExceeded",
+      "retryAfterSeconds": null
+    }
+  }
+}

@@ -80,7 +80,7 @@ export async function replay(fx: RecordingFixture): Promise<{ result: unknown } 
       case 'message_full': {
         const out = await new GmailChannel(client).readMessage(conn, idOf(rec))
         if ('skip' in out) return { result: { skip: out.skip } }
-        return { result: { mapped: true, attachments: out.message.attachments.length, provider_message_id: out.facts.provider_message_id } }
+        return { result: { mapped: true, attachments: out.message.attachments.length, provider_message_id: out.facts.provider_message_id, participants: out.facts.participants.map((p) => ({ role: p.role, named: p.name !== undefined })) } }
       }
       case 'message_raw': {
         const wire = await client.getMessageRaw(idOf(rec))

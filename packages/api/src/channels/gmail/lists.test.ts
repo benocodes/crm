@@ -91,7 +91,7 @@ describe('users.messages.list', () => {
 describe('FakeGmail serves the same wire forms', () => {
   const fake = () => {
     const f = new FakeGmail()
-    f.history.push({ id: '2001', added: [{ id: 'm1', labels: ['INBOX'] }] }, { id: '2002', labelsAdded: [{ id: 'm1', labelIds: ['STARRED'] }] }, { id: '2003', added: [{ id: 'm2' }] })
+    f.history.push({ id: '2001', added: [{ id: 'm1', labels: ['INBOX'] }] }, { id: '2002', labelsAdded: [{ id: 'm1', labelIds: ['STARRED'] }] }, { id: '2003', added: [{ id: 'm2', labels: null }] })
     f.profile.historyId = '2003'
     return f
   }

@@ -46,6 +46,10 @@ export interface MailSyncSummary {
 
 export const MAX_PASSES = 3
 export const MAX_THROTTLES = 5
+/** The first throttle's sleep when Google sent no `Retry-After`; it doubles on each later throttle of the same page ([[CHN5]] D84). */
+export const BASE_BACKOFF_SECONDS = 30
+/** The n-th throttle (1-based) of one page sleeps what Google asked, else 30 s x 2^(n-1): 30, 60, 120, 240, 480. */
+export const backoffSeconds = (n: number, retryAfter: number | null): number => retryAfter ?? BASE_BACKOFF_SECONDS * 2 ** (n - 1)
 /** Shorter than the lease, so a page that outlives its step timeout cannot outlive its lease. */
 const PAGE_STEP: StepConfig = { retries: { limit: 3, delay: '30 seconds', backoff: 'exponential' }, timeout: '4 minutes' }
 const SHORT_STEP: StepConfig = { retries: { limit: 5, delay: '10 seconds', backoff: 'exponential' }, timeout: '2 minutes' }
@@ -103,7 +107,7 @@ export async function runMailSync(event: WorkflowEventLike<MailSyncParams>, step
       })
       if (r.outcome !== 'throttled') return r
       if (++throttles > MAX_THROTTLES) throw new Error(`Gmail throttled the page ${throttles} times`)
-      await step.sleep(`${name}-sleep-${throttles}`, `${(r as { retry_after_seconds: number }).retry_after_seconds} seconds`)
+      await step.sleep(`${name}-sleep-${throttles}`, `${backoffSeconds(throttles, (r as { retry_after_seconds: number | null }).retry_after_seconds)} seconds`)
     }
   }
 

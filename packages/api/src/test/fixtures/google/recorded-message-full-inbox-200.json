@@ -1,0 +1,199 @@
+{
+  "name": "recorded-message-full-inbox-200",
+  "recording": {
+    "source": "recorded",
+    "kind": "message_full",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages/7i9w854mo7576gxt",
+      "query": [
+        [
+          "format",
+          "full"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "id": "7i9w854mo7576gxt",
+        "threadId": "2j0t3362xgos22j4",
+        "labelIds": [
+          "UNREAD",
+          "CATEGORY_UPDATES",
+          "INBOX"
+        ],
+        "snippet": "Xxxxxxx Xxxxxxxxxxx Xxxxxxx Xxx XxxXxx Xxx Xxxxxx xx xxxxxxxxxx xxxxxxxxxx xxxxxx xx xxxx xxxxxxx. Xxxxx xxxxx! Xxx&#00;xx xxxxxxxxx xxxx xxxxx xxxxxxx xxx XxxXxx Xxx Xxxxxx, xxxxx xx xxxxxxxxx",
+        "payload": {
+          "partId": "",
+          "mimeType": "multipart/alternative",
+          "filename": "",
+          "headers": [
+            {
+              "name": "Delivered-To",
+              "value": "xxxxx@xxxx.xx"
+            },
+            {
+              "name": "Received",
+              "value": "xx 0000:x00:0000:000x:x0:000:0000:x0x0 xxxx XXXX xx xx00xxx0000000xxx;        Xxx, 0 Xxx 0000 00:00:00 -0000 (XXX)"
+            },
+            {
+              "name": "X-Received",
+              "value": "xx 0000:x00:000x:x00:x0:000:0000:0xx0 xxxx XXXX xx x00x00x00000x-00x000000x0xx00000000xx.00.0000000000000;        Xxx, 00 Xxx 0000 00:00:00 -0000 (XXX)"
+            },
+            {
+              "name": "ARC-Seal",
+              "value": "x=0; x=xxx-xxx000; x=0000000000; xx=xxxx;        x=xxxxxx.xxx; x=xxx-00000000;        x=xxXXxxxxX0xxX0xXXXxXxXxxxXXxxXXxxXXXXXXXxXXX/xxxXxX0xXxxXxXX0xXxXx         0X/XXxx0xXXXxxXxX0Xx0xxxx/0XXxXXxxx0XX0xXxxx0XxXxx0XXxXXxxxXXXXx0xxx         x/xxX0XX0xxXxXxxxXxxXXxXXXX+XX00xxXXXxxxx0XXXXXXXXXxXXX0XX+XxXXxXX0X         xX0X0xX00XXXXXx+xXXXxxXXXxx0XXXXX0x0xxxX+XX0xXXXxx/x0xXXxxxXxxxXx0x0         xXX0XxxxXxxXXXxxXXX0xxxxxXXXxXXxx0X/xxXxxXXxXxX0XXXXxxXXXxX/+/x0XXXX         X0XX=="
+            },
+            {
+              "name": "ARC-Message-Signature",
+              "value": "x=0; x=xxx-xxx000; x=xxxxxxx/xxxxxxx; x=xxxxxx.xxx; x=xxx-00000000;        x=xxxxxxx-xxxxxxxx-xxxxxxxx:xxxx-xxxxxxx:xxxxxxx:xxxxxxx-xx:xx:xxxx         :xxxx:xxxx-xxxxxxxxx;        xx=XxxxXX0xxXxXxXXxxxxX0X0XXxxX0XXxxxxxxxxXx+X=;        xx=X0XXxxxXx0XXxXx0Xxxxxx+XxXxXxx0XxX00xxXxXxX=;        x=x/XxxXXx000X0XxXx0X0XxXx0000XXxXXxXxx+/xxXXXXxxXxXXxx+Xx0X0+xx0Xxx         x0XxxxXxx/xXXXxX0X0XX0X0xxx00XXxXxxXX00x+X0xxxxXxXxxx0+x+X00XxXxX0XX         xxXxxXXXxxXxXxxxX0x00xxxXXX0XxxxxXX0X0xXx000xxXXXxX00xX0XXXxX0XXxXxx         xXxxXxx0Xx0XXxxXxXXXxxxxXx0xxXXxxXxxxxXxXxxXXXXxXX0/Xxxxx0XX0XxxXx0x         XxXxxxXx00XXX0xx0Xx0XXXXX0X0xx0XxXxXxXxxXXxxxxxxxXXX0xxX0xXxxxX/XXxX         0xXX==;        xxxx=xxxxxx.xxx"
+            },
+            {
+              "name": "ARC-Authentication-Results",
+              "value": "x=0; xx.xxxxxx.xxx;       xxxx=xxxx xxxxxx.x=@xxxxxx.xxx xxxxxx.x=xx0000 xxxxxx.x=X0X00xXX;       xxx=xxxx (xxxxxx.xxx: xxxxxx xx xxxxxxx@xxxxxx.xxx xxxxxxxxxx 000.00.000.000 xx xxxxxxxxx xxxxxx) xxxx.xxxxxxxx=xxxxxxx@xxxxxx.xxx;       xxxxx=xxxx (x=XXXXXXXXXX xx=XXXXXX xxx=XXXX) xxxxxx.xxxx=xxxxxx.xxx"
+            },
+            {
+              "name": "Return-Path",
+              "value": "<xxxxxxx@xxxxxx.xxx>"
+            },
+            {
+              "name": "Received",
+              "value": "xxxx xxx-0.xxxx.xxxxxx.xxx (xxx-0.xxxx.xxxxxx.xxx. [000.00.000.000])        xx xx.xxxxxx.xxx xxxx XXXXXX xx 0x0000xx00x00-00xx0000x00xx00000000x0.00.0000.00.00.00.00.00        xxx <xxxxx@xxxx.xx>        (xxxxxxx=XXX0_0 xxxxxx=XXX_XXX_000_XXX_XXX000 xxxx=000/000);        Xxx, 00 Xxx 0000 00:00:00 -0000 (XXX)"
+            },
+            {
+              "name": "Received-SPF",
+              "value": "xxxx (xxxxxx.xxx: xxxxxx xx xxxxxxx@xxxxxx.xxx xxxxxxxxxx 000.00.000.000 xx xxxxxxxxx xxxxxx) xxxxxx-xx=000.00.000.000;"
+            },
+            {
+              "name": "Authentication-Results",
+              "value": "xx.xxxxxx.xxx;       xxxx=xxxx xxxxxx.x=@xxxxxx.xxx xxxxxx.x=xx0000 xxxxxx.x=X0X00xXX;       xxx=xxxx (xxxxxx.xxx: xxxxxx xx xxxxxxx@xxxxxx.xxx xxxxxxxxxx 000.00.000.000 xx xxxxxxxxx xxxxxx) xxxx.xxxxxxxx=xxxxxxx@xxxxxx.xxx;       xxxxx=xxxx (x=XXXXXXXXXX xx=XXXXXX xxx=XXXX) xxxxxx.xxxx=xxxxxx.xxx"
+            },
+            {
+              "name": "DKIM-Signature",
+              "value": "x=0; x=xxx-xxx000; x=xxxxxxx/xxxxxxx; x=xxxxxx.xxx; x=xx0000; x=0000000000; xx=XxxxXX0xxXxXxXXxxxxX0X0XXxxX0XXxxxxxxxxXx+X=; x=Xxxx:Xxxx:Xx:Xxxxxxx:Xxxx; x=X0X00xXX0XxXXxXxXx0XXXxx0XXXXxXXxXxXXx0x0xxxXxxxXX0xXxxXxxXx0Xxx0\t XxXx+00x+xXxX00X+xxXX0XXX0xX0xxxxXXXxXXxxxxXxXX0xxxx0xxxx0xxXXXx0X\t xXxXx0X0xXXxxXXxXxXXxxxXX0XXXX0Xxxx0XXxx000X0xXxxxx/xXX00xxxx00xX0\t Xx+xxxxX0x+Xx00xX0+XXxXx0XxXXXxxxxxXx0XXX+X0x000XXxx0XxxxXxXxx0Xx0\t xxX00xXxxxX0xxxxxxxxXXxx/+XXXxxxXXXxxxXXx0XX+XXXxXx0x/x0xxXXX0XXxX\t xxXXxxXx+XxXX=="
+            },
+            {
+              "name": "Received",
+              "value": "xxxx xxxxxx.xxx (xxxxxxxxxxx-xxxx-0x0000x.xx-xxx-00.xxxxxx.xxx [00.000.0.00]) xx xxxx.xxxxxx.xxx (Xxxxxxx) xxxx XXXXXX xx 0XXX0000X00 xxx <xxxxx@xxxx.xx>; Xxx,  0 Xxx 0000 00:00:00 -0000 (XXX)"
+            },
+            {
+              "name": "Date",
+              "value": "Xxx, 00 Xxx 0000 00:00:00 -0000"
+            },
+            {
+              "name": "From",
+              "value": "XxxXxx <xxxxxxx@xxxxxx.xxx>"
+            },
+            {
+              "name": "To",
+              "value": "Xxx Xxx <xxxxx@xxxx.xx>"
+            },
+            {
+              "name": "Message-ID",
+              "value": "<0xxx0000x00xx_00000x00000x@xxxxxxxxxxxx-00xxxx0x0x-x0x00.xxxx>"
+            },
+            {
+              "name": "Subject",
+              "value": "[XxxXxx] Xxxxxx xx xxxxxxxxxx xxxxxxx xxxxxxxxxxx"
+            },
+            {
+              "name": "Mime-Version",
+              "value": "0.0"
+            },
+            {
+              "name": "Content-Type",
+              "value": "multipart/alternative; boundary=\"--==_xxxxxxxx_0xxx0000x0000_00000x0000x0\"; charset=XXX-0"
+            },
+            {
+              "name": "Content-Transfer-Encoding",
+              "value": "7bit"
+            },
+            {
+              "name": "X-Auto-Response-Suppress",
+              "value": "Xxx"
+            }
+          ],
+          "body": {
+            "size": 0
+          },
+          "parts": [
+            {
+              "partId": "0",
+              "mimeType": "text/plain",
+              "filename": "",
+              "headers": [
+                {
+                  "name": "Content-Type",
+                  "value": "text/plain; charset=XXX-0"
+                },
+                {
+                  "name": "Content-Transfer-Encoding",
+                  "value": "7bit"
+                }
+              ],
+              "body": {
+                "size": 583,
+                "data": {
+                  "length": 780,
+                  "padding": 2,
+                  "alphabet_ok": true,
+                  "decoded_bytes": 583
+                }
+              }
+            },
+            {
+              "partId": "1",
+              "mimeType": "text/html",
+              "filename": "",
+              "headers": [
+                {
+                  "name": "Content-Type",
+                  "value": "text/html; charset=XXX-0"
+                },
+                {
+                  "name": "Content-Transfer-Encoding",
+                  "value": "quoted-printable"
+                }
+              ],
+              "body": {
+                "size": 4555,
+                "data": {
+                  "length": 6076,
+                  "padding": 2,
+                  "alphabet_ok": true,
+                  "decoded_bytes": 4555
+                }
+              }
+            }
+          ]
+        },
+        "sizeEstimate": 9584,
+        "historyId": "7294278",
+        "internalDate": "0000000000000"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "mapped": true,
+      "attachments": 0,
+      "provider_message_id": "7i9w854mo7576gxt",
+      "participants": [
+        {
+          "role": "from",
+          "named": true
+        },
+        {
+          "role": "to",
+          "named": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,217 @@
+{
+  "name": "recorded-messages-list-200",
+  "recording": {
+    "source": "recorded",
+    "kind": "messages_list",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages",
+      "query": [
+        [
+          "q",
+          "after:1791363743 {in:inbox in:sent}"
+        ],
+        [
+          "maxResults",
+          "25"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "messages": [
+          {
+            "id": "7i9w854mo7576gxt",
+            "threadId": "2j0t3362xgos22j4"
+          },
+          {
+            "id": "2j0t3362xgos22j4",
+            "threadId": "2j0t3362xgos22j4"
+          },
+          {
+            "id": "0a6sksv7bx2z754m",
+            "threadId": "9h2wsk7880f41y9q"
+          },
+          {
+            "id": "7t3gdc128jjq9co2",
+            "threadId": "7t3gdc128jjq9co2"
+          },
+          {
+            "id": "2t2fod2w0359qiio",
+            "threadId": "2t2fod2w0359qiio"
+          },
+          {
+            "id": "9u0lv94233r2x0cr",
+            "threadId": "9u0lv94233r2x0cr"
+          },
+          {
+            "id": "0x2eoj8e428b6363",
+            "threadId": "0x2eoj8e428b6363"
+          },
+          {
+            "id": "8w9iz08863ge5z9l",
+            "threadId": "8w9iz08863ge5z9l"
+          },
+          {
+            "id": "7d7sk7i60h94pt2n",
+            "threadId": "7d7sk7i60h94pt2n"
+          },
+          {
+            "id": "8x1gp170i364ih8i",
+            "threadId": "4c9hm715ef09mg4q"
+          },
+          {
+            "id": "8d3wd28vnn57nz1w",
+            "threadId": "4c9hm715ef09mg4q"
+          },
+          {
+            "id": "2n3cc891c469jf8c",
+            "threadId": "4c9hm715ef09mg4q"
+          },
+          {
+            "id": "4c9hm715ef09mg4q",
+            "threadId": "4c9hm715ef09mg4q"
+          },
+          {
+            "id": "8g8xle2998559k89",
+            "threadId": "8g8xle2998559k89"
+          },
+          {
+            "id": "8m8qtj90362y53wx",
+            "threadId": "8m8qtj90362y53wx"
+          },
+          {
+            "id": "7c2dys3d441i1l04",
+            "threadId": "7s78k70866ca8l90"
+          },
+          {
+            "id": "8n6dfr5yx0n1v8jc",
+            "threadId": "8n6dfr5yx0n1v8jc"
+          },
+          {
+            "id": "1d1ht29i00483lv2",
+            "threadId": "1d1ht29i00483lv2"
+          },
+          {
+            "id": "1d5cr1su7a01h296",
+            "threadId": "1d5cr1su7a01h296"
+          },
+          {
+            "id": "3c6um3zl3228li4j",
+            "threadId": "3c6um3zl3228li4j"
+          },
+          {
+            "id": "7o0lc06dc4d17187",
+            "threadId": "7o0lc06dc4d17187"
+          },
+          {
+            "id": "7t1xun6v745i8m05",
+            "threadId": "7t1xun6v745i8m05"
+          },
+          {
+            "id": "6h2tky710yu7eh0e",
+            "threadId": "6h2tky710yu7eh0e"
+          },
+          {
+            "id": "3q3jmvy82593mz90",
+            "threadId": "4z9y789b59au774d"
+          },
+          {
+            "id": "6r1ou29u0384b3j3",
+            "threadId": "6r1ou29u0384b3j3"
+          }
+        ],
+        "nextPageToken": "69065123149385398184",
+        "resultSizeEstimate": 201
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "messages": [
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        },
+        {
+          "id": "$string"
+        }
+      ],
+      "nextPageToken": "$string"
+    }
+  }
+}

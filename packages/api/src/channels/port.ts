@@ -61,3 +61,14 @@ export class AttachmentFetchError extends Error {
     super(message ?? code)
   }
 }
+
+/**
+ * The provider throttled a fetch (a rate or quota limit). Unlike an `AttachmentFetchError` it is never a property of the attachment, so it is not stored as a
+ * `failed` link: it propagates out of the capture and the page repeats after a sleep ([[CHN5]] D83). `retryAfterSeconds` is what the provider asked, else null.
+ */
+export class ChannelThrottledError extends Error {
+  override name = 'ChannelThrottledError'
+  constructor(readonly retryAfterSeconds: number | null) {
+    super('the provider throttled the fetch')
+  }
+}

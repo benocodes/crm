@@ -1,0 +1,50 @@
+{
+  "name": "recorded-message-raw-200",
+  "recording": {
+    "source": "recorded",
+    "kind": "message_raw",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages/7i9w854mo7576gxt",
+      "query": [
+        [
+          "format",
+          "raw"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "id": "7i9w854mo7576gxt",
+        "threadId": "2j0t3362xgos22j4",
+        "labelIds": [
+          "UNREAD",
+          "CATEGORY_UPDATES",
+          "INBOX"
+        ],
+        "snippet": "Xxxxxxx Xxxxxxxxxxx Xxxxxxx Xxx XxxXxx Xxx Xxxxxx xx xxxxxxxxxx xxxxxxxxxx xxxxxx xx xxxx xxxxxxx. Xxxxx xxxxx! Xxx&#00;xx xxxxxxxxx xxxx xxxxx xxxxxxx xxx XxxXxx Xxx Xxxxxx, xxxxx xx xxxxxxxxx",
+        "sizeEstimate": 9584,
+        "raw": {
+          "length": 12780,
+          "padding": 1,
+          "alphabet_ok": true,
+          "decoded_bytes": 9584
+        },
+        "historyId": "7294278",
+        "internalDate": "0000000000000"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "raw_length": 12780,
+      "decoded_bytes": 9584
+    }
+  }
+}

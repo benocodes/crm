@@ -9,7 +9,7 @@ import { mapGmailMessage, type GmailConnection } from './mapper.js'
 
 // [[CHN5]] D35, [[CORE25]] "Channel port", D28, D29, D36, D37: the Gmail mapper over the synthetic fixtures.
 const CONN: GmailConnection = { id: 'conn-1', mailbox: MAILBOX }
-const mb = toBase64Url(new TextEncoder().encode(MAILBOX))
+const mb = toBase64Url(new TextEncoder().encode(MAILBOX), false)
 
 function map(name: FixtureName, adjust?: (s: MessageSpec) => MessageSpec): { out: ChannelMessage; opened: number } {
   const built = gmailFixture(name, adjust)

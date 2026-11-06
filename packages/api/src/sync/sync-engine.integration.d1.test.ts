@@ -308,6 +308,12 @@ describe('again (D11)', () => {
   })
 })
 
+/** A failure that fires once (the first matching call) and then retires: one rule per throttle scripts a sequence. */
+const onceWhen = (g: FakeGmail, match: Parameters<FakeGmail['failWhen']>[0], error: Error): void => {
+  let used = false
+  g.failWhen((c) => !used && match(c) && ((used = true), true), error)
+}
+
 describe('throttle (D16)', () => {
   const throttle = (g: FakeGmail, times: number, retryAfterSeconds: number | null) => {
     let n = 0
@@ -323,20 +329,67 @@ describe('throttle (D16)', () => {
     expect(calls(s.gmail, 'history').map((c) => [c.startHistoryId, c.pageToken])).toEqual([['1000', null], ['1000', null]])
     expect((await e.rows('messages')).length).toBe(1)
   })
-  it('sleeps 30 seconds when Google sent no Retry-After', async () => {
+  it('grows the sleep when Google sent no Retry-After: 30, 60, 120 seconds on the first three throttles of one page (D84)', async () => {
     const s = await setup({ messages: [mk('m1')] })
     addHistory(s.gmail, '1001', ['m1'])
-    throttle(s.gmail, 2, null)
+    throttle(s.gmail, 3, null)
     const shim = makeWorkerdStepShim()
-    await run(s, shim)
-    expect(shim.sleeps.map((x) => x.duration)).toEqual(['30 seconds', '30 seconds'])
+    expect((await run(s, shim)).end).toBe('complete')
+    expect(shim.sleeps.map((x) => x.duration)).toEqual(['30 seconds', '60 seconds', '120 seconds'])
   })
-  it('the sixth throttle throws to the retry policy after five sleeps', async () => {
+  it('honours Retry-After when present, and grows only when absent: the n-th throttle sleeps its own Retry-After, else 30 s x 2^(n-1)', async () => {
+    const s = await setup({ messages: [mk('m1')] })
+    addHistory(s.gmail, '1001', ['m1'])
+    // One rule per throttle, each consumed once, in order.
+    for (const sec of [null, 7, null, null]) onceWhen(s.gmail, (c) => c.op === 'history', new GmailApiError({ status: 429, ...(sec === null ? {} : { retryAfter: String(sec), retryAfterSeconds: sec }) }))
+    const shim = makeWorkerdStepShim()
+    expect((await run(s, shim)).end).toBe('complete')
+    expect(shim.sleeps.map((x) => x.duration)).toEqual(['30 seconds', '7 seconds', '120 seconds', '240 seconds'])
+  })
+  it('the backoff starts over on the next page: a throttle count belongs to one page', async () => {
+    const s = await setup({ messages: many(30, 'p'), synced: null })
+    onceWhen(s.gmail, (c) => c.op === 'list' && c.pageToken === null, new GmailApiError({ status: 429 }))
+    onceWhen(s.gmail, (c) => c.op === 'list' && c.pageToken === null, new GmailApiError({ status: 429 }))
+    onceWhen(s.gmail, (c) => c.op === 'list' && c.pageToken === 'm25', new GmailApiError({ status: 429 }))
+    const shim = makeWorkerdStepShim()
+    expect((await run(s, shim)).end).toBe('complete')
+    expect(shim.sleeps.map((x) => x.duration)).toEqual(['30 seconds', '60 seconds', '30 seconds'])
+  })
+  it('the sixth throttle throws to the retry policy after five sleeps: 30, 60, 120, 240, 480 seconds', async () => {
     const s = await setup()
-    throttle(s.gmail, 99, 1)
+    throttle(s.gmail, 99, null)
     const shim = makeWorkerdStepShim()
     await expect(run(s, shim)).rejects.toThrow(/throttled/i)
-    expect(shim.sleeps).toHaveLength(5)
+    expect(shim.sleeps.map((x) => x.duration)).toEqual(['30 seconds', '60 seconds', '120 seconds', '240 seconds', '480 seconds'])
+  })
+})
+
+describe('step count (D84)', () => {
+  // seed + claim + per pass (begin when it scans, one per scan page, one per history page, finish) + 2 per throttle (the repeated page step and its sleep) + at most one of record-failure or chain.
+  /** The shim lists a sleep among `names` as well, as Cloudflare counts it a step. */
+  const steps = (shim: ReturnType<typeof makeWorkerdStepShim>): number => shim.names.length
+  const formula = (o: { scanPages: number; historyPages: number; passes: number; throttles: number; scanned: boolean; ending?: 'record-failure' | 'chain' }): number =>
+    2 + o.passes * 1 /* finish */ + (o.scanned ? 1 + o.scanPages : 0) + o.passes * o.historyPages + 2 * o.throttles + (o.ending ? 1 : 0)
+
+  it('a backfill of N=3 scan pages with K=2 throttles on different pages takes seed + claim + begin + N + 1 history page + finish + 2K steps', async () => {
+    const s = await setup({ messages: many(60, 'b'), synced: null })
+    onceWhen(s.gmail, (c) => c.op === 'list' && c.pageToken === null, new GmailApiError({ status: 429, retryAfter: '5', retryAfterSeconds: 5 }))
+    onceWhen(s.gmail, (c) => c.op === 'list' && c.pageToken === 'm50', new GmailApiError({ status: 429, retryAfter: '5', retryAfterSeconds: 5 }))
+    const shim = makeWorkerdStepShim()
+    expect(await run(s, shim)).toEqual({ end: 'complete', passes: 1 })
+    expect(shim.sleeps).toHaveLength(2)
+    expect(steps(shim)).toBe(2 + (1 + 3) + 1 + 1 + 2 * 2)
+    expect(steps(shim)).toBe(formula({ scanPages: 3, historyPages: 1, passes: 1, throttles: 2, scanned: true }))
+    expect(steps(shim)).toBe(12)
+  })
+  it('a history-only run with one throttle and no scan: seed + claim + history page + finish + 2', async () => {
+    const s = await setup({ messages: [mk('m1')] })
+    addHistory(s.gmail, '1001', ['m1'])
+    onceWhen(s.gmail, (c) => c.op === 'history', new GmailApiError({ status: 429 }))
+    const shim = makeWorkerdStepShim()
+    await run(s, shim)
+    expect(steps(shim)).toBe(formula({ scanPages: 0, historyPages: 1, passes: 1, throttles: 1, scanned: false }))
+    expect(steps(shim)).toBe(6)
   })
 })
 

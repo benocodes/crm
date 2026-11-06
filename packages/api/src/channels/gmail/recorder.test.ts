@@ -141,6 +141,9 @@ const CANARIES = {
   nonAscii: 'CANARYunicodeÉÜ65',
   semiName: 'CANARYsemiNAMEparam76',
   semiFile: 'CANARYsemiFILEparam87',
+  escName: 'CANARYescapeNAME98',
+  escFile: 'CANARYescapeFILE09',
+  unknownParam: 'CANARYunknownPARAM19',
 } as const
 const jwt = (claims: object): string => `${b64url('{"alg":"RS256","kid":"k1","typ":"JWT"}')}.${b64url(JSON.stringify(claims))}.${b64url('signature-bytes')}`
 
@@ -186,6 +189,8 @@ async function recordCanaryRun() {
           parts: [
             { partId: '0', mimeType: 'text/plain', filename: '', headers: [{ name: 'Content-Type', value: 'text/plain; charset="UTF-8"' }], body: { size: C.bodyData.length, data: b64url(C.bodyData) } },
             { partId: '2', mimeType: 'text/plain', filename: '', headers: [{ name: 'Content-Type', value: `text/plain; name="a;${C.semiName}=1"` }, { name: 'Content-Disposition', value: `attachment; filename="Invoice; ${C.semiFile}=Q3.pdf"` }], body: { size: 0 } },
+            // [[CHN153b]] D85: a backslash-escaped quote inside a quoted parameter must not end it, and a parameter name outside the known list is masked.
+            { partId: '3', mimeType: 'text/plain', filename: '', headers: [{ name: 'Content-Type', value: `text/plain; name="a\\"; ${C.escName}=1"; ${C.unknownParam}=2` }, { name: 'Content-Disposition', value: `attachment; filename="b\\"; ${C.escFile}=2"` }], body: { size: 0 } },
             { partId: '1', mimeType: 'application/pdf', filename: `${C.filename}.pdf`, headers: [{ name: 'Content-Disposition', value: `attachment; filename="${C.filename}.pdf"` }], body: { size: 9, attachmentId: 'ATT1' } },
           ],
         },
@@ -528,3 +533,86 @@ describe('caps (D78, CORE129 D10a)', () => {
     expect(index.objects[0]).toMatchObject({ kind: 'profile', status: 200 })
   })
 })
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// [[CHN5]] D85 ([[CHN153b]]): redaction residuals
+
+/** Records one full message whose headers are `headers` (part 0 carries them) and whose `mimeType`s are given; returns the redacted body. */
+async function recordHeaders(headers: Array<{ name: string; value: string }>, mimeTypes: { top?: string; part?: string } = {}) {
+  const { f, bucket } = rig(() =>
+    jsonRes({ id: 'M1', threadId: 'M1', labelIds: ['INBOX'], payload: { partId: '', mimeType: mimeTypes.top ?? 'multipart/mixed', filename: '', headers: [], body: { size: 0 }, parts: [{ partId: '0', mimeType: mimeTypes.part ?? 'text/plain', filename: '', headers, body: { size: 0 } }] } }),
+  )
+  await drain(await f(`${G}/messages/M1?format=full`))
+  return recorded(bucket)[0]!.rec.response.body as { payload: { mimeType: string; parts: Array<{ mimeType: string; headers: Array<{ name: string; value: string }> }> } }
+}
+const valueOf = (b: Awaited<ReturnType<typeof recordHeaders>>, name: string): string => b.payload.parts[0]!.headers.find((h) => h.name === name)!.value
+
+describe('a backslash-escaped quote inside a quoted parameter (D85)', () => {
+  it('a canary after \\" is not kept as a parameter name or anywhere else, in Content-Type or Content-Disposition', async () => {
+    const bucket = await recordCanaryRun()
+    const written = allBytes(bucket)
+    for (const c of [CANARIES.escName, CANARIES.escFile, CANARIES.unknownParam]) for (const form of forms(c)) expect({ c, leaked: written.includes(form) ? form : null }).toEqual({ c, leaked: null })
+    expect(written).not.toMatch(/CANARY/i)
+  })
+  it('the quoted value stays ONE parameter: a known name after \\" is value text, so it is masked with the rest', async () => {
+    const b = await recordHeaders([
+      { name: 'Content-Disposition', value: 'attachment; filename="a\\"; boundary=Z1"' },
+      { name: 'Content-Type', value: 'text/plain; name="a\\"; charset=Q9"; format=flowed' },
+    ])
+    expect(valueOf(b, 'Content-Disposition')).toBe('attachment; filename="x\\"; xxxxxxxx=X0"')
+    expect(valueOf(b, 'Content-Type')).toBe('text/plain; name="x\\"; xxxxxxx=X0"; format=xxxxxx')
+  })
+})
+
+describe('parameter names are kept only from the known list (D85)', () => {
+  it('Content-Type: boundary, charset, name, format, delsp, type, start, protocol, micalg and the RFC 2231 forms stay; any other name is masked by class', async () => {
+    const b = await recordHeaders([
+      {
+        name: 'Content-Type',
+        value: 'multipart/signed; boundary="b1"; charset=UTF-8; name=n.txt; format=flowed; delsp=yes; type="text/plain"; start="<s>"; protocol="application/pgp-signature"; micalg=pgp-sha1; name*0=ab; filename*=UTF-8\'\'x; zSecretName=1; Another-One=2',
+      },
+    ])
+    expect(valueOf(b, 'Content-Type')).toBe(
+      'multipart/signed; boundary="x0"; charset=XXX-0; name=x.xxx; format=xxxxxx; delsp=xxx; type="xxxx/xxxxx"; start="<x>"; protocol="xxxxxxxxxxx/xxx-xxxxxxxxx"; micalg=xxx-xxx0; name*0=xx; filename*=XXX-0\'\'x; xXxxxxxXxxx=0; Xxxxxxx-Xxx=0',
+    )
+  })
+  it('Content-Disposition (CORE129 D10a): filename, size and the date parameters stay; any other name is masked', async () => {
+    const b = await recordHeaders([{ name: 'Content-Disposition', value: 'attachment; filename="r.pdf"; size=123; creation-date="d"; modification-date="d"; read-date="d"; zCustom=1' }])
+    expect(valueOf(b, 'Content-Disposition')).toBe('attachment; filename="x.xxx"; size=000; creation-date="x"; modification-date="x"; read-date="x"; xXxxxxx=0')
+  })
+  it('a parameter name is matched case-insensitively and keeps its own case', async () => {
+    const b = await recordHeaders([{ name: 'Content-Type', value: 'text/plain; CharSet=UTF-8; BOUNDARY=x' }])
+    expect(valueOf(b, 'Content-Type')).toBe('text/plain; CharSet=XXX-0; BOUNDARY=x')
+  })
+})
+
+describe('a media type is kept only when it is a well-formed type/subtype pair (D85)', () => {
+  it('Content-Type heads: text/plain, application/vnd.ms-excel and multipart/alternative stay; a word, a triple, a space or a missing half is masked', async () => {
+    for (const [value, kept] of [
+      ['text/plain; charset=x', 'text/plain; charset=x'],
+      ['application/vnd.ms-excel', 'application/vnd.ms-excel'],
+      ['secretword; charset=x', 'xxxxxxxxxx; charset=x'],
+      ['a/b/c', 'x/x/x'],
+      ['Maria Garcia; charset=x', 'Xxxxx Xxxxxx; charset=x'],
+      ['text/; charset=x', 'xxxx/; charset=x'],
+      ['/plain', '/xxxxx'],
+    ] as const) {
+      const b = await recordHeaders([{ name: 'Content-Type', value }])
+      expect(valueOf(b, 'Content-Type'), value).toBe(kept)
+    }
+  })
+  it('Content-Transfer-Encoding and the Content-Disposition type are tokens, and stay when they are tokens', async () => {
+    const b = await recordHeaders([{ name: 'Content-Transfer-Encoding', value: 'quoted-printable' }, { name: 'Content-Disposition', value: 'inline; filename="a"' }])
+    expect(valueOf(b, 'Content-Transfer-Encoding')).toBe('quoted-printable')
+    expect(valueOf(b, 'Content-Disposition')).toBe('inline; filename="x"')
+  })
+  it('a part\'s mimeType, at any depth, is kept only when well formed', async () => {
+    const ok = await recordHeaders([], { top: 'multipart/alternative', part: 'text/html' })
+    expect([ok.payload.mimeType, ok.payload.parts[0]!.mimeType]).toEqual(['multipart/alternative', 'text/html'])
+    for (const bad of ['Maria Garcia', 'secretword', 'a/b/c', 'text/', '/html', 'text/ht ml']) {
+      const b = await recordHeaders([], { top: bad, part: bad })
+      expect([b.payload.mimeType, b.payload.parts[0]!.mimeType], bad).toEqual([maskText(bad), maskText(bad)])
+    }
+  })
+})
+

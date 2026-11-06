@@ -1,17 +1,16 @@
 // `GmailChannel` ([[CHN5]] D23, D24, D25): [[CORE69]]'s `ChannelPort` over a `GmailClient`. `readMessage` maps `format=full` and gives
 // a lazy `raw`; `fetchAttachment` returns the decoded stream with the size the message declared. Type-only imports from the port: no
 // runtime import from `chat` ([[CORE69]] D25).
-import { AttachmentFetchError, type ChannelMessage, type ChannelPort } from '../port.js'
-import { GmailApiError, type GmailClient } from './client.js'
+import { AttachmentFetchError, ChannelThrottledError, type ChannelMessage, type ChannelPort } from '../port.js'
+import { GmailApiError, isGmailThrottle, type GmailClient } from './client.js'
 import { base64UrlMemberDecoder } from './decoder.js'
 import { mapGmailMessage, type GmailConnection } from './mapper.js'
 
-/** A short machine code for a failed attachment fetch ([[CORE69]] D3): never provider text. */
+/** A short machine code for a failed attachment fetch ([[CORE69]] D3): never provider text. A throttle never gets here ([[CHN5]] D83). */
 function fetchErrorCode(err: unknown): string {
   if (!(err instanceof GmailApiError)) return 'fetch_failed'
   if (err.status === 404) return 'not_found'
   if (err.status === 401 || err.status === 403) return 'access_denied'
-  if (err.status === 429) return 'rate_limited'
   return `http_${err.status}`
 }
 
@@ -49,6 +48,8 @@ export class GmailChannel implements ChannelPort<GmailConnection> {
     try {
       wire = await this.client.getAttachment(messageId, attachmentId)
     } catch (err) {
+      // A rate or quota limit is the page's to wait out, not a fact about this attachment ([[CHN5]] D83).
+      if (isGmailThrottle(err)) throw new ChannelThrottledError(err.retryAfterSeconds)
       throw new AttachmentFetchError(fetchErrorCode(err))
     }
     return { body: wire.pipeThrough(base64UrlMemberDecoder('data')), size }
