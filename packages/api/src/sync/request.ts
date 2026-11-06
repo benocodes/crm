@@ -46,7 +46,7 @@ export async function requestSync(d: RequestDeps, connectionId: string): Promise
   return { requested_at, instance_id: id }
 }
 
-/** Active, live connections the cron should request: never synced, stale (15 minutes) or expired lease; never a held lease. */
+/** Active, live connections the cron should request: never synced, stale (15 minutes), expired lease or a recorded request not yet served; never a held lease. */
 export async function dueConnections(d: Pick<RequestDeps, 'binding' | 'organizationId'>, now: Date): Promise<string[]> {
   const at = now.toISOString()
   const stale = new Date(now.getTime() - STALE_MS).toISOString()
@@ -59,7 +59,8 @@ export async function dueConnections(d: Pick<RequestDeps, 'binding' | 'organizat
           join mail_sync_state s on s.connection_id = c.id and s.organization_id = c.organization_id
           where c.organization_id = ${d.organizationId} and c.deleted_at is null and c.status = 'active'
             and not (s.lease_until is not null and s.lease_until >= ${at})
-            and (s.last_success_at is null or s.last_success_at <= ${stale} or (s.lease_until is not null and s.lease_until < ${at}))
+            and (s.last_success_at is null or s.last_success_at <= ${stale} or (s.lease_until is not null and s.lease_until < ${at})
+              or (s.sync_requested_at is not null and (s.last_success_at is null or s.sync_requested_at > s.last_success_at)))
           order by c.id`.compile(qc.db),
       ),
     }),

@@ -448,6 +448,25 @@ describe('gate (D37)', () => {
   })
 })
 
+describe('gate on the failure and chain steps (D37)', () => {
+  it('record-failure that finds the database behind throws and leaves the lease row as it was', async () => {
+    const s = await setup({ messages: [] })
+    google.revoke(s.refreshToken)
+    let atStep: Record<string, unknown> | undefined
+    const shim = makeWorkerdStepShim({
+      beforeStep: async (name) => {
+        if (name !== 'record-failure') return
+        atStep = { ...(await stateRow()) }
+        s.state.behind = true
+      },
+    })
+    await expect(run(s, shim)).rejects.toThrow(/behind/)
+    expect(atStep).toBeDefined()
+    expect(atStep!.run_id).not.toBeNull()
+    expect(await stateRow()).toEqual(atStep)
+  })
+})
+
 describe('secrecy', () => {
   it('no access or refresh token in a step return, a row, a log line or an error message across a full run, rotation included', async () => {
     const lines: string[] = []

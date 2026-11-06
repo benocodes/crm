@@ -225,9 +225,9 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
 
 describe('the cron: which connections get a request (D14, D75)', () => {
   const iso = (offsetMin: number) => new Date(now.getTime() + offsetMin * MIN).toISOString()
-  const setState = (id: string, p: { success?: number | null; lease?: number | null }) =>
-    raw('update mail_sync_state set last_success_at = ?, lease_until = ?, run_id = ? where connection_id = ?', p.success == null ? null : iso(p.success), p.lease == null ? null : iso(p.lease), p.lease == null ? null : 'some-run', id)
-  it('requests never-synced, stale and expired-lease connections; not fresh, held-lease, non-active or soft-deleted ones', async () => {
+  const setState = (id: string, p: { success?: number | null; lease?: number | null; requested?: number | null }) =>
+    raw('update mail_sync_state set last_success_at = ?, lease_until = ?, run_id = ?, sync_requested_at = ? where connection_id = ?', p.success == null ? null : iso(p.success), p.lease == null ? null : iso(p.lease), p.lease == null ? null : 'some-run', p.requested == null ? null : iso(p.requested), id)
+  it('requests never-synced, stale, expired-lease and requested-but-unserved connections; not fresh, already-served, held-lease, non-active or soft-deleted ones', async () => {
     const never = await seed()
     const stale = await seed()
     const fresh = await seed()
@@ -235,6 +235,10 @@ describe('the cron: which connections get a request (D14, D75)', () => {
     const expired = await seed()
     const reauth = await seed()
     const gone = await seed()
+    const pending = await seed()
+    const served = await seed()
+    await setState(pending, { success: -5, requested: -2 })
+    await setState(served, { success: -5, requested: -8 })
     await setState(never, {})
     await setState(stale, { success: -20 })
     await setState(fresh, { success: -5 })
@@ -245,11 +249,12 @@ describe('the cron: which connections get a request (D14, D75)', () => {
     await raw("update channel_connections set status = 'reauth_required' where id = ?", reauth)
     await raw('update channel_connections set deleted_at = ? where id = ?', iso(-1), gone)
     const out = await requestDueSyncs(deps())
-    expect([...out.requested].sort()).toEqual([never, stale, expired].sort())
+    expect([...out.requested].sort()).toEqual([never, stale, expired, pending].sort())
     expect(out.failed).toBe(0)
-    expect(created.map((c) => c.params.connection_id).sort()).toEqual([never, stale, expired].sort())
+    expect(created.map((c) => c.params.connection_id).sort()).toEqual([never, stale, expired, pending].sort())
     expect((await stateOf(fresh)).sync_requested_at).toBeNull()
     expect((await stateOf(held)).sync_requested_at).toBeNull()
+    expect((await stateOf(served)).sync_requested_at).toBe(iso(-8))
   })
   it('empty state: no connections is no request and no error', async () => {
     expect(await requestDueSyncs(deps())).toEqual({ requested: [], failed: 0 })

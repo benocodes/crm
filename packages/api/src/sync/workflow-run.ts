@@ -151,6 +151,7 @@ export async function runMailSync(event: WorkflowEventLike<MailSyncParams>, step
       if (stopped !== 'lease_lost') {
         await step.do('record-failure', SHORT_STEP, async () => {
           const rt = await resolve()
+          await rt.gate()
           await releaseLease(leaseOf(rt), connectionId, runId)
           return { released: true }
         })
@@ -171,6 +172,7 @@ export async function runMailSync(event: WorkflowEventLike<MailSyncParams>, step
     if (fin.requested && pass === MAX_PASSES) {
       await step.do('chain', SHORT_STEP, async () => {
         const rt = await resolve()
+        await rt.gate()
         const id = instanceId(connectionId, rt.pages.newId())
         await rt.instances.create({ id, params: { connection_id: connectionId } })
         return { chained: true }
