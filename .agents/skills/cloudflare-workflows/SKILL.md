@@ -30,6 +30,11 @@ almost no CPU and is fine. What consumes the budget is work in the step body: bi
 large schema, crypto. **Rate limits**, not duration, are the real constraint on a slow provider (Gmail
 throttling returns 429 with `Retry-After`; respect it with `step.sleep`).
 
+**Steps per instance are capped: 1024 on the Free plan** (user-confirmed, 2026-11-06, [[CHN141]]; check Cloudflare's limits
+page for what counts as a step, `step.sleep` included, before relying on headroom). A loop of one step per page
+is bounded by the input's size, not by your code: budget the pages and continue in a new instance (`create` with a fresh
+id, the cursor in the database) before the cap. The Gmail backfill's budget is #156.
+
 ## Structure
 
 Put the Node-safe body in `workflow-run.ts`; the workerd class in `workflow.ts` only imports
@@ -205,3 +210,12 @@ Gmail sync ([[CHN141]], CHN5 cycle 4) is the first Workflow. Paths are real:
 Traps found building it: a **claim step must take back its own lease** (`run_id = :run` in the guard), because a retried step re-runs after its unit
 committed; the **cron expression** the handler dispatches on is `controller.cron`; a **kill is modelled before a step**, and a second run needs the
 lease to expire (advance the injected clock past `LEASE_MS`).
+
+Found in review ([[CHN141]] round 1):
+
+- **Every step that writes passes the migration gate, the terminal ones too.** `record-failure` and `chain` were first written without
+  `rt.gate()`, so a database behind its migrations could still release a lease or start an instance. Put the gate first in each step body
+  and give at least one terminal step its own gate test (shim `beforeStep` flips `behind`, the row must be unchanged).
+- **A "kept, the cron will serve it" promise needs the cron's predicate to include it.** `503 sync_unavailable` keeps `sync_requested_at`;
+  the cron selected only stale or lease-expired connections, so a fresh connection's request waited 15 minutes. `dueConnections` also selects
+  `sync_requested_at > last_success_at`. When an error path defers work to a scheduler, test the scheduler picks that exact state.

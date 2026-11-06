@@ -236,6 +236,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - **`d1Only`** on a resource definition or a hand-written operation ([[CHN140]], [[CHN5]] D63): `executeOperation`
     answers `501 not_implemented` on a non-D1 binding after the scope checks, before any unit. Use it for any table
     the Postgres adapter does not have, instead of a check in each handler; test it with `coldStorage()`.
+  - **`after`** on a `TenantOperation` ([[CHN141]], [[CHN5]] D77): runs once the unit has committed, with its value,
+    and returns the response (REST and MCP alike). Put any side effect outside the database there (creating a Workflow
+    instance, a queue send), never inside the unit, so a rolled-back unit has no effect outside it. Its failure must
+    leave the committed state meaningful and answer a stable code (`503 sync_unavailable` keeps the request for the
+    cron); test both the success and the failure path, and that a failed unit never reaches `after`.
   - **`OperationInput.origin`** is the request's origin, set by REST only (MCP leaves it undefined, and
     `validateInput` preserves it). Read it only where a spec names the request origin as a fallback.
   - **The Google OAuth callback** (`GET /oauth/google/callback`, `src/connections/callback.ts`) is the second plain
