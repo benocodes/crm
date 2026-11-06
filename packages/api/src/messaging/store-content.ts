@@ -1,4 +1,4 @@
-import { AttachmentFetchError, type ChannelMessage, type ChannelPort, type ConnectionRef } from '../channels/port.js'
+import { AttachmentFetchError, ChannelThrottledError, type ChannelMessage, type ChannelPort, type ConnectionRef } from '../channels/port.js'
 import { stringifyMarkdown } from '../channels/markdown.js'
 import type { ObjectStore } from '../objects/store.js'
 import type { CaptureAttachment } from './capture.js'
@@ -76,6 +76,8 @@ export async function storeMessageContent(ctx: ContentContext, port: ChannelPort
     try {
       fetched = await port.fetchAttachment(conn, a.fetchMetadata ?? {})
     } catch (err) {
+      // A throttle is not a fact about this attachment: it leaves the message uncaptured and the page repeats ([[CHN5]] D83).
+      if (err instanceof ChannelThrottledError) throw err
       // A code, never the error's text: it may quote a URL or a token.
       attachments.push(outcome('failed', err instanceof AttachmentFetchError ? err.code : 'fetch_failed'))
       continue

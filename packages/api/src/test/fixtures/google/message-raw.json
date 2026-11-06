@@ -28,9 +28,10 @@
           "UNREAD"
         ],
         "sizeEstimate": 6481,
+        "snippet": "Xxxxx Xxxxx, xxx xxxxxx xx xxxxxxxx.",
         "raw": {
-          "length": 5462,
-          "padding": 0,
+          "length": 5464,
+          "padding": 2,
           "alphabet_ok": true,
           "decoded_bytes": 4096
         },
@@ -41,7 +42,7 @@
   },
   "expect": {
     "result": {
-      "raw_length": 5462,
+      "raw_length": 5464,
       "decoded_bytes": 4096
     }
   }

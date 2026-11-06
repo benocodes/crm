@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AttachmentFetchError, type ChannelMessage } from '../port.js'
+import { AttachmentFetchError, ChannelThrottledError, type ChannelMessage } from '../port.js'
 import { FakeGmail } from '../../test/gmail.js'
 import { gmailFixture, MAILBOX } from '../../test/gmail-fixtures.js'
 import { GmailApiError } from './client.js'
@@ -67,7 +67,6 @@ describe('fetchAttachment', () => {
     [404, 'not_found'],
     [403, 'access_denied'],
     [401, 'access_denied'],
-    [429, 'rate_limited'],
     [500, 'http_500'],
   ])('a Gmail %i is an AttachmentFetchError with the short code %s and no provider text', async (status, code) => {
     const { gmail, channel, md } = await setup()
@@ -76,6 +75,14 @@ describe('fetchAttachment', () => {
     expect(err).toBeInstanceOf(AttachmentFetchError)
     expect((err as AttachmentFetchError).code).toBe(code)
     expect((err as AttachmentFetchError).message).toBe(code)
+  })
+
+  it('a 429 is not an attachment failure: it is a ChannelThrottledError carrying Retry-After ([[CHN5]] D83)', async () => {
+    const { gmail, channel, md } = await setup()
+    gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 429, retryAfter: '8', retryAfterSeconds: 8 }))
+    const err = await channel.fetchAttachment(CONN, md).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ChannelThrottledError)
+    expect((err as ChannelThrottledError).retryAfterSeconds).toBe(8)
   })
 
   it('a non-Gmail failure is fetch_failed', async () => {

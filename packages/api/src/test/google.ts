@@ -62,6 +62,7 @@ export class FakeGoogle {
   /** The clock ID tokens are stamped with (epoch ms); a test that injects the app's clock sets this to follow it. */
   clock: () => number = () => Date.now()
   private n = 0
+  private refreshCount = 0
 
   private constructor(
     readonly clientId: string,
@@ -177,7 +178,7 @@ export class FakeGoogle {
     return auth.startsWith('Bearer ') && this.accessTokens.includes(auth.slice(7))
   }
 
-  private refresh(form: URLSearchParams): Response {
+  private async refresh(form: URLSearchParams): Promise<Response> {
     this.refreshRequests.push(Object.fromEntries(form.entries()))
     if (this.refreshFailure === 'network') throw new TypeError('fetch failed')
     if (typeof this.refreshFailure === 'number') return this.json({ error: 'backend_error', error_description: 'secret provider text' }, this.refreshFailure)
@@ -193,13 +194,24 @@ export class FakeGoogle {
       this.refreshTokens.push(next)
       this.validRefresh.add(next)
     }
-    return this.json({ access_token: access, expires_in: 3599, scope: 'openid email https://www.googleapis.com/auth/gmail.readonly', token_type: 'Bearer', ...(next ? { refresh_token: next } : {}) })
+    // As the real run's refresh answered ([[CHN5]] D82 f): `scope` (its order varies between calls), `expires_in`, `token_type`, an `id_token`, and no `refresh_token` unless rotating.
+    const scopes = ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly']
+    const now = Math.floor(this.clock() / 1000)
+    const idToken = await new SignJWT({ azp: this.clientId, hd: 'vault.test', email: 'owner@vault.test', email_verified: true, at_hash: 'fake-at-hash', name: 'Fake Owner', given_name: 'Fake', family_name: 'Owner' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'fake-google-1' })
+      .setIssuer('https://accounts.google.com')
+      .setAudience(this.clientId)
+      .setSubject('fake-refresh-sub')
+      .setIssuedAt(now)
+      .setExpirationTime(now + 3600)
+      .sign(this.privateKey)
+    return this.json({ access_token: access, expires_in: 3599, scope: (this.refreshCount++ % 2 === 0 ? scopes : [...scopes].reverse()).join(' '), token_type: 'Bearer', id_token: idToken, ...(next ? { refresh_token: next } : {}) })
   }
 
   private async token(req: Request): Promise<Response> {
     if (this.tokenFailure !== null) return this.json({ error: 'invalid_request', error_description: 'secret provider text' }, this.tokenFailure)
     const form = new URLSearchParams(await req.text())
-    if (form.get('grant_type') === 'refresh_token') return this.refresh(form)
+    if (form.get('grant_type') === 'refresh_token') return await this.refresh(form)
     const grant = this.grants.get(form.get('code') ?? '')
     const bad = (error: string) => this.json({ error, error_description: 'secret provider text' }, 400)
     if (form.get('grant_type') !== 'authorization_code') return bad('unsupported_grant_type')

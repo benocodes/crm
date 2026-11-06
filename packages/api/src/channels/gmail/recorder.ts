@@ -96,17 +96,36 @@ function splitUnquoted(v: string): string[] {
   return parts
 }
 
-/** `Content-Type`, `Content-Disposition`, `Content-Transfer-Encoding`: the media type and parameter names stay, parameter values are masked (D79 rule 6). */
-function maskStructured(v: string): string {
+/** A media type kept in the clear: exactly `type/subtype`, each a token (RFC 6838 restricted-name characters). Anything else is masked ([[CHN5]] D85). */
+const MEDIA_TYPE = /^[A-Za-z0-9!#$&^_.+-]{1,127}\/[A-Za-z0-9!#$&^_.+-]{1,127}$/
+export const isMediaType = (s: string): boolean => MEDIA_TYPE.test(s)
+
+/**
+ * The parameter names of `Content-Type` and `Content-Disposition` that stay in the clear ([[CHN5]] D85; RFC 2045, 2183, 2231 and the mail parameters in common
+ * use). A sender chooses any other name, so any other name is masked by character class (its presence and length survive). A name is matched case-insensitively
+ * and may carry an RFC 2231 continuation or encoding suffix (`name*0`, `filename*`, `filename*1*`). Add a name here when a shape question needs it.
+ */
+const KNOWN_PARAMETERS = new Set(['boundary', 'charset', 'name', 'filename', 'format', 'delsp', 'type', 'start', 'protocol', 'micalg', 'size', 'creation-date', 'modification-date', 'read-date'])
+const knownParameter = (name: string): boolean => {
+  const m = /^\s*([A-Za-z-]{1,30})(\*\d{0,3}\*?)?\s*$/.exec(name)
+  return m !== null && KNOWN_PARAMETERS.has(m[1]!.toLowerCase())
+}
+
+/**
+ * `Content-Type`, `Content-Disposition`, `Content-Transfer-Encoding`: a well-formed media type stays (a `Content-Type` head that is not `type/subtype` is masked), a
+ * disposition or transfer-encoding token stays, parameter names stay only when known, and every parameter value is masked (D79 rule 6, D85).
+ */
+function maskStructured(v: string, header: string): string {
   const [head = '', ...params] = splitUnquoted(v)
-  const keptHead = /^\s*[A-Za-z0-9!#$&^_.+/-]{1,100}\s*$/.test(head) ? head : maskText(head)
+  const headOk = header === 'content-type' ? isMediaType(head.trim()) : /^\s*[A-Za-z0-9!#$&^_.+-]{1,100}\s*$/.test(head)
+  const keptHead = headOk ? head : maskText(head)
   return [
     keptHead,
     ...params.map((p) => {
       const i = p.indexOf('=')
       if (i < 0) return maskText(p)
       const name = p.slice(0, i)
-      const keptName = /^\s*[A-Za-z0-9*_.-]{1,40}\s*$/.test(name) ? name : maskText(name)
+      const keptName = knownParameter(name) ? name : maskText(name)
       return `${keptName}=${maskHeaderValue(p.slice(i + 1))}`
     }),
   ].join(';')
@@ -168,7 +187,7 @@ const ID_KEYS = new Set(['id', 'threadId', 'historyId', 'nextPageToken', 'attach
 const TOKEN_MEMBERS = new Set(['access_token', 'refresh_token', 'code'])
 /** Where a string value survives in the clear (D79 rule 6), by key path (array indexes omitted). The only such list: nothing else is ever written as is. */
 const ALLOWED_PATHS: RegExp[] = [
-  /^payload(\.parts)*\.(mimeType|partId)$/,
+  /^payload(\.parts)*\.partId$/, // `mimeType` is kept only when well formed (redactString, D85)
   /^sendAs\.verificationStatus$/, // a Google enum the parser reads ([[CHN153]] decision), not content
   /^(error|token_type|scope|error\.status)$/,
   /^error\.errors\.(reason|domain)$/,
@@ -214,7 +233,7 @@ function redactHeader(h: Json, ctx: RedactCtx, path: string[]): Json {
   const out: { [k: string]: Json } = {}
   for (const [k, v] of Object.entries(h)) {
     if (k === 'name' && typeof v === 'string') out[k] = /^[A-Za-z0-9-]{1,64}$/.test(v) ? v : maskText(v)
-    else if (k === 'value' && typeof v === 'string') out[k] = name !== null && STRUCTURED_HEADERS.has(name.toLowerCase()) ? maskStructured(v) : maskHeaderValue(v)
+    else if (k === 'value' && typeof v === 'string') out[k] = name !== null && STRUCTURED_HEADERS.has(name.toLowerCase()) ? maskStructured(v, name.toLowerCase()) : maskHeaderValue(v)
     else out[k] = redactValue(v, [...path, k], ctx)
   }
   return out
@@ -222,6 +241,8 @@ function redactHeader(h: Json, ctx: RedactCtx, path: string[]): Json {
 
 function redactString(key: string, path: string[], v: string, ctx: RedactCtx): Json {
   if (path.length === 1 && TOKEN_MEMBERS.has(key)) return '<redacted>'
+  // A part's media type is kept only when it is well formed ([[CHN5]] D85).
+  if (key === 'mimeType' && /^payload(\.parts)*\.mimeType$/.test(path.join('.'))) return isMediaType(v) ? v : maskText(v)
   if (path.length === 1 && key === 'id_token') return idTokenSummary(v)
   if ((key === 'raw' || key === 'data') && path.length >= 1) return { ...(v.startsWith(SENTINEL) ? parseSentinel(v) : summarizeBase64(v)) }
   if (ID_KEYS.has(key)) return ctx.pseudo.of(v)

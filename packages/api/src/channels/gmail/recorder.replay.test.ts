@@ -116,3 +116,38 @@ describe('recorded files (D86)', () => {
   })
 })
 
+// [[CHN5]] D86 ([[CHN153b]]): the synthetic files are aligned to the recorded ones. For every observed kind the key-path set of the synthetic response equals the
+// recorded one, apart from members that only the synthetic file carries because it covers a shape the real run did not reach (each with its reason).
+type J = null | boolean | number | string | J[] | { [k: string]: J }
+const keyPaths = (v: J, at = ''): string[] => (Array.isArray(v) ? v.flatMap((e) => keyPaths(e, `${at}[]`)) : v !== null && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => keyPaths(x, `${at}.${k}`)) : [at])
+const pathSet = (name: string): string[] => [...new Set(keyPaths(load(`${name}.json`).recording.response.body as J))].sort()
+const ONLY_SYNTHETIC: Record<string, string[]> = {
+  // The synthetic message carries an attachment part (D51, #160: not observed) and an RFC 2047 subject; the real sample had two text parts.
+  'message-full': ['.payload.parts[].body.attachmentId'],
+  // The synthetic page also has a labels-only record and a record with no messagesAdded (the kinds capture ignores, D6); the real page had only messagesAdded records.
+  'history-list': ['.history[].labelsAdded[].labelIds[]', '.history[].labelsAdded[].message.id', '.history[].labelsAdded[].message.threadId', '.nextPageToken'],
+  // The real refresh's id_token summary is the same, so nothing is listed for the token.
+}
+describe('synthetic and recorded files agree (D86)', () => {
+  const pairs: Array<[string, string]> = [
+    ['recorded-token-refresh-200', 'token-refresh-ok'],
+    ['recorded-messages-list-200', 'messages-list'],
+    ['recorded-message-full-inbox-200', 'message-full'],
+    ['recorded-message-full-sent-200', 'message-full'],
+    ['recorded-message-raw-200', 'message-raw'],
+    ['recorded-attachment-get-200', 'attachment'],
+    ['recorded-history-list-200', 'history-list'],
+    ['recorded-messages-list-403', 'messages-list-403'],
+    ['recorded-message-full-403', 'messages-list-403'],
+    ['recorded-message-raw-403', 'messages-list-403'],
+  ]
+  for (const [rec, syn] of pairs) {
+    it(`${syn} has the key paths of ${rec}`, () => {
+      const extra = ONLY_SYNTHETIC[syn] ?? []
+      const want = pathSet(rec)
+      const have = pathSet(syn).filter((p) => !extra.includes(p))
+      expect({ missing: want.filter((p) => !have.includes(p)), extra: have.filter((p) => !want.includes(p)) }).toEqual({ missing: [], extra: [] })
+    })
+  }
+})
+

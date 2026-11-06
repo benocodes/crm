@@ -7,8 +7,8 @@ import type { GmailHistoryPage, GmailMessageList, GmailMessagePart, GmailMessage
 
 const enc = new TextEncoder()
 
-/** base64url without padding. The slice length is a multiple of 3 so the pieces concatenate. */
-export function toBase64Url(bytes: Uint8Array): string {
+/** base64url, padded with `=` as Google pads every base64url member ([[CHN5]] D82 d). The slice length is a multiple of 3 so the pieces concatenate. */
+export function toBase64Url(bytes: Uint8Array, pad = true): string {
   let out = ''
   const SLICE = 3 * 8192
   for (let at = 0; at < bytes.byteLength; at += SLICE) {
@@ -16,7 +16,8 @@ export function toBase64Url(bytes: Uint8Array): string {
     for (const b of bytes.subarray(at, at + SLICE)) bin += String.fromCharCode(b)
     out += btoa(bin)
   }
-  return out.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  const url = out.replace(/\+/g, '-').replace(/\//g, '_')
+  return pad ? url : url.replace(/=+$/, '')
 }
 
 export interface PartSpec {
@@ -114,6 +115,34 @@ export function buildGmailMessage(spec: MessageSpec): BuiltGmailMessage {
   return { resource, rfc822, attachments }
 }
 
+/**
+ * Gmail's error body for a scripted failure. The per-minute quota `403` is served as Google sent it to the real run ([[CHN5]] D82 g): `PERMISSION_DENIED`,
+ * `errors[].reason: rateLimitExceeded` in domain `usageLimits`, and the `details[]` entries, with no `Retry-After` unless the failure carries one.
+ */
+export function errorBody(err: GmailApiError): Record<string, unknown> {
+  if (err.status === 403 && err.reason === 'rateLimitExceeded') {
+    const message = "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com' for consumer 'project_number:000000000000'."
+    return {
+      error: {
+        code: 403,
+        message,
+        errors: [{ message, domain: 'usageLimits', reason: 'rateLimitExceeded' }],
+        status: 'PERMISSION_DENIED',
+        details: [
+          {
+            '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+            reason: 'RATE_LIMIT_EXCEEDED',
+            domain: 'googleapis.com',
+            metadata: { consumer: 'projects/000000000000', quota_limit_value: '1500', quota_unit: '1/min/{project}/{user}', quota_metric: 'gmail.googleapis.com/quota_total_query_cost', window_start_time: '1791363743', quota_location: 'global', service: 'gmail.googleapis.com', quota_limit: 'TotalQueryCostPerMinutePerUser' },
+          },
+          { '@type': 'type.googleapis.com/google.rpc.Help', links: [{ description: 'Request a higher quota limit.', url: 'https://cloud.google.com/docs/quota#requesting_higher_quota' }] },
+        ],
+      },
+    }
+  }
+  return { error: { code: err.status, status: err.gmailStatus, ...(err.reason ? { errors: [{ reason: err.reason }] } : {}) } }
+}
+
 const wireOf = (members: Array<[string, unknown]>): Uint8Array => enc.encode(`{${members.map(([k, v]) => `${JSON.stringify(k)}:${JSON.stringify(v)}`).join(',')}}`)
 
 /** Gmail's `format=raw` body: a message resource whose `snippet` is hostile to a naive scanner, then the base64url `raw` member. */
@@ -149,10 +178,13 @@ export function chunkedStream(bytes: Uint8Array, size: number | ((index: number)
 /** `messageId` is '' for the two list calls, which carry `startHistoryId` / `q` and `pageToken` instead. */
 export type FakeGmailCall = { op: 'full' | 'raw' | 'attachment' | 'history' | 'list'; messageId: string; attachmentId?: string; startHistoryId?: string; q?: string; pageToken?: string | null }
 
-/** One scripted history record ([[CHN5]] D72). `added` entries carry labels as Gmail sends them on the record; `labels: undefined` omits `labelIds`. */
+/**
+ * One scripted history record ([[CHN5]] D72, D82). `added` entries carry `labelIds` as Gmail sends them on the record (every real record did): the listed `labels`,
+ * else the message's own labels, else `INBOX`. `labels: null` serves the labelless form (D73's fallback), and only on request.
+ */
 export interface FakeHistoryRecord {
   id: string
-  added?: Array<{ id: string; labels?: string[] }>
+  added?: Array<{ id: string; labels?: string[] | null }>
   /** Records of the kinds capture ignores ([[CHN5]] D6). */
   labelsAdded?: Array<{ id: string; labelIds: string[] }>
   deleted?: string[]
@@ -219,11 +251,12 @@ export class FakeGmail implements GmailClient {
     const at = pageToken ? Number(pageToken.replace(/^h/, '')) : 0
     const slice = all.slice(at, at + maxResults)
     const wire = (r: FakeHistoryRecord) => {
-      const msg = (id: string, labels?: string[]) => ({ id, threadId: this.messages.get(id)?.resource.threadId ?? `t-${id}`, ...(labels ? { labelIds: labels } : {}) })
+      const msg = (id: string, labels?: string[] | null) => ({ id, threadId: this.messages.get(id)?.resource.threadId ?? `t-${id}`, ...(labels ? { labelIds: labels } : {}) })
+      const labelsOf = (a: { id: string; labels?: string[] | null }): string[] | null => (a.labels === null ? null : (a.labels ?? this.messages.get(a.id)?.resource.labelIds ?? ['INBOX']))
       return {
         id: r.id,
         messages: [...(r.added ?? []).map((a) => msg(a.id))],
-        ...((r.added?.length ?? 0) > 0 ? { messagesAdded: r.added!.map((a) => ({ message: msg(a.id, a.labels) })) } : {}),
+        ...((r.added?.length ?? 0) > 0 ? { messagesAdded: r.added!.map((a) => ({ message: msg(a.id, labelsOf(a)) })) } : {}),
         ...(r.deleted?.length ? { messagesDeleted: r.deleted.map((id) => ({ message: msg(id) })) } : {}),
         ...(r.labelsAdded?.length ? { labelsAdded: r.labelsAdded.map((l) => ({ message: msg(l.id), labelIds: l.labelIds })) } : {}),
       }
@@ -297,7 +330,7 @@ export class FakeGmail implements GmailClient {
       }
       return json({ error: { code: 404, status: 'NOT_FOUND' } }, 404)
     } catch (err) {
-      if (err instanceof GmailApiError) return json({ error: { code: err.status, status: err.gmailStatus, ...(err.reason ? { errors: [{ reason: err.reason }] } : {}) } }, err.status, err.retryAfter ? { 'retry-after': err.retryAfter } : {})
+      if (err instanceof GmailApiError) return json(errorBody(err), err.status, err.retryAfter ? { 'retry-after': err.retryAfter } : {})
       throw err
     }
   }

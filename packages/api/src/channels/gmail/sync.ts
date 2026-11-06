@@ -13,7 +13,8 @@ import { ScopeSet } from '../../scopes.js'
 import { afterOf, selectRecord, toRecord } from '../../storage/crud.js'
 import type { PreparedEnv } from '../../storage/definition.js'
 import { GoogleRefreshError } from '../../connections/google.js'
-import { GmailApiError, HttpGmailClient, type GmailClient } from './client.js'
+import { ChannelThrottledError } from '../port.js'
+import { GmailApiError, HttpGmailClient, isGmailThrottle, type GmailClient } from './client.js'
 import { GmailChannel } from './channel.js'
 import type { GmailConnection } from './mapper.js'
 import { capturesLabels } from './labels.js'
@@ -35,7 +36,8 @@ export interface GmailSyncDeps {
   clientFor?: (accessToken: () => Promise<string>) => GmailClient
 }
 
-export type Outcome = { outcome: 'reauth' } | { outcome: 'throttled'; retry_after_seconds: number } | { outcome: 'expired' } | { outcome: 'inactive' }
+/** `retry_after_seconds` is Google's `Retry-After` when it sent one, else null (the run's backoff then grows, [[CHN5]] D84). */
+export type Outcome = { outcome: 'reauth' } | { outcome: 'throttled'; retry_after_seconds: number | null } | { outcome: 'expired' } | { outcome: 'inactive' }
 export interface PageDone {
   outcome: 'page'
   next_page_token: string | null
@@ -63,9 +65,7 @@ export interface SyncState {
 }
 
 const PAGE_SIZE = 25
-const DEFAULT_RETRY_SECONDS = 30
 const DAY_MS = 86_400_000
-const RATE_REASONS = ['rateLimitExceeded', 'userRateLimitExceeded']
 
 /** Raised inside a history page when Gmail no longer holds the cursor's start id; becomes the `expired` outcome. */
 class Expired extends Error {}
@@ -223,9 +223,9 @@ async function withPage<T extends PageResult | ScanStart>(deps: GmailSyncDeps, c
       return { outcome: 'reauth' }
     }
     if (err instanceof Expired) return { outcome: 'expired' }
-    if (err instanceof GmailApiError && (err.status === 429 || (err.status === 403 && err.reason !== null && RATE_REASONS.includes(err.reason)))) {
-      return { outcome: 'throttled', retry_after_seconds: err.retryAfterSeconds ?? DEFAULT_RETRY_SECONDS }
-    }
+    // A throttle from any call of the page, an attachment get included ([[CHN5]] D16, D83).
+    if (isGmailThrottle(err)) return { outcome: 'throttled', retry_after_seconds: err.retryAfterSeconds }
+    if (err instanceof ChannelThrottledError) return { outcome: 'throttled', retry_after_seconds: err.retryAfterSeconds }
     throw err
   }
 }

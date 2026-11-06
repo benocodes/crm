@@ -649,7 +649,7 @@ describe('a quota 403 is a throttle on every call kind the page makes (D83)', ()
     expect(again).toMatchObject({ captured: 1 })
     const rows = await e.rows('message_attachments')
     expect(rows.map((a) => [a.fetch_status, a.fetch_error])).toEqual([['stored', null]])
-    expect(calls(s.gmail, 'attachment')).toHaveLength(2)
+    expect(calls(s.gmail, 'attachment')).toHaveLength(1) // the first request was answered by the override, before the fake
   })
 
   it('a 429 on an attachment is a throttle too, and its Retry-After is carried', async () => {

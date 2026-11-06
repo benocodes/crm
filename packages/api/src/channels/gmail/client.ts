@@ -41,6 +41,10 @@ export class GmailApiError extends Error {
   }
 }
 
+const RATE_REASONS = ['rateLimitExceeded', 'userRateLimitExceeded']
+/** A `429`, or a `403` whose reason is a rate one (Gmail sends the per-minute quota as a `403`, [[CHN5]] D16, D82 g): a throttle, whatever call it came from. */
+export const isGmailThrottle = (err: unknown): err is GmailApiError => err instanceof GmailApiError && (err.status === 429 || (err.status === 403 && err.reason !== null && RATE_REASONS.includes(err.reason)))
+
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
 const obj = (v: unknown): Record<string, unknown> => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
