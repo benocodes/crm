@@ -1,7 +1,7 @@
 // Test-only ([[CHN5]] D47 spirit, CHN140). A fake Google for the connect flow: the consent screen, the token endpoint, Google's JWKS
 // and the two Gmail account endpoints, behind one injectable `fetch`. It mints ID tokens with a local key pair, so the vault's real
 // verifier runs. Web APIs and `jose` only: the workerd smoke bundles this file. Not in the production barrel.
-import { SignJWT, exportJWK, generateKeyPair, type JWK } from 'jose'
+import { SignJWT, exportJWK, generateKeyPair, type JWK, type JWTPayload } from 'jose'
 
 export const FAKE_GOOGLE_ORIGIN = 'https://fake-google.test'
 export const FAKE_ENDPOINTS = {
@@ -63,6 +63,13 @@ export class FakeGoogle {
   clock: () => number = () => Date.now()
   private n = 0
   private refreshCount = 0
+  /** Watch and stop calls ([[CHN155]]): the bearer token and the JSON body Google would have parsed. */
+  readonly watchRequests: Array<{ token: string; body: Record<string, unknown> }> = []
+  readonly stopRequests: Array<{ token: string }> = []
+  private watchFailure: { status: number; reason?: string; forRefreshToken?: string } | null = null
+  private stopFailure: number | null = null
+  /** The refresh token each access token was minted from (a per-connection failure keys on it). */
+  private readonly accessToRefresh = new Map<string, string>()
 
   private constructor(
     readonly clientId: string,
@@ -103,6 +110,18 @@ export class FakeGoogle {
   /** True for an access token this fake issued. */
   isAccessToken(t: string): boolean {
     return this.accessTokens.includes(t)
+  }
+  /** `users.watch` answers this status (with `reason` as `errors[].reason`) from now on; null restores. */
+  failWatch(f: { status: number; reason?: string; forRefreshToken?: string } | null): void {
+    this.watchFailure = f
+  }
+  /** `users.stop` answers this status from now on; null restores. */
+  failStop(status: number | null): void {
+    this.stopFailure = status
+  }
+  /** A token signed with this fake's Google key, as Google signs an ID or a push token. `header` overrides the protected header (alg, kid). */
+  async signToken(payload: JWTPayload, header: { alg?: string; kid?: string } = {}): Promise<string> {
+    return await new SignJWT(payload).setProtectedHeader({ alg: 'RS256', kid: 'fake-google-1', ...header } as never).sign(this.privateKey)
   }
   /** The account whose Gmail endpoints answer (set by `consent`). */
   signedInAs(account: FakeAccount): void {
@@ -164,6 +183,19 @@ export class FakeGoogle {
       if (!this.bearerOk(req)) return this.json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
       return this.json({ emailAddress: this.account!.email, messagesTotal: 10, threadsTotal: 5, historyId: this.account!.historyId ?? '1000' })
     }
+    if (url.pathname === '/gmail/v1/users/me/watch' && req.method === 'POST') {
+      if (!this.bearerOk(req)) return this.json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
+      this.watchRequests.push({ token: (req.headers.get('authorization') ?? '').slice(7), body: JSON.parse((await req.text()) || '{}') as Record<string, unknown> })
+      const bearer = (req.headers.get('authorization') ?? '').slice(7)
+      if (this.watchFailure && (this.watchFailure.forRefreshToken === undefined || this.accessToRefresh.get(bearer) === this.watchFailure.forRefreshToken)) return this.json({ error: { code: this.watchFailure.status, status: 'PERMISSION_DENIED', ...(this.watchFailure.reason ? { errors: [{ reason: this.watchFailure.reason }] } : {}) } }, this.watchFailure.status)
+      return this.json({ historyId: this.account?.historyId ?? '1000', expiration: String(this.clock() + 7 * 86_400_000) })
+    }
+    if (url.pathname === '/gmail/v1/users/me/stop' && req.method === 'POST') {
+      if (!this.bearerOk(req)) return this.json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
+      this.stopRequests.push({ token: (req.headers.get('authorization') ?? '').slice(7) })
+      if (this.stopFailure !== null) return this.json({ error: { code: this.stopFailure, status: 'INTERNAL' } }, this.stopFailure)
+      return new Response(null, { status: 204 })
+    }
     if (url.pathname === '/gmail/v1/users/me/settings/sendAs') {
       if (!this.bearerOk(req)) return this.json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
       const a = this.account!
@@ -188,6 +220,7 @@ export class FakeGoogle {
     if (!this.validRefresh.has(rt) || this.revoked.has(rt)) return bad('invalid_grant')
     const access = `at-${crypto.randomUUID()}`
     this.accessTokens.push(access)
+    this.accessToRefresh.set(access, rt)
     let next: string | null = null
     if (this.rotate) {
       next = `rt-${crypto.randomUUID()}`

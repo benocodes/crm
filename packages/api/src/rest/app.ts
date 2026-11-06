@@ -11,7 +11,8 @@ import { createProfileCache, createWorkspaceAuthenticator, workspaceRole } from 
 import { SCOPE_POLICY, type Role, type ScopePolicy } from '../auth/roles.js'
 import { googleCallbackHandler } from '../connections/callback.js'
 import type { MailSyncInstances } from '../sync/request.js'
-import { gmailConfigNotice, gmailUnconfigured, type GmailConfig } from '../connections/config.js'
+import { gmailConfigNotice, gmailUnconfigured, type GmailConfig, type PushConfig } from '../connections/config.js'
+import { PUSH_PATH, gmailPushHandler } from '../channels/gmail/push.js'
 import { CALLBACK_PATH } from '../connections/operations.js'
 import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js'
 import { clerkWebhookHandler } from '../directory/webhook.js'
@@ -45,6 +46,10 @@ export interface GmailAppOptions {
   policy?: ScopePolicy
   /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured` and the callback requests no sync. */
   instances?: MailSyncInstances
+  /** Push configuration from `parsePushConfig` ([[CHN5]] D87). Push is on only when this is set AND `config` and `instances` are too; otherwise `POST /gmail/push` answers 404 and no watch is registered. */
+  push?: PushConfig | null
+  /** The variables `parsePushConfig` found missing or malformed (names only), logged at startup. */
+  pushProblems?: readonly string[]
 }
 export type AppEnv = { Variables: { principal: Principal; storage: StorageBinding } }
 export interface AppOptions {
@@ -189,9 +194,12 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     throw new Error('createApp: pass only one of authAdapter, userAuthenticator and workspace')
   }
   const gmail = options.gmail
-  const registry = options.registry ?? createVaultRegistry({ connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}) } })
+  const push: PushConfig | null = gmail?.config && gmail.instances && gmail.push ? gmail.push : null
+  const registry = options.registry ?? createVaultRegistry({ connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}), push, ...(gmail?.fetch ? { fetch: gmail.fetch } : {}), ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}) } })
   // [[CHN5]] D58: a partial configuration is a startup log line naming what is wrong; nothing configured at all is simply "off".
   if (gmail?.problems && gmail.problems.length > 0 && !gmailUnconfigured(gmail.problems)) console.warn(gmailConfigNotice(gmail.problems))
+  if (gmail?.pushProblems && gmail.pushProblems.length > 0) console.warn(`[gmail] push is off: set or fix ${gmail.pushProblems.join(', ')}`)
+  else if (gmail?.push && !push) console.warn(`[gmail] push is off: ${gmail.config ? 'the MAIL_SYNC binding is missing' : 'Gmail is not configured'}`)
   const profiles = options.workspace?.adapter ? createProfileCache(options.workspace.adapter) : null
   const userAuthenticator =
     options.userAuthenticator ??
@@ -291,12 +299,19 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
           : null),
       policy: gmail?.policy ?? SCOPE_POLICY,
       ...(gmail?.instances ? { instances: gmail.instances } : {}),
+      push,
       declaredScopes: registry.declaredScopes(),
       storage: options.storage,
       clock: options.clock,
       newId: options.newId,
       randomBytes: options.randomBytes,
     }),
+  )
+
+  // [[CHN5]] D15, D87: Pub/Sub's push. A plain route at the root: its credential is the OIDC bearer token, checked first.
+  app.post(
+    PUSH_PATH,
+    gmailPushHandler({ push, fetch: gmail?.fetch ?? ((input, init) => fetch(input, init)), ...(gmail?.instances ? { instances: gmail.instances } : {}), storage: options.storage, clock: options.clock, newId: options.newId }),
   )
 
   // Plain route, not an operation: the Svix signature is its only credential, and it is not documented.

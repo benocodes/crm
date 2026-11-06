@@ -86,3 +86,21 @@ export function gmailConfigNotice(problems: readonly string[]): string {
 
 /** True when none of the required values is set at all: Gmail is simply off, which is not worth a log line. */
 export const gmailUnconfigured = (problems: readonly string[]): boolean => REQUIRED.every((name) => problems.includes(name))
+
+/** What push needs beyond Gmail itself ([[CHN5]] D87). */
+export interface PushConfig {
+  topicName: string
+  subscription: string
+  /** Lowercase. */
+  serviceAccount: string
+  /** `PUBLIC_BASE_URL` without a trailing slash. */
+  publicBaseUrl: string
+  /** The OIDC `aud` Pub/Sub puts in its token: `<publicBaseUrl>/gmail/push`. */
+  audience: string
+}
+export const PUSH_VARS = ['GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'PUBLIC_BASE_URL'] as const
+
+/** Not implemented yet. */
+export function parsePushConfig(_env: Record<string, string | undefined>): { config: PushConfig | null; configured: boolean; problems: string[] } {
+  return { config: null, configured: false, problems: [] }
+}

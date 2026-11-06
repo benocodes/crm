@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gmailConfigNotice, parseGmailConfig } from './config.js'
+import { gmailConfigNotice, parseGmailConfig, parsePushConfig } from './config.js'
 
 // CHN140 D58: the Gmail surface is configured when the four required values are set and the key decodes to 32 bytes.
 const KEY = Buffer.alloc(32, 7).toString('base64')
@@ -78,5 +78,54 @@ describe('GMAIL_BACKFILL_DAYS and ATTACHMENT_MAX_BYTES (D71)', () => {
   })
   it('the largest accepted value has nine digits', () => {
     expect(parseGmailConfig({ ...FULL, GMAIL_BACKFILL_DAYS: '999999999' }).config?.backfillDays).toBe(999999999)
+  })
+})
+
+// [[CHN155]] / [[CHN5]] D87: push is judged by one parser, shared with `setup:remote`.
+const PUSH = { GMAIL_TOPIC_NAME: 'projects/p/topics/t', GMAIL_PUSH_SUBSCRIPTION: 'projects/p/subscriptions/s', GMAIL_PUSH_SERVICE_ACCOUNT: 'Push@p.iam.gserviceaccount.com', PUBLIC_BASE_URL: 'https://api.example.test/' }
+describe('parsePushConfig (D87)', () => {
+  it('reads the four values: the service account lowercased, the base URL without a trailing slash, the audience the endpoint', () => {
+    const { config, problems, configured } = parsePushConfig(PUSH)
+    expect(problems).toEqual([])
+    expect(configured).toBe(true)
+    expect(config).toEqual({ topicName: 'projects/p/topics/t', subscription: 'projects/p/subscriptions/s', serviceAccount: 'push@p.iam.gserviceaccount.com', publicBaseUrl: 'https://api.example.test', audience: 'https://api.example.test/gmail/push' })
+  })
+  it('nothing set is off without a problem (push simply is not configured)', () => {
+    expect(parsePushConfig({})).toEqual({ config: null, configured: false, problems: [] })
+    expect(parsePushConfig({ PUBLIC_BASE_URL: 'https://api.example.test' })).toEqual({ config: null, configured: false, problems: [] })
+  })
+  it.each(Object.keys(PUSH))('without %s the set is partial: off, and the problem names only that variable', (name) => {
+    const env: Record<string, string | undefined> = { ...PUSH }
+    delete env[name]
+    const out = parsePushConfig(env)
+    expect(out.config).toBeNull()
+    expect(out.configured).toBe(true)
+    expect(out.problems).toEqual([name])
+  })
+  it.each([
+    ['GMAIL_TOPIC_NAME', 'topics/t'],
+    ['GMAIL_TOPIC_NAME', 'projects/p/subscriptions/t'],
+    ['GMAIL_TOPIC_NAME', 'projects/p/topics/t/extra'],
+    ['GMAIL_PUSH_SUBSCRIPTION', 'projects/p/topics/s'],
+    ['GMAIL_PUSH_SUBSCRIPTION', 'subscriptions/s'],
+    ['GMAIL_PUSH_SERVICE_ACCOUNT', 'not-an-email'],
+    ['GMAIL_PUSH_SERVICE_ACCOUNT', 'a b@c.d'],
+    ['PUBLIC_BASE_URL', 'http://api.example.test'],
+    ['PUBLIC_BASE_URL', 'api.example.test'],
+    ['PUBLIC_BASE_URL', 'https://api.example.test/base?x=1'],
+    ['PUBLIC_BASE_URL', 'https://api.example.test/#frag'],
+    ['PUBLIC_BASE_URL', 'ftp://api.example.test'],
+  ])('%s = %j is malformed: the problem names it, never the value', (name, value) => {
+    const out = parsePushConfig({ ...PUSH, [name]: value })
+    expect(out.config).toBeNull()
+    expect(out.problems).toEqual([name])
+    expect(JSON.stringify(out)).not.toContain(value)
+  })
+  it('http://localhost is accepted for local development, with or without a port', () => {
+    expect(parsePushConfig({ ...PUSH, PUBLIC_BASE_URL: 'http://localhost:8787' }).config?.audience).toBe('http://localhost:8787/gmail/push')
+    expect(parsePushConfig({ ...PUSH, PUBLIC_BASE_URL: 'http://localhost' }).problems).toEqual([])
+  })
+  it('a blank value counts as missing', () => {
+    expect(parsePushConfig({ ...PUSH, GMAIL_TOPIC_NAME: '  ' }).problems).toEqual(['GMAIL_TOPIC_NAME'])
   })
 })

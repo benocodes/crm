@@ -368,7 +368,7 @@ export class BodyScanner {
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 // One exchange
 
-export type CallKind = 'token_refresh' | 'token_exchange' | 'token_other' | 'profile' | 'send_as' | 'history_list' | 'messages_list' | 'message_full' | 'message_raw' | 'attachment_get' | 'other'
+export type CallKind = 'token_refresh' | 'token_exchange' | 'token_other' | 'profile' | 'send_as' | 'history_list' | 'messages_list' | 'message_full' | 'message_raw' | 'attachment_get' | 'watch' | 'stop' | 'other'
 
 /** What a recording file holds: the request's shape and the response's, redacted. `source` marks it for the replay (D80). */
 export interface RecordedExchange {

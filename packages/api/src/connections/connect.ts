@@ -26,6 +26,8 @@ export interface ConnectInput {
   key_version: number
   /** The profile's history id: the cursor a new connection starts from (a reconnect keeps its own). */
   history_id: string
+  /** The watch's `expiration` as an ISO timestamp ([[CHN5]] D89): when set, the unit upserts the connection's `gmail_watches` row. */
+  watch_expires_at?: string
 }
 export interface ConnectResult {
   connection_id: string

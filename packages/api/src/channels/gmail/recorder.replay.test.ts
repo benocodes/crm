@@ -27,9 +27,9 @@ describe('synthetic recordings', () => {
   it('cover every call kind the vault makes, an empty page of each list, and the two failures', () => {
     const fixtures = files.map(load)
     const kinds = new Set<string>(fixtures.map((f) => f.recording.kind))
-    for (const k of ['token_refresh', 'token_exchange', 'profile', 'send_as', 'history_list', 'messages_list', 'message_full', 'message_raw', 'attachment_get']) expect(kinds.has(k)).toBe(true)
+    for (const k of ['token_refresh', 'token_exchange', 'profile', 'send_as', 'history_list', 'messages_list', 'message_full', 'message_raw', 'attachment_get', 'watch', 'stop']) expect(kinds.has(k)).toBe(true)
     const names = new Set(fixtures.map((f) => f.name))
-    for (const n of ['history-list-empty', 'messages-list-empty', 'history-list-404', 'token-refresh-invalid-grant']) expect(names.has(n)).toBe(true)
+    for (const n of ['history-list-empty', 'messages-list-empty', 'history-list-404', 'token-refresh-invalid-grant', 'watch-403']) expect(names.has(n)).toBe(true)
     expect(fixtures.every((f) => f.recording.source === 'synthetic' || f.recording.source === 'recorded')).toBe(true)
   })
   it('the committed files are exactly what the recorder makes from the documented shapes (the generator is not stale)', async () => {

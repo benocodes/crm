@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import type { TenantOperation } from '../registry.js'
-import type { GmailConfig } from './config.js'
+import type { GmailConfig, PushConfig } from './config.js'
 import { GOOGLE_ENDPOINTS, buildAuthorizeUrl, type GoogleEndpoints } from './google.js'
 import { pkceChallenge, pkceVerifier, signState } from './state.js'
 import { instanceId, type MailSyncInstances } from '../sync/request.js'
@@ -13,6 +13,11 @@ export interface ConnectionsRuntime {
   endpoints?: GoogleEndpoints
   /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured`. */
   instances?: MailSyncInstances
+  /** The effective push configuration ([[CHN5]] D87): null when push is off. `connections.delete` stops the watch only when it is set. */
+  push?: PushConfig | null
+  /** The `fetch` and Gmail base of the stop call, as the rest of the surface. */
+  fetch?: typeof fetch
+  gmailBaseUrl?: string
 }
 
 /** [[CHN5]] D9: the state outlives the person's visit to Google's consent screen by ten minutes. */

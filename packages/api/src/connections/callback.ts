@@ -10,7 +10,7 @@ import { normalizeIdentityValue } from '../identity/normalize.js'
 import { ScopeSet } from '../scopes.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import { connectOperation } from './connect.js'
-import type { GmailConfig } from './config.js'
+import type { GmailConfig, PushConfig } from './config.js'
 import { sealToken } from './credentials.js'
 import { GMAIL_READONLY, GoogleExchangeError, exchangeCode, verifyIdToken, type GoogleEndpoints } from './google.js'
 import { redirectUriOf } from './operations.js'
@@ -45,6 +45,8 @@ export interface CallbackDeps {
   declaredScopes: readonly string[]
   /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D55, D75). Absent: the connection is committed and no sync is requested. */
   instances?: MailSyncInstances
+  /** The effective push configuration ([[CHN5]] D87): when set, the callback registers the watch. */
+  push?: PushConfig | null
   storage: (c: Context) => StorageBinding
   clock?: () => Date
   newId?: () => string

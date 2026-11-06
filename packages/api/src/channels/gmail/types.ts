@@ -38,6 +38,12 @@ export interface GmailSendAs {
   treatAsAlias?: boolean
 }
 
+/** `users.watch`'s answer ([[CHN5]] D89): both are strings; `expiration` is epoch milliseconds. */
+export interface GmailWatch {
+  historyId: string
+  expiration: string
+}
+
 export interface GmailMessageResource {
   id: string
   threadId: string

@@ -3,6 +3,7 @@
 // a log line, a result, a diff or a message. No network, no remote call.
 import { readFileSync } from 'node:fs'
 import { parse } from 'jsonc-parser'
+import { parsePushConfig } from '@vault/api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { reconcileEnvBlock } from './config-editor.js'
@@ -177,6 +178,39 @@ describe('validation: each rule refuses its bad case, by variable name, before a
   it('an unset optional var is not an error', async () => {
     const { w } = setup(without('GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'CONNECT_RETURN_URL', 'GMAIL_BACKFILL_DAYS'))
     expect((await runSetup([...NONE, '--only', 'config:write', '--dry-run'], {}, w.deps)).exitCode).toBe(0)
+  })
+})
+
+// [[CHN155]] / [[CHN5]] D87, D71's rule: the four push values are judged by the Worker's own parser, so setup can never accept what the Worker rejects.
+// (Setup is stricter in one place the Worker is not: a remote PUBLIC_BASE_URL is https, never http://localhost.)
+describe('push values: setup and the Worker see the same verdict (one parser)', () => {
+  const GOOD = { GMAIL_TOPIC_NAME: FULL.GMAIL_TOPIC_NAME!, GMAIL_PUSH_SUBSCRIPTION: FULL.GMAIL_PUSH_SUBSCRIPTION!, GMAIL_PUSH_SERVICE_ACCOUNT: FULL.GMAIL_PUSH_SERVICE_ACCOUNT!, PUBLIC_BASE_URL: FULL.PUBLIC_BASE_URL! }
+  const pairs: Array<[keyof typeof GOOD, string]> = [
+    ['GMAIL_TOPIC_NAME', 'projects/p/topics/t'],
+    ['GMAIL_TOPIC_NAME', 'projects/p/topics/gmail.watch'],
+    ['GMAIL_TOPIC_NAME', 'projects/p/topics/t/extra'],
+    ['GMAIL_TOPIC_NAME', 'topics/t'],
+    ['GMAIL_TOPIC_NAME', 'projects/p/subscriptions/t'],
+    ['GMAIL_PUSH_SUBSCRIPTION', 'projects/p/subscriptions/s'],
+    ['GMAIL_PUSH_SUBSCRIPTION', 'projects/p/topics/s'],
+    ['GMAIL_PUSH_SUBSCRIPTION', 'projects/p/subscriptions/s/extra'],
+    ['GMAIL_PUSH_SERVICE_ACCOUNT', 'push@p.iam.gserviceaccount.com'],
+    ['GMAIL_PUSH_SERVICE_ACCOUNT', 'Push@P.iam.gserviceaccount.com'],
+    ['GMAIL_PUSH_SERVICE_ACCOUNT', 'not-an-email'],
+    ['GMAIL_PUSH_SERVICE_ACCOUNT', 'a b@c.d'],
+    ['PUBLIC_BASE_URL', 'https://api.example.test'],
+    ['PUBLIC_BASE_URL', 'https://api.example.test/'],
+    ['PUBLIC_BASE_URL', 'https://api.example.test/base'],
+    ['PUBLIC_BASE_URL', 'https://api.example.test/?x=1'],
+    ['PUBLIC_BASE_URL', 'http://api.example.test'],
+    ['PUBLIC_BASE_URL', 'api.example.test'],
+  ]
+  it.each(pairs)('%s = %s', async (name, value) => {
+    const { w } = setup({ ...FULL, [name]: value })
+    const o = await runSetup([...NONE, ...STEPS_ONLY, '--dry-run'], {}, w.deps)
+    const setupRefuses = o.exitCode !== 0 && w.logs.join('\n').includes(name)
+    const workerRefuses = parsePushConfig({ ...GOOD, [name]: value }).problems.includes(name)
+    expect(setupRefuses).toBe(workerRefuses)
   })
 })
 

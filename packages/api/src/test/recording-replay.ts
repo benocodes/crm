@@ -71,6 +71,13 @@ export async function replay(fx: RecordingFixture): Promise<{ result: unknown } 
       }
       case 'profile':
         return { result: await client.getProfile() }
+      case 'watch': {
+        const w = await client.watch({ topicName: 'projects/p/topics/t' })
+        return { result: { historyId: w.historyId, expiration: w.expiration } }
+      }
+      case 'stop':
+        await client.stop()
+        return { result: { stopped: true } }
       case 'send_as':
         return { result: await client.listSendAs() }
       case 'history_list':

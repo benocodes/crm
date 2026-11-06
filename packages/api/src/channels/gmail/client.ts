@@ -1,6 +1,6 @@
 // `GmailClient` ([[CHN5]] D23, D44, D46): the REST calls the Gmail channel reads with. Cycle 1 has three; later cycles add their own
 // with their first caller. The two streaming calls return the response body UNDECODED (Gmail's JSON with one base64url member).
-import type { GmailHistoryPage, GmailMessageList, GmailMessageResource, GmailProfile, GmailSendAs } from './types.js'
+import type { GmailHistoryPage, GmailMessageList, GmailMessageResource, GmailProfile, GmailSendAs, GmailWatch } from './types.js'
 
 export interface GmailClient {
   /** `users.getProfile`: the address and the current history id (the cursor the connect flow saves, [[CHN5]] D9). */
@@ -17,6 +17,10 @@ export interface GmailClient {
   getMessageRaw(messageId: string): Promise<ReadableStream<Uint8Array>>
   /** `users.messages.attachments.get`: the JSON body as a byte stream; the `data` member is the attachment in base64url. */
   getAttachment(messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>>
+  /** `users.watch` ([[CHN5]] D89): publish this mailbox's INBOX and SENT changes to the topic. Returns Google's `historyId` and `expiration` (epoch ms). */
+  watch(p: { topicName: string }): Promise<GmailWatch>
+  /** `users.stop` ([[CHN5]] D91): an empty body. */
+  stop(): Promise<void>
 }
 
 /** A non-2xx Gmail response. Carries no request data: neither the URL nor the token. Classifying it ([[CHN5]] D16) is the caller's. */
@@ -133,6 +137,13 @@ export class HttpGmailClient implements GmailClient {
     const res = await this.get(path)
     if (!res.body) throw new GmailApiError({ status: res.status, reason: 'empty_body' })
     return res.body as ReadableStream<Uint8Array>
+  }
+
+  async watch(_p: { topicName: string }): Promise<GmailWatch> {
+    throw new Error('not implemented')
+  }
+  async stop(): Promise<void> {
+    throw new Error('not implemented')
   }
 
   async getProfile(): Promise<GmailProfile> {
