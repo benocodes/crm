@@ -1,6 +1,6 @@
 // `GmailClient` ([[CHN5]] D23, D44, D46): the REST calls the Gmail channel reads with. Cycle 1 has three; later cycles add their own
 // with their first caller. The two streaming calls return the response body UNDECODED (Gmail's JSON with one base64url member).
-import type { GmailHistoryPage, GmailMessageList, GmailMessageResource, GmailProfile, GmailSendAs } from './types.js'
+import type { GmailHistoryPage, GmailMessageList, GmailMessageResource, GmailProfile, GmailSendAs, GmailWatch } from './types.js'
 
 export interface GmailClient {
   /** `users.getProfile`: the address and the current history id (the cursor the connect flow saves, [[CHN5]] D9). */
@@ -17,6 +17,10 @@ export interface GmailClient {
   getMessageRaw(messageId: string): Promise<ReadableStream<Uint8Array>>
   /** `users.messages.attachments.get`: the JSON body as a byte stream; the `data` member is the attachment in base64url. */
   getAttachment(messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>>
+  /** `users.watch` ([[CHN5]] D89): publish this mailbox's INBOX and SENT changes to the topic. Returns Google's `historyId` and `expiration` (epoch ms). */
+  watch(p: { topicName: string }): Promise<GmailWatch>
+  /** `users.stop` ([[CHN5]] D91): an empty body. */
+  stop(): Promise<void>
 }
 
 /** A non-2xx Gmail response. Carries no request data: neither the URL nor the token. Classifying it ([[CHN5]] D16) is the caller's. */
@@ -85,6 +89,9 @@ export interface HttpGmailClientOptions {
   baseUrl?: string
 }
 
+/** The labels the watch publishes for ([[CHN5]] D89). */
+const WATCH_LABELS = ['INBOX', 'SENT']
+const LABEL_FILTER_BEHAVIOR = 'include'
 const DEFAULT_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
 function retryAfterSeconds(value: string | null): number | null {
@@ -133,6 +140,38 @@ export class HttpGmailClient implements GmailClient {
     const res = await this.get(path)
     if (!res.body) throw new GmailApiError({ status: res.status, reason: 'empty_body' })
     return res.body as ReadableStream<Uint8Array>
+  }
+
+  private async send(path: string, body: unknown): Promise<Response> {
+    const token = await this.accessToken()
+    const headers: Record<string, string> = { authorization: `Bearer ${token}` }
+    if (body !== undefined) headers['content-type'] = 'application/json'
+    const res = await this.doFetch(`${this.base}${path}`, { method: 'POST', headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+    if (!res.ok) throw await apiError(res)
+    return res
+  }
+
+  /**
+   * `users.watch` ([[CHN5]] D89): INBOX and SENT only. `labelFilterBehavior` is `include`, lowercase, as Google's reference lists the enum ([[CHN155]]: the push
+   * guide's example writes `INCLUDE`; a `400` on the first real watch is the sign the other casing is needed, and this is the one place to change).
+   */
+  async watch(p: { topicName: string }): Promise<GmailWatch> {
+    const res = await this.send('/watch', { topicName: p.topicName, labelIds: WATCH_LABELS, labelFilterBehavior: LABEL_FILTER_BEHAVIOR })
+    let body: Record<string, unknown> = {}
+    try {
+      body = obj(await res.json())
+    } catch {
+      // not JSON: rejected below
+    }
+    const historyId = str(body.historyId)
+    const expiration = str(body.expiration)
+    // Both are strings in Google's reference; an expiration that is not epoch milliseconds is never turned into a guessed expiry.
+    if (historyId === null || expiration === null || !/^\d{10,16}$/.test(expiration)) throw new GmailApiError({ status: res.status, reason: 'bad_watch_response' })
+    return { historyId, expiration }
+  }
+  /** `users.stop` ([[CHN5]] D91): an empty body; any 2xx is success. */
+  async stop(): Promise<void> {
+    await this.send('/stop', undefined)
   }
 
   async getProfile(): Promise<GmailProfile> {

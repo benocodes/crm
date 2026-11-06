@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vault/storage'
+import { stopWatch } from '../channels/gmail/watch.js'
 import { ApiError } from '../errors.js'
 import type { TenantOperation } from '../registry.js'
-import type { GmailConfig } from './config.js'
+import type { GmailConfig, PushConfig } from './config.js'
 import { GOOGLE_ENDPOINTS, buildAuthorizeUrl, type GoogleEndpoints } from './google.js'
 import { pkceChallenge, pkceVerifier, signState } from './state.js'
 import { instanceId, type MailSyncInstances } from '../sync/request.js'
@@ -13,6 +14,11 @@ export interface ConnectionsRuntime {
   endpoints?: GoogleEndpoints
   /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured`. */
   instances?: MailSyncInstances
+  /** The effective push configuration ([[CHN5]] D87): null when push is off. `connections.delete` stops the watch only when it is set. */
+  push?: PushConfig | null
+  /** The `fetch` and Gmail base of the stop call, as the rest of the surface. */
+  fetch?: typeof fetch
+  gmailBaseUrl?: string
 }
 
 /** [[CHN5]] D9: the state outlives the person's visit to Google's consent screen by ten minutes. */
@@ -128,4 +134,59 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
       },
     },
   ]
+}
+
+
+/**
+ * `connections.delete` with the stop of its watch ([[CHN5]] D91). The generated operation stays as it is; this adds two reads before its unit (the watch row and the
+ * newest credential's ciphertext, which the unit deletes) and an `after` stage that calls `users.stop` once the unit has committed. Only while push is on. A failure
+ * of the stop is logged by `stopWatch` and never changes the 204.
+ */
+export function withWatchStop(op: TenantOperation, runtime: ConnectionsRuntime | null): TenantOperation {
+  const config = runtime?.config
+  if (!config || !runtime?.push) return op
+  type Stop = { connectionId: string; ciphertext: string; keyVersion: number }
+  return {
+    ...op,
+    prepare: async (env, input) => {
+      const inner = (await op.prepare(env, input)) as PreparedOperation<unknown>
+      const id = String((input.params as { id: string }).id).toLowerCase()
+      const org = env.organizationId
+      return defineOperation<{ stop: Stop | null }>({
+        name: inner.name,
+        mutates: true,
+        reads: (qc) => ({
+          ...inner.reads(qc),
+          'stop:watch': readMaybe(qc.db.selectFrom('gmail_watches').select('gmail_watches.connection_id').where('gmail_watches.connection_id', '=', id).where('gmail_watches.organization_id', '=', org)),
+          'stop:credential': readMaybe(
+            qc.db
+              .selectFrom('channel_credentials')
+              .select(['channel_credentials.refresh_token_ciphertext', 'channel_credentials.key_version'])
+              .where('channel_credentials.connection_id', '=', id)
+              .where('channel_credentials.organization_id', '=', org)
+              .orderBy('channel_credentials.created_at', 'desc')
+              .orderBy('channel_credentials.id', 'desc')
+              .limit(1),
+          ),
+        }),
+        build: (found, qc) => {
+          const built = inner.build(found, qc)
+          const watch = found.maybe('stop:watch')
+          const credential = found.maybe('stop:credential')
+          return {
+            ...built,
+            decode: (rows, f) => {
+              built.decode(rows, f)
+              return { stop: watch && credential ? { connectionId: id, ciphertext: String(credential.refresh_token_ciphertext), keyVersion: Number(credential.key_version) } : null }
+            },
+          }
+        },
+      })
+    },
+    after: async (value) => {
+      const stop = (value as { stop: Stop | null } | undefined)?.stop
+      if (stop) await stopWatch({ config, ...stop, ...(runtime.endpoints ? { endpoints: runtime.endpoints } : {}), ...(runtime.fetch ? { fetch: runtime.fetch } : {}), ...(runtime.gmailBaseUrl ? { gmailBaseUrl: runtime.gmailBaseUrl } : {}) })
+      return undefined
+    },
+  }
 }

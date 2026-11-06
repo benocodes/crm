@@ -2,7 +2,7 @@
 // instance's own env file (the Clerk keys' file, D34), with `--auth none` as well. Secrets go to the Worker by `wrangler secret bulk`, vars into the
 // env's `vars` block. Shapes are checked before any command. Nothing here ever puts a value in a message: refusals name the variable.
 import { parseEnv } from 'node:util'
-import { parseGmailConfig } from '@vault/api'
+import { isValidPushVar, parseGmailConfig } from '@vault/api'
 import { RemoteRefusal } from '../remote.js'
 import type { EnvFileProbe, SetupOptions } from './types.js'
 
@@ -49,11 +49,13 @@ const WORKER_RULES: Record<string, string> = {
   ATTACHMENT_MAX_BYTES: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
 }
 const RULES: Record<string, [(v: string) => boolean, string]> = {
-  PUBLIC_BASE_URL: [httpsUrl, 'must be an absolute https URL'],
+  // https for a remote deployment (the Worker also accepts http://localhost, which means nothing on Cloudflare), and the origin only: the push audience is `<base>/gmail/push`.
+  PUBLIC_BASE_URL: [(v) => httpsUrl(v) && isValidPushVar('PUBLIC_BASE_URL', v), 'must be an absolute https URL with no path (the endpoint is <it>/gmail/push)'],
   CONNECT_RETURN_URL: [httpsUrl, 'must be an absolute https URL'],
-  GMAIL_TOPIC_NAME: [(v) => /^projects\/[^/\s]+\/topics\/[^/\s]+$/.test(v), 'must look like projects/<project>/topics/<topic>'],
-  GMAIL_PUSH_SUBSCRIPTION: [(v) => /^projects\/[^/\s]+\/subscriptions\/[^/\s]+$/.test(v), 'must look like projects/<project>/subscriptions/<subscription>'],
-  GMAIL_PUSH_SERVICE_ACCOUNT: [(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'must be an email address'],
+  // The four push values are judged by the Worker's own rule (`isValidPushVar`, [[CHN5]] D87), so setup can never accept what the Worker rejects.
+  GMAIL_TOPIC_NAME: [(v) => isValidPushVar('GMAIL_TOPIC_NAME', v), 'must look like projects/<project>/topics/<topic>'],
+  GMAIL_PUSH_SUBSCRIPTION: [(v) => isValidPushVar('GMAIL_PUSH_SUBSCRIPTION', v), 'must look like projects/<project>/subscriptions/<subscription>'],
+  GMAIL_PUSH_SERVICE_ACCOUNT: [(v) => isValidPushVar('GMAIL_PUSH_SERVICE_ACCOUNT', v), 'must be an email address'],
 }
 
 /**

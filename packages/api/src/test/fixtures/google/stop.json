@@ -1,0 +1,24 @@
+{
+  "name": "stop",
+  "recording": {
+    "source": "synthetic",
+    "kind": "stop",
+    "request": {
+      "method": "POST",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/stop",
+      "query": [],
+      "form": null
+    },
+    "response": {
+      "status": 204,
+      "headers": {},
+      "body": null
+    }
+  },
+  "expect": {
+    "result": {
+      "stopped": true
+    }
+  }
+}

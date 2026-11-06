@@ -75,6 +75,16 @@ const syncGmail = new FakeGmail(
   ),
   { chunk: 2048, profile: { emailAddress: 'mailbox@smoke.test', historyId: '777' } },
 )
+// [[CHN155]]: Gmail push in workerd. The JWKS is Google's real URL, answered by the outbound service with the fake Google's key (no variable redirects it, D87, D93);
+// a count of its fetches lets a check prove a refused request made none. `gate`, while set, holds the sync run's Gmail calls so a burst of pushes meets a held lease.
+const JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs'
+let jwksFetches = 0
+let gate: Promise<void> | null = null
+let releaseGate: () => void = () => {}
+const PUSH_TOPIC = 'projects/smoke-p/topics/gmail.watch'
+const PUSH_SUBSCRIPTION = 'projects/smoke-p/subscriptions/gmail.push'
+const PUSH_SERVICE_ACCOUNT = 'push@smoke-p.iam.gserviceaccount.com'
+const PUSH_BASE_URL = 'https://push.test'
 let mf: Miniflare | undefined
 let pipelineMf: Miniflare | undefined
 
@@ -123,11 +133,20 @@ try {
       CREDENTIALS_KEY: Buffer.from(CREDENTIALS_KEY_BYTES).toString('base64'),
       // [[CHN153]]: the Google recorder is on, as a deployed var would set it, a day ahead of the real clock workerd runs on.
       GOOGLE_RECORDING_UNTIL: new Date(Date.now() + 86_400_000).toISOString(),
+      // [[CHN155]] D87: push on (Gmail, the MAIL_SYNC workflow binding and these four). PUBLIC_BASE_URL is also the connect flow's redirect base.
+      GMAIL_TOPIC_NAME: PUSH_TOPIC,
+      GMAIL_PUSH_SUBSCRIPTION: PUSH_SUBSCRIPTION,
+      GMAIL_PUSH_SERVICE_ACCOUNT: PUSH_SERVICE_ACCOUNT,
+      PUBLIC_BASE_URL: PUSH_BASE_URL,
     },
     outboundService: async (req: Request) => {
       const url = new URL(req.url)
       hostsSeen.add(url.origin)
-      if (url.origin === 'https://gmail.googleapis.com' && /^\/gmail\/v1\/users\/me\/(history|messages)/.test(url.pathname)) return syncGmail.handle(req, (t) => google.isAccessToken(t))
+      if (`${url.origin}${url.pathname}` === JWKS_URL) jwksFetches++
+      if (url.origin === 'https://gmail.googleapis.com' && /^\/gmail\/v1\/users\/me\/(history|messages)/.test(url.pathname)) {
+        if (gate) await gate
+        return syncGmail.handle(req, (t) => google.isAccessToken(t))
+      }
       if (GOOGLE_HOSTS.has(url.origin)) {
         const rewritten = new URL(`${url.pathname}${url.search}`, FAKE_GOOGLE_ORIGIN)
         // The token endpoint lives at /token on the fake and at oauth2.googleapis.com/token for real: the path already matches.
@@ -310,7 +329,7 @@ try {
   res = await call('POST', '/meta/v1/connections/authorize', { token: ownerNow, body: { provider: 'google' } })
   body = await json(res)
   const authorizeUrl = String(body.authorize_url ?? '')
-  check('43 POST /meta/v1/connections/authorize as an owner -> 200, a Google URL with the Worker origin as redirect_uri and an S256 challenge', res.status === 200 && authorizeUrl.startsWith('https://accounts.google.com/o/oauth2/v2/auth?') && new URL(authorizeUrl).searchParams.get('redirect_uri') === `${String(base).replace(/\/$/, '')}/oauth/google/callback` && new URL(authorizeUrl).searchParams.get('code_challenge_method') === 'S256', { status: res.status, body })
+  check('43 POST /meta/v1/connections/authorize as an owner -> 200, a Google URL with PUBLIC_BASE_URL as the redirect_uri base and an S256 challenge', res.status === 200 && authorizeUrl.startsWith('https://accounts.google.com/o/oauth2/v2/auth?') && new URL(authorizeUrl).searchParams.get('redirect_uri') === `${PUSH_BASE_URL}/oauth/google/callback` && new URL(authorizeUrl).searchParams.get('code_challenge_method') === 'S256', { status: res.status, body })
   const eventsBeforeConnect = await count('events')
   const callbackUrl = new URL(await google.consent(authorizeUrl.replace('https://accounts.google.com', FAKE_GOOGLE_ORIGIN), { sub: 'smoke-sub', email: 'Mailbox@Smoke.test', historyId: '777', sendAs: [{ sendAsEmail: 'mailbox@smoke.test', isPrimary: true }, { sendAsEmail: 'alias@smoke.test', verificationStatus: 'accepted' }] }))
   res = await call('GET', `${callbackUrl.pathname}${callbackUrl.search}`)
@@ -323,7 +342,7 @@ try {
   const newEvents = (await rows('select type, actor_id from events order by rowid')).slice(eventsBeforeConnect)
   const cursor = (await rows('select * from mail_sync_cursors'))[0]
   check(
-    '44 the callback in workerd -> 200 built-in page; one connection owned by the user, an encrypted credential that opens to the refresh token, the cursor, own identities and the events; no watch',
+    '44 the callback in workerd -> 200 built-in page; one connection owned by the user, an encrypted credential that opens to the refresh token, the cursor, own identities and the events; and the watch row (push is on), registered for INBOX and SENT',
     res.status === 200 &&
       connectedPage.includes('You can close this tab') &&
       (await count('channel_connections')) === 1 &&
@@ -335,7 +354,10 @@ try {
       opened === refresh &&
       cursor?.history_id === '777' &&
       (await count('mail_sync_state')) === 1 &&
-      (await count('gmail_watches')) === 0 &&
+      (await count('gmail_watches')) === 1 &&
+      google.watchRequests.length === 1 &&
+      JSON.stringify(google.watchRequests[0]?.body) === JSON.stringify({ topicName: PUSH_TOPIC, labelIds: ['INBOX', 'SENT'], labelFilterBehavior: 'include' }) &&
+      (await rows('select mailbox from gmail_watches'))[0]?.mailbox === 'mailbox@smoke.test' &&
       ownValues.join() === 'alias@smoke.test,mailbox@smoke.test' &&
       newEvents.filter((x) => x.type === 'connection.created').length === 1 &&
       newEvents.filter((x) => x.type === 'identity.created').length === 2 &&
@@ -387,10 +409,58 @@ try {
   const recKinds = recKeys.map((k) => /\/\d{3}-([a-z_]+)-\d+-/.exec(k)?.[1] ?? '?')
   const recText = (await Promise.all(recKeys.map(async (k) => (await (await recBucket.get(k))?.text()) ?? ''))).join('\n')
   const recPrefixes = new Set(recKeys.map((k) => k.split('/')[1]))
-  check('R1 the recorder in workerd: objects appear under _recordings/ for the connect callback (token exchange, profile, send-as) and for the sync Workflow (token refresh, lists, message full)', ['token_exchange', 'profile', 'send_as', 'token_refresh', 'messages_list', 'message_full'].every((k) => recKinds.includes(k)), recKinds)
-  check('R2 the callback and the Workflow instance record under their own run prefixes, and only Google kinds are recorded (no Clerk call)', recPrefixes.size >= 2 && recKinds.every((k) => ['token_exchange', 'token_refresh', 'profile', 'send_as', 'history_list', 'messages_list', 'message_full', 'message_raw', 'attachment_get'].includes(k)), [...recPrefixes])
+  check('R1 the recorder in workerd: objects appear under _recordings/ for the connect callback (token exchange, profile, send-as, watch) and for the sync Workflow (token refresh, lists, message full)', ['token_exchange', 'profile', 'send_as', 'watch', 'token_refresh', 'messages_list', 'message_full'].every((k) => recKinds.includes(k)), recKinds)
+  check('R2 the callback and the Workflow instance record under their own run prefixes, and only Google kinds are recorded (no Clerk call)', recPrefixes.size >= 2 && recKinds.every((k) => ['token_exchange', 'token_refresh', 'profile', 'send_as', 'watch', 'history_list', 'messages_list', 'message_full', 'message_raw', 'attachment_get'].includes(k)), [...recPrefixes])
   check('R3 no recording holds the refresh token, an access token, the client secret or a message body (deny by default, in the bundle)', recText.length > 0 && google.refreshTokens.every((t) => !recText.includes(t)) && google.accessTokens.every((t) => !recText.includes(t)) && !recText.includes(google.clientSecret) && !recText.includes('Hello Owner'), { bytes: recText.length })
   check('R4 the index lists every recording, and the Workflow still finished with the recorder on (W1 above)', JSON.parse((await (await recBucket.get('_recordings/index.json'))?.text()) ?? '{"objects":[]}').objects.length === recKeys.length, { recKeys: recKeys.length })
+
+  // PU1-PU8: Gmail push in workerd ([[CHN155]], [[CHN5]] D87, D88): the real bundle, `jose` verifying RS256 against Google's keys served through the outbound service, the
+  // route through the real composition, and `MAIL_SYNC.create` (one instance per burst, counted by the Worker's own log line). The connection is the one the callback
+  // connected above, with the watch row it registered.
+  const lineCount = (needle: string) => logLines.filter((l) => l.includes(needle)).length
+  const instancesCreated = () => lineCount('[gmail-push] sync requested')
+  const pushToken = async (over: { aud?: string; email?: string } = {}) => {
+    const iat = Math.floor(Date.now() / 1000)
+    return google.signToken({ iss: 'https://accounts.google.com', aud: over.aud ?? `${PUSH_BASE_URL}/gmail/push`, sub: '100000000000000000001', email: over.email ?? PUSH_SERVICE_ACCOUNT, email_verified: true, iat, exp: iat + 3600 })
+  }
+  const pushBody = (emailAddress: string) => JSON.stringify({ message: { data: btoa(JSON.stringify({ emailAddress, historyId: '1' })).replace(/\+/g, '-').replace(/\//g, '_'), messageId: '1' }, subscription: PUSH_SUBSCRIPTION })
+  const pushNow = (token: string | null, emailAddress = 'Mailbox@Smoke.test') => call('POST', '/gmail/push', { ...(token ? { headers: { authorization: `Bearer ${token}` } } : {}), raw: pushBody(emailAddress) })
+  const requestedAt = async () => String((await stateOf())?.sync_requested_at ?? '')
+  const flat = async () => JSON.stringify([await rows('select * from mail_sync_state'), await rows('select * from mail_sync_cursors'), await rows('select * from gmail_watches'), await count('events')])
+
+  gate = new Promise<void>((r) => (releaseGate = r))
+  const jwks0 = jwksFetches
+  const inst0 = instancesCreated()
+  const req0 = await requestedAt()
+  res = await pushNow(null)
+  check('PU1 POST /gmail/push with no Authorization header in workerd -> 401, no JWKS fetch, no instance, no write', res.status === 401 && jwksFetches === jwks0 && instancesCreated() === inst0 && (await requestedAt()) === req0, { status: res.status, jwksFetches: jwksFetches - jwks0 })
+  res = await pushNow(await pushToken())
+  const afterFirst = await requestedAt()
+  check('PU2 a locally signed push for Mailbox@Smoke.test (mixed case) -> 204, jose verified it against the JWKS fetched once, sync_requested_at advanced, one MAIL_SYNC instance created', res.status === 204 && jwksFetches === jwks0 + 1 && afterFirst > req0 && instancesCreated() === inst0 + 1, { status: res.status, jwks: jwksFetches - jwks0, req0, afterFirst, instances: instancesCreated() - inst0 })
+  const statuses: number[] = []
+  for (let i = 0; i < 10; i++) statuses.push((await pushNow(await pushToken())).status)
+  check('PU3 the same push ten more times -> all 204, still one instance, and sync_requested_at advanced each time (the held lease or the recent request covers them)', statuses.every((x) => x === 204) && instancesCreated() === inst0 + 1 && (await requestedAt()) > afterFirst, { statuses, instances: instancesCreated() - inst0 })
+  const flatBefore = await flat()
+  const instBefore = instancesCreated()
+  res = await pushNow(await pushToken({ aud: `${PUSH_BASE_URL}/other` }))
+  check('PU4 a token with the wrong aud -> 401, nothing written, no instance', res.status === 401 && (await flat()) === flatBefore && instancesCreated() === instBefore, { status: res.status })
+  res = await pushNow(await pushToken({ email: 'someone-else@smoke-p.iam.gserviceaccount.com' }))
+  check('PU4b a token for another service account -> 401', res.status === 401 && (await flat()) === flatBefore, { status: res.status })
+  res = await pushNow(await pushToken(), 'nobody@example.test')
+  check('PU5 a valid token for a mailbox nobody watches -> 204, no write, no instance', res.status === 204 && (await flat()) === flatBefore && instancesCreated() === instBefore, { status: res.status })
+  releaseGate()
+  gate = null
+  const settled = await waitFor('the pushed sync run', async () => (await stateOf())?.lease_until == null && String((await stateOf())?.last_success_at ?? '') > afterFirst)
+  check('PU6 the held run finishes once released: the lease is gone and last_success_at is after the first push', settled, await stateOf())
+  const pushLogs = logLines.join('\n')
+  check('PU7 no Worker log line holds the signed token, the service account, the topic or the mailbox address across the push steps', !pushLogs.includes(PUSH_SERVICE_ACCOUNT) && !pushLogs.includes(PUSH_TOPIC) && !pushLogs.toLowerCase().includes('mailbox@smoke.test'), undefined)
+
+  // PU8: stop on delete in workerd, recorded under its own run ([[CHN5]] D91, D92).
+  const stops0 = google.stopRequests.length
+  res = await call('DELETE', `/meta/v1/connections/${connId}`, { token: ownerNow })
+  const recKeysAfter = (await recBucket.list({ prefix: '_recordings/' })).objects.map((o) => o.key)
+  const stopKeys = recKeysAfter.filter((k) => /\/\d{3}-stop-\d+-/.test(k))
+  check('PU8 DELETE /meta/v1/connections/{id} in workerd -> 204, one users.stop with a refreshed token, the watch row gone, the stop recorded under its own run prefix', res.status === 204 && google.stopRequests.length === stops0 + 1 && google.isAccessToken(google.stopRequests.at(-1)?.token ?? '') && (await count('gmail_watches')) === 0 && stopKeys.length === 1 && new Set(recKeysAfter.filter((k) => !k.endsWith('index.json')).map((k) => k.split('/')[1])).size >= 3, { status: res.status, stops: google.stopRequests.length - stops0, stopKeys })
 
   // 16: the network guard
   // CHN140: the Google hosts are answered by the fake too (check 43); nothing else may be reached.

@@ -616,3 +616,52 @@ describe('a media type is kept only when it is a well-formed type/subtype pair (
   })
 })
 
+
+// [[CHN155]] / [[CHN5]] D92: `watch` and `stop` are named call kinds.
+describe('watch and stop (D92)', () => {
+  const TOPIC = 'projects/CANARYproject01/topics/CANARYtopic02'
+  const watchInit = (): RequestInit => ({ method: 'POST', headers: { authorization: 'Bearer CANARYauthHDR91', 'content-type': 'application/json' }, body: JSON.stringify({ topicName: TOPIC, labelIds: ['INBOX', 'SENT'], labelFilterBehavior: 'include' }) })
+  it('a watch is recorded as kind "watch": path words kept, the JSON request body never recorded, expiration kept, historyId a pseudonym', async () => {
+    const { f, bucket } = rig(() => jsonRes({ historyId: '2101873', expiration: '1793700000000' }))
+    expect(await drain(await f(`${G}/watch`, watchInit()))).toBe('{"historyId":"2101873","expiration":"1793700000000"}')
+    const [r] = recorded(bucket)
+    expect(r!.rec.kind).toBe('watch')
+    expect(r!.key).toMatch(/\/001-watch-200-[0-9a-f]{6}\.json$/)
+    expect(r!.rec.request).toEqual({ method: 'POST', host: 'gmail.googleapis.com', path: '/gmail/v1/users/me/watch', query: [], form: null })
+    expect(r!.rec.response.body).toMatchObject({ expiration: '1793700000000' })
+    const body = r!.rec.response.body as { historyId: string }
+    expect(body.historyId).toHaveLength(7)
+    expect(body.historyId).not.toBe('2101873')
+    const text = allBytes(bucket)
+    for (const canary of ['CANARYproject01', 'CANARYtopic02', 'CANARYauthHDR91', 'INBOX', 'labelFilterBehavior']) expect(text).not.toContain(canary)
+  })
+  it('a stop is recorded as kind "stop" with no body', async () => {
+    const { f, bucket } = rig(() => new Response(null, { status: 204 }))
+    await drain(await f(`${G}/stop`, { method: 'POST', headers: { authorization: 'Bearer CANARYauthHDR91' } }))
+    const [r] = recorded(bucket)
+    expect(r!.rec.kind).toBe('stop')
+    expect(r!.rec.request.path).toBe('/gmail/v1/users/me/stop')
+    expect(r!.rec.response).toMatchObject({ status: 204, body: null })
+    expect(allBytes(bucket)).not.toContain('CANARYauthHDR91')
+  })
+  it('a JSON request body is not read as a form (the token endpoint\'s form still is)', async () => {
+    const { f, bucket } = rig(() => jsonRes({ historyId: '5', expiration: '1' }))
+    await drain(await f(`${G}/watch`, watchInit()))
+    expect(recorded(bucket)[0]!.rec.request.form).toBeNull()
+  })
+  it('a Pub/Sub topic path echoed in a Google error message is masked, with the rest of the message kept', async () => {
+    const { f, bucket } = rig(() => jsonRes({ error: { code: 403, message: `Error sending test message to Cloud PubSub ${TOPIC} : User not authorized`, errors: [{ message: 'x', domain: 'global', reason: 'forbidden' }], status: 'PERMISSION_DENIED' } }, 403))
+    await drain(await f(`${G}/watch`, watchInit()))
+    const [r] = recorded(bucket)
+    expect(r!.rec.kind).toBe('watch')
+    expect(r!.rec.response.body).toMatchObject({ error: { code: 403, status: 'PERMISSION_DENIED', errors: [{ reason: 'forbidden', domain: 'global' }] } })
+    const text = allBytes(bucket)
+    expect(text).not.toContain('CANARYproject01')
+    expect(text).toContain('User not authorized')
+  })
+  it('watch and stop have their own cap per kind', async () => {
+    const { f, bucket } = rig(() => jsonRes({ historyId: '5', expiration: '1' }))
+    for (let i = 0; i < 5; i++) await drain(await f(`${G}/watch`, watchInit()))
+    expect(recorded(bucket).filter((x) => x.rec.kind === 'watch')).toHaveLength(RECORDING_CAP)
+  })
+})

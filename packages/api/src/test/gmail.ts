@@ -3,7 +3,7 @@
 // `format=raw` and attachment bodies in Gmail's wire form (JSON with one base64url member) in chunks it can vary. Web APIs only: the
 // workerd smoke bundles this file. Not in the production barrel.
 import { GmailApiError, parseHistoryList, parseMessageList, type GmailClient } from '../channels/gmail/client.js'
-import type { GmailHistoryPage, GmailMessageList, GmailMessagePart, GmailMessageResource, GmailProfile, GmailSendAs } from '../channels/gmail/types.js'
+import type { GmailHistoryPage, GmailMessageList, GmailMessagePart, GmailMessageResource, GmailProfile, GmailSendAs, GmailWatch } from '../channels/gmail/types.js'
 
 const enc = new TextEncoder()
 
@@ -176,7 +176,7 @@ export function chunkedStream(bytes: Uint8Array, size: number | ((index: number)
 }
 
 /** `messageId` is '' for the two list calls, which carry `startHistoryId` / `q` and `pageToken` instead. */
-export type FakeGmailCall = { op: 'full' | 'raw' | 'attachment' | 'history' | 'list'; messageId: string; attachmentId?: string; startHistoryId?: string; q?: string; pageToken?: string | null }
+export type FakeGmailCall = { op: 'full' | 'raw' | 'attachment' | 'history' | 'list' | 'watch' | 'stop'; messageId: string; attachmentId?: string; startHistoryId?: string; q?: string; pageToken?: string | null }
 
 /**
  * One scripted history record ([[CHN5]] D72, D82). `added` entries carry `labelIds` as Gmail sends them on the record (every real record did): the listed `labels`,
@@ -200,6 +200,13 @@ export class FakeGmail implements GmailClient {
 
   /** The account calls (CHN140), in order: `profile` and `send_as`. Kept apart from `calls`, which are per message. */
   readonly accountCalls: Array<'profile' | 'send_as'> = []
+  /** Every `users.watch` request body the fake received over HTTP ([[CHN155]]), as Google would parse it. */
+  readonly watchRequests: Array<Record<string, unknown>> = []
+  /** The bearer token of every watch and stop call, in order. */
+  readonly watchTokens: Array<{ op: 'watch' | 'stop'; token: string }> = []
+  /** The clock a watch's `expiration` is stamped from (epoch ms), and how long Google keeps a watch: seven days. */
+  watchClock: () => number = () => Date.now()
+  watchTtlMs = 7 * 86_400_000
   profile: GmailProfile
   sendAs: GmailSendAs[]
   /** The mailbox's history, in id order. Served by `listHistory` in Gmail's wire form, omissions included. */
@@ -283,6 +290,20 @@ export class FakeGmail implements GmailClient {
       resultSizeEstimate: ids.length,
     }
   }
+  /** `users.watch`'s answer: the mailbox's current history id and an expiration seven days on, both strings (epoch ms), as Google sends them. */
+  watchWire(): GmailWatch {
+    return { historyId: this.profile.historyId, expiration: String(this.watchClock() + this.watchTtlMs) }
+  }
+  async watch(p: { topicName: string }): Promise<GmailWatch> {
+    await this.authenticate()
+    this.enterList({ op: 'watch', messageId: '' })
+    this.watchRequests.push({ topicName: p.topicName })
+    return this.watchWire()
+  }
+  async stop(): Promise<void> {
+    await this.authenticate()
+    this.enterList({ op: 'stop', messageId: '' })
+  }
   async listHistory(p: { startHistoryId: string; pageToken?: string | null; maxResults: number; historyTypes: readonly string[] }): Promise<GmailHistoryPage> {
     await this.authenticate()
     this.enterList({ op: 'history', messageId: '', startHistoryId: p.startHistoryId, pageToken: p.pageToken ?? null })
@@ -307,6 +328,17 @@ export class FakeGmail implements GmailClient {
     const q = url.searchParams
     try {
       if (path === '/profile') return json(this.profile)
+      if (path === '/watch' && req.method === 'POST') {
+        this.watchTokens.push({ op: 'watch', token: auth.slice(7) })
+        this.enterList({ op: 'watch', messageId: '' })
+        this.watchRequests.push(JSON.parse((await req.text()) || '{}') as Record<string, unknown>)
+        return json(this.watchWire())
+      }
+      if (path === '/stop' && req.method === 'POST') {
+        this.watchTokens.push({ op: 'stop', token: auth.slice(7) })
+        this.enterList({ op: 'stop', messageId: '' })
+        return new Response(null, { status: 204 })
+      }
       if (path === '/history') {
         this.enterList({ op: 'history', messageId: '', startHistoryId: q.get('startHistoryId') ?? '', pageToken: q.get('pageToken') })
         return json(this.historyWire(q.get('startHistoryId') ?? '', q.get('pageToken'), Number(q.get('maxResults') ?? 100)))

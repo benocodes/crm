@@ -80,9 +80,10 @@
           "bucket_name": "vault-hq-bodies"
         }
       ],
-      // The binding, and deliberately no cron until the supervised first backfill ([[CHN5]] D76): the first real run is user-started (`connections sync`).
+      // The binding and the 15-minute cron ([[CHN5]] D76, D92): the supervised first backfill ran, so the cron renews watches and serves missed pushes. It takes
+      // effect only when the user deploys (a hard stop for agents).
       "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-hq-mail-sync", "class_name": "MailSyncWorkflow" }],
-      "triggers": { "crons": [] },
+      "triggers": { "crons": ["*/15 * * * *"] },
       "vars": {
         "AUTH_PROVIDER": "clerk",
         "CLERK_ISSUER": "https://clerk.hq.vibase.ai",

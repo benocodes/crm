@@ -137,3 +137,61 @@ describe('HttpGmailClient account calls (CHN140)', () => {
     expect(fake.accountCalls).toEqual(['profile', 'send_as'])
   })
 })
+
+// [[CHN155]] D46, D89, D91: `users.watch` and `users.stop`.
+const U = 'https://gmail.googleapis.com/gmail/v1/users/me'
+describe('HttpGmailClient watch and stop', () => {
+  function post(respond: () => Response) {
+    const seen: Array<{ url: string; method?: string; headers: Headers; body: unknown }> = []
+    const client = new HttpGmailClient({
+      accessToken: async () => TOKEN,
+      fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        seen.push({ url: String(input), method: init?.method, headers: new Headers(init?.headers), body: init?.body })
+        return respond()
+      }) as typeof fetch,
+    })
+    return { client, seen }
+  }
+  it('watch: POST /watch with the topic, INBOX and SENT, include behaviour (lowercase, as the reference enum), a JSON content type and the bearer token', async () => {
+    const h = post(() => json({ historyId: '1234', expiration: '1793700000000' }))
+    const out = await h.client.watch({ topicName: 'projects/p/topics/t' })
+    expect(out).toEqual({ historyId: '1234', expiration: '1793700000000' })
+    expect(h.seen).toHaveLength(1)
+    expect(h.seen[0]!.url).toBe(`${U}/watch`)
+    expect(h.seen[0]!.method).toBe('POST')
+    expect(h.seen[0]!.headers.get('authorization')).toBe(`Bearer ${TOKEN}`)
+    expect(h.seen[0]!.headers.get('content-type')).toBe('application/json')
+    expect(JSON.parse(h.seen[0]!.body as string)).toEqual({ topicName: 'projects/p/topics/t', labelIds: ['INBOX', 'SENT'], labelFilterBehavior: 'include' })
+  })
+  it.each([
+    ['no expiration', { historyId: '1' }],
+    ['no historyId', { expiration: '1793700000000' }],
+    ['a numeric expiration (Google sends a string)', { historyId: '1', expiration: 1793700000000 }],
+    ['an expiration that is not epoch milliseconds', { historyId: '1', expiration: 'tomorrow' }],
+    ['an empty object', {}],
+  ])('watch: %s is a failure, never a guessed expiry', async (_n, body) => {
+    const h = post(() => json(body))
+    await expect(h.client.watch({ topicName: 't' })).rejects.toMatchObject({ name: 'GmailApiError', reason: 'bad_watch_response' })
+  })
+  it('watch: a non-2xx is a GmailApiError with status and reason, carrying neither the topic nor the token', async () => {
+    const h = post(() => json({ error: { code: 403, status: 'PERMISSION_DENIED', errors: [{ reason: 'forbidden' }] } }, { status: 403 }))
+    const err = await h.client.watch({ topicName: 'projects/secret/topics/t' }).catch((x) => x)
+    expect(err).toBeInstanceOf(GmailApiError)
+    expect(err).toMatchObject({ status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'forbidden' })
+    expect(JSON.stringify(err) + err.message).not.toContain('secret')
+    expect(JSON.stringify(err) + err.message).not.toContain(TOKEN)
+  })
+  it('stop: POST /stop with an empty body and the bearer token; an empty 2xx is success', async () => {
+    const h = post(() => new Response(null, { status: 204 }))
+    await expect(h.client.stop()).resolves.toBeUndefined()
+    expect(h.seen).toHaveLength(1)
+    expect(h.seen[0]!.url).toBe(`${U}/stop`)
+    expect(h.seen[0]!.method).toBe('POST')
+    expect(h.seen[0]!.headers.get('authorization')).toBe(`Bearer ${TOKEN}`)
+    expect(h.seen[0]!.body === undefined || h.seen[0]!.body === '' || h.seen[0]!.body === null).toBe(true)
+  })
+  it('stop: a non-2xx is a GmailApiError', async () => {
+    const h = post(() => json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, { status: 401 }))
+    await expect(h.client.stop()).rejects.toMatchObject({ status: 401, gmailStatus: 'UNAUTHENTICATED' })
+  })
+})

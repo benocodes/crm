@@ -1,0 +1,30 @@
+{
+  "name": "watch",
+  "recording": {
+    "source": "synthetic",
+    "kind": "watch",
+    "request": {
+      "method": "POST",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/watch",
+      "query": [],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "historyId": "6950382",
+        "expiration": "1793700000000"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "historyId": "$string",
+      "expiration": "1793700000000"
+    }
+  }
+}

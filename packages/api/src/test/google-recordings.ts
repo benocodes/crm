@@ -91,6 +91,15 @@ export const SYNTHETIC: Synthetic[] = [
     respond: json(QUOTA_403, 403),
     expect: { error: { type: 'GmailApiError', status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'rateLimitExceeded', retryAfterSeconds: null } },
   },
+  { name: 'watch', url: `${G}/watch`, init: { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ topicName: 'projects/synthetic-project/topics/gmail.watch', labelIds: ['INBOX', 'SENT'], labelFilterBehavior: 'include' }) }, respond: json({ historyId: '2101873', expiration: '1793700000000' }), expect: { result: { historyId: '$string', expiration: '1793700000000' } } },
+  {
+    name: 'watch-403',
+    url: `${G}/watch`,
+    init: { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ topicName: 'projects/synthetic-project/topics/gmail.watch' }) },
+    respond: json({ error: { code: 403, message: 'Error sending test message to Cloud PubSub projects/synthetic-project/topics/gmail.watch : User not authorized to perform this action.', errors: [{ message: 'Error sending test message to Cloud PubSub projects/synthetic-project/topics/gmail.watch : User not authorized to perform this action.', domain: 'global', reason: 'forbidden' }], status: 'PERMISSION_DENIED' } }, 403),
+    expect: { error: { type: 'GmailApiError', status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'forbidden' } },
+  },
+  { name: 'stop', url: `${G}/stop`, init: { method: 'POST' }, respond: () => new Response(null, { status: 204 }), expect: { result: { stopped: true } } },
   { name: 'message-full-404', url: `${G}/messages/18c3f9ab02d4e7a1?format=full`, respond: json({ error: { code: 404, message: 'Requested entity was not found.', errors: [{ message: 'Requested entity was not found.', domain: 'global', reason: 'notFound' }], status: 'NOT_FOUND' } }, 404), expect: { result: { skip: 'not_found' } } },
 ]
 

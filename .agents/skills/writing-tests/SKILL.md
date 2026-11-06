@@ -32,6 +32,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
 - **A mutation that stays green is suspect before the test is.** Check `git diff` shows an executable line
   changed: [[CORE38]]'s mutation 7 (`remoteBindings: true`) first replaced the word in a code comment and
   stayed green; applied to the `return` line it turned red. Record which attempt counted.
+- **A mutation must reach the behaviour it claims to break.** [[CHN155]]'s first M4 (start `users.stop` before the
+  commit) built the stop with a dummy credential, so it failed inside the stop before any HTTP call and the "no stop on a
+  failed unit" test stayed green for the wrong reason; the counted M4 moved the real call into the plan phase and three
+  tests went red. When a mutation stays green, check that the mutated path actually performs the observed effect (a
+  request on the fake, a row) before concluding the test is weak.
 - **A filtered run that ran nothing is not a result.** `vitest -t` with a pattern that matches no test exits `0` with
   every test `skipped`, which reads like "the mutation stayed green". [[CORE58]]'s first mutation pass prefixed the
   pattern with the `describe` title (`-t "content operations on d1 file bytes and headers"`) and matched nothing for

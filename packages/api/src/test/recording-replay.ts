@@ -46,7 +46,8 @@ export function wireResponse(rec: RecordedExchange): Response {
   const body = rec.response.body
   const nonJson = body as { non_json?: true; bytes?: number } | null
   const text = body === null ? '' : nonJson?.non_json === true ? 'x'.repeat(nonJson.bytes ?? 0) : JSON.stringify(expandBody(body as Json))
-  return new Response(text, { status: rec.response.status, headers: rec.response.headers })
+  // A 204 carries no body, and the Response constructor refuses one ([[CHN155]]: `users.stop`).
+  return new Response([204, 205, 304].includes(rec.response.status) ? null : text, { status: rec.response.status, headers: rec.response.headers })
 }
 
 const idOf = (rec: RecordedExchange): string => rec.request.path.split('/').filter(Boolean)[5] ?? 'm'
@@ -71,6 +72,13 @@ export async function replay(fx: RecordingFixture): Promise<{ result: unknown } 
       }
       case 'profile':
         return { result: await client.getProfile() }
+      case 'watch': {
+        const w = await client.watch({ topicName: 'projects/p/topics/t' })
+        return { result: { historyId: w.historyId, expiration: w.expiration } }
+      }
+      case 'stop':
+        await client.stop()
+        return { result: { stopped: true } }
       case 'send_as':
         return { result: await client.listSendAs() }
       case 'history_list':

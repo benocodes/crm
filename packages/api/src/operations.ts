@@ -1,4 +1,4 @@
-import { connectionOperations, type ConnectionsRuntime } from './connections/operations.js'
+import { connectionOperations, withWatchStop, type ConnectionsRuntime } from './connections/operations.js'
 import { contentOperations } from './messaging/content-operations.js'
 import { adminOperations } from './admin/operations.js'
 import { accountOperations } from './account/operations.js'
@@ -36,6 +36,7 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime 
   const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes).registerResource(tags)
   registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
   registry.registerResource(connections)
+  registry.decorate('connections.delete', (op) => withWatchStop(op, options.connections ?? null))
   for (const op of connectionOperations(options.connections ?? null)) registry.register(op)
   for (const op of dealOperations()) registry.register(op)
   registry.registerResource(threads).registerResource(messages).registerResource(interactions).registerResource(files).registerResource(contactFiles).registerResource(companyFiles)
