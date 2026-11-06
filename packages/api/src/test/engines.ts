@@ -113,7 +113,7 @@ export async function openD1Engine(opts: { maxSetSize?: number } = {}): Promise<
 }
 
 /** A D1 whose next unit pauses between its plan reads and its commit batch to run `hook`. */
-function interceptD1(real: D1Like, pending: { hook: (() => Promise<void>) | null }): D1Like {
+export function interceptD1(real: D1Like, pending: { hook: (() => Promise<void>) | null }): D1Like {
   const sqlOf = new WeakMap<object, string>()
   const isRead = (s: D1PreparedLike) => /^\s*select\b/i.test(sqlOf.get(s) ?? '')
   return {

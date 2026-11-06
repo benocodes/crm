@@ -135,9 +135,10 @@ describe('the first-party CLI is the human (D14, D16)', () => {
     expect(me.status).toBe(200)
     expect(me.json.principal.kind).toBe('user')
     expect(me.json.client_id).toBe(CLI)
+    // [[AGT8]] D31: the effective set is closed under write => request_approval, so contacts:write brings contacts:request_approval (agents has none).
     const want = scopesForRole(role, declared)
       .toStrings()
-      .filter((s) => ['contacts:read', 'contacts:write', 'agents:read', 'agents:write'].includes(s))
+      .filter((s) => ['contacts:read', 'contacts:write', 'contacts:request_approval', 'agents:read', 'agents:write'].includes(s))
     expect(me.json.active_organization).toMatchObject({ role, scopes: want.sort() })
     expect(await count('agents')).toBe(0)
     expect(() => meSchema().parse(me.json)).not.toThrow()
@@ -187,7 +188,7 @@ describe('a delegated agent on first sight (D15)', () => {
     expect(me.json.user).toBeNull()
     expect(me.json.client_id).toBe(DCR)
     expect(me.json.agent).toEqual({ id: me.json.principal.id, name: 'Claude Desktop (user_b@x.test)', delegated_by: human, auth_client_id: DCR, auth_subject: null })
-    expect(me.json.active_organization).toEqual({ id: expect.any(String), role: null, scopes: ['contacts:read', 'contacts:write'] })
+    expect(me.json.active_organization).toEqual({ id: expect.any(String), role: null, scopes: ['contacts:read', 'contacts:request_approval', 'contacts:write'] })
     expect(() => meSchema().parse(me.json)).not.toThrow()
     const [agent] = await rows('select * from agents')
     expect(agent).toMatchObject({ id: me.json.principal.id, auth_provider: 'clerk', auth_client_id: DCR, auth_subject: null, delegated_by: human, created_by: human, disabled_at: null })
@@ -311,8 +312,9 @@ describe('delegated scopes are a four-way intersection (D15)', () => {
     profile('user_a', 'owner')
     profile('user_b', 'member')
     const as = async (sub: string) => (await authenticator.authenticate(await oauth(sub, DCR, 'tasks:write contacts:read'), { storage, organizationHeader: undefined, env })).scopes.toStrings()
-    expect(await as('user_a')).toEqual(['contacts:read', 'tasks:write'])
-    expect(await as('user_b')).toEqual(['contacts:read'])
+    expect(await as('user_a')).toEqual(['contacts:read', 'tasks:request_approval', 'tasks:write'])
+    // The policy denies a member tasks:write but not tasks:request_approval (D30: each row is its own): the member's delegate may propose, not write.
+    expect(await as('user_b')).toEqual(['contacts:read', 'tasks:request_approval'])
   })
 
   it('a member never delegates an owner-only scope', async () => {
@@ -380,7 +382,7 @@ describe('an agent account, role agent (D17)', () => {
     const sessionMe = await call(wk, 'GET', '/meta/v1/me', await session('user_g', 'agent'))
     expect(sessionMe.json.principal.id).toBe(id)
     expect(sessionMe.json.client_id).toBeNull()
-    expect(sessionMe.json.active_organization.scopes).toEqual(['contacts:read', 'contacts:write'])
+    expect(sessionMe.json.active_organization.scopes).toEqual(['contacts:read', 'contacts:request_approval', 'contacts:write'])
     expect((await call(wk, 'POST', '/api/v1/contacts', await session('user_g', 'agent'), { name: 'z' })).status).toBe(201)
     // human-only scopes in the stored grants are never effective
     await w.d1.prepare('update agents set scopes = ? where id = ?').bind(JSON.stringify(['contacts:read', 'agents:write']), id).run()

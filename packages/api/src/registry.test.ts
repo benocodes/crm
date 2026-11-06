@@ -31,7 +31,7 @@ describe('resourceOperations', () => {
       'PATCH /tasks/{id}',
       'DELETE /tasks/{id}',
     ])
-    expect(ops.map((o) => `${o.scope.resource}:${o.scope.action}`)).toEqual([
+    expect(ops.map((o) => `${o.scope!.resource}:${o.scope!.action}`)).toEqual([
       'tasks:read',
       'tasks:read',
       'tasks:write',
@@ -50,7 +50,7 @@ describe('resourceOperations', () => {
   })
   it('scope resource', () => {
     const ops = resourceOperations({ ...tasks, name: 'task_notes', scopeResource: 'tasks' })
-    expect(ops.map((o) => `${o.scope.resource}:${o.scope.action}`)).toEqual([
+    expect(ops.map((o) => `${o.scope!.resource}:${o.scope!.action}`)).toEqual([
       'tasks:read',
       'tasks:read',
       'tasks:write',
@@ -107,7 +107,8 @@ describe('Registry.register', () => {
       response: { status: 200, schema: z.object({}) },
       prepare: () => defineOperation({ name: 'account.whoami', mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => ({}) }) }),
     })
-    expect(r.declaredScopes()).toEqual(['tasks:read', 'tasks:write'])
+    // tasks has proposable writes, so its request_approval is declared too ([[AGT8]] D30).
+    expect(r.declaredScopes()).toEqual(['tasks:read', 'tasks:request_approval', 'tasks:write'])
   })
   it('records resources', () => {
     expect(new Registry().registerResource(tasks).resources()).toEqual([tasks])

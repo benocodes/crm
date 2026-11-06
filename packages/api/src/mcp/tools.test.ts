@@ -22,7 +22,9 @@ describe('tools derive from the registry', () => {
       expect(tool.description.startsWith(op.summary)).toBe(true)
       expect(tool.inputSchema.type).toBe('object')
       expect(tool._meta['vibase/surface']).toBe(op.surface)
-      if (op.kind === 'tenant') expect(tool.description).toContain(`Requires ${op.scope.resource}:${op.scope.action} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`)
+      if (op.kind === 'tenant' && op.scope) expect(tool.description).toContain(`Requires ${op.scope.resource}:${op.scope.action} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`)
+      // A decision command has the target's authority, which its description says ([[AGT8]] D7).
+      if (op.kind === 'tenant' && !op.scope) expect(tool.description).toContain('on the target operation')
     }
   })
 
@@ -68,6 +70,7 @@ describe('tools derive from the registry', () => {
       method: 'patch',
       path: '/things/{id}',
       scope: { resource: 'things', action: 'write' },
+      proposal: { eligible: false, reason: 'a probe' },
       request: { params: z.object({ id: z.string() }), body: z.object({ id: z.string() }) },
       response: { status: 204 },
       prepare: () => {

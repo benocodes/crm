@@ -27,6 +27,7 @@ for (const r of ['threads', 'messages', 'interactions', 'files', 'contact_files'
 place('api', 'messages', ['content'])
 place('api', 'files', ['content'])
 place('api', 'associations', ['list', 'get', 'create', 'delete'])
+place('api', 'action_requests', ['list', 'get', 'create', 'withdraw', 'approve', 'reject'])
 place('meta', 'agents', CRUD)
 place('meta', 'connections', ['list', 'get', 'delete', 'authorize', 'sync'])
 place('meta', 'api_keys', [...CRUD, 'revoke'])
@@ -67,7 +68,7 @@ describe('placement (D6)', () => {
       'schema.get',
       'users.get', 'users.list',
     ].sort())
-    expect(ops.length).toBe(89)
+    expect(ops.length).toBe(95)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

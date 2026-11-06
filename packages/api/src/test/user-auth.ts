@@ -1,5 +1,5 @@
 // Test-only: never import from non-test code. A stand-in for [[CORE3]]'s Clerk adapter behind the
-// same UserAuthenticator interface.
+// same UserAuthenticator interface. Like every authenticator it closes the scopes under write => request_approval ([[AGT8]] D31).
 import { ScopeSet } from '../scopes.js'
 import type { UserAuthenticator } from '../auth/types.js'
 
@@ -20,7 +20,7 @@ export function fakeUserAuthenticator(): UserAuthenticator {
         scopes: string[]
         kind?: 'user' | 'agent'
       }
-      return { actor: { id: p.userId, kind: p.kind ?? 'user' }, organizationId: p.organizationId, scopes: ScopeSet.parse(p.scopes) }
+      return { actor: { id: p.userId, kind: p.kind ?? 'user' }, organizationId: p.organizationId, scopes: ScopeSet.closed(p.scopes) }
     },
   }
 }

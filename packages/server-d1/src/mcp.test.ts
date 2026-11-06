@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport, StreamableHTTPError } from '@modelcontex
 import { McpError, ListResourcesResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { execute, uuidv7 } from '@vault/storage'
 import { d1Binding } from '@vault/storage-d1'
-import { createVaultRegistry, grantableScopes, toolName } from '@vault/api'
+import { closeScopes, createVaultRegistry, grantableScopes, toolName } from '@vault/api'
 import { mintClerkToken, mintOAuthToken } from '@vault/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -345,7 +345,7 @@ describe('visibility (D6)', () => {
   const expected = (scopes: readonly string[]) =>
     registry
       .operations()
-      .filter((o) => o.output !== 'binary' && (o.kind === 'account' ? o.agents === true : scopes.includes(`${o.scope.resource}:${o.scope.action}`)))
+      .filter((o) => o.output !== 'binary' && (o.kind === 'account' ? o.agents === true : (o.scope ? scopes.includes(`${o.scope.resource}:${o.scope.action}`) : closeScopes(scopes).some((s) => s.endsWith(o.authority === 'write' ? ':write' : ':request_approval')))))
       .map((o) => toolName(o.name))
       .sort()
 
