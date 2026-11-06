@@ -15,7 +15,8 @@
     "./test/gmail-sync": "./src/test/gmail-sync.ts",
     "./test/google": "./src/test/google.ts",
     "./test/gmail-fixtures": "./src/test/gmail-fixtures.ts",
-    "./test/streams": "./src/test/streams.ts"
+    "./test/streams": "./src/test/streams.ts",
+    "./test/workerd-boundary": "./src/test/workerd-boundary.ts"
   },
   "scripts": {
     "test": "vitest run --config ../../vitest.config.ts",

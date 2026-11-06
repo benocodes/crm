@@ -10,6 +10,7 @@ import { createUserAuthenticator } from '../auth/user-authenticator.js'
 import { createProfileCache, createWorkspaceAuthenticator, workspaceRole } from '../auth/workspace-authenticator.js'
 import { SCOPE_POLICY, type Role, type ScopePolicy } from '../auth/roles.js'
 import { googleCallbackHandler } from '../connections/callback.js'
+import type { MailSyncInstances } from '../sync/request.js'
 import { gmailConfigNotice, gmailUnconfigured, type GmailConfig } from '../connections/config.js'
 import { CALLBACK_PATH } from '../connections/operations.js'
 import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js'
@@ -42,6 +43,8 @@ export interface GmailAppOptions {
   roleOf?: (authSubject: string) => Promise<Role | null>
   /** The scope policy the role re-check applies; default the vault's. */
   policy?: ScopePolicy
+  /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured` and the callback requests no sync. */
+  instances?: MailSyncInstances
 }
 export type AppEnv = { Variables: { principal: Principal; storage: StorageBinding } }
 export interface AppOptions {
@@ -175,6 +178,8 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
   } catch (err) {
     throw mapStorageError(err)
   }
+  // The after-commit stage ([[CHN141]]): outside the storage error mapping too; it throws the ApiError it means.
+  if (op.after) value = await op.after(value)
   // The object stage runs after the unit, outside the storage error mapping: an ApiError propagates, anything else is masked.
   return op.objects ? op.objects(value, injected.objects!) : value
 }
@@ -184,7 +189,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     throw new Error('createApp: pass only one of authAdapter, userAuthenticator and workspace')
   }
   const gmail = options.gmail
-  const registry = options.registry ?? createVaultRegistry({ connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}) } })
+  const registry = options.registry ?? createVaultRegistry({ connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}) } })
   // [[CHN5]] D58: a partial configuration is a startup log line naming what is wrong; nothing configured at all is simply "off".
   if (gmail?.problems && gmail.problems.length > 0 && !gmailUnconfigured(gmail.problems)) console.warn(gmailConfigNotice(gmail.problems))
   const profiles = options.workspace?.adapter ? createProfileCache(options.workspace.adapter) : null
@@ -285,6 +290,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
             }
           : null),
       policy: gmail?.policy ?? SCOPE_POLICY,
+      ...(gmail?.instances ? { instances: gmail.instances } : {}),
       declaredScopes: registry.declaredScopes(),
       storage: options.storage,
       clock: options.clock,

@@ -1,8 +1,11 @@
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import type { D1WorkerEnv, ScheduledControllerLike } from './compose.js'
+import { workerFor } from './instance.js'
 
-// One composition per isolate: only success is cached (see composeD1Worker).
-let worker: ReturnType<typeof composeD1Worker> | undefined
+// The Workflow class named by the `MAIL_SYNC` binding in wrangler.jsonc ([[CHN5]] D34) must be a named export of the Worker entry.
+export { MailSyncWorkflow } from './mail-sync-workflow.js'
 
 export default {
-  fetch: (req: Request, env: D1WorkerEnv): Promise<Response> => (worker ??= composeD1Worker(env)).fetch(req),
+  fetch: (req: Request, env: D1WorkerEnv): Promise<Response> => workerFor(env).fetch(req),
+  // [[CHN5]] D14: the one `scheduled` handler of the Worker; it dispatches on the cron expression.
+  scheduled: (controller: ScheduledControllerLike, env: D1WorkerEnv): Promise<void> => workerFor(env).scheduled(controller),
 }

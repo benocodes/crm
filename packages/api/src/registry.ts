@@ -32,7 +32,7 @@ interface OperationBase {
   path: string
   request?: { params?: z.ZodObject; query?: z.ZodObject; body?: z.ZodType }
   validation?: 'adapter' | 'handler'
-  response: { status: 200 | 201 | 204; schema?: z.ZodType }
+  response: { status: 200 | 201 | 202 | 204; schema?: z.ZodType }
   /** [[CHN5]] D29: answers `501 not_implemented` on a storage binding that is not D1, before any unit runs. */
   d1Only?: boolean
   /** `binary` responds with a `BinaryBody` from the `objects` stage; default `json`. */
@@ -51,6 +51,11 @@ export interface TenantOperation extends OperationBase {
    * unit never calls R2. Its return is the response (JSON) or a `BinaryBody` (binary).
    */
   objects?: (value: unknown, store: ObjectStore) => Promise<unknown>
+  /**
+   * The after-commit stage ([[CHN141]] D75): runs after the unit has committed, with its value, and returns the response. For a side effect that must
+   * not happen unless the unit did (a Workflow instance for a recorded sync request). An `ApiError` it throws is the response.
+   */
+  after?: (value: unknown) => Promise<unknown>
 }
 /**
  * What an account operation sees ([[CORE41]] C2, P12): the signed-in user, the active organisation and its scopes when

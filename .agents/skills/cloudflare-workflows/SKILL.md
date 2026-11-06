@@ -30,6 +30,11 @@ almost no CPU and is fine. What consumes the budget is work in the step body: bi
 large schema, crypto. **Rate limits**, not duration, are the real constraint on a slow provider (Gmail
 throttling returns 429 with `Retry-After`; respect it with `step.sleep`).
 
+**Steps per instance are capped: 1024 on the Free plan** (user-confirmed, 2026-11-06, [[CHN141]]; check Cloudflare's limits
+page for what counts as a step, `step.sleep` included, before relying on headroom). A loop of one step per page
+is bounded by the input's size, not by your code: budget the pages and continue in a new instance (`create` with a fresh
+id, the cursor in the database) before the cap. The Gmail backfill's budget is #156.
+
 ## Structure
 
 Put the Node-safe body in `workflow-run.ts`; the workerd class in `workflow.ts` only imports
@@ -183,9 +188,34 @@ Webhook delivery is the same shape with a dead-letter queue behind it.
 
 ## Where this lives in the vault
 
-These arrive with the CHN cycles that add Gmail sync; update this list when they do.
+Gmail sync ([[CHN141]], CHN5 cycle 4) is the first Workflow. Paths are real:
 
-- `packages/api/src/sync/workflow-run.ts`: Node-safe orchestrator. `workflow.ts`: workerd entrypoint.
-- `packages/api/src/test/workerd-boundary.ts`: the step shim. Use it in every workflow test.
-- `packages/api/wrangler.toml`: `[[workflows]]` bindings and `[[queues.consumers]]`.
-- `packages/db/src/pg-types.ts`: driver-level parsers that keep results serialisable.
+- `packages/api/src/sync/workflow-run.ts`: Node-safe orchestrator `runMailSync(event, step, resolve)`. Step names are unique per instance
+  (`seed`, `claim`, `p<pass>-history-<n>`, `p<pass>-finish`, `record-failure`, `chain`); every step re-resolves the runtime from `resolve()` and
+  returns only ids, counts, page tokens, history ids, bounds and outcomes. `lease.ts` (lease on `mail_sync_state`: one conditional write plus a
+  `result` select in the same D1 batch, so "did I get it" needs no drift handling), `request.ts` (`requestSync`, `dueConnections`), `cron.ts`.
+- `packages/server-d1/src/mail-sync-workflow.ts`: the workerd class (`MailSyncWorkflow`, imports `cloudflare:workers`, typed by
+  `src/cloudflare-workers.d.ts`); `src/instance.ts` is the one per-isolate composition that `fetch`, `scheduled` and the Workflow share;
+  `compose.ts` returns `{ fetch, scheduled, runMailSync }`. `src/worker.ts` must **export the class by name**: the binding names it.
+- `packages/server-d1/wrangler.jsonc`: `workflows` and `triggers.crons` are **not inherited by an env**; each env states its own (`vault-mail-sync`,
+  `vault-smoked1-mail-sync`, `vault-hq-mail-sync`; `hq` has `"triggers": { "crons": [] }` on purpose). Config test: `src/wrangler-config.test.ts`.
+- `packages/api/src/test/workerd-boundary.ts` (`makeWorkerdStepShim`): the step shim. It walks returns with workerd's accept-list (constructor name and
+  path), clones them, turns thrown errors into bare `Error`s, records `sleep`s and `returns`, and has `retries`, `beforeStep` (kill the instance at a
+  step) and `afterCommit` (fail after the step's unit committed) hooks. Use it in every workflow test.
+- `packages/server-d1/scripts/smoke-worker.ts` (`smoke:worker`, checks W1-W5) runs the real `MailSyncWorkflow` from the real bundle in Miniflare's
+  Workflows engine (`workflows: { MAIL_SYNC: { name, className } }`; esbuild needs `external: ['cloudflare:workers']`), Google faked by the
+  outbound service (`FakeGmail.handle` serves Gmail over HTTP). `scheduled` is driven with `(await mf.getWorker()).scheduled({ cron })`.
+- `packages/db/src/pg-types.ts`: driver-level parsers that keep results serialisable (the Postgres engine).
+
+Traps found building it: a **claim step must take back its own lease** (`run_id = :run` in the guard), because a retried step re-runs after its unit
+committed; the **cron expression** the handler dispatches on is `controller.cron`; a **kill is modelled before a step**, and a second run needs the
+lease to expire (advance the injected clock past `LEASE_MS`).
+
+Found in review ([[CHN141]] round 1):
+
+- **Every step that writes passes the migration gate, the terminal ones too.** `record-failure` and `chain` were first written without
+  `rt.gate()`, so a database behind its migrations could still release a lease or start an instance. Put the gate first in each step body
+  and give at least one terminal step its own gate test (shim `beforeStep` flips `behind`, the row must be unchanged).
+- **A "kept, the cron will serve it" promise needs the cron's predicate to include it.** `503 sync_unavailable` keeps `sync_requested_at`;
+  the cron selected only stale or lease-expired connections, so a fresh connection's request waited 15 minutes. `dueConnections` also selects
+  `sync_requested_at > last_success_at`. When an error path defers work to a scheduler, test the scheduler picks that exact state.

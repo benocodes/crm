@@ -1,5 +1,5 @@
-import { createApp, createVaultRegistry, parseGmailConfig, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, type AuthAdapter, type R2BucketLike } from '@vault/api'
-import type { D1Binding } from '@vault/storage'
+import { MAIL_SYNC_CRON, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type StreamPrimitives, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
+import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
@@ -39,6 +39,14 @@ export interface D1WorkerEnv {
   BODIES?: R2BucketLike
   /** Workers Static Assets: the built `/connect` page ([[UI30]] D2). Absent: `/connect*` answers 404. */
   ASSETS?: AssetsLike
+  /** The `MailSyncWorkflow` binding ([[CHN141]] D34). Absent: `connections.sync` answers 501, connect requests no sync, the cron skips Gmail work. */
+  MAIL_SYNC?: MailSyncInstances
+}
+
+/** What the runtime hands `scheduled` (Cloudflare's `ScheduledController`, reduced to what is read). */
+export interface ScheduledControllerLike {
+  cron: string
+  scheduledTime?: number
 }
 
 /** The 503 body of every route but /health and the two OpenAPI documents while the deployment marker is absent. */
@@ -73,8 +81,8 @@ const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES'
  */
 export function composeD1Worker(
   env: D1WorkerEnv,
-  deps: { fetch?: typeof fetch; clock?: () => Date; newId?: () => string; /** Milliseconds for the migration-state re-read window; defaults to `Date.now`. */ nowMs?: () => number } = {},
-): { fetch(req: Request): Promise<Response> } {
+  deps: { fetch?: typeof fetch; /** Node tests only: workerd's stream primitives are absent there. */ streams?: StreamPrimitives; clock?: () => Date; newId?: () => string; /** Milliseconds for the migration-state re-read window; defaults to `Date.now`. */ nowMs?: () => number } = {},
+): { fetch(req: Request): Promise<Response>; scheduled(controller: ScheduledControllerLike): Promise<void>; runMailSync(event: WorkflowEventLike<MailSyncParams>, step: WorkflowStepLike): Promise<MailSyncSummary> } {
   const vars: Record<string, string | undefined> = {}
   for (const name of STRING_VARS) vars[name] = typeof env[name] === 'string' ? env[name] : undefined
 
@@ -142,8 +150,85 @@ export function composeD1Worker(
     }
     if (!link) return undefined
     const binding = d1Binding(env.DB, link)
-    app = createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, ...(deps.fetch ? { fetch: deps.fetch } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
+    app = createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, ...(deps.fetch ? { fetch: deps.fetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
     return app
+  }
+
+  const clock = deps.clock ?? (() => new Date())
+  const newId = deps.newId ?? (() => uuidv7(clock()))
+  const profiles = authAdapter ? createProfileCache(authAdapter) : null
+
+  /** The database, once it is initialised and not behind ([[CHN5]] D37): null otherwise, with the reason in `why`. */
+  async function syncBinding(): Promise<{ binding: D1Binding; organizationId: string } | { why: string }> {
+    let link
+    try {
+      link = await readDeployment(env.DB)
+    } catch (err) {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) return { why: 'the deployment is not initialised' }
+      throw err
+    }
+    if (!link) return { why: 'the deployment is not initialised' }
+    if ((await migrations()).status === 'behind') return { why: 'the database is behind its migrations' }
+    return { binding: d1Binding(env.DB, link), organizationId: link.organizationId }
+  }
+
+  /** Re-resolved by every Workflow step ([[CHN5]] D11): nothing here is ever returned from a step. Throws (retryably) when the deployment cannot sync. */
+  async function mailSyncRuntime(): Promise<MailSyncRuntime> {
+    if (!gmail.config) throw new Error('Gmail is not configured on this deployment')
+    if (!env.MAIL_SYNC) throw new Error('the MAIL_SYNC Workflow binding is missing')
+    if (!env.BODIES) throw new Error('the BODIES bucket is missing')
+    const found = await syncBinding()
+    if ('why' in found) throw new Error(`mail sync cannot run: ${found.why} (migrations_pending or not initialised)`)
+    const c = gmail.config
+    return {
+      pages: {
+        binding: found.binding,
+        organizationId: found.organizationId,
+        objects: r2ObjectStore(env.BODIES),
+        streams: deps.streams ?? workerdStreams(),
+        clock,
+        newId,
+        randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+        config: { clientId: c.clientId, clientSecret: c.clientSecret, credentialsKey: c.credentialsKey, keyVersion: c.keyVersion, backfillDays: c.backfillDays, attachmentMaxBytes: c.attachmentMaxBytes },
+        ...(deps.fetch ? { fetch: deps.fetch } : {}),
+      },
+      gate: async () => {
+        if ((await migrations()).status === 'behind') throw new Error('migrations_pending: the database is behind this build, apply the migrations first')
+      },
+      roleOf: profiles
+        ? async (subject) => {
+            const profile = await profiles.profileOf(subject, clock().getTime())
+            return profile ? workspaceRole(profile.role) : null
+          }
+        : null,
+      policy: SCOPE_POLICY,
+      declaredScopes: discovery.declaredScopes,
+      instances: env.MAIL_SYNC,
+    }
+  }
+
+  /** The shared `scheduled` handler ([[CHN5]] D14): dispatches on the cron expression; an unknown one is logged, not thrown. */
+  async function scheduled(controller: ScheduledControllerLike): Promise<void> {
+    if (controller.cron !== MAIL_SYNC_CRON) {
+      console.warn(`[cron] unknown cron expression "${controller.cron}": nothing to do`)
+      return
+    }
+    try {
+      if (!gmail.config || !env.MAIL_SYNC) {
+        console.log(`[cron] ${controller.cron}: Gmail work skipped (Gmail or the MAIL_SYNC binding is not configured)`)
+        return
+      }
+      const found = await syncBinding()
+      if ('why' in found) {
+        console.log(`[cron] ${controller.cron}: skipped, ${found.why}`)
+        return
+      }
+      const out = await requestDueSyncs({ binding: found.binding, organizationId: found.organizationId, clock, newId, instances: env.MAIL_SYNC })
+      console.log(`[cron] ${controller.cron}: requested ${out.requested.length} sync run(s), ${out.failed} could not be started`)
+    } catch (err) {
+      console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
+      throw err
+    }
   }
 
   async function health(): Promise<Response> {
@@ -167,6 +252,8 @@ export function composeD1Worker(
   }
 
   return {
+    scheduled,
+    runMailSync: (event, step) => runMailSync(event, step, mailSyncRuntime),
     async fetch(req) {
       try {
         const url = new URL(req.url)

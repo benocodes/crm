@@ -21,6 +21,10 @@
   "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*"] },
   // Local R2 (no account needed): message bodies and file bytes, served by messages.content and files.content.
   "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-bodies" }],
+  // The Gmail sync run ([[CHN141]], CHN5 D34): a Workflow whose class `src/worker.ts` exports, and the 15-minute cron that requests syncs. Neither is
+  // inherited by an env: each env states its own. They come into being with `deploy:remote`, like a route.
+  "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-mail-sync", "class_name": "MailSyncWorkflow" }],
+  "triggers": { "crons": ["*/15 * * * *"] },
   // Secrets (CLERK_JWT_KEY, CLERK_SECRET_KEY) are never put here: .dev.vars locally, wrangler secret put when deployed.
   "vars": {
     "AUTH_PROVIDER": "",
@@ -44,6 +48,8 @@
         }
       ],
       "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-smoked1-bodies" }],
+      "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-smoked1-mail-sync", "class_name": "MailSyncWorkflow" }],
+      "triggers": { "crons": ["*/15 * * * *"] },
       "vars": { "AUTH_PROVIDER": "", "CORS_ALLOWED_ORIGINS": "" }
     },
     "hq": {
@@ -74,6 +80,9 @@
           "bucket_name": "vault-hq-bodies"
         }
       ],
+      // The binding, and deliberately no cron until the supervised first backfill ([[CHN5]] D76): the first real run is user-started (`connections sync`).
+      "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-hq-mail-sync", "class_name": "MailSyncWorkflow" }],
+      "triggers": { "crons": [] },
       "vars": {
         "AUTH_PROVIDER": "clerk",
         "CLERK_ISSUER": "https://clerk.hq.vibase.ai",

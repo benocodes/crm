@@ -261,6 +261,47 @@ export class FakeGmail implements GmailClient {
     return parseMessageList(this.messageListWire(p.q, p.pageToken, p.maxResults))
   }
 
+  /**
+   * The same data over HTTP, for runs that inject `fetch` (the compose tests, the workerd smoke): `users/me/{history,messages,messages/<id>,
+   * messages/<id>/attachments/<id>,profile}`, a bearer token `valid` accepts, the same call log and the same scripted failures as the client methods.
+   */
+  readonly handle = async (req: Request, valid: (token: string) => boolean): Promise<Response> => {
+    const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
+    const auth = req.headers.get('authorization') ?? ''
+    if (!auth.startsWith('Bearer ') || !valid(auth.slice(7))) return json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
+    const url = new URL(req.url)
+    const path = url.pathname.replace(/^\/gmail\/v1\/users\/me/, '')
+    const q = url.searchParams
+    try {
+      if (path === '/profile') return json(this.profile)
+      if (path === '/history') {
+        this.enterList({ op: 'history', messageId: '', startHistoryId: q.get('startHistoryId') ?? '', pageToken: q.get('pageToken') })
+        return json(this.historyWire(q.get('startHistoryId') ?? '', q.get('pageToken'), Number(q.get('maxResults') ?? 100)))
+      }
+      if (path === '/messages') {
+        this.enterList({ op: 'list', messageId: '', q: q.get('q') ?? '', pageToken: q.get('pageToken') })
+        return json(this.messageListWire(q.get('q') ?? '', q.get('pageToken'), Number(q.get('maxResults') ?? 100)))
+      }
+      const attachment = /^\/messages\/([^/]+)\/attachments\/([^/]+)$/.exec(path)
+      if (attachment) {
+        const message = this.enter({ op: 'attachment', messageId: decodeURIComponent(attachment[1]!), attachmentId: decodeURIComponent(attachment[2]!) })
+        const bytes = message.attachments.get(decodeURIComponent(attachment[2]!))
+        if (!bytes) return json({ error: { code: 404, status: 'NOT_FOUND' } }, 404)
+        return new Response(attachmentWire(bytes) as unknown as BodyInit, { headers: { 'content-type': 'application/json' } })
+      }
+      const one = /^\/messages\/([^/]+)$/.exec(path)
+      if (one) {
+        const id = decodeURIComponent(one[1]!)
+        if (q.get('format') === 'raw') return new Response(rawWire(this.enter({ op: 'raw', messageId: id })) as unknown as BodyInit, { headers: { 'content-type': 'application/json' } })
+        return json(this.enter({ op: 'full', messageId: id }).resource)
+      }
+      return json({ error: { code: 404, status: 'NOT_FOUND' } }, 404)
+    } catch (err) {
+      if (err instanceof GmailApiError) return json({ error: { code: err.status, status: err.gmailStatus, ...(err.reason ? { errors: [{ reason: err.reason }] } : {}) } }, err.status, err.retryAfter ? { 'retry-after': err.retryAfter } : {})
+      throw err
+    }
+  }
+
   /** Makes calls matching `match` throw `error`. */
   failWhen(match: (c: FakeGmailCall) => boolean, error: Error): this {
     this.failures.push({ match, error })
