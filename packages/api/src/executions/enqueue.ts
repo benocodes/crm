@@ -83,17 +83,30 @@ async function directEnqueue(operation: string, execution: ExecutionDecl, bodySc
   const key = idempotencyKey.safeParse(rawBody !== null && typeof rawBody === 'object' ? (rawBody as Record<string, unknown>).idempotency_key : undefined)
   if (!key.success) throw new ApiError(400, 'validation_error', `idempotency_key is required: ${key.error.issues.map((i) => i.message).join('; ')}`)
   const { idempotency_key: _key, ...args } = parseInput(bodySchema, rawBody) as { idempotency_key: string } & Record<string, unknown>
-  const auth = (await execution.authorise?.(env, args, ctx)) ?? {}
   const hash = await inputHash(operation, args)
-  const id = env.newId()
-  const eventId = env.newId()
-  const at = codecs.timestamp.write(env.now)
-  const deadline = codecs.timestamp.write(new Date(env.now.getTime() + DEADLINE_MS))
   const byKey = (qc: Parameters<PreparedOperation<unknown>['reads']>[0]) =>
     selectRecord(actionExecutions, qc, env, undefined, { derived: false })
       .select(sql<string>`${sql.ref('action_executions.input_hash')}`.as('__hash'))
       .where(sql<SqlBool>`${sql.ref('action_executions.created_by')} = ${env.actor.id}`)
       .where(sql<SqlBool>`${sql.ref('action_executions.idempotency_key')} = ${key.data}`)
+  const replay = (existing: Row) => {
+    const { __hash, ...rest } = existing
+    if (__hash !== hash) throw new ApiError(409, 'idempotency_key_reused', 'this idempotency_key was used for a different call; use a new key for a different call')
+    return unit({ steps: [], events: [], decode: () => toRecord(actionExecutions, rest) })
+  }
+  // D61: a prior receipt survives a later authorisation refusal. Only a new key reaches authorise.
+  const existing = await ctx.read(defineOperation<Row | null>({
+    name: `${operation}.enqueue.lookup`,
+    mutates: false,
+    reads: (qc) => ({ existing: readMaybe(byKey(qc)) }),
+    build: (found) => unit({ steps: [], events: [], decode: () => found.maybe('existing') }),
+  }))
+  if (existing) return defineOperation({ name: `${operation}.enqueue`, mutates: false, reads: () => ({}), build: () => replay(existing) })
+  const auth = (await execution.authorise?.(env, args, ctx)) ?? {}
+  const id = env.newId()
+  const eventId = env.newId()
+  const at = codecs.timestamp.write(env.now)
+  const deadline = codecs.timestamp.write(new Date(env.now.getTime() + DEADLINE_MS))
   return defineOperation<ExecutionRecord>({
     name: `${operation}.enqueue`,
     mutates: true,
@@ -102,9 +115,7 @@ async function directEnqueue(operation: string, execution: ExecutionDecl, bodySc
       const existing = found.maybe('existing')
       if (existing) {
         // D51: the same key and input is the same execution and writes nothing; another input under the key is a conflict.
-        const { __hash, ...rest } = existing as Record<string, unknown>
-        if (__hash !== hash) throw new ApiError(409, 'idempotency_key_reused', 'this idempotency_key was used for a different call; use a new key for a different call')
-        return unit({ steps: [], events: [], decode: () => toRecord(actionExecutions, rest as Row) })
+        return replay(existing)
       }
       const guards: Expression<SqlBool>[] = auth.guards?.(qc) ?? []
       return unit({

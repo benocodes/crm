@@ -76,7 +76,7 @@ export class FakeTransport implements Transport {
       held.reached()
       a = (await held.answer) as Answer
     } else a = this.answers.shift() ?? { kind: 'sent' }
-    if (a.kind === 'hang') await this.untilAborted(call, a.ignoreAbort)
+    if (a.kind === 'hang') return this.untilAborted(call, a.ignoreAbort)
     if (a.kind === 'throw') throw new Error('the fake transport threw')
     if (a.kind === 'sent') return { kind: 'sent', result: a.result ?? { message_id: `fake-${call.executionId}` } }
     return a as DispatchOutcome
@@ -92,7 +92,7 @@ export class FakeTransport implements Transport {
         held.reached()
         a = (await held.answer) as ReconcileAnswer
       } else a = this.reconcileAnswers.shift() ?? { kind: 'unknown' }
-      if (a.kind === 'hang') await this.untilAborted(call)
+      if (a.kind === 'hang') return this.untilAborted(call)
       if (a.kind === 'throw') throw new Error('the fake transport threw')
       return a
     }

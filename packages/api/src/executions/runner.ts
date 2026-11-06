@@ -53,24 +53,49 @@ const iso = (ms: number): string => new Date(ms).toISOString()
 /** `30 * 2^(n-1)` seconds ([[CHN5]] D84). */
 const backoffMs = (attempt: number): number => BACKOFF_BASE_MS * 2 ** (attempt - 1)
 
-function callOf(row: ExecutionRow): TransportCall {
-  return { executionId: row.id, operation: row.operation, arguments: row.arguments, resolution: row.resolution, clientRef: row.client_ref, attempt: row.attempts }
+/** One deadline and one signal for every call of an attempt; storage retains the last ten seconds of the lease. */
+function transportBudget(d: RailDeps, leaseUntil: number) {
+  const controller = new AbortController()
+  const leaseDeadline = leaseUntil - LEASE_MARGIN_MS
+  const remaining = Math.max(0, Math.min(d.attemptBudgetMs ?? Infinity, leaseDeadline - d.clock().getTime()))
+  const wallDeadline = Date.now() + remaining
+  const timer = setTimeout(() => controller.abort(), remaining)
+  return {
+    signal: controller.signal,
+    async call<T>(invoke: () => Promise<T>, unknown: T): Promise<T> {
+      if (controller.signal.aborted || Date.now() >= wallDeadline || d.clock().getTime() >= leaseDeadline) {
+        controller.abort()
+        return unknown
+      }
+      let onAbort!: () => void
+      const expired = new Promise<T>((resolve) => {
+        onAbort = () => resolve(unknown)
+        controller.signal.addEventListener('abort', onAbort, { once: true })
+      })
+      try {
+        // Racing also bounds a transport that observes abort but never settles its promise.
+        return await Promise.race([invoke(), expired])
+      } catch {
+        return unknown
+      } finally {
+        controller.signal.removeEventListener('abort', onAbort)
+      }
+    },
+    dispose: () => clearTimeout(timer),
+  }
+}
+type TransportBudget = ReturnType<typeof transportBudget>
+
+function callOf(row: ExecutionRow, signal: AbortSignal): TransportCall {
+  return { executionId: row.id, operation: row.operation, arguments: row.arguments, resolution: row.resolution, clientRef: row.client_ref, attempt: row.attempts, signal }
 }
 /** A transport that throws has told us nothing: the call may have been made. */
-async function dispatchSafe(transport: Transport, call: TransportCall): Promise<DispatchOutcome> {
-  try {
-    return await transport.dispatch(call)
-  } catch {
-    return { kind: 'unknown' }
-  }
+async function dispatchSafe(transport: Transport, call: TransportCall, budget: TransportBudget): Promise<DispatchOutcome> {
+  return budget.call<DispatchOutcome>(() => transport.dispatch(call), { kind: 'unknown' })
 }
-async function reconcileSafe(transport: Transport, call: TransportCall): Promise<ReconcileOutcome> {
+async function reconcileSafe(transport: Transport, call: TransportCall, budget: TransportBudget): Promise<ReconcileOutcome> {
   if (!transport.reconcile) return { kind: 'unknown' }
-  try {
-    return await transport.reconcile(call)
-  } catch {
-    return { kind: 'unknown' }
-  }
+  return budget.call<ReconcileOutcome>(() => transport.reconcile!(call), { kind: 'unknown' })
 }
 
 /** One attempt at one execution. Claims it (skipped when it is not due or another runner holds it), then follows D53 and finishes or reschedules it. */
@@ -82,7 +107,17 @@ export async function runExecution(d: RailDeps, id: string): Promise<RunOutcome>
   const token = crypto.randomUUID()
   const claimed = (await execute(d.binding, identity, claimProgram({ organizationId, id, token, now: iso(now.getTime()), leaseUntil: iso(now.getTime() + EXECUTION_LEASE_MS) }))).value
   if (!claimed) return SKIPPED
-  const row = claimed
+  const budget = transportBudget(d, now.getTime() + EXECUTION_LEASE_MS)
+  try {
+    return await runClaimedExecution(d, claimed, token, now, budget)
+  } finally {
+    budget.dispose()
+  }
+}
+
+async function runClaimedExecution(d: RailDeps, row: ExecutionRow, token: string, now: Date, budget: TransportBudget): Promise<RunOutcome> {
+  const { id, organization_id: organizationId } = row
+  const identity = { kind: 'internal', organizationId } as const
   const op = d.registry.get(row.operation)
   const decl = op?.kind === 'tenant' ? op.execution : undefined
   const transport = decl ? d.transports[decl.transport] : undefined
@@ -109,8 +144,8 @@ export async function runExecution(d: RailDeps, id: string): Promise<RunOutcome>
     return ok ? { outcome: 'retry' } : SKIPPED
   }
 
-  if (!decl || !transport) return fail('provider_rejected')
-  const call = callOf(row)
+  if (!decl || !transport) return fail(row.dispatched_at !== null ? 'outcome_unknown' : 'provider_rejected')
+  const call = callOf(row, budget.signal)
   const maybeSent = row.dispatched_at !== null
   /** Whether the execution may have been delivered as things stand now: the stamp of an earlier attempt, or this attempt's call. */
   let sentNow = maybeSent
@@ -120,7 +155,7 @@ export async function runExecution(d: RailDeps, id: string): Promise<RunOutcome>
   const terminal = async (never: FailureCode): Promise<RunOutcome> => {
     if (!sentNow) return fail(never)
     if (policy !== 'never') {
-      const r = await reconcileSafe(transport, call)
+      const r = await reconcileSafe(transport, call, budget)
       if (r.kind === 'found') return finish({ ok: true, result: r.result })
     }
     return fail('outcome_unknown')
@@ -140,7 +175,7 @@ export async function runExecution(d: RailDeps, id: string): Promise<RunOutcome>
   if (maybeSent) {
     if (policy === 'never') return fail('outcome_unknown')
     if (policy === 'reconcile') {
-      const r = await reconcileSafe(transport, call)
+      const r = await reconcileSafe(transport, call, budget)
       if (r.kind === 'found') return finish({ ok: true, result: r.result })
       if (r.kind === 'unknown') {
         // Nothing to learn: wait, and ask again. Past the last attempt or the deadline this IS the final reconcile.
@@ -156,7 +191,7 @@ export async function runExecution(d: RailDeps, id: string): Promise<RunOutcome>
   const stamped = (await execute(d.binding, identity, stampProgram({ organizationId, id, token, now: iso(d.clock().getTime()) }))).value
   if (!stamped) return SKIPPED
   sentNow = true
-  const out = await dispatchSafe(transport, call)
+  const out = await dispatchSafe(transport, call, budget)
   switch (out.kind) {
     case 'sent':
       return finish({ ok: true, result: out.result })
