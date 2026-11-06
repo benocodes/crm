@@ -147,7 +147,7 @@ must be fetched first, a remote resource the user must create (rule 4). Omit the
 
 | Evidence | Use when |
 |---|---|
-| red run | new behaviour a test can see missing before the code exists |
+| red run | new behaviour a test can see missing before the code exists. Not for a check of code that may already be right (a replay of new fixtures through existing parsers, a cost formula the code may already meet): ask for "red run, or an absence mutation if it is green on first run" ([[CHN153b]]: three such obligations had no red run) |
 | absence mutation (name the fault and the engine) | a suite that needs the whole vertical (contract, parity, atomicity, concurrency, golden), or a "never does X" property |
 | both engines | anything in storage or the service layer (D1 is the oracle; Postgres runs and reports drift) |
 | type-level negative at the call site | a compile-time contract ([[writing-tests]] §2) |

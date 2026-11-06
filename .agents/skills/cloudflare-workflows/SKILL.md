@@ -27,8 +27,13 @@ Workflows meter **CPU time**, not wall-clock time. Per step (paid plan) CPU is 3
 to 5 minutes; wall-clock duration is unlimited, so a step may wait on network I/O or a DB query
 indefinitely, and `step.sleep()` goes up to 365 days. A slow external call (a Gmail history page fetch, an LLM) burns
 almost no CPU and is fine. What consumes the budget is work in the step body: big JSON parses, compiling a
-large schema, crypto. **Rate limits**, not duration, are the real constraint on a slow provider (Gmail
-throttling returns 429 with `Retry-After`; respect it with `step.sleep`).
+large schema, crypto. **Rate limits**, not duration, are the real constraint on a slow provider. Gmail's per-minute quota
+arrives as a `403` with `errors[].reason: rateLimitExceeded` and **no `Retry-After`** (the `hq` backfill, [[CHN153b]]), on any
+call kind, attachment gets included; a `429` may carry one. Honour `Retry-After` when sent, else grow the `step.sleep`
+(30 s × 2^(n−1) per throttle of one page, [[CHN5]] D84): a flat sleep can land in the same quota window again. A throttle
+is a fact about the page, never about the item: surface it as a distinct retryable error the content step rethrows, not as
+a stored per-item failure (`ChannelThrottledError`, `packages/api/src/channels/port.ts`). Each throttle costs two steps (the
+sleep and the repeated page).
 
 **Steps per instance are capped: 1024 on the Free plan** (user-confirmed, 2026-11-06, [[CHN141]]; check Cloudflare's limits
 page for what counts as a step, `step.sleep` included, before relying on headroom). A loop of one step per page

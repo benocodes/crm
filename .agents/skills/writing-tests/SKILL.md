@@ -118,6 +118,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   `name="a\"; CANARY=1"`. A suite of plain-word canaries passed while a quoted `;` let content out as a "parameter name"
   ([[CHN153]] review). Then run one absence mutation per branch of each parser (drop the quote tracking, drop the escape
   handling): a branch whose mutation leaves the suite green is unproven, however correct it reads.
+  **Once a second defence covers the same leak, the canary cannot see the first.** After [[CHN153b]] masked every unknown
+  parameter name, dropping the escape branch still wrote no `CANARY` (the mis-split name was masked anyway). Prove each
+  defence with a case only it decides (there: a *known* name after `\"`, `filename="a\"; boundary=Z1"`, must stay one
+  parameter), and record the canary's red run from before the second defence landed.
+- **A fixed-point honesty check over recorded fixtures cannot tell an id-shaped word from a pseudonym.** A pseudonym keeps
+  the original's length and character class, so `MariaGarcia` in an `id`, a path segment or a `pageToken` passes
+  (`packages/api/src/test/recorded-honesty.ts`, [[CHN153b]] review). The check catches content in prose, header and error
+  fields; for ids, the protection is the recorder's pseudonymisation, so a reviewer compares each committed recorded file
+  verbatim (deep-equal) against the pulled object it came from.
 - **A read-modify-write must not treat a failed read as absent.** `read().catch(() => [])` before a write overwrites good
   state after one transient error. Absent (the store answers null) is empty; a throw, timeout or unparsable value skips the
   write. Test all three ([[CHN153]] review, `packages/api/src/channels/gmail/recorder.ts`).
