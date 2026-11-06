@@ -627,12 +627,33 @@ service context enforces it, so scope checks are written once.
     declares a scope fails CI until it decides both flags in the same change. Owners hold every declared
     scope. A scope without a row is held by no member and granted to no agent (fail closed).
   - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
-- **Owner-granted resource authority** ([[AGT8]], user revision 2026-11-05; planned extension):
-  resource write includes request_approval; read stays independent. Agents may send directly with
-  messages:write or choose review. A user or agent with target write authority can approve. Requests
-  reference registry operations and arguments; both paths reuse validation, audit and execution.
-  Provider credentials remain in the vault. Do not reintroduce a human-only decision scope or separate
-  three-kind mutation catalog. Existing code has not yet implemented this extension.
+- **Owner-granted resource authority** ([[AGT8]] D1, D30, D31; shipped in cycle 1): three actions,
+  `<resource>:read`, `<resource>:request_approval`, `<resource>:write`. Write includes request_approval; read
+  stays independent. A user or agent with target write authority can approve. Do not reintroduce a
+  human-only decision scope or a separate mutation catalog.
+  - **Closure, then intersection, in the authenticators** (`closeScopes` / `ScopeSet.closed`, `src/scopes.ts`):
+    every list is closed under `write => request_approval` before it is met with another (token, owner cap, role,
+    agent-grantable), so a request_approval token over a write cap proposes only. The sites are the API-key branch
+    of `authMiddleware`, `meet` in `workspace-authenticator.ts`, `scopesForRole`, and the test stand-in
+    authenticator. `ScopeSet.parse` stays exact and requirement checks stay exact; a new credential path must
+    close its set, or a write-only principal cannot propose. Stored grants are never expanded.
+  - **Every tenant operation that is not a GET declares `proposal`** (`{ eligible: true, target?, alsoRequires? }`
+    or `{ eligible: false, reason }`); `Registry.register` refuses one without it, and `proposal.test.ts` pins the
+    eligible list. A generated resource that must not be proposed sets `notProposable: '<reason>'` on its
+    definition. An eligible operation must take a `write` scope and run inline (no `after`, `objects` or `d1Only`).
+  - **An operation whose authority depends on its input** (the `action_requests` decision commands) carries
+    `scope: null` plus `authority`, and checks the target's scope inside `prepare`, naming it in the 403. The
+    executor skips its scope check for such an operation, so every path in `prepare` must check before it
+    builds anything.
+  - **Plan reads in `prepare`**: `prepare(env, input, ctx)` gets `ctx.read(program)` (a read-only unit on the
+    request's storage identity), and `replanOnDrift: true` makes the executor plan and run once more on
+    `UnitDriftError`, then `409 conflict` (D28).
+  - **Composing another operation's program into one unit** (approval, `action-requests/operations.ts`): build
+    the target's `PreparedOperation`, take its reads and steps, demote its `result` step, and gate your own
+    transition on the target's event rows existing (`count(*) from events where id in (...)`), so a target whose
+    guarded statements no-oped leaves no decision. **A D1 unit cannot write a value derived from its own result
+    select**: the batch is fixed at build time, so record what the build knows (the target's event receipts),
+    not the target's response body.
 - **A provisioner that creates a parent and a child on first sight** (`src/auth/first-sight.ts`, [[CORE41]] P7): any
   network call (the profile fetch) and normalisation **before** the unit. Then plan-read every unique key the insert
   can collide on, insert the parent with an app-minted id, the child with `ON CONFLICT DO NOTHING`, and
