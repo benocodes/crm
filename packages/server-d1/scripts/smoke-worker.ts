@@ -121,6 +121,8 @@ try {
       GOOGLE_CLIENT_SECRET: google.clientSecret,
       OAUTH_STATE_SECRET: 'smoke-state-secret',
       CREDENTIALS_KEY: Buffer.from(CREDENTIALS_KEY_BYTES).toString('base64'),
+      // [[CHN153]]: the Google recorder is on, as a deployed var would set it, a day ahead of the real clock workerd runs on.
+      GOOGLE_RECORDING_UNTIL: new Date(Date.now() + 86_400_000).toISOString(),
     },
     outboundService: async (req: Request) => {
       const url = new URL(req.url)
@@ -378,6 +380,17 @@ try {
   check('W4 the */15 cron in workerd runs without an error line (the connection is fresh, so it requests nothing)', !logLines.some((l) => /\[cron\].*(error|failed)/i.test(l)) && (await count('message_sources')) === 3, undefined)
   const syncLogs = logLines.join('\n')
   check('W5 no Worker log line across the Workflow runs holds a refresh token, an access token or the client secret', google.refreshTokens.every((t) => !syncLogs.includes(t)) && google.accessTokens.length > 0 && google.accessTokens.every((t) => !syncLogs.includes(t)) && !syncLogs.includes(google.clientSecret), { accessTokens: google.accessTokens.length })
+
+  // R1-R4: the recorder in workerd ([[CHN153]] D78, D79): a deployed binding turned it on; the connect callback and the Workflow's steps recorded through R2.
+  const recBucket = (await mf.getR2Bucket('BODIES')) as unknown as { list(o: { prefix: string }): Promise<{ objects: Array<{ key: string }> }>; get(k: string): Promise<{ text(): Promise<string> } | null> }
+  const recKeys = (await recBucket.list({ prefix: '_recordings/' })).objects.map((o) => o.key).filter((k) => !k.endsWith('index.json'))
+  const recKinds = recKeys.map((k) => /\/\d{3}-([a-z_]+)-\d+-/.exec(k)?.[1] ?? '?')
+  const recText = (await Promise.all(recKeys.map(async (k) => (await (await recBucket.get(k))?.text()) ?? ''))).join('\n')
+  const recPrefixes = new Set(recKeys.map((k) => k.split('/')[1]))
+  check('R1 the recorder in workerd: objects appear under _recordings/ for the connect callback (token exchange, profile, send-as) and for the sync Workflow (token refresh, lists, message full)', ['token_exchange', 'profile', 'send_as', 'token_refresh', 'messages_list', 'message_full'].every((k) => recKinds.includes(k)), recKinds)
+  check('R2 the callback and the Workflow instance record under their own run prefixes, and only Google kinds are recorded (no Clerk call)', recPrefixes.size >= 2 && recKinds.every((k) => ['token_exchange', 'token_refresh', 'profile', 'send_as', 'history_list', 'messages_list', 'message_full', 'message_raw', 'attachment_get'].includes(k)), [...recPrefixes])
+  check('R3 no recording holds the refresh token, an access token, the client secret or a message body (deny by default, in the bundle)', recText.length > 0 && google.refreshTokens.every((t) => !recText.includes(t)) && google.accessTokens.every((t) => !recText.includes(t)) && !recText.includes(google.clientSecret) && !recText.includes('Hello Owner'), { bytes: recText.length })
+  check('R4 the index lists every recording, and the Workflow still finished with the recorder on (W1 above)', JSON.parse((await (await recBucket.get('_recordings/index.json'))?.text()) ?? '{"objects":[]}').objects.length === recKeys.length, { recKeys: recKeys.length })
 
   // 16: the network guard
   // CHN140: the Google hosts are answered by the fake too (check 43); nothing else may be reached.

@@ -23,7 +23,8 @@
     "test:postgres": "vitest run --config ../../vitest.postgres.config.ts",
     "typecheck": "tsc --noEmit",
     "golden:generate": "tsx scripts/golden.ts generate",
-    "golden:check": "tsx scripts/golden.ts check"
+    "golden:check": "tsx scripts/golden.ts check",
+    "recordings:generate": "tsx scripts/google-recordings.ts"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
