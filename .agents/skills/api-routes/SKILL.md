@@ -93,6 +93,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     first-seen member, 2k+3 queries and 3k+5 subrequests, so more than about 15 new members exceeds Free
     (follow-up #51). Prefer one set unit over a unit per row, and add a scenario when an operation's
     cost grows with its input.
+    AGT165's fake-transport tick (100 expiries and 5 executions) costs 24 D1 queries, not the full cost
+    of a real sender. When adding the Gmail transport (#166), re-measure with its credential reads,
+    reconcile and send fetches: those share the 50-subrequest allowance with D1. Keep the existing
+    24-query pin; record the new transport-inclusive measurement separately.
   - `pnpm -C packages/server-d1 open:check` copies the open packages into a temp workspace and installs,
     typechecks production code, tests and smoke-runs them there. A new directory under `packages/` must be
     classified in `scripts/open-check.ts` (`OPEN_PACKAGES`/`ENTERPRISE_PACKAGES`), or the check fails.
@@ -296,6 +300,33 @@ a route or an MCP tool that bypasses the registry.
   one. Any new retry around input parsing reuses that `io`, never `deps.readStdin` directly ([[CORE136]] review).
 - There is no Hono RPC (`hc`) typing: a registry built in a loop gives no static route types. A TypeScript
   consumer that needs typed calls should generate a client from `/api/v1/openapi.json` and `/meta/v1/openapi.json` ([[CORE15]], [[API32]]).
+
+## Enqueued operations and the execution rail (AGT165)
+
+`src/executions/enqueue.ts`'s `enqueuedOperation` builds the D1-only POST/202 operation used by both
+direct calls and queued approvals. Its `authorise(env, args, ctx)` resolves final state and returns
+commit guards; proposals validate the own input schema and resolve only when approved. The execution
+stores the immutable arguments, resolution, authoriser and client reference. See [[AGT8]] D48–D62
+and `knowledge/specs/008-AGT165-execution-rail/RETRO.md`.
+
+- **Replay before authorise:** read `(organization_id, created_by, idempotency_key)` through `ctx.read`
+  first. A matching operation-and-arguments hash returns the existing 202 receipt; a different hash
+  is `409 idempotency_key_reused`. Neither calls `authorise`. Keep the in-unit lookup and unique-index
+  guard as well: the early read alone cannot decide a concurrent same-key race.
+- **One budget per claimed attempt:** every reconcile and dispatch receives the same `AbortSignal`
+  and shares one deadline ending at least 10 s before the lease ends. Deduct time already spent claiming,
+  pass the signal to each transport `fetch`, and race each promise against budget expiry; abort alone
+  cannot bound a transport that never settles. Expiry is `unknown`, retaining the dispatch stamp;
+  clear the timer in `finally`. Never restart the budget between reconcile and dispatch.
+- **Preserve uncertainty:** missing registry metadata or a transport after a dispatch stamp is
+  `outcome_unknown`; only an execution never stamped can be `provider_rejected`. Transport throws
+  are unknown too; persist the vault's fixed error sentence, never the provider's text.
+- **Authority is fixed at authorisation** for the current ten-minute deadline ([[AGT8]] D50/D62).
+  The runner does not re-check scopes; the transport reports credential loss. Longer deadlines or
+  scheduled sends require a new decision and an active-principal/write-scope check at claim.
+- **Finish is the resource transition:** execution result, linked request outcome and their events
+  commit in one lease-token-guarded unit as `authorised_by`. Claim/stamp/retry/recovery are the narrowly
+  named exception in AGENTS.md invariant 5; they emit no events and leave `updated_at` unchanged.
 
 ## Resources: declarative definitions, generic CRUD
 
