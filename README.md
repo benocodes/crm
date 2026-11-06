@@ -10,4 +10,4 @@ Status: pre-code. The first cycles build the tenancy, schema and service layer.
 
 ## License
 
-[Apache License 2.0](LICENSE).
+[GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only).
