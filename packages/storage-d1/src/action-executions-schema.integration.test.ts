@@ -34,10 +34,11 @@ const run = (sqlText: string, ...binds: unknown[]) => d1.prepare(sqlText).bind(.
 const all = async <T = Record<string, unknown>>(sqlText: string, ...binds: unknown[]) => ((await d1.prepare(sqlText).bind(...binds).all()).results ?? []) as T[]
 const base = { organization_id: ORG, created_by: USER, authorised_by: USER, created_at: AT, updated_at: AT }
 let n = 100
+const eid = (k: number) => `0190b2c4-0000-7000-8000-0000000e${String(k).padStart(4, '0')}`
 /** A queued execution; every call gets its own id and client_ref. */
 const exec = (over: Record<string, unknown> = {}) => {
   n++
-  return { id: id(n), ...base, operation: 'test.enqueue', arguments: '{"text":"x"}', resolution: '{}', status: 'queued', client_ref: `${id(n)}@test.invalid`, input_hash: HASH, deadline_at: LATER, next_attempt_at: AT, ...over }
+  return { id: eid(n), ...base, operation: 'test.enqueue', arguments: '{"text":"x"}', resolution: '{}', status: 'queued', client_ref: `${eid(n)}@test.invalid`, input_hash: HASH, deadline_at: LATER, next_attempt_at: AT, ...over }
 }
 const claimed = { status: 'claimed', lease_token: 'tok', lease_until: LATER, attempts: 1 }
 const done = { status: 'done', done_at: LATER, result: '{"ok":true}' }
