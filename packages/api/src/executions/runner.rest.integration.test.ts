@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { openRailKit, TEST_OPS, type RailKit } from '../test/rail-kit.js'
 import type { Actor } from '../test/action-kit.js'
 import { PERMANENT_CODES } from './transport.js'
@@ -171,6 +171,87 @@ describe('lease and stale finisher (D28)', () => {
     expect(k.transport.dispatches).toHaveLength(1)
     expect(k.transport.reconciles).toHaveLength(0)
     expect((await row(id)).attempts).toBe(2)
+  })
+})
+
+describe('a runner never outlives its lease (D60)', () => {
+  const elapsed = async (f: () => Promise<unknown>) => {
+    const t = Date.now()
+    await f()
+    return Date.now() - t
+  }
+  afterEach(() => void delete k.deps.attemptBudgetMs)
+
+  it('a dispatch that hangs is aborted at the budget and counts as unknown: a retry with the stamp kept, not a hang', async () => {
+    const id = await enqueue()
+    k.deps.attemptBudgetMs = 300
+    k.transport.willDispatch({ kind: 'hang' })
+    let outcome: Awaited<ReturnType<RailKit['run']>> | undefined
+    const ms = await elapsed(async () => (outcome = await k.run(id)))
+    expect(outcome).toMatchObject({ outcome: 'retry' })
+    expect(ms).toBeGreaterThanOrEqual(250)
+    expect(ms).toBeLessThan(3000)
+    expect(k.transport.aborted).toBe(1)
+    expect(k.transport.dispatches[0]!.signal.aborted).toBe(true)
+    expect(await row(id)).toMatchObject({ status: 'queued', attempts: 1, last_error_code: 'unknown' })
+    expect((await row(id)).dispatched_at).not.toBeNull()
+  })
+
+  it('a reconcile that hangs is aborted too: reconcile unknown, wait, and no second dispatch', async () => {
+    const id = await enqueue()
+    k.transport.willDispatch({ kind: 'unknown' })
+    await k.run(id)
+    k.deps.attemptBudgetMs = 300
+    k.transport.willReconcile({ kind: 'hang' })
+    k.setNow(at(30))
+    expect(await k.run(id)).toMatchObject({ outcome: 'retry' })
+    expect(k.transport.aborted).toBe(1)
+    expect(k.transport.dispatches).toHaveLength(1)
+  })
+
+  it('one budget covers reconcile and dispatch: dispatch gets only the time left after reconcile', async () => {
+    const id = await enqueue()
+    k.transport.willDispatch({ kind: 'unknown' }, { kind: 'hang' })
+    await k.run(id)
+    k.deps.attemptBudgetMs = 1000
+    const hold = k.transport.hold('reconcile')
+    k.setNow(at(30))
+    const started = Date.now()
+    const run = k.run(id)
+    await hold.reached
+    await new Promise((resolve) => setTimeout(resolve, 750))
+    hold.release({ kind: 'not_found' })
+    expect(await run).toMatchObject({ outcome: 'retry' })
+    expect(Date.now() - started).toBeLessThan(1500)
+    expect(k.transport.dispatches).toHaveLength(2)
+    expect(k.transport.aborted).toBe(1)
+    expect(k.transport.reconciles[0]!.signal).toBe(k.transport.dispatches[1]!.signal)
+    expect((await row(id)).dispatched_at).not.toBeNull()
+  })
+
+  it('a dispatch that ignores abort still cannot hold the runner past its budget', async () => {
+    const id = await enqueue()
+    k.deps.attemptBudgetMs = 100
+    k.transport.willDispatch({ kind: 'hang', ignoreAbort: true })
+    expect(await k.run(id)).toMatchObject({ outcome: 'retry' })
+    expect(k.transport.aborted).toBe(1)
+    expect(k.transport.dispatches[0]!.signal.aborted).toBe(true)
+    expect((await row(id)).dispatched_at).not.toBeNull()
+  }, 1500)
+
+  it('claim work that consumes the lease leaves the final 10 s for storage, even with a larger injected budget', async () => {
+    const id = await enqueue()
+    k.deps.attemptBudgetMs = 60_000
+    const clock = k.deps.clock
+    let clockCalls = 0
+    k.deps.clock = () => (++clockCalls === 1 ? T0 : at(51))
+    try {
+      expect(await k.run(id)).toMatchObject({ outcome: 'retry' })
+      expect(k.transport.dispatches).toHaveLength(0)
+      expect((await row(id)).status).toBe('queued')
+    } finally {
+      k.deps.clock = clock
+    }
   })
 })
 
@@ -413,10 +494,17 @@ describe('terminal classifications (D14, D53)', () => {
     expect(k.transport.reconciles).toHaveLength(1)
   })
 
-  it('an operation no longer registered fails the execution instead of looping', async () => {
+  it('an operation no longer registered fails the execution instead of looping: provider_rejected when never dispatched, outcome_unknown when it may have been', async () => {
     const id = await enqueue()
     await k.d1.prepare(`update action_executions set operation = 'gone.operation' where id = ?`).bind(id).run()
     expect(await k.run(id)).toMatchObject({ outcome: 'failed', code: 'provider_rejected' })
+    const sent = await enqueue()
+    k.transport.willDispatch({ kind: 'unknown' })
+    await k.run(sent)
+    await k.d1.prepare(`update action_executions set operation = 'gone.operation' where id = ?`).bind(sent).run()
+    k.setNow(at(30))
+    expect(await k.run(sent)).toMatchObject({ outcome: 'failed', code: 'outcome_unknown' })
+    expect(k.transport.dispatches).toHaveLength(1)
   })
 })
 

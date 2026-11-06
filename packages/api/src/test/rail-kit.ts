@@ -18,7 +18,9 @@ export type Answer =
   | { kind: 'not_sent'; code: PermanentCode; message?: string }
   | { kind: 'unknown'; message?: string }
   | { kind: 'throw' }
-export type ReconcileAnswer = ReconcileOutcome | { kind: 'throw' }
+  /** Never answers until the call's signal aborts (a slow provider); then it throws, as a fetch does. */
+  | { kind: 'hang'; ignoreAbort?: boolean }
+export type ReconcileAnswer = ReconcileOutcome | { kind: 'throw' } | { kind: 'hang' }
 
 /** A held call: `reached` settles when the transport has been called, `release` answers it. */
 export interface Hold<A> {
@@ -30,6 +32,8 @@ export interface Hold<A> {
 export class FakeTransport implements Transport {
   readonly dispatches: TransportCall[] = []
   readonly reconciles: TransportCall[] = []
+  /** Calls that saw their signal abort. */
+  aborted = 0
   private answers: Answer[] = []
   private reconcileAnswers: ReconcileAnswer[] = []
   private holds: { kind: 'dispatch' | 'reconcile'; reached: () => void; answer: Promise<Answer | ReconcileAnswer> }[] = []
@@ -57,6 +61,7 @@ export class FakeTransport implements Transport {
   reset(): void {
     this.dispatches.length = 0
     this.reconciles.length = 0
+    this.aborted = 0
     this.answers = []
     this.reconcileAnswers = []
     this.holds = []
@@ -71,6 +76,7 @@ export class FakeTransport implements Transport {
       held.reached()
       a = (await held.answer) as Answer
     } else a = this.answers.shift() ?? { kind: 'sent' }
+    if (a.kind === 'hang') await this.untilAborted(call, a.ignoreAbort)
     if (a.kind === 'throw') throw new Error('the fake transport threw')
     if (a.kind === 'sent') return { kind: 'sent', result: a.result ?? { message_id: `fake-${call.executionId}` } }
     return a as DispatchOutcome
@@ -86,9 +92,16 @@ export class FakeTransport implements Transport {
         held.reached()
         a = (await held.answer) as ReconcileAnswer
       } else a = this.reconcileAnswers.shift() ?? { kind: 'unknown' }
+      if (a.kind === 'hang') await this.untilAborted(call)
       if (a.kind === 'throw') throw new Error('the fake transport threw')
       return a
     }
+  }
+  private async untilAborted(call: TransportCall, ignoreAbort = false): Promise<never> {
+    await new Promise<void>((resolve) => (call.signal.aborted ? resolve() : call.signal.addEventListener('abort', () => resolve(), { once: true })))
+    this.aborted++
+    if (ignoreAbort) await new Promise<never>(() => undefined)
+    throw new Error('aborted')
   }
   private takeHold(kind: 'dispatch' | 'reconcile') {
     const at = this.holds.findIndex((h) => h.kind === kind)
@@ -105,16 +118,23 @@ const input = z.strictObject({
   anchor: z.string().max(50).optional(),
   /** A task the resolution rests on: a guard at commit says it still exists. */
   guard_task: z.uuid().optional(),
+  /** A token whose authorise refuses from its second use on (a retracted anchor after the send). */
+  once: z.string().max(50).optional(),
 })
 
 /** The three enqueued test operations, registered before the queue's so `action_requests.create` lists them. */
 export function registerTestOperations(registry: Registry): void {
+  const seenOnce = new Set<string>()
   const common = {
     summary: 'Test-only enqueued operation',
     scope: { resource: 'tasks', action: 'write' } as const,
     transport: TEST_TRANSPORT,
     input,
     authorise: async (_env: unknown, args: Record<string, unknown>) => {
+      if (typeof args.once === 'string') {
+        if (seenOnce.has(args.once)) throw new ApiError(409, 'anchor_retracted', 'the anchor is gone')
+        seenOnce.add(args.once)
+      }
       if (args.refuse === true) throw new ApiError(409, 'test_refused', 'refused at final validation')
       const guardTask = args.guard_task as string | undefined
       return {

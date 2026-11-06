@@ -28,6 +28,8 @@ export interface TransportCall {
   clientRef: string
   /** 1-based, counted at claim. */
   attempt: number
+  /** Aborts when the attempt's budget ends ([[AGT8]] D60): a call still pending then counts as `unknown`. A transport passes it to its `fetch`. */
+  signal: AbortSignal
 }
 export interface Transport {
   dispatch(call: TransportCall): Promise<DispatchOutcome>

@@ -17,6 +17,8 @@ import type { DispatchOutcome, FailureCode, ReconcileOutcome, Transport, Transpo
 export const RAIL_CRON = '* * * * *'
 export const MAX_ATTEMPTS = 5
 export const EXECUTION_LEASE_MS = 60_000
+/** The finish write needs this much of the lease after the last transport call ([[AGT8]] D60). */
+export const LEASE_MARGIN_MS = 10_000
 export const EXPIRY_BATCH = 100
 export const DUE_BATCH = 5
 const BACKOFF_BASE_MS = 30_000
@@ -29,6 +31,8 @@ export interface RailDeps {
   transports: TransportRegistry
   clock: () => Date
   newId: () => string
+  /** Real milliseconds all transport calls of one attempt may take together ([[AGT8]] D60); default `EXECUTION_LEASE_MS - LEASE_MARGIN_MS`. Injected by tests. */
+  attemptBudgetMs?: number
 }
 export type RunOutcome = { outcome: 'done' | 'failed' | 'retry' | 'skipped'; code?: string }
 const SKIPPED: RunOutcome = { outcome: 'skipped' }

@@ -113,6 +113,17 @@ describe('direct enqueue and idempotency (D51)', () => {
     expect(await events('action_execution.created')).toHaveLength(1)
   })
 
+  it('a replay answers the original execution even when authorise would now refuse; a changed input under the key is still 409 (D61)', async () => {
+    const first = await k.enqueue(writer, { text: 'x', once: 'tok', idempotency_key: 'k1' })
+    expect(first.status).toBe(202)
+    const again = await k.enqueue(writer, { text: 'x', once: 'tok', idempotency_key: 'k1' })
+    expect([again.status, again.body.id]).toEqual([202, first.body.id])
+    expect(code(await k.enqueue(writer, { text: 'y', once: 'tok', idempotency_key: 'k1' }))).toEqual([409, 'idempotency_key_reused'])
+    // A NEW key with the same token is authorised, and refused.
+    expect(code(await k.enqueue(writer, { text: 'x', once: 'tok', idempotency_key: 'k2' }))).toEqual([409, 'anchor_retracted'])
+    expect(await k.execs()).toHaveLength(1)
+  })
+
   it('a caller without the write scope is refused and writes nothing; a proposer is told how to propose', async () => {
     const none = await k.enqueue(await k.actor('reader', 'agent', ['tasks:read']), { text: 'x', idempotency_key: 'k' })
     expect(code(none)).toEqual([403, 'insufficient_scope'])
