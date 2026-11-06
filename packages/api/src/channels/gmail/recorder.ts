@@ -75,9 +75,30 @@ export function maskHeaderValue(v: string): string {
   return out + maskText(v.slice(last))
 }
 
+/** Splits on `;` outside double quotes (a `;` inside a quoted parameter value is content, not a separator). A `\"` inside quotes does not close them. */
+function splitUnquoted(v: string): string[] {
+  const parts: string[] = []
+  let cur = ''
+  let quoted = false
+  for (let i = 0; i < v.length; i++) {
+    const ch = v[i]!
+    if (ch === '\\' && quoted && i + 1 < v.length) {
+      cur += ch + v[++i]!
+      continue
+    }
+    if (ch === '"') quoted = !quoted
+    if (ch === ';' && !quoted) {
+      parts.push(cur)
+      cur = ''
+    } else cur += ch
+  }
+  parts.push(cur)
+  return parts
+}
+
 /** `Content-Type`, `Content-Disposition`, `Content-Transfer-Encoding`: the media type and parameter names stay, parameter values are masked (D79 rule 6). */
 function maskStructured(v: string): string {
-  const [head = '', ...params] = v.split(';')
+  const [head = '', ...params] = splitUnquoted(v)
   const keptHead = /^\s*[A-Za-z0-9!#$&^_.+/-]{1,100}\s*$/.test(head) ? head : maskText(head)
   return [
     keptHead,
@@ -417,11 +438,14 @@ export function createRecordingFetch(d: RecordingFetchDeps): typeof fetch {
   let loaded: Promise<void> | null = null
   let chain: Promise<void> = Promise.resolve()
 
+  /** Absent (R2 answers null) is empty. A throw, a timeout or an unparsable index propagates: the caller must never treat it as empty (D81 a). */
   const readIndex = async (): Promise<IndexEntry[]> => {
-    const obj = await d.bucket.get(RECORDINGS_INDEX_KEY)
-    if (!obj?.body) return []
-    const parsed = JSON.parse(await new Response(obj.body).text()) as { objects?: IndexEntry[] }
-    return Array.isArray(parsed.objects) ? parsed.objects : []
+    const obj = await withTimeout(d.bucket.get(RECORDINGS_INDEX_KEY))
+    if (obj === null) return []
+    if (!obj.body) throw new Error('index has no body')
+    const parsed = JSON.parse(await withTimeout(new Response(obj.body).text())) as { objects?: unknown }
+    if (!Array.isArray(parsed.objects)) throw new Error('index has no objects list')
+    return parsed.objects as IndexEntry[]
   }
   // The caps hold across isolates and replays: the counts are seeded from the index entries of this run's prefix.
   const load = (): Promise<void> =>
@@ -447,8 +471,15 @@ export function createRecordingFetch(d: RecordingFetchDeps): typeof fetch {
   const write = async (key: string, entry: IndexEntry, record: RecordedExchange): Promise<void> => {
     try {
       await withTimeout(d.bucket.put(key, JSON.stringify(record, null, 2), { httpMetadata: { contentType: 'application/json' } }))
+      // Read, extend, write. A failed read skips the write (never overwrite the index with a partial one) and is logged by error name only.
       chain = chain.then(async () => {
-        const entries = await readIndex().catch(() => [] as IndexEntry[])
+        let entries: IndexEntry[]
+        try {
+          entries = await readIndex()
+        } catch (err) {
+          d.log(`[recording] index not updated: ${err instanceof Error ? err.name : 'error'}`)
+          return
+        }
         if (!entries.some((e) => e.key === key)) entries.push(entry)
         await d.bucket.put(RECORDINGS_INDEX_KEY, JSON.stringify({ version: 1, objects: entries }, null, 2), { httpMetadata: { contentType: 'application/json' } })
       })

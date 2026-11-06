@@ -482,9 +482,12 @@ describe('the index is never overwritten from a failed read, and never hangs a c
     const { f, bucket } = rig(profile, { log })
     bucket.get = () => new Promise(() => {})
     const pending = f(`${G}/profile`)
-    await vi.advanceTimersByTimeAsync(10_000)
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(10_000) // the index read in load() times out: the response is handed over
     const res = await pending
-    expect(await res.json()).toEqual({ emailAddress: 'a@b.test', historyId: '5' })
+    const body = res.json() // the stream closes after the write's own bounded index access
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(await body).toEqual({ emailAddress: 'a@b.test', historyId: '5' })
     await vi.advanceTimersByTimeAsync(20_000)
     expect(log.some((l) => l.includes('index'))).toBe(true)
   })
