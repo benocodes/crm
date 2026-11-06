@@ -46,7 +46,8 @@ export function wireResponse(rec: RecordedExchange): Response {
   const body = rec.response.body
   const nonJson = body as { non_json?: true; bytes?: number } | null
   const text = body === null ? '' : nonJson?.non_json === true ? 'x'.repeat(nonJson.bytes ?? 0) : JSON.stringify(expandBody(body as Json))
-  return new Response(text, { status: rec.response.status, headers: rec.response.headers })
+  // A 204 carries no body, and the Response constructor refuses one ([[CHN155]]: `users.stop`).
+  return new Response([204, 205, 304].includes(rec.response.status) ? null : text, { status: rec.response.status, headers: rec.response.headers })
 }
 
 const idOf = (rec: RecordedExchange): string => rec.request.path.split('/').filter(Boolean)[5] ?? 'm'

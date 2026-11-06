@@ -70,9 +70,11 @@ const DAY_MS = 86_400_000
 /** Raised inside a history page when Gmail no longer holds the cursor's start id; becomes the `expired` outcome. */
 class Expired extends Error {}
 
+/** What a status change needs of the deps: the unit's storage, clock and id sources (the watch renewal passes this much, [[CHN5]] D90). */
+export type StatusDeps = Pick<GmailSyncDeps, 'binding' | 'organizationId' | 'clock' | 'newId' | 'randomBytes'>
 const internal = (deps: GmailSyncDeps): StorageIdentity => ({ kind: 'internal', organizationId: deps.organizationId })
-const asOwner = (deps: GmailSyncDeps, ownerId: string): StorageIdentity => ({ kind: 'tenant', actorId: ownerId, organizationId: deps.organizationId })
-const envOf = (deps: GmailSyncDeps, ownerId: string): PreparedEnv => ({ actor: { id: ownerId, kind: 'user' }, organizationId: deps.organizationId, scopes: ScopeSet.parse([]), now: deps.clock(), newId: deps.newId, randomBytes: deps.randomBytes })
+const asOwner = (deps: StatusDeps, ownerId: string): StorageIdentity => ({ kind: 'tenant', actorId: ownerId, organizationId: deps.organizationId })
+const envOf = (deps: StatusDeps, ownerId: string): PreparedEnv => ({ actor: { id: ownerId, kind: 'user' }, organizationId: deps.organizationId, scopes: ScopeSet.parse([]), now: deps.clock(), newId: deps.newId, randomBytes: deps.randomBytes })
 
 /** The connection, its owner, its mailbox address and its cursor, in one read. Null when the connection does not exist. */
 export async function loadSyncState(deps: GmailSyncDeps, connectionId: string): Promise<SyncState | null> {
@@ -123,13 +125,13 @@ function cursorProgram(deps: GmailSyncDeps, connectionId: string, set: { history
 }
 
 /** `invalid_grant` ([[CHN5]] D69): one unit as the owner sets `reauth_required`, records the error and emits one `connection.updated`; guarded on `active`, so a repeat writes nothing. */
-const markReauth = (deps: GmailSyncDeps, connectionId: string, ownerId: string): Promise<void> => markConnectionStatus(deps, connectionId, ownerId, 'reauth_required', 'invalid_grant')
+const markReauth = (deps: StatusDeps, connectionId: string, ownerId: string): Promise<void> => markConnectionStatus(deps, connectionId, ownerId, 'reauth_required', 'invalid_grant')
 
 /**
  * The status change both failures share ([[CHN5]] D16, D69; the sync run's `suspended`, D33): one unit as the owner sets the status, records `errorCode` on the
  * state row and emits one `connection.updated`; guarded on `active`, so a repeat writes and emits nothing.
  */
-export async function markConnectionStatus(deps: GmailSyncDeps, connectionId: string, ownerId: string, status: 'reauth_required' | 'suspended', errorCode: string): Promise<void> {
+export async function markConnectionStatus(deps: StatusDeps, connectionId: string, ownerId: string, status: 'reauth_required' | 'suspended', errorCode: string): Promise<void> {
   const env = envOf(deps, ownerId)
   const at = env.now.toISOString()
   const eventId = env.newId()
@@ -186,6 +188,31 @@ export async function markConnectionStatus(deps: GmailSyncDeps, connectionId: st
   }
 }
 
+/** What building a connection's Gmail client needs ([[CHN5]] D4, D68): shared by the capture pages and the watch calls. */
+export type ClientDeps = Pick<GmailSyncDeps, 'binding' | 'organizationId' | 'endpoints' | 'fetch' | 'gmailBaseUrl' | 'clientFor' | 'clock' | 'newId' | 'randomBytes'> & {
+  config: Pick<GmailConfig, 'clientId' | 'clientSecret' | 'credentialsKey' | 'keyVersion'>
+}
+
+/** The per-call token resolver and the client over it. The token is opened and refreshed lazily, on the first Gmail call. */
+export function gmailClientFor(deps: ClientDeps, connectionId: string, ownerId: string): GmailClient {
+  const accessToken = gmailAccessToken({
+    binding: deps.binding,
+    organizationId: deps.organizationId,
+    connectionId,
+    ownerId,
+    clientId: deps.config.clientId,
+    clientSecret: deps.config.clientSecret,
+    credentialsKey: deps.config.credentialsKey,
+    keyVersion: deps.config.keyVersion,
+    ...(deps.endpoints ? { endpoints: deps.endpoints } : {}),
+    ...(deps.fetch ? { fetch: deps.fetch } : {}),
+    clock: deps.clock,
+    newId: deps.newId,
+    randomBytes: deps.randomBytes,
+  })
+  return deps.clientFor ? deps.clientFor(accessToken) : new HttpGmailClient({ accessToken, ...(deps.fetch ? { fetch: deps.fetch } : {}), ...(deps.gmailBaseUrl ? { baseUrl: deps.gmailBaseUrl } : {}) })
+}
+
 interface PageContext {
   state: SyncState
   connectionId: string
@@ -199,22 +226,7 @@ interface PageContext {
 async function withPage<T extends PageResult | ScanStart>(deps: GmailSyncDeps, connectionId: string, body: (c: PageContext) => Promise<T>): Promise<T | Outcome> {
   const state = await loadSyncState(deps, connectionId)
   if (!state || state.status !== 'active' || state.deleted_at !== null) return { outcome: 'inactive' }
-  const accessToken = gmailAccessToken({
-    binding: deps.binding,
-    organizationId: deps.organizationId,
-    connectionId,
-    ownerId: state.owner_id,
-    clientId: deps.config.clientId,
-    clientSecret: deps.config.clientSecret,
-    credentialsKey: deps.config.credentialsKey,
-    keyVersion: deps.config.keyVersion,
-    ...(deps.endpoints ? { endpoints: deps.endpoints } : {}),
-    ...(deps.fetch ? { fetch: deps.fetch } : {}),
-    clock: deps.clock,
-    newId: deps.newId,
-    randomBytes: deps.randomBytes,
-  })
-  const client = deps.clientFor ? deps.clientFor(accessToken) : new HttpGmailClient({ accessToken, ...(deps.fetch ? { fetch: deps.fetch } : {}), ...(deps.gmailBaseUrl ? { baseUrl: deps.gmailBaseUrl } : {}) })
+  const client = gmailClientFor(deps, connectionId, state.owner_id)
   try {
     return await body({ state, connectionId, client })
   } catch (err) {

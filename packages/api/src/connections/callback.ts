@@ -6,6 +6,7 @@ import { defineOperation, execute, unit, uuidv7, type PreparedOperation, type St
 import type { Role, ScopePolicy } from '../auth/roles.js'
 import { scopesForRole } from '../auth/roles.js'
 import { GmailApiError, HttpGmailClient } from '../channels/gmail/client.js'
+import { watchAtConnect } from '../channels/gmail/watch.js'
 import { normalizeIdentityValue } from '../identity/normalize.js'
 import { ScopeSet } from '../scopes.js'
 import type { PreparedEnv } from '../storage/definition.js'
@@ -105,13 +106,14 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     // Google: the code, the ID token, the profile and the send-as list. Any failure here is `exchange_failed`; the page never says why.
     let tokens: Awaited<ReturnType<typeof exchangeCode>>
     let identity: { sub: string; email: string }
+    let gmail: HttpGmailClient
     let profile: Awaited<ReturnType<HttpGmailClient['getProfile']>>
     let sendAs: Awaited<ReturnType<HttpGmailClient['listSendAs']>>
     try {
       tokens = await exchangeCode({ endpoints: deps.endpoints, clientId: config.clientId, clientSecret: config.clientSecret, redirectUri, code, verifier: await pkceVerifier(config.stateSecret, claims.nonce), fetch: deps.fetch })
       if (!tokens.scopes.includes(GMAIL_READONLY)) return refuse('scope_missing')
       identity = await verifyIdToken(tokens.idToken, { endpoints: deps.endpoints, clientId: config.clientId, fetch: deps.fetch, nowMs: now.getTime() })
-      const gmail = new HttpGmailClient({ accessToken: async () => tokens.accessToken, fetch: deps.fetch, ...(deps.gmailBaseUrl ? { baseUrl: deps.gmailBaseUrl } : {}) })
+      gmail = new HttpGmailClient({ accessToken: async () => tokens.accessToken, fetch: deps.fetch, ...(deps.gmailBaseUrl ? { baseUrl: deps.gmailBaseUrl } : {}) })
       profile = await gmail.getProfile()
       sendAs = await gmail.listSendAs()
     } catch (err) {
@@ -156,6 +158,15 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     }
     if (role === null || !scopesForRole(role, deps.declaredScopes, deps.policy).has({ resource: 'connections', action: 'write' })) return refuse('not_a_member')
 
+    // The watch ([[CHN5]] D89), after the person is admitted and before the unit: a failure never refuses the connect. The connection commits without a row and the
+    // next cron tick registers it. The log names the class and Google's status, never the address, the topic or a token.
+    let watchExpiresAt: string | undefined
+    if (deps.push) {
+      const w = await watchAtConnect(gmail, deps.push.topicName)
+      if (w.ok) watchExpiresAt = w.expires_at
+      else console.warn(`[gmail] watch not registered at connect (${w.klass}, ${w.detail}); the cron will retry`)
+    }
+
     // One unit, acting as the user (D9, D21): the connection, the credential, the cursor, the state row, the own identities and the events.
     const env: PreparedEnv = {
       actor: { id: claims.user_id, kind: 'user' },
@@ -171,7 +182,7 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
         await execute(
           binding,
           { kind: 'tenant', actorId: claims.user_id, organizationId },
-          connectOperation(env, { google_sub: identity.sub, mailbox, own_addresses: [...own], granted_scopes: tokens.scopes, ciphertext, key_version: config.keyVersion, history_id: profile.historyId }),
+          connectOperation(env, { google_sub: identity.sub, mailbox, own_addresses: [...own], granted_scopes: tokens.scopes, ciphertext, key_version: config.keyVersion, history_id: profile.historyId, ...(watchExpiresAt ? { watch_expires_at: watchExpiresAt } : {}) }),
         )
       ).value
       // After the unit has committed (D9): a request before it could name a connection that never existed. A failure here never undoes the connect; the cron serves it.

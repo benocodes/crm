@@ -136,7 +136,7 @@ const STRUCTURED_HEADERS = new Set(['content-type', 'content-disposition', 'cont
 function scrubMessage(s: string): string {
   return s
     .split(/(\s+)/)
-    .map((w) => (w.includes('@') || (w.length >= 20 && /\d/.test(w)) ? maskText(w) : w))
+    .map((w) => (w.includes('@') || w.startsWith('projects/') || (w.length >= 20 && /\d/.test(w)) ? maskText(w) : w))
     .join('')
 }
 
@@ -190,6 +190,7 @@ const ALLOWED_PATHS: RegExp[] = [
   /^payload(\.parts)*\.partId$/, // `mimeType` is kept only when well formed (redactString, D85)
   /^sendAs\.verificationStatus$/, // a Google enum the parser reads ([[CHN153]] decision), not content
   /^(error|token_type|scope|error\.status)$/,
+  /^expiration$/, // `users.watch`'s epoch-millisecond expiry ([[CHN155]] D92): a timestamp, not content; the shape question is exactly its form
   /^error\.errors\.(reason|domain)$/,
 ]
 const typeName = (v: unknown): string => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v)
@@ -378,7 +379,7 @@ export interface RecordedExchange {
   response: { status: number; headers: Record<string, string>; body: Json | { non_json: true; bytes: number } | null }
 }
 
-const PATH_WORDS = new Set(['gmail', 'v1', 'users', 'me', 'profile', 'settings', 'sendAs', 'history', 'messages', 'attachments', 'token'])
+const PATH_WORDS = new Set(['gmail', 'v1', 'users', 'me', 'profile', 'settings', 'sendAs', 'history', 'messages', 'attachments', 'token', 'watch', 'stop'])
 const KEEP_QUERY_VALUE = new Set(['format', 'maxResults', 'historyTypes', 'q'])
 const ID_QUERY = new Set(['startHistoryId', 'pageToken'])
 
@@ -391,6 +392,8 @@ function kindOf(host: string, path: string, query: URLSearchParams, form: URLSea
   const rest = path.replace(/^\/gmail\/v1\/users\/me/, '')
   if (rest === '/profile') return 'profile'
   if (rest === '/settings/sendAs') return 'send_as'
+  if (rest === '/watch') return 'watch'
+  if (rest === '/stop') return 'stop'
   if (rest === '/history') return 'history_list'
   if (rest === '/messages') return 'messages_list'
   if (/^\/messages\/[^/]+$/.test(rest)) return query.get('format') === 'raw' ? 'message_raw' : 'message_full'
@@ -517,7 +520,8 @@ export function createRecordingFetch(d: RecordingFetchDeps): typeof fetch {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
     const method = (init?.method ?? (typeof input === 'object' && 'method' in input ? input.method : 'GET')).toUpperCase()
     const rawBody = init?.body
-    const form = typeof rawBody === 'string' ? new URLSearchParams(rawBody) : rawBody instanceof URLSearchParams ? rawBody : null
+    // A JSON body (the watch's) is never read as a form: its topic name and labels are request content, not shape, and are not recorded.
+    const form = typeof rawBody === 'string' && !rawBody.trimStart().startsWith('{') ? new URLSearchParams(rawBody) : rawBody instanceof URLSearchParams ? rawBody : null
     const kind = kindOf(url.hostname, url.pathname, url.searchParams, form)
     if (kind === null) return res
     await load()

@@ -124,6 +124,17 @@ export class Registry {
     return this.ops
   }
 
+  /** Replaces a registered operation with `change(op)`: the name, method and path must not move. For a hand-written stage on a generated operation ([[CHN155]] D91). */
+  decorate(name: string, change: (op: TenantOperation) => TenantOperation): this {
+    const at = this.ops.findIndex((o) => o.name === name)
+    const op = this.ops[at]
+    if (!op || op.kind !== 'tenant') throw new Error(`decorate: no tenant operation ${name}`)
+    const next = change(op)
+    if (next.name !== op.name || next.method !== op.method || next.path !== op.path) throw new Error(`decorate: ${name} must keep its name, method and path`)
+    this.ops[at] = next
+    return this
+  }
+
   resources(): readonly AnyResource[] {
     return this.defs
   }

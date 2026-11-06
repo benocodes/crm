@@ -1,4 +1,4 @@
-import { CALLBACK_PATH, MAIL_SYNC_CRON, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type StreamPrimitives, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
+import { CALLBACK_PATH, MAIL_SYNC_CRON, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type StreamPrimitives, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
 import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -35,6 +35,14 @@ export interface D1WorkerEnv {
   CREDENTIALS_KEY_VERSION?: string
   PUBLIC_BASE_URL?: string
   CONNECT_RETURN_URL?: string
+  /**
+   * Gmail push ([[CHN5]] D87): `GMAIL_TOPIC_NAME` (`projects/<p>/topics/<t>`), `GMAIL_PUSH_SUBSCRIPTION` (`projects/<p>/subscriptions/<s>`), `GMAIL_PUSH_SERVICE_ACCOUNT` (the
+   * email Pub/Sub signs its token as) and `PUBLIC_BASE_URL` (the endpoint's origin; `https`) must all be set, with Gmail and the `MAIL_SYNC` binding, for push to be on.
+   * Public values, vars rather than secrets. Partly set: push is off and a startup line names the missing ones.
+   */
+  GMAIL_TOPIC_NAME?: string
+  GMAIL_PUSH_SUBSCRIPTION?: string
+  GMAIL_PUSH_SERVICE_ACCOUNT?: string
   /** The R2 bucket of message bodies and file bytes ([[CORE58]] P12). Absent: the two content routes answer `503 objects_unavailable`. */
   BODIES?: R2BucketLike
   /** Workers Static Assets: the built `/connect` page ([[UI30]] D2). Absent: `/connect*` answers 404. */
@@ -74,7 +82,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -110,6 +118,9 @@ export function composeD1Worker(
 
   // [[CHN5]] D58: parsed once; the app logs what is missing or malformed (names only) and gates the Gmail surface on it.
   const gmail = parseGmailConfig(vars)
+  // [[CHN5]] D87: push is judged once, by the parser `setup:remote` shares. It is ON only with Gmail and the MAIL_SYNC binding too; the app logs why when it is not.
+  const pushParsed = parsePushConfig(vars)
+  const pushOn = gmail.config !== null && env.MAIL_SYNC !== undefined && pushParsed.config !== null
 
   const clock = deps.clock ?? (() => new Date())
   // [[CHN5]] D78: parsed once (a bad value is logged by name, never by value). Off, `fetchFor` hands back `deps.fetch` itself, so nothing is wrapped.
@@ -150,7 +161,7 @@ export function composeD1Worker(
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
-    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
+    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
 
   async function ensure(): Promise<App | undefined> {
     if (app) return app
@@ -237,6 +248,28 @@ export function composeD1Worker(
       }
       const out = await requestDueSyncs({ binding: found.binding, organizationId: found.organizationId, clock, newId, instances: env.MAIL_SYNC })
       console.log(`[cron] ${controller.cron}: requested ${out.requested.length} sync run(s), ${out.failed} could not be started`)
+      // [[CHN5]] D89: watch renewal, after the sync requests, so nothing it does can hold them back. Its failures are per connection and logged by class; this
+      // catch is for the read of the candidates. Off unless push is on; the Google calls are recorded under this tick's own run name (D92).
+      if (pushOn && gmail.config && pushParsed.config) {
+        const at = controller.scheduledTime ?? clock().getTime()
+        try {
+          const c = gmail.config
+          const cronFetch = recording.fetchFor({ id: `cron-${at}`, start: new Date(at) })
+          const renewed = await renewWatches({
+            binding: found.binding,
+            organizationId: found.organizationId,
+            clock,
+            newId,
+            randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+            config: { clientId: c.clientId, clientSecret: c.clientSecret, credentialsKey: c.credentialsKey, keyVersion: c.keyVersion },
+            topicName: pushParsed.config.topicName,
+            ...(cronFetch ? { fetch: cronFetch } : {}),
+          })
+          console.log(`[cron] ${controller.cron}: watch renewal attempted ${renewed.attempted}, registered ${renewed.registered}`)
+        } catch (err) {
+          console.error(`[cron] ${controller.cron}: watch renewal failed: ${err instanceof Error ? err.name : 'error'}`)
+        }
+      }
     } catch (err) {
       console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
       throw err
@@ -285,7 +318,9 @@ export function composeD1Worker(
         if (configError) return json(INTERNAL, 500)
         const ready = await ensure()
         // D78: the connect callback records under its own request id, so it gets an app whose Gmail `fetch` is a recorder of this one request (only while recording is on).
-        if (ready && recording.on && appBinding && url.pathname === CALLBACK_PATH) return await buildApp(appBinding, recording.fetchFor({ id: newId(), start: clock() })).fetch(req)
+        // D92: so does a connection's delete (its `users.stop` is a Google call), under its own request id.
+        const ownRun = url.pathname === CALLBACK_PATH || (req.method === 'DELETE' && /\/connections\/[^/]+$/.test(url.pathname))
+        if (ready && recording.on && appBinding && ownRun) return await buildApp(appBinding, recording.fetchFor({ id: newId(), start: clock() })).fetch(req)
         if (ready) return await ready.fetch(req)
         if (spec) {
           cold ??= createApp({ storage: () => NO_UNITS })

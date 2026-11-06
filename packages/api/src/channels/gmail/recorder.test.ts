@@ -637,7 +637,7 @@ describe('watch and stop (D92)', () => {
   })
   it('a stop is recorded as kind "stop" with no body', async () => {
     const { f, bucket } = rig(() => new Response(null, { status: 204 }))
-    await f(`${G}/stop`, { method: 'POST', headers: { authorization: 'Bearer CANARYauthHDR91' } })
+    await drain(await f(`${G}/stop`, { method: 'POST', headers: { authorization: 'Bearer CANARYauthHDR91' } }))
     const [r] = recorded(bucket)
     expect(r!.rec.kind).toBe('stop')
     expect(r!.rec.request.path).toBe('/gmail/v1/users/me/stop')
@@ -646,12 +646,12 @@ describe('watch and stop (D92)', () => {
   })
   it('a JSON request body is not read as a form (the token endpoint\'s form still is)', async () => {
     const { f, bucket } = rig(() => jsonRes({ historyId: '5', expiration: '1' }))
-    await f(`${G}/watch`, watchInit())
+    await drain(await f(`${G}/watch`, watchInit()))
     expect(recorded(bucket)[0]!.rec.request.form).toBeNull()
   })
   it('a Pub/Sub topic path echoed in a Google error message is masked, with the rest of the message kept', async () => {
     const { f, bucket } = rig(() => jsonRes({ error: { code: 403, message: `Error sending test message to Cloud PubSub ${TOPIC} : User not authorized`, errors: [{ message: 'x', domain: 'global', reason: 'forbidden' }], status: 'PERMISSION_DENIED' } }, 403))
-    await f(`${G}/watch`, watchInit())
+    await drain(await f(`${G}/watch`, watchInit()))
     const [r] = recorded(bucket)
     expect(r!.rec.kind).toBe('watch')
     expect(r!.rec.response.body).toMatchObject({ error: { code: 403, status: 'PERMISSION_DENIED', errors: [{ reason: 'forbidden', domain: 'global' }] } })
@@ -661,7 +661,7 @@ describe('watch and stop (D92)', () => {
   })
   it('watch and stop have their own cap per kind', async () => {
     const { f, bucket } = rig(() => jsonRes({ historyId: '5', expiration: '1' }))
-    for (let i = 0; i < 5; i++) await f(`${G}/watch`, watchInit())
+    for (let i = 0; i < 5; i++) await drain(await f(`${G}/watch`, watchInit()))
     expect(recorded(bucket).filter((x) => x.rec.kind === 'watch')).toHaveLength(RECORDING_CAP)
   })
 })

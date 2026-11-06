@@ -1,0 +1,42 @@
+{
+  "name": "watch-403",
+  "recording": {
+    "source": "synthetic",
+    "kind": "watch",
+    "request": {
+      "method": "POST",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/watch",
+      "query": [],
+      "form": null
+    },
+    "response": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "error": {
+          "code": 403,
+          "message": "Error sending test message to Cloud PubSub xxxxxxxx/xxxxxxxxx-xxxxxxx/xxxxxx/xxxxx.xxxxx : User not authorized to perform this action.",
+          "errors": [
+            {
+              "message": "Xxxxx xxxxxxx xxxx xxxxxxx xx Xxxxx XxxXxx xxxxxxxx/xxxxxxxxx-xxxxxxx/xxxxxx/xxxxx.xxxxx : Xxxx xxx xxxxxxxxxx xx xxxxxxx xxxx xxxxxx.",
+              "domain": "global",
+              "reason": "forbidden"
+            }
+          ],
+          "status": "PERMISSION_DENIED"
+        }
+      }
+    }
+  },
+  "expect": {
+    "error": {
+      "type": "GmailApiError",
+      "status": 403,
+      "gmailStatus": "PERMISSION_DENIED",
+      "reason": "forbidden"
+    }
+  }
+}

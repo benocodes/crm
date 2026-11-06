@@ -6,6 +6,7 @@
 import { sql, type SqlBool } from 'kysely'
 import { Found, UnitDriftError, assertStep, codecs, defineOperation, readMaybe, step, ts, unit, type EventReceipt, type PreparedOperation, type Row, type Step } from '@vault/storage'
 import { eventStatement } from '../outbox.js'
+import { watchUpsertStep } from '../channels/gmail/watch.js'
 import { ensureOwnProgram } from '../identity/resolve.js'
 import { normalizeIdentityValue } from '../identity/normalize.js'
 import { connections } from '../resources/connections.js'
@@ -134,6 +135,8 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
         bare(step(qc.db.insertInto('mail_sync_state').values({ connection_id: id, organization_id: org, created_by: actor, created_at: at }).onConflict((oc) => oc.column('connection_id').doNothing()))),
       )
       if (existingId) steps.push(bare(step(qc.db.updateTable('mail_sync_state').set({ last_error_code: null, last_error_at: null }).where('connection_id', '=', id).where('organization_id', '=', org))))
+      // 3b. The watch row ([[CHN5]] D89), when the callback registered one: an upsert, so a live reconnect refreshes the row it had.
+      if (input.watch_expires_at) steps.push(bare(watchUpsertStep(qc, { connectionId: id, organizationId: org, ownerId: actor, mailbox, at, expiresAt: input.watch_expires_at })))
       // 4. The result: the connection, proven by its event.
       steps.push(step(qc.db.selectFrom('channel_connections').select('channel_connections.id').where('channel_connections.id', '=', id).where(eventExists(eventId)), 'result'))
       return unit({

@@ -89,6 +89,9 @@ export interface HttpGmailClientOptions {
   baseUrl?: string
 }
 
+/** The labels the watch publishes for ([[CHN5]] D89). */
+const WATCH_LABELS = ['INBOX', 'SENT']
+const LABEL_FILTER_BEHAVIOR = 'include'
 const DEFAULT_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
 function retryAfterSeconds(value: string | null): number | null {
@@ -139,11 +142,36 @@ export class HttpGmailClient implements GmailClient {
     return res.body as ReadableStream<Uint8Array>
   }
 
-  async watch(_p: { topicName: string }): Promise<GmailWatch> {
-    throw new Error('not implemented')
+  private async send(path: string, body: unknown): Promise<Response> {
+    const token = await this.accessToken()
+    const headers: Record<string, string> = { authorization: `Bearer ${token}` }
+    if (body !== undefined) headers['content-type'] = 'application/json'
+    const res = await this.doFetch(`${this.base}${path}`, { method: 'POST', headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+    if (!res.ok) throw await apiError(res)
+    return res
   }
+
+  /**
+   * `users.watch` ([[CHN5]] D89): INBOX and SENT only. `labelFilterBehavior` is `include`, lowercase, as Google's reference lists the enum ([[CHN155]]: the push
+   * guide's example writes `INCLUDE`; a `400` on the first real watch is the sign the other casing is needed, and this is the one place to change).
+   */
+  async watch(p: { topicName: string }): Promise<GmailWatch> {
+    const res = await this.send('/watch', { topicName: p.topicName, labelIds: WATCH_LABELS, labelFilterBehavior: LABEL_FILTER_BEHAVIOR })
+    let body: Record<string, unknown> = {}
+    try {
+      body = obj(await res.json())
+    } catch {
+      // not JSON: rejected below
+    }
+    const historyId = str(body.historyId)
+    const expiration = str(body.expiration)
+    // Both are strings in Google's reference; an expiration that is not epoch milliseconds is never turned into a guessed expiry.
+    if (historyId === null || expiration === null || !/^\d{10,16}$/.test(expiration)) throw new GmailApiError({ status: res.status, reason: 'bad_watch_response' })
+    return { historyId, expiration }
+  }
+  /** `users.stop` ([[CHN5]] D91): an empty body; any 2xx is success. */
   async stop(): Promise<void> {
-    throw new Error('not implemented')
+    await this.send('/stop', undefined)
   }
 
   async getProfile(): Promise<GmailProfile> {

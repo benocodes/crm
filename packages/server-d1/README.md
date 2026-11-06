@@ -106,9 +106,10 @@ Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHA
 | `CREDENTIALS_KEY` | secret | base64, exactly 32 bytes: encrypts stored channel credentials; core; put once, never replaced by `setup:remote` (not even with `--rotate-secrets`); set by `setup:remote` from `.env.<env>` |
 | `CREDENTIALS_KEY_VERSION` | var | positive integer naming the key in use (rotation raises it, [[CHN5]] D4); optional; set by `setup:remote` from `.env.<env>` |
 | `GMAIL_TOPIC_NAME` | var | `projects/<p>/topics/<t>`, the Pub/Sub topic Gmail watches publish to; optional; set by `setup:remote` from `.env.<env>` |
-| `GMAIL_PUSH_SUBSCRIPTION` | var | `projects/<p>/subscriptions/<s>`, the push subscription; optional; set by `setup:remote` from `.env.<env>` |
-| `GMAIL_PUSH_SERVICE_ACCOUNT` | var | the service account email Pub/Sub signs push requests as; optional; set by `setup:remote` from `.env.<env>` |
-| `PUBLIC_BASE_URL` | var | absolute `https` URL of the Worker, for OAuth redirects and push; default `https://<api-host>` when the Gmail group is set; set by `setup:remote` from `.env.<env>` |
+| `GMAIL_PUSH_SUBSCRIPTION` | var | `projects/<p>/subscriptions/<s>`, the push subscription; a push whose body names another subscription is refused; optional; set by `setup:remote` from `.env.<env>` |
+| `GMAIL_PUSH_SERVICE_ACCOUNT` | var | the service account email Pub/Sub signs push requests as; a push token for any other `email` is refused; optional; set by `setup:remote` from `.env.<env>` |
+| `MAIL_SYNC` | Workflow binding | the sync run. Push is **on** only with Gmail configured, this binding, and all four of `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT` and `PUBLIC_BASE_URL` set and well formed (one parser, shared with `setup:remote`). Off: `POST /gmail/push` answers `404`, no watch is registered or renewed; a partly set group logs `push is off: set or fix <names>` at startup |
+| `PUBLIC_BASE_URL` | var | absolute `https` URL of the Worker, origin only (no path), for OAuth redirects and as push's endpoint base (`<it>/gmail/push` is the token audience); default `https://<api-host>` when the Gmail group is set; set by `setup:remote` from `.env.<env>` |
 | `CONNECT_RETURN_URL` | var | absolute `https` URL the connect flow returns to; optional; set by `setup:remote` from `.env.<env>` |
 | `GMAIL_BACKFILL_DAYS` | var | positive integer, days of mail to backfill on connect; optional; set by `setup:remote` from `.env.<env>` |
 | `ATTACHMENT_MAX_BYTES` | var | positive integer, the largest attachment kept; optional; set by `setup:remote` from `.env.<env>` |
@@ -159,7 +160,7 @@ file is a skip too). Some but not all: refused before any command, naming the mi
 never the value. Only these names are read; any other name in the file is ignored. Re-runs follow the usual rules: a present
 secret or equal var is left alone, a var that differs in `wrangler.jsonc` is a `fail`, a var the file omits is never deleted,
 and `CREDENTIALS_KEY` is never replaced (`--rotate-secrets` replaces the other two; rotating the key is a new
-`CREDENTIALS_KEY_VERSION`, not setup's job). The Google Cloud side (project, OAuth client, topic) is a separate guide.
+`CREDENTIALS_KEY_VERSION`, not setup's job). The Google Cloud side (project, OAuth client, topic, push) is the guide in [Google Cloud setup for Gmail](#google-cloud-setup-for-gmail-user-run).
 
 ```bash
 pnpm -C packages/server-d1 setup:remote -- --env acme --api-host api.acme.example.com --owner-email you@example.com --dry-run
@@ -178,6 +179,10 @@ writes only the deployment marker `none:<env>`; with `--auth clerk` it writes `c
 Account level: Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Workers Tail Read, Account Settings Read. On the
 zone: Zone Read and Workers Routes Edit. No DNS or certificate permission: Cloudflare creates the Custom Domain's DNS
 record and certificate itself. There is no `account_id` in the config on purpose.
+
+**A manual `wrangler d1 execute ... --remote`** (a read-only pre-check, say) gets none of that: the guarded `db:*:remote` and `deploy:remote`
+scripts load `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` from the root `.env`, but a bare `wrangler` call does not. Export both from the
+root `.env` in your shell first (without printing them), or wrangler asks for an account it cannot choose ([[CHN155]], #157).
 
 **Every remote command refuses to run without `CONFIRM_REMOTE=1`** and prints its target (database name and id) before it
 does anything. They refuse the placeholder `database_id` and any env whose D1 binding is not `remote: true`.
@@ -280,6 +285,100 @@ pnpm -C packages/server-d1 exec wrangler r2 object delete vault-hq-bodies/_recor
 Concurrent runs can race on `index.json` (it is read, extended and written back); run one sync at a time. Then hand the reviewed files to the agent
 for the second half of #153 (commit them under `packages/api/src/test/fixtures/google/` as `source: recorded`, with an `expect` each, and settle the
 shape questions). `pnpm -C packages/api recordings:generate` rewrites only the synthetic ones.
+
+## Google Cloud setup for Gmail (user-run)
+
+Nothing here is done by `setup:remote`, and no agent runs `gcloud` ([[CHN5]] D39): Google Cloud is configured in Google's console or `gcloud`, once per
+deployment. `<api-host>` is the Worker's host (for `hq`, `api.hq.vibase.ai`). The commands below follow Google's Pub/Sub and Gmail push documentation; compare
+them with the ones you already use before running anything.
+
+### 1. The project and the OAuth consent screen
+
+1. Create (or pick) a Google Cloud project and enable the two APIs: `gcloud services enable gmail.googleapis.com pubsub.googleapis.com`.
+2. **Internal or External.** *Internal* (a Google Workspace organisation) lets only your organisation's accounts connect and needs no Google verification:
+   choose it when every mailbox is in your Workspace. *External* works for any Google account but a project in *Testing* is limited to listed test users and
+   its refresh tokens expire after 7 days; for real use publish it, and because `gmail.readonly` and `gmail.send` are restricted scopes Google requires
+   app verification (and, for restricted scopes, a security assessment) before more than 100 users. Internal avoids all of that.
+3. **Scopes** (the consent screen's data access): `openid`, `email`, `https://www.googleapis.com/auth/gmail.readonly` and
+   `https://www.googleapis.com/auth/gmail.send`. The vault requires `gmail.readonly` (a grant without it is refused as `scope_missing`); `gmail.send` is
+   recorded when granted and used by nothing yet.
+4. **OAuth client**: a *Web application*. Authorised redirect URI, exactly: `https://<api-host>/oauth/google/callback` (it is `PUBLIC_BASE_URL` plus
+   `/oauth/google/callback`, so they must agree). The client id is `GOOGLE_CLIENT_ID` (a var); the client secret is `GOOGLE_CLIENT_SECRET` (a secret).
+
+### 2. The topic Gmail publishes to
+
+```bash
+PROJECT_ID=<your-project-id>
+gcloud config set project "$PROJECT_ID"
+gcloud pubsub topics create gmail.watch
+# Gmail publishes as this Google-owned account; it must be allowed to publish to the topic:
+gcloud pubsub topics add-iam-policy-binding gmail.watch \
+  --member="serviceAccount:gmail-api-push@system.gserviceaccount.com" \
+  --role="roles/pubsub.publisher"
+```
+
+`GMAIL_TOPIC_NAME` is `projects/<project id>/topics/gmail.watch`. A domain-restricted-sharing organisation policy can refuse the grant.
+
+### 3. The push service account and the authenticated subscription
+
+Pub/Sub calls the vault with an OIDC token signed as a service account you create. The vault checks the token's signature against Google's keys, its
+issuer, its **audience (it must equal `<PUBLIC_BASE_URL>/gmail/push` exactly)**, its `email` (this service account) and `email_verified`, and that the body
+names this subscription.
+
+```bash
+gcloud iam service-accounts create gmail-push --display-name="Vault Gmail push"
+
+# Optional: only if Pub/Sub cannot mint tokens as that account (a project from before 2021, or an organisation policy). The Pub/Sub service agent needs
+# the token-creator role. Check the subscription's delivery before adding it: with the grant already in place this is a no-op.
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountTokenCreator"
+
+gcloud pubsub subscriptions create gmail.push \
+  --topic=gmail.watch \
+  --push-endpoint="https://<api-host>/gmail/push" \
+  --push-auth-service-account="gmail-push@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --push-auth-token-audience="https://<api-host>/gmail/push"
+```
+
+`GMAIL_PUSH_SUBSCRIPTION` is `projects/<project id>/subscriptions/gmail.push`; `GMAIL_PUSH_SERVICE_ACCOUNT` is `gmail-push@<project id>.iam.gserviceaccount.com`.
+Pub/Sub's tokens may be up to an hour old; the vault accepts them until their `exp` (with 30 seconds of clock tolerance).
+
+### 4. Variables, secrets and the order
+
+Put the values in the instance's own gitignored env file (`.env.<env>`) and let `setup:remote` carry them (see "The Gmail group" above), or set them by hand:
+the vars `GOOGLE_CLIENT_ID`, `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT` and `PUBLIC_BASE_URL` go in `env.<name>.vars`; the secrets
+`GOOGLE_CLIENT_SECRET`, `OAUTH_STATE_SECRET` and `CREDENTIALS_KEY` (base64 of 32 random bytes) with `wrangler secret put` or the bulk. Then, in this order:
+
+1. Create the Google resources above (the subscription can exist before the Worker answers: until deploy the route is `404` and Pub/Sub retries).
+2. Set the vars and secrets, **migrate, then deploy** (`db:migrate:remote`, then `deploy:remote`). Push is on once all four push vars are set.
+3. Connect the mailbox (`connections.authorize`). The callback registers the watch (INBOX and SENT) before it writes the connection; if that fails the connection
+   still commits and the next cron tick registers it. Mailboxes connected before push was configured get their watch at the next tick (every 15 minutes).
+4. The 15-minute cron renews every watch with less than 6 days left (Google drops a watch after 7 days) and stays the safety net: a push the vault never got is
+   served by the next tick. Deleting a connection calls Gmail's `users.stop` after the delete commits, best effort.
+
+If you arm the Google recorder on a deployment whose cron is on (see the recorder section above), arm it for one tick at most: the cron's watch calls and a sync run
+can overlap, and the recorder's index is one object read, extended and written back ([[CHN5]] D81).
+
+### 5. When something is wrong (the Worker's log, `wrangler tail`; values are never logged)
+
+| Log line | Meaning | Fix |
+|---|---|---|
+| `[gmail] push is off: set or fix <names>` at startup | a push variable is missing or malformed | set it; `PUBLIC_BASE_URL` must be an origin only |
+| `[gmail] push is off: the MAIL_SYNC binding is missing` | no Workflow binding | add the `workflows` block to the env |
+| `[watch] ... misconfigured connection=<id> status=403` | the topic's publisher grant is missing, or the topic is in another project | step 2's `add-iam-policy-binding`; check `GMAIL_TOPIC_NAME` |
+| `[watch] ... misconfigured ... status=400` | a bad topic name, or Google refusing `labelFilterBehavior` (the vault sends `include`; Google's reference lists lowercase, its push guide's example writes `INCLUDE`) | fix the topic; if the status stays 400 on a correct topic, the casing is the cause (one constant in `client.ts`) |
+| `[watch] ... misconfigured ... status=404` | the topic does not exist | create it |
+| `[watch] ... throttled` | `429`, or a rate-limit `403` | none: the next tick retries (each failing connection costs one call per tick) |
+| `[watch] ... failed` | a network error or a `5xx` | none: the next tick retries |
+| a connection `reauth_required` after a tick | Google answered `invalid_grant`: access was revoked | reconnect the mailbox |
+| `[gmail-push] refused: bearer / alg / header` | no token, or not an RS256 JWT | only Pub/Sub's authenticated push may call the route |
+| `[gmail-push] refused: token` | bad signature, issuer, **audience** or expiry | the subscription's `--push-auth-token-audience` must equal `<PUBLIC_BASE_URL>/gmail/push` |
+| `[gmail-push] refused: email` / `email_verified` | the token is for another service account | the subscription's `--push-auth-service-account` must be `GMAIL_PUSH_SERVICE_ACCOUNT` |
+| `[gmail-push] refused: subscription` | the body names another subscription | `GMAIL_PUSH_SUBSCRIPTION` must be this subscription's full name |
+| `[gmail-push] the JWKS could not be fetched` (answers `503`) | Google's keys were unreachable; Pub/Sub retries | none |
+| `[gmail-push] no live watched connection for this notification` (answers `204`) | the mailbox is not connected, was deleted, needs a reconnect, or has no watch yet | none: the cron registers a missing watch |
 
 ## The small-deployment profile
 
