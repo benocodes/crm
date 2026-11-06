@@ -25,7 +25,8 @@
     "deploy:remote": "tsx scripts/deploy.ts",
     "db:migrate:remote": "tsx scripts/migrate-remote.ts",
     "db:status:remote": "tsx scripts/status-remote.ts",
-    "smoke:remote": "tsx scripts/smoke-remote.ts"
+    "smoke:remote": "tsx scripts/smoke-remote.ts",
+    "recordings:pull": "tsx scripts/pull-recordings.ts"
   },
   "dependencies": {
     "@vault/api": "workspace:*",

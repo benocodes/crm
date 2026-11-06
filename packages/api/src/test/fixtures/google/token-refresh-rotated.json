@@ -1,0 +1,38 @@
+{
+  "name": "token-refresh-rotated",
+  "recording": {
+    "source": "synthetic",
+    "kind": "token_refresh",
+    "request": {
+      "method": "POST",
+      "host": "oauth2.googleapis.com",
+      "path": "/token",
+      "query": [],
+      "form": {
+        "grant_type": "refresh_token",
+        "refresh_token": "<redacted>",
+        "client_id": "<redacted>",
+        "client_secret": "<redacted>"
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "access_token": "<redacted>",
+        "refresh_token": "<redacted>",
+        "expires_in": 3599,
+        "scope": "https://www.googleapis.com/auth/gmail.readonly",
+        "token_type": "Bearer"
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "access_token": true,
+      "rotated": true
+    }
+  }
+}

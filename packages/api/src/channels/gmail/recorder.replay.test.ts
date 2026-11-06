@@ -25,7 +25,7 @@ const check = async (fx: RecordingFixture): Promise<void> => {
 describe('synthetic recordings', () => {
   it('cover every call kind the vault makes, an empty page of each list, and the two failures', () => {
     const fixtures = files.map(load)
-    const kinds = new Set(fixtures.map((f) => f.recording.kind))
+    const kinds = new Set<string>(fixtures.map((f) => f.recording.kind))
     for (const k of ['token_refresh', 'token_exchange', 'profile', 'send_as', 'history_list', 'messages_list', 'message_full', 'message_raw', 'attachment_get']) expect(kinds.has(k)).toBe(true)
     const names = new Set(fixtures.map((f) => f.name))
     for (const n of ['history-list-empty', 'messages-list-empty', 'history-list-404', 'token-refresh-invalid-grant']) expect(names.has(n)).toBe(true)

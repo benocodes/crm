@@ -108,7 +108,7 @@ describe('the switch through the composition', () => {
     expect(r.out).toEqual({ end: 'complete', passes: 1 })
     expect(r.sources).toBe(5)
     const keys = recordedKeys(r.bucket)
-    expect(keys.every((k) => k.startsWith('_recordings/20261106T100000Z-inst-77/'))).toBe(true)
+    expect(keys.every((k) => k.startsWith('_recordings/20261027T100000Z-inst-77/'))).toBe(true)
     const kinds = kindsOf(keys)
     for (const k of ['token_refresh', 'messages_list', 'message_full', 'message_raw']) expect(kinds).toContain(k)
     expect(kinds.filter((k) => k === 'message_full')).toHaveLength(3) // five messages, three recordings

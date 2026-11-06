@@ -1,0 +1,131 @@
+{
+  "name": "message-full",
+  "recording": {
+    "source": "synthetic",
+    "kind": "message_full",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages/59m6h5yx82e6h8z1",
+      "query": [
+        [
+          "format",
+          "full"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "id": "59m6h5yx82e6h8z1",
+        "threadId": "59m6h5yx82e6h8z1",
+        "labelIds": [
+          "INBOX",
+          "UNREAD",
+          "CATEGORY_UPDATES"
+        ],
+        "snippet": "Xxxxx Xxxxx, xxx xxxxxx xx xxxxxxxx.",
+        "historyId": "6532485",
+        "internalDate": "0000000000000",
+        "sizeEstimate": 6481,
+        "payload": {
+          "partId": "",
+          "mimeType": "multipart/mixed",
+          "filename": "",
+          "headers": [
+            {
+              "name": "Delivered-To",
+              "value": "xxxxx@xxxxx.xxxx"
+            },
+            {
+              "name": "From",
+              "value": "Xxxx Xxx <xxxx@xxxx.xxxx>"
+            },
+            {
+              "name": "To",
+              "value": "Xxxxx <xxxxx@xxxxx.xxxx>"
+            },
+            {
+              "name": "Subject",
+              "value": "=?UTF-8?B?XXXxxxXxxxx0XXXxxX0xxXXxxXX=?="
+            },
+            {
+              "name": "Date",
+              "value": "Xxx, 00 Xxx 0000 00:00:00 +0000"
+            },
+            {
+              "name": "Message-ID",
+              "value": "<XXX0000xxxx@xxxx.xxxx.xxxx>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "multipart/mixed; boundary=\"000000000000x0x0x0\""
+            }
+          ],
+          "body": {
+            "size": 0
+          },
+          "parts": [
+            {
+              "partId": "0",
+              "mimeType": "text/plain",
+              "filename": "",
+              "headers": [
+                {
+                  "name": "Content-Type",
+                  "value": "text/plain; charset=\"XXX-0\""
+                },
+                {
+                  "name": "Content-Transfer-Encoding",
+                  "value": "quoted-printable"
+                }
+              ],
+              "body": {
+                "size": 36,
+                "data": {
+                  "length": 48,
+                  "padding": 0,
+                  "alphabet_ok": true,
+                  "decoded_bytes": 36
+                }
+              }
+            },
+            {
+              "partId": "1",
+              "mimeType": "application/pdf",
+              "filename": "xxxxxx.xxx",
+              "headers": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/pdf; name=\"xxxxxx.xxx\""
+                },
+                {
+                  "name": "Content-Disposition",
+                  "value": "attachment; filename=\"xxxxxx.xxx\""
+                },
+                {
+                  "name": "Content-Transfer-Encoding",
+                  "value": "base64"
+                }
+              ],
+              "body": {
+                "attachmentId": "JSUbtQ_nnzsqyynyhGv08",
+                "size": 1500
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "mapped": true,
+      "attachments": 1
+    }
+  }
+}

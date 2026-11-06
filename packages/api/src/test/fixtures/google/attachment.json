@@ -1,0 +1,35 @@
+{
+  "name": "attachment",
+  "recording": {
+    "source": "synthetic",
+    "kind": "attachment_get",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages/59m6h5yx82e6h8z1/attachments/GBDuhL_eadjsubtqaNn78",
+      "query": [],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "size": 1500,
+        "data": {
+          "length": 2000,
+          "padding": 0,
+          "alphabet_ok": true,
+          "decoded_bytes": 1500
+        }
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "data_length": 2000,
+      "decoded_bytes": 1500
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { MAIL_SYNC_CRON, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type StreamPrimitives, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
+import { CALLBACK_PATH, MAIL_SYNC_CRON, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type StreamPrimitives, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
 import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -39,6 +39,11 @@ export interface D1WorkerEnv {
   BODIES?: R2BucketLike
   /** Workers Static Assets: the built `/connect` page ([[UI30]] D2). Absent: `/connect*` answers 404. */
   ASSETS?: AssetsLike
+  /**
+   * The Google recorder's switch ([[CHN5]] D78, [[CHN153]]): an ISO-8601 UTC instant at most 7 days ahead. While the clock is before it, redacted Gmail and token-endpoint
+   * exchanges are written to `BODIES` under `_recordings/`. Absent, past, malformed or too far ahead: off (the last two logged by name). A var or a secret; never committed with a value.
+   */
+  GOOGLE_RECORDING_UNTIL?: string
   /** The `MailSyncWorkflow` binding ([[CHN141]] D34). Absent: `connections.sync` answers 501, connect requests no sync, the cron skips Gmail work. */
   MAIL_SYNC?: MailSyncInstances
 }
@@ -69,7 +74,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -106,9 +111,14 @@ export function composeD1Worker(
   // [[CHN5]] D58: parsed once; the app logs what is missing or malformed (names only) and gates the Gmail surface on it.
   const gmail = parseGmailConfig(vars)
 
+  const clock = deps.clock ?? (() => new Date())
+  // [[CHN5]] D78: parsed once (a bad value is logged by name, never by value). Off, `fetchFor` hands back `deps.fetch` itself, so nothing is wrapped.
+  const recording = googleRecording({ raw: vars.GOOGLE_RECORDING_UNTIL, bucket: env.BODIES, clock, plain: deps.fetch })
+
   type App = ReturnType<typeof createApp>
   let app: App | undefined
   let cold: App | undefined
+  let appBinding: D1Binding | undefined
 
   // [[CORE64]] D21, D22: the documents read configuration only; built once. A bad configuration (below) still answers 500.
   const discovery = {
@@ -139,6 +149,9 @@ export function composeD1Worker(
   }
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
+  const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
+    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
+
   async function ensure(): Promise<App | undefined> {
     if (app) return app
     let link
@@ -150,11 +163,10 @@ export function composeD1Worker(
     }
     if (!link) return undefined
     const binding = d1Binding(env.DB, link)
-    app = createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, ...(deps.fetch ? { fetch: deps.fetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
+    app = buildApp(binding, deps.fetch)
+    appBinding = binding
     return app
   }
-
-  const clock = deps.clock ?? (() => new Date())
   const newId = deps.newId ?? (() => uuidv7(clock()))
   const profiles = authAdapter ? createProfileCache(authAdapter) : null
 
@@ -173,7 +185,7 @@ export function composeD1Worker(
   }
 
   /** Re-resolved by every Workflow step ([[CHN5]] D11): nothing here is ever returned from a step. Throws (retryably) when the deployment cannot sync. */
-  async function mailSyncRuntime(): Promise<MailSyncRuntime> {
+  async function mailSyncRuntime(googleFetch: typeof fetch | undefined): Promise<MailSyncRuntime> {
     if (!gmail.config) throw new Error('Gmail is not configured on this deployment')
     if (!env.MAIL_SYNC) throw new Error('the MAIL_SYNC Workflow binding is missing')
     if (!env.BODIES) throw new Error('the BODIES bucket is missing')
@@ -190,7 +202,7 @@ export function composeD1Worker(
         newId,
         randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
         config: { clientId: c.clientId, clientSecret: c.clientSecret, credentialsKey: c.credentialsKey, keyVersion: c.keyVersion, backfillDays: c.backfillDays, attachmentMaxBytes: c.attachmentMaxBytes },
-        ...(deps.fetch ? { fetch: deps.fetch } : {}),
+        ...(googleFetch ? { fetch: googleFetch } : {}),
       },
       gate: async () => {
         if ((await migrations()).status === 'behind') throw new Error('migrations_pending: the database is behind this build, apply the migrations first')
@@ -253,7 +265,11 @@ export function composeD1Worker(
 
   return {
     scheduled,
-    runMailSync: (event, step) => runMailSync(event, step, mailSyncRuntime),
+    // One recorder per run() call, named by the Workflow instance ([[CHN5]] D78); its caps are seeded from R2's index, so a replayed run() does not exceed them.
+    runMailSync: (event, step) => {
+      const googleFetch = recording.fetchFor({ id: event.instanceId ?? `connection-${event.payload.connection_id}`, start: event.timestamp ?? clock() })
+      return runMailSync(event, step, () => mailSyncRuntime(googleFetch))
+    },
     async fetch(req) {
       try {
         const url = new URL(req.url)
@@ -268,6 +284,8 @@ export function composeD1Worker(
         if (!spec && (await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
         if (configError) return json(INTERNAL, 500)
         const ready = await ensure()
+        // D78: the connect callback records under its own request id, so it gets an app whose Gmail `fetch` is a recorder of this one request (only while recording is on).
+        if (ready && recording.on && appBinding && url.pathname === CALLBACK_PATH) return await buildApp(appBinding, recording.fetchFor({ id: newId(), start: clock() })).fetch(req)
         if (ready) return await ready.fetch(req)
         if (spec) {
           cold ??= createApp({ storage: () => NO_UNITS })

@@ -209,7 +209,7 @@ describe('no secret or content survives (canary suite)', () => {
       for (const form of forms(canary)) expect({ name, leaked: written.includes(form) ? form : null }).toEqual({ name, leaked: null })
     }
     // Words that would show a header or a bearer token was recorded at all.
-    expect(written).not.toMatch(/authorization|bearer/i)
+    expect(written).not.toMatch(/"authorization"|Bearer [A-Za-z0-9]/i)
   })
   it('secrets leave nothing: tokens are "<redacted>", the id_token is a summary, the token POST keeps its form keys and only grant_type', async () => {
     const bucket = await recordCanaryRun()
@@ -257,8 +257,8 @@ describe('no secret or content survives (canary suite)', () => {
     expect(h['X-Encoded']).toMatch(/^=\?UTF-8\?B\?[xX0+/=]+\?= xxxx$/)
     expect(h['Content-Type']).toBe(`multipart/mixed; boundary="${maskText(CANARIES.ctParam)}"`)
     expect(h['X-Unicode']).toMatch(/^[xX0]+$/)
-    expect(full.payload.parts[1]!.headers[0]!.value).toBe(`attachment; filename="${maskText(CANARIES.filename)}.pdf"`)
-    expect(full.payload.parts[1]!.filename).toBe(`${maskText(CANARIES.filename)}.pdf`)
+    expect(full.payload.parts[1]!.headers[0]!.value).toBe(`attachment; filename="${maskText(`${CANARIES.filename}.pdf`)}"`)
+    expect(full.payload.parts[1]!.filename).toBe(maskText(`${CANARIES.filename}.pdf`))
   })
   it('a body that is not JSON is recorded as a byte count only', async () => {
     const { f, bucket } = rig(() => new Response('<html>CANARYhtmlBODY error page</html>', { status: 502, headers: { 'content-type': 'text/html' } }))

@@ -44,7 +44,8 @@ export function expandBody(v: Json, path: string[] = []): Json {
 /** The recording as Google sent it. */
 export function wireResponse(rec: RecordedExchange): Response {
   const body = rec.response.body
-  const text = body === null ? '' : 'non_json' in body ? 'x'.repeat(body.bytes) : JSON.stringify(expandBody(body as Json))
+  const nonJson = body as { non_json?: true; bytes?: number } | null
+  const text = body === null ? '' : nonJson?.non_json === true ? 'x'.repeat(nonJson.bytes ?? 0) : JSON.stringify(expandBody(body as Json))
   return new Response(text, { status: rec.response.status, headers: rec.response.headers })
 }
 

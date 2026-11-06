@@ -235,6 +235,51 @@ marker (`atomicity probe: atomic`); if it does not, it stops. Migrations are exp
 Worker, because they run first. **Rollback** is `pnpm -C packages/server-d1 exec wrangler rollback --env <name>` of the
 Worker only; the database is never rolled back (D1 Time Travel is a recovery action for a person).
 
+### Recording Google's real responses on `hq` (user-run: every step is a hard stop for agents)
+
+The Gmail code was written from Google's documented shapes. To check them against the real thing, the Worker can write a **redacted** copy of
+each Google exchange to R2 ([[CHN5]] D78, D79). It is off unless `GOOGLE_RECORDING_UNTIL` holds an ISO-8601 UTC instant that is still ahead and
+at most 7 days away; absent, past, malformed or too far ahead means off (the last two are logged by variable name, never by value). It is a plain
+var read from the Worker's env (a secret works too), **never committed with a value** by the cycle that ships it; you add it for the run and remove it after.
+
+What is written: at most 3 recordings per call kind per sync run, plus up to 3 per distinct non-2xx status, in the env's `BODIES` bucket under
+`_recordings/<run start>-<instance or request id>/`, plus `_recordings/index.json` (the keys; `wrangler r2 object` cannot list). No D1 write, no event.
+**Redaction is deny-by-default and happens in the Worker before any byte is stored**: request headers are never recorded; every JSON string is
+masked (letters to `x`/`X`, digits to `0`, punctuation kept) unless it is on the allow-list in `packages/api/src/channels/gmail/recorder.ts`;
+tokens and secrets are `"<redacted>"`; message ids are pseudonyms (consistent within a run); base64 members (`raw`, a part's `data`, an
+attachment's `data`) become `{ length, padding, alphabet_ok, decoded_bytes }`. Numbers, booleans and which members are present are kept: those are
+the shapes. Read every pulled file before it goes anywhere: your review is the second check.
+
+```bash
+# 0. Redeploy hq to a build that has the recorder (migrate first only if migrations changed), and do NOT reconnect the mailbox with the recorder off:
+#    the connect callback requests the first backfill, and an unrecorded one spends it. A reconnect WITH the recorder on is the only way to record the
+#    code exchange, ID token, profile and send-as list (they run at connect only); optional.
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env hq
+
+# 1. Turn it on: add the var to env.hq.vars in packages/server-d1/wrangler.jsonc with an instant a day or two ahead (UTC, ending in Z), commit, deploy.
+#      "GOOGLE_RECORDING_UNTIL": "2026-11-08T12:00:00Z"
+git add packages/server-d1/wrangler.jsonc && git commit -m "chore(hq): turn on the Google recorder until <instant> (CHN153)"
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env hq
+
+# 2. Run the supervised backfill: POST /meta/v1/connections/<id>/sync as the owner (connections.sync), then watch the run to the end
+#    (the connection's last_synced_at moves; `wrangler tail --env hq` shows [recording] lines only on a problem).
+curl -s -X POST -H "Authorization: Bearer <owner session token>" https://api.hq.vibase.ai/meta/v1/connections/<id>/sync
+
+# 3. Pull (read-only: `wrangler r2 object get --remote` only) into the gitignored packages/server-d1/recordings-pull/hq/ and review every file.
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 recordings:pull -- --env hq
+
+# 4. Turn it off: remove the var from wrangler.jsonc and deploy again (if you forget, the 7-day cap turns it off by itself).
+git add packages/server-d1/wrangler.jsonc && git commit -m "chore(hq): turn the Google recorder off (CHN153)"
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env hq
+
+# 5. Delete the recordings from R2 once you have what you need (one command per key; the keys are in recordings-pull/hq/index.json).
+pnpm -C packages/server-d1 exec wrangler r2 object delete vault-hq-bodies/_recordings/index.json --remote --env hq
+```
+
+Concurrent runs can race on `index.json` (it is read, extended and written back); run one sync at a time. Then hand the reviewed files to the agent
+for the second half of #153 (commit them under `packages/api/src/test/fixtures/google/` as `source: recorded`, with an `expect` each, and settle the
+shape questions). `pnpm -C packages/api recordings:generate` rewrites only the synthetic ones.
+
 ## The small-deployment profile
 
 This engine is built and tested for a **small deployment**: up to about five users, a few agents, and mostly

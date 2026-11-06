@@ -1,0 +1,38 @@
+{
+  "name": "messages-list-empty",
+  "recording": {
+    "source": "synthetic",
+    "kind": "messages_list",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/messages",
+      "query": [
+        [
+          "q",
+          "after:2026/10/07"
+        ],
+        [
+          "maxResults",
+          "25"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "resultSizeEstimate": 0
+      }
+    }
+  },
+  "expect": {
+    "result": {
+      "messages": [],
+      "nextPageToken": null
+    }
+  }
+}

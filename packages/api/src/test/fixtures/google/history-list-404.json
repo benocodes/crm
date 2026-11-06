@@ -1,0 +1,55 @@
+{
+  "name": "history-list-404",
+  "recording": {
+    "source": "synthetic",
+    "kind": "history_list",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/history",
+      "query": [
+        [
+          "startHistoryId",
+          "59"
+        ],
+        [
+          "maxResults",
+          "100"
+        ],
+        [
+          "historyTypes",
+          "messageAdded"
+        ]
+      ],
+      "form": null
+    },
+    "response": {
+      "status": 404,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "error": {
+          "code": 404,
+          "message": "Requested entity was not found.",
+          "errors": [
+            {
+              "message": "Xxxxxxxxx xxxxxx xxx xxx xxxxx.",
+              "domain": "global",
+              "reason": "notFound"
+            }
+          ],
+          "status": "NOT_FOUND"
+        }
+      }
+    }
+  },
+  "expect": {
+    "error": {
+      "type": "GmailApiError",
+      "status": 404,
+      "gmailStatus": "NOT_FOUND",
+      "reason": "notFound"
+    }
+  }
+}

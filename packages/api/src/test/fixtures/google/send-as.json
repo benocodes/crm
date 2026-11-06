@@ -1,0 +1,57 @@
+{
+  "name": "send-as",
+  "recording": {
+    "source": "synthetic",
+    "kind": "send_as",
+    "request": {
+      "method": "GET",
+      "host": "gmail.googleapis.com",
+      "path": "/gmail/v1/users/me/settings/sendAs",
+      "query": [],
+      "form": null
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "body": {
+        "sendAs": [
+          {
+            "sendAsEmail": "xxxxx@xxxxx.xxxx",
+            "displayName": "Xxxxx",
+            "replyToAddress": "",
+            "signature": "",
+            "isPrimary": true,
+            "isDefault": true,
+            "treatAsAlias": false
+          },
+          {
+            "sendAsEmail": "xxxxxxx@xxxxx.xxxx",
+            "displayName": "Xxxxxxx",
+            "isDefault": false,
+            "treatAsAlias": true,
+            "verificationStatus": "accepted"
+          },
+          {
+            "sendAsEmail": "xxx@xxxxx.xxxx",
+            "verificationStatus": "pending"
+          }
+        ]
+      }
+    }
+  },
+  "expect": {
+    "result": [
+      {
+        "isPrimary": true
+      },
+      {
+        "verificationStatus": "accepted"
+      },
+      {
+        "verificationStatus": "pending"
+      }
+    ]
+  }
+}
