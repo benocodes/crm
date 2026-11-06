@@ -1,4 +1,4 @@
-import { CALLBACK_PATH, MAIL_SYNC_CRON, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
+import { CALLBACK_PATH, MAIL_SYNC_CRON, RAIL_CRON, railTick, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
 import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -128,6 +128,8 @@ export function composeD1Worker(
   const pushOn = gmail.config !== null && env.MAIL_SYNC !== undefined && pushParsed.config !== null
 
   const clock = deps.clock ?? (() => new Date())
+  // [[AGT8]] D52: the transports the runner resolves by name. None in production until #166 adds Gmail's; the test transport only ever arrives through `deps`.
+  const transports: TransportRegistry = deps.transports ?? {}
   // [[CHN5]] D78: parsed once (a bad value is logged by name, never by value). Off, `fetchFor` hands back `deps.fetch` itself, so nothing is wrapped.
   const recording = googleRecording({ raw: vars.GOOGLE_RECORDING_UNTIL, bucket: env.BODIES, clock, plain: deps.fetch })
 
@@ -166,7 +168,7 @@ export function composeD1Worker(
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
-    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined })
+    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
 
   async function ensure(): Promise<App | undefined> {
     if (app) return app
@@ -235,8 +237,27 @@ export function composeD1Worker(
     }
   }
 
-  /** The shared `scheduled` handler ([[CHN5]] D14): dispatches on the cron expression; an unknown one is logged, not thrown. */
+  /** The per-minute tick ([[AGT8]] D54): the expiry sweep, then the runner sweep, behind the same gates as the Gmail tick (initialised, not behind its migrations). */
+  let railRegistry: Registry | undefined
+  async function railScheduled(controller: ScheduledControllerLike): Promise<void> {
+    const found = await syncBinding()
+    if ('why' in found) {
+      console.log(`[cron] ${controller.cron}: skipped, ${found.why}`)
+      return
+    }
+    railRegistry ??= createVaultRegistry(deps.operations ? { operations: deps.operations } : {})
+    try {
+      const out = await railTick({ binding: found.binding, registry: railRegistry, transports, clock, newId })
+      console.log(`[cron] ${controller.cron}: rail expired ${out.expired} request(s), attempted ${out.attempted} execution(s)`)
+    } catch (err) {
+      console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
+      throw err
+    }
+  }
+
+  /** The shared `scheduled` handler ([[CHN5]] D14, [[AGT8]] D54): dispatches on the cron expression; an unknown one is logged, not thrown. */
   async function scheduled(controller: ScheduledControllerLike): Promise<void> {
+    if (controller.cron === RAIL_CRON) return railScheduled(controller)
     if (controller.cron !== MAIL_SYNC_CRON) {
       console.warn(`[cron] unknown cron expression "${controller.cron}": nothing to do`)
       return
@@ -308,7 +329,7 @@ export function composeD1Worker(
       const googleFetch = recording.fetchFor({ id: event.instanceId ?? `connection-${event.payload.connection_id}`, start: event.timestamp ?? clock() })
       return runMailSync(event, step, () => mailSyncRuntime(googleFetch))
     },
-    async fetch(req) {
+    async fetch(req, ctx) {
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
@@ -325,8 +346,8 @@ export function composeD1Worker(
         // D78: the connect callback records under its own request id, so it gets an app whose Gmail `fetch` is a recorder of this one request (only while recording is on).
         // D92: so does a connection's delete (its `users.stop` is a Google call), under its own request id.
         const ownRun = url.pathname === CALLBACK_PATH || (req.method === 'DELETE' && /\/connections\/[^/]+$/.test(url.pathname))
-        if (ready && recording.on && appBinding && ownRun) return await buildApp(appBinding, recording.fetchFor({ id: newId(), start: clock() })).fetch(req)
-        if (ready) return await ready.fetch(req)
+        if (ready && recording.on && appBinding && ownRun) return await buildApp(appBinding, recording.fetchFor({ id: newId(), start: clock() })).fetch(req, undefined, ctx as never)
+        if (ready) return await ready.fetch(req, undefined, ctx as never)
         if (spec) {
           cold ??= createApp({ storage: () => NO_UNITS })
           return await cold.fetch(req)
