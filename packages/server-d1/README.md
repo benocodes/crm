@@ -240,7 +240,7 @@ Worker only; the database is never rolled back (D1 Time Travel is a recovery act
 The Gmail code was written from Google's documented shapes. To check them against the real thing, the Worker can write a **redacted** copy of
 each Google exchange to R2 ([[CHN5]] D78, D79). It is off unless `GOOGLE_RECORDING_UNTIL` holds an ISO-8601 UTC instant that is still ahead and
 at most 7 days away; absent, past, malformed or too far ahead means off (the last two are logged by variable name, never by value). It is a plain
-var read from the Worker's env (a secret works too), **never committed with a value** by the cycle that ships it; you add it for the run and remove it after.
+var read from the Worker's env (a secret works too). On `hq` it is already in `env.hq.vars` with a dated value (committed for the first run); remove it after the run. Only `env.hq` may carry it (a test checks).
 
 What is written: at most 3 recordings per call kind per sync run, plus up to 3 per distinct non-2xx status, in the env's `BODIES` bucket under
 `_recordings/<run start>-<instance or request id>/`, plus `_recordings/index.json` (the keys; `wrangler r2 object` cannot list). No D1 write, no event.
@@ -256,9 +256,10 @@ the shapes. Read every pulled file before it goes anywhere: your review is the s
 #    code exchange, ID token, profile and send-as list (they run at connect only); optional.
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env hq
 
-# 1. Turn it on: add the var to env.hq.vars in packages/server-d1/wrangler.jsonc with an instant a day or two ahead (UTC, ending in Z), commit, deploy.
-#      "GOOGLE_RECORDING_UNTIL": "2026-11-08T12:00:00Z"
-git add packages/server-d1/wrangler.jsonc && git commit -m "chore(hq): turn on the Google recorder until <instant> (CHN153)"
+# 1. Turn it on: the var is already in env.hq.vars in packages/server-d1/wrangler.jsonc. Check its instant is still ahead and at most 7 days away at deploy time
+#    (else change it: UTC, ending in Z), commit, deploy.
+#      "GOOGLE_RECORDING_UNTIL": "2026-11-09T00:00:00Z"   (as committed on main, 1493548)
+# If it had to change: git add packages/server-d1/wrangler.jsonc && git commit -m "chore(hq): move the Google recorder switch (CHN153)"
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env hq
 
 # 2. Run the supervised backfill: POST /meta/v1/connections/<id>/sync as the owner (connections.sync), then watch the run to the end

@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { parse } from 'jsonc-parser'
 import { describe, expect, it } from 'vitest'
+import { parseRecordingSwitch } from '@vault/api'
 import { PULL_DIR, PULL_VERBS, bucketOf, getCommand, parseIndex, runPull, safeKey, type PullDeps } from './pull-recordings.js'
 import { REPO_ROOT, RemoteRefusal, type Cmd, type ConfigLike } from './remote.js'
 
@@ -95,9 +97,22 @@ describe('the output folder', () => {
   })
 })
 
-describe('the switch is not committed', () => {
-  it('wrangler.jsonc names GOOGLE_RECORDING_UNTIL nowhere, and setup:remote never writes it', () => {
-    expect(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')).not.toContain('GOOGLE_RECORDING_UNTIL')
+describe('where the switch may be set', () => {
+  const config = parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as { vars?: Record<string, unknown>; env?: Record<string, { vars?: Record<string, unknown> }> }
+  it('env.hq.vars may carry it, and then it is an ISO-8601 UTC instant ending in Z that parses as a valid switch', () => {
+    const v = config.env?.hq?.vars?.GOOGLE_RECORDING_UNTIL
+    if (v === undefined) return // removed after the run: the normal state
+    expect(typeof v).toBe('string')
+    expect(v as string).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/)
+    // Judged by the Worker's own parser, as of one day before the instant (the cap is relative to deploy time, which is not checkable here).
+    const sw = parseRecordingSwitch(v as string, new Date(Date.parse(v as string) - 86_400_000))
+    expect(sw).toEqual({ until: new Date(v as string), problem: null })
+  })
+  it('the top level and every other env (smoked1 included) never carry it', () => {
+    expect(config.vars ?? {}).not.toHaveProperty('GOOGLE_RECORDING_UNTIL')
+    for (const [name, e] of Object.entries(config.env ?? {})) if (name !== 'hq') expect(e.vars ?? {}).not.toHaveProperty('GOOGLE_RECORDING_UNTIL')
+  })
+  it('setup:remote never writes it', () => {
     for (const f of ['gmail.ts', 'config-editor.ts', 'run.ts', 'steps.ts', 'commands.ts']) expect(readFileSync(new URL(`./setup/${f}`, import.meta.url), 'utf8')).not.toContain('GOOGLE_RECORDING_UNTIL')
   })
 })
