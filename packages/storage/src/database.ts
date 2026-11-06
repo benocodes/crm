@@ -403,7 +403,36 @@ export interface ThreadSourcesTable {
   provider_thread_id: string
 }
 
+/** [[AGT8]] D3: an action request (D1 only). `arguments`, `edited_arguments`, `evidence` and `result` are JSON. */
+export interface ActionRequestsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  operation: string
+  arguments: JsonValue
+  edited_arguments: JsonValue
+  status: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'expired' | 'superseded' | 'executed' | 'failed'
+  reason: string
+  evidence: JsonValue
+  contact_id: string | null
+  thread_id: string | null
+  interaction_id: string | null
+  dedup_key: string | null
+  expires_at: Timestamp
+  decided_by: string | null
+  decided_at: NullableTimestamp
+  decision_reason: string | null
+  superseded_by_id: string | null
+  result: JsonValue
+  error_code: string | null
+  error_message: string | null
+  executed_at: NullableTimestamp
+}
+
 export interface StorageDatabase {
+  action_requests: ActionRequestsTable
   organizations: OrganizationsTable
   principals: PrincipalsTable
   events: EventsTable
@@ -785,6 +814,32 @@ export const COLUMN_KINDS = {
     connection_id: 'uuid',
     provider_message_id: 'text',
     provider_thread_id: 'text',
+  },
+  action_requests: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    operation: 'text',
+    arguments: 'json',
+    edited_arguments: 'json',
+    status: 'text',
+    reason: 'text',
+    evidence: 'json',
+    contact_id: 'uuid',
+    thread_id: 'uuid',
+    interaction_id: 'uuid',
+    dedup_key: 'text',
+    expires_at: 'timestamp',
+    decided_by: 'uuid',
+    decided_at: 'timestamp',
+    decision_reason: 'text',
+    superseded_by_id: 'uuid',
+    result: 'json',
+    error_code: 'text',
+    error_message: 'text',
+    executed_at: 'timestamp',
   },
   thread_sources: {
     id: 'uuid',

@@ -79,7 +79,9 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   that lets it import into the red commit, so the assertions fail rather than the import. [[API32]]'s coder
   built exactly that stub (a constants-only `surfaces.ts`) but ran it in a throwaway worktree against `main`
   and folded the tests into the implementation commit, so the branch history no longer shows red before green.
-  That is a recorded deviation, not an equivalent.
+  That is a recorded deviation, not an equivalent. [[AGT8]] cycle 1 wrote its tests beside a working draft and
+  made the red commit by setting the draft aside: two suites then failed on a missing module, not on their
+  assertions, and the reviewer had to run a manifest mutation to see them go red. Write the tests first.
 - A migration's test goes red against the old schema **before** the migration exists (vitest runs
   untyped, so missing generated types don't block the run). Only then write the migration, run codegen
   and change the seeds ([[CORE3]] cycle 1).
@@ -124,7 +126,9 @@ The charter's E2E scenario is not part of the gate; in a sprint the e2e-tester r
 When the scenario is a script you wrote (a Playwright `*.e2e.ts`) and it needs only a local Worker and
 `.env.dev`, run it once before you report and fix what is yours. The tester's run is still the evidence; yours
 catches script slips, which cost [[API115]] a full coder and tester round. Note the run (pass, or what failed and
-why) in RESULT.md.
+why) in RESULT.md. **Before writing a Playwright spec, read `writing-tests` §7** and copy the waits of an existing
+spec (`mcp-oauth.e2e.ts`): [[AGT8]] cycle 1's spec read `window.Clerk.session` right after sign-in, a race §7
+already names, and it cost a coder and tester round. A spec that only type-checks has not been run.
 
 ## 6. RESULT.md, commit, push
 

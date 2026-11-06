@@ -1,5 +1,5 @@
 import { ApiError } from '../errors.js'
-import { ScopeSet } from '../scopes.js'
+import { ScopeSet, closeScopes } from '../scopes.js'
 import { AuthFailure, ProfileNotFoundError, type AuthAdapter, type AuthProfile } from './adapter.js'
 import { lookupPrincipal, provisionAgent } from './agent-principals.js'
 import { provisionUser } from './first-sight.js'
@@ -73,8 +73,12 @@ export function createWorkspaceAuthenticator(opts: {
 
   const profileOf = (subject: string, nowMs: number) => profiles.profileOf(subject, nowMs)
 
-  const meet = (...lists: ReadonlyArray<readonly string[]>): string[] =>
-    declaredScopes.filter((s) => lists.every((l) => l.includes(s))).sort()
+  // [[AGT8]] D31: every list is closed under write => request_approval BEFORE the meet, so a request_approval token over a write cap keeps
+  // request_approval only (and a write token over a request_approval cap likewise); the result is closed again by construction.
+  const meet = (...lists: ReadonlyArray<readonly string[]>): string[] => {
+    const closed = lists.map((l) => closeScopes(l, declared))
+    return declaredScopes.filter((s) => closed.every((l) => l.includes(s))).sort()
+  }
 
   return {
     async authenticate(token, { storage, organizationHeader, env }) {

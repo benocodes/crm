@@ -21,6 +21,7 @@ import {
 import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
 import { contactFiles } from '../resources/contact-files.js'
+import { actionRequests } from '../action-requests/definition.js'
 import { contacts, type ContactRecord } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
 import { afterOf, beforeRead, columnsOf, derivedProjection, selectRecord, toRecord } from '../storage/crud.js'
@@ -48,6 +49,8 @@ export type ContactReference = {
 export const CONTACT_REFERENCES: readonly ContactReference[] = [
   { def: identities, table: 'identities', column: 'contact_id', liveOnly: true },
   { def: contactFiles, table: 'contact_files', column: 'contact_id', liveOnly: true, uniqueWith: ['file_id'] },
+  // [[AGT8]] D19: pending context follows the merge; `arguments` is an opaque document and is never rewritten.
+  { def: actionRequests, table: 'action_requests', column: 'contact_id', liveOnly: false },
 ]
 
 /**

@@ -12,7 +12,7 @@ describe('associations registration', () => {
   it('declares associations.create/get/delete/list under the associations scopes', () => {
     const scope = (n: string) => {
       const op = registry.get(n)
-      return op?.kind === 'tenant' ? `${op.scope.resource}:${op.scope.action}` : undefined
+      return op?.kind === 'tenant' ? `${op.scope!.resource}:${op.scope!.action}` : undefined
     }
     expect(scope('associations.create')).toBe('associations:write')
     expect(scope('associations.delete')).toBe('associations:write')

@@ -59,6 +59,7 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
       method: 'post',
       path: '/connections/authorize',
       scope: { resource: 'connections', action: 'write' },
+      proposal: { eligible: false, reason: 'connecting a mailbox needs a person at the provider\'s consent screen' },
       validation: 'adapter',
       d1Only: true,
       request: { body },
@@ -91,6 +92,7 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
       method: 'post',
       path: '/connections/{id}/sync',
       scope: { resource: 'connections', action: 'write' },
+      proposal: { eligible: false, reason: 'connection and credential operations are not proposable' },
       validation: 'adapter',
       d1Only: true,
       request: { params: syncParams },
@@ -148,8 +150,8 @@ export function withWatchStop(op: TenantOperation, runtime: ConnectionsRuntime |
   type Stop = { connectionId: string; ciphertext: string; keyVersion: number }
   return {
     ...op,
-    prepare: async (env, input) => {
-      const inner = (await op.prepare(env, input)) as PreparedOperation<unknown>
+    prepare: async (env, input, ctx) => {
+      const inner = (await op.prepare(env, input, ctx)) as PreparedOperation<unknown>
       const id = String((input.params as { id: string }).id).toLowerCase()
       const org = env.organizationId
       return defineOperation<{ stop: Stop | null }>({

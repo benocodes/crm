@@ -37,6 +37,8 @@ Run only what the scenario needs, plus a quick `git status`/sha check that you a
 - **Call provider HTTP endpoints with `curl`** (or set a browser-like `User-Agent`). Python `urllib`'s default
   agent got a non-JSON answer from Clerk's token endpoint, most likely Cloudflare's bot screen in front of it
   ([[CORE77]]). A non-JSON body from an OAuth endpoint is a client problem first, not a vault finding.
+- **Run piped commands with `set -o pipefail`** (or check `${PIPESTATUS[0]}`): `cmd | tail` or `cmd | grep`
+  reports the filter's exit code, so a failed migrate, deploy or test run looks like success ([[AGT8]] cycle 1).
 - **Don't fix anything.** Not code, not tests, not config. If something fails, capture the exact
   command, output (trimmed to what matters) and your reading of the cause, and report it.
 

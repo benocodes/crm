@@ -30,6 +30,9 @@
       },
       {
         "name": "0010_gmail_capture.sql"
+      },
+      {
+        "name": "0011_action_requests.sql"
       }
     ],
     "success": true,

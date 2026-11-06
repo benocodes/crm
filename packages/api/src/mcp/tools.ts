@@ -3,6 +3,7 @@ import { ApiError } from '../errors.js'
 import type { Principal } from '../auth/types.js'
 import { toolName, type Operation, type OperationInput, type Registry } from '../registry.js'
 import { formatScope } from '../scopes.js'
+import { proposalMeta } from '../proposal.js'
 
 /** [[API106]] D7-D9: one tool, as `tools/list` carries it. */
 export interface McpTool {
@@ -29,7 +30,12 @@ const toJson = (schema: z.ZodType, io: 'input' | 'output'): Json => {
 export function describeOperation(op: Operation): string {
   const lines = [op.summary]
   if (op.description) lines.push(op.description)
-  if (op.kind === 'tenant') lines.push(`Requires ${formatScope(op.scope)} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`)
+  if (op.kind === 'tenant') {
+    const needs = op.scope ? formatScope(op.scope) : op.authority === 'write' ? '<resource>:write on the target operation\'s resource' : '<resource>:request_approval (or write) on the target operation\'s resource'
+    lines.push(`Requires ${needs} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`)
+    const p = proposalMeta(op)
+    if (p.eligible) lines.push(`Proposable: ${p.request_scope} lets a caller propose this through action_requests.create (operation=${op.name})${p.also_requires ? `; also needs ${p.also_requires}` : ''}.`)
+  }
   else if (!op.agents) lines.push('Requires a signed-in user.')
   return lines.join('\n')
 }
@@ -89,7 +95,11 @@ export function deriveTools(registry: Registry): readonly ToolEntry[] {
 export function isVisible(op: Operation, principal: Principal, workspace: boolean): boolean {
   if (op.output === 'binary') return false
   if (op.kind === 'account') return principal.actor.kind === 'user' || (op.agents === true && workspace)
-  return !principal.organizationForbidden && principal.organizationId !== null && principal.scopes.has(op.scope)
+  if (principal.organizationForbidden || principal.organizationId === null) return false
+  if (op.scope !== null) return principal.scopes.has(op.scope)
+  // [[AGT8]] D7: a decision command has the target's authority; it is shown to a caller holding that action on any resource.
+  const action = op.authority === 'write' ? ':write' : ':request_approval'
+  return principal.scopes.toStrings().some((s) => s.endsWith(action))
 }
 
 const asString = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v))
@@ -99,7 +109,7 @@ const asString = (v: unknown): string => (typeof v === 'string' ? v : typeof v =
  * them over, so validation and coercion are the REST ones. Any other name is a body field (a strict body schema refuses it);
  * an operation with no body field to put it in refuses it as a validation error, never drops it.
  */
-export function splitArguments(op: Operation, args: Record<string, unknown>): OperationInput {
+export function splitArguments(op: Operation, args: Record<string, unknown>, opts: { keepNull?: boolean } = {}): OperationInput {
   const paramKeys = op.request?.params?.shape ?? {}
   const queryKeys = op.request?.query?.shape ?? {}
   const bodySchema = op.request?.body
@@ -110,7 +120,9 @@ export function splitArguments(op: Operation, args: Record<string, unknown>): Op
   let whole: unknown
   const unknown: string[] = []
   for (const [k, v] of Object.entries(args)) {
-    if (v === undefined || v === null) continue
+    if (v === undefined) continue
+    // `keepNull` ([[AGT8]] D33): a request's `arguments` are stored as sent, and a null body field (clear this field) must reach the operation as it would over REST.
+    if (v === null && !(opts.keepNull && objectBody && !(k in paramKeys) && !(k in queryKeys))) continue
     if (k in paramKeys) params[k] = asString(v)
     else if (k in queryKeys) query[k] = asString(v)
     else if (objectBody) bodyFields[k] = v
