@@ -103,6 +103,13 @@ item and name the file if you know it:
 Write "None" when there was none. Each item must stand alone, because the lead reads this section across
 retros to fix recurring problems.
 
+**Cost.** One line, so the size budget in `tdd-cycle-generator` is tuned from real numbers:
+`coder <tokens>k / <tool calls> calls (<runs> runs, incl. handoffs) · +<code> / +<test> lines, <files> files ·
+Size line <as chartered> · review rounds <n>`. Token and call counts come from the orchestrator's brief
+(outside a sprint, write "not measured"); lines from `git diff --numstat main...<branch>` split on test
+files. If the cost was out of line with the Size line, say which count hid the work (a matrix, a rider, an
+E2E part), and propose the budget change in Lessons.
+
 ## Follow-ups
 {Optional. Deferred work and known caveats, with the spec ID that owns each.}
 ```
