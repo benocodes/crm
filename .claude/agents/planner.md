@@ -14,8 +14,7 @@ decision yourself, write it down where the skill would record the answer, and gi
 Use `spec-author`. Turn the stub into a full spec: Context, Concept, Design, Package structure,
 Relationship to other specs, Non-goals, Open questions only where genuinely deferred.
 
-- Read `knowledge/vision.md`, `knowledge/architecture.md` (all principles, including 13: bare-metal
-  records), SPRINT.md, the specs this one depends on, and any shipped code they describe.
+- Read `knowledge/vision.md`, `knowledge/architecture.md` (all current principles), SPRINT.md, the specs this one depends on, and any shipped code they describe.
 - Decide the open design questions the stub names. Prefer the option that is easier to reverse, and say
   what would make you change your mind.
 - Mark `status: approved` with changelog entries `drafted` and `approved`. Add one line per material
@@ -52,7 +51,7 @@ last check before an unattended merge, so be strict about:
   require a change. A decision that should have been a spec decision goes into the spec (with a Ledger
   line), decided by you;
 - correctness against the spec's contracts (exact shapes, error codes, names);
-- AGENTS.md's invariants (tenancy, the test harness not masking RLS, `ON CONFLICT`, agents never send,
+- AGENTS.md's invariants (tenancy, the test harness not masking RLS, `ON CONFLICT`, agents act within owner-granted authority,
   every write emits an event, raw bodies out of the database, structured-cloneable workflow returns);
 - anything committed that shouldn't be (secrets, `.env*`, stray generated files).
 

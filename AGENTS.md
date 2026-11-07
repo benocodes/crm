@@ -82,6 +82,28 @@ on a single issue (`fix-bugs`, `work-on-ready-issues`), are not orchestrated: do
 
 Subagents cannot start subagents, so the orchestrator must be the main session, never a subagent.
 
+**Codex roles.**
+
+Codex equivalents live in `.codex/agents/*.toml`. For sprint work, the main Codex session reads
+`.codex/agents/orchestrator.toml` and follows its `developer_instructions`; never delegate the
+orchestrator to a subagent. Open design discussions and single-issue work still run directly.
+
+| Role | Codex model | Reasoning effort |
+|---|---|---|
+| orchestrator | GPT-6.1 Sol | xhigh |
+| planner (spec, plan, review, retro) | GPT-6.1 Sol | xhigh |
+| coder | GPT-6.1 Sol | high |
+| e2e-tester | GPT-6.1 Sol | medium |
+
+The Opus/Sonnet names above apply to Claude only. Codex uses these TOML settings. If the runtime
+cannot select custom agents by name, the orchestrator starts a fresh agent with the model and effort
+from the role file and a brief to read that file and follow its instructions. All delegation stays in
+the main session; workers must not spawn subagents. Respect the runtime's available concurrency.
+All Codex roles use Sol for now, including verify-only workers.
+
+Current `AGENTS.md` product rules, gates and standing exceptions take precedence over stale examples
+in either runtime's role prompts. Update both sets when changing a shared workflow rule.
+
 **Per cycle:** planner `spec` (if the spec isn't approved) → planner `plan` → coder (gate green) →
 e2e-tester (only if the charter has an E2E scenario; on failure: coder → e2e-tester, until it passes) → planner `review` (on changes requested: coder → e2e-tester if any → review; **at most two coder rounds in total**) → planner
 `retro` → orchestrator opens the PR, waits for checks, merges (`gh pr merge --squash --delete-branch`),

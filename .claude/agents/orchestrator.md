@@ -24,7 +24,7 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
 
 1. **Checkpoint.** Run `/sprint-checkpoint`. Pick the next item from SPRINT.md's "Now / Next" list (the milestone tables show what each item unlocks).
    **When `main` moved under you** (a human merged a PR, especially one touching `AGENTS.md` or
-   `.claude/agents/`), pull the main checkout and merge `origin/main` into the open cycle's branch before the next
+   `.claude/agents/` or `.codex/agents/`), pull the main checkout and merge `origin/main` into the open cycle's branch before the next
    stage. Agents read `AGENTS.md` from their worktree and the permission checks read the session's, so a
    standing exception merged after the worktree was cut is invisible to them: [[CORE77]]'s first E2E was refused
    the Clerk dev-instance exception that PR #81 had already added. A session started before the pull keeps
@@ -89,7 +89,7 @@ model setting can override it.
 
 **An agent that stops without reporting is not still working.** If a notification says an agent
 finished (or is "waiting on background work") and no report arrives, check its evidence yourself
-(`git log` on its branch, `git ls-remote`, its RESULT.md section) and move on; don't sit idle waiting.
+(`git log` on its branch, `git ls-remote`, its RESULT.md section). If evidence is incomplete, report the stage as incomplete; never treat it as passed.
 
 **Don't wake an agent just to re-verify.** Resume the coder (SendMessage) only for work that needs its
 context: applying findings, fixing a failure. To re-run a suite or the gate on a pushed sha, spawn a

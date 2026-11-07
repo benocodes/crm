@@ -25,8 +25,10 @@ Run only what the scenario needs, plus a quick `git status`/sha check that you a
 - **Against an existing deployment from an unmerged branch,** anything that compares the live Worker with
   HEAD (`/health.version`, setup's `deploy` step) reports a change; that is expected, not a failure. Shas are
   compared in full (40 characters), never short ([[OPS65]], [[CORE77]]).
-- Never touch production, shared or other products' databases. Only the cycle's own worktree test DB and
-  the local `vault_dev`.
+- Use the cycle's isolated local D1 state (or private test DB), local `vault_dev`, and only
+  the remote test environments explicitly authorised in current AGENTS.md. Its `smoked1` and Clerk-dev
+  exceptions apply; `hq`, `hq-staging`, other production environments and other products' databases do not.
+  Never source the root `.env` for Clerk tests; use `.env.dev` only.
 - **Save a once-shown secret before you trim or redact output.** A bootstrap API key or a minted token
   that appears only once goes straight to a file in the scratchpad (`chmod 600`), and later steps read it
   from there. Redact only what you print or report. If you redact first, the secret is gone and the run has
