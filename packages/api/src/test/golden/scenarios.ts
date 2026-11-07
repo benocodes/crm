@@ -582,6 +582,16 @@ const byExternal = (body: any, external: string) => messagesOf(body).find((m) =>
 
 export const messagingScenarios: readonly GoldenScenario[] = [
   {
+    name: 'mail-sorted-pages',
+    about: 'CORE174: newest messages by occurred_at, an opaque cursor picked from page one and reused on page two; interactions use the same stored-column descending order; reads emit no events',
+    seed: 'messaging',
+    steps: [
+      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/messages?sort=occurred_at&order=desc&limit=2', pick: { next: (b) => b.next_cursor } },
+      { as: 'user', at: at(1), method: 'GET', path: '/api/v1/messages?sort=occurred_at&order=desc&limit=2&after={next}' },
+      { as: 'agent', at: at(2), method: 'GET', path: '/api/v1/interactions?sort=occurred_at&order=desc&limit=2' },
+    ],
+  },
+  {
     name: 'threads-list-get',
     about: 'threads list in id order and get one; a channel filter keeps them, an unknown one is a validation error; a missing id is 404 (read-only: no write route)',
     seed: 'messaging',
