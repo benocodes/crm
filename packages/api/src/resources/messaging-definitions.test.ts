@@ -19,7 +19,7 @@ describe('messaging definitions (CORE25 C1)', () => {
   it('declared scopes', () => {
     expect(createVaultRegistry().declaredScopes()).toEqual([
       'action_requests:read', 'agents:read', 'agents:write', 'associations:read', 'associations:request_approval', 'associations:write', 'companies:read', 'companies:request_approval', 'companies:write', 'connections:read', 'connections:write',
-      'contacts:read', 'contacts:request_approval', 'contacts:write', 'deals:read', 'deals:request_approval', 'deals:write', 'files:read', 'interactions:read', 'members:read', 'messages:read', 'notes:read', 'notes:request_approval', 'notes:write',
+      'contacts:read', 'contacts:request_approval', 'contacts:write', 'deals:read', 'deals:request_approval', 'deals:write', 'files:read', 'interactions:read', 'members:read', 'messages:read', 'messages:request_approval', 'messages:write', 'notes:read', 'notes:request_approval', 'notes:write',
       'pipelines:read', 'pipelines:request_approval', 'pipelines:write', 'schema:read', 'tags:read', 'tags:request_approval', 'tags:write', 'tasks:read', 'tasks:request_approval', 'tasks:write',
     ])
   })
@@ -30,7 +30,7 @@ describe('messaging definitions (CORE25 C1)', () => {
     const fresh = names.filter((n) => /^(threads|messages|interactions|files|contact_files|company_files)\./.test(n)).sort()
     expect(fresh).toEqual(
       [
-        'threads.list', 'threads.get', 'messages.list', 'messages.get', 'messages.content', 'interactions.list', 'interactions.get', 'files.list', 'files.get', 'files.content',
+        'threads.list', 'threads.get', 'messages.list', 'messages.get', 'messages.content', 'messages.send', 'interactions.list', 'interactions.get', 'files.list', 'files.get', 'files.content',
         'contact_files.list', 'contact_files.get', 'contact_files.create', 'contact_files.delete',
         'company_files.list', 'company_files.get', 'company_files.create', 'company_files.delete',
       ].sort(),

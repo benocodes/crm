@@ -1,8 +1,5 @@
-export interface OutboundPost {
-  from: string; to: string[]; cc: string[]; bcc: string[]; subject: string; text: string; client_ref: string
-  provider_thread_id: string | null; provider_anchor_id: string | null; in_reply_to?: string; references?: string[]
-  anchor_external_id?: string
-}
+import type { OutboundPost } from '../port.js'
+export type { OutboundPost } from '../port.js'
 const base64 = (value:string) => btoa(Array.from(new TextEncoder().encode(value),b=>String.fromCharCode(b)).join(''))
 const safe = (s:string) => {if(/[\x00-\x1f\x7f]/.test(s))throw new Error('unsafe outbound header');return s}
 export const validOutboundId = (s:string):boolean => /^[\x21-\x7e]+@[\x21-\x7e]+$/.test(s)&&!/[<>()[\]\\",;:]/.test(s)&&s.length<=300
@@ -23,7 +20,7 @@ export function outboundMime(p:OutboundPost):string {
   if(reply){
     if(!p.in_reply_to||!validOutboundId(p.in_reply_to))throw new Error('unsafe outbound anchor')
     fields.push(`In-Reply-To: <${p.in_reply_to}>`)
-    const refs=[...new Set([...(p.references??[]).filter(validOutboundId),p.in_reply_to])].slice(-20)
+    const refs=[...new Set((p.references??[]).filter(s=>validOutboundId(s)&&s!==p.in_reply_to)),p.in_reply_to].slice(-20)
     fields.push(`References: ${refs.map(s=>`<${s}>`).join(' ')}`.replace(/ (?!<[^>]*>$)(?=<)/g,' '))
     // Fold between complete tokens, never inside an id.
     const last=fields.pop()!;let line='';const lines:string[]=[]

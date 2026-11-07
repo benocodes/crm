@@ -129,7 +129,7 @@ export function composeD1Worker(
   const pushOn = gmail.config !== null && env.MAIL_SYNC !== undefined && pushParsed.config !== null
 
   const clock = deps.clock ?? (() => new Date())
-  // [[AGT8]] D52: the transports the runner resolves by name. None in production until #166 adds Gmail's; the test transport only ever arrives through `deps`.
+  // [[AGT8]] D52/D70: the real Gmail transport is shared by waitUntil and cron; test transports only arrive through `deps`.
   const transportsFor=(binding:D1Binding):TransportRegistry=>{
     if(deps.transports)return deps.transports
     if(!gmail.config||!env.BODIES)return {}

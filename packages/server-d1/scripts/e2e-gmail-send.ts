@@ -45,11 +45,14 @@ try{
   let d1=await mf.getD1Database('DB') as unknown as D1Like
   for(const f of readdirSync(MIGRATIONS_DIR).filter(f=>f<'0013').sort())await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR,f),'utf8')).map(s=>d1.prepare(s)))
   const boot=await bootstrapD1(d1,{organizationName:'Gmail E2E',agentName:'legacy-seed-agent',authOrgId:issuer.issuer})
-  const org=boot.organizationId,oldId=uuidv7(),at=new Date().toISOString()
+  const org=boot.organizationId,oldId=uuidv7(),oldRequest=uuidv7(),at=new Date().toISOString()
+  await d1.prepare("insert into action_requests (id,organization_id,created_by,created_at,updated_at,operation,arguments,status,reason,evidence,expires_at,decided_by,decided_at) values (?,?,?,?,?,'legacy.enqueue','{}','approved','legacy request','[]',?,?,?)").bind(oldRequest,org,boot.agentId,at,at,new Date(Date.now()+86400000).toISOString(),boot.agentId,at).run()
+  const oldRequestRow=await d1.prepare('select * from action_requests where id=?').bind(oldRequest).first()
   await d1.prepare("insert into action_executions (id,organization_id,created_by,authorised_by,created_at,updated_at,operation,arguments,resolution,status,client_ref,input_hash,deadline_at,next_attempt_at) values (?,?,?,?,?,?,'legacy.enqueue','{}','{}','queued',?,?,?,?)").bind(oldId,org,boot.agentId,boot.agentId,at,at,'legacy@e2e.test','a'.repeat(64),at,at).run()
   await createMigrationTracker(d1);await recordMigrations(d1,MIGRATIONS.slice(0,-1).map(m=>m.name))
   assert.equal((await mf.dispatchFetch('https://vault.test/meta/v1/me')).status,503,'new Worker refuses old schema')
   await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR,'0013_send_connection.sql'),'utf8')).map(s=>d1.prepare(s)));await recordMigrations(d1,[MIGRATIONS.at(-1)!.name])
+  assert.deepEqual(await d1.prepare('select * from action_requests where id=?').bind(oldRequest).first(),oldRequestRow)
   await mf.dispose();mf=new Miniflare(options());await mf.ready;d1=await mf.getD1Database('DB') as unknown as D1Like
   const rows=async(s:string,...binds:unknown[])=>(await d1.prepare(s).bind(...binds).all()).results as any[]
   assert.equal((await rows('select connection_id from action_executions where id=?',oldId))[0].connection_id,null)
@@ -98,11 +101,15 @@ try{
     })
   }
   mail.loseSendResponses=1;mail.delaySentSearches=1
-  const first=await call(writer.secret,'POST','/api/v1/messages/send',{...reply('DIRECT_E2E_BODY'),idempotency_key:'send-e2e-direct'})
+  // This fake classifier/composer belongs to the external caller. Confidence selects the same registered operation's direct or review path.
+  const supportReply=(confidence:number,canary:string,key:string)=>confidence>=0.9
+    ?call(writer.secret,'POST','/api/v1/messages/send',{...reply(canary),idempotency_key:key})
+    :call(proposer.secret,'POST','/api/v1/action-requests',{operation:'messages.send',arguments:reply(canary),reason:'classifier uncertain'})
+  const first=await supportReply(0.99,'DIRECT_E2E_BODY','send-e2e-direct')
   assert.equal(first.status,202);await finish(first.body.id)
   assert.equal(mail.sendRequests.length,1,'uncertainty never blindly resends')
   const replay=await call(writer.secret,'POST','/api/v1/messages/send',{...reply('DIRECT_E2E_BODY'),idempotency_key:'send-e2e-direct'});assert.equal(replay.body.id,first.body.id)
-  const pending=await call(proposer.secret,'POST','/api/v1/action-requests',{operation:'messages.send',arguments:reply('REVIEWED_E2E_BODY'),reason:'classifier uncertain'})
+  const pending=await supportReply(0.5,'REVIEWED_E2E_BODY','unused-review-key')
   assert.equal(pending.status,201);assert.equal(mail.sendRequests.length,1)
   assert.equal((await call(proposer.secret,'POST',`/api/v1/action-requests/${pending.body.id}/approve`,{})).status,403)
   const approved=await call(reviewer.secret,'POST',`/api/v1/action-requests/${pending.body.id}/approve`,{});assert.equal(approved.status,200);await finish(approved.body.execution_id)
@@ -111,10 +118,27 @@ try{
   const human=await call(humanToken,'POST',`/api/v1/action-requests/${humanProposal.body.id}/approve`,{});assert.equal(human.status,200);await finish(human.body.execution_id)
   await poll('all confirmed outbound captures',async()=>(await rows("select id from interactions where direction='outbound'")).length===4)
   assert.equal(mail.sendRequests.length,4)
+  for(const [i,canary] of ['DIRECT_E2E_BODY','REVIEWED_E2E_BODY','NEW_E2E_BODY','HUMAN_E2E_BODY'].entries()){
+    const sent=mail.sendRequests[i]!
+    assert.equal(Buffer.from(sent.raw.split('\r\n\r\n')[1]!.replace(/\s/g,''),'base64').toString('utf8'),authored(canary),'provider receives exact authorised bytes')
+  }
+  // Repeated and overlapping sync requests reuse the existing capture deduplication.
+  await Promise.all([call(ownerToken,'POST',`/meta/v1/connections/${connection}/sync`,{}),call(ownerToken,'POST',`/meta/v1/connections/${connection}/sync`,{})])
+  await poll('repeat sync settles',async()=>{
+    const s=(await rows('select lease_until,last_success_at,sync_requested_at from mail_sync_state where connection_id=?',connection))[0]
+    return s.lease_until===null&&s.last_success_at>=s.sync_requested_at
+  })
+  assert.equal((await rows("select id from interactions where direction='outbound'")).length,4)
   const executions=await rows("select * from action_executions where operation='messages.send'")
   const captured=await rows("select m.external_id,m.thread_id,i.direction,m.created_by from messages m join interactions i on i.message_id=m.id where i.direction='outbound'")
   for(const e of executions){const m=captured.find(m=>m.external_id===JSON.parse(e.result).external_id);assert(m);assert.equal(m.created_by,owner);assert.equal(m.direction,'outbound');if(JSON.parse(e.arguments).mode==='reply')assert.equal(m.thread_id,thread);else assert.notEqual(m.thread_id,thread)}
   const reviewed=executions.find(e=>e.id===approved.body.execution_id)!;assert.equal(reviewed.created_by,proposer.id);assert.equal(reviewed.authorised_by,reviewer.id)
+  for(const e of executions){
+    for(const type of ['action_execution.created','action_execution.completed']){
+      const event=(await rows('select actor_id from events where resource_id=? and type=?',e.id,type))[0]
+      assert.equal(event.actor_id,e.authorised_by)
+    }
+  }
   for(const [id,text] of [[first.body.id,'DIRECT_E2E_BODY'],[approved.body.execution_id,'REVIEWED_E2E_BODY']])assert.equal((await call(writer.secret,'GET',`/api/v1/action-executions/${id}`)).body.arguments.body,authored(text))
   assert.equal((await call(proposer.secret,'GET',`/api/v1/action-requests/${pending.body.id}`)).body.arguments.body,authored('REVIEWED_E2E_BODY'))
   const audit=JSON.stringify({executions:await rows('select * from action_executions'),requests:await rows('select * from action_requests'),events:await rows('select * from events')})

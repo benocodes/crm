@@ -29,11 +29,13 @@ export function gmailTransport(d:GmailTransportDeps):Transport {
     return m.id===id&&typeof m.threadId==='string'&&m.threadId.length>0&&(!threadId||m.threadId===threadId)&&m.labelIds?.includes('SENT')===true&&ids.length===1&&ids[0]===clientRef
   }
   const result=(call:TransportCall)=>({connection_id:String(call.resolution.connection_id),external_id:call.clientRef})
+  async function markInvalidGrant(err:unknown,call:TransportCall):Promise<boolean>{
+    if(!(err instanceof GoogleRefreshError)||err.code!=='invalid_grant')return false
+    try{await markConnectionStatus(d,String(call.resolution.connection_id),String(call.resolution.owner_id),'reauth_required','invalid_grant')}catch{/* safe failure result, no provider detail */}
+    return true
+  }
   async function classify(err:unknown,posted:boolean,call:TransportCall):Promise<DispatchOutcome>{
-    if(err instanceof GoogleRefreshError&&err.code==='invalid_grant'){
-      try{await markConnectionStatus(d,String(call.resolution.connection_id),String(call.resolution.owner_id),'reauth_required','invalid_grant')}catch{/* safe failure result, no provider detail */}
-      return {kind:'not_sent',code:'reauth_required'}
-    }
+    if(await markInvalidGrant(err,call))return {kind:'not_sent',code:'reauth_required'}
     if(err instanceof GmailCredentialError)return {kind:'not_sent',code:'reauth_required'}
     if(err instanceof GmailAnchorError)return {kind:'not_sent',code:'anchor_missing'}
     if(err instanceof GmailApiError){
@@ -71,7 +73,7 @@ export function gmailTransport(d:GmailTransportDeps):Transport {
         const m=matches.messages[0]!
         if(!await confirm(client,m.id,call.clientRef,m.threadId))return {kind:'unknown'}
         await kick(String(c.id));return {kind:'found',result:result(call)}
-      }catch{return {kind:'unknown'}}
+      }catch(err){await markInvalidGrant(err,call);return {kind:'unknown'}}
     },
   }
 }
