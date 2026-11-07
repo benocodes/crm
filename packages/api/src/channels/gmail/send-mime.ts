@@ -1,6 +1,7 @@
 export interface OutboundPost {
   from: string; to: string[]; cc: string[]; bcc: string[]; subject: string; text: string; client_ref: string
   provider_thread_id: string | null; provider_anchor_id: string | null; in_reply_to?: string; references?: string[]
+  anchor_external_id?: string
 }
 const base64 = (value:string) => btoa(Array.from(new TextEncoder().encode(value),b=>String.fromCharCode(b)).join(''))
 const safe = (s:string) => {if(/[\x00-\x1f\x7f]/.test(s))throw new Error('unsafe outbound header');return s}

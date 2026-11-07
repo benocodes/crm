@@ -4,6 +4,7 @@
 // workerd smoke bundles this file. Not in the production barrel.
 import { GmailApiError, parseHistoryList, parseMessageList, type GmailClient } from '../channels/gmail/client.js'
 import type { GmailHistoryPage, GmailMessageList, GmailMessagePart, GmailMessageResource, GmailProfile, GmailSendAs, GmailWatch } from '../channels/gmail/types.js'
+import { header,messageIdTokens } from '../channels/gmail/mime.js'
 
 const enc = new TextEncoder()
 
@@ -176,7 +177,7 @@ export function chunkedStream(bytes: Uint8Array, size: number | ((index: number)
 }
 
 /** `messageId` is '' for the two list calls, which carry `startHistoryId` / `q` and `pageToken` instead. */
-export type FakeGmailCall = { op: 'full' | 'raw' | 'attachment' | 'history' | 'list' | 'watch' | 'stop'; messageId: string; attachmentId?: string; startHistoryId?: string; q?: string; pageToken?: string | null }
+export type FakeGmailCall = { op: 'full' | 'raw' | 'attachment' | 'history' | 'list' | 'watch' | 'stop' | 'send' | 'metadata'; messageId: string; attachmentId?: string; startHistoryId?: string; q?: string; pageToken?: string | null }
 
 /**
  * One scripted history record ([[CHN5]] D72, D82). `added` entries carry `labelIds` as Gmail sends them on the record (every real record did): the listed `labels`,
@@ -191,6 +192,26 @@ export interface FakeHistoryRecord {
 }
 
 export class FakeGmail implements GmailClient {
+  readonly sendRequests:Array<{raw:string;threadId?:string}>=[]
+  loseSendResponses=0
+  delaySentSearches=0
+  private sentSequence=0
+  private acceptSend(raw:string,threadId?:string):{id:string;threadId:string}{
+    this.enterList({op:'send',messageId:''})
+    this.sendRequests.push({raw,...(threadId?{threadId}:{})})
+    const unfolded=raw.split('\r\n\r\n')[0]!.replace(/\r\n[ \t]+/g,' ')
+    const headers=unfolded.split('\r\n').map(line=>{const at=line.indexOf(':');return [line.slice(0,at),line.slice(at+1).trim()] as [string,string]})
+    const bytes=Uint8Array.from(atob(raw.split('\r\n\r\n')[1]!.replace(/\s/g,'')),c=>c.charCodeAt(0))
+    const id=`sent-${++this.sentSequence}`,thread=threadId??`sent-thread-${this.sentSequence}`
+    const message=buildGmailMessage({id,threadId:thread,headers,labels:['SENT'],internalDate:Date.now(),payload:{mimeType:'text/plain',text:new TextDecoder().decode(bytes)}})
+    message.rfc822=enc.encode(raw)
+    this.add(message)
+    const history=String(Number(this.profile.historyId)+1);this.profile.historyId=history;this.history.push({id:history,added:[{id,labels:['SENT']}]})
+    if(this.loseSendResponses-->0)throw new Error('fake lost accepted send response')
+    return {id,threadId:thread}
+  }
+  async sendMessage(raw:string,threadId?:string):Promise<{id:string;threadId:string}>{await this.authenticate();return this.acceptSend(raw,threadId)}
+  async getMessageMetadata(id:string):Promise<GmailMessageResource>{await this.authenticate();const m=this.enter({op:'metadata',messageId:id}).resource;return {id:m.id,threadId:m.threadId,labelIds:m.labelIds,payload:{headers:m.payload?.headers?.filter(h=>['message-id','references','subject'].includes(h.name.toLowerCase()))}}}
   /** Every call, in order. */
   readonly calls: FakeGmailCall[] = []
   private readonly messages = new Map<string, BuiltGmailMessage>()
@@ -276,9 +297,12 @@ export class FakeGmail implements GmailClient {
   }
   /** Gmail's `users.messages.list` body: matches of `after:<unix seconds> {in:inbox in:sent}` plus `extraListed`; no `messages` member when empty. */
   messageListWire(q: string, pageToken: string | null | undefined, maxResults: number): Record<string, unknown> {
+    const ref=/rfc822msgid:<?([^ >]+)>?/.exec(q)?.[1]
+    if(ref&&this.delaySentSearches-->0)return {}
     const after = Number(/after:(\d+)/.exec(q)?.[1] ?? 0)
     const matching = [...this.messages.values()].filter((m) => {
       const labels = m.resource.labelIds ?? []
+      if(ref)return labels.includes('SENT')&&messageIdTokens(header(m.resource.payload?.headers,'Message-ID')).includes(ref)
       return (labels.includes('INBOX') || labels.includes('SENT')) && Number(m.resource.internalDate) / 1000 >= after
     })
     const ids = [...new Set([...matching.map((m) => m.resource.id), ...this.extraListed])]
@@ -328,6 +352,11 @@ export class FakeGmail implements GmailClient {
     const q = url.searchParams
     try {
       if (path === '/profile') return json(this.profile)
+      if(path==='/messages/send'&&req.method==='POST'){
+        const p=await req.json() as {raw:string,threadId?:string}
+        const raw=new TextDecoder().decode(Uint8Array.from(atob(p.raw.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0)))
+        return json(this.acceptSend(raw,p.threadId))
+      }
       if (path === '/watch' && req.method === 'POST') {
         this.watchTokens.push({ op: 'watch', token: auth.slice(7) })
         this.enterList({ op: 'watch', messageId: '' })
@@ -357,6 +386,7 @@ export class FakeGmail implements GmailClient {
       const one = /^\/messages\/([^/]+)$/.exec(path)
       if (one) {
         const id = decodeURIComponent(one[1]!)
+        if(q.get('format')==='metadata')return json(await this.getMessageMetadata(id))
         if (q.get('format') === 'raw') return new Response(rawWire(this.enter({ op: 'raw', messageId: id })) as unknown as BodyInit, { headers: { 'content-type': 'application/json' } })
         return json(this.enter({ op: 'full', messageId: id }).resource)
       }

@@ -8,7 +8,6 @@ import { memoryObjectStore } from '../../objects/store.js'
 import { storeSendBody } from '../../messaging/send-body.js'
 import { gmailTransport,type GmailTransportDeps } from './send-transport.js'
 import type { TransportCall } from '../../executions/transport.js'
-import { runExecution } from '../../executions/runner.js'
 
 let k:ActionKit,connection:string,owner:string
 const objects=memoryObjectStore(),key=new Uint8Array(32).fill(7)

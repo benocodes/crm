@@ -108,3 +108,21 @@ it('withdraw/reject/dedup supersession/expiry audit producers retain descriptors
   const events=await k.events();for(const type of ['created','superseded','rejected','withdrawn','expired'])expect(events.some(e=>e.type===`action_request.${type}`)).toBe(true)
   for(const table of ['action_requests','events']){const json=JSON.stringify(await k.rows(table));expect(json).not.toContain('BODY_CANARY');expect(json).not.toContain('/outbound/')}
 })
+const afterAuthorise=(effect:()=>Promise<void>)=>k.beforeCommit(async()=>{k.beforeCommit(effect)})
+it('commit guards refuse an independently drifted connection without resource writes',async()=>{
+  afterAuthorise(async()=>{await k.d1.prepare("update channel_connections set status='suspended' where id=?").bind(connection).run()})
+  const before=await k.events();const out=await direct()
+  expect([out.status,out.body.error.code]).toEqual([409,'connection_cannot_send']);expect(await k.rows('action_executions')).toEqual([]);expect(await k.events()).toEqual(before)
+})
+it('commit guard refuses an independently removed source',async()=>{
+  const a=await inbound();const reply={mode:'reply',thread_id:a.thread_id,subject:undefined}
+  afterAuthorise(async()=>{await k.d1.prepare('delete from message_sources where message_id=?').bind(a.message_id).run()})
+  const out=await direct(writer,reply);expect([out.status,out.body.error.code]).toEqual([409,'no_sendable_connection'])
+  expect(await k.rows('action_executions')).toEqual([])
+})
+it('commit guard replans an independently inserted latest anchor',async()=>{
+  const a=await inbound({occurred_at:'2026-11-06T09:00:00.000Z'});let latest=''
+  afterAuthorise(async()=>{latest=(await inbound({occurred_at:'2026-11-06T09:59:00.000Z'})).message_id})
+  const out=await direct(writer,{mode:'reply',thread_id:a.thread_id,subject:undefined});expect(out.status).toBe(202)
+  expect((await k.rows('action_executions'))[0]!.resolution.anchor.message_id).toBe(latest)
+})

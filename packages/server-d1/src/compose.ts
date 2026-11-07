@@ -3,6 +3,7 @@ import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
+import { gmailTransport } from '@vault/api'
 
 export interface D1WorkerEnv {
   DB: D1Like
@@ -129,7 +130,11 @@ export function composeD1Worker(
 
   const clock = deps.clock ?? (() => new Date())
   // [[AGT8]] D52: the transports the runner resolves by name. None in production until #166 adds Gmail's; the test transport only ever arrives through `deps`.
-  const transports: TransportRegistry = deps.transports ?? {}
+  const transportsFor=(binding:D1Binding):TransportRegistry=>{
+    if(deps.transports)return deps.transports
+    if(!gmail.config||!env.BODIES)return {}
+    return {gmail:gmailTransport({binding,organizationId:binding.organizationId,config:gmail.config,objects:r2ObjectStore(env.BODIES),clock,newId:deps.newId??(()=>uuidv7(clock())),randomBytes:n=>crypto.getRandomValues(new Uint8Array(n)),...(deps.fetch?{fetch:deps.fetch}:{}),...(env.MAIL_SYNC?{instances:env.MAIL_SYNC}:{})})}
+  }
   // [[CHN5]] D78: parsed once (a bad value is logged by name, never by value). Off, `fetchFor` hands back `deps.fetch` itself, so nothing is wrapped.
   const recording = googleRecording({ raw: vars.GOOGLE_RECORDING_UNTIL, bucket: env.BODIES, clock, plain: deps.fetch })
 
@@ -168,7 +173,7 @@ export function composeD1Worker(
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
-    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
+    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
 
   async function ensure(): Promise<App | undefined> {
     if (app) return app
@@ -247,7 +252,7 @@ export function composeD1Worker(
     }
     railRegistry ??= createVaultRegistry(deps.operations ? { operations: deps.operations } : {})
     try {
-      const out = await railTick({ binding: found.binding, registry: railRegistry, transports, clock, newId })
+      const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding), clock, newId,...(deps.transports?{}:{dueLimit:3}) })
       console.log(`[cron] ${controller.cron}: rail expired ${out.expired} request(s), attempted ${out.attempted} execution(s)`)
     } catch (err) {
       console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)

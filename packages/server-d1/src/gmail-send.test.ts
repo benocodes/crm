@@ -1,6 +1,6 @@
 import { afterAll,beforeAll,beforeEach,expect,it } from 'vitest'
 import { execute,uuidv7 } from '@vault/storage'
-import { sealToken,ScopeSet } from '@vault/api'
+import { sealToken,ScopeSet,r2ObjectStore } from '@vault/api'
 import { connectOperation } from '../../api/src/connections/connect.js'
 import { FakeGmail } from '@vault/api/test/gmail'
 import { gmailFixture } from '@vault/api/test/gmail-fixtures'
@@ -10,6 +10,8 @@ import { composeD1Worker } from './compose.js'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { clerkKit,openWorkerD1,meterD1,type WorkerD1,type ClerkKit } from './test/kit.js'
 import { d1Binding } from '@vault/storage-d1'
+import { runGmailSync } from '@vault/api/test/gmail-sync'
+import { nodeStreams } from '@vault/api/test/streams'
 
 let w:WorkerD1,ck:ClerkKit,connection:string,owner:string,org:string,token:string
 let now=new Date(),mail:FakeGmail,bucket= fakeR2Bucket(),fetches=0,starts=0
@@ -17,7 +19,7 @@ const key=new Uint8Array(32).fill(11)
 const keyEncoded=btoa(String.fromCharCode(...key))
 const f:typeof fetch=async(input,init)=>{
   fetches++;const url=new URL(String(input))
-  if(url.hostname==='oauth2.googleapis.com')return Response.json({access_token:'fake-access',refresh_token:'rotated-fake-refresh'})
+  if(url.hostname==='oauth2.googleapis.com')return Response.json({access_token:'fake-access',refresh_token:`rotated-fake-refresh-${fetches}`})
   if(url.hostname==='gmail.googleapis.com')return mail.handle(new Request(String(input),init),t=>t==='fake-access')
   return ck.fetch(input,init)
 }
@@ -52,9 +54,13 @@ it('the real Worker waitUntil and cron both resolve Gmail, without history write
 })
 it('production tick caps real Gmail work at three and the next tick serves the remainder, counting D1, R2, refresh, send and Workflow traffic',async()=>{
   const wk=worker()
+  const binding=d1Binding(w.d1,{organizationId:org,authProvider:'clerk',authOrgId:ck.issuer.issuer})
+  const captured=await runGmailSync({binding,organizationId:org,objects:r2ObjectStore(bucket),streams:nodeStreams(),config:{clientId:'fake-client',clientSecret:'fake-secret',credentialsKey:key,keyVersion:1,backfillDays:30,attachmentMaxBytes:1024},fetch:f,clock:()=>now,newId:uuidv7,randomBytes:n=>crypto.getRandomValues(new Uint8Array(n))},connection)
+  expect(captured.captured).toBe(1)
+  const thread=(await sql('select id from threads'))[0].id
   // Drop kicks through the actual API, leaving durable executions for the cron.
   for(let i=0;i<4;i++){
-    const r=await wk.fetch(new Request('https://vault.test/api/v1/messages/send',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({connection_id:connection,mode:'new',subject:'Cap',to:['recipient@example.test'],body:`CAP_PRIVATE_${i}`,idempotency_key:`cap-${i}`})}));expect(r.status).toBe(202)
+    const r=await wk.fetch(new Request('https://vault.test/api/v1/messages/send',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({connection_id:connection,mode:'reply',thread_id:thread,to:Array.from({length:50},(_,j)=>`recipient${j}@example.test`),body:'x'.repeat(65536),idempotency_key:`cap-${i}`})}));expect(r.status).toBe(202)
   }
   for(let i=0;i<100;i++)await req(wk,'POST','/api/v1/action-requests',{operation:'tasks.create',arguments:{title:`expire-${i}`},reason:'expiry',expires_at:new Date(now.getTime()+1000).toISOString()})
   now=new Date(now.getTime()+2000)
@@ -63,6 +69,7 @@ it('production tick caps real Gmail work at three and the next tick serves the r
   const external=fetches+starts+(bucket.gets.length-getBefore)
   console.log('MEASURE '+JSON.stringify({key:'gmail-tick-100-3',...m,external,total:m.queries+external}))
   expect(mail.sendRequests).toHaveLength(3);expect(m.queries+external).toBeLessThanOrEqual(50)
+  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:29,external:18,total:47})
   expect(m.maxParameters).toBeLessThanOrEqual(100);expect(m.maxStatementBytes).toBeLessThanOrEqual(100000)
   expect((await sql("select count(*) as n from action_requests where status='expired'"))[0].n).toBe(100)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(4)

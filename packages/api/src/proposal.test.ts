@@ -17,6 +17,7 @@ const ELIGIBLE = [
   'contacts.create', 'contacts.delete', 'contacts.merge', 'contacts.update',
   'deals.create', 'deals.delete', 'deals.move_stage', 'deals.update',
   'identities.create', 'identities.delete', 'identities.resolve', 'identities.update',
+  'messages.send',
   'notes.create', 'notes.delete', 'notes.update',
   'pipeline_stages.create', 'pipeline_stages.delete', 'pipeline_stages.update',
   'pipelines.create', 'pipelines.delete', 'pipelines.update',

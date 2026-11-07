@@ -74,7 +74,7 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'interactions:read': 'See who talked to whom, and when, across email, calendar and chat',
   'messages:read': 'Read the content of messages and threads',
   'messages:write': 'Send messages with owner-granted authority',
-  'messages:request_approval': 'Propose messages for review',
+  'messages:request_approval': 'Propose changes to messages for review',
   'files:read': 'Read attachments and other stored files',
   'associations:read': 'View the links between contacts, companies and other records',
   'associations:write': 'Create and remove links between records',
