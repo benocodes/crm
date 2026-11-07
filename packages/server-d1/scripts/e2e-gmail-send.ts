@@ -130,8 +130,15 @@ try{
   })
   assert.equal((await rows("select id from interactions where direction='outbound'")).length,4)
   const executions=await rows("select * from action_executions where operation='messages.send'")
-  const captured=await rows("select m.external_id,m.thread_id,i.direction,m.created_by from messages m join interactions i on i.message_id=m.id where i.direction='outbound'")
+  const captured=await rows("select m.id,m.external_id,m.thread_id,i.id as interaction_id,i.created_by as interaction_actor,i.direction,m.created_by from messages m join interactions i on i.message_id=m.id where i.direction='outbound'")
   for(const e of executions){const m=captured.find(m=>m.external_id===JSON.parse(e.result).external_id);assert(m);assert.equal(m.created_by,owner);assert.equal(m.direction,'outbound');if(JSON.parse(e.arguments).mode==='reply')assert.equal(m.thread_id,thread);else assert.notEqual(m.thread_id,thread)}
+  for(const m of captured){
+    assert.equal(m.interaction_actor,owner)
+    for(const [id,type] of [[m.id,'message.created'],[m.interaction_id,'interaction.created']])assert.equal((await rows('select actor_id from events where resource_id=? and type=?',id,type))[0].actor_id,owner)
+    const participants=await rows('select i.value,p.role from interaction_participants p join identities i on i.id=p.identity_id where p.interaction_id=? order by p.role,i.value',m.interaction_id)
+    assert.deepEqual(participants,[{value:'owner@vault.test',role:'from'},{value:'recipient@example.test',role:'to'}])
+    assert.equal((await rows('select created_by from message_sources where message_id=?',m.id))[0].created_by,owner)
+  }
   const reviewed=executions.find(e=>e.id===approved.body.execution_id)!;assert.equal(reviewed.created_by,proposer.id);assert.equal(reviewed.authorised_by,reviewer.id)
   for(const e of executions){
     for(const type of ['action_execution.created','action_execution.completed']){

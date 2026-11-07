@@ -66,7 +66,7 @@ it('the real Worker waitUntil and cron both resolve Gmail, without history write
   expect(noKick.status).toBe(202);await wk.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(2);expect((await sql("select count(*) as n from action_executions where status='done'"))[0].n).toBe(2)
   expect(JSON.stringify(await sql('select * from events'))).not.toContain('PRIVATE')
 })
-it('production tick caps real Gmail work at three and the next tick serves the remainder, counting D1, R2, refresh, send and Workflow traffic',async()=>{
+it('production tick caps real Gmail work at two and the next tick serves the remainder, counting D1, R2, refresh, send and Workflow traffic',async()=>{
   await createMigrationTracker(w.d1);await recordMigrations(w.d1,MIGRATIONS.map(m=>m.name))
   const wk=worker()
   const binding=d1Binding(w.d1,{organizationId:org,authProvider:'clerk',authOrgId:ck.issuer.issuer})
@@ -82,9 +82,9 @@ it('production tick caps real Gmail work at three and the next tick serves the r
   const meter=meterD1(w.d1),cold=worker(meter.d1);fetches=starts=0;const getBefore=bucket.gets.length
   meter.start();await cold.scheduled({cron:'* * * * *'});const m=meter.take()
   const external=fetches+starts+(bucket.gets.length-getBefore)
-  console.log('MEASURE '+JSON.stringify({key:'gmail-tick-100-3',...m,external,total:m.queries+external}))
-  expect(mail.sendRequests).toHaveLength(3);expect(m.queries+external).toBeLessThanOrEqual(50)
-  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:29,external:18,total:47})
+  console.log('MEASURE '+JSON.stringify({key:'gmail-tick-100-2',...m,external,total:m.queries+external}))
+  expect(mail.sendRequests).toHaveLength(2);expect(m.queries+external).toBeLessThanOrEqual(50)
+  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:21,external:12,total:33})
   expect(m.maxParameters).toBeLessThanOrEqual(100);expect(m.maxStatementBytes).toBeLessThanOrEqual(100000)
   expect((await sql("select count(*) as n from action_requests where status='expired'"))[0].n).toBe(100)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(4)
@@ -174,6 +174,7 @@ it('production cap includes dispatch plus immediate terminal reconciliation, wit
   const external=fetches+starts+bucket.gets.length+bucket.calls.length-io
   console.log('MEASURE '+JSON.stringify({key:'gmail-terminal-tick',...measured,external,total:measured.queries+external}))
   expect(measured.queries+external).toBeLessThanOrEqual(50)
+  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:27,external:18,total:45})
   expect(mail.sendRequests).toHaveLength(2);expect(starts).toBe(2)
   expect((await sql("select count(*) n from action_executions where status='done'"))[0].n).toBe(2)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(3)

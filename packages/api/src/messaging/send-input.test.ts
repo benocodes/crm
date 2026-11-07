@@ -13,6 +13,8 @@ describe('Gmail send input contract', () => {
   ])('refuses invalid or incompatible send fields %j', patch => expect(sendInput.safeParse({ ...base,...patch }).success).toBe(false))
   it('accepts exact UTF-8 body boundary and explicit reply without subject', () => {
     expect(sendInput.safeParse({ ...base,body:'😀'.repeat(16384) }).success).toBe(true)
+    expect(sendInput.safeParse({...base,subject:'界'.repeat(332)}).success).toBe(true)
+    expect(sendInput.safeParse({...base,subject:'界'.repeat(333)}).success).toBe(false)
     const { subject: _subject,...reply } = base
     expect(sendInput.parse({ ...reply,mode:'reply',thread_id:base.connection_id })).toMatchObject({ mode:'reply',body:base.body })
   })

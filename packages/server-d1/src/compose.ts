@@ -252,7 +252,7 @@ export function composeD1Worker(
     }
     railRegistry ??= createVaultRegistry(deps.operations ? { operations: deps.operations } : {})
     try {
-      const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding), clock, newId,...(deps.transports?{}:{dueLimit:3}) })
+      const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding), clock, newId,...(deps.transports?{}:{dueLimit:2}) })
       console.log(`[cron] ${controller.cron}: rail expired ${out.expired} request(s), attempted ${out.attempted} execution(s)`)
     } catch (err) {
       console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
