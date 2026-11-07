@@ -155,6 +155,10 @@ describe('the per-minute cron (D54)', () => {
 
 describe('bounded sweeps (CORE47)', () => {
   it('one tick with 100 overdue requests and 5 due executions stays inside the Workers Free limits', async () => {
+    const wallClock = vi.spyOn(Date, 'now').mockReturnValue(NOW.getTime())
+    // Model a migrated deployment, whose `current` state stays cached even after the recheck window.
+    await createMigrationTracker(w.d1)
+    await recordMigrations(w.d1, NAMES)
     const wk = worker()
     const meter = meterD1(w.d1)
     const metered = composeD1Worker({ DB: meter.d1, AUTH_PROVIDER: '' }, { clock: () => now, nowMs:()=>0, newId: () => uuidv7(now), operations: registerTestOperations, transports: { [TEST_TRANSPORT]: transport } })
@@ -166,6 +170,8 @@ describe('bounded sweeps (CORE47)', () => {
       expect(r.status).toBe(201)
     }
     advance(200_000) // past every expiry (60 s + i s), inside every execution's ten-minute deadline
+    // Fixture setup can take longer than the migration gate's 5 s recheck window.
+    wallClock.mockReturnValue(NOW.getTime() + 60_000)
     meter.start()
     await metered.scheduled({ cron: '* * * * *' })
     const m = meter.take()
