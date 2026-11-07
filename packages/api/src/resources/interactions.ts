@@ -1,6 +1,7 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
 import { definePreparedResource } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 
 const lower = (v: unknown) => (v as string).toLowerCase()
 
@@ -9,7 +10,7 @@ const lower = (v: unknown) => (v as string).toLowerCase()
  * ordered by role then identity id. `identity_id` and `contact_id` are join filters (D51): `contact_id` follows the
  * identities that are live NOW, so after a merge the survivor owns the interactions and a deleted identity drops out.
  */
-export const interactions = definePreparedResource({
+export const interactions = withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'interactions',
   eventName: 'interaction',
@@ -53,4 +54,4 @@ export const interactions = definePreparedResource({
         sql<boolean>`exists (select 1 from "interaction_participants" as "p" join "identities" as "i" on "i"."id" = "p"."identity_id" and "i"."organization_id" = "p"."organization_id" where "p"."interaction_id" = "interactions"."id" and "p"."organization_id" = "interactions"."organization_id" and "i"."contact_id" = ${value as string} and "i"."deleted_at" is null)`,
     },
   },
-})
+}), ['occurred_at'])

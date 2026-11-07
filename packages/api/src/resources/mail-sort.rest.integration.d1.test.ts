@@ -9,6 +9,7 @@ import { compileOperation } from '@vault/storage'
 import { listOperation } from '../storage/crud.js'
 import { messages } from './messages.js'
 import { interactions } from './interactions.js'
+import type { PreparedResource } from '../storage/definition.js'
 
 const C = '0190b2c4-0000-7000-8000-0000000000c1'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -93,16 +94,19 @@ describe('mail OpenAPI and advertised MCP contracts (CORE174)', () => {
       expect(params.after.schema.type).toBe('string')
       expect(params.after.schema.format).toBeUndefined()
       expect(JSON.stringify(get.responses['200'].content['application/json'].schema.properties.next_cursor)).not.toContain('uuid')
+      expect(get.responses['200'].content['application/json'].schema.properties.next_cursor.type).toEqual(['string', 'null'])
       guidance(params.sort.description ?? params.sort.schema.description)
       const token = mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes: [`${resource}:read`], kind: 'agent' })
       const rpc = async (method: string, params: unknown) => (await (await app.request('/mcp', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json()) as any
       const list = await rpc('tools/list', {})
       const tool = list.result.tools.find((t: any) => t.name === `${resource}_list`)
+      expect(tool.inputSchema.properties.sort, 'MCP advertises mail sort').toBeDefined()
       expect(tool.inputSchema.properties.sort.enum).toEqual(['id', 'created_at', 'occurred_at'])
       expect(tool.inputSchema.properties.order.enum).toEqual(['asc', 'desc'])
       expect(tool.inputSchema.properties.after.type).toBe('string')
       expect(tool.inputSchema.properties.after.format).toBeUndefined()
       expect(JSON.stringify(tool.outputSchema.properties.next_cursor)).not.toContain('uuid')
+      expect(tool.outputSchema.properties.next_cursor.type).toEqual(['string', 'null'])
       guidance(tool.inputSchema.properties.sort.description)
       await seed()
       const response = await rpc('tools/call', { name: `${resource}_list`, arguments: { sort: 'occurred_at', order: 'desc', limit: 1 } })
@@ -185,8 +189,8 @@ describe('adopted mail SQL plans (CORE174)', () => {
       [messages, { thread_id: C }, 'idx_messages_thread_occurred'],
       [interactions, {}, 'idx_interactions_occurred'],
     ] as const) for (const order of ['asc', 'desc'] as const) {
-      const read = compileOperation(listOperation(def, e.env(), { sort: 'occurred_at', order, filters }), 'd1').reads[0]!
-      const plan = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results.map((r: any) => r.detail).join('\n')
+      const read = compileOperation(listOperation(def as PreparedResource, e.env(), { sort: 'occurred_at', order, filters }), 'd1').reads[0]!
+      const plan = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results!.map((r: any) => r.detail).join('\n')
       console.info(`${def.name} ${order} ${index}\nSQL ${read.sql}\nPLAN ${plan}`)
       expect(plan).toContain(index)
       expect(plan).not.toContain('USE TEMP B-TREE FOR ORDER BY')
@@ -194,8 +198,8 @@ describe('adopted mail SQL plans (CORE174)', () => {
   })
   it('mail created_at retains its stated temporary-sort cost', async () => {
     for (const def of [messages, interactions]) {
-      const read = compileOperation(listOperation(def, e.env(), { sort: 'created_at', order: 'desc' }), 'd1').reads[0]!
-      const plan = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results.map((r: any) => r.detail).join('\n')
+      const read = compileOperation(listOperation(def as PreparedResource, e.env(), { sort: 'created_at', order: 'desc' }), 'd1').reads[0]!
+      const plan = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results!.map((r: any) => r.detail).join('\n')
       console.info(`${def.name} created_at\nSQL ${read.sql}\nPLAN ${plan}`)
       expect(plan).toContain('USE TEMP B-TREE FOR ORDER BY')
     }

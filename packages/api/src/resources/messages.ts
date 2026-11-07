@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { definePreparedResource } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 
 /** The SDK `Author` in snake case without `is_me` ([[CORE25]]): for mail `user_id` is the address as written. */
 const author = z.object({ user_id: z.string(), user_name: z.string(), full_name: z.string(), is_bot: z.boolean() })
@@ -22,7 +23,7 @@ const attachment = z.object({
  * Read-only ([[CORE25]] D26), `messages:read`. `content_key` is not in the record (the content operation is cycle
  * [[CORE58]]'s), and attachments are embedded ordered by position, `[]` when there are none.
  */
-export const messages = definePreparedResource({
+export const messages = withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'messages',
   eventName: 'message',
@@ -60,4 +61,4 @@ export const messages = definePreparedResource({
     external_id: { schema: z.string().min(1).max(998) },
     in_reply_to: { schema: z.string().min(1).max(998) },
   },
-})
+}), ['occurred_at'])
