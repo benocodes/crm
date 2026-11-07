@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport, StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { McpError, ListResourcesResultSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -23,6 +23,7 @@ beforeAll(async () => {
   kit = await clerkKit()
 })
 afterAll(() => w.dispose())
+afterEach(() => vi.restoreAllMocks())
 beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
@@ -321,12 +322,17 @@ describe('gates and limits (D21)', () => {
   })
 
   it('tools/list, initialize and ping run no unit beyond authentication; tools/call costs what REST costs', async () => {
+    let wallNow = clock.getTime()
+    vi.spyOn(Date, 'now').mockImplementation(() => wallNow)
     await initWorkspace()
+    await createMigrationTracker(w.d1)
+    await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
     const meter = meterD1(w.d1)
     const wk = worker({}, meter.d1)
     const { key } = await agentKey(wk, 'a')
     await post(wk, key, rpc('ping')) // warms the isolate and stamps the key
     const q = async (run: () => Promise<unknown>) => {
+      wallNow += 6_000 // Cross the migration recheck window before every measurement.
       meter.start()
       await run()
       return meter.take().queries

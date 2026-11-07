@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execute, uuidv7 } from '@vault/storage'
-import { d1Binding } from '@vault/storage-d1'
+import { MIGRATIONS, d1Binding } from '@vault/storage-d1'
+import { createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
 import { seedConversation } from '@vault/api/test/messaging'
 import { fakeR2Bucket } from '@vault/api/test/objects'
 import { bytesOf, FakeChannel } from '@vault/api/test/channels'
@@ -51,6 +52,7 @@ let w: WorkerD1
 let kit: ClerkKit
 let meter: D1Meter
 let now = NOW
+let migrationNow = NOW.getTime()
 let key: string
 let worker: { fetch(req: Request): Promise<Response> }
 const BASE = 'https://w.test'
@@ -58,9 +60,7 @@ const measures = new Map<string, InvocationMeasure & { outbound: number; status:
 
 const bucket = fakeR2Bucket()
 const env = (): D1WorkerEnv => ({ DB: meter.d1, BODIES: bucket, ...kit.env })
-// The local D1 has no migration tracker, so its `unknown` state is rechecked after 5 s.
-// Freeze that timer independently of the auth clock: fixture setup must not add migration reads to a scenario.
-const fresh = () => composeD1Worker(env(), { fetch: kit.fetch, clock: () => now, nowMs: () => NOW.getTime(), newId: () => uuidv7(now) })
+const fresh = () => composeD1Worker(env(), { fetch: kit.fetch, clock: () => now, nowMs: () => migrationNow, newId: () => uuidv7(now) })
 const req = (method: string, path: string, body?: unknown, headers: Record<string, string> = { authorization: `Bearer ${key}` }) =>
   new Request(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
 const send = async (method: string, path: string, body?: unknown) => {
@@ -69,6 +69,7 @@ const send = async (method: string, path: string, body?: unknown) => {
 }
 /** Meters one request (setup is not metered). */
 async function measure(keyName: string, run: () => Promise<{ status: number }>) {
+  migrationNow += 6_000 // Cross the migration recheck window regardless of fixture setup speed.
   const callsBefore = kit.fetch.calls.length
   meter.start()
   const res = await run()
@@ -82,6 +83,9 @@ const count = async (sqlText: string) => Number(((await w.d1.prepare(sqlText).fi
 
 beforeAll(async () => {
   w = await openWorkerD1()
+  // Query budgets model a migrated deployment, including Wrangler's tracker.
+  await createMigrationTracker(w.d1)
+  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
   kit = await clerkKit()
   meter = meterD1(w.d1)
   const r = await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW) })
