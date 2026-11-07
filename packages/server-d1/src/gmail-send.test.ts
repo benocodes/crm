@@ -18,13 +18,23 @@ import { runGmailSync } from '@vault/api/test/gmail-sync'
 import { nodeStreams } from '@vault/api/test/streams'
 
 let w:WorkerD1,ck:ClerkKit,connection:string,owner:string,org:string,token:string
+let spoilFirstConfirmation=false
+const confirmedOnce=new Set<string>()
 let now=new Date(),mail:FakeGmail,bucket= fakeR2Bucket(),fetches=0,starts=0
 const key=new Uint8Array(32).fill(11)
 const keyEncoded=btoa(String.fromCharCode(...key))
 const f:typeof fetch=async(input,init)=>{
   fetches++;const url=new URL(String(input))
   if(url.hostname==='oauth2.googleapis.com')return Response.json({access_token:'fake-access',refresh_token:`rotated-fake-refresh-${fetches}`})
-  if(url.hostname==='gmail.googleapis.com')return mail.handle(new Request(String(input),init),t=>t==='fake-access')
+  if(url.hostname==='gmail.googleapis.com'){
+    const res=await mail.handle(new Request(String(input),init),t=>t==='fake-access')
+    if(spoilFirstConfirmation&&url.searchParams.get('format')==='metadata'&&url.pathname.includes('/messages/sent-')){
+      const m=await res.json() as any
+      if(!confirmedOnce.has(m.id)){confirmedOnce.add(m.id);m.payload.headers=[{name:'Message-ID',value:'<unconfirmed@example.test>'}]}
+      return Response.json(m)
+    }
+    return res
+  }
   return ck.fetch(input,init)
 }
 const env=(db=w.d1)=>({...ck.env,DB:db,BODIES:bucket,GOOGLE_CLIENT_ID:'fake-client',GOOGLE_CLIENT_SECRET:'fake-secret',OAUTH_STATE_SECRET:'fake-state-secret',CREDENTIALS_KEY:keyEncoded,MAIL_SYNC:{create:async()=>{starts++}}})
@@ -39,7 +49,7 @@ const sql=async(s:string)=>(await w.d1.prepare(s).all()).results as any[]
 beforeAll(async()=>{w=await openWorkerD1();ck=await clerkKit()})
 afterAll(()=>w.dispose())
 beforeEach(async()=>{
-  await w.reset();await w.d1.prepare('drop table if exists d1_migrations').run();now=new Date();fetches=starts=0;bucket=fakeR2Bucket();mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vault.test',historyId:'1000'}})
+  await w.reset();await w.d1.prepare('drop table if exists d1_migrations').run();now=new Date();fetches=starts=0;spoilFirstConfirmation=false;confirmedOnce.clear();bucket=fakeR2Bucket();mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vault.test',historyId:'1000'}})
   const boot=await bootstrapD1(w.d1,{organizationName:'Send test',agentName:'seed-agent',authOrgId:ck.issuer.issuer});org=boot.organizationId
   token=await mintClerkToken(ck.issuer,{sub:'user_send_owner',extra:{vibase_role:'owner'}})
   ck.profiles.set('user_send_owner',{...(await import('@vault/api/test/clerk')).clerkUser({id:'user_send_owner',email:'owner@vault.test',role:'owner'})})
@@ -115,7 +125,7 @@ it('generated CLI invokes messages send from real OpenAPI; API-key caps and OAut
   const ownerToken=token
   token=proposal.key;expect((await direct(wk,81)).status).toBe(403)
   token=writer.key;expect((await req(wk,'GET','/api/v1/messages')).status).toBe(403)
-  expect((await req(wk,'POST','/meta/v1/connections/authorize',{})).status).toBeGreaterThanOrEqual(400)
+  const connectRefused=await req(wk,'POST','/meta/v1/connections/authorize',{provider:'google'});expect([connectRefused.status,connectRefused.body.error.code]).toEqual([403,'insufficient_scope'])
   const cliWorker=composeD1Worker({...env(),AUTH_CLI_CLIENT_ID:'client_send_cli'},{fetch:f,clock:()=>now})
   for(const clientId of ['client_send_cli','client_send_dcr']){
     ck.clients.set(clientId,'Send test client')
@@ -144,4 +154,27 @@ it('cold scheduled reconciliation counts real refresh/search/confirmation and ne
     expect(measured.queries+external).toBeLessThanOrEqual(50);expect(mail.sendRequests).toHaveLength(1)
   }
   expect((await sql('select status from action_executions'))[0].status).toBe('done');expect(starts).toBe(1)
+})
+
+it('production cap includes dispatch plus immediate terminal reconciliation, with 100 expiries and rotating refreshes',async()=>{
+  await createMigrationTracker(w.d1);await recordMigrations(w.d1,MIGRATIONS.map(m=>m.name))
+  const wk=worker()
+  const binding=d1Binding(w.d1,{organizationId:org,authProvider:'clerk',authOrgId:ck.issuer.issuer})
+  await runGmailSync({binding,organizationId:org,objects:r2ObjectStore(bucket),streams:nodeStreams(),config:{clientId:'fake-client',clientSecret:'fake-secret',credentialsKey:key,keyVersion:1,backfillDays:30,attachmentMaxBytes:1024},fetch:f,clock:()=>now,newId:uuidv7,randomBytes:n=>crypto.getRandomValues(new Uint8Array(n))},connection)
+  const thread=(await sql('select id from threads'))[0].id
+  for(let i=0;i<3;i++){
+    const r=await wk.fetch(new Request('https://vault.test/api/v1/messages/send',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({connection_id:connection,mode:'reply',thread_id:thread,to:Array.from({length:50},(_,j)=>`r${j}@example.test`),body:'x'.repeat(65536),idempotency_key:`terminal-${i}`})}));expect(r.status).toBe(202)
+  }
+  // Four prior definite refusals: the last allowed POST can still be uncertain, forcing a final reconcile now.
+  await w.d1.prepare('update action_executions set attempts=4').run()
+  for(let i=0;i<100;i++)await req(wk,'POST','/api/v1/action-requests',{operation:'tasks.create',arguments:{title:`terminal-expire-${i}`},reason:'expiry',expires_at:new Date(now.getTime()+1000).toISOString()})
+  now=new Date(now.getTime()+2000);spoilFirstConfirmation=true
+  const meter=meterD1(w.d1),cold=worker(meter.d1);fetches=starts=0;const io=bucket.gets.length+bucket.calls.length
+  meter.start();await cold.scheduled({cron:'* * * * *'});const measured=meter.take()
+  const external=fetches+starts+bucket.gets.length+bucket.calls.length-io
+  console.log('MEASURE '+JSON.stringify({key:'gmail-terminal-tick',...measured,external,total:measured.queries+external}))
+  expect(measured.queries+external).toBeLessThanOrEqual(50)
+  expect(mail.sendRequests).toHaveLength(2);expect(starts).toBe(2)
+  expect((await sql("select count(*) n from action_executions where status='done'"))[0].n).toBe(2)
+  await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(3)
 })
