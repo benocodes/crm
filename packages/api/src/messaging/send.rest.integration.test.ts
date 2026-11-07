@@ -4,6 +4,8 @@ import { openActionKit, type ActionKit, type Actor } from '../test/action-kit.js
 import { connectOperation } from '../connections/connect.js'
 import { memoryObjectStore, type ObjectStore } from '../objects/store.js'
 import { ScopeSet } from '../scopes.js'
+import { captureMessage,type CaptureOverrides } from '../test/capture-kit.js'
+import { recordMessagesOperation } from '../messaging/capture.js'
 
 let k: ActionKit, writer: Actor, proposer: Actor, connection: string
 const mem = memoryObjectStore()
@@ -13,6 +15,12 @@ const AR='/api/v1/action-requests', SEND='/api/v1/messages/send'
 const args = () => ({connection_id:connection,mode:'new',subject:'Hello 世界',to:[' recipient@example.test '],body:'BODY_CANARY hé\r\n世界'})
 const direct = (actor=writer,patch={}) => k.call(actor,'POST',SEND,{...args(),idempotency_key:'direct',...patch})
 const propose = (actor=proposer,extra={}) => k.call(actor,'POST',AR,{operation:'messages.send',arguments:args(),reason:'review',...extra})
+const envOf=()=>({actor:{id:k.owner.id,kind:'user' as const},organizationId:k.organizationId,scopes:ScopeSet.parse(k.owner.scopes),now:k.now(),newId:()=>uuidv7(),randomBytes:(n:number)=>crypto.getRandomValues(new Uint8Array(n))})
+const inbound=async(over:CaptureOverrides={})=>{
+  const msg=captureMessage(k.organizationId,{provider_thread_id:'anchor-thread',...over})
+  const result=await execute(k.binding,{kind:'tenant',actorId:k.owner.id,organizationId:k.organizationId},recordMessagesOperation(envOf(),{connection_id:connection,messages:[msg]}))
+  return {...result.value.captured[0]!,provider_message_id:msg.provider_message_id,external_id:msg.external_id}
+}
 beforeAll(async()=>{k=await openActionKit({objects:store})})
 afterAll(()=>k.close())
 beforeEach(async()=>{
@@ -55,8 +63,8 @@ it('proposal and edited approval preserve original bytes and only descriptors on
 })
 it('failed put leaves no resource writes',async()=>{
   const before=await k.events();failPut=true
-  expect((await direct()).status).toBe(500);expect(await k.rows('action_executions')).toEqual([]);expect(await k.events()).toEqual(before)
-  expect((await propose()).status).toBe(500);expect(await k.rows('action_requests')).toEqual([]);expect(await k.events()).toEqual(before)
+  expect((await direct()).status).toBe(503);expect(await k.rows('action_executions')).toEqual([]);expect(await k.events()).toEqual(before)
+  expect((await propose()).status).toBe(503);expect(await k.rows('action_requests')).toEqual([]);expect(await k.events()).toEqual(before)
 })
 it.each([{scopes:[]},{scopes:['messages:read']},{scopes:['messages:request_approval']}])('refuses direct send without write $scopes',async ({scopes})=>{
   const actor=k.as(writer,scopes);expect((await direct(actor)).status).toBe(403);expect(await k.rows('action_executions')).toEqual([])
@@ -65,4 +73,38 @@ it('reply needs its independent read at both proposal and direct submission',asy
   const reply={...args(),mode:'reply',thread_id:uuidv7(),subject:undefined}
   const d=await direct(k.as(writer,['messages:write']),reply);expect([d.status,d.body.error.code]).toEqual([403,'insufficient_scope'])
   const p=await propose(k.as(proposer,['messages:request_approval']),{arguments:reply});expect([p.status,p.body.error.code]).toEqual([403,'insufficient_scope'])
+})
+it('new send needs write alone and infers no read or mailbox ownership requirement',async()=>{
+  const r=await direct(k.as(writer,['messages:write']));expect(r.status).toBe(202)
+  expect((await k.call(k.as(writer,['messages:write']),'GET',`/api/v1/action-executions/${r.body.id}`)).status).toBe(404)
+})
+it('authorisation chooses latest eligible sourced message with id tie-break, not draft time; reactions cannot anchor',async()=>{
+  const old=await inbound({occurred_at:'2026-11-06T09:00:00.000Z'})
+  const reply={...args(),mode:'reply',thread_id:old.thread_id,subject:undefined}
+  const p=await propose(proposer,{arguments:reply});expect(p.status).toBe(201)
+  const newer=await inbound({occurred_at:'2026-11-06T09:30:00.000Z'})
+  const tie=await inbound({occurred_at:'2026-11-06T09:30:00.000Z'})
+  await inbound({kind:'reaction',occurred_at:'2026-11-06T09:59:00.000Z',in_reply_to:tie.external_id})
+  expect((await k.call(writer,'POST',`${AR}/${p.body.id}/approve`,{})).status).toBe(200)
+  expect((await k.rows('action_executions'))[0]!.resolution.anchor).toMatchObject({message_id:tie.message_id,external_id:tie.external_id,provider_message_id:tie.provider_message_id})
+  expect((await direct(writer,reply)).status).toBe(202)
+  expect((await k.rows('action_executions'))[1]!.resolution.anchor.message_id).toBe(tie.message_id)
+  expect(tie.message_id>newer.message_id).toBe(true)
+})
+it('no anchor, inactive connection and missing send/read grant refuse without decisions/executions',async()=>{
+  const p=await propose();expect(p.status).toBe(201)
+  const before=(await k.events()).length
+  expect((await direct(writer,{mode:'reply',thread_id:uuidv7(),subject:undefined})).body.error.code).toBe('no_sendable_connection')
+  await k.d1.prepare('update channel_connections set granted_scopes=? where id=?').bind('[]',connection).run()
+  expect((await k.call(writer,'POST',`${AR}/${p.body.id}/approve`,{})).body.error.code).toBe('connection_cannot_send')
+  expect((await k.rows('action_requests'))[0]!.status).toBe('pending');expect(await k.rows('action_executions')).toEqual([]);expect((await k.events()).length).toBe(before)
+})
+it('withdraw/reject/dedup supersession/expiry audit producers retain descriptors',async()=>{
+  const a=await propose(proposer,{dedup_key:'canary'});const b=await propose(proposer,{dedup_key:'canary'});expect([a.status,b.status]).toEqual([201,201])
+  expect((await k.call(writer,'POST',`${AR}/${b.body.id}/reject`,{})).status).toBe(200)
+  const c=await propose();expect((await k.call(proposer,'POST',`${AR}/${c.body.id}/withdraw`,{})).status).toBe(200)
+  const d=await propose(proposer,{dedup_key:'expired',expires_at:'2026-11-06T10:01:00.000Z'})
+  k.setNow(new Date('2026-11-06T10:02:00.000Z'));const e=await propose(proposer,{dedup_key:'expired'});expect([d.status,e.status]).toEqual([201,201])
+  const events=await k.events();for(const type of ['created','superseded','rejected','withdrawn','expired'])expect(events.some(e=>e.type===`action_request.${type}`)).toBe(true)
+  for(const table of ['action_requests','events']){const json=JSON.stringify(await k.rows(table));expect(json).not.toContain('BODY_CANARY');expect(json).not.toContain('/outbound/')}
 })

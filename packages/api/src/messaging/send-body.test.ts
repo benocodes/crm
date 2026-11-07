@@ -18,3 +18,8 @@ it('missing, tampered and cross-organisation objects fail closed without exposin
   await store.put(`orgs/org-1/outbound/sha256/${hash}/body.txt`,'abd')
   await expect(readSendBody(store,'org-1',desc)).rejects.toMatchObject({code:'content_unavailable'})
 })
+it('preserves an authored leading BOM as part of the exact UTF-8 body',async()=>{
+  const store=memoryObjectStore(),body='\uFEFFhé\r\n'
+  const desc=await storeSendBody(store,'org-1',body)
+  expect(await readSendBody(store,'org-1',desc)).toBe(body)
+})
