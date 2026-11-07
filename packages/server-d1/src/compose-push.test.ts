@@ -27,8 +27,8 @@ const binding = { create: async (o: { id: string; params: { connection_id: strin
 beforeAll(async () => {
   w = await openWorkerD1()
   google = await FakeGoogle.create({ clientId: GMAIL_ENV.GOOGLE_CLIENT_ID, clientSecret: GMAIL_ENV.GOOGLE_CLIENT_SECRET })
-})
-afterAll(() => w.dispose())
+}, 30_000) // Starting workerd and applying migrations can exceed the default 10 s under suite load.
+afterAll(() => w?.dispose())
 beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()

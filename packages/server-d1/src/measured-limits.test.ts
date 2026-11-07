@@ -35,7 +35,7 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'resolve-100-existing': 2,
   'company-delete-100': 3,
   'contact-delete-100': 3,
-  'messages-list-50': 3, // migration-state read (this scenario's isolate is cold, [[CORE61]] D6), auth read, operation read (the embeds are in the same select)
+  'messages-list-50': 2, // auth read, operation read (the embeds are in the same select)
   'messages-content': 2, // auth read, operation read; plus 1 object read
   'files-content': 2, // auth read, operation read; plus 1 object read
   'interactions-list-contact': 2,
@@ -58,7 +58,9 @@ const measures = new Map<string, InvocationMeasure & { outbound: number; status:
 
 const bucket = fakeR2Bucket()
 const env = (): D1WorkerEnv => ({ DB: meter.d1, BODIES: bucket, ...kit.env })
-const fresh = () => composeD1Worker(env(), { fetch: kit.fetch, clock: () => now, newId: () => uuidv7(now) })
+// The local D1 has no migration tracker, so its `unknown` state is rechecked after 5 s.
+// Freeze that timer independently of the auth clock: fixture setup must not add migration reads to a scenario.
+const fresh = () => composeD1Worker(env(), { fetch: kit.fetch, clock: () => now, nowMs: () => NOW.getTime(), newId: () => uuidv7(now) })
 const req = (method: string, path: string, body?: unknown, headers: Record<string, string> = { authorization: `Bearer ${key}` }) =>
   new Request(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
 const send = async (method: string, path: string, body?: unknown) => {
@@ -85,8 +87,8 @@ beforeAll(async () => {
   const r = await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW) })
   key = r.key
   worker = fresh()
-})
-afterAll(() => w.dispose())
+}, 30_000)
+afterAll(() => w?.dispose())
 
 const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'capture-chunk-1', 'capture-chunk-100', 'pipeline-batch-25', 'pipeline-batch-25-existing'] as const
 const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
