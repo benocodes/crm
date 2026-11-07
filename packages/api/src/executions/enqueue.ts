@@ -39,7 +39,7 @@ const idempotencyKey = z.string().min(1).max(200).describe('Your key for this ca
  */
 export function enqueuedOperation(spec: EnqueuedSpec): TenantOperation {
   if ('idempotency_key' in spec.input.shape) throw new Error(`operation ${spec.name}: the input declares idempotency_key, which the builder adds`)
-  const body = spec.input.extend({ idempotency_key: idempotencyKey })
+  const body = spec.input.safeExtend({ idempotency_key: idempotencyKey })
   const execution: ExecutionDecl = { ...(spec.retry ? { retry: spec.retry } : {}), transport: spec.transport, readScope: spec.readScope, input: spec.input, ...(spec.authorise ? { authorise: spec.authorise } : {}) }
   const description = [
     spec.description,

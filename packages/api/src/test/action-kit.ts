@@ -46,7 +46,7 @@ export interface ActionKit {
 export const ALL_DECLARED = createVaultRegistry().declaredScopes()
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 
-export async function openActionKit(opts: { now?: Date; registry?: Registry; executions?: AppOptions['executions'] } = {}): Promise<ActionKit> {
+export async function openActionKit(opts: { now?: Date; registry?: Registry; executions?: AppOptions['executions']; objects?: AppOptions['objects'] } = {}): Promise<ActionKit> {
   const local: LocalD1 = await openLocalD1(['ACTION'])
   const raw = local.bindings.ACTION!
   const pending: { hook: (() => Promise<void>) | null } = { hook: null }
@@ -115,7 +115,7 @@ export async function openActionKit(opts: { now?: Date; registry?: Registry; exe
       kit.owner = { id: ids.userId, kind: 'user', scopes: ALL_DECLARED }
       const binding = d1Binding(d1, { organizationId: ids.organizationId, authProvider: 'clerk', authOrgId: 'org_action' })
       kit.binding = binding
-      kit.app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding, clock: () => clock, ...(opts.executions ? { executions: opts.executions } : {}) })
+      kit.app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding, clock: () => clock, ...(opts.executions ? { executions: opts.executions } : {}), ...(opts.objects ? { objects:opts.objects } : {}) })
     },
     close: () => local.dispose(),
   }

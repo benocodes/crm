@@ -30,6 +30,7 @@ import { tasks } from './resources/tasks.js'
 import { actionRequests } from './action-requests/definition.js'
 import { actionRequestOperations } from './action-requests/operations.js'
 import { actionExecutions, executionReadOperations } from './executions/definition.js'
+import { messageSendOperation } from './messaging/send.js'
 
 /**
  * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
@@ -51,6 +52,7 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime;
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
   options.operations?.(registry)
+  registry.register(messageSendOperation())
   // [[AGT8]] D33: last, because the `operation` enum of `action_requests.create` lists the proposal-eligible operations registered before it.
   registry.registerResource(actionRequests)
   for (const op of actionRequestOperations(registry)) registry.register(op)
