@@ -78,6 +78,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   record schema, and both gain the field together, so a charter asking for its red run on a record-shape change
   cannot be met ([[CORE77]]). Pin a new field with a test that names it (the resource's record-shape test, a
   Worker test reading it, the golden), and ask for those red runs instead.
+- **A missing format is only half a schema contract.** For opaque cursors, assert the positive type as well as
+  the absent UUID format in REST and MCP. Inspect the emitted nullable shape: `next_cursor` uses
+  `type: ['string', 'null']`, while `after` uses `type: 'string'`. A serialized search for `"type":"string"` rejects
+  the valid nullable array (`knowledge/specs/012-CORE174-mail-sort/RETRO.md`).
 - **Registering already-passing cases cannot be red.** Adding resources to a suite's registry (the D1 contract
   fixture map, [[CORE72]] D17) runs cases that pass on the first run; a charter asks for the absence mutation (drop
   one entry, see its named cases and the "every definition has a fixture" check fail), not a red run.
@@ -104,6 +108,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   An explicit collation needs a fixture with a conflicting stored default: a BINARY-default column stays green when
   `COLLATE BINARY` is removed. Use a real `NOCASE` column with `Z`/`a`, walk both directions one row at a time, and
   remove the override to prove both ordering and continuation comparisons (`knowledge/specs/012-CORE170-message-sort/RETRO.md`, M7).
+- **Backfill order needs a separate capture clock.** Seed mail through `recordMessagesOperation` with an advancing
+  injected `now`, then capture the oldest `occurred_at` last. Keep same-thread ties and another thread, so chronological
+  walks differ from capture/id order and page breaks exercise the tie-break. Take the read-event baseline after capture
+  (`knowledge/specs/012-CORE174-mail-sort/RETRO.md`, M1).
 - **Deleting tests needs a title-by-title map, not a count.** When a cycle deletes a suite with the code it tested, list
   every deleted test title in RESULT.md beside its surviving counterpart (file and test name), or the reason it was
   only about the deleted mechanism. A falling test count hides lost coverage. [[CORE44]]'s map found three live

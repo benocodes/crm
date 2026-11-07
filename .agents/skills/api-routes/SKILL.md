@@ -405,6 +405,8 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
     described as opaque (the cursor is `base64url(JSON [sort, order, value|null, id])`, accepted only with the same sort
     and order). Every other list keeps `uuid`. A sorted cursor typed `uuid` is a false contract that strict clients would
     refuse. Assert the typing on the sorted list and on at least two others, in OpenAPI and in the MCP tool schemas.
+    A nullable `next_cursor` is emitted as `type: ['string', 'null']`, with no UUID format; `after` has `type: 'string'`.
+    Pin both positive types and the absent UUID format on REST/MCP (`knowledge/specs/012-CORE174-mail-sort/RETRO.md`).
     The CLI never reads `format`, so it passes an opaque `--after` through.
   - The `sort` description carries the keyset caveat: values can rise between pages, so a record may repeat in `asc` or
     be missed in `desc`, and a complete walk uses the default order. Pin that the text reaches the OpenAPI document.
@@ -412,8 +414,9 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   `resolveSorts(metadata)` resolves convention columns (`id`, `created_at`, `updated_at` when present), then declared
   stored/derived names. Kinds come from `COLUMN_KINDS` or the derived declaration; unknown/non-record names,
   unsupported kinds, duplicates and convention repeats fail at load. `withColumnSorts(def, names)` opts in a copy,
-  carrying `sorts` and `sortKinds`; omit `names` to retain existing derived sort declarations. No public definition
-  adopts it in the foundation cycle (`knowledge/specs/012-CORE170-message-sort/RETRO.md`).
+  carrying `sorts` and `sortKinds`; omit `names` to retain existing derived sort declarations. The foundation was
+  dormant; CORE174 adopts it for messages/interactions with `['occurred_at']` plus the convention. Other lists and
+  discovery remain the deferred CORE175 rollout (`knowledge/specs/012-CORE174-mail-sort/RETRO.md`).
   - Order and compare the qualified native column/expression, with explicit `BINARY` text collation in both ORDER BY
     and keyset predicates. A stored column may default to `NOCASE`; a BINARY-default fixture cannot prove the override.
     Keep SQLite's natural null order (`ASC NULLS FIRST`, `DESC NULLS LAST`) for index use. `sort=id` needs one ordering
@@ -421,9 +424,13 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   - The private raw sort-expression selection feeds the cursor before `toRecord` or record-schema transforms, and
     is stripped from the public record. Pin a raw timestamp literally while making its public projection differ.
     UUID cursor values normalize to lowercase; `sort=id` requires its value to equal its non-null row id.
-  - Record exact D1 plans for the actual query shape. The foundation's messages `occurred_at` plain/thread and
-    interactions `occurred_at` plain use their existing indexes in both directions; **both mail `created_at` queries
-    use `USE TEMP B-TREE FOR ORDER BY`**. An index named by metadata alone does not prove that the query uses it.
+  - Record exact D1 plans for the production query, including record projection and embedded collections. CORE174's
+    messages `occurred_at` plain/thread use `idx_messages_occurred`/`idx_messages_thread_occurred`; interactions plain
+    uses `idx_interactions_occurred`, all in both directions without an outer sort. Their embedded JSON aggregation
+    still uses `USE TEMP B-TREE FOR json_group_array(ORDER BY)`: this internal sort does not make the list order
+    unindexed. **Both mail `created_at` outer orders use `USE TEMP B-TREE FOR ORDER BY`** and remain stated costs.
+    Match the exact outer-sort marker, not every temporary B-tree. No contact/thread-filtered interaction index
+    claim follows from these plain plans (`knowledge/specs/012-CORE174-mail-sort/RETRO.md`).
 - **A read-only resource written by a program** (`threads`, `messages`, `interactions`, `files`): `operations: ['list',
   'get']`, no `create`/`update`, no `deleted_at` on the table. Until the capture program exists (CORE25 cycle 2) the
   fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vault/api/test/messaging`, `src/test/messaging-kit.ts`)
