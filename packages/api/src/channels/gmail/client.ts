@@ -3,6 +3,8 @@
 import type { GmailHistoryPage, GmailMessageList, GmailMessageResource, GmailProfile, GmailSendAs, GmailWatch } from './types.js'
 
 export interface GmailClient {
+  sendMessage(raw:string,threadId?:string):Promise<{id:string;threadId:string}>
+  getMessageMetadata(id:string):Promise<GmailMessageResource>
   /** `users.getProfile`: the address and the current history id (the cursor the connect flow saves, [[CHN5]] D9). */
   getProfile(): Promise<GmailProfile>
   /** `users.settings.sendAs.list` ([[CHN5]] D10): the primary address and the aliases; an empty answer is an empty list. */
@@ -82,6 +84,7 @@ export function parseMessageList(body: unknown): GmailMessageList {
 }
 
 export interface HttpGmailClientOptions {
+  signal?: AbortSignal
   /** Called before every request; the client never caches or refreshes. */
   accessToken: () => Promise<string>
   fetch?: typeof fetch
@@ -119,21 +122,35 @@ async function apiError(res: Response): Promise<GmailApiError> {
 }
 
 export class HttpGmailClient implements GmailClient {
-  async sendMessage(_raw: string, _threadId?: string): Promise<{id:string;threadId:string}> { return {id:'',threadId:''} }
-  async getMessageMetadata(_id: string): Promise<GmailMessageResource> { return {id:'',threadId:''} }
+  async sendMessage(raw:string,threadId?:string):Promise<{id:string;threadId:string}> {
+    const encoded=btoa(Array.from(new TextEncoder().encode(raw),b=>String.fromCharCode(b)).join('')).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'')
+    const res=await this.send('/messages/send',{raw:encoded,...(threadId?{threadId}:{})})
+    const body=obj(await res.json())
+    if(!str(body.id)||!str(body.threadId))throw new GmailApiError({status:200,reason:'bad_send_response'})
+    return {id:String(body.id),threadId:String(body.threadId)}
+  }
+  async getMessageMetadata(id:string):Promise<GmailMessageResource> {
+    const q=new URLSearchParams({format:'metadata'})
+    for(const name of ['Message-ID','References','Subject'])q.append('metadataHeaders',name)
+    return await (await this.get(`/messages/${encodeURIComponent(id)}?${q}`)).json() as GmailMessageResource
+  }
   private readonly accessToken: () => Promise<string>
   private readonly doFetch: typeof fetch
   private readonly base: string
+  private readonly signal: AbortSignal | undefined
 
   constructor(options: HttpGmailClientOptions) {
     this.accessToken = options.accessToken
     this.doFetch = options.fetch ?? ((input, init) => fetch(input, init))
     this.base = options.baseUrl ?? DEFAULT_BASE
+    this.signal = options.signal
   }
 
   private async get(path: string): Promise<Response> {
+    this.signal?.throwIfAborted()
     const token = await this.accessToken()
-    const res = await this.doFetch(`${this.base}${path}`, { method: 'GET', headers: { authorization: `Bearer ${token}` } })
+    this.signal?.throwIfAborted()
+    const res = await this.doFetch(`${this.base}${path}`, { method: 'GET', headers: { authorization: `Bearer ${token}` },...(this.signal?{signal:this.signal}:{}) })
     if (!res.ok) throw await apiError(res)
     return res
   }
@@ -145,10 +162,12 @@ export class HttpGmailClient implements GmailClient {
   }
 
   private async send(path: string, body: unknown): Promise<Response> {
+    this.signal?.throwIfAborted()
     const token = await this.accessToken()
+    this.signal?.throwIfAborted()
     const headers: Record<string, string> = { authorization: `Bearer ${token}` }
     if (body !== undefined) headers['content-type'] = 'application/json'
-    const res = await this.doFetch(`${this.base}${path}`, { method: 'POST', headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+    const res = await this.doFetch(`${this.base}${path}`, { method: 'POST', headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),...(this.signal?{signal:this.signal}:{}) })
     if (!res.ok) throw await apiError(res)
     return res
   }

@@ -117,13 +117,15 @@ export class GoogleRefreshError extends Error {
  * `error` is `invalid_grant` is Google's verdict on the grant. Every other failure (another OAuth error, a non-2xx, a network error) is a different
  * code. Nothing returned or thrown carries a response body, the URL, a token or the secret.
  */
-export async function refreshAccessToken(p: { endpoints: GoogleEndpoints; clientId: string; clientSecret: string; refreshToken: string; fetch: typeof fetch }): Promise<RefreshedToken> {
+export async function refreshAccessToken(p: { endpoints: GoogleEndpoints; clientId: string; clientSecret: string; refreshToken: string; fetch: typeof fetch;signal?:AbortSignal }): Promise<RefreshedToken> {
   let res: Response
   try {
+    p.signal?.throwIfAborted()
     res = await p.fetch(p.endpoints.tokenUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: p.refreshToken, client_id: p.clientId, client_secret: p.clientSecret }).toString(),
+      ...(p.signal?{signal:p.signal}:{}),
     })
   } catch {
     throw new GoogleRefreshError('token_endpoint')
