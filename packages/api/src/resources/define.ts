@@ -27,7 +27,7 @@ const LIMIT = z.coerce.number().int().min(1).max(200)
  * What parseListQuery needs of a definition. `sorts` names derived fields ([[CORE133]] D8): only a list that declares them takes `sort` and
  * `order`; on any other list those are not parameters, so `sort` is an unknown filter as it always was.
  */
-type ListDef = { filters?: Record<string, Filter>; joinFilters?: Record<string, Filter>; sorts?: readonly string[]; derived?: Record<string, { kind: string }> }
+type ListDef = { filters?: Record<string, Filter>; joinFilters?: Record<string, Filter>; sorts?: readonly string[]; sortKinds?: Readonly<Record<string, SortKind>>; derived?: Record<string, { kind: string }> }
 
 export function parseListQuery(
   def: ListDef,
@@ -49,7 +49,7 @@ export function parseListQuery(
       if (typeof raw.order !== 'string' || !(SORT_ORDERS as readonly string[]).includes(raw.order)) throw new ApiError(400, 'validation_error', `order must be one of: ${SORT_ORDERS.join(', ')}`)
       order = raw.order as SortOrder
     }
-    const kind = def.derived?.[raw.sort]?.kind as SortKind
+    const kind = (def.sortKinds?.[raw.sort] ?? def.derived?.[raw.sort]?.kind) as SortKind
     sort = { field: raw.sort, order, kind, position: raw.after === undefined || raw.after === null ? null : decodeCursor(raw.after, raw.sort, order, kind) }
   } else if (raw.order !== undefined) throw new ApiError(400, 'validation_error', 'order needs sort')
   let after: string | null = null

@@ -140,15 +140,24 @@ function refuseConflicts(found: { maybe(k: string): Row | null }, conflicts: rea
 const missingReference = (found: { maybe(k: string): Row | null }, reads: Record<string, unknown>): boolean =>
   Object.keys(reads).some((k) => found.maybe(k) === null)
 
+/** A stored column or correlated derived expression, with the sort's text collation. */
+function sortExpression(def: PreparedResource, qc: QueryContext, sort: SortRequest): Expression<unknown> {
+  const value = def.derived?.[sort.field]?.expression(qc, parentOf(def)) ?? ref(def, sort.field)
+  // An explicit collation also overrides a stored column's NOCASE default (e.g. pipeline names).
+  return def.sortKinds && sort.kind === 'text'
+    ? sql`${value} collate ${qc.dialect === 'd1' ? sql`binary` : sql`"C"`}`
+    : value
+}
+
 /**
- * The keyset predicate of a sorted page ([[CORE133]] D9): the rows strictly after `(value, id)` in the order of the request, where `null` is the
- * oldest value and ties break on `id` in the same direction. It re-evaluates the correlated derived expression, so it keeps the expression's
- * own join order (D10a); it never names the select alias, which Postgres does not allow in a WHERE.
+ * The keyset predicate of a sorted page ([[CORE133]] D9): rows strictly after `(value, id)`, with null lowest and direction-matched id ties.
+ * Re-evaluate the expression instead of naming the select alias, which Postgres does not allow in a WHERE.
  */
 function afterPosition(def: PreparedResource, qc: QueryContext, sort: SortRequest & { position: NonNullable<SortRequest['position']> }): Expression<SqlBool> {
-  const v = def.derived![sort.field]!.expression(qc, parentOf(def))
+  const v = sortExpression(def, qc, sort)
   const { value, id } = sort.position
   const idRef = ref(def, 'id')
+  if (sort.field === 'id') return sort.order === 'asc' ? sql<SqlBool>`${idRef} > ${id}` : sql<SqlBool>`${idRef} < ${id}`
   if (sort.order === 'asc') {
     return value === null
       ? sql<SqlBool>`(${v} is not null or ${idRef} > ${id})`
@@ -170,7 +179,7 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
   }
   // [[CORE133]] D5: sorting by a derived field needs the scopes that show it; a caller without them never gets a cursor carrying its value.
   if (sort) {
-    for (const scope of def.derived![sort.field]!.requires ?? []) {
+    for (const scope of def.derived?.[sort.field]?.requires ?? []) {
       if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to sort ${def.name} by ${sort.field}`)
     }
   }
@@ -179,6 +188,7 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
     mutates: false,
     reads: (qc) => {
       let q = selectRecord(def, qc, env)
+      if (sort && def.sortKinds) q = q.select(sql`${sortExpression(def, qc, sort)}`.as('__vault_sort_value'))
       if (sort?.position) q = q.where(afterPosition(def, qc, { ...sort, position: sort.position }))
       else if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
       for (const [column, value] of Object.entries(filters)) {
@@ -186,7 +196,7 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
         q = q.where(join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`)
       }
       // `null` is the oldest value: first ascending, last descending. Spelled out because Postgres would put it the other way round.
-      if (sort) q = q.orderBy(sql`${sql.ref(sort.field)} ${sort.order === 'asc' ? sql`asc nulls first` : sql`desc nulls last`}`)
+      if (sort && sort.field !== 'id') q = q.orderBy(sql`${def.sortKinds ? sortExpression(def, qc, sort) : sql.ref(sort.field)} ${sort.order === 'asc' ? sql`asc nulls first` : sql`desc nulls last`}`)
       return { page: readAll(q.orderBy(ref(def, 'id'), sort?.order ?? 'asc').limit(limit + 1)) }
     },
     build: (found) =>
@@ -199,11 +209,15 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
           const last = page[page.length - 1]
           const cursor = (): string => {
             if (!sort) return last!.id as string
-            const value = last![sort.field]
+            const value = last![def.sortKinds ? '__vault_sort_value' : sort.field]
             return encodeCursor(sort.field, sort.order, value === null || value === undefined ? null : sort.kind === 'integer' ? Number(value) : String(value), last!.id as string)
           }
           return {
-            data: page.map((r) => toRecord(def, r)),
+            data: page.map((r) => {
+              if (!sort || !def.sortKinds) return toRecord(def, r)
+              const { __vault_sort_value: _value, ...record } = r
+              return toRecord(def, record)
+            }),
             next_cursor: rows.length > limit ? cursor() : null,
           }
         },

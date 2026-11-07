@@ -38,4 +38,9 @@ describe('typed column cursors (CORE170 D5)', () => {
     expect(() => parseListQuery(def(), { sort: 'title', order: 'sideways' })).toThrow(/order must be/)
     expect(() => parseListQuery(def(), { sort: 'unknown' })).toThrow(/sort must be/)
   })
+  it('sort=id carries its own non-null id as the value', () => {
+    for (const value of [null, '0190b2c4-0000-7000-8000-000000000002']) {
+      expect(() => decodeCursor(envelope(['id', 'asc', value, ID]), 'id', 'asc', 'uuid')).toThrow(/value does not fit/)
+    }
+  })
 })

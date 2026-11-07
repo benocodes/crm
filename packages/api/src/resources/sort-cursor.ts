@@ -7,8 +7,8 @@ import { ApiError } from '../errors.js'
 
 export type SortOrder = 'asc' | 'desc'
 export const SORT_ORDERS: readonly SortOrder[] = ['asc', 'desc']
-/** The kinds of derived field a list may sort by, and the cursor value each one carries. */
-export type SortKind = 'timestamp' | 'text' | 'integer'
+/** The sortable metadata kinds, and the cursor value each one carries. */
+export type SortKind = 'timestamp' | 'uuid' | 'text' | 'integer'
 export type SortValue = string | number | null
 /** Where a sorted page starts after: the last row's sort value (`null` for a row with none) and its id. */
 export interface SortPosition {
@@ -32,6 +32,7 @@ const BASE64URL = /^[A-Za-z0-9_-]+$/
 function valueOf(kind: SortKind, value: unknown): SortValue {
   if (value === null) return null
   if (kind === 'timestamp' && ISO.safeParse(value).success) return value as string
+  if (kind === 'uuid' && UUID.safeParse(value).success) return (value as string).toLowerCase()
   if (kind === 'text' && typeof value === 'string') return value
   if (kind === 'integer' && typeof value === 'number' && Number.isSafeInteger(value)) return value
   throw bad('the value does not fit the sorted field')
@@ -61,5 +62,6 @@ export function decodeCursor(raw: unknown, field: string, order: SortOrder, kind
   if (typeof id !== 'string' || !UUID.safeParse(id).success) throw bad('the id is not a UUID')
   const position = { value: valueOf(kind, value), id: id.toLowerCase() }
   if (cursorSort !== field || cursorOrder !== order) throw bad(`it belongs to sort=${cursorSort} order=${cursorOrder}, not sort=${field} order=${order}`)
+  if (field === 'id' && position.value !== position.id) throw bad('the value does not fit the sorted field')
   return position
 }

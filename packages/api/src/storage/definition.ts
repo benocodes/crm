@@ -6,6 +6,7 @@ import type { Actor } from '../auth/types.js'
 import type { Surface } from '../surfaces.js'
 import type { CrudAction, Filter } from '../resources/define.js'
 import type { Scope, ScopeSet } from '../scopes.js'
+import type { SortKind } from '../resources/sort-cursor.js'
 
 /**
  * The tables a definition may name at the type level. A table without a physical D1/Postgres counterpart in
@@ -170,6 +171,8 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    * `null` sorts as the oldest value and ties break on `id` in the same direction.
    */
   readonly sorts?: readonly string[]
+  /** CORE170: resolved column/derived kinds, supplied only by the explicit withColumnSorts capability. */
+  readonly sortKinds?: Readonly<Record<string, SortKind>>
   /** Columns that must reference a visible row of a portable table (checked after existence, re-checked at commit). */
   readonly references?: { readonly [K in ColumnOf<T>]?: ReferenceTarget }
   /**

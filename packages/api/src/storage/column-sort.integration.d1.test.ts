@@ -15,7 +15,7 @@ const ASC = [2, 4, 7, 3, 6, 1, 5].map(id)
 const record = z.object({ id: z.uuid(), created_at: z.string(), updated_at: z.string(), title: z.string(), notes: z.string().nullable(), due_at: z.string().nullable(), assignee_id: z.uuid().nullable(), moment: z.string().nullable().optional() })
 const task = definePreparedResource({
   surface: 'api', name: 'sort_probe', eventName: 'task', table: 'tasks', operations: ['list'], record,
-  derived: { moment: { kind: 'timestamp', expression: (_qc, parent) => sql`${parent('due_at')}`, requires: ['interactions:read'] } },
+  derived: { moment: { kind: 'timestamp', expression: (_qc, parent) => sql`${parent('due_at')}`, requires: [{ resource: 'interactions', action: 'read' }] } },
 })
 const attachment = definePreparedResource({
   surface: 'api', name: 'attachment_probe', eventName: 'attachment', table: 'message_attachments', operations: ['list'],
@@ -81,6 +81,16 @@ describe('generic column walks on D1 (CORE170 D4)', () => {
     expect(read.sql.slice(read.sql.indexOf('order by'))).toMatch(/^order by "tasks"\."id" desc limit \?$/)
     expect(read.sql).toContain('"tasks"."id" < ?')
     expect(read.sql).not.toContain(' or ')
+  })
+  it('BINARY ordering overrides a stored NOCASE column in both order and keyset predicates', async () => {
+    const def = withColumnSorts(definePreparedResource({
+      surface: 'meta', name: 'collation_probe', eventName: 'pipeline', table: 'pipelines', operations: ['list'],
+      record: z.object({ id: z.uuid(), created_at: z.string(), updated_at: z.string(), name: z.string() }),
+    }), ['name'])
+    await e.insert('pipelines', { id: id(1), name: 'a' })
+    await e.insert('pipelines', { id: id(2), name: 'Z' })
+    expect(await walk(def, 'name', 'asc', 1)).toEqual([id(2), id(1)])
+    expect(await walk(def, 'name', 'desc', 1)).toEqual([id(1), id(2)])
   })
   it('uses raw timestamp cursor values when the public projection changes them', async () => {
     await seedTasks()
