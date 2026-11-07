@@ -130,6 +130,13 @@ why) in RESULT.md. **Before writing a Playwright spec, read `writing-tests` §7*
 spec (`mcp-oauth.e2e.ts`): [[AGT8]] cycle 1's spec read `window.Clerk.session` right after sign-in, a race §7
 already names, and it cost a coder and tester round. A spec that only type-checks has not been run.
 
+**Resuming an interrupted gate** (`knowledge/specs/012-CORE170-message-sort/RETRO.md`): inventory the saved
+per-package logs against the current source/test state before rerunning. Retain still-applicable passing checks,
+label them as retained in RESULT.md, and complete missing or failed checks; do not describe the combined evidence as
+a fresh recursive run. Re-read current permissions: an old worker may retain a socket sandbox after the main session
+changes permissions. Report that mismatch to the orchestrator for a fresh verifier; a denial before tests is not
+baseline evidence. Keep RESULT/HANDOFF current before a planned handoff so the next worker need not recover logs.
+
 ## 6. RESULT.md, commit, push
 
 `RESULT.md` in the cycle folder (write it with the Write tool, not a heredoc) holds:

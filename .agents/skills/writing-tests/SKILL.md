@@ -101,6 +101,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   index it scanned, so dropping `ORDER BY` from an embed stayed green on D1: the unique index on `(message_id, position)`
   already sorted the rows, however the seed inserted them ([[CORE25]] M7). Postgres turned red. To prove an `ORDER BY`
   on D1, order by a column no index covers, or pin the generated SQL in a unit test (`embed.test.ts`).
+  An explicit collation needs a fixture with a conflicting stored default: a BINARY-default column stays green when
+  `COLLATE BINARY` is removed. Use a real `NOCASE` column with `Z`/`a`, walk both directions one row at a time, and
+  remove the override to prove both ordering and continuation comparisons (`knowledge/specs/012-CORE170-message-sort/RETRO.md`, M7).
 - **Deleting tests needs a title-by-title map, not a count.** When a cycle deletes a suite with the code it tested, list
   every deleted test title in RESULT.md beside its surviving counterpart (file and test name), or the reason it was
   only about the deleted mechanism. A falling test count hides lost coverage. [[CORE44]]'s map found three live
