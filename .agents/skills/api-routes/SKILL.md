@@ -389,7 +389,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
 - **Sorting by a derived field** ([[CORE133]], `sorts: [...]` on a definition, cursor codec in `src/resources/sort-cursor.ts`,
   keyset in `src/storage/crud.ts` `afterPosition`). Only a list that declares `sorts` gets `sort` and `order`. On every
   other list, both stay unknown filters with the same message as before. A `sorts` name must be a non-boolean derived field
-  (load-time throw); stored columns are the later extension point. `null` is the oldest value and ties break on `id` in
+  (load-time throw); unadopted definitions keep this derived-only path. `null` is the oldest value and ties break on `id` in
   the request's direction. The keyset has four branches, one for each order and cursor-value-null pair. In `asc nulls
   first`, after a null: `(v is not null or id > c)`; after a value: `(v > x or (v = x and id > c))`. In `desc nulls last`,
   after a null: `(v is null and id < c)`; after a value: `(v < x or v is null or (v = x and id < c))`. The WHERE
@@ -408,6 +408,22 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
     The CLI never reads `format`, so it passes an opaque `--after` through.
   - The `sort` description carries the keyset caveat: values can rise between pages, so a record may repeat in `asc` or
     be missed in `desc`, and a complete walk uses the default order. Pin that the text reaches the OpenAPI document.
+- **Column sort foundation** ([[CORE170]], `src/storage/sorts.ts`; public adoption belongs to [[CORE174]]/[[CORE175]]):
+  `resolveSorts(metadata)` resolves convention columns (`id`, `created_at`, `updated_at` when present), then declared
+  stored/derived names. Kinds come from `COLUMN_KINDS` or the derived declaration; unknown/non-record names,
+  unsupported kinds, duplicates and convention repeats fail at load. `withColumnSorts(def, names)` opts in a copy,
+  carrying `sorts` and `sortKinds`; omit `names` to retain existing derived sort declarations. No public definition
+  adopts it in the foundation cycle (`knowledge/specs/012-CORE170-message-sort/RETRO.md`).
+  - Order and compare the qualified native column/expression, with explicit `BINARY` text collation in both ORDER BY
+    and keyset predicates. A stored column may default to `NOCASE`; a BINARY-default fixture cannot prove the override.
+    Keep SQLite's natural null order (`ASC NULLS FIRST`, `DESC NULLS LAST`) for index use. `sort=id` needs one ordering
+    term and one scalar continuation comparison, without a redundant tie-break.
+  - The private raw sort-expression selection feeds the cursor before `toRecord` or record-schema transforms, and
+    is stripped from the public record. Pin a raw timestamp literally while making its public projection differ.
+    UUID cursor values normalize to lowercase; `sort=id` requires its value to equal its non-null row id.
+  - Record exact D1 plans for the actual query shape. The foundation's messages `occurred_at` plain/thread and
+    interactions `occurred_at` plain use their existing indexes in both directions; **both mail `created_at` queries
+    use `USE TEMP B-TREE FOR ORDER BY`**. An index named by metadata alone does not prove that the query uses it.
 - **A read-only resource written by a program** (`threads`, `messages`, `interactions`, `files`): `operations: ['list',
   'get']`, no `create`/`update`, no `deleted_at` on the table. Until the capture program exists (CORE25 cycle 2) the
   fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vault/api/test/messaging`, `src/test/messaging-kit.ts`)
