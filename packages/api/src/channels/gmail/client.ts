@@ -119,6 +119,8 @@ async function apiError(res: Response): Promise<GmailApiError> {
 }
 
 export class HttpGmailClient implements GmailClient {
+  async sendMessage(_raw: string, _threadId?: string): Promise<{id:string;threadId:string}> { return {id:'',threadId:''} }
+  async getMessageMetadata(_id: string): Promise<GmailMessageResource> { return {id:'',threadId:''} }
   private readonly accessToken: () => Promise<string>
   private readonly doFetch: typeof fetch
   private readonly base: string

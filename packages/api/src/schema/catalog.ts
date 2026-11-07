@@ -360,6 +360,7 @@ export const CATALOG: Catalog = {
       label: 'Action executions',
       description: 'The durable run of an operation that talks to the outside world (an enqueued operation), created when a direct call or an approved action request authorises it. The vault runs it with retries and reconciliation; the row holds its status, final arguments and outcome. Read through action_executions.list and .get, which show you the executions whose operation you may read.',
       columns: {
+        connection_id: 'The authorised sending connection, null for executions without a connection.',
         created_by: 'The principal that asked: the proposer for an approved request, the caller for a direct call.',
         authorised_by: 'The principal whose authority it runs under: the approver, or the caller for a direct call.',
         action_request_id: 'The approved action request this executes; null for a direct call. At most one execution per request.',

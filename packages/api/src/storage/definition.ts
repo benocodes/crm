@@ -7,6 +7,7 @@ import type { Surface } from '../surfaces.js'
 import type { CrudAction, Filter } from '../resources/define.js'
 import type { Scope, ScopeSet } from '../scopes.js'
 import type { SortKind } from '../resources/sort-cursor.js'
+import type { ObjectStore } from '../objects/store.js'
 
 /**
  * The tables a definition may name at the type level. A table without a physical D1/Postgres counterpart in
@@ -16,6 +17,8 @@ export type CrudTable = Table
 
 /** What a prepared operation is built with: the trusted identity and the unit's injected clock and id source. */
 export interface PreparedEnv {
+  /** Send-specific immutable authored bytes are stored before the authorisation unit (AGT166 D64). */
+  readonly objects?: ObjectStore
   readonly actor: Actor
   readonly organizationId: string
   readonly scopes: ScopeSet

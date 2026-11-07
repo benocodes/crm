@@ -21,6 +21,7 @@ import { createVaultRegistry } from '../operations.js'
 import type { ObjectStore } from '../objects/store.js'
 import { validateOperationInput, type BinaryBody, type Operation, type OperationInput, type PrepareContext, type Registry } from '../registry.js'
 import { proposalHint } from '../proposal.js'
+import { hydrateSendRecord,requireSendStore } from '../messaging/send-body.js'
 import { runExecution } from '../executions/runner.js'
 import type { TransportRegistry } from '../executions/transport.js'
 import { parseInput } from '../resources/define.js'
@@ -181,6 +182,7 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
   const now = clock()
   const env = {
     actor,
+    ...(injected.objects ? { objects: injected.objects } : {}),
     organizationId,
     scopes,
     now,
@@ -216,6 +218,8 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
   }
   // The after-commit stage ([[CHN141]]): outside the storage error mapping too; it throws the ApiError it means.
   if (op.after) value = await op.after(value, { kick: (executionId) => kickRunner(c, injected, executionId) })
+  // AGT166: the existing post-read object seam, restricted to authored send gets. Other operation arguments retain their existing behavior.
+  if ((op.name === 'action_requests.get' || op.name === 'action_executions.get') && (value as {operation?:string}).operation === 'messages.send') return hydrateSendRecord(value,requireSendStore(injected.objects))
   // The object stage runs after the unit, outside the storage error mapping: an ApiError propagates, anything else is masked.
   return op.objects ? op.objects(value, injected.objects!) : value
 }

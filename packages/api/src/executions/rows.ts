@@ -37,6 +37,7 @@ export function executionColumns(e: NewExecution): Record<string, string | numbe
     created_by: e.createdBy,
     authorised_by: e.authorisedBy,
     action_request_id: e.actionRequestId,
+    connection_id: typeof e.resolution.connection_id === 'string' ? e.resolution.connection_id : null,
     operation: e.operation,
     arguments: JSON.stringify(e.arguments),
     resolution: JSON.stringify(e.resolution),

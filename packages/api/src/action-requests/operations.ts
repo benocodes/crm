@@ -31,6 +31,8 @@ import type { PreparedEnv } from '../storage/definition.js'
 import { canonicalId } from '../storage/prepare.js'
 import { splitArguments } from '../mcp/tools.js'
 import { actionRequests, evidenceItem, type ActionRequestRecord } from './definition.js'
+import { readSendBody, requireSendStore, storeSendBody } from '../messaging/send-body.js'
+import { requireReplyRead } from '../messaging/send.js'
 
 // [[AGT8]] cycle 1: the four commands of the queue. Every decision is "plan, then one unit": a plan read of the request (and, for an approval,
 // the target's own plan), a commit-time assertion that the request is still the pending one that was read, and guarded statements, so a
@@ -177,7 +179,12 @@ async function createRequest(registry: Registry, env: PreparedEnv, input: unknow
   if (target.execution) {
     // [[AGT8]] D49, D51: an enqueued operation is validated against its own arguments (an idempotency_key in a proposal is ignored); the rest is the approver's
     // `authorise` at approval (D9). It has no stored record to name, so there is no target to look up.
-    ownArguments(target.execution, body.arguments)
+    const args = ownArguments(target.execution, body.arguments)
+    if (target.name === 'messages.send') {
+      requireReplyRead(env,args)
+      if (body.thread_id && args.thread_id && body.thread_id.toLowerCase() !== args.thread_id) throw new ApiError(400,'validation_error','send thread must agree with request context')
+      body.arguments = {...args,body:await storeSendBody(requireSendStore(env.objects),env.organizationId,args.body as string)}
+    }
     return buildCreate(env, target, body, { params: {} })
   }
   const targetInput = validateOperationInput(target, splitArguments(target, body.arguments, { keepNull: true }))
@@ -500,8 +507,12 @@ async function queuedApproval(
   effective: Record<string, unknown>,
   body: z.infer<typeof approveBody>,
 ): Promise<PreparedOperation<ActionRequestRecord>> {
-  const args = ownArguments(execution, effective)
+  const isSend = target.name === 'messages.send'
+  const publicArgs = isSend && body.edited_arguments === undefined ? {...effective,body:await readSendBody(requireSendStore(env.objects),env.organizationId,effective.body)} : effective
+  const args = ownArguments(execution, publicArgs)
+  if (isSend && plan.record.thread_id && args.thread_id && plan.record.thread_id !== args.thread_id) throw new ApiError(400,'validation_error','send thread must agree with request context')
   const auth = (await execution.authorise?.(env, args, ctx)) ?? {}
+  if (isSend) args.body = await storeSendBody(requireSendStore(env.objects),env.organizationId,args.body as string)
   const hash = await inputHash(target.name, args)
   const at = codecs.timestamp.write(env.now)
   const deadline = codecs.timestamp.write(new Date(env.now.getTime() + DEADLINE_MS))
@@ -525,7 +536,7 @@ async function queuedApproval(
         eventType: 'action_request.approved',
         ...(guards.length > 0 ? { gate: sql<SqlBool>`${sql.join(guards, sql` and `)}` } : {}),
         set: {
-          ...(body.edited_arguments !== undefined ? { edited_arguments: JSON.stringify(body.edited_arguments) } : {}),
+          ...(body.edited_arguments !== undefined ? { edited_arguments: JSON.stringify(isSend ? args : body.edited_arguments) } : {}),
           ...(body.decision_reason !== undefined ? { decision_reason: body.decision_reason } : {}),
         },
         label: true,

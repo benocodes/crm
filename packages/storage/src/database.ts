@@ -436,6 +436,7 @@ export interface ActionRequestsTable {
  * `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`, `last_error_code`) are machinery: written without an event ([[AGT8]] D56).
  */
 export interface ActionExecutionsTable {
+  connection_id: string | null
   id: string
   created_at: Timestamp
   updated_at: Timestamp
@@ -875,6 +876,7 @@ export const COLUMN_KINDS = {
     executed_at: 'timestamp',
   },
   action_executions: {
+    connection_id: 'uuid',
     id: 'uuid',
     created_at: 'timestamp',
     updated_at: 'timestamp',
