@@ -5,6 +5,231 @@
   "named_differences": [],
   "scenarios": [
     {
+      "name": "mail-sorted-pages",
+      "about": "CORE174: newest messages by occurred_at, an opaque cursor picked from page one and reused on page two; interactions use the same stored-column descending order; reads emit no events",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages?sort=occurred_at&order=desc&limit=2",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000028",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000021",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m4@fake.test>",
+                "in_reply_to": null,
+                "author": {
+                  "user_id": "carol@other.test",
+                  "user_name": "carol@other.test",
+                  "full_name": "carol",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:40:00.000Z",
+                "preview": "See the invoice.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000036",
+                    "position": 0,
+                    "type": "file",
+                    "name": "invoice.pdf",
+                    "mime_type": null,
+                    "size_bytes": 10,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "failed",
+                    "file_id": null
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000026",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "reaction",
+                "external_id": "<m3@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "bob@acme.test",
+                  "user_name": "bob@acme.test",
+                  "full_name": "bob",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:30:00.000Z",
+                "preview": "👍",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": "WyJvY2N1cnJlZF9hdCIsImRlc2MiLCIyMDI2LTEwLTIyVDA3OjMwOjAwLjAwMFoiLCIwMTkwYjJjNC0wMDAwLTcwMDAtODAwMC0wMDAwMDEwMDAwMjYiXQ"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/messages?sort=occurred_at&order=desc&limit=2&after={next}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000024",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m2@fake.test>",
+                "in_reply_to": "<m1@fake.test>",
+                "author": {
+                  "user_id": "owner@vault.test",
+                  "user_name": "owner@vault.test",
+                  "full_name": "owner",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:20:00.000Z",
+                "preview": "Thanks, notes attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000035",
+                    "position": 0,
+                    "type": "file",
+                    "name": "notes.txt",
+                    "mime_type": "text/plain",
+                    "size_bytes": 48,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000034"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000022",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "channel": "email",
+                "kind": "message",
+                "external_id": "<m1@fake.test>",
+                "in_reply_to": null,
+                "author": {
+                  "user_id": "jane@acme.test",
+                  "user_name": "jane@acme.test",
+                  "full_name": "jane",
+                  "is_bot": false
+                },
+                "occurred_at": "2026-10-22T07:10:00.000Z",
+                "preview": "Plan Hello world, the numbers are attached.",
+                "version": 1,
+                "retracted_at": null,
+                "attachments": [
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000031",
+                    "position": 0,
+                    "type": "file",
+                    "name": "plan.pdf",
+                    "mime_type": "application/pdf",
+                    "size_bytes": 300,
+                    "inline": false,
+                    "content_id": null,
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000030"
+                  },
+                  {
+                    "id": "0190b2c4-0000-7000-8000-000001000033",
+                    "position": 1,
+                    "type": "image",
+                    "name": "logo.png",
+                    "mime_type": "image/png",
+                    "size_bytes": 64,
+                    "inline": true,
+                    "content_id": "logo@fake.test",
+                    "fetch_status": "stored",
+                    "file_id": "0190b2c4-0000-7000-8000-000001000032"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/interactions?sort=occurred_at&order=desc&limit=2",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000029",
+                "kind": "message",
+                "channel": "email",
+                "direction": "inbound",
+                "occurred_at": "2026-10-22T07:40:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000021",
+                "message_id": "0190b2c4-0000-7000-8000-000001000028",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000011",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000027",
+                "kind": "reaction",
+                "channel": "email",
+                "direction": "inbound",
+                "occurred_at": "2026-10-22T07:30:00.000Z",
+                "thread_id": "0190b2c4-0000-7000-8000-000001000020",
+                "message_id": "0190b2c4-0000-7000-8000-000001000026",
+                "participants": [
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000009",
+                    "role": "from"
+                  },
+                  {
+                    "identity_id": "0190b2c4-0000-7000-8000-000001000007",
+                    "role": "to"
+                  }
+                ],
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T08:00:00.000Z"
+              }
+            ],
+            "next_cursor": "WyJvY2N1cnJlZF9hdCIsImRlc2MiLCIyMDI2LTEwLTIyVDA3OjMwOjAwLjAwMFoiLCIwMTkwYjJjNC0wMDAwLTcwMDAtODAwMC0wMDAwMDEwMDAwMjciXQ"
+          },
+          "events": []
+        }
+      ]
+    },
+    {
       "name": "threads-list-get",
       "about": "threads list in id order and get one; a channel filter keeps them, an unknown one is a validation error; a missing id is 404 (read-only: no write route)",
       "steps": [

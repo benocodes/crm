@@ -57,8 +57,8 @@ describe('messaging definitions (CORE25 C1)', () => {
   it('list query schemas carry the column filters and the join filters', () => {
     const reg = createVaultRegistry()
     const keys = (name: string) => Object.keys(((reg.get(name) as { request: { query: { shape: object } } }).request.query as { shape: object }).shape).sort()
-    expect(keys('messages.list')).toEqual(['after', 'limit', 'thread_id', 'channel', 'kind', 'external_id', 'in_reply_to'].sort())
-    expect(keys('interactions.list')).toEqual(['after', 'limit', 'kind', 'channel', 'direction', 'thread_id', 'message_id', 'identity_id', 'contact_id'].sort())
+    expect(keys('messages.list')).toEqual(['after', 'limit', 'sort', 'order', 'thread_id', 'channel', 'kind', 'external_id', 'in_reply_to'].sort())
+    expect(keys('interactions.list')).toEqual(['after', 'limit', 'sort', 'order', 'kind', 'channel', 'direction', 'thread_id', 'message_id', 'identity_id', 'contact_id'].sort())
   })
 
   it('the link body is strict', () => {
