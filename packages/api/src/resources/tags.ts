@@ -3,6 +3,7 @@ import { readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { deleteTagOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 
 export type TagRecord = {
   id: string
@@ -40,7 +41,7 @@ export const TAGGABLE = ['companies', 'contacts', 'deals', 'tasks', 'notes'] as 
  * case-insensitively (the column's NOCASE collation): a live duplicate refuses the write in the plan (`409 tag_exists`),
  * the partial unique index is the commit-time backstop. Delete cascades the tag's live edges (`identity/cascades.ts`).
  */
-export const tags = definePreparedResource({
+export const tags = withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'tags',
   eventName: 'tag',
@@ -71,4 +72,4 @@ export const tags = definePreparedResource({
       },
     ]
   },
-})
+}), ['name'])

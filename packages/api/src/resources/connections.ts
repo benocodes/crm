@@ -2,6 +2,7 @@ import { sql, type Expression } from 'kysely'
 import { z } from 'zod'
 import type { QueryContext } from '@vault/storage'
 import { definePreparedResource, type DerivedDecl } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 
 export type ConnectionRecord = {
   id: string
@@ -52,7 +53,7 @@ const derived = {
  * and removes its four machinery rows in the same unit (D26): a secret has no history worth keeping. Captured messages and sources stay (D27).
  * D1 only (D29): on another engine every operation answers `501 not_implemented`.
  */
-export const connections = definePreparedResource({
+export const connections = withColumnSorts(definePreparedResource({
   notProposable: 'connection management is not proposable',
   surface: 'meta',
   name: 'connections',
@@ -72,4 +73,4 @@ export const connections = definePreparedResource({
       { query: qc.db.deleteFrom('mail_sync_cursors').where('connection_id', '=', id).where('organization_id', '=', org) },
     ]
   },
-})
+}), ['last_synced_at'])

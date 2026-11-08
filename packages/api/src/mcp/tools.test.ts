@@ -115,7 +115,7 @@ describe('derived contact activity ([[CORE131]] D12)', () => {
       expect(props[f], f).toBeDefined()
       expect(props[f]!.description ?? '', `${f} description`).not.toBe('')
     }
-    expect(props.sort!.enum).toEqual(['last_contacted_at', 'last_interacted_at'])
+    expect(props.sort!.enum).toEqual(['id', 'created_at', 'updated_at', 'name', 'last_contacted_at', 'last_interacted_at'])
     expect(props.order!.enum).toEqual(['asc', 'desc'])
     expect(props.sort!.description ?? '').toMatch(/repeat in asc/)
   })
@@ -127,7 +127,8 @@ describe('derived contact activity ([[CORE131]] D12)', () => {
     const out = byName('contacts_list').tool.outputSchema as { properties: { next_cursor: Record<string, unknown> } }
     expect(JSON.stringify(out.properties.next_cursor)).not.toContain('uuid')
     expect(JSON.stringify(out.properties.next_cursor)).toContain('string')
-    for (const n of ['tasks_list', 'deals_list', 'companies_list']) {
+    // CORE175 D15: the hand-written lists are the ones left with uuid cursors and no sort.
+    for (const n of ['action_executions_list', 'associations_list', 'users_list']) {
       const other = byName(n).tool
       expect(JSON.stringify((other.inputSchema as { properties: Record<string, unknown> }).properties.after), n).toContain('uuid')
       expect(JSON.stringify((other.outputSchema as { properties: Record<string, unknown> }).properties.next_cursor), n).toContain('uuid')

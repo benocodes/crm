@@ -3,6 +3,7 @@ import { readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { normalizeIdentityValue, type IdentityKind } from '../identity/normalize.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 
 export type IdentityRecord = {
   id: string
@@ -51,7 +52,7 @@ function ownerColumns(input: Record<string, unknown>): { contact_id: string | nu
  * ASCII rule included, P6); the contact must be live (plan read and commit guard); a live address refuses a create in
  * the plan (`409 identity_exists`) and the partial unique index re-checks at commit. `kind` and `value` are immutable.
  */
-export const identities = definePreparedResource({
+export const identities = withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'identities',
   eventName: 'identity',
@@ -99,4 +100,4 @@ export const identities = definePreparedResource({
       },
     ]
   },
-})
+}), ['value'])

@@ -185,6 +185,19 @@ export const taskScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(12), method: 'GET', path: '/api/v1/tasks?title=t1' },
     ],
   },
+  {
+    name: 'sorted-pages',
+    about: 'CORE175: tasks sort by a stored column: due_at ascending pages with a null first, an opaque cursor picked from page one and reused on page two, the same cursor under another sort is a validation error; reads emit no events',
+    steps: [
+      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: { title: 'late', due_at: '2026-10-30T09:00:00.000Z' }, save: 'late' },
+      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/tasks', body: { title: 'undated' }, save: 'undated' },
+      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/tasks', body: { title: 'early', due_at: '2026-10-25T09:00:00.000Z' }, save: 'early' },
+      { as: 'user', at: at(3), method: 'GET', path: '/api/v1/tasks?sort=due_at&order=asc&limit=2', pick: { next: (b) => b.next_cursor } },
+      { as: 'user', at: at(4), method: 'GET', path: '/api/v1/tasks?sort=due_at&order=asc&limit=2&after={next}' },
+      { as: 'agent', at: at(5), method: 'GET', path: '/api/v1/tasks?sort=due_at&order=desc' },
+      { as: 'user', at: at(6), method: 'GET', path: '/api/v1/tasks?sort=title&order=asc&limit=2&after={next}' },
+    ],
+  },
 ]
 
 // ---- CORE36: the identity model (companies, contacts, identities, resolve, merge, both cascades) -----------------

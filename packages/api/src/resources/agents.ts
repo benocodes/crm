@@ -6,6 +6,7 @@ import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { columnsOf, receipt, resultStep, toRecord } from '../storage/crud.js'
 import { definePreparedResource, type PreparedEnv } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 import { prepareCreate } from '../storage/prepare.js'
 
 export const agentRecord = z.object({
@@ -48,7 +49,7 @@ const scopesField = z.array(z.string()).max(100)
  * input only (P5): it drives `disabled_at` in `computed` and is never written as a column. The scope rule is
  * pure, so it runs in `prepare`; a scope change applies at once because the next request reads the stored list.
  */
-export const agents = definePreparedResource({
+export const agents = withColumnSorts(definePreparedResource({
   notProposable: 'access administration is not proposable',
   surface: 'meta',
   name: 'agents',
@@ -67,7 +68,7 @@ export const agents = definePreparedResource({
     return {}
   },
   override: { create: (env, input) => createAgentOperation(env, input) },
-})
+}), ['name'])
 
 /**
  * `agents.create` (P13): the principal first, without RETURNING (no SELECT policy admits it until its agents row

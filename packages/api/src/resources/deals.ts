@@ -4,6 +4,7 @@ import { codecs, readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { deleteDealOperation } from '../identity/cascades.js'
 import { definePreparedResource, type DerivedDecl, type JoinFilter } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 import { linkedToFilter } from './tag-filter.js'
 
 export type DealRecord = {
@@ -84,7 +85,7 @@ const statusFilter: JoinFilter = {
  * must be a live one of this organisation (the generic reference check, re-checked at commit). `stage_id` and `pipeline_id` are refused on update:
  * the stage changes through `deals.move_stage` (`deals/operations.ts`). `status` is derived from the stage and never in an event.
  */
-export const deals = definePreparedResource({
+export const deals = withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'deals',
   eventName: 'deal',
@@ -136,4 +137,4 @@ export const deals = definePreparedResource({
       },
     ]
   },
-})
+}), ['name'])

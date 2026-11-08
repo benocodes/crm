@@ -1835,7 +1835,7 @@
           "response": {
             "error": {
               "code": "validation_error",
-              "message": "after must be a UUID"
+              "message": "after must be a UUID (a sorted cursor needs the sort and order it came from)"
             }
           },
           "events": []
@@ -1851,6 +1851,290 @@
             "error": {
               "code": "validation_error",
               "message": "unknown filter: title"
+            }
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "name": "sorted-pages",
+      "about": "CORE175: tasks sort by a stored column: due_at ascending pages with a null first, an opaque cursor picked from page one and reused on page two, the same cursor under another sort is a validation error; reads emit no events",
+      "steps": [
+        {
+          "as": "user",
+          "at": "2026-10-22T09:00:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/tasks",
+          "request": {
+            "title": "late",
+            "due_at": "2026-10-30T09:00:00.000Z"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000001",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "late",
+            "notes": null,
+            "status": "open",
+            "due_at": "2026-10-30T09:00:00.000Z",
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:00:00.000Z",
+            "updated_at": "2026-10-22T09:00:00.000Z"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000001",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:00:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "notes": null,
+                "title": "late",
+                "due_at": "2026-10-30T09:00:00.000Z",
+                "status": "open",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:00:00.000Z",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:01:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/tasks",
+          "request": {
+            "title": "undated"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000003",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "undated",
+            "notes": null,
+            "status": "open",
+            "due_at": null,
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:01:00.000Z",
+            "updated_at": "2026-10-22T09:01:00.000Z"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000003",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:01:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "notes": null,
+                "title": "undated",
+                "due_at": null,
+                "status": "open",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:01:00.000Z",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:02:00.000Z",
+          "method": "POST",
+          "path": "/api/v1/tasks",
+          "request": {
+            "title": "early",
+            "due_at": "2026-10-25T09:00:00.000Z"
+          },
+          "status": 201,
+          "response": {
+            "id": "0190b2c4-0000-7000-8000-000001000005",
+            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+            "title": "early",
+            "notes": null,
+            "status": "open",
+            "due_at": "2026-10-25T09:00:00.000Z",
+            "completed_at": null,
+            "assignee_id": null,
+            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+            "created_at": "2026-10-22T09:02:00.000Z",
+            "updated_at": "2026-10-22T09:02:00.000Z"
+          },
+          "events": [
+            {
+              "type": "task.created",
+              "resource_type": "task",
+              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
+              "actor_id": "0190b2c4-0000-7000-8000-00000000b001",
+              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+              "created_at": "2026-10-22T09:02:00.000Z",
+              "before": null,
+              "after": {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "notes": null,
+                "title": "early",
+                "due_at": "2026-10-25T09:00:00.000Z",
+                "status": "open",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "updated_at": "2026-10-22T09:02:00.000Z",
+                "assignee_id": null,
+                "completed_at": null,
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+              }
+            }
+          ]
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:03:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/tasks?sort=due_at&order=asc&limit=2",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "undated",
+                "notes": null,
+                "status": "open",
+                "due_at": null,
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "early",
+                "notes": null,
+                "status": "open",
+                "due_at": "2026-10-25T09:00:00.000Z",
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              }
+            ],
+            "next_cursor": "WyJkdWVfYXQiLCJhc2MiLCIyMDI2LTEwLTI1VDA5OjAwOjAwLjAwMFoiLCIwMTkwYjJjNC0wMDAwLTcwMDAtODAwMC0wMDAwMDEwMDAwMDUiXQ"
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:04:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/tasks?sort=due_at&order=asc&limit=2&after={next}",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "late",
+                "notes": null,
+                "status": "open",
+                "due_at": "2026-10-30T09:00:00.000Z",
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "updated_at": "2026-10-22T09:00:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "agent",
+          "at": "2026-10-22T09:05:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/tasks?sort=due_at&order=desc",
+          "request": null,
+          "status": 200,
+          "response": {
+            "data": [
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000001",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "late",
+                "notes": null,
+                "status": "open",
+                "due_at": "2026-10-30T09:00:00.000Z",
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:00:00.000Z",
+                "updated_at": "2026-10-22T09:00:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "early",
+                "notes": null,
+                "status": "open",
+                "due_at": "2026-10-25T09:00:00.000Z",
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:02:00.000Z"
+              },
+              {
+                "id": "0190b2c4-0000-7000-8000-000001000003",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "title": "undated",
+                "notes": null,
+                "status": "open",
+                "due_at": null,
+                "completed_at": null,
+                "assignee_id": null,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:01:00.000Z",
+                "updated_at": "2026-10-22T09:01:00.000Z"
+              }
+            ],
+            "next_cursor": null
+          },
+          "events": []
+        },
+        {
+          "as": "user",
+          "at": "2026-10-22T09:06:00.000Z",
+          "method": "GET",
+          "path": "/api/v1/tasks?sort=title&order=asc&limit=2&after={next}",
+          "request": null,
+          "status": 400,
+          "response": {
+            "error": {
+              "code": "validation_error",
+              "message": "after is not a valid cursor for this sort: it belongs to sort=due_at order=asc, not sort=title order=asc"
             }
           },
           "events": []
