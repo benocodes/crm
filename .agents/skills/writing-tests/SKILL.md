@@ -103,7 +103,13 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   are drift guards as well as the assertion. [[CORE68]]'s "remove the commit-time assertion" turned 7 of 10 race cases
   red; a copy committed meanwhile stayed `409` through `exactly` on messages, a removed identity through `exactly(m)`
   on participants, a created identity through the unique index. Predict each case per guard, and drop the
-  assertion clause and the overlapping guard together to prove each clause.
+  assertion clause and the overlapping guard together to prove each clause. A single removal that stays green
+  because another guard rejects the same input is an equivalent mutant: record it as such beside the run that
+  drops both and turns red (`sort=id` UUID check vs value = id, `knowledge/specs/012-CORE175-list-sort-rollout/RETRO.md`, M15).
+- **Pick negative examples that stay negative.** A test proving "a list without X keeps the old behaviour" must
+  use a case excluded by design (an exempt list, an impossible value such as `sort=no_such_field`), not one merely
+  not yet adopted. When a later cycle makes X universal, the second kind fails for intended reasons and must be
+  rewritten ([[CORE175]]: about 9 assertions across MCP, REST, CLI and unit tests).
 - **An ordering mutation must defeat the index order too.** SQLite returns an unordered aggregate in the order of the
   index it scanned, so dropping `ORDER BY` from an embed stayed green on D1: the unique index on `(message_id, position)`
   already sorted the rows, however the seed inserted them ([[CORE25]] M7). Postgres turned red. To prove an `ORDER BY`

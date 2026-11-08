@@ -429,9 +429,22 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   `resolveSorts(metadata)` resolves convention columns (`id`, `created_at`, `updated_at` when present), then declared
   stored/derived names. Kinds come from `COLUMN_KINDS` or the derived declaration; unknown/non-record names,
   unsupported kinds, duplicates and convention repeats fail at load. `withColumnSorts(def, names)` opts in a copy,
-  carrying `sorts` and `sortKinds`; omit `names` to retain existing derived sort declarations. The foundation was
-  dormant; CORE174 adopts it for messages/interactions with `['occurred_at']` plus the convention. Other lists and
-  discovery remain the deferred CORE175 rollout (`knowledge/specs/012-CORE174-mail-sort/RETRO.md`).
+  carrying `sorts` and `sortKinds`; omit `names` to retain existing derived sort declarations. CORE174 adopted it
+  for messages/interactions; [[CORE175]] for every other generic list (contacts pass their derived names through the
+  same call). Discovery of sorts is [[CORE187]].
+  - **Every generic list must adopt it; the registry contract enforces that** (`src/storage/sort-contract.integration.d1.test.ts`,
+    checker `src/test/sort-contract.ts`). Adding a resource or a sortable field means editing
+    `src/storage/sort-costs.ts`: a list without `withColumnSorts` fails `no-sorts`; a hand-written `list` (its own
+    query, not `${def.name}.list`) needs a `SORT_EXEMPT_LISTS` entry with a reason (today `associations`, `users`,
+    `action_executions`, #188); every list × sort whose desc production plan has `USE TEMP B-TREE FOR ORDER BY` needs a
+    `STATED_SORT_COSTS` entry, and one that becomes indexed must be removed (`obsolete-cost`). [[CORE187]] reads that
+    list at runtime (`indexed` = not stated), so it stays plain data with no imports. A generic list that gains an
+    `override.list` must be measured on its own query or treated as hand-written.
+  - `sort=id desc` is not always indexed: on `contact_files`, `company_files` and `memberships` SQLite prefers the
+    partial live-row unique index and sorts in a temp B-tree (stated, [[CORE170]] C6). Read the plan, don't assume.
+  - A sorted-capable list's malformed `after` says `after must be a UUID (a sorted cursor needs the sort and order it
+    came from)`. For an "unsorted list" or "invalid sort" example in a test, use an exempt hand-written list or
+    `sort=no_such_field`, never a list that merely lacks adoption today (`knowledge/specs/012-CORE175-list-sort-rollout/RETRO.md`).
   - Order and compare the qualified native column/expression, with explicit `BINARY` text collation in both ORDER BY
     and keyset predicates. A stored column may default to `NOCASE`; a BINARY-default fixture cannot prove the override.
     Keep SQLite's natural null order (`ASC NULLS FIRST`, `DESC NULLS LAST`) for index use. `sort=id` needs one ordering

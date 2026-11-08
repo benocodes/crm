@@ -103,6 +103,13 @@ cycles: table and queued approval; runner and retries; cron and expiry sweep; #1
 Those independently provable units were available before coding. The runner's proposed ~1,500-line
 tripwire did not protect the whole cycle. Apply the existing budget up front; this example adds no
 exception and does not lower the current limits.
+
+**CORE175 calibration** (`knowledge/specs/012-CORE175-list-sort-rollout/RETRO.md`): 5 groups (1 matrix),
+7 decisions, no migration or E2E cost 274k tokens / 129 calls in one run, approved with no findings. A
+201-case matrix is cheap once fixture devices exist. The unbudgeted work was ~9 existing assertions that
+used a not-yet-adopted resource as their negative example. When a cycle makes a capability universal
+(every list, every resource), say in **Watch out** that existing tests using an unadopted resource as the
+"without X" case will turn red and must move to a case excluded by design; this is not a budget count.
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code
