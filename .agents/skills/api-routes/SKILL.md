@@ -94,9 +94,12 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     (follow-up #51). Prefer one set unit over a unit per row, and add a scenario when an operation's
     cost grows with its input.
     AGT165's fake-transport tick (100 expiries and 5 executions) costs 24 D1 queries, not the full cost
-    of a real sender. When adding the Gmail transport (#166), re-measure with its credential reads,
-    reconcile and send fetches: those share the 50-subrequest allowance with D1. Keep the existing
-    24-query pin; record the new transport-inclusive measurement separately.
+    of a real sender; keep that pin. A real transport is measured in the real Worker
+    (`packages/server-d1/src/gmail-send.test.ts`) counting D1 plus every fetch, R2 call and Workflow start,
+    and its production due cap is set from the **terminal** path: on the last attempt or deadline the rail
+    dispatches and reconciles in one invocation (double refresh, send, metadata, search). Gmail measured
+    65 calls at three sends, so production cron runs `dueLimit: 2` (worst case 27 D1 + 18 external = 45)
+    while the generic default stays five (`knowledge/specs/008-AGT166-gmail-send/RETRO.md`).
   - `pnpm -C packages/server-d1 open:check` copies the open packages into a temp workspace and installs,
     typechecks production code, tests and smoke-runs them there. A new directory under `packages/` must be
     classified in `scripts/open-check.ts` (`OPEN_PACKAGES`/`ENTERPRISE_PACKAGES`), or the check fails.
@@ -324,6 +327,18 @@ and `knowledge/specs/008-AGT165-execution-rail/RETRO.md`.
 - **Authority is fixed at authorisation** for the current ten-minute deadline ([[AGT8]] D50/D62).
   The runner does not re-check scopes; the transport reports credential loss. Longer deadlines or
   scheduled sends require a new decision and an active-principal/write-scope check at claim.
+- **Context links agree with the authoritative argument, at creation and again at approval.** A request's
+  `interaction_id`/`thread_id` context must match the operation's own argument (`arguments.thread_id` for a
+  reply), not an optional top-level copy; approval re-reads the stored context in its unit against the
+  *effective* (edited) arguments, which also catches rows written before the check existed
+  (`requireInteractionThread`, `action-requests/operations.ts`; AGT166 review R1, [[AGT8]] D20).
+- **Authored bodies are descriptors** (`messaging/send-body.ts`, [[AGT8]] D64): rows, events, lists and
+  receipts hold `{ sha256, size_bytes }`; only the authorised gets hydrate text. Decode with
+  `new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })`: the default strips a leading BOM, so the
+  bytes sent would differ from the bytes hashed.
+- **One string `format` per zod field.** Chaining a second format (a `.regex` over `.email()`) erased
+  `format: email` from OpenAPI and MCP; express extra restrictions with `.refine` and pin the discovery
+  schema (`messaging/send-input.ts`).
 - **Finish is the resource transition:** execution result, linked request outcome and their events
   commit in one lease-token-guarded unit as `authorised_by`. Claim/stamp/retry/recovery are the narrowly
   named exception in AGENTS.md invariant 5; they emit no events and leave `updated_at` unchanged.
