@@ -260,7 +260,7 @@ describe('action_requests list sort matrix through its kit (CORE175 D1)', () => 
     }
     for (const [n, at] of [[0, T3], [2, T3], [3, T2]] as const) {
       k.setNow(new Date(at))
-      expect((await k.call(owner, 'POST', `${AR}/${ids[n]}/reject`, { reason: 'no' })).status).toBe(200)
+      expect((await k.call(owner, 'POST', `${AR}/${ids[n]}/reject`, { decision_reason: 'no' })).status).toBe(200)
     }
     const r = await k.call(owner, 'GET', `${AR}?limit=200`)
     rows = r.body.data
@@ -313,9 +313,10 @@ describe('advertised contracts of every adopted list (CORE175 D2, D5)', () => {
   })
   it('the three hand-written lists keep ascending id and UUID cursors, with no sort parameter', async () => {
     const doc = (await (await app.request('/api/v1/openapi.json')).json()) as any
+    const meta = (await (await app.request('/meta/v1/openapi.json')).json()) as any
     const tools = (await rpc('tools/list', {})).result.tools as any[]
     for (const list of ['associations', 'users', 'action_executions']) {
-      const get = doc.paths[pathOf(list)].get
+      const get = (doc.paths[pathOf(list)] ?? meta.paths[pathOf(list)]).get
       const names = get.parameters.map((p: any) => p.name)
       expect(names, list).not.toContain('sort')
       expect(names, list).not.toContain('order')

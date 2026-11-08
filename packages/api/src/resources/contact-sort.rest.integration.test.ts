@@ -88,7 +88,7 @@ describe('sort and order (D8)', () => {
 
   it('order without sort is 400, an unknown sort or order value is 400, and none of them runs a query that answers', async () => {
     await seed()
-    for (const q of ['order=desc', 'order=asc', 'sort=name', 'sort=', 'sort=last_contacted_at&order=sideways', 'sort=last_contacted_at&order=']) {
+    for (const q of ['order=desc', 'order=asc', 'sort=no_such_field', 'sort=', 'sort=last_contacted_at&order=sideways', 'sort=last_contacted_at&order=']) {
       const r = await call(WITH, 'GET', `/api/v1/contacts?${q}`)
       expect(r.status, q).toBe(400)
       expect(r.body.error.code, q).toBe('validation_error')
@@ -194,8 +194,9 @@ describe('unsorted lists are unchanged', () => {
     const rest = await must(WITH, 'GET', `/api/v1/contacts?after=${p.next_cursor}`)
     expect([...p.data, ...rest.data].map((c: any) => c.id)).toEqual(Object.values(ids).sort())
   })
+  // CORE175 D15: every prepared list declares sorts now; the hand-written list that takes plain filters is the unsorted example left.
   it('lists that declare no sorts refuse sort and order as unknown filters, as before', async () => {
-    for (const [path, scope] of [['tasks', 'tasks:read'], ['deals', 'deals:read'], ['companies', 'companies:read'], ['notes', 'notes:read']] as const) {
+    for (const [path, scope] of [['action-executions', 'action_executions:read']] as const) {
       for (const q of ['sort=name', 'order=desc', 'sort=last_contacted_at&order=desc']) {
         const r = await call([scope], 'GET', `/api/v1/${path}?${q}`)
         expect(r.status, `${path}?${q}`).toBe(400)
@@ -232,9 +233,9 @@ describe('the OpenAPI document (D9)', () => {
     expect(p.order.required).not.toBe(true)
   })
 
-  it('other lists keep uuid for after and next_cursor and carry no sort parameter', async () => {
+  it('the hand-written lists (CORE175 D15) keep uuid for after and next_cursor and carry no sort parameter', async () => {
     const d = await doc()
-    for (const path of ['/api/v1/tasks', '/api/v1/deals', '/api/v1/companies', '/api/v1/notes']) {
+    for (const path of ['/api/v1/action-executions', '/api/v1/associations']) {
       const p = params(d, path)
       expect(JSON.stringify(typeOf(p.after)), `${path} after`).toContain('uuid')
       expect(JSON.stringify(nextCursor(d, path)), `${path} next_cursor`).toContain('uuid')

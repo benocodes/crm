@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { definePreparedResource } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 
 // Never key_hash (a secret column: the type rejects it here), never the plaintext key: it exists only in the create response.
 export const apiKeyRecord = z.object({
@@ -17,7 +18,7 @@ export const apiKeyRecord = z.object({
 export type ApiKeyRecord = z.infer<typeof apiKeyRecord>
 
 /** Read-only here; `api_keys.create` and `api_keys.revoke` are hand-written (`admin/`). */
-export const apiKeys = definePreparedResource({
+export const apiKeys = withColumnSorts(definePreparedResource({
   notProposable: 'credentials are not proposable',
   surface: 'meta',
   name: 'api_keys',
@@ -27,4 +28,4 @@ export const apiKeys = definePreparedResource({
   operations: ['list', 'get'],
   record: apiKeyRecord,
   filters: { agent_id: { schema: z.uuid() } },
-})
+}), ['last_used_at', 'expires_at'])

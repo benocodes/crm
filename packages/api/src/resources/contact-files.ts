@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 
 const fields = { contact_id: z.uuid(), file_id: z.uuid() }
 
@@ -10,7 +11,7 @@ const fields = { contact_id: z.uuid(), file_id: z.uuid() }
  * `contacts` scopes (D25). Both ends must exist in this organisation (the contact live); a second LIVE link for the same pair is
  * `409 link_exists` from the plan, and the partial unique index is the commit-time backstop.
  */
-export const contactFiles = definePreparedResource({
+export const contactFiles = withColumnSorts(definePreparedResource({
   notProposable: 'file links are not proposable yet',
   surface: 'api',
   name: 'contact_files',
@@ -49,4 +50,4 @@ export const contactFiles = definePreparedResource({
       },
     ]
   },
-})
+}), [])

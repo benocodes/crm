@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { codecs } from '@vault/storage'
 import { deleteTaskOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { withColumnSorts } from '../storage/sorts.js'
 import { tagIdFilter } from './tag-filter.js'
 
 export type TaskRecord = {
@@ -58,7 +59,7 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const tasks = definePreparedResource({
+export const tasks = withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'tasks',
   eventName: 'task',
@@ -88,4 +89,4 @@ export const tasks = definePreparedResource({
     if (values.status === 'open') return { completed_at: null }
     return {}
   },
-})
+}), ['due_at', 'title'])

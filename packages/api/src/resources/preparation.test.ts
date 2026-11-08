@@ -66,7 +66,7 @@ describe('task preparation is pure and keeps the old validation', () => {
   it.each([
     [{ limit: '0' }, 'limit: Too small: expected number to be >=1'],
     [{ limit: '201' }, 'limit: Too big: expected number to be <=200'],
-    [{ after: 'nope' }, 'after must be a UUID'],
+    [{ after: 'nope' }, 'after must be a UUID (a sorted cursor needs the sort and order it came from)'], // CORE175: tasks take sorts now
     [{ filters: { title: 'x' } }, 'unknown filter: title'],
     [{ filters: { status: 'blocked' } }, 'filter status: Invalid option: expected one of "open"|"done"'],
   ])('list query %j is refused with the old message', (query, message) => {

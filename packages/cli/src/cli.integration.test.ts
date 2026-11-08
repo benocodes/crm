@@ -139,7 +139,7 @@ describe('against the D1 app', () => {
     }
     // all three never contacted: nulls tie, id descending
     expect(res.data.map((c: any) => c.id)).toEqual([...ids].sort().reverse())
-    expect((await r.run(['contacts', 'list', '--sort', 'name'])).code).toBe(2) // the enum is the registry's
+    expect((await r.run(['contacts', 'list', '--sort', 'no_such_field'])).code).toBe(2) // the enum is the registry's (CORE175: name is a sort now)
     expect((await r.run(['contacts', 'list', '--order', 'desc'])).code).toBe(1) // the API refuses order without sort
   })
 

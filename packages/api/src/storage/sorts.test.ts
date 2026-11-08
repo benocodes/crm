@@ -6,6 +6,12 @@ import { tasks } from '../resources/tasks.js'
 import { contacts } from '../resources/contacts.js'
 import { resolveSorts, withColumnSorts, type SortMetadata } from './sorts.js'
 
+/** The definition before its rollout adoption (CORE175 wrapped every production list): the unsorted base these foundation tests opt in. */
+const bare = <T extends { sorts?: unknown; sortKinds?: unknown }>(def: T): Omit<T, 'sorts' | 'sortKinds'> => {
+  const { sorts: _sorts, sortKinds: _kinds, ...rest } = def
+  return rest
+}
+
 const metadata: SortMetadata = {
   name: 'future_table',
   columns: { id: 'uuid', created_at: 'timestamp', updated_at: 'timestamp', launch_count: 'integer', secret: 'text', flag: 'boolean', payload: 'json', labels: 'string_array' },
@@ -20,11 +26,11 @@ describe('column sort metadata (CORE170 D3/D11)', () => {
     expect(resolveSorts({ ...metadata, columns: { id: 'uuid' }, sorts: [] })).toEqual({ id: 'uuid' })
   })
   it('opts in a copy of a real definition, reading kinds from COLUMN_KINDS', () => {
-    const sorted = withColumnSorts(tasks, ['title', 'due_at'])
+    const sorted = withColumnSorts(bare(tasks), ['title', 'due_at'])
     expect(sorted.sorts).toEqual(['id', 'created_at', 'updated_at', 'title', 'due_at'])
     expect(sorted).toHaveProperty('sortKinds.title', COLUMN_KINDS.tasks.title)
-    expect(tasks.sorts).toBeUndefined()
-    expect(withColumnSorts(contacts).sorts).toEqual(['id', 'created_at', 'updated_at', 'last_contacted_at', 'last_interacted_at'])
+    expect('sorts' in bare(tasks)).toBe(false)
+    expect(withColumnSorts(bare(contacts), ['last_contacted_at', 'last_interacted_at']).sorts).toEqual(['id', 'created_at', 'updated_at', 'last_contacted_at', 'last_interacted_at'])
   })
   for (const [title, sorts, error] of [
     ['unknown column', ['missing'], /missing.*unknown/],
@@ -45,7 +51,7 @@ describe('column sort metadata (CORE170 D3/D11)', () => {
     expect(() => resolveSorts({ ...metadata, record: { shape: { ...metadata.record.shape, age: undefined } }, derived: { other: { kind: 'text' } }, sorts: ['other'] })).toThrow(/other.*record/)
   })
   it('refuses sort/order filter collisions on the opt-in capability', () => {
-    expect(() => withColumnSorts({ ...tasks, filters: { sort: { schema: z.string() } } } as never)).toThrow(/sort.*filter/)
-    expect(() => withColumnSorts({ ...tasks, joinFilters: { order: { schema: z.string(), where: () => sql<boolean>`1` } } })).toThrow(/order.*filter/)
+    expect(() => withColumnSorts({ ...bare(tasks), filters: { sort: { schema: z.string() } } } as never)).toThrow(/sort.*filter/)
+    expect(() => withColumnSorts({ ...bare(tasks), joinFilters: { order: { schema: z.string(), where: () => sql<boolean>`1` } } })).toThrow(/order.*filter/)
   })
 })
