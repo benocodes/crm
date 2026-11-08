@@ -358,7 +358,7 @@ describe('authority, errors and compatibility of newly adopted sorts (CORE175 D5
     const bad = [
       'sort=position&after=!!!', `sort=position&after=${envelope(['position', 'asc', 'two', id(100)])}`, `sort=position&after=${envelope(['position', 'asc', 1.5, id(100)])}`,
       `sort=name&after=${first.next_cursor}`, `sort=position&order=desc&after=${first.next_cursor}`, `after=${first.next_cursor}`,
-      'sort=id&after=not-a-uuid', `sort=id&after=${envelope(['id', 'asc', id(101), id(100)])}`, 'order=desc',
+      'sort=id&after=not-a-uuid', `sort=id&after=${envelope(['id', 'asc', 'not-a-uuid', 'not-a-uuid'])}`, `sort=id&after=${envelope(['id', 'asc', id(101), id(100)])}`, 'order=desc',
     ]
     for (const q of bad) {
       const r = await call(`/meta/v1/pipeline-stages?${q}`)
