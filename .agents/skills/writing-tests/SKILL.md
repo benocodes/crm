@@ -37,6 +37,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   failed unit" test stayed green for the wrong reason; the counted M4 moved the real call into the plan phase and three
   tests went red. When a mutation stays green, check that the mutated path actually performs the observed effect (a
   request on the fake, a row) before concluding the test is weak.
+  **A safe backstop can hide the guard you mutate:** AGT166's first M13 removed the pending-transition guard and stayed
+  green, because the unique request index also refused the duplicate and the test accepted any `409`. Assert the
+  specific code (`action_request_not_pending`) and the winner's attribution, so only the guarded path passes.
 - **A filtered run that ran nothing is not a result.** `vitest -t` with a pattern that matches no test exits `0` with
   every test `skipped`, which reads like "the mutation stayed green". [[CORE58]]'s first mutation pass prefixed the
   pattern with the `describe` title (`-t "content operations on d1 file bytes and headers"`) and matched nothing for
@@ -341,6 +344,10 @@ A test that fails once and then passes is a bug until its cause is found. Do not
   10000 ms, `ECONNRESET`, a `deployment.singleton` collision and off-by-one query counts in `measured-limits.test.ts`, and
   a different test fails on each rerun ([[CORE133]] gate). For the gate, run `pnpm -C packages/<pkg> test` serially. A
   failure seen only in a parallel run is contention: rerun that package alone before you treat it as a regression.
+- **Other sessions load the machine too.** Check `uptime` before a gate: AGT166's R1 gate ran at load average 20–36 on
+  8 cores (parallel agent sessions), and full suites hit 10000 ms hook timeouts that never reproduced. Record the load
+  in RESULT.md, don't raise a timeout, and settle the gate with one clean serial run on a quieter machine (in a sprint,
+  a fresh verify-only agent); only that run counts.
 - **Event order.** See "Assert emit order" in section 6; never order by `id` in a test.
 - **Known flake: `packages/server-d1/src/measured-limits.test.ts`** is intermittently off by one on pinned query counts,
   on clean `main` too ([[CORE62]], [[API32]], [[API63]], [[CORE69]] on `merge-100-links`; issue #79). Until #79 lands, when it fails, record the scenario

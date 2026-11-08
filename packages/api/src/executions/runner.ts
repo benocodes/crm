@@ -26,6 +26,8 @@ const BACKOFF_BASE_MS = 30_000
 const THROTTLE_FLOOR_MS = 60_000
 
 export interface RailDeps {
+  /** Composition cap when the real transport shares the invocation's external-call budget. Fake-only/default rail remains five. */
+  dueLimit?: number
   binding: StorageBinding
   registry: Registry
   transports: TransportRegistry
@@ -209,7 +211,7 @@ async function runClaimedExecution(d: RailDeps, row: ExecutionRow, token: string
 export async function runDueExecutions(d: RailDeps): Promise<{ attempted: number }> {
   const organizationId = organizationOf(d)
   if (organizationId === null) return { attempted: 0 }
-  const ids = (await execute(d.binding, { kind: 'internal', organizationId }, dueProgram({ organizationId, now: iso(d.clock().getTime()), limit: DUE_BATCH }))).value
+  const ids = (await execute(d.binding, { kind: 'internal', organizationId }, dueProgram({ organizationId, now: iso(d.clock().getTime()), limit: Math.min(DUE_BATCH,d.dueLimit??DUE_BATCH) }))).value
   let attempted = 0
   for (const id of ids) {
     try {

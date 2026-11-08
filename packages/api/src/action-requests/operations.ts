@@ -31,6 +31,8 @@ import type { PreparedEnv } from '../storage/definition.js'
 import { canonicalId } from '../storage/prepare.js'
 import { splitArguments } from '../mcp/tools.js'
 import { actionRequests, evidenceItem, type ActionRequestRecord } from './definition.js'
+import { readSendBody, requireSendStore, storeSendBody } from '../messaging/send-body.js'
+import { requireReplyRead } from '../messaging/send.js'
 
 // [[AGT8]] cycle 1: the four commands of the queue. Every decision is "plan, then one unit": a plan read of the request (and, for an approval,
 // the target's own plan), a commit-time assertion that the request is still the pending one that was read, and guarded statements, so a
@@ -169,6 +171,10 @@ function targetOf(registry: Registry, name: string): TenantOperation {
 const referencedScopes = { contact_id: { resource: 'contacts', action: 'read' }, thread_id: { resource: 'messages', action: 'read' }, interaction_id: { resource: 'interactions', action: 'read' } } as const
 const evidenceScope = { message: { resource: 'messages', action: 'read' }, interaction: { resource: 'interactions', action: 'read' } } as const
 
+function requireInteractionThread(row: Row, threadId: string | null): void {
+  if (threadId && row.thread_id !== threadId) throw new ApiError(400, 'validation_error', 'interaction_id does not belong to thread_id')
+}
+
 async function createRequest(registry: Registry, env: PreparedEnv, input: unknown): Promise<PreparedOperation<ActionRequestRecord>> {
   const body = parseInput(looseCreate, input) as CreateBody
   const target = targetOf(registry, body.operation)
@@ -177,7 +183,12 @@ async function createRequest(registry: Registry, env: PreparedEnv, input: unknow
   if (target.execution) {
     // [[AGT8]] D49, D51: an enqueued operation is validated against its own arguments (an idempotency_key in a proposal is ignored); the rest is the approver's
     // `authorise` at approval (D9). It has no stored record to name, so there is no target to look up.
-    ownArguments(target.execution, body.arguments)
+    const args = ownArguments(target.execution, body.arguments)
+    if (target.name === 'messages.send') {
+      requireReplyRead(env,args)
+      if (body.thread_id && args.thread_id && body.thread_id.toLowerCase() !== args.thread_id) throw new ApiError(400,'validation_error','send thread must agree with request context')
+      body.arguments = {...args,body:await storeSendBody(requireSendStore(env.objects),env.organizationId,args.body as string)}
+    }
     return buildCreate(env, target, body, { params: {} })
   }
   const targetInput = validateOperationInput(target, splitArguments(target, body.arguments, { keepNull: true }))
@@ -204,6 +215,8 @@ function buildCreate(env: PreparedEnv, target: TenantOperation, body: CreateBody
   const systemId = env.newId()
   const contactId = body.contact_id?.toLowerCase() ?? null
   const threadId = body.thread_id?.toLowerCase() ?? null
+  // D20/D65: send arguments are authoritative, even when the optional review thread is omitted.
+  const interactionThreadId = target.name === 'messages.send' && body.arguments.mode === 'reply' ? body.arguments.thread_id as string : threadId
   const interactionId = body.interaction_id?.toLowerCase() ?? null
   const evidence = (body.evidence ?? []).map((e) => ({ type: e.type, id: e.id.toLowerCase() }))
   const rawTargetId = target.proposal?.eligible ? (target.proposal.target ? targetInput.params[target.proposal.target.idArg] : undefined) : undefined
@@ -253,8 +266,7 @@ function buildCreate(env: PreparedEnv, target: TenantOperation, body: CreateBody
       if (interactionId) {
         const row = found.maybe('ar:interaction')
         if (row === null) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
-        // D20: an interaction context belongs to the thread context, when both are given.
-        if (threadId && row.thread_id !== threadId) throw new ApiError(400, 'validation_error', 'interaction_id does not belong to thread_id')
+        requireInteractionThread(row, interactionThreadId)
       }
       evidence.forEach((_e, i) => {
         if (found.maybe(`ar:evidence:${i}`) === null) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
@@ -500,8 +512,13 @@ async function queuedApproval(
   effective: Record<string, unknown>,
   body: z.infer<typeof approveBody>,
 ): Promise<PreparedOperation<ActionRequestRecord>> {
-  const args = ownArguments(execution, effective)
+  const isSend = target.name === 'messages.send'
+  const publicArgs = isSend && body.edited_arguments === undefined ? {...effective,body:await readSendBody(requireSendStore(env.objects),env.organizationId,effective.body)} : effective
+  const args = ownArguments(execution, publicArgs)
+  if (isSend && plan.record.thread_id && args.thread_id && plan.record.thread_id !== args.thread_id) throw new ApiError(400,'validation_error','send thread must agree with request context')
+  const interactionId = isSend && args.mode === 'reply' ? plan.record.interaction_id : null
   const auth = (await execution.authorise?.(env, args, ctx)) ?? {}
+  if (isSend) args.body = await storeSendBody(requireSendStore(env.objects),env.organizationId,args.body as string)
   const hash = await inputHash(target.name, args)
   const at = codecs.timestamp.write(env.now)
   const deadline = codecs.timestamp.write(new Date(env.now.getTime() + DEADLINE_MS))
@@ -511,8 +528,16 @@ async function queuedApproval(
   return defineOperation<ActionRequestRecord>({
     name: 'action_requests.approve',
     mutates: true,
-    reads: () => ({}),
-    build: (_found, qc) => {
+    reads: (qc): Record<string, ReturnType<typeof readMaybe>> => interactionId ? {
+      interaction: readMaybe(qc.db.selectFrom('interactions').select('interactions.thread_id').where('interactions.id', '=', interactionId).where('interactions.organization_id', '=', env.organizationId)),
+    } : {},
+    build: (found, qc) => {
+      if (interactionId) {
+        const row = found.maybe('interaction')
+        if (row === null) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
+        // Revalidate immutable context against complete edited arguments and pre-fix pending rows.
+        requireInteractionThread(row, args.thread_id as string)
+      }
       const guards = auth.guards?.(qc) ?? []
       const own = transition({
         env,
@@ -525,7 +550,7 @@ async function queuedApproval(
         eventType: 'action_request.approved',
         ...(guards.length > 0 ? { gate: sql<SqlBool>`${sql.join(guards, sql` and `)}` } : {}),
         set: {
-          ...(body.edited_arguments !== undefined ? { edited_arguments: JSON.stringify(body.edited_arguments) } : {}),
+          ...(body.edited_arguments !== undefined ? { edited_arguments: JSON.stringify(isSend ? args : body.edited_arguments) } : {}),
           ...(body.decision_reason !== undefined ? { decision_reason: body.decision_reason } : {}),
         },
         label: true,

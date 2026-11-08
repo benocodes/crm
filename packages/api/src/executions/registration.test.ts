@@ -78,8 +78,9 @@ describe('Registry.register of an enqueued operation', () => {
 })
 
 describe('the production registry', () => {
-  it('has no enqueued operation: nothing is queued before #166, and the rail finds no transport to call', () => {
-    expect(createVaultRegistry().operations().filter((o) => o.kind === 'tenant' && o.execution)).toEqual([])
+  it('registers Gmail send as the sole production enqueued operation', () => {
+    expect(createVaultRegistry().operations().filter((o) => o.kind === 'tenant' && o.execution).map(o => o.name)).toEqual(['messages.send'])
+    expect(createVaultRegistry().get('messages.send')).toMatchObject({execution:{transport:'gmail'},response:{status:202}})
   })
   it('has the two execution reads, which declare no scope of their own and add none to the catalog', () => {
     const r = createVaultRegistry()

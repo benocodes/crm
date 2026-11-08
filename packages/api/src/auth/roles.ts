@@ -21,6 +21,8 @@ export const SCOPE_POLICY: ScopePolicy = {
   // Messaging ([[CORE25]] D25): the privacy split - who talked to whom (interactions), what was said (messages, threads), the bytes (files).
   'interactions:read': { member: true, agentGrantable: true },
   'messages:read': { member: true, agentGrantable: true },
+  'messages:write': { member: true, agentGrantable: true },
+  'messages:request_approval': { member: true, agentGrantable: true },
   'files:read': { member: true, agentGrantable: true },
   // Associations ([[CORE62]] D11): linking needs the grant plus read on both endpoint types, checked by the operation.
   'associations:read': { member: true, agentGrantable: true },
@@ -71,6 +73,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'companies:request_approval': 'Propose changes to companies for review',
   'interactions:read': 'See who talked to whom, and when, across email, calendar and chat',
   'messages:read': 'Read the content of messages and threads',
+  'messages:write': 'Send messages with owner-granted authority',
+  'messages:request_approval': 'Propose changes to messages for review',
   'files:read': 'Read attachments and other stored files',
   'associations:read': 'View the links between contacts, companies and other records',
   'associations:write': 'Create and remove links between records',

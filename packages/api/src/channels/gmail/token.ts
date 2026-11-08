@@ -14,6 +14,7 @@ export class GmailCredentialError extends Error {
 }
 
 export interface TokenResolverDeps {
+  signal?: AbortSignal
   binding: StorageBinding
   organizationId: string
   connectionId: string
@@ -36,6 +37,7 @@ export function gmailAccessToken(d: TokenResolverDeps): () => Promise<string> {
 }
 
 async function resolve(d: TokenResolverDeps): Promise<string> {
+  d.signal?.throwIfAborted()
   const identity = { kind: 'tenant' as const, actorId: d.ownerId, organizationId: d.organizationId }
   const read = defineOperation<{ id: string; refresh_token_ciphertext: string; key_version: number } | null>({
     name: 'gmail.read_credential',
@@ -71,7 +73,9 @@ async function resolve(d: TokenResolverDeps): Promise<string> {
   } catch {
     throw new GmailCredentialError('credential_unreadable')
   }
-  const refreshed = await refreshAccessToken({ endpoints: d.endpoints ?? GOOGLE_ENDPOINTS, clientId: d.clientId, clientSecret: d.clientSecret, refreshToken, fetch: d.fetch ?? ((i, n) => fetch(i, n)) })
+  d.signal?.throwIfAborted()
+  const refreshed = await refreshAccessToken({ endpoints: d.endpoints ?? GOOGLE_ENDPOINTS, clientId: d.clientId, clientSecret: d.clientSecret, refreshToken, fetch: d.fetch ?? ((i, n) => fetch(i, n)),...(d.signal?{signal:d.signal}:{}) })
+  d.signal?.throwIfAborted()
   if (refreshed.refreshToken !== null && refreshed.refreshToken !== refreshToken) {
     const ciphertext = await sealToken(d.credentialsKey, refreshed.refreshToken, d.randomBytes(12))
     const at = d.clock().toISOString()

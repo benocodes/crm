@@ -194,7 +194,7 @@ export type ClientDeps = Pick<GmailSyncDeps, 'binding' | 'organizationId' | 'end
 }
 
 /** The per-call token resolver and the client over it. The token is opened and refreshed lazily, on the first Gmail call. */
-export function gmailClientFor(deps: ClientDeps, connectionId: string, ownerId: string): GmailClient {
+export function gmailClientFor(deps: ClientDeps, connectionId: string, ownerId: string,signal?:AbortSignal): GmailClient {
   const accessToken = gmailAccessToken({
     binding: deps.binding,
     organizationId: deps.organizationId,
@@ -209,8 +209,9 @@ export function gmailClientFor(deps: ClientDeps, connectionId: string, ownerId: 
     clock: deps.clock,
     newId: deps.newId,
     randomBytes: deps.randomBytes,
+    ...(signal?{signal}:{}),
   })
-  return deps.clientFor ? deps.clientFor(accessToken) : new HttpGmailClient({ accessToken, ...(deps.fetch ? { fetch: deps.fetch } : {}), ...(deps.gmailBaseUrl ? { baseUrl: deps.gmailBaseUrl } : {}) })
+  return deps.clientFor ? deps.clientFor(accessToken) : new HttpGmailClient({ accessToken, ...(signal?{signal}:{}), ...(deps.fetch ? { fetch: deps.fetch } : {}), ...(deps.gmailBaseUrl ? { baseUrl: deps.gmailBaseUrl } : {}) })
 }
 
 interface PageContext {

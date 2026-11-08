@@ -49,7 +49,9 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
 6. **Review.** planner, mode `review`: the diff against the charter and the spec, plus the coder's report
    and the tester's passing report where there is one. If it requests changes, send its findings
    to the coder, then re-run the scenario (step 5, if any) and re-review. **At most two coder rounds in total across steps 5 and 6**; after that, stop and report
-   (see Stopping).
+   (see Stopping). The cap counts fix rounds only (each started by a failed scenario or requested changes).
+   The step-4 implementation is not one of them, even when a usage limit or interruption makes a fresh coder
+   continue it: record that as "initial round, continued", not as round 1 (AGT166 retro).
 7. **Retro.** planner, mode `retro`: `/retrospect` on the cycle folder, ingest, spec status and
    changelog, project-state.
 8. **Ship.** You open the PR (`gh pr create`, human `gh` login, body from

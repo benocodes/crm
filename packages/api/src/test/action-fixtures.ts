@@ -1,10 +1,14 @@
 // Test-only. One valid call per proposal-eligible operation ([[AGT8]] D32), so the permission matrix is generated from the manifest and a
 // newly eligible operation fails the suite until it has a fixture here. A fixture makes its prerequisites as the owner, through the public API.
+import { execute, uuidv7 } from '@vault/storage'
+import { ScopeSet } from '../scopes.js'
+import { connectOperation } from '../connections/connect.js'
 import type { Operation, Registry, TenantOperation } from '../registry.js'
 import { proposableOperations } from '../proposal.js'
 import type { ActionKit, Actor } from './action-kit.js'
 
 export interface Prereq {
+  connection(): Promise<string>
   post(path: string, body: unknown): Promise<{ id: string; [k: string]: any }>
 }
 export interface CallFixture {
@@ -21,6 +25,7 @@ const stage = async (o: Prereq, n: number) => {
 }
 
 export const FIXTURES: Record<string, CallFixture> = {
+  'messages.send': {args: async o => ({connection_id:await o.connection(),mode:'new',subject:'Matrix',to:['recipient@example.test'],body:'MATRIX_SEND_CANARY'})},
   'tasks.create': { args: async (_o, n) => ({ title: `task ${n}` }) },
   'tasks.update': { args: async (o, n) => ({ id: (await o.post('/api/v1/tasks', { title: 'a' })).id, title: `renamed ${n}` }) },
   'tasks.delete': { args: async (o) => ({ id: (await o.post('/api/v1/tasks', { title: 'a' })).id }) },
@@ -80,6 +85,10 @@ export const FIXTURES: Record<string, CallFixture> = {
 }
 
 export const prereq = (k: ActionKit): Prereq => ({
+  async connection() {
+    const env={actor:{id:k.owner.id,kind:'user' as const},organizationId:k.organizationId,scopes:ScopeSet.parse(k.owner.scopes),now:k.now(),newId:uuidv7,randomBytes:(n:number)=>crypto.getRandomValues(new Uint8Array(n))}
+    return (await execute(k.binding,{kind:'tenant',actorId:k.owner.id,organizationId:k.organizationId},connectOperation(env,{google_sub:'matrix-owner',mailbox:'owner@example.test',own_addresses:['owner@example.test'],granted_scopes:['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.send'],ciphertext:'fake-encrypted',key_version:1,history_id:'1000'}))).value.connection_id
+  },
   async post(path, body) {
     const r = await k.call(k.owner, 'POST', path, body)
     if (r.status >= 300) throw new Error(`prerequisite ${path} failed: ${r.status} ${JSON.stringify(r.body)}`)
@@ -89,6 +98,7 @@ export const prereq = (k: ActionKit): Prereq => ({
 
 /** The direct REST call of an operation with flat arguments: path parameters into the path, the rest in the body (or the query for a get). */
 export function directCall(op: Operation, args: Record<string, unknown>): { method: string; path: string; body?: unknown } {
+  if(op.kind==='tenant'&&op.execution)args={...args,idempotency_key:uuidv7()}
   const params = Object.keys(op.request?.params?.shape ?? {})
   let path = (op.surface === 'api' ? '/api/v1' : '/meta/v1') + op.path
   const body: Record<string, unknown> = {}

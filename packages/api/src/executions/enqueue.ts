@@ -12,6 +12,7 @@ import type { PreparedEnv } from '../storage/definition.js'
 import { inputHash } from './canonical.js'
 import { actionExecutions, type ExecutionRecord } from './definition.js'
 import { DEADLINE_MS, clientRefOf, insertExecution } from './rows.js'
+import { describeSendBody, requireSendStore, storeSendBody } from '../messaging/send-body.js'
 
 /** What an author gives to declare an enqueued operation ([[AGT8]] D2, D51, D52, D57). */
 export interface EnqueuedSpec {
@@ -39,7 +40,7 @@ const idempotencyKey = z.string().min(1).max(200).describe('Your key for this ca
  */
 export function enqueuedOperation(spec: EnqueuedSpec): TenantOperation {
   if ('idempotency_key' in spec.input.shape) throw new Error(`operation ${spec.name}: the input declares idempotency_key, which the builder adds`)
-  const body = spec.input.extend({ idempotency_key: idempotencyKey })
+  const body = spec.input.safeExtend({ idempotency_key: idempotencyKey })
   const execution: ExecutionDecl = { ...(spec.retry ? { retry: spec.retry } : {}), transport: spec.transport, readScope: spec.readScope, input: spec.input, ...(spec.authorise ? { authorise: spec.authorise } : {}) }
   const description = [
     spec.description,
@@ -83,6 +84,8 @@ async function directEnqueue(operation: string, execution: ExecutionDecl, bodySc
   const key = idempotencyKey.safeParse(rawBody !== null && typeof rawBody === 'object' ? (rawBody as Record<string, unknown>).idempotency_key : undefined)
   if (!key.success) throw new ApiError(400, 'validation_error', `idempotency_key is required: ${key.error.issues.map((i) => i.message).join('; ')}`)
   const { idempotency_key: _key, ...args } = parseInput(bodySchema, rawBody) as { idempotency_key: string } & Record<string, unknown>
+  const sendText = operation === 'messages.send' ? args.body as string : undefined
+  if (sendText !== undefined) args.body = await describeSendBody(sendText)
   const hash = await inputHash(operation, args)
   const byKey = (qc: Parameters<PreparedOperation<unknown>['reads']>[0]) =>
     selectRecord(actionExecutions, qc, env, undefined, { derived: false })
@@ -103,6 +106,7 @@ async function directEnqueue(operation: string, execution: ExecutionDecl, bodySc
   }))
   if (existing) return defineOperation({ name: `${operation}.enqueue`, mutates: false, reads: () => ({}), build: () => replay(existing) })
   const auth = (await execution.authorise?.(env, args, ctx)) ?? {}
+  if (sendText !== undefined) await storeSendBody(requireSendStore(env.objects), env.organizationId, sendText)
   const id = env.newId()
   const eventId = env.newId()
   const at = codecs.timestamp.write(env.now)

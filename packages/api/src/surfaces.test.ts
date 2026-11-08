@@ -24,7 +24,7 @@ for (const r of ['pipelines', 'pipeline_stages']) place('meta', r, CRUD)
 place('api', 'identities', [...CRUD, 'resolve'])
 place('api', 'contacts', ['merge'])
 for (const r of ['threads', 'messages', 'interactions', 'files', 'contact_files', 'company_files']) place('api', r, CRUD)
-place('api', 'messages', ['content'])
+place('api', 'messages', ['content','send'])
 place('api', 'files', ['content'])
 place('api', 'associations', ['list', 'get', 'create', 'delete'])
 place('api', 'action_requests', ['list', 'get', 'create', 'withdraw', 'approve', 'reject'])
@@ -69,7 +69,7 @@ describe('placement (D6)', () => {
       'schema.get',
       'users.get', 'users.list',
     ].sort())
-    expect(ops.length).toBe(97)
+    expect(ops.length).toBe(98)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

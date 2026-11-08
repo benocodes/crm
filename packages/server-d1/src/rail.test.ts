@@ -161,7 +161,7 @@ describe('bounded sweeps (CORE47)', () => {
     await recordMigrations(w.d1, NAMES)
     const wk = worker()
     const meter = meterD1(w.d1)
-    const metered = composeD1Worker({ DB: meter.d1, AUTH_PROVIDER: '' }, { clock: () => now, newId: () => uuidv7(now), operations: registerTestOperations, transports: { [TEST_TRANSPORT]: transport } })
+    const metered = composeD1Worker({ DB: meter.d1, AUTH_PROVIDER: '' }, { clock: () => now, nowMs:()=>0, newId: () => uuidv7(now), operations: registerTestOperations, transports: { [TEST_TRANSPORT]: transport } })
     // A warm isolate: the marker and the migration state are read once on an empty tick, then the loaded tick is measured on its own.
     await metered.scheduled({ cron: '* * * * *' })
     for (let i = 0; i < 5; i++) await enqueue(wk)

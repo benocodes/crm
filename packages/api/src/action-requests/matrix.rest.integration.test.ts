@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createVaultRegistry } from '../operations.js'
 import { eligible, FIXTURES, directCall, prereq } from '../test/action-fixtures.js'
+import { memoryObjectStore } from '../objects/store.js'
+import { describeSendBody } from '../messaging/send-body.js'
 import { openActionKit, type ActionKit } from '../test/action-kit.js'
 
 // [[AGT8]] Required validation 1: the permission matrix, generated from the manifest. For every proposal-eligible operation and for read-only,
@@ -10,7 +12,7 @@ const registry = createVaultRegistry()
 const ops = eligible(registry)
 let k: ActionKit
 beforeAll(async () => {
-  k = await openActionKit()
+  k = await openActionKit({objects:memoryObjectStore()})
 })
 afterAll(() => k.close())
 beforeEach(() => k.reset())
@@ -59,7 +61,7 @@ describe.each(ops.map((o) => [o.name, o] as const))('%s', (name, op) => {
         continue
       }
       expect(c.status, `${name} create as ${variant}: ${JSON.stringify(c.body)}`).toBe(201)
-      expect(c.body).toMatchObject({ operation: name, status: 'pending', arguments: args, created_by: who.id })
+      expect(c.body).toMatchObject({ operation: name, status: 'pending', arguments: name==='messages.send'?{...args,body:await describeSendBody(args.body as string)}:args, created_by: who.id })
       // Nothing but the request's own event was written: the target is untouched.
       expect((await k.events()).slice(before).map((e) => e.type)).toEqual(['action_request.created'])
 
@@ -72,7 +74,7 @@ describe.each(ops.map((o) => [o.name, o] as const))('%s', (name, op) => {
         expect((await k.rows('action_requests', 'id = ?', c.body.id))[0]!.status).toBe('pending')
       } else {
         expect(a.status, `${name} approve as write: ${JSON.stringify(a.body)}`).toBe(200)
-        expect(a.body).toMatchObject({ status: 'executed', decided_by: who.id })
+        expect(a.body).toMatchObject({ status: op.execution?'approved':'executed', decided_by: who.id })
       }
     }
     // Approve with no scopes and with read only is refused too (a request made by the owner).

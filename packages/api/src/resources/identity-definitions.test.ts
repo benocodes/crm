@@ -14,7 +14,7 @@ describe('identity definitions', () => {
   it('declared scopes', () => {
     expect(createVaultRegistry().declaredScopes()).toEqual([
       'action_requests:read', 'agents:read', 'agents:write', 'associations:read', 'associations:request_approval', 'associations:write', 'companies:read', 'companies:request_approval', 'companies:write', 'connections:read', 'connections:write',
-      'contacts:read', 'contacts:request_approval', 'contacts:write', 'deals:read', 'deals:request_approval', 'deals:write', 'files:read', 'interactions:read', 'members:read', 'messages:read', 'notes:read', 'notes:request_approval', 'notes:write',
+      'contacts:read', 'contacts:request_approval', 'contacts:write', 'deals:read', 'deals:request_approval', 'deals:write', 'files:read', 'interactions:read', 'members:read', 'messages:read', 'messages:request_approval', 'messages:write', 'notes:read', 'notes:request_approval', 'notes:write',
       'pipelines:read', 'pipelines:request_approval', 'pipelines:write', 'schema:read', 'tags:read', 'tags:request_approval', 'tags:write', 'tasks:read', 'tasks:request_approval', 'tasks:write',
     ])
   })
