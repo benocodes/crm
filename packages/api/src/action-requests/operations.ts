@@ -171,6 +171,10 @@ function targetOf(registry: Registry, name: string): TenantOperation {
 const referencedScopes = { contact_id: { resource: 'contacts', action: 'read' }, thread_id: { resource: 'messages', action: 'read' }, interaction_id: { resource: 'interactions', action: 'read' } } as const
 const evidenceScope = { message: { resource: 'messages', action: 'read' }, interaction: { resource: 'interactions', action: 'read' } } as const
 
+function requireInteractionThread(row: Row, threadId: string | null): void {
+  if (threadId && row.thread_id !== threadId) throw new ApiError(400, 'validation_error', 'interaction_id does not belong to thread_id')
+}
+
 async function createRequest(registry: Registry, env: PreparedEnv, input: unknown): Promise<PreparedOperation<ActionRequestRecord>> {
   const body = parseInput(looseCreate, input) as CreateBody
   const target = targetOf(registry, body.operation)
@@ -211,6 +215,8 @@ function buildCreate(env: PreparedEnv, target: TenantOperation, body: CreateBody
   const systemId = env.newId()
   const contactId = body.contact_id?.toLowerCase() ?? null
   const threadId = body.thread_id?.toLowerCase() ?? null
+  // D20/D65: send arguments are authoritative, even when the optional review thread is omitted.
+  const interactionThreadId = target.name === 'messages.send' && body.arguments.mode === 'reply' ? body.arguments.thread_id as string : threadId
   const interactionId = body.interaction_id?.toLowerCase() ?? null
   const evidence = (body.evidence ?? []).map((e) => ({ type: e.type, id: e.id.toLowerCase() }))
   const rawTargetId = target.proposal?.eligible ? (target.proposal.target ? targetInput.params[target.proposal.target.idArg] : undefined) : undefined
@@ -260,8 +266,7 @@ function buildCreate(env: PreparedEnv, target: TenantOperation, body: CreateBody
       if (interactionId) {
         const row = found.maybe('ar:interaction')
         if (row === null) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
-        // D20: an interaction context belongs to the thread context, when both are given.
-        if (threadId && row.thread_id !== threadId) throw new ApiError(400, 'validation_error', 'interaction_id does not belong to thread_id')
+        requireInteractionThread(row, interactionThreadId)
       }
       evidence.forEach((_e, i) => {
         if (found.maybe(`ar:evidence:${i}`) === null) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
@@ -511,6 +516,7 @@ async function queuedApproval(
   const publicArgs = isSend && body.edited_arguments === undefined ? {...effective,body:await readSendBody(requireSendStore(env.objects),env.organizationId,effective.body)} : effective
   const args = ownArguments(execution, publicArgs)
   if (isSend && plan.record.thread_id && args.thread_id && plan.record.thread_id !== args.thread_id) throw new ApiError(400,'validation_error','send thread must agree with request context')
+  const interactionId = isSend && args.mode === 'reply' ? plan.record.interaction_id : null
   const auth = (await execution.authorise?.(env, args, ctx)) ?? {}
   if (isSend) args.body = await storeSendBody(requireSendStore(env.objects),env.organizationId,args.body as string)
   const hash = await inputHash(target.name, args)
@@ -522,8 +528,16 @@ async function queuedApproval(
   return defineOperation<ActionRequestRecord>({
     name: 'action_requests.approve',
     mutates: true,
-    reads: () => ({}),
-    build: (_found, qc) => {
+    reads: (qc): Record<string, ReturnType<typeof readMaybe>> => interactionId ? {
+      interaction: readMaybe(qc.db.selectFrom('interactions').select('interactions.thread_id').where('interactions.id', '=', interactionId).where('interactions.organization_id', '=', env.organizationId)),
+    } : {},
+    build: (found, qc) => {
+      if (interactionId) {
+        const row = found.maybe('interaction')
+        if (row === null) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
+        // Revalidate immutable context against complete edited arguments and pre-fix pending rows.
+        requireInteractionThread(row, args.thread_id as string)
+      }
       const guards = auth.guards?.(qc) ?? []
       const own = transition({
         env,
