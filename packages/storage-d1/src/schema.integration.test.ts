@@ -495,7 +495,7 @@ describe('the messaging slice (CORE25 C1)', () => {
   })
 
   it('has the append-only triggers on the eight capture tables and none on the links', async () => {
-    const trg = await all<{ name: string; tbl_name: string }>("SELECT name, tbl_name FROM sqlite_master WHERE type = 'trigger'")
+    const trg = await all<{ name: string; tbl_name: string }>("SELECT name, tbl_name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%\\_append\\_only' ESCAPE '\\'")
     expect(trg.map((t) => t.name).sort()).toEqual(CAPTURE.map((t) => `${t}_append_only`).sort())
     for (const t of trg) expect(t.name).toBe(`${t.tbl_name}_append_only`)
     for (const t of LINKS) expect(trg.some((x) => x.tbl_name === t)).toBe(false)

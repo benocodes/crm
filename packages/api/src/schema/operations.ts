@@ -5,8 +5,11 @@ import type { AnyResource, TenantOperation } from '../registry.js'
 import { buildSchemaDocument, resourcesByTable, type ColumnRow, type ForeignKeyRow } from './build.js'
 import { schemaDocument, type SchemaDocument } from './document.js'
 
+// CORE194 D4: FTS5 search indexes are machinery, not resources: the virtual tables and their shadow tables (`_data`, `_idx`, `_content`,
+// `_docsize`, `_config`) are excluded by what SQLite says they are (`pragma_table_list`), so a later `*_search` table needs no list entry.
 // D9: `_cf_*` and `sqlite_*` are excluded by prefix tests, never LIKE (`_` is a LIKE wildcard); pragma on them answers SQLITE_AUTH.
-const ELIGIBLE = sql`m.type = 'table' and substr(m.name, 1, 4) <> '_cf_' and substr(m.name, 1, 7) <> 'sqlite_' and m.name <> 'd1_migrations'`
+const ELIGIBLE = sql`m.type = 'table' and substr(m.name, 1, 4) <> '_cf_' and substr(m.name, 1, 7) <> 'sqlite_' and m.name <> 'd1_migrations'
+  and m.name not in (select tl.name from pragma_table_list as tl where tl.type in ('virtual', 'shadow'))`
 
 /** D15: two raw reads over sqlite_schema with the pragma table-valued functions; the document is built from the rows. */
 export function schemaGetOperation(resources: readonly AnyResource[]): PreparedOperation<SchemaDocument> {

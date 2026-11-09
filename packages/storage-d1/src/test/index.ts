@@ -80,8 +80,12 @@ export async function openLocalD1(names: readonly string[], opts: { migrate?: bo
 
 /** Empties every table the migrations created (children first) and keeps the schema and `d1_migrations`. */
 export async function clearD1(d1: D1Like): Promise<void> {
-  const { results } = await d1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all()
-  const tables = new Set((results ?? []).map((r) => (r as { name: string }).name))
+  const { results } = await d1.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all()
+  const rows = (results ?? []) as { name: string; sql: string | null }[]
+  const tables = new Set(rows.map((r) => r.name))
+  // FTS5 virtual tables (CORE194) are emptied through their own name; their shadow tables (`<virtual>_data`, `_idx`, ...) may not be modified.
+  const virtual = rows.filter((r) => /^\s*CREATE\s+VIRTUAL\s+TABLE/i.test(r.sql ?? '')).map((r) => r.name)
+  for (const t of [...tables]) if (virtual.some((v) => t.startsWith(`${v}_`))) tables.delete(t)
   const order = ['action_executions', 'action_requests', 'events', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'channel_connections', 'interactions', 'associations', 'tags', 'deals', 'pipeline_stages', 'pipelines', 'notes', 'contact_files', 'company_files', 'messages', 'files', 'threads', 'identities', 'contacts', 'companies', 'tasks', 'api_keys', 'agents', 'memberships', 'users', 'principals', 'organizations', 'deployment']
   // wrangler's own tracker is migration state, not data ([[CORE61]] D10): emptying it would flip a gated database to `behind`.
   tables.delete('d1_migrations')

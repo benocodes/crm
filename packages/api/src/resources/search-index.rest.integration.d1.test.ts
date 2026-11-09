@@ -29,7 +29,7 @@ const hit = async (table: string, term: string) =>
   (await all(`SELECT b.id AS id FROM "${table}" b WHERE b.deleted_at IS NULL AND b.id IN (SELECT id FROM "${table}_search" WHERE "${table}_search" MATCH ?)`, quote(term))).map((r) => r.id as string)
 
 const CASES = [
-  { table: 'companies', path: '/api/v1/companies', create: { name: 'Quokka Holdings', domain: 'quokka.example' }, patch: { name: 'Platypus Holdings' }, oldTerm: 'quokka', newTerm: 'platypus' },
+  { table: 'companies', path: '/api/v1/companies', create: { name: 'Quokka Holdings', domain: 'quokka.example' }, patch: { name: 'Platypus Holdings', domain: 'platypus.example' }, oldTerm: 'quokka', newTerm: 'platypus' },
   { table: 'notes', path: '/api/v1/notes', create: { title: 'Quokka plan', content: 'wombat renewal' }, patch: { content: 'numbat renewal' }, oldTerm: 'wombat', newTerm: 'numbat' },
   { table: 'tasks', path: '/api/v1/tasks', create: { title: 'Quokka call', notes: 'wombat follow up' }, patch: { notes: 'numbat follow up' }, oldTerm: 'wombat', newTerm: 'numbat' },
 ] as const

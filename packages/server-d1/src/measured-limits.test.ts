@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execute, uuidv7 } from '@vault/storage'
 import { MIGRATIONS, d1Binding } from '@vault/storage-d1'
-import { createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
+import { createMigrationTracker, openLocalD1, recordMigrations } from '@vault/storage-d1/test'
+import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
 import { seedConversation } from '@vault/api/test/messaging'
 import { fakeR2Bucket } from '@vault/api/test/objects'
 import { bytesOf, FakeChannel } from '@vault/api/test/channels'
@@ -267,4 +268,78 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     expect(await count('select count(*) as n from messages')).toBe(229) // 50 listed + the content scenarios' one + 50 interactions + the two attachment sets + the capture chunks' 1 and 100, the pipeline's 25
     expect(await count("select count(*) as n from contact_files where deleted_at is not null")).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
   })
+})
+
+// CORE194 D14 (cycle 1): what the FTS5 trigram search indexes cost, on a fixture of N companies, N notes (title + ~150 words of content,
+// about 1.3 KB) and N tasks, local Miniflare, `meta.rows_read` / `rows_written` of single statements. Facts, not thresholds: the numbers
+// measured on 2026-11-09 are in the comments and in the cycle's RESULT.md; the assertions only pin the shape (a match is bounded by its
+// page, an index write scans the index, an unindexed update does not).
+describe('search index cost (CORE194 D14)', () => {
+  const ORG = '0190b2c4-0000-7000-8000-00000000a001'
+  const USER = '0190b2c4-0000-7000-8000-00000000b001'
+  const AT = '2026-10-22T09:00:00.000Z'
+  const sid = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')}`
+  const WORDS = ['renewal', 'pricing', 'contract', 'invoice', 'meeting', 'quarterly', 'onboarding', 'proposal', 'discount', 'support', 'integration', 'security', 'legal', 'budget', 'roadmap', 'feedback']
+  let seed = 7
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff)
+  const text = (n: number) => Array.from({ length: n }, () => WORDS[rnd() % WORDS.length] + (rnd() % 50)).join(' ')
+
+  it('reports rows read by a match and by index writes, and the index size against the base text', async () => {
+    const local = await openLocalD1(['COST'])
+    try {
+      const d = local.bindings.COST!
+      await seedDeployment(d, { organizationId: ORG })
+      await seedPrincipal(d, { id: USER, kind: 'user' })
+      const grow = async (from: number, to: number) => {
+        for (let i = from; i < to; i += 100) {
+          const st = []
+          for (let j = i; j < Math.min(i + 100, to); j++) {
+            st.push(d.prepare('INSERT INTO companies (id, organization_id, created_by, created_at, updated_at, name, domain) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(sid(j + 1), ORG, USER, AT, AT, `Co ${text(2)}`, `d${j}.example`))
+            st.push(d.prepare('INSERT INTO notes (id, organization_id, created_by, created_at, updated_at, title, content) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(sid(j + 1), ORG, USER, AT, AT, text(3), text(150)))
+            st.push(d.prepare('INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, notes) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(sid(j + 1), ORG, USER, AT, AT, text(4), text(20)))
+          }
+          await d.batch(st)
+        }
+      }
+      const meta = async (sql: string, ...b: unknown[]) => ((await d.prepare(sql).bind(...b).all()) as unknown as { results: unknown[]; meta: { rows_read: number; rows_written: number } })
+      const match = (table: string, expr: string) => meta(`SELECT t.id FROM ${table} t WHERE t.deleted_at IS NULL AND t.id IN (SELECT id FROM ${table}_search WHERE ${table}_search MATCH ?) ORDER BY t.id LIMIT 50`, expr)
+      const measure = async (n: number) => {
+        const common = await match('notes', '"renewal7"') // a term in roughly 1 note in 50, first page of 50
+        const rare = await match('notes', '"onboarding49 proposal3"') // two terms, no match
+        const company = await match('companies', `"d${n - 1}.ex"`) // one company by domain substring
+        const edit = await meta("UPDATE notes SET title = 'changed title here' WHERE id = ?", sid(Math.floor(n / 2)))
+        const stamp = await meta('UPDATE notes SET updated_at = ? WHERE id = ?', '2026-10-23T09:00:00.000Z', sid(Math.floor(n / 2) + 1))
+        const ins = await meta('INSERT INTO notes (id, organization_id, created_by, created_at, updated_at, title, content) VALUES (?, ?, ?, ?, ?, ?, ?)', sid(90_000), ORG, USER, AT, AT, 't', text(150))
+        const del = await meta('DELETE FROM notes WHERE id = ?', sid(90_000))
+        return { n, matchCommon: [common.results.length, common.meta.rows_read], matchRare: [rare.results.length, rare.meta.rows_read], matchCompany: [company.results.length, company.meta.rows_read], editReads: edit.meta.rows_read, stampReads: stamp.meta.rows_read, insertWritten: ins.meta.rows_written, deleteReads: del.meta.rows_read }
+      }
+      await grow(0, 500)
+      const small = await measure(500)
+      await grow(500, 1500)
+      const large = await measure(1500)
+      console.info('CORE194 search cost', JSON.stringify({ small, large }))
+      // shape: a match reads on the order of its page, an indexed edit or delete reads about the whole index, an unindexed update reads a handful
+      expect(large.matchRare[1]).toBeLessThan(20)
+      expect(large.editReads).toBeGreaterThan(small.editReads)
+      expect(large.editReads).toBeGreaterThanOrEqual(1500)
+      expect(large.stampReads).toBeLessThan(20)
+
+      // size: the payload bytes of the FTS5 shadow tables (pragma page_count and dbstat are not available in workerd): `_data` holds the
+      // trigram posting blocks, `_content` the stored copy of the indexed text (a standalone table), `_docsize` the per-row sizes.
+      const num = async (sql: string) => ((await d.prepare(sql).all()).results as { v: number }[])[0]!.v
+      const baseText = await num('SELECT (SELECT sum(length(title) + length(content)) FROM notes) + (SELECT sum(length(name) + length(domain)) FROM companies) + (SELECT sum(length(title) + coalesce(length(notes), 0)) FROM tasks) AS v')
+      let data = 0
+      let content = 0
+      let docsize = 0
+      for (const t of ['companies', 'notes', 'tasks']) {
+        data += await num(`SELECT coalesce(sum(length(block)), 0) AS v FROM ${t}_search_data`)
+        docsize += await num(`SELECT coalesce(sum(length(sz)), 0) AS v FROM ${t}_search_docsize`)
+      }
+      content += await num('SELECT sum(length(c1) + length(c2)) AS v FROM notes_search_content') + (await num('SELECT sum(length(c1) + length(c2)) AS v FROM companies_search_content')) + (await num('SELECT sum(length(c1) + length(coalesce(c2, ""))) AS v FROM tasks_search_content'))
+      console.info('CORE194 search size', JSON.stringify({ baseText, postingBytes: data, storedTextBytes: content, docsizeBytes: docsize, postingOverText: +(data / baseText).toFixed(2), totalOverText: +((data + content + docsize) / baseText).toFixed(2) }))
+      expect(data).toBeGreaterThan(0)
+    } finally {
+      await local.dispose()
+    }
+  }, 180_000)
 })
