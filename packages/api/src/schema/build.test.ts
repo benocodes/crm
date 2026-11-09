@@ -52,6 +52,7 @@ const COLUMNS: ColumnRow[] = [
   col('api_keys', 1, 'key_hash', 'TEXT', { notnull: true }),
   col('api_keys', 2, 'prefix', 'TEXT', { notnull: true }),
   col('events', 0, 'id', 'TEXT', { notnull: true, pk: true }),
+  col('action_executions', 0, 'id', 'TEXT', { notnull: true, pk: true }),
   col('mystery', 0, 'id', 'TEXT', { notnull: true, pk: true }),
   col('mystery', 1, 'flavour', 'TEXT'),
   col('deployment', 0, 'singleton', 'INTEGER', { notnull: true, pk: true }),
@@ -144,7 +145,7 @@ describe('document shape (D10, D11)', () => {
   })
   it('sorts tables by name, keeps columns in cid order whatever the row order, and sorts associable', () => {
     const doc = build({ columns: [...COLUMNS].reverse() })
-    expect(doc.tables.map((t: any) => t.name)).toEqual(['api_keys', 'companies', 'contacts', 'events', 'interactions', 'messages', 'mystery', 'organizations', 'principals', 'tasks', 'threads'])
+    expect(doc.tables.map((t: any) => t.name)).toEqual(['action_executions', 'api_keys', 'companies', 'contacts', 'events', 'interactions', 'messages', 'mystery', 'organizations', 'principals', 'tasks', 'threads'])
     expect(table(doc, 'interactions').columns.map((c: any) => c.name)).toEqual(['id', 'organization_id', 'thread_id', 'message_id'])
     expect(doc.associations.associable).toEqual(['companies', 'contacts', 'deals', 'interactions', 'notes', 'tags', 'tasks', 'threads'])
     expect(doc.associations.table).toBe('associations')
@@ -226,6 +227,13 @@ describe('resource bridge (D14)', () => {
       operations: ['tasks.list', 'tasks.get', 'tasks.create', 'tasks.update', 'tasks.delete'],
       read_scope: 'tasks:read',
       write_scope: 'tasks:write',
+      sorts: [
+        { name: 'id', kind: 'uuid', indexed: true },
+        { name: 'created_at', kind: 'timestamp', indexed: false },
+        { name: 'updated_at', kind: 'timestamp', indexed: false },
+        { name: 'due_at', kind: 'timestamp', indexed: false },
+        { name: 'title', kind: 'text', indexed: false },
+      ],
     })
   })
   it('a meta-surface definition with no write action has write_scope null and the meta path', () => {
@@ -236,6 +244,13 @@ describe('resource bridge (D14)', () => {
       operations: ['api_keys.list', 'api_keys.get'],
       read_scope: 'agents:read',
       write_scope: null,
+      sorts: [
+        { name: 'id', kind: 'uuid', indexed: true },
+        { name: 'created_at', kind: 'timestamp', indexed: false },
+        { name: 'updated_at', kind: 'timestamp', indexed: false },
+        { name: 'last_used_at', kind: 'timestamp', indexed: false },
+        { name: 'expires_at', kind: 'timestamp', indexed: false },
+      ],
     })
   })
   it('tables served by no definition (events, principals) have resource null', () => {
@@ -248,6 +263,28 @@ describe('resource bridge (D14)', () => {
     expect(() => resourcesByTable([tasks, twin])).toThrow(/tasks/)
     expect(() => schemaOperations(() => [tasks, twin])).toThrow(/tasks/)
     expect(() => build({ resources: [tasks, twin] })).toThrow(/tasks/)
+  })
+})
+
+describe('sorts on the resource object ([[CORE187]] D10, D16)', () => {
+  const sortsOf = (doc: any, name: string) => table(doc, name).resource.sorts as Array<{ name: string; kind: string; indexed: boolean }>
+  it('a sort entry has exactly name, kind, indexed, and no requires (D17)', () => {
+    for (const s of sortsOf(build(), 'contacts')) expect(Object.keys(s)).toEqual(['name', 'kind', 'indexed'])
+  })
+  it('reads the stated-cost list as an input: an empty list makes every sort indexed, a one-entry list flips exactly that sort', () => {
+    expect(sortsOf(build({ statedCosts: [] }), 'tasks').map((s) => s.indexed)).toEqual([true, true, true, true, true])
+    expect(sortsOf(build({ statedCosts: [{ list: 'tasks', sort: 'title' }] }), 'tasks').map((s) => [s.name, s.indexed])).toEqual([['id', true], ['created_at', true], ['updated_at', true], ['due_at', true], ['title', false]])
+  })
+  it('a stated cost of another list does not touch this one (the pair, not the sort name, decides)', () => {
+    expect(sortsOf(build({ statedCosts: [{ list: 'notes', sort: 'title' }] }), 'tasks').find((s) => s.name === 'title')!.indexed).toBe(true)
+  })
+  it('messages and contacts: the convention first, then the declared fields, the derived ones last', () => {
+    expect(sortsOf(build(), 'messages').map((s) => s.name)).toEqual(['id', 'created_at', 'occurred_at'])
+    expect(sortsOf(build(), 'contacts').map((s) => s.name).slice(-2)).toEqual(['last_contacted_at', 'last_interacted_at'])
+  })
+  it('a definition without column sorts reports an empty array; a table with no resource keeps resource null', () => {
+    expect(sortsOf(build(), 'action_executions')).toEqual([])
+    expect(table(build(), 'events').resource).toBeNull()
   })
 })
 

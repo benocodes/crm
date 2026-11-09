@@ -847,3 +847,13 @@ export const dealScenarios: readonly GoldenScenario[] = [
     ],
   },
 ]
+
+/** [[CORE187]] D18: the discovery golden. One scenario, the whole `GET /meta/v1/schema` on D1; any later migration or catalog text change regenerates it. */
+export const schemaScenarios: readonly GoldenScenario[] = [
+  {
+    name: 'schema-get',
+    scopes: ['schema:read'],
+    about: 'schema.get describes every built-in table and, per resource, the sorts its list accepts with their kind and whether an index serves them ([[CORE170]] D10, D16): the full document as the HTTP route serves it',
+    steps: [{ as: 'agent', at: at(0), method: 'GET', path: '/meta/v1/schema' }],
+  },
+]
