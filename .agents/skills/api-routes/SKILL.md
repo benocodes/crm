@@ -438,12 +438,23 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   - **Every generic list must adopt it; the registry contract enforces that** (`src/storage/sort-contract.integration.d1.test.ts`,
     checker `src/test/sort-contract.ts`). Adding a resource or a sortable field means editing
     `src/storage/sort-costs.ts`: a list without `withColumnSorts` fails `no-sorts`; a hand-written `list` (its own
-    query, not `${def.name}.list`) needs a `SORT_EXEMPT_LISTS` entry with a reason (today `associations`, `users`,
-    `action_executions`, #188); every list × sort whose desc production plan has `USE TEMP B-TREE FOR ORDER BY` needs a
+    query, not `${def.name}.list`) needs a `SORT_EXEMPT_LISTS` entry with a reason (today `associations` and `users`
+    only, #188); every list × sort whose desc production plan has `USE TEMP B-TREE FOR ORDER BY` needs a
     `STATED_SORT_COSTS` entry, and one that becomes indexed must be removed (`obsolete-cost`). [[CORE187]] reads that
     list at runtime (`indexed` = not stated), so it stays plain data with no imports, and it ships in the Worker: the
     import cost +5.6 kB (60 entries plus three shared reason constants). New entries reuse those constants. A generic list that gains an
-    `override.list` must be measured on its own query or treated as hand-written.
+    `override.list` must be measured on its own query or treated as hand-written. The contract measures every list
+    through its registered operation's `prepare` (full scopes, `order=desc`), so a list with its own predicate is
+    measured on the query production runs ([[CORE188]] D6).
+  - **A hand-written list with its own visibility adopts sorting through the shared path, not a second keyset**
+    ([[CORE188]] D3): `withColumnSorts(def, [...])` on the definition, then serve the list with
+    `listOperation(def, env, raw, restriction)` (`src/storage/crud.ts`), where `restriction` is a predicate
+    `(qc) => Expression<SqlBool>` ANDed into both the sorted and unsorted query, or `'nothing'` (no read, empty page).
+    Validation `400`s still come first. `action_executions.list` passes its readable-operations predicate this way.
+    Sorted query/response fields come from `src/storage/sort-params.ts` (`sortedQueryFields`, `sortDescription`) for
+    generated and hand-written lists alike. A list-specific sentence on the `sort` parameter goes in
+    `PreparedResource.sortNote` (appended to the shared text only when set; every other list's text stays
+    byte-identical). A restriction that needs a join (associations) is where this would need generalising.
   - `sort=id desc` is not always indexed: on `contact_files`, `company_files` and `memberships` SQLite prefers the
     partial live-row unique index and sorts in a temp B-tree (stated, [[CORE170]] C6). Read the plan, don't assume.
   - A sorted-capable list's malformed `after` says `after must be a UUID (a sorted cursor needs the sort and order it
