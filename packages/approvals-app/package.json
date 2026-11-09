@@ -1,0 +1,23 @@
+{
+  "name": "@vault/approvals-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The approvals mini-app: a static page (Cloudflare Workers Static Assets, no server code) that lists pending action requests of one vault and approves or rejects them. Signs in with Clerk, calls the vault's REST API from the browser.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "tsx scripts/build.ts",
+    "dev": "pnpm build && wrangler dev --port 8788",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "deploy:remote": "pnpm build && CONFIRM_REMOTE=1 wrangler deploy --env hq"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3",
+    "wrangler": "4.149.0"
+  }
+}
