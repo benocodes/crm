@@ -1,0 +1,23 @@
+:root { color-scheme: light dark; --bg:#fafafa; --fg:#171717; --muted:#6b7280; --card:#fff; --line:#e5e7eb; --accent:#2563eb; --danger:#b91c1c; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0b0b0c; --fg:#ededed; --muted:#9ca3af; --card:#151517; --line:#2a2a2e; --accent:#3b82f6; --danger:#f87171; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; }
+main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
+header { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+h1 { font-size:22px; margin:0; } h2 { font-size:16px; margin:0; }
+.who { display:flex; gap:12px; align-items:center; color:var(--muted); font-size:13px; }
+.tabs { display:flex; gap:4px; margin:16px 0; border-bottom:1px solid var(--line); }
+button { font:inherit; cursor:pointer; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--fg); padding:6px 14px; }
+button:disabled { opacity:.5; cursor:default; }
+.tab { border:0; border-bottom:2px solid transparent; border-radius:0; background:none; } .tab.active { border-bottom-color:var(--accent); font-weight:600; }
+.link { border:0; background:none; color:var(--accent); padding:0; }
+.primary { background:var(--accent); border-color:var(--accent); color:#fff; } .danger { color:var(--danger); border-color:var(--danger); }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:12px; }
+.row { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
+code { color:var(--muted); font-size:12px; }
+.reason { margin:8px 0 4px; white-space:pre-wrap; } .muted { color:var(--muted); font-size:13px; margin:4px 0; }
+.error { color:var(--danger); }
+pre { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px; overflow:auto; font-size:12px; max-height:320px; }
+summary { cursor:pointer; color:var(--muted); font-size:13px; }
+.actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.actions input { flex:1; min-width:140px; font:inherit; padding:6px 10px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }

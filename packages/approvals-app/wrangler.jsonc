@@ -1,0 +1,20 @@
+// The approvals mini-app: static assets only, no Worker code. Deployed by the user (a hard stop for agents): `pnpm -C packages/approvals-app deploy:remote`.
+// The account comes from CLOUDFLARE_ACCOUNT_ID, never from here. The page is served at app.hq.vibase.ai and calls api.hq.vibase.ai from the browser,
+// which needs the vault-hq env to list https://app.hq.vibase.ai in CORS_ALLOWED_ORIGINS and CLERK_AUTHORIZED_PARTIES (see README).
+{
+  "name": "vault-approvals",
+  "compatibility_date": "2026-07-30",
+  "assets": { "directory": "./dist", "not_found_handling": "single-page-application" },
+  "workers_dev": false,
+  "preview_urls": false,
+  "env": {
+    "hq": {
+      "name": "vault-approvals-hq",
+      "workers_dev": false,
+      "preview_urls": false,
+      "assets": { "directory": "./dist", "not_found_handling": "single-page-application" },
+      "routes": [{ "pattern": "app.hq.vibase.ai", "custom_domain": true }],
+      "observability": { "enabled": true }
+    }
+  }
+}
