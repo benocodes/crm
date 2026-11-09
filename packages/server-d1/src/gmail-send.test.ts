@@ -84,7 +84,7 @@ it('production tick caps real Gmail work at two and the next tick serves the rem
   const external=fetches+starts+(bucket.gets.length-getBefore)
   console.log('MEASURE '+JSON.stringify({key:'gmail-tick-100-2',...m,external,total:m.queries+external}))
   expect(mail.sendRequests).toHaveLength(2);expect(m.queries+external).toBeLessThanOrEqual(50)
-  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:21,external:12,total:33})
+  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:21,external:10,total:31})
   expect(m.maxParameters).toBeLessThanOrEqual(100);expect(m.maxStatementBytes).toBeLessThanOrEqual(100000)
   expect((await sql("select count(*) as n from action_requests where status='expired'"))[0].n).toBe(100)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(4)
@@ -98,14 +98,14 @@ it('real Worker direct/approved cold paths count D1, object put/get, Gmail, refr
   let measured=m.take(),external=fetches+starts+bucket.gets.length+bucket.calls.length-io
   console.log('MEASURE '+JSON.stringify({key:'gmail-direct',...measured,external,total:measured.queries+external}))
   expect(measured.queries+external).toBeLessThanOrEqual(50)
-  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:15,external:6,total:21})
+  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:15,external:5,total:20})
   const pending=await req(wk,'POST','/api/v1/action-requests',{operation:'messages.send',arguments:{connection_id:connection,mode:'new',subject:'Approved',to:['recipient@example.test'],body:'REVIEW_MEASURE_CANARY'},reason:'review'})
   expect(pending.status).toBe(201)
   const cold=worker(m.d1);m.start();fetches=starts=0;io=bucket.gets.length+bucket.calls.length
   const a=await req(cold,'POST',`/api/v1/action-requests/${pending.body.id}/approve`,{});expect(a.status).toBe(200)
   measured=m.take();external=fetches+starts+bucket.gets.length+bucket.calls.length-io
   console.log('MEASURE '+JSON.stringify({key:'gmail-approved',...measured,external,total:measured.queries+external}))
-  expect(measured.queries+external).toBeLessThanOrEqual(50);expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:13,external:7,total:20});expect(mail.sendRequests).toHaveLength(2)
+  expect(measured.queries+external).toBeLessThanOrEqual(50);expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:13,external:6,total:19});expect(mail.sendRequests).toHaveLength(2)
 })
 it('generated CLI invokes messages send from real OpenAPI; API-key caps and OAuth delegated/CLI token caps bound authority',async()=>{
   const wk=worker()
@@ -174,7 +174,7 @@ it('production cap includes dispatch plus immediate terminal reconciliation, wit
   const external=fetches+starts+bucket.gets.length+bucket.calls.length-io
   console.log('MEASURE '+JSON.stringify({key:'gmail-terminal-tick',...measured,external,total:measured.queries+external}))
   expect(measured.queries+external).toBeLessThanOrEqual(50)
-  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:27,external:18,total:45})
+  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:21,external:10,total:31})
   expect(mail.sendRequests).toHaveLength(2);expect(starts).toBe(2)
   expect((await sql("select count(*) n from action_executions where status='done'"))[0].n).toBe(2)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(3)
