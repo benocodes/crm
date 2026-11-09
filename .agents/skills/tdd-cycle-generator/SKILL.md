@@ -114,7 +114,10 @@ used a not-yet-adopted resource as their negative example. When a cycle makes a 
 **AGT186 calibration** (`knowledge/specs/013-AGT186-agent-scope-delta/RETRO.md`): 6 groups (1 matrix),
 8 decisions, no migration or E2E cost 149k tokens / 56 calls in one run, ~27 min, approved round 1 with
 cosmetic notes only; +70 code / +754 test and fixture lines. A one-resource override with no migration
-sits far under the budget; charters of this shape need no split discussion.
+sits far under the budget; charters of this shape need no split discussion. **CORE187** (`knowledge/specs/013-CORE187-sort-discovery/RETRO.md`)
+confirms it: 5 groups (1 matrix), 5 decisions, no migration or E2E cost 169k tokens / 53 calls, ~25 min, approved round 1
+with no findings. Its spec decisions (D16–D18) were settled at plan time, leaving the coder only presentation choices; a
+generated golden (6,388 lines here) is not counted against the budget.
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code
