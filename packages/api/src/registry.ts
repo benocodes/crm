@@ -6,6 +6,7 @@ import type { Expression, SqlBool } from 'kysely'
 import type { PhysicalTable, PreparedOperation, QueryContext } from '@vault/storage'
 import type { ObjectStore } from './objects/store.js'
 import { softDeletes, type PreparedEnv, type PreparedResource } from './storage/definition.js'
+import { SORTED_NEXT, sortedQueryFields } from './storage/sort-params.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
 import { endpointTypesOf, type EndpointTypes } from './associations/definition.js'
 import { embeddedFields, getWithAssociations, includeQuery } from './associations/embed.js'
@@ -244,17 +245,6 @@ function checkEnqueued(op: TenantOperation, execution: ExecutionDecl): void {
 /** The MCP/CLI-safe name derived from a dotted operation name. */
 export const toolName = (name: string): string => name.replaceAll('.', '_')
 
-const SORTED_AFTER = z
-  .string()
-  .describe('Opaque cursor: pass the next_cursor of the previous page back unchanged. With sort it must come from a page with the same sort and order; without sort it is the id of the last record.')
-const SORTED_NEXT = z.string().nullable().describe('Opaque cursor for the next page, or null at the end. Pass it back as after, with the same sort and order.')
-/** The `sort` parameter text, with the cursor-stability caveat ([[CORE133]] D9). */
-const sortDescription = (def: PreparedResource<any, any>): string =>
-  `Sort by ${(def.sorts ?? []).join(' or ')}. Stored columns need only this list's read scope; derived fields need the scopes that show them. null sorts as the lowest value: first in asc, last in desc. Ties break on id in the same direction. ` +
-  `Newest first: sort=created_at&order=desc; for mail use sort=occurred_at&order=desc. Without sort the list is in ascending id order with UUID cursors. ` +
-  `Paging is by keyset, not a snapshot: values can rise between pages (or fall), so a record may repeat in asc or be missed in desc. In descending mail date order, newly arrived mail ahead of the cursor is not seen; backfilled older mail behind it is. ` +
-  `A complete walk uses the default order. An incremental walk also uses the default ascending id order. Mail created_at uses a temporary sort over the workspace's rows; id is indexed and follows capture order.`
-
 /** The generic CRUD operations of a definition, in CRUD_ACTIONS order, for the actions it generates. */
 export function resourceOperations(def: PreparedResource<any, any>, types: () => EndpointTypes = () => endpointTypesOf([def])): TenantOperation[] {
   const p = resourcePath(def)
@@ -270,12 +260,13 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
   if (actions.has('list')) {
     // [[CORE133]] D8, D9: a list that declares `sorts` takes sort and order, and its cursor is an opaque string; every other list keeps a UUID cursor.
     const sorts = def.sorts ?? []
-    const query: Record<string, z.ZodType> = sorts.length > 0 ? { after: SORTED_AFTER.optional() } : { after: z.uuid().optional() }
+    const sortFields = sorts.length > 0 ? sortedQueryFields(def) : null
+    const query: Record<string, z.ZodType> = sortFields ? { after: sortFields.after! } : { after: z.uuid().optional() }
     query.limit = z.coerce.number().int().min(1).max(200).optional()
     for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.joinFilters ?? {}) })) query[key] = (f as { schema: z.ZodType }).schema.optional()
-    if (sorts.length > 0) {
-      query.sort = z.enum(sorts as [string, ...string[]]).describe(sortDescription(def)).optional()
-      query.order = z.enum(['asc', 'desc']).describe('Sort direction: asc (default) or desc. Needs sort.').optional()
+    if (sortFields) {
+      query.sort = sortFields.sort!
+      query.order = sortFields.order!
     }
     ops.push({
       ...base,

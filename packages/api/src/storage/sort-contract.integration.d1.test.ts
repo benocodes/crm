@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { COLUMN_KINDS, compileOperation } from '@vault/storage'
+import { COLUMN_KINDS, compileOperation, type PreparedOperation } from '@vault/storage'
+import type { TenantOperation } from '../registry.js'
 import { createVaultRegistry } from '../operations.js'
 import { ScopeSet } from '../scopes.js'
 import { crudActions } from '../resources/define.js'
@@ -36,8 +37,8 @@ beforeAll(async () => {
     for (const sort of l.def.sorts ?? []) {
       // CORE188 D6: the query production runs, whoever builds it: the list's registered operation (for action_executions it carries the
       // readable-operations predicate), never the generic list of a definition that has no generated list.
-      const op = registry.get(`${l.name}.list`) as { prepare: (env: unknown, input: { query: Record<string, unknown> }) => never }
-      const read = compileOperation(op.prepare(env, { query: { sort, order: 'desc' } }), 'd1').reads[0]!
+      const op = registry.get(`${l.name}.list`) as TenantOperation
+      const read = compileOperation((await op.prepare(env, { query: { sort, order: 'desc' }, params: {}, body: undefined })) as PreparedOperation<unknown>, 'd1').reads[0]!
       const rows = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results as Array<{ detail: string }>
       planText[`${l.name}.${sort}`] = rows.map((r) => r.detail).join('\n')
       plans[`${l.name}.${sort}`] = { temp: planText[`${l.name}.${sort}`]!.includes(TEMP) }
@@ -175,7 +176,7 @@ describe('contract checker strength: each fault is noticed by its named check (C
   })
   it('removing one exemption entry leaves a hand-written list unexplained', () => {
     const exemptions = SORT_EXEMPT_LISTS.filter((x) => x.list !== 'users')
-    expect(exemptions).toHaveLength(2)
+    expect(exemptions).toHaveLength(1)
     expect(find(checkSortContract({ ...base, exemptions }), 'missing-exemption', 'users')).toHaveLength(1)
   })
   it('an exemption naming a generic list, or no list, is refused', () => {

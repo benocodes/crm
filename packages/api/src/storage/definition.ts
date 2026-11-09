@@ -174,6 +174,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    * `null` sorts as the oldest value and ties break on `id` in the same direction.
    */
   readonly sorts?: readonly string[]
+  /**
+   * [[CORE188]] D2: text appended to the list's `sort` parameter description, for a list whose sorted fields need a meaning spelled out
+   * (action_executions). Absent on every other list, so their text is unchanged.
+   */
+  readonly sortNote?: string
   /** CORE170: resolved column/derived kinds, supplied only by the explicit withColumnSorts capability. */
   readonly sortKinds?: Readonly<Record<string, SortKind>>
   /** Columns that must reference a visible row of a portable table (checked after existence, re-checked at commit). */
