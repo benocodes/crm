@@ -49,9 +49,9 @@ try{
   await d1.prepare("insert into action_requests (id,organization_id,created_by,created_at,updated_at,operation,arguments,status,reason,evidence,expires_at,decided_by,decided_at) values (?,?,?,?,?,'legacy.enqueue','{}','approved','legacy request','[]',?,?,?)").bind(oldRequest,org,boot.agentId,at,at,new Date(Date.now()+86400000).toISOString(),boot.agentId,at).run()
   const oldRequestRow=await d1.prepare('select * from action_requests where id=?').bind(oldRequest).first()
   await d1.prepare("insert into action_executions (id,organization_id,created_by,authorised_by,created_at,updated_at,operation,arguments,resolution,status,client_ref,input_hash,deadline_at,next_attempt_at) values (?,?,?,?,?,?,'legacy.enqueue','{}','{}','queued',?,?,?,?)").bind(oldId,org,boot.agentId,boot.agentId,at,at,'legacy@e2e.test','a'.repeat(64),at,at).run()
-  await createMigrationTracker(d1);await recordMigrations(d1,MIGRATIONS.slice(0,-1).map(m=>m.name))
+  await createMigrationTracker(d1);await recordMigrations(d1,MIGRATIONS.map(m=>m.name).filter(n=>n<'0013'))
   assert.equal((await mf.dispatchFetch('https://vault.test/meta/v1/me')).status,503,'new Worker refuses old schema')
-  await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR,'0013_send_connection.sql'),'utf8')).map(s=>d1.prepare(s)));await recordMigrations(d1,[MIGRATIONS.at(-1)!.name])
+  await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR,'0013_send_connection.sql'),'utf8')).map(s=>d1.prepare(s)));await recordMigrations(d1,['0013_send_connection.sql'])
   assert.deepEqual(await d1.prepare('select * from action_requests where id=?').bind(oldRequest).first(),oldRequestRow)
   await mf.dispose();mf=new Miniflare(options());await mf.ready;d1=await mf.getD1Database('DB') as unknown as D1Like
   const rows=async(s:string,...binds:unknown[])=>(await d1.prepare(s).bind(...binds).all()).results as any[]
