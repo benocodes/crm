@@ -2,8 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { StatementFailed, type ExecutionResult, type PreparedOperation, type StatementLabel } from '@vault/storage'
 import { withFault } from '@vault/storage/test'
 import { seedAgent, seedOrganization, seedUser } from '@vault/db/test'
-import { hashApiKey } from '../auth/api-keys.js'
-import { generateApiKey } from '../auth/api-keys.js'
+import { generateApiKey, hashApiKey } from '../auth/api-keys.js'
 import { openAuthKit } from '../test/auth-kit.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
@@ -711,7 +710,6 @@ export function engineSuite(engineName: EngineName): void {
           const retry = await call('agents.update', { params: { id: a.id }, body: { add_scopes: ['tasks:write'] } }, { now: at(7) })
           expect(retry.scopes).toEqual(['contacts:read', 'tasks:write'])
         })
-
 
         it('key issue racing the deletion of its agent: the guarded insert is a no-op, so 409 and no key row', async () => {
           const { a } = await keyed()

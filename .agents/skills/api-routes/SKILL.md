@@ -583,6 +583,15 @@ interactive transaction, no `withContext` and no `executor` marker.
   `include=associations` goes to `getWithAssociations` (`src/associations/embed.ts`), **not** to `override.get`
   (`src/registry.ts`); no associable resource has an `override.get` today, and one that adds it must route the
   embedded view through it too ([[CORE74]] review).
+- **An update whose new value depends on the stored row** (a delta such as `add_scopes`/`remove_scopes`)
+  passes `merge(before)` to `updateOperation` (`src/storage/crud.ts`) from an `override.update`; never read the
+  row yourself and then call the generic update, which reads again and loses a concurrent write. `merge`
+  runs in `build` on the one `before` row whose `updated_at` stamp guards the UPDATE (drift → `409
+  conflict`); returning `null` is an empty patch (no UPDATE, no event, the row as read, with no derived
+  fields: a resource with `derived` must add them before reusing `merge`). Validate the body in the
+  override at prepare time, before any read, so a bad delta for an unknown id is `400`, not `404`, and
+  call `updateOperation` without `merge` when no delta key is present so the generic path and its goldens
+  stay byte-identical. Reference: `updateAgentOperation` in `src/resources/agents.ts` ([[AGT186]] D5–D7).
 - **Multi-statement units re-assert their plan at commit** ([[CORE36]] D4). On Postgres the org writer lock
   makes the plan authoritative; on D1 nothing does, so:
   - `assertStep(qc, cond)` aborts the unit as drift when `cond` is false (D1: an insert into the always-empty

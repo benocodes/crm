@@ -110,6 +110,11 @@ exception and does not lower the current limits.
 used a not-yet-adopted resource as their negative example. When a cycle makes a capability universal
 (every list, every resource), say in **Watch out** that existing tests using an unadopted resource as the
 "without X" case will turn red and must move to a case excluded by design; this is not a budget count.
+
+**AGT186 calibration** (`knowledge/specs/013-AGT186-agent-scope-delta/RETRO.md`): 6 groups (1 matrix),
+8 decisions, no migration or E2E cost 149k tokens / 56 calls in one run, ~27 min, approved round 1 with
+cosmetic notes only; +70 code / +754 test and fixture lines. A one-resource override with no migration
+sits far under the budget; charters of this shape need no split discussion.
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code
