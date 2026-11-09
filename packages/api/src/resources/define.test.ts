@@ -36,6 +36,15 @@ describe('parseListQuery', () => {
       message: 'unknown filter: title',
     })
   })
+  // CORE188: no shipped list is left without sorts that takes plain filters, so the unsorted negative is a definition with no `sorts`.
+  it('a definition that declares no sorts refuses sort and order as unknown filters', async () => {
+    const plain = { filters: { status: { schema: z.string() } } }
+    for (const key of ['sort', 'order'] as const) {
+      expect(await code(() => parseListQuery(plain, { [key]: 'desc' }))).toMatchObject({ status: 400, code: 'validation_error', message: `unknown filter: ${key}` })
+      expect(await code(() => parseListQuery(plain, { filters: { [key]: 'desc' } }))).toMatchObject({ status: 400, code: 'validation_error', message: `unknown filter: ${key}` })
+    }
+    expect(parseListQuery(plain, { after: '0190b2c4-0000-7000-8000-0000000000aa' }).after).toBe('0190b2c4-0000-7000-8000-0000000000aa')
+  })
   it('bad filter value', async () => {
     expect(await code(() => parseListQuery(tasks, { filters: { status: 'closed' } }))).toMatchObject({
       status: 400,

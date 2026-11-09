@@ -311,11 +311,11 @@ describe('advertised contracts of every adopted list (CORE175 D2, D5)', () => {
       guidance(tool.inputSchema.properties.sort.description)
     }
   })
-  it('the three hand-written lists keep ascending id and UUID cursors, with no sort parameter', async () => {
+  it('the two hand-written lists left out by design (associations, users) keep ascending id and UUID cursors, with no sort parameter', async () => {
     const doc = (await (await app.request('/api/v1/openapi.json')).json()) as any
     const meta = (await (await app.request('/meta/v1/openapi.json')).json()) as any
     const tools = (await rpc('tools/list', {})).result.tools as any[]
-    for (const list of ['associations', 'users', 'action_executions']) {
+    for (const list of ['associations', 'users']) {
       const get = (doc.paths[pathOf(list)] ?? meta.paths[pathOf(list)]).get
       const names = get.parameters.map((p: any) => p.name)
       expect(names, list).not.toContain('sort')

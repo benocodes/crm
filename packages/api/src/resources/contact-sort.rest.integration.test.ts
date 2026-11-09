@@ -194,17 +194,7 @@ describe('unsorted lists are unchanged', () => {
     const rest = await must(WITH, 'GET', `/api/v1/contacts?after=${p.next_cursor}`)
     expect([...p.data, ...rest.data].map((c: any) => c.id)).toEqual(Object.values(ids).sort())
   })
-  // CORE175 D15: every prepared list declares sorts now; the hand-written list that takes plain filters is the unsorted example left.
-  it('lists that declare no sorts refuse sort and order as unknown filters, as before', async () => {
-    for (const [path, scope] of [['action-executions', 'action_executions:read']] as const) {
-      for (const q of ['sort=name', 'order=desc', 'sort=last_contacted_at&order=desc']) {
-        const r = await call([scope], 'GET', `/api/v1/${path}?${q}`)
-        expect(r.status, `${path}?${q}`).toBe(400)
-        expect(r.body.error.code).toBe('validation_error')
-        expect(r.body.error.message, `${path}?${q}`).toMatch(/unknown filter: (sort|order)/)
-      }
-    }
-  })
+  // CORE188: no shipped list takes plain filters without sorts now; the negative is a definition with no sorts (define.test.ts).
 })
 
 describe('the OpenAPI document (D9)', () => {
@@ -233,9 +223,9 @@ describe('the OpenAPI document (D9)', () => {
     expect(p.order.required).not.toBe(true)
   })
 
-  it('the hand-written lists (CORE175 D15) keep uuid for after and next_cursor and carry no sort parameter', async () => {
+  it('the hand-written lists left out by design (CORE175 D15, CORE188 D1) keep uuid for after and next_cursor and carry no sort parameter', async () => {
     const d = await doc()
-    for (const path of ['/api/v1/action-executions', '/api/v1/associations']) {
+    for (const path of ['/api/v1/associations']) {
       const p = params(d, path)
       expect(JSON.stringify(typeOf(p.after)), `${path} after`).toContain('uuid')
       expect(JSON.stringify(nextCursor(d, path)), `${path} next_cursor`).toContain('uuid')

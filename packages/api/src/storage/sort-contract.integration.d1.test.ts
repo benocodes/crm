@@ -5,14 +5,14 @@ import { ScopeSet } from '../scopes.js'
 import { crudActions } from '../resources/define.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { checkSortContract, type ContractDef, type ContractInput, type ContractList, type ContractViolation } from '../test/sort-contract.js'
-import { listOperation } from './crud.js'
 import { SORT_EXEMPT_LISTS, STATED_SORT_COSTS } from './sort-costs.js'
 
 // [[CORE175]] D12, D15: the registry-wide sort contract. The registry's real lists, the real D1 plan of each list's production query at
 // `order=desc`, and the two checked-in lists (`sort-costs.ts`) are one input to a pure checker; the strength tests then break that input one
 // way at a time and name the check that must notice.
 const TEMP = 'USE TEMP B-TREE FOR ORDER BY'
-const HAND_WRITTEN = ['action_executions', 'associations', 'users']
+// CORE188 D6: action_executions is a sorted list measured on its own registered operation; only these two stay exempt.
+const HAND_WRITTEN = ['associations', 'users']
 let e: Engine
 let lists: ContractList[]
 let base: ContractInput
@@ -26,15 +26,18 @@ beforeAll(async () => {
   const defs = registry.resources()
   lists = registry.operations().filter((o) => o.kind === 'tenant' && o.name.endsWith('.list')).map((o) => {
     const name = o.name.slice(0, -'.list'.length)
-    const def = defs.find((d) => d.name === name && crudActions(d).includes('list'))
+    // A list is generic when its definition generates it, or when its definition declares sorts and its hand-written operation serves it (CORE188 D6).
+    const def = defs.find((d) => d.name === name && (crudActions(d).includes('list') || d.sortKinds !== undefined))
     return { name, def: (def ?? null) as ContractDef | null }
   })
   const plans: Record<string, { temp: boolean }> = {}
   for (const l of lists) {
     if (!l.def) continue
-    const real = defs.find((d) => d.name === l.name)!
     for (const sort of l.def.sorts ?? []) {
-      const read = compileOperation(listOperation(real, env, { sort, order: 'desc' }), 'd1').reads[0]!
+      // CORE188 D6: the query production runs, whoever builds it: the list's registered operation (for action_executions it carries the
+      // readable-operations predicate), never the generic list of a definition that has no generated list.
+      const op = registry.get(`${l.name}.list`) as { prepare: (env: unknown, input: { query: Record<string, unknown> }) => never }
+      const read = compileOperation(op.prepare(env, { query: { sort, order: 'desc' } }), 'd1').reads[0]!
       const rows = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results as Array<{ detail: string }>
       planText[`${l.name}.${sort}`] = rows.map((r) => r.detail).join('\n')
       plans[`${l.name}.${sort}`] = { temp: planText[`${l.name}.${sort}`]!.includes(TEMP) }
@@ -51,9 +54,9 @@ const find = (v: ContractViolation[], check: string, list: string, sort?: string
 const withDef = (name: string, patch: Partial<ContractDef>): ContractInput => ({ ...base, lists: base.lists.map((l) => (l.name === name ? { name, def: { ...(l.def as ContractDef), ...patch } } : l)) })
 
 describe('the registry satisfies the contract (CORE175 D12, D15)', () => {
-  it('has twenty generic lists and exactly the three hand-written ones', () => {
+  it('has twenty-one sorted lists and exactly the two hand-written ones left out', () => {
     expect(base.lists.filter((l) => l.def === null).map((l) => l.name).sort()).toEqual(HAND_WRITTEN)
-    expect(base.lists.filter((l) => l.def !== null)).toHaveLength(20)
+    expect(base.lists.filter((l) => l.def !== null)).toHaveLength(21)
   })
   it('every generic list has the convention and a plan fact for every sort it accepts', () => {
     for (const l of base.lists.filter((x) => x.def)) {
@@ -69,7 +72,7 @@ describe('the registry satisfies the contract (CORE175 D12, D15)', () => {
     expect(STATED_SORT_COSTS.map((c) => `${c.list}.${c.sort}`).sort()).toEqual(temp)
     for (const c of STATED_SORT_COSTS) expect(c.reason.length, `${c.list}.${c.sort} reason`).toBeGreaterThan(10)
   })
-  it('the exemption list is exactly the three hand-written lists, each with a reason', () => {
+  it('the exemption list is exactly associations and users, each with a reason', () => {
     expect(SORT_EXEMPT_LISTS.map((x) => x.list).sort()).toEqual(HAND_WRITTEN)
     for (const x of SORT_EXEMPT_LISTS) expect(x.reason.length, x.list).toBeGreaterThan(10)
   })
@@ -83,6 +86,30 @@ describe('the registry satisfies the contract (CORE175 D12, D15)', () => {
     }
     expect(planText['messages.occurred_at']).toContain('idx_messages_occurred')
     expect(planText['interactions.occurred_at']).toContain('idx_interactions_occurred')
+  })
+})
+
+describe('action_executions is measured as a sorted list on its own query (CORE188 D5, D6)', () => {
+  it('accepts exactly the convention and done_at, with a plan fact for each', () => {
+    expect(defOf('action_executions').sorts).toEqual(['id', 'created_at', 'updated_at', 'done_at'])
+    for (const s of defOf('action_executions').sorts!) expect(base.plans[`action_executions.${s}`], s).toBeDefined()
+  })
+  it('every stated-cost entry of action_executions is a measured temporary sort', () => {
+    const own = STATED_SORT_COSTS.filter((c) => c.list === 'action_executions').map((c) => c.sort)
+    expect(own.length).toBeGreaterThan(0)
+    for (const s of defOf('action_executions').sorts!) expect(plans(`action_executions.${s}`), s).toBe(own.includes(s))
+  })
+  it('removing one action_executions stated cost turns the contract red with missing-cost', () => {
+    const gone = STATED_SORT_COSTS.find((c) => c.list === 'action_executions')!
+    const costs = STATED_SORT_COSTS.filter((c) => c !== gone)
+    expect(find(checkSortContract({ ...base, costs }), 'missing-cost', 'action_executions', gone.sort)).toHaveLength(1)
+  })
+  it('putting action_executions back in the exemptions is a bad exemption, as is exempting it while it is sorted', () => {
+    const exemptions = [...SORT_EXEMPT_LISTS, { list: 'action_executions', reason: 'it was hand-written before CORE188 adopted the foundation' }]
+    expect(find(checkSortContract({ ...base, exemptions }), 'bad-exemption', 'action_executions')).toHaveLength(1)
+  })
+  it('a list whose definition lost its sorts is named, not skipped', () => {
+    expect(find(checkSortContract(withDef('action_executions', { sorts: [], sortKinds: {} })), 'no-sorts', 'action_executions')).toHaveLength(1)
   })
 })
 

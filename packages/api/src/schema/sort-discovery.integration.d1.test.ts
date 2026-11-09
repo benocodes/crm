@@ -113,11 +113,19 @@ describe('indexed is the plan fact (CORE187 D16)', () => {
 })
 
 describe('empty and absent (CORE187 D15, D16)', () => {
-  it('action_executions is a resource with sorts: [], and its list advertises no sort', async () => {
+  // CORE188 D1, D5, D7: action_executions is the first hand-written list adopted; its sorts come from the definition like any other.
+  it('action_executions reports its four sorts in order, equal to what its list advertises, with indexed from the stated costs', async () => {
     const doc = (await rest()).body
-    expect(tableOf(doc, 'action_executions').resource).not.toBeNull()
-    expect(tableOf(doc, 'action_executions').resource.sorts).toEqual([])
-    expect(await advertised('action_executions')).toEqual([])
+    const sorts = tableOf(doc, 'action_executions').resource.sorts
+    expect(sorts.map((x: any) => [x.name, x.kind])).toEqual([['id', 'uuid'], ['created_at', 'timestamp'], ['updated_at', 'timestamp'], ['done_at', 'timestamp']])
+    expect(await advertised('action_executions')).toEqual(['id', 'created_at', 'updated_at', 'done_at'])
+    for (const x of sorts) expect(x.indexed, `action_executions.${x.name}`).toBe(!stated('action_executions', x.name))
+    // The temporary sorts are the ones whose measured plan says so: the three timestamps; never dispatched_at, which is not sortable.
+    expect(sorts.map((x: any) => x.name)).not.toContain('dispatched_at')
+    expect(STATED_SORT_COSTS.filter((c) => c.list === 'action_executions').map((c) => c.sort).sort()).toEqual(
+      sorts.filter((x: any) => !x.indexed).map((x: any) => x.name).sort(),
+    )
+    expect(sorts.some((x: any) => x.indexed === false)).toBe(true)
   })
   it('associations and users keep resource null and the top-level associations block is unchanged', async () => {
     const doc = (await rest()).body
