@@ -207,6 +207,31 @@ describe('match semantics at SQL level (D4 predicate shape)', () => {
     for (const hostile of ['*', 'OR', '-dash', 'name:', 'a" OR "b', '(', 'NEAR(', '^x']) {
       await expect(matchIds(d1, 'companies', quote(hostile))).resolves.toBeDefined()
     }
-    expect(await matchIds(d1, 'companies', quote('OR'))).toEqual([id(2)]) // the word, not the operator (trigram: 2 chars matches nothing)
+    expect(await matchIds(d1, 'companies', quote('* OR'))).toEqual([id(2)]) // the operator word and the star, as literal text
+  })
+})
+
+describe('write cost (D5, D14): the index is rewritten only when an indexed column or deleted_at changes', () => {
+  // The index is looked up by its UNINDEXED id column, so removing an entry reads the whole index (rows_read grows with the table).
+  // An update that cannot change the indexed text (a timestamp, a status) must not pay that.
+  const readsOf = async (text: string, ...binds: unknown[]) => ((await d1.prepare(text).bind(...binds).all()) as { meta: { rows_read: number } }).meta.rows_read
+
+  beforeAll(async () => {
+    await clearD1(d1)
+    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+    await seedPrincipal(d1, { id: USER, kind: 'user' })
+    for (let i = 0; i < 200; i += 100) {
+      await d1.batch(
+        Array.from({ length: 100 }, (_, j) =>
+          d1.prepare('INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title) VALUES (?, ?, ?, ?, ?, ?)').bind(id(500 + i + j), ORG, USER, AT, AT, `Task number ${i + j}`),
+        ),
+      )
+    }
+  })
+
+  it('a status or timestamp update does not scan the index; a title update does (that scan is the stated cost)', async () => {
+    expect(await readsOf('UPDATE tasks SET updated_at = ?, status = ? WHERE id = ?', DEL, 'done', id(550))).toBeLessThan(20)
+    expect(await readsOf('UPDATE tasks SET title = ? WHERE id = ?', 'Renamed task', id(551))).toBeGreaterThanOrEqual(200)
+    expect(await matchIds(d1, 'tasks', quote('renamed'))).toEqual([id(551)])
   })
 })
