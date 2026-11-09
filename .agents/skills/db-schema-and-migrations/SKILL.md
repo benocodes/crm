@@ -342,6 +342,23 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   `unit_assertion_holds` lets `assertStep` abort a D1 batch. The D1 runtime classifies that one constraint as
   drift, so never reuse the name.
 
+### FTS5 search indexes in D1 ([[CORE194]])
+
+- **Shape:** standalone `CREATE VIRTUAL TABLE <table>_search USING fts5(id UNINDEXED, <fields>, tokenize = 'trigram')`, kept
+  only by `AFTER INSERT` / `AFTER UPDATE OF <indexed cols>, deleted_at` / `AFTER DELETE` triggers, populated from live rows in the
+  same migration. Never `content=` (external content keys on `rowid`, which SQLite may renumber in a table with a text primary key).
+- **Narrow the update trigger to the indexed columns and `deleted_at`.** Removing an entry by its `UNINDEXED` id scans the whole
+  index (`rows_read` about the index's row count, measured in `packages/server-d1/src/measured-limits.test.ts`); a bare `AFTER
+  UPDATE` charges that scan to every status or timestamp update. The generic update sets only patched columns, so `UPDATE OF` works.
+- **Each FTS5 table brings five shadow tables** (`_data`, `_idx`, `_content`, `_docsize`, `_config`) that are `type = 'table'` in
+  `sqlite_master` and may not be written. `clearD1` empties the virtual table by name and skips its shadows; `schema.get` hides both
+  through `pragma_table_list` (`type in ('virtual','shadow')`), which works on remote D1 too. A test that lists every table or every
+  trigger must account for them.
+- **`wrangler d1 export` refuses a database holding FTS5 tables** (`cannot export databases with Virtual Tables (fts5)`); a plain
+  table exports with `--table`. Time Travel is the backup.
+- **Scripts that replay migrations up to a cut-off** pin it by name and then apply every later file, so a new migration does not
+  leave the database `behind` (`packages/server-d1/scripts/e2e-gmail-send.ts`).
+
 ## Neon notes
 
 - Extensions available: `pgcrypto`, `citext`, `pg_uuidv7`.
