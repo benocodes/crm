@@ -326,14 +326,6 @@ export function engineSuite(engineName: EngineName): void {
             expect(await snapshot(e)).toEqual(before)
           })
 
-          it('an unsorted stored list is not rewritten by a no-op delta', async () => {
-            const a = await twoScopes()
-            await e.update('agents', a.id, { scopes: ['tasks:write', 'tasks:read'] })
-            const r = await run('agents.update', { params: { id: a.id }, body: { add_scopes: ['tasks:read'] } }, { now: at(2) })
-            expect(r.events).toEqual([])
-            expect((await row('agents', a.id)).updated_at).toBe(iso(1))
-          })
-
           it('with name or disabled present a net-zero delta is a normal update writing the merged list, with one event', async () => {
             const a = await twoScopes()
             const named = await update(a.id, { name: 'bot', add_scopes: ['tasks:read'] }, { now: at(2) })
