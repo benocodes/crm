@@ -4,7 +4,7 @@ import { d1GoldenBackend, type D1GoldenBackend } from '../test/golden/d1-backend
 import type { EngineName } from '../test/engines.js'
 import { pgGoldenBackend, type PgGoldenBackend } from '../test/golden/pg-backend.js'
 import { runScenario } from '../test/golden/runner.js'
-import { administrationScenarios, authScenarios, dealScenarios, directoryScenarios, identityModelScenarios, messagingScenarios, tagScenarios, taskScenarios, type GoldenScenario } from '../test/golden/scenarios.js'
+import { administrationScenarios, authScenarios, dealScenarios, directoryScenarios, identityModelScenarios, messagingScenarios, schemaScenarios, tagScenarios, taskScenarios, type GoldenScenario } from '../test/golden/scenarios.js'
 import { NAMED_DIFFERENCES } from '../test/golden/fixtures.js'
 
 // Golden fixtures (CORE69 D19-D22, CORE72): generated on the D1 path (`pnpm -C packages/api golden:generate`), the oracle, and
@@ -21,13 +21,14 @@ const SETS: Array<[string, string, readonly GoldenScenario[]]> = [
   ['messaging', 'messaging.json', messagingScenarios],
   ['tags', 'tags.json', tagScenarios],
   ['deals', 'deals.json', dealScenarios],
+  ['schema', 'schema.json', schemaScenarios],
 ]
 /**
  * `messaging.json` replays on D1 only (CORE72 planner decision): the Postgres backend seeds no object store or capture pipeline, and
  * Postgres work is parked (CORE69 non-goals). That is coverage, not a behaviour difference, so it is not a named difference.
  * Reversed when Postgres is un-parked (#89).
  */
-const D1_ONLY = new Set(['messaging.json', 'tags.json', 'deals.json']) // tags.json, deals.json: Postgres has no such tables (CORE129 D16, CORE130 D19)
+const D1_ONLY = new Set(['messaging.json', 'tags.json', 'deals.json', 'schema.json']) // tags.json, deals.json: Postgres has no such tables (CORE129 D16, CORE130 D19); schema.json: schema.get is D1 only (501 on Postgres, API63 D15)
 /** What Postgres records for the named scenario (the committed fixture held it before the D1 regeneration): the claim is admitted and the membership created. */
 const POSTGRES_CLAIM = { status: 200, response: { data: [], next_cursor: null }, eventTypes: ['membership.created'] }
 

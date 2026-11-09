@@ -3,6 +3,7 @@ import type { AnyResource } from '../registry.js'
 import { resourceOperations } from '../registry.js'
 import { formatScope } from '../scopes.js'
 import { fullPath } from '../surfaces.js'
+import { STATED_SORT_COSTS } from '../storage/sort-costs.js'
 import { crudActions, resourcePath, scopeResourceOf } from '../resources/define.js'
 import { CATALOG, HIDDEN_TABLES, defaultLabel, type Catalog } from './catalog.js'
 import type { SchemaDocument } from './document.js'
@@ -35,6 +36,8 @@ export interface BuildInput {
   catalog?: Catalog
   kinds?: Record<string, Record<string, string>>
   hidden?: readonly string[]
+  /** [[CORE187]] D16: the `(list, sort)` pairs whose plan needs a temporary sort; every other sort is indexed. */
+  statedCosts?: readonly { readonly list: string; readonly sort: string }[]
 }
 
 /** D10: how each logical kind is stored on D1. */
@@ -68,7 +71,12 @@ function enumValues(schema: unknown): string[] | null {
   return s?.def?.type === 'enum' && s.def.entries ? Object.values(s.def.entries) : null
 }
 
-function resourceOf(def: AnyResource) {
+/** [[CORE187]] D10, D16: the sorts the list validates `sort` against (`sortKinds`, in its key order), each with the plan fact. A definition with no column sorts has none. */
+function sortsOf(def: AnyResource, stated: ReadonlySet<string>) {
+  return Object.entries(def.sortKinds ?? {}).map(([name, kind]) => ({ name, kind, indexed: !stated.has(`${def.name}\u0000${name}`) }))
+}
+
+function resourceOf(def: AnyResource, stated: ReadonlySet<string>) {
   const actions = new Set(crudActions(def))
   const scope = scopeResourceOf(def)
   return {
@@ -78,6 +86,7 @@ function resourceOf(def: AnyResource) {
     operations: resourceOperations(def).map((o) => o.name),
     read_scope: formatScope({ resource: scope, action: 'read' }),
     write_scope: actions.has('create') || actions.has('update') || actions.has('delete') ? formatScope({ resource: scope, action: 'write' }) : null,
+    sorts: sortsOf(def, stated),
   }
 }
 
@@ -98,6 +107,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
   const catalog = input.catalog ?? CATALOG
   const kinds = input.kinds ?? (COLUMN_KINDS as Record<string, Record<string, string>>)
   const hidden = new Set(input.hidden ?? HIDDEN_TABLES)
+  const stated = new Set((input.statedCosts ?? STATED_SORT_COSTS).map((c) => `${c.list}\u0000${c.sort}`))
   const byTable = resourcesByTable(input.resources)
   const columnsOf = groupBy(input.columns, (r) => r.table_name)
   const fksOf = groupBy(input.foreignKeys, (r) => r.table_name)
@@ -143,7 +153,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
         label: text?.label ?? defaultLabel(name),
         description: text?.description ?? null,
         associable: def?.associable === true,
-        resource: def ? resourceOf(def) : null,
+        resource: def ? resourceOf(def, stated) : null,
         columns: rows.map((c) => {
           const own = textOf(text?.columns[c.name])
           return {
@@ -161,7 +171,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
             references: referenceOf.get(c.name) ?? null,
           }
         }),
-        // [[CORE131]] D11: derived record fields, apart from the columns; `sortable` reads from the definition's `sorts` ([[CORE133]] D11).
+        // [[CORE131]] D11: derived record fields, apart from the columns; `sortable` reads the same set as the resource's `sorts` (D10).
         derived: Object.entries(def?.derived ?? {}).map(([field, d]) => {
           const own = textOf(text?.derived?.[field])
           return {
@@ -173,7 +183,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
             description: own.description ?? null,
             requires: d.requires && d.requires.length > 0 ? d.requires.map(formatScope).join(', ') : null,
             filters: [...(d.filters ?? [])],
-            sortable: (def?.sorts ?? []).includes(field),
+            sortable: def ? sortsOf(def, stated).some((s) => s.name === field) : false,
           }
         }),
         foreign_keys: fks,

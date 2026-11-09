@@ -35,6 +35,13 @@ export const schemaForeignKey = z.object({
   on_delete: z.string(),
 })
 
+// [[CORE170]] D10, D16, D17: one value `sort` accepts on the resource's list. No `requires`: a derived sort's scope is on its `derived` entry.
+export const schemaSort = z.object({
+  name: z.string().describe('A value the list\'s `sort` parameter accepts: a column of the record or a derived field.'),
+  kind: z.string().describe('The logical kind of the sort value (see `kinds`): timestamp, uuid, text or integer.'),
+  indexed: z.boolean().describe('True when an index serves this sort. False is a stated cost: the database sorts the organisation\'s live rows in a temporary b-tree.'),
+})
+
 export const schemaResource = z.object({
   name: z.string(),
   surface: z.enum(['api', 'meta']),
@@ -42,6 +49,7 @@ export const schemaResource = z.object({
   operations: z.array(z.string()),
   read_scope: z.string(),
   write_scope: z.string().nullable(),
+  sorts: z.array(schemaSort).describe('The sorts the list accepts, in the order it accepts them (convention first, then the natural fields); empty when the list takes no `sort`.'),
 })
 
 export const schemaTable = z.object({

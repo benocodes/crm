@@ -431,14 +431,18 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   unsupported kinds, duplicates and convention repeats fail at load. `withColumnSorts(def, names)` opts in a copy,
   carrying `sorts` and `sortKinds`; omit `names` to retain existing derived sort declarations. CORE174 adopted it
   for messages/interactions; [[CORE175]] for every other generic list (contacts pass their derived names through the
-  same call). Discovery of sorts is [[CORE187]].
+  same call). **Discovery** ([[CORE187]]): `schema.get` gives each resource object `sorts: [{ name, kind, indexed }]`
+  from `def.sortKinds` (key order = the order the list accepts), `indexed` = the `(def.name, sort)` pair is not in
+  `STATED_SORT_COSTS`, and derived `sortable` reads the same set (`sortsOf` in `src/schema/build.ts`). A new resource
+  or sort shows up there with no schema code; it does regenerate the `schema.json` golden.
   - **Every generic list must adopt it; the registry contract enforces that** (`src/storage/sort-contract.integration.d1.test.ts`,
     checker `src/test/sort-contract.ts`). Adding a resource or a sortable field means editing
     `src/storage/sort-costs.ts`: a list without `withColumnSorts` fails `no-sorts`; a hand-written `list` (its own
     query, not `${def.name}.list`) needs a `SORT_EXEMPT_LISTS` entry with a reason (today `associations`, `users`,
     `action_executions`, #188); every list × sort whose desc production plan has `USE TEMP B-TREE FOR ORDER BY` needs a
     `STATED_SORT_COSTS` entry, and one that becomes indexed must be removed (`obsolete-cost`). [[CORE187]] reads that
-    list at runtime (`indexed` = not stated), so it stays plain data with no imports. A generic list that gains an
+    list at runtime (`indexed` = not stated), so it stays plain data with no imports, and it ships in the Worker: the
+    import cost +5.6 kB (60 entries plus three shared reason constants). New entries reuse those constants. A generic list that gains an
     `override.list` must be measured on its own query or treated as hand-written.
   - `sort=id desc` is not always indexed: on `contact_files`, `company_files` and `memberships` SQLite prefers the
     partial live-row unique index and sorts in a temp B-tree (stated, [[CORE170]] C6). Read the plan, don't assume.
