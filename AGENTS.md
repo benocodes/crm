@@ -268,7 +268,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).
    Writes that skip events are allowed only when they are not resources and a spec decision names them.
-   Today that means five: identity bookkeeping (`principals`, `users` on first sight and on a provider
+   Today that means six: identity bookkeeping (`principals`, `users` on first sight and on a provider
    profile refresh, [[CORE3]] D12, [[CORE41]] P11), channel machinery tables (credentials, subscriptions,
    sync state and cursors, [[CHN5]] D22; the provider-id maps `message_sources` and `thread_sources`, [[CORE25]] D17), the dev/ops `bootstrap` script ([[CORE15]]), the API-key
    usage stamp (`api_keys.last_used_at` only, at most once a minute, never `updated_at`, [[CORE36]] D17), and
@@ -277,7 +277,8 @@ Carried over from the predecessor product, where each cost real time. Add new on
    `last_error_code` (and the `queued`/`claimed` status they move between) without an event and without
    changing `updated_at`; creation and the final outcome of an execution, and the linked request's
    `executed`/`failed`, are resources and emit `action_execution.created|completed|failed` and
-   `action_request.executed|failed` ([[AGT8]] D56). If such a write has a tenant-visible consequence (a
+   `action_request.executed|failed` ([[AGT8]] D56); and the D1 full-text search indexes (`<table>_search` FTS5
+   tables), written only by triggers on their base table, never by a program, an operation or a script ([[CORE194]] D5). If such a write has a tenant-visible consequence (a
    membership, a connection's status), that consequence must still emit its event. Add a new exception
    through a spec decision, never ad hoc.
 6. **Raw bodies stay out of the database**, Postgres and D1 alike (R2 behind `ObjectStore`).

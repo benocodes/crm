@@ -240,6 +240,11 @@ marker (`atomicity probe: atomic`); if it does not, it stops. Migrations are exp
 Worker, because they run first. **Rollback** is `pnpm -C packages/server-d1 exec wrangler rollback --env <name>` of the
 Worker only; the database is never rolled back (D1 Time Travel is a recovery action for a person).
 
+**Backups and export.** `wrangler d1 export` refuses a database that holds FTS5 virtual tables (migration `0014`, the
+`*_search` indexes, [[CORE194]] D14): `cannot export databases with Virtual Tables (fts5)`. D1 Time Travel is the backup;
+a single plain table still exports with `--table <name>`. A full-export path that drops and recreates the index tables is a
+follow-up.
+
 ### Recording Google's real responses on `hq` (user-run: every step is a hard stop for agents)
 
 The Gmail code was written from Google's documented shapes. To check them against the real thing, the Worker can write a **redacted** copy of

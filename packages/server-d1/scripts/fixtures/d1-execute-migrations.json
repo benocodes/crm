@@ -39,6 +39,9 @@
       },
       {
         "name": "0013_send_connection.sql"
+      },
+      {
+        "name": "0014_search_indexes.sql"
       }
     ],
     "success": true,
