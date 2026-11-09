@@ -402,6 +402,25 @@ export const administrationScenarios: readonly GoldenScenario[] = [
     ],
   },
   {
+    name: 'agents-scope-deltas',
+    about:
+      'add_scopes and remove_scopes merge into the stored list server-side (sorted, deduplicated) as one agent.updated; a delta that changes nothing (adding a stored scope, removing an absent or undeclared one) writes no event and keeps updated_at; a delta combines with name; scopes with a delta, a scope in both deltas, an unknown add and a non-grantable add are refused with nothing written (overlap before unknown add, first offender in input order)',
+    steps: [
+      { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/agents', body: { name: 'Bot', scopes: ['tasks:read', 'tasks:write'] }, save: 'a' },
+      { as: 'user', at: at(1), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['contacts:read', 'tasks:read'] } },
+      { as: 'user', at: at(2), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { remove_scopes: ['tasks:write'] } },
+      { as: 'user', at: at(3), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['messages:request_approval'], remove_scopes: ['contacts:read'] } },
+      { as: 'user', at: at(4), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['tasks:read'] } },
+      { as: 'user', at: at(5), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { remove_scopes: ['deals:read', 'nope:read'] } },
+      { as: 'user', at: at(6), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { name: 'Renamed', add_scopes: ['tasks:read'] } },
+      { as: 'user', at: at(7), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { scopes: ['tasks:read'], add_scopes: ['contacts:read'] } },
+      { as: 'user', at: at(8), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['nope:read', 'tasks:read'], remove_scopes: ['tasks:read'] } },
+      { as: 'user', at: at(9), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['nope:read'] } },
+      { as: 'user', at: at(10), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['agents:write', 'nope:read'] } },
+      { as: 'user', at: at(11), method: 'GET', path: '/meta/v1/agents/{a}' },
+    ],
+  },
+  {
     name: 'api-keys-issue-revoke',
     about:
       'a key is issued once with its plaintext (vk_ + prefix of 11 characters), the event and every read carry neither the plaintext nor the hash; list filters by agent; revoke stamps revoked_at and updated_at with the unit clock and emits api_key.revoked; revoking again returns the same record with no event; a disabled agent may be issued a key',

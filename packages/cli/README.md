@@ -63,5 +63,9 @@ scopes are set by an owner:
 3. An owner grants scopes with the id that login printed: `vibase agents update <agent-id> --data '{"scopes":["contacts:read","contacts:write"]}'`.
 4. The agent's next request carries the grant (the token's scopes intersect with it). Disabling the agent (`agents update --data '{"disabled":true}'`)
    is the switch that stops it at once; its access tokens otherwise live until they expire.
+5. To change one grant later, send the change, not the whole list:
+   `vibase agents update <agent-id> --add-scopes '["messages:request_approval"]' --remove-scopes '["messages:write"]'`.
+   The server merges it into the stored list; `--scopes` still replaces the list and cannot be combined with the deltas.
+   Removing a scope the agent lacks changes nothing; a concurrent change to the same agent answers `409 conflict` (retry).
 
 Not here yet: `events tail` (#105).

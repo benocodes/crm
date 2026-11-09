@@ -344,19 +344,25 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
 export const beforeRead = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, opts: { derived?: boolean } = { derived: false }) =>
   readMaybe(selectRecord(def, qc, env, id, opts).select(ts.exact(qc, `${def.table}.updated_at`).as('__stamp')))
 
-export function updateOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, rawId: string, input: unknown): PreparedOperation<R> {
+/**
+ * A value that depends on the before row ([[AGT186]] D5/D6): `merge` runs in `build` on the one `before` read whose stamp guards the
+ * UPDATE, and returns the values to add to the patch, or `null` for an empty patch (no UPDATE, no event, the record as read).
+ */
+export type UpdateMerge<R> = (before: R) => Record<string, unknown> | null
+
+export function updateOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, rawId: string, input: unknown, merge?: UpdateMerge<R>): PreparedOperation<R> {
   const values = prepareUpdate(def, env.actor, input)
   const id = canonicalId(def, rawId)
-  const empty = Object.keys(values).length === 0
+  const empty = merge === undefined && Object.keys(values).length === 0
   const eventId = env.newId()
   const at = codecs.timestamp.write(env.now)
-  const stored = { ...values, ...(def.prepare?.({ values, meta: { op: 'update', now: env.now } }) ?? {}) }
-  const conflictsOf = (qc: QueryContext) => def.conflicts?.({ qc, env, op: 'update', id, values: stored }) ?? []
+  const prepared = { ...values, ...(def.prepare?.({ values, meta: { op: 'update', now: env.now } }) ?? {}) }
+  const conflictsOf = (qc: QueryContext) => def.conflicts?.({ qc, env, op: 'update', id, values: prepared }) ?? []
   return defineOperation<R>({
     name: `${def.name}.update`,
     mutates: !empty,
     // An empty patch writes nothing and answers with the record as read, derived fields included; otherwise `before` feeds the event and carries none.
-    reads: (qc) => ({ before: beforeRead(def, qc, env, id, { derived: empty }), ...referenceReads(def, qc, env, stored), ...(empty ? {} : conflictReads(conflictsOf(qc))) }),
+    reads: (qc) => ({ before: beforeRead(def, qc, env, id, { derived: empty }), ...referenceReads(def, qc, env, prepared), ...(empty ? {} : conflictReads(conflictsOf(qc))) }),
     build: (found, qc) => {
       const row = found.maybe('before')
       if (!row) throw notFound(def)
@@ -364,6 +370,9 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
       const before = toRecord(def, rest)
       // An empty patch checks existence and writes nothing (old behaviour). A same-value patch is a real update.
       if (empty) return unit({ steps: [], events: [], decode: () => before })
+      const merged = merge ? merge(before) : {}
+      if (merged === null) return unit({ steps: [], events: [], decode: () => before })
+      const stored = { ...prepared, ...merged }
       if (missingReference(found, referenceReads(def, qc, env, stored))) throw invalidReference()
       refuseConflicts(found, conflictsOf(qc))
       const computed = def.computed?.({ eb: expressionBuilder<StorageDatabase, PreparedResource['table']>(), qc, values: stored, now: env.now }) ?? {}

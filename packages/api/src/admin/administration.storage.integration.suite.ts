@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { StatementFailed, type ExecutionResult, type PreparedOperation, type StatementLabel } from '@vault/storage'
 import { withFault } from '@vault/storage/test'
 import { seedAgent, seedOrganization, seedUser } from '@vault/db/test'
-import { hashApiKey } from '../auth/api-keys.js'
+import { generateApiKey, hashApiKey } from '../auth/api-keys.js'
+import { openAuthKit } from '../test/auth-kit.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVaultRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
@@ -165,6 +166,190 @@ export function engineSuite(engineName: EngineName): void {
         const same = await call('agents.update', { params: { id: a.id }, body: { name: 'bot' } }, { now: at(3) })
         expect(same).toMatchObject({ name: 'bot', updated_at: iso(3) })
         expect(await events('agent.updated')).toHaveLength(1)
+      })
+
+      describe('scope deltas ([[AGT186]])', () => {
+        const update = (id: string, body: Record<string, unknown>, opts?: Opts) => call('agents.update', { params: { id }, body }, opts)
+        const failUpdate = (id: string, body: Record<string, unknown>) => fail('agents.update', { params: { id }, body })
+        const STORED = ['tasks:read', 'tasks:write']
+        const agentEvents = () => events('agent.updated')
+        const twoScopes = () => newAgent({ scopes: STORED }, { now: at(1) })
+
+        it.each([
+          ['add only', { add_scopes: ['contacts:read'] }, ['contacts:read', 'tasks:read', 'tasks:write']],
+          ['remove only', { remove_scopes: ['tasks:write'] }, ['tasks:read']],
+          ['add and remove', { add_scopes: ['contacts:read'], remove_scopes: ['tasks:write'] }, ['contacts:read', 'tasks:read']],
+          ['a duplicate within add_scopes', { add_scopes: ['contacts:read', 'contacts:read'] }, ['contacts:read', 'tasks:read', 'tasks:write']],
+          ['an unsorted add', { add_scopes: ['tasks:request_approval', 'contacts:read'] }, ['contacts:read', 'tasks:read', 'tasks:request_approval', 'tasks:write']],
+          ['remove of every scope', { remove_scopes: ['tasks:write', 'tasks:read'] }, []],
+        ] as const)('%s: stores the merged sorted list, answers with the record and emits one agent.updated with no delta fields', async (_n, body, expected) => {
+          const a = await twoScopes()
+          const result = await update(a.id, { ...body }, { now: at(2) })
+          expect(result).toEqual({ ...a, scopes: expected, updated_at: iso(2) })
+          expect(await row('agents', a.id)).toMatchObject({ scopes: expected, updated_at: iso(2) })
+          const ev = await agentEvents()
+          expect(ev).toHaveLength(1)
+          expect(ev[0]!.before).toEqual(a)
+          expect(ev[0]!.after).toEqual(result)
+          expect(Object.keys(ev[0]!.after).sort()).toEqual(Object.keys(a).sort())
+          expect(Object.keys(ev[0]!.before).sort()).toEqual(Object.keys(a).sort())
+        })
+
+        it('a delta combines with name and with disabled in one update and one event', async () => {
+          const a = await twoScopes()
+          const named = await update(a.id, { name: 'renamed', add_scopes: ['contacts:read'] }, { now: at(2) })
+          expect(named).toMatchObject({ name: 'renamed', scopes: ['contacts:read', 'tasks:read', 'tasks:write'], updated_at: iso(2) })
+          const off = await update(a.id, { disabled: true, remove_scopes: ['tasks:write'] }, { now: at(3) })
+          expect(off).toMatchObject({ disabled_at: iso(3), scopes: ['contacts:read', 'tasks:read'], updated_at: iso(3) })
+          expect(await agentEvents()).toHaveLength(2)
+        })
+
+        it('removing a stored scope takes effect on the agent next request (the existing missing-scope refusal)', async () => {
+          const a = await twoScopes()
+          const kit = await openAuthKit(e)
+          const { key, hash, prefix } = await generateApiKey(() => crypto.getRandomValues(new Uint8Array(32)))
+          await e.insert('api_keys', { agent_id: a.id, key_hash: hash, prefix })
+          const post = async () => (await kit.keyCall('/api/v1/tasks', key, { method: 'POST', body: { title: 'x' } })).status
+          expect(await post()).toBe(201)
+          await update(a.id, { remove_scopes: ['tasks:write'] }, { now: at(2) })
+          const res = await kit.keyCall('/api/v1/tasks', key, { method: 'POST', body: { title: 'y' } })
+          expect([res.status, (await res.json()).error.code]).toEqual([403, 'insufficient_scope'])
+        })
+
+        describe('refusals write nothing', () => {
+          it.each([
+            ['scopes with add_scopes', { scopes: ['tasks:read'], add_scopes: ['contacts:read'] }, ['scopes', 'add_scopes']],
+            ['scopes with remove_scopes', { scopes: ['tasks:read'], remove_scopes: ['tasks:write'] }, ['scopes', 'remove_scopes']],
+            ['scopes with both deltas', { scopes: [], add_scopes: [], remove_scopes: [] }, ['scopes', 'add_scopes', 'remove_scopes']],
+          ] as const)('D1: %s is 400 validation_error naming the fields', async (_n, body, named) => {
+            const a = await twoScopes()
+            const before = await snapshot(e)
+            const [status, code, message] = await failUpdate(a.id, { ...body })
+            expect([status, code]).toEqual([400, 'validation_error'])
+            for (const f of named) expect(message).toContain(f)
+            expect(await snapshot(e)).toEqual(before)
+          })
+
+          it('D2: a scope in both deltas is 400 naming the first overlap in add_scopes order', async () => {
+            const a = await twoScopes()
+            const before = await snapshot(e)
+            const [status, code, message] = await failUpdate(a.id, { add_scopes: ['contacts:read', 'tasks:write', 'tasks:read'], remove_scopes: ['tasks:read', 'tasks:write'] })
+            expect([status, code]).toEqual([400, 'validation_error'])
+            expect(message).toContain('tasks:write')
+            expect(message).not.toContain('tasks:read')
+            expect(await snapshot(e)).toEqual(before)
+          })
+
+          it('D2: an overlap whose net merge would equal the stored list is still 400, not a no-op 200', async () => {
+            const a = await twoScopes()
+            const [status, code] = await failUpdate(a.id, { add_scopes: ['tasks:read'], remove_scopes: ['tasks:read'] })
+            expect([status, code]).toEqual([400, 'validation_error'])
+          })
+
+          it('validation order: an overlap that also has an unknown add reports the overlap (D2 before D3)', async () => {
+            const a = await twoScopes()
+            const [status, code, message] = await failUpdate(a.id, { add_scopes: ['nope:read', 'tasks:read'], remove_scopes: ['tasks:read'] })
+            expect([status, code]).toEqual([400, 'validation_error'])
+            expect(message).toContain('tasks:read')
+          })
+
+          it('validation order: scopes with a delta for an unknown agent id is 400, not 404; a valid body for it is 404', async () => {
+            expect((await failUpdate(UNKNOWN, { scopes: [], add_scopes: [] }))[0]).toBe(400)
+            expect((await failUpdate(UNKNOWN, { add_scopes: ['nope:read'] }))[1]).toBe('unknown_scope')
+            expect(await failUpdate(UNKNOWN, { add_scopes: ['contacts:read'] })).toEqual([404, 'not_found', 'agent not found'])
+            expect(await failUpdate(UNKNOWN, { remove_scopes: ['tasks:read'] })).toEqual([404, 'not_found', 'agent not found'])
+          })
+
+          it.each([
+            ['an unknown field', { add_scopes: ['contacts:read'], extra: 1 }],
+            ['a non-array add_scopes', { add_scopes: 'contacts:read' }],
+            ['a non-string remove entry', { remove_scopes: [1] }],
+            ['more than 100 removes', { remove_scopes: Array.from({ length: 101 }, (_, i) => `x${i}:read`) }],
+            ['more than 100 adds', { add_scopes: Array.from({ length: 101 }, () => 'tasks:read') }],
+          ] as const)('shape: %s is 400 validation_error', async (_n, body) => {
+            const a = await twoScopes()
+            const before = await snapshot(e)
+            expect((await failUpdate(a.id, { ...body }))[1]).toBe('validation_error')
+            expect(await snapshot(e)).toEqual(before)
+          })
+        })
+
+        describe('D3 adds', () => {
+          it('an unknown add is unknown_scope and a non-grantable add is scope_not_grantable, nothing written', async () => {
+            const a = await twoScopes()
+            const before = await snapshot(e)
+            expect(await failUpdate(a.id, { add_scopes: ['nope:read'] })).toEqual([400, 'unknown_scope', 'unknown scope: nope:read'])
+            expect(await failUpdate(a.id, { add_scopes: ['agents:write'] })).toEqual([400, 'scope_not_grantable', 'scope not grantable to an agent: agents:write'])
+            expect(await snapshot(e)).toEqual(before)
+          })
+
+          it('the first offender in input order decides, in both orders', async () => {
+            const a = await twoScopes()
+            expect(await failUpdate(a.id, { add_scopes: ['contacts:read', 'nope:read', 'agents:write'] })).toEqual([400, 'unknown_scope', 'unknown scope: nope:read'])
+            expect(await failUpdate(a.id, { add_scopes: ['agents:write', 'nope:read'] })).toEqual([400, 'scope_not_grantable', 'scope not grantable to an agent: agents:write'])
+          })
+
+          it('a stored scope the policy no longer declares does not block an unrelated add, and survives the merge', async () => {
+            const a = await twoScopes()
+            await e.update('agents', a.id, { scopes: ['legacy:read', 'tasks:read'] })
+            const r = await update(a.id, { add_scopes: ['contacts:read'] }, { now: at(2) })
+            expect(r.scopes).toEqual(['contacts:read', 'legacy:read', 'tasks:read'])
+            expect((await row('agents', a.id)).scopes).toEqual(['contacts:read', 'legacy:read', 'tasks:read'])
+          })
+
+          it('D4: removes are literal and unchecked: an undeclared stored scope can be removed by name', async () => {
+            const a = await twoScopes()
+            await e.update('agents', a.id, { scopes: ['legacy:read', 'tasks:read'] })
+            const r = await update(a.id, { remove_scopes: ['legacy:read', 'agents:write', 'whatever'] }, { now: at(2) })
+            expect(r.scopes).toEqual(['tasks:read'])
+          })
+        })
+
+        describe('D7 no-op', () => {
+          it.each([
+            ['adding only stored scopes', { add_scopes: ['tasks:read', 'tasks:write'] }],
+            ['removing only absent scopes', { remove_scopes: ['contacts:read'] }],
+            ['removing an undeclared name', { remove_scopes: ['nope:read'] }],
+            ['removing a non-grantable name', { remove_scopes: ['agents:write'] }],
+            ['empty arrays', { add_scopes: [], remove_scopes: [] }],
+            ['an empty add', { add_scopes: [] }],
+            ['an empty remove', { remove_scopes: [] }],
+          ] as const)('%s: 200 with the current record, no event, updated_at unchanged', async (_n, body) => {
+            const a = await twoScopes()
+            const before = await snapshot(e)
+            const r = await run('agents.update', { params: { id: a.id }, body: { ...body } }, { now: at(2) })
+            expect(r.value).toEqual(a)
+            expect(r.events).toEqual([])
+            expect(await agentEvents()).toHaveLength(0)
+            expect((await row('agents', a.id)).updated_at).toBe(iso(1))
+            expect(await snapshot(e)).toEqual(before)
+          })
+
+          it('with name or disabled present a net-zero delta is a normal update writing the merged list, with one event', async () => {
+            const a = await twoScopes()
+            const named = await update(a.id, { name: 'bot', add_scopes: ['tasks:read'] }, { now: at(2) })
+            expect(named).toMatchObject({ name: 'bot', scopes: STORED, updated_at: iso(2) })
+            expect(await agentEvents()).toHaveLength(1)
+            const off = await update(a.id, { disabled: false, remove_scopes: ['contacts:read'] }, { now: at(3) })
+            expect(off).toMatchObject({ scopes: STORED, updated_at: iso(3) })
+            expect(await agentEvents()).toHaveLength(2)
+          })
+
+          it('an invalid no-op is still refused (an unknown add that is also stored is not a stored scope check)', async () => {
+            const a = await twoScopes()
+            await e.update('agents', a.id, { scopes: ['legacy:read'] })
+            expect(await failUpdate(a.id, { add_scopes: ['legacy:read'] })).toEqual([400, 'unknown_scope', 'unknown scope: legacy:read'])
+          })
+        })
+
+        it('the generic path is unchanged: replace scopes, name, disabled and {} still behave as before', async () => {
+          const a = await twoScopes()
+          expect(await update(a.id, { scopes: ['contacts:read'] }, { now: at(2) })).toMatchObject({ scopes: ['contacts:read'], updated_at: iso(2) })
+          expect(await update(a.id, { name: 'n' }, { now: at(3) })).toMatchObject({ name: 'n', scopes: ['contacts:read'], updated_at: iso(3) })
+          expect(await agentEvents()).toHaveLength(2)
+          const noop = await run('agents.update', { params: { id: a.id }, body: {} }, { now: at(4) })
+          expect(noop.events).toEqual([])
+        })
       })
 
       it('an unknown or foreign-shaped id is a 404', async () => {
@@ -512,6 +697,18 @@ export function engineSuite(engineName: EngineName): void {
           expect((await fail('agents.update', { params: { id: a.id }, body: { name: 'planned' } }, { now: at(6) }))[1]).toBe('conflict')
           expect(await row('agents', a.id)).toMatchObject({ name: 'direct' })
           expect((await events('agent.updated')).length).toBe(0)
+        })
+
+        it('agent delta update vs update: a direct change between plan and commit is 409 conflict, the merge is from the one guarded read and nothing is written (AGT186 D5)', async () => {
+          const { a } = await keyed()
+          e.betweenPlanAndCommit(async () => {
+            await e.update('agents', a.id, { scopes: ['contacts:read'], updated_at: iso(5) })
+          })
+          expect(await fail('agents.update', { params: { id: a.id }, body: { add_scopes: ['tasks:write'] } }, { now: at(6) })).toEqual([409, 'conflict', 'the record changed while the operation was running; retry'])
+          expect(await row('agents', a.id)).toMatchObject({ scopes: ['contacts:read'], updated_at: iso(5) })
+          expect((await events('agent.updated')).length).toBe(0)
+          const retry = await call('agents.update', { params: { id: a.id }, body: { add_scopes: ['tasks:write'] } }, { now: at(7) })
+          expect(retry.scopes).toEqual(['contacts:read', 'tasks:write'])
         })
 
         it('key issue racing the deletion of its agent: the guarded insert is a no-op, so 409 and no key row', async () => {
