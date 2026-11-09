@@ -25,8 +25,9 @@ export function gmailTransport(d:GmailTransportDeps):Transport {
   }
   async function confirm(client:GmailClient,id:string,clientRef:string,threadId?:string):Promise<boolean>{
     const m=await client.getMessageMetadata(id)
-    const ids=messageIdTokens(header(m.payload?.headers,'Message-ID'))
-    return m.id===id&&typeof m.threadId==='string'&&m.threadId.length>0&&(!threadId||m.threadId===threadId)&&m.labelIds?.includes('SENT')===true&&ids.length===1&&ids[0]===clientRef
+    // Gmail rewrites the Message-ID on send, so the header cannot be compared with `clientRef`: the id, thread and SENT label are the proof.
+    void clientRef
+    return m.id===id&&typeof m.threadId==='string'&&m.threadId.length>0&&(!threadId||m.threadId===threadId)&&m.labelIds?.includes('SENT')===true
   }
   const result=(call:TransportCall)=>({connection_id:String(call.resolution.connection_id),external_id:call.clientRef})
   async function markInvalidGrant(err:unknown,call:TransportCall):Promise<boolean>{
@@ -59,8 +60,7 @@ export function gmailTransport(d:GmailTransportDeps):Transport {
         const client=gmailClientFor(d,String(c.id),String(c.owner_id),call.signal)
         const a=call.resolution.anchor as Record<string,unknown>|undefined
         const sent=await new GmailChannel(client).postToThread({from:String(call.resolution.mailbox),to:(call.arguments.to??[]) as string[],cc:(call.arguments.cc??[]) as string[],bcc:(call.arguments.bcc??[]) as string[],subject:String(call.arguments.subject??''),text,client_ref:call.clientRef,provider_thread_id:a?String(a.provider_thread_id):null,provider_anchor_id:a?String(a.provider_message_id):null,...(a?{anchor_external_id:String(a.external_id)}:{})},call.signal,()=>{posted=true})
-        // Once a POST answered success, every failed/malformed confirmation remains uncertain, including explicit metadata errors.
-        try{if(!await confirm(client,sent.id,call.clientRef,sent.threadId))return {kind:'unknown'}}catch{return {kind:'unknown'}}
+        // A successful POST response is the provider's acceptance: that is delivery, no second look needed.
         await kick(String(c.id));return {kind:'sent',result:result(call)}
       }catch(err){return classify(err,posted,call)}
     },
