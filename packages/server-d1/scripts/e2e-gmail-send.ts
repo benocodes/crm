@@ -53,6 +53,9 @@ try{
   assert.equal((await mf.dispatchFetch('https://vault.test/meta/v1/me')).status,503,'new Worker refuses old schema')
   await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR,'0013_send_connection.sql'),'utf8')).map(s=>d1.prepare(s)));await recordMigrations(d1,['0013_send_connection.sql'])
   assert.deepEqual(await d1.prepare('select * from action_requests where id=?').bind(oldRequest).first(),oldRequestRow)
+  const later=readdirSync(MIGRATIONS_DIR).filter(f=>/^\d{4}_.+\.sql$/.test(f)&&f>'0013').sort()
+  for(const f of later)await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR,f),'utf8')).map(s=>d1.prepare(s)))
+  await recordMigrations(d1,later)
   await mf.dispose();mf=new Miniflare(options());await mf.ready;d1=await mf.getD1Database('DB') as unknown as D1Like
   const rows=async(s:string,...binds:unknown[])=>(await d1.prepare(s).bind(...binds).all()).results as any[]
   assert.equal((await rows('select connection_id from action_executions where id=?',oldId))[0].connection_id,null)
