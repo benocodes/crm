@@ -127,8 +127,8 @@ describe('derived contact activity ([[CORE131]] D12)', () => {
     const out = byName('contacts_list').tool.outputSchema as { properties: { next_cursor: Record<string, unknown> } }
     expect(JSON.stringify(out.properties.next_cursor)).not.toContain('uuid')
     expect(JSON.stringify(out.properties.next_cursor)).toContain('string')
-    // CORE175 D15: the hand-written lists are the ones left with uuid cursors and no sort.
-    for (const n of ['action_executions_list', 'associations_list', 'users_list']) {
+    // CORE175 D15, CORE188 D1: the hand-written lists left out by design keep uuid cursors and no sort.
+    for (const n of ['associations_list', 'users_list']) {
       const other = byName(n).tool
       expect(JSON.stringify((other.inputSchema as { properties: Record<string, unknown> }).properties.after), n).toContain('uuid')
       expect(JSON.stringify((other.outputSchema as { properties: Record<string, unknown> }).properties.next_cursor), n).toContain('uuid')

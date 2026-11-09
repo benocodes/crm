@@ -117,7 +117,9 @@ cosmetic notes only; +70 code / +754 test and fixture lines. A one-resource over
 sits far under the budget; charters of this shape need no split discussion. **CORE187** (`knowledge/specs/013-CORE187-sort-discovery/RETRO.md`)
 confirms it: 5 groups (1 matrix), 5 decisions, no migration or E2E cost 169k tokens / 53 calls, ~25 min, approved round 1
 with no findings. Its spec decisions (D16–D18) were settled at plan time, leaving the coder only presentation choices; a
-generated golden (6,388 lines here) is not counted against the budget.
+generated golden (6,388 lines here) is not counted against the budget. **CORE188** (`knowledge/specs/013-CORE188-execution-sort/RETRO.md`):
+5 groups (1 matrix), 7 decisions, no migration or E2E cost ~240k tokens / 118 calls, ~33 min, approved round 1. Seven
+absence mutations and a file rewritten after a bad restore drove the calls, not the counts; the budget holds.
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code

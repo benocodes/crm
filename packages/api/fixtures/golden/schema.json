@@ -40,7 +40,28 @@
                   "operations": [],
                   "read_scope": "action_executions:read",
                   "write_scope": null,
-                  "sorts": []
+                  "sorts": [
+                    {
+                      "name": "id",
+                      "kind": "uuid",
+                      "indexed": false
+                    },
+                    {
+                      "name": "created_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    },
+                    {
+                      "name": "updated_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    },
+                    {
+                      "name": "done_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    }
+                  ]
                 },
                 "columns": [
                   {
@@ -64,7 +85,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Created at",
-                    "description": "When the row was created.",
+                    "description": "Queued at: when it was queued, the moment it was authorised. For an approved action request that is the approval, equal to the request's decided_at (approved at); for a direct call, the call.",
                     "values": null,
                     "exposed": true,
                     "references": null
@@ -292,7 +313,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Done at",
-                    "description": "When it finished, done or failed.",
+                    "description": "Executed at: when it finished, done or failed; null while queued or claimed. Sort by it with sort=done_at&order=desc for the latest executed; unfinished executions sort last in desc.",
                     "values": null,
                     "exposed": true,
                     "references": null
@@ -771,7 +792,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Decided at",
-                    "description": "When the decision was made; null while pending.",
+                    "description": "Approved at, when the decision was made (approved, rejected or withdrawn; null while pending). For an approval of an enqueued operation it is the instant its execution was queued: the execution's created_at equals it.",
                     "values": null,
                     "exposed": true,
                     "references": null

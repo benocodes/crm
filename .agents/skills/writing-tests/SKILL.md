@@ -29,6 +29,13 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   fixture field turned 14 red). **A vendored copy of a dependency's function** keeps a parity test against the
   original in Node, proven by swapping in a near-miss implementation ([[CORE69]]: `mdast-util-to-string` for
   `toPlainText`, 7 parity tests red).
+- **Commit the green implementation before the first mutation.** Restoring a mutant with `git checkout <file>` (or
+  `git restore`) resets the whole file to the last commit, so it also deletes any uncommitted real work in that file:
+  [[CORE188]]'s mutation session reverted the uncommitted green `executions/definition.ts` this way and the coder had
+  to rewrite it (`knowledge/specs/013-CORE188-execution-sort/RETRO.md`). Commit green first and restore from that
+  commit. If you cannot, save the green file before mutating (a copy in the scratchpad that you copy back, or
+  `git stash push -m <unique tag> -- <file>` followed at once by `git stash apply`, so the tagged stash stays as the
+  backup). Never bare-checkout a file that holds uncommitted changes you mean to keep.
 - **A mutation that stays green is suspect before the test is.** Check `git diff` shows an executable line
   changed: [[CORE38]]'s mutation 7 (`remoteBindings: true`) first replaced the word in a code comment and
   stayed green; applied to the `return` line it turned red. Record which attempt counted.

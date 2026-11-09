@@ -1,12 +1,20 @@
 import { z } from 'zod'
-import { defineOperation, memberOf, readAll, readMaybe, unit, type PreparedOperation, type Read } from '@vault/storage'
+import { defineOperation, memberOf, readMaybe, unit, type PreparedOperation, type Read } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import type { Registry, TenantOperation } from '../registry.js'
-import { selectRecord, toRecord } from '../storage/crud.js'
+import { listOperation, selectRecord, toRecord, type ListResult } from '../storage/crud.js'
 import { definePreparedResource, type PreparedEnv } from '../storage/definition.js'
-import { canonicalId, prepareListQuery } from '../storage/prepare.js'
+import { canonicalId } from '../storage/prepare.js'
+import { SORTED_NEXT, sortedQueryFields } from '../storage/sort-params.js'
+import { withColumnSorts } from '../storage/sorts.js'
 
 export const EXECUTION_STATUSES = ['queued', 'claimed', 'done', 'failed'] as const
+
+/** [[CORE188]] D2: the three times and the recipe for the latest executions, appended to the list's `sort` text (REST, MCP and the CLI's help). */
+const EXECUTION_SORT_NOTE =
+  'For executions: created_at is queued at, the moment the execution was authorised (for an approved action request that is the approval, the request\'s decided_at, "approved at"; for a direct call, the call). ' +
+  'done_at is executed at: when it finished, done or failed, and null while queued or claimed, so unfinished executions come first in asc and last in desc. ' +
+  'The latest executed: sort=done_at&order=desc; the latest queued: sort=created_at&order=desc. updated_at moves only at creation and at the outcome, never between attempts.'
 
 const record = z.object({
   id: z.uuid(),
@@ -22,8 +30,8 @@ const record = z.object({
   error_code: z.string().nullable().describe('Why it failed: reauth_required, permission_missing, anchor_missing, provider_rejected, outcome_unknown, attempts_exhausted or deadline_passed.'),
   error_message: z.string().nullable().describe('The vault\'s sentence for the failure; never a provider\'s own text.'),
   deadline_at: z.string().describe('When a never-attempted execution stops being attempted.'),
-  done_at: z.string().nullable(),
-  created_at: z.string(),
+  done_at: z.string().nullable().describe('When it was executed: when it finished, done or failed; null while queued or claimed.'),
+  created_at: z.string().describe('When it was queued: the moment it was authorised. For an approved action request that is the approval, equal to the request\'s decided_at; for a direct call, the call.'),
   updated_at: z.string(),
 })
 export type ExecutionRecord = z.infer<typeof record>
@@ -33,7 +41,7 @@ export type ExecutionRecord = z.infer<typeof record>
  * columns, the input hash, the resolution and the client reference stay in the table. It declares no generated operations: its two reads are
  * hand-written because their visibility is the enqueued operation's own read scope (`executionReadOperations`), not a scope of the table.
  */
-export const actionExecutions = definePreparedResource({
+export const actionExecutions = withColumnSorts(definePreparedResource({
   notProposable: 'executions are created by authorising an enqueued operation, never written directly',
   surface: 'api',
   name: 'action_executions',
@@ -47,7 +55,9 @@ export const actionExecutions = definePreparedResource({
     operation: { schema: z.string().min(1).max(100) },
     action_request_id: { schema: z.uuid() },
   },
-})
+  // [[CORE188]] D1, D2: the convention sorts and done_at; the meanings are named where an agent chooses a sort.
+  sortNote: EXECUTION_SORT_NOTE,
+}), ['done_at'])
 
 const notFound = () => new ApiError(404, 'not_found', 'action execution not found')
 
@@ -59,32 +69,16 @@ export function readableOperations(registry: Registry, env: PreparedEnv): string
     .map((o) => o.name)
 }
 
-type Page = { data: ExecutionRecord[]; next_cursor: string | null }
-
-function listExecutions(registry: Registry, env: PreparedEnv, query: Record<string, unknown>): PreparedOperation<Page> {
-  const { after, limit, filters } = prepareListQuery(actionExecutions, { after: query.after, limit: query.limit, filters: Object.fromEntries(Object.entries(query).filter(([k, v]) => !['after', 'limit'].includes(k) && v !== undefined)) as Record<string, string> })
+function listExecutions(registry: Registry, env: PreparedEnv, query: Record<string, unknown>): PreparedOperation<ListResult<ExecutionRecord>> {
+  const { after, limit, sort, order, ...filters } = query
   const allowed = readableOperations(registry, env)
-  return defineOperation<Page>({
-    name: 'action_executions.list',
-    mutates: false,
-    reads: (qc): Record<string, Read> => {
-      if (allowed.length === 0) return {}
-      let q = selectRecord(actionExecutions, qc, env).where(memberOf(qc, 'action_executions', 'operation', allowed))
-      if (after) q = q.where('action_executions.id', '>', after as never)
-      for (const [column, value] of Object.entries(filters)) q = q.where(`action_executions.${column}` as never, '=', value as never)
-      return { page: readAll(q.orderBy('action_executions.id', 'asc').limit(limit + 1)) }
-    },
-    build: (found) =>
-      unit({
-        steps: [],
-        events: [],
-        decode: () => {
-          const rows = allowed.length === 0 ? [] : found.all('page')
-          const page = rows.slice(0, limit)
-          return { data: page.map((r) => toRecord(actionExecutions, r)), next_cursor: rows.length > limit ? (page[page.length - 1]!.id as string) : null }
-        },
-      }),
-  })
+  // The shared list does the validation, ordering, keyset and cursor; the visibility is the one restriction it is given (CORE188 D3).
+  return listOperation(
+    actionExecutions,
+    env,
+    { after, limit, sort, order, filters: Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined)) as Record<string, string> },
+    allowed.length === 0 ? 'nothing' : (qc) => memberOf(qc, 'action_executions', 'operation', allowed),
+  )
 }
 
 function getExecution(registry: Registry, env: PreparedEnv, rawId: string): PreparedOperation<ExecutionRecord> {
@@ -119,19 +113,19 @@ export function executionReadOperations(registry: Registry): TenantOperation[] {
       ...base,
       name: 'action_executions.list',
       summary: 'List action executions',
-      description: 'The durable executions of enqueued operations, oldest id first. You see an execution when you hold the read scope its operation declares (for example messages:read for messages.send); the list is empty otherwise.',
+      description: 'The durable executions of enqueued operations, oldest id first unless sorted (created_at is when one was queued, done_at when it was executed). You see an execution when you hold the read scope its operation declares (for example messages:read for messages.send); the list is empty otherwise.',
       method: 'get',
       path: '/action-executions',
       request: {
         query: z.object({
-          after: z.uuid().optional(),
+          ...sortedQueryFields(actionExecutions),
           limit: z.coerce.number().int().min(1).max(200).optional(),
           status: z.enum(EXECUTION_STATUSES).optional(),
           operation: z.string().min(1).max(100).optional(),
           action_request_id: z.uuid().optional(),
         }),
       },
-      response: { status: 200, schema: z.object({ data: z.array(record), next_cursor: z.uuid().nullable() }) },
+      response: { status: 200, schema: z.object({ data: z.array(record), next_cursor: SORTED_NEXT }) },
       prepare: (env, input) => listExecutions(registry, env, input.query),
     },
     {

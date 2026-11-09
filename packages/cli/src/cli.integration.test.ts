@@ -90,6 +90,18 @@ describe('against the D1 app', () => {
     expect((await ok(r, ['action-executions', '--help'])).stdout).toMatch(/list|get/)
   })
 
+  it('action-executions list --help carries the sort flags and the note naming the three times; the unsorted output keeps its shape ([[CORE188]] D2, D4)', async () => {
+    const r = await session()
+    const help = (await ok(r, ['action-executions', 'list', '--help'])).stdout
+    expect(help).toContain('--sort')
+    expect(help).toContain('--order')
+    for (const pattern of [/queued at/i, /executed at/i, /done or failed/i, /unfinished/i, /sort=done_at&order=desc/, /approved at/i]) expect(help, String(pattern)).toMatch(pattern)
+    // A sorted call with nothing readable answers the same empty page as an unsorted one.
+    expect(JSON.parse((await ok(r, ['action-executions', 'list', '--sort', 'done_at', '--order', 'desc'])).stdout)).toEqual({ data: [], next_cursor: null })
+    const bad = await r.run(['action-executions', 'list', '--sort', 'dispatched_at'])
+    expect(bad.code).not.toBe(0)
+  })
+
   it('list --all follows next_cursor across pages and prints one NDJSON line per record', async () => {
     const r = await session()
     const ids: string[] = []

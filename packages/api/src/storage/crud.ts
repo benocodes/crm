@@ -8,6 +8,7 @@ import {
   embedJson,
   readAll,
   readMaybe,
+  type Read,
   recordColumns,
   step,
   ts,
@@ -168,7 +169,14 @@ function afterPosition(def: PreparedResource, qc: QueryContext, sort: SortReques
     : sql<SqlBool>`(${v} < ${value} or ${v} is null or (${v} = ${value} and ${idRef} < ${id}))`
 }
 
-export function listOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> }): PreparedOperation<ListResult<R>> {
+/**
+ * [[CORE188]] D3: what else decides which rows a list may show, for a list whose visibility is not the table's scope (an execution is visible when
+ * the caller may read its operation, [[AGT8]] D57). `'nothing'` means nothing is readable: no read is issued and the page is empty. A function
+ * is a predicate ANDed into the query, on the unsorted and the sorted path alike. Validation (`400`) always precedes it.
+ */
+export type ListRestriction = 'nothing' | ((qc: QueryContext) => Expression<SqlBool>)
+
+export function listOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> }, restriction?: ListRestriction): PreparedOperation<ListResult<R>> {
   // 400s first (a malformed query is refused whatever the caller may see), then 403s ([[CORE133]] D5); both before any query is built.
   const { after, limit, filters, sort } = prepareListQuery(def, raw)
   // [[CORE129]] D12: a join filter may need scopes beyond the list's own; refused here, before any query is built.
@@ -186,8 +194,10 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
   return defineOperation<ListResult<R>>({
     name: `${def.name}.list`,
     mutates: false,
-    reads: (qc) => {
+    reads: (qc): Record<string, Read> => {
+      if (restriction === 'nothing') return {}
       let q = selectRecord(def, qc, env)
+      if (restriction) q = q.where(restriction(qc))
       if (sort && def.sortKinds) q = q.select(sql`${sortExpression(def, qc, sort)}`.as('__vault_sort_value'))
       if (sort?.position) q = q.where(afterPosition(def, qc, { ...sort, position: sort.position }))
       else if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
@@ -204,7 +214,7 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
         steps: [],
         events: [],
         decode: () => {
-          const rows = found.all('page')
+          const rows = restriction === 'nothing' ? [] : found.all('page')
           const page = rows.slice(0, limit)
           const last = page[page.length - 1]
           const cursor = (): string => {

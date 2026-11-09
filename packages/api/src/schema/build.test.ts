@@ -283,7 +283,11 @@ describe('sorts on the resource object ([[CORE187]] D10, D16)', () => {
     expect(sortsOf(build(), 'contacts').map((s) => s.name).slice(-2)).toEqual(['last_contacted_at', 'last_interacted_at'])
   })
   it('a definition without column sorts reports an empty array; a table with no resource keeps resource null', () => {
-    expect(sortsOf(build(), 'action_executions')).toEqual([])
+    // CORE188: no shipped resource lacks column sorts now, so the path is proven on a definition with its sorts removed.
+    const bare = defs.map((d) => (d.name === 'action_executions' ? { ...d, sorts: undefined, sortKinds: undefined } : d))
+    expect(sortsOf(build({ resources: bare }), 'action_executions')).toEqual([])
+    expect(table(build({ resources: bare }), 'action_executions').resource).not.toBeNull()
+    expect(sortsOf(build(), 'action_executions').map((s) => s.name)).toEqual(['id', 'created_at', 'updated_at', 'done_at'])
     expect(table(build(), 'events').resource).toBeNull()
   })
 })
