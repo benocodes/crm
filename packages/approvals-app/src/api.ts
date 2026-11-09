@@ -10,6 +10,8 @@ export class ApiFailure extends Error {
 
 export interface Api {
   list(status: string): Promise<ActionRequest[]>
+  /** One request; for messages.send this carries the body text, which the list does not. */
+  get(id: string): Promise<ActionRequest>
   approve(id: string, reason?: string): Promise<ActionRequest>
   reject(id: string, reason?: string): Promise<ActionRequest>
 }
@@ -42,6 +44,7 @@ export function createApi(getToken: () => Promise<string | null>, fetchImpl: typ
       }
       return all
     },
+    get: (id) => call<ActionRequest>('GET', `/api/v1/action-requests/${encodeURIComponent(id)}`),
     approve: decide('approve'),
     reject: decide('reject'),
   }

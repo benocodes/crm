@@ -50,3 +50,32 @@ export const prettyJson = (v: unknown): string => JSON.stringify(v, null, 2)
 export const byCreatedDesc = (a: ActionRequest, b: ActionRequest): number => Date.parse(b.created_at) - Date.parse(a.created_at)
 
 export const isExpired = (r: ActionRequest, now: number): boolean => Date.parse(r.expires_at) <= now
+
+export interface EmailPreview {
+  mode: string
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  subject: string
+  /** The text of the message; null when the vault did not return it (only a descriptor came back). */
+  body: string | null
+}
+
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+
+/** A `messages.send` request as an email the reviewer can read; null for every other operation. */
+export function emailPreview(r: ActionRequest): EmailPreview | null {
+  if (r.operation !== 'messages.send') return null
+  const a = effectiveArguments(r)
+  return {
+    mode: typeof a.mode === 'string' ? a.mode : 'new',
+    to: strings(a.to),
+    cc: strings(a.cc),
+    bcc: strings(a.bcc),
+    subject: typeof a.subject === 'string' ? a.subject : '',
+    body: typeof a.body === 'string' ? a.body : null,
+  }
+}
+
+/** The list endpoint returns a body descriptor; the single-record read returns the text. Take the arguments from the full record, the rest from the list. */
+export const withFullArguments = (listed: ActionRequest, full: ActionRequest): ActionRequest => ({ ...listed, arguments: full.arguments, edited_arguments: full.edited_arguments })
