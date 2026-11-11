@@ -3,7 +3,8 @@ import { codecs } from '@vault/storage'
 import { deleteTaskOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
-import { tagIdFilter } from './tag-filter.js'
+import { withColumnFilters } from '../storage/column-filters.js'
+import { tagIdFilter, tagNameFilter } from './tag-filter.js'
 
 export type TaskRecord = {
   id: string
@@ -59,13 +60,13 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const tasks = withColumnSorts(definePreparedResource({
+export const tasks = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
   associable: true,
-  customFilters: { tag_id: tagIdFilter('tasks') },
+  customFilters: { tag_id: tagIdFilter('tasks'), tag: tagNameFilter('tasks') },
   override: { delete: (env, id) => deleteTaskOperation(env, id as string) },
   record,
   create,
@@ -89,4 +90,4 @@ export const tasks = withColumnSorts(definePreparedResource({
     if (values.status === 'open') return { completed_at: null }
     return {}
   },
-}), ['due_at', 'title'])
+}), ['due_at', 'title']))

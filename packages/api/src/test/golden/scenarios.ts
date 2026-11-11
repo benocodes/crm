@@ -182,7 +182,7 @@ export const taskScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(9), method: 'GET', path: '/api/v1/tasks?limit=0' },
       { as: 'user', at: at(10), method: 'GET', path: '/api/v1/tasks?limit=201' },
       { as: 'user', at: at(11), method: 'GET', path: '/api/v1/tasks?after=nope' },
-      { as: 'user', at: at(12), method: 'GET', path: '/api/v1/tasks?title=t1' },
+      { as: 'user', at: at(12), method: 'GET', path: '/api/v1/tasks?colour=t1' },
     ],
   },
   {

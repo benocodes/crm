@@ -6,7 +6,7 @@ import type { Expression, SqlBool } from 'kysely'
 import type { PhysicalTable, PreparedOperation, QueryContext } from '@vault/storage'
 import type { ObjectStore } from './objects/store.js'
 import { softDeletes, type PreparedEnv, type PreparedResource } from './storage/definition.js'
-import { describeColumnFilter } from './storage/column-filters.js'
+import { columnFilterParams } from './storage/column-filters.js'
 import { SORTED_NEXT, sortedQueryFields } from './storage/sort-params.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
 import { endpointTypesOf, type EndpointTypes } from './associations/definition.js'
@@ -266,7 +266,7 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
     query.limit = z.coerce.number().int().min(1).max(200).optional()
     for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.customFilters ?? {}) })) query[key] = (f as { schema: z.ZodType }).schema.optional()
     // [[CORE200]] D9: a column filter is one string parameter, described from the operator table; it replaces the equality parameter of the same name.
-    for (const [key, spec] of Object.entries(def.columnFilters ?? {})) query[key] = z.string().describe(describeColumnFilter(key, spec)).optional()
+    Object.assign(query, columnFilterParams(def))
     if (sortFields) {
       query.sort = sortFields.sort!
       query.order = sortFields.order!

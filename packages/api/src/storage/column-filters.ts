@@ -1,5 +1,5 @@
 import { sql, type Expression, type SqlBool } from 'kysely'
-import type { z } from 'zod'
+import { z } from 'zod'
 import { COLUMN_KINDS, bind, codecs, jsonRows, type ColumnKind, type QueryContext } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import type { PreparedResource } from './definition.js'
@@ -23,13 +23,21 @@ export type Condition = { readonly not: boolean; readonly op: Operator; readonly
 export type ColumnFilterSpec = {
   readonly kind: FilterKind
   readonly nullable: boolean
+  /** [[CORE201]] D18: `nocase` when the D1 column folds ASCII case in a plain comparison (`tags.name`); absent for byte order. Only text columns carry it. */
+  readonly collation?: 'nocase'
   /** Validates each scalar operand (not patterns), after it parsed as its kind. */
   readonly schema?: { safeParse(v: unknown): { success: boolean; error?: { issues: readonly { message: string }[] } } }
   /** Applied to each scalar operand (`eq`, `neq`, comparisons, `in` items), never to a pattern. */
-  readonly normalize?: (value: unknown, filters: Record<string, unknown>) => unknown
+  readonly normalize?: (value: unknown, siblings: Readonly<Record<string, string | undefined>>) => unknown
   /** A sentence appended to the generated description. */
   readonly note?: string
 }
+
+/**
+ * [[CORE201]] D18: the text columns of the D1 schema declared `COLLATE NOCASE`, as `table.column`: `eq`, `neq`, the comparisons and `in` fold ASCII case on them,
+ * and the generated description says so. Checked in against `sqlite_master` by `filter-contract.integration.d1.test.ts` (exact, both ways).
+ */
+export const NOCASE_COLUMNS: ReadonlySet<string> = new Set(['tags.name', 'pipelines.name', 'pipeline_stages.name'])
 
 const FILTERABLE: ReadonlySet<string> = new Set<FilterKind>(['uuid', 'text', 'integer', 'timestamp', 'boolean'])
 const COMPARISONS: readonly Operator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in']
@@ -141,8 +149,12 @@ function countItems(body: string): number {
   return n
 }
 
-/** Parses one filter value against the field's kind: the grammar, the operator's availability, each operand, then the field's options. */
-export function parseCondition(name: string, spec: ColumnFilterSpec, raw: string): Condition {
+/**
+ * Parses one filter value against the field's kind: the grammar, the operator's availability, each operand, then the field's options. `siblings` are
+ * the other filters of the same call that are plain equalities (`kind=email` or `kind=eq.email`, as text), for an option that needs one of them
+ * (identities `value` needs `kind`); a sibling with any other operator is absent.
+ */
+export function parseCondition(name: string, spec: ColumnFilterSpec, raw: string, siblings: Readonly<Record<string, string | undefined>> = {}): Condition {
   let rest = raw
   let not = false
   if (raw.startsWith(NOT)) {
@@ -163,7 +175,7 @@ export function parseCondition(name: string, spec: ColumnFilterSpec, raw: string
     }
     if (spec.normalize) {
       try {
-        v = spec.normalize(v, {}) as Operand
+        v = spec.normalize(v, siblings) as Operand
       } catch (err) {
         if (err instanceof ApiError) throw err
         throw refusal(name, err instanceof Error ? err.message : 'invalid')
@@ -251,8 +263,12 @@ export function describeColumnFilter(name: string, spec: ColumnFilterSpec): stri
     `Operators: ${operatorsFor(spec.kind, spec.nullable).join(', ')}.`,
     `Example: ${EXAMPLES[spec.kind](name)}.`,
     'Comparisons, neq and not. never match a null value; is.null does.',
+    'neq, not., like and ilike read every live row of the organisation, whatever the index.',
   ]
-  if (spec.kind === 'text') parts.push('Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order.')
+  if (spec.kind === 'text') {
+    parts.push('Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only.')
+    parts.push(spec.collation === 'nocase' ? 'Comparison folds ASCII case (the column is case-insensitive, as its uniqueness is), so eq.CONSULTANCY matches consultancy.' : 'Comparison is by byte order.')
+  }
   if (spec.kind === 'timestamp') parts.push('A value is a date (midnight UTC) or an ISO 8601 date-time with an offset.')
   if (spec.note) parts.push(spec.note)
   parts.push(`A value that starts with not. or an operator name and a dot is read as an operator: send ${name}=eq.<value> for a literal.`)
@@ -263,6 +279,7 @@ const LIST_PARAMETERS: readonly string[] = ['after', 'limit', 'sort', 'order']
 
 type Metadata = {
   readonly name: string
+  readonly table?: string
   readonly columns: Readonly<Record<string, ColumnKind>>
   readonly record: { readonly shape: Readonly<Record<string, unknown>> }
   readonly filters?: Readonly<Record<string, unknown>>
@@ -285,6 +302,7 @@ export function resolveColumnFilters(meta: Metadata, notes: Readonly<Record<stri
     out[field] = {
       kind: kind as FilterKind,
       nullable: (schema as z.ZodType).safeParse(null).success,
+      ...(kind === 'text' && NOCASE_COLUMNS.has(`${meta.table}.${field}`) ? { collation: 'nocase' as const } : {}),
       ...(option.schema ? { schema: option.schema } : {}),
       ...(option.normalize ? { normalize: option.normalize } : {}),
       ...(notes[field] ? { note: notes[field] } : {}),
@@ -305,8 +323,13 @@ export function resolveColumnFilters(meta: Metadata, notes: Readonly<Record<stri
  */
 export function withColumnFilters<T extends PreparedResource>(def: T, notes: Readonly<Record<string, string>> = {}): T & { readonly columnFilters: Readonly<Record<string, ColumnFilterSpec>> } {
   const columnFilters = resolveColumnFilters(
-    { name: def.name, columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS] as Readonly<Record<string, ColumnKind>>, record: def.record, filters: def.filters, customFilters: def.customFilters },
+    { name: def.name, table: def.table, columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS] as Readonly<Record<string, ColumnKind>>, record: def.record, filters: def.filters, customFilters: def.customFilters },
     notes,
   )
   return { ...def, columnFilters }
+}
+
+/** The string query parameters of a list's column filters, each described from the operator table ([[CORE200]] D9); shared by the generated list and the hand-written action_executions one. */
+export function columnFilterParams(def: { readonly columnFilters?: Readonly<Record<string, ColumnFilterSpec>> }): Record<string, z.ZodType> {
+  return Object.fromEntries(Object.entries(def.columnFilters ?? {}).map(([key, spec]) => [key, z.string().describe(describeColumnFilter(key, spec)).optional()]))
 }

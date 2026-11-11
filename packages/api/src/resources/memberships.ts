@@ -2,12 +2,13 @@ import { z } from 'zod'
 import { membershipRecord } from '../account/organizations.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 
 /**
  * Read-only ([[CORE3]] D1, D14): Clerk is the source of truth, so the vault writes memberships only through
  * the directory sync (prepared programs since [[CORE41]]). No last-owner guard is needed here.
  */
-export const memberships = withColumnSorts(definePreparedResource({
+export const memberships = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'meta',
   name: 'memberships',
   eventName: 'membership',
@@ -16,4 +17,4 @@ export const memberships = withColumnSorts(definePreparedResource({
   operations: ['list', 'get'],
   record: membershipRecord,
   filters: { user_id: { schema: z.uuid() }, role: { schema: z.enum(['owner', 'member']) } },
-}), [])
+}), []))

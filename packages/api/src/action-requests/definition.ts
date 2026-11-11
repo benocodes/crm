@@ -2,6 +2,7 @@ import { sql } from 'kysely'
 import { z } from 'zod'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 
 export const ACTION_REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'withdrawn', 'expired', 'superseded', 'executed', 'failed'] as const
 export const evidenceItem = z.strictObject({ type: z.enum(['message', 'interaction']), id: z.uuid() })
@@ -40,7 +41,7 @@ export type ActionRequestRecord = z.infer<typeof record>
  * (`create`, `withdraw`, `approve`, `reject`, in `operations.ts`). The table has no `deleted_at` and no delete: a request is a record of a
  * decision. D1 only (D26): on another engine every operation answers `501 not_implemented`.
  */
-export const actionRequests = withColumnSorts(definePreparedResource({
+export const actionRequests = withColumnFilters(withColumnSorts(definePreparedResource({
   notProposable: 'action requests are decided through action_requests.approve and action_requests.reject, never proposed',
   surface: 'api',
   name: 'action_requests',
@@ -66,4 +67,4 @@ export const actionRequests = withColumnSorts(definePreparedResource({
     interaction_id: { schema: z.uuid() },
     dedup_key: { schema: z.string().min(1).max(200) },
   },
-}), ['expires_at', 'decided_at'])
+}), ['expires_at', 'decided_at']))

@@ -2,8 +2,9 @@ import { z } from 'zod'
 import { deleteContactOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 import { contactActivityFilters, contactDerived } from './contact-activity.js'
-import { tagIdFilter } from './tag-filter.js'
+import { tagIdFilter, tagNameFilter } from './tag-filter.js'
 
 export type ContactRecord = {
   id: string
@@ -48,13 +49,13 @@ const create = z.strictObject(fields)
 const update = create.partial()
 
 /** Contacts on the prepared path ([[CORE36]]): the company must be a live company of this organisation; delete tombstones the identities as a set. */
-export const contacts = withColumnSorts(definePreparedResource({
+export const contacts = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'contacts',
   eventName: 'contact',
   table: 'contacts',
   associable: true,
-  customFilters: { tag_id: tagIdFilter('contacts'), ...contactActivityFilters },
+  customFilters: { tag_id: tagIdFilter('contacts'), tag: tagNameFilter('contacts'), ...contactActivityFilters },
   derived: contactDerived,
   record,
   create,
@@ -62,4 +63,4 @@ export const contacts = withColumnSorts(definePreparedResource({
   filters: { company_id: { schema: z.uuid() } },
   references: { company_id: { table: 'companies', live: true } },
   override: { delete: (env, id) => deleteContactOperation(env, id as string) },
-}), ['name', 'last_contacted_at', 'last_interacted_at'])
+}), ['name', 'last_contacted_at', 'last_interacted_at']))

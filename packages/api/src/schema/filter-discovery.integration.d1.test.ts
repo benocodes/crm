@@ -36,7 +36,7 @@ const OPERATORS: Record<string, string[]> = {
   timestamp: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in'],
   boolean: ['eq', 'neq'],
 }
-/** The D3 table for a kind, with `is` last where the field can be null. */
+/** The D3 table for a kind, plus `is` where the field can be null; compared as a set, the order is the parser's. */
 const expectedOperators = (kind: string, nullable: boolean) => [...OPERATORS[kind]!, ...(nullable ? ['is'] : [])]
 const stated = (list: string, filter: string) => STATED_FILTER_COSTS.some((c) => c.list === list && c.filter === filter)
 async function advertised(list: string): Promise<string[]> {
@@ -67,7 +67,7 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
       const fs = t.resource.filters as any[]
       const firstCustom = fs.findIndex((f) => f.custom)
       expect(fs.slice(firstCustom === -1 ? fs.length : firstCustom).every((f) => f.custom), `${t.name} custom last`).toBe(true)
-      const fields = t.columns.filter((c: any) => c.exposed).map((c: any) => c.name)
+      const fields = Object.keys(registry.resources().find((d) => d.name === t.resource.name)!.record.shape)
       const own = fs.filter((f) => !f.custom)
       expect(own.map((f) => f.name), `${t.name} record order`).toEqual(fields.filter((n: string) => own.some((f) => f.name === n)))
       for (const f of fs) {
@@ -80,7 +80,9 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
         columns++
         const col = t.columns.find((c: any) => c.name === f.name)
         expect(f.kind, `${t.name}.${f.name}`).toBe(col.kind)
-        expect(f.operators, `${t.name}.${f.name}`).toEqual(expectedOperators(col.kind, col.nullable))
+        // D3: nullability is the record field's (a field that accepts null), not the column's.
+        const nullable = (registry.resources().find((d) => d.name === t.resource.name)!.record.shape[f.name] as { safeParse(v: unknown): { success: boolean } }).safeParse(null).success
+        expect([...f.operators].sort(), `${t.name}.${f.name}`).toEqual([...expectedOperators(col.kind, nullable)].sort())
         expect(f.indexed, `${t.name}.${f.name}`).toBe(!stated(t.resource.name, f.name))
       }
     }
@@ -89,10 +91,10 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
   it('spot literals: tasks (generic), deals (custom filters), contacts (activity filters)', async () => {
     const doc = (await rest()).body
     const tasksFilters = tableOf(doc, 'tasks').resource.filters
-    expect(tasksFilters.slice(0, 3).map((f: any) => [f.name, f.kind, f.operators, f.custom])).toEqual([
-      ['id', 'uuid', ['eq', 'neq', 'in'], false],
-      ['title', 'text', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'like', 'ilike'], false],
-      ['notes', 'text', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'like', 'ilike', 'is'], false],
+    expect(tasksFilters.slice(0, 3).map((f: any) => [f.name, f.kind, [...f.operators].sort(), f.custom])).toEqual([
+      ['id', 'uuid', ['eq', 'in', 'neq'], false],
+      ['title', 'text', ['eq', 'gt', 'gte', 'ilike', 'in', 'like', 'lt', 'lte', 'neq'], false],
+      ['notes', 'text', ['eq', 'gt', 'gte', 'ilike', 'in', 'is', 'like', 'lt', 'lte', 'neq'], false],
     ])
     expect(tasksFilters.map((f: any) => f.name)).toEqual(['id', 'title', 'notes', 'status', 'due_at', 'completed_at', 'assignee_id', 'created_by', 'created_at', 'updated_at', 'tag_id', 'tag'])
     expect(tasksFilters.find((f: any) => f.name === 'id').indexed).toBe(true)

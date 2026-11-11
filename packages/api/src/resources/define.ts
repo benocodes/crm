@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
-import { parseCondition, type ColumnFilterSpec } from '../storage/column-filters.js'
+import { OPERATORS, parseCondition, type ColumnFilterSpec } from '../storage/column-filters.js'
 import { SORT_ORDERS, decodeCursor, type SortKind, type SortOrder, type SortRequest } from './sort-cursor.js'
+
+const OPERATOR_NAMES: readonly string[] = OPERATORS
 
 export type Filter = {
   schema: z.ZodType
@@ -29,6 +31,13 @@ const LIMIT = z.coerce.number().int().min(1).max(200)
  * `order`; on any other list those are not parameters, so `sort` is an unknown filter as it always was.
  */
 type ListDef = { columnFilters?: Readonly<Record<string, ColumnFilterSpec>>; filters?: Record<string, Filter>; customFilters?: Record<string, Filter>; sorts?: readonly string[]; sortKinds?: Readonly<Record<string, SortKind>>; derived?: Record<string, { kind: string }> }
+
+/** The operand of a filter value that is a plain equality (bare, or `eq.<operand>`), else undefined. A bare value that starts like an operator is an operator expression, as the parser reads it. */
+function equalityOf(raw: string): string | undefined {
+  const m = /^([a-z]+)\.(.*)$/s.exec(raw)
+  if (!m || !OPERATOR_NAMES.includes(m[1]!)) return raw.startsWith('not.') ? undefined : raw
+  return m[1] === 'eq' ? m[2] : undefined
+}
 
 export function parseListQuery(
   def: ListDef,
@@ -60,13 +69,16 @@ export function parseListQuery(
     after = a.data
   }
   const declared = { ...(def.filters ?? {}), ...(def.customFilters ?? {}) }
+  // [[CORE201]] D10: an option that reads another filter (identities `value` needs `kind`) sees only the plain equalities of the call.
+  const siblings: Record<string, string | undefined> = {}
+  for (const [key, value] of Object.entries(raw.filters ?? {})) siblings[key] = equalityOf(String(value))
   const parsed: Record<string, unknown> = {}
   const conditions: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(raw.filters ?? {})) {
     // [[CORE200]] D2-D6: a column filter of a list that adopted `withColumnFilters` is a condition in the grammar, parsed against its kind.
     const column = def.columnFilters && Object.hasOwn(def.columnFilters, key) ? def.columnFilters[key] : undefined
     if (column) {
-      conditions[key] = parseCondition(key, column, String(value))
+      conditions[key] = parseCondition(key, column, String(value), siblings)
       continue
     }
     const filter = declared[key]

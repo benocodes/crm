@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { deleteNoteOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 
 export type NoteRecord = {
   id: string
@@ -31,7 +32,7 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const notes = withColumnSorts(definePreparedResource({
+export const notes = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'notes',
   eventName: 'note',
@@ -42,4 +43,4 @@ export const notes = withColumnSorts(definePreparedResource({
   create,
   update,
   filters: { created_by: { schema: z.uuid() } },
-}), ['title'])
+}), ['title']))
