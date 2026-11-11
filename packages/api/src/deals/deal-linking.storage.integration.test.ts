@@ -98,7 +98,7 @@ describe('the neighbour rules of deals (D14)', () => {
   })
 })
 
-describe('the join filters of deals.list (D15)', () => {
+describe('the custom filters of deals.list (D15)', () => {
   const listOf = (query: Rec = {}, opts?: Parameters<AssocKit['call']>[2]) => a.call('deals.list', { query }, opts)
   // types sort alphabetically: companies, contacts < deals < tags, so the deal is side b for a company and a contact and side a for a tag
   it.each([
@@ -161,7 +161,7 @@ describe('the join filters of deals.list (D15)', () => {
     expect(p3.next_cursor).toBeNull()
     expect(ids(await listOf({ company_id: co[1], status: 'won' }))).toEqual(members.slice(3).sort())
     expect(ids(await listOf({ company_id: co[1], stage_id: stageId }))).toEqual(members.slice(0, 3).sort())
-    // two join filters together AND as well
+    // two custom filters together AND as well
     const ct = await a.ent.contact()
     await a.link(ct, ['deals', members[1]!])
     expect(ids(await listOf({ company_id: co[1], contact_id: ct[1] }))).toEqual([members[1]])

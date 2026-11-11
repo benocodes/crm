@@ -52,6 +52,6 @@ describe('column sort metadata (CORE170 D3/D11)', () => {
   })
   it('refuses sort/order filter collisions on the opt-in capability', () => {
     expect(() => withColumnSorts({ ...bare(tasks), filters: { sort: { schema: z.string() } } } as never)).toThrow(/sort.*filter/)
-    expect(() => withColumnSorts({ ...bare(tasks), joinFilters: { order: { schema: z.string(), where: () => sql<boolean>`1` } } })).toThrow(/order.*filter/)
+    expect(() => withColumnSorts({ ...bare(tasks), customFilters: { order: { schema: z.string(), where: () => sql<boolean>`1` } } })).toThrow(/order.*filter/)
   })
 })

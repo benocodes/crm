@@ -17,7 +17,7 @@ import { seedConversation, type ConversationOpts } from '../test/messaging-kit.j
 import { afterOf, createOperation, deleteOperation, getOperation, listOperation } from './crud.js'
 import type { PreparedResource } from './definition.js'
 
-// CORE25 cycle 1 acceptance on both engines: records with embedded children, join filters, event `after` that carries
+// CORE25 cycle 1 acceptance on both engines: records with embedded children, custom filters, event `after` that carries
 // the embeds, the link resources and their conflict/reference rules. Fixtures are direct inserts (P9).
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
@@ -153,7 +153,7 @@ export function engineSuite(engineName: EngineName): void {
         expect(ids(await list(files, { sha256: f.sha256 }))).toEqual([s.fileIds[0]])
       })
 
-      it('join filter identity_id, also upper-cased', async () => {
+      it('custom filter identity_id, also upper-cased', async () => {
         const a = await identityOf('a@acme.test')
         const b = await identityOf('b@acme.test')
         const c = await identityOf('c@acme.test')
@@ -163,7 +163,7 @@ export function engineSuite(engineName: EngineName): void {
         expect(ids(await list(interactions, { identity_id: b.identityId.toUpperCase() }))).toEqual([i1.interactionId])
       })
 
-      describe('join filter contact_id', () => {
+      describe('custom filter contact_id', () => {
         let K: string
         let A: string
         let A2: string
@@ -212,7 +212,7 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       if (name === 'postgres') {
-        it('a join filter never reaches another organisation (the foreign identity and interaction exist)', async () => {
+        it('a custom filter never reaches another organisation (the foreign identity and interaction exist)', async () => {
           const f = await foreignTenant(e)
           const contact = await f.run(createOperation(contacts, f.env(), {}))
           const identity = await f.run(createOperation(identities, f.env(), { kind: 'email', value: 'x@foreign.test', contact_id: contact.id }))
