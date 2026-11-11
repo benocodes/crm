@@ -45,7 +45,7 @@ export const companies = withColumnSorts(definePreparedResource({
   eventName: 'company',
   table: 'companies',
   associable: true,
-  joinFilters: { tag_id: tagIdFilter('companies') },
+  customFilters: { tag_id: tagIdFilter('companies') },
   record,
   create,
   update,

@@ -31,7 +31,7 @@ export function resolveSorts(metadata: SortMetadata): Readonly<Record<string, So
 export function withColumnSorts<T extends PreparedResource>(def: T, names: readonly string[] = def.sorts ?? []): T & { readonly sortKinds: Readonly<Record<string, SortKind>>; readonly sorts: readonly string[] } {
   const sortKinds = resolveSorts({ ...def, columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS], sorts: names })
   for (const key of ['sort', 'order']) {
-    if (key in (def.filters ?? {}) || key in (def.joinFilters ?? {})) throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${def.name})`)
+    if (key in (def.filters ?? {}) || key in (def.customFilters ?? {})) throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${def.name})`)
   }
   return { ...def, sorts: Object.freeze(Object.keys(sortKinds)), sortKinds }
 }

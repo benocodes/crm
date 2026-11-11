@@ -13,7 +13,7 @@ import type { TransportCall } from '../../executions/transport.js'
 
 let k:ActionKit,connection:string,owner:string
 const objects=memoryObjectStore(),key=new Uint8Array(32).fill(7)
-let posts=0,kicks=0,refreshes=0,searches=0,accepted=false,lose=false,empty=0,ambiguous=false,failStatus=0,failReason='',badConfirmation=false
+let posts=0,kicks=0,refreshes=0,searches=0,accepted=false,lose=false,empty=0,ambiguous=false,failStatus=0,failReason='',badConfirmation=false,rewritten=false
 let expectedRef='fixed@example.test'
 let refreshInvalid=false,badSuccess=false,refreshHold:(()=>Promise<void>)|undefined,metadataHold:(()=>Promise<void>)|undefined
 const seenSignals:unknown[]=[]
@@ -30,7 +30,7 @@ const f:typeof fetch=async(input,init)=>{
     if(empty-->0||!accepted)return Response.json({messages:[]})
     return Response.json({messages:[{id:'sent-provider-id',threadId:'sent-provider-thread'},...(ambiguous?[{id:'second'}]:[])]})
   }
-  if(url.pathname.endsWith('/messages/sent-provider-id')){if(metadataHold)await metadataHold();return Response.json({id:'sent-provider-id',threadId:'sent-provider-thread',labelIds:['SENT'],payload:{headers:[{name:'Message-ID',value:badConfirmation?'<wrong@example.test>':`<${expectedRef}>`}]}})}
+  if(url.pathname.endsWith('/messages/sent-provider-id')){if(metadataHold)await metadataHold();return Response.json({id:'sent-provider-id',threadId:'sent-provider-thread',labelIds:badConfirmation?['DRAFT']:['SENT'],payload:{headers:[{name:'Message-ID',value:rewritten?'<CAxyz@mail.gmail.com>':`<${expectedRef}>`}]}})}
   throw new Error('unexpected fake URL')
 }
 const deps=():GmailTransportDeps=>({binding:k.binding,organizationId:k.organizationId,objects,config:{clientId:'fake-client',clientSecret:'fake-secret',credentialsKey:key,keyVersion:1},fetch:f,clock:k.now,newId:uuidv7,randomBytes:n=>crypto.getRandomValues(new Uint8Array(n)),instances:{create:async()=>{kicks++}}})
@@ -38,7 +38,7 @@ const call=async():Promise<TransportCall>=>({executionId:uuidv7(),operation:'mes
 beforeAll(async()=>{k=await openActionKit({objects})})
 afterAll(()=>k.close())
 beforeEach(async()=>{
-  await k.reset();owner=k.owner.id;posts=kicks=refreshes=searches=empty=failStatus=0;accepted=lose=ambiguous=badConfirmation=false;failReason='';expectedRef='fixed@example.test';refreshInvalid=badSuccess=false;refreshHold=metadataHold=undefined;seenSignals.length=0
+  await k.reset();owner=k.owner.id;posts=kicks=refreshes=searches=empty=failStatus=0;accepted=lose=ambiguous=badConfirmation=rewritten=false;failReason='';expectedRef='fixed@example.test';refreshInvalid=badSuccess=false;refreshHold=metadataHold=undefined;seenSignals.length=0
   const env={actor:{id:owner,kind:'user' as const},organizationId:k.organizationId,scopes:ScopeSet.parse(k.owner.scopes),now:k.now(),newId:uuidv7,randomBytes:(n:number)=>crypto.getRandomValues(new Uint8Array(n))}
   connection=(await execute(k.binding,{kind:'tenant',actorId:owner,organizationId:k.organizationId},connectOperation(env,{google_sub:'transport-owner',mailbox:'owner@example.test',own_addresses:['owner@example.test'],granted_scopes:['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.send'],ciphertext:await sealToken(key,'fake-refresh-token',crypto.getRandomValues(new Uint8Array(12))),key_version:1,history_id:'1000'}))).value.connection_id
 })
@@ -59,8 +59,9 @@ it.each([{status:400,code:'provider_rejected'},{status:401,code:'reauth_required
   expect(outcome).toEqual({kind:'not_sent',code,...(code==='retryable'?{retryAfterMs:17000}:{})});expect(kicks).toBe(0);expect(JSON.stringify(outcome)).not.toContain('CANARY')
 })
 it.each([408,500,503])('send HTTP %s is uncertain',async(status)=>{failStatus=status;expect(await gmailTransport(deps()).dispatch(await call())).toEqual({kind:'unknown'});expect(kicks).toBe(0)})
-it('bad confirmation is unknown and ambiguous search is unknown; neither starts capture',async()=>{
-  badConfirmation=true;const t=gmailTransport(deps()),c=await call();expect(await t.dispatch(c)).toEqual({kind:'unknown'})
+it('a successful send response is sent, whatever the metadata says',async()=>{rewritten=true;badConfirmation=true;const t=gmailTransport(deps()),c=await call();expect(await t.dispatch(c)).toMatchObject({kind:'sent'})})
+it('reconcile with a bad confirmation or an ambiguous search is unknown; neither starts capture',async()=>{
+  const t=gmailTransport(deps()),c=await call();lose=true;expect(await t.dispatch(c)).toEqual({kind:'unknown'});lose=false;badConfirmation=true
   expect(await t.reconcile!(c)).toEqual({kind:'unknown'});badConfirmation=false;ambiguous=true
   expect(await t.reconcile!(c)).toEqual({kind:'unknown'});expect(posts).toBe(1);expect(kicks).toBe(0)
 })
@@ -106,8 +107,8 @@ it('late abort-ignoring refresh cannot POST or rotate after the shared signal ex
 it('one signal aborting during confirmation leaves unknown and never marks capture',async()=>{
   const c=await call(),controller=new AbortController();c.signal=controller.signal
   metadataHold=async()=>{controller.abort();throw new DOMException('aborted','AbortError')}
-  expect(await gmailTransport(deps()).dispatch(c)).toEqual({kind:'unknown'})
-  expect(posts).toBe(1);expect(kicks).toBe(0);expect(seenSignals.every(s=>s===controller.signal)).toBe(true)
+  expect(await gmailTransport(deps()).reconcile!(c)).toEqual({kind:'unknown'})
+  expect(posts).toBe(0);expect(kicks).toBe(0);expect(seenSignals.every(s=>s===controller.signal)).toBe(true)
 })
 it('failed mark keeps confirmed delivery and existing stale recovery serves it; lost start mark is due immediately',async()=>{
   const d=deps(),binding=d.binding

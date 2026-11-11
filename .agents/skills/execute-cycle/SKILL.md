@@ -82,6 +82,13 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   That is a recorded deviation, not an equivalent. [[AGT8]] cycle 1 wrote its tests beside a working draft and
   made the red commit by setting the draft aside: two suites then failed on a missing module, not on their
   assertions, and the reviewer had to run a manifest mutation to see them go red. Write the tests first.
+- **Setting work aside never uses a bare `git checkout <file>` / `git restore <file>`.** Either resets the
+  file to the last commit and silently deletes every uncommitted change in it; it cost [[CORE188]] (restoring a
+  mutant) and again [[CORE199]] (mid-run, outside any mutation) a rewrite. Before you revert, split or compare
+  a file, commit what you mean to keep (a WIP commit is fine; squash it before the red/green commits if it
+  would blur them), or copy the file to the scratchpad. To look at `main`'s version use `git show main:<path>`
+  or a throwaway worktree, never a checkout over your edits. Check `git status --short` before any
+  checkout or restore.
 - A migration's test goes red against the old schema **before** the migration exists (vitest runs
   untyped, so missing generated types don't block the run). Only then write the migration, run codegen
   and change the seeds ([[CORE3]] cycle 1).

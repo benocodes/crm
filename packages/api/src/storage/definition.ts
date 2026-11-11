@@ -70,7 +70,7 @@ export type EmbedInput<E extends EmbedMap> = { readonly [F in keyof E]: EmbedDec
  * never in an event. `kind` is a column kind its value decodes as; `expression` returns a scalar fragment correlated on the parent row
  * (`parent('id')` is a reference to the parent table's column), already in the stored form of the kind (timestamps as ISO text).
  * Synchronous and DB-free like an embed. The field is rendered only for callers holding every scope in `requires`; `filters`
- * names the definition's join filters that filter on it (schema discovery lists them).
+ * names the definition's custom filters that filter on it (schema discovery lists them).
  */
 export type DerivedKind = 'timestamp' | 'text' | 'integer' | 'boolean'
 export type DerivedDecl<K extends DerivedKind = DerivedKind> = {
@@ -118,7 +118,7 @@ export type RecordShape<T extends Table, S, E extends EmbedMap = {}, D extends D
  * A list filter that is not a column of the table ([[CORE25]] D51): an engine-neutral predicate, e.g. an `EXISTS` over a
  * child table. Synchronous and DB-free like every extension: it returns a Kysely fragment and never runs a query.
  */
-export type JoinFilter = Filter & {
+export type CustomFilter = Filter & {
   readonly where: (qc: QueryContext, value: unknown) => Expression<SqlBool>
   /** Scopes the caller needs on top of the list's own to use this filter ([[CORE129]] D12): checked before the query, `403 insufficient_scope` naming the first missing one. */
   readonly requires?: readonly Scope[]
@@ -160,7 +160,7 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly agentWritable?: readonly string[]
   readonly filters?: { readonly [K in ColumnOf<T>]?: Filter }
   /** List filters that are not columns (their keys never are, and never also in `filters`): `where` is ANDed into the list query. */
-  readonly joinFilters?: Readonly<Record<string, JoinFilter>>
+  readonly customFilters?: Readonly<Record<string, CustomFilter>>
   /** Embedded child rows rendered into the record and into an event's `after` (the record names the field as an array). */
   readonly embed?: Readonly<Record<string, EmbedSpec>>
   /**
@@ -241,9 +241,9 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
     if (ref.live && !('deleted_at' in kinds)) throw new Error(`reference ${column} is live but "${ref.table}" has no deleted_at (${full.name})`)
   }
   const kindsOfTable = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[full.table]!
-  for (const key of Object.keys(full.joinFilters ?? {})) {
-    if (key in kindsOfTable) throw new Error(`joinFilters key "${key}" is a column of ${full.table}: declare it in filters (${full.name})`)
-    if (key in (full.filters ?? {})) throw new Error(`joinFilters key "${key}" is also in filters (${full.name})`)
+  for (const key of Object.keys(full.customFilters ?? {})) {
+    if (key in kindsOfTable) throw new Error(`customFilters key "${key}" is a column of ${full.table}: declare it in filters (${full.name})`)
+    if (key in (full.filters ?? {})) throw new Error(`customFilters key "${key}" is also in filters (${full.name})`)
   }
   for (const [field, spec] of Object.entries(full.embed ?? {})) {
     try {
@@ -257,10 +257,10 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
   for (const [field, spec] of Object.entries(full.derived ?? {})) {
     if (field in kindsOfTable) throw new Error(`derived "${field}" is a column of ${full.table} (${full.name})`)
     if (field in (full.embed ?? {})) throw new Error(`derived "${field}" is also an embed (${full.name})`)
-    // [[CORE130]] D8: the derived field may be filtered by a join filter of its own name (`?status=`) - that is what `filters` declares - but a column filter may not take it.
-    if (field in (full.filters ?? {}) || (field in (full.joinFilters ?? {}) && !(spec.filters ?? []).includes(field))) throw new Error(`derived "${field}" is also a filter key (${full.name})`)
+    // [[CORE130]] D8: the derived field may be filtered by a custom filter of its own name (`?status=`) - that is what `filters` declares - but a column filter may not take it.
+    if (field in (full.filters ?? {}) || (field in (full.customFilters ?? {}) && !(spec.filters ?? []).includes(field))) throw new Error(`derived "${field}" is also a filter key (${full.name})`)
     if (!(field in full.record.shape)) throw new Error(`derived "${field}" is not a field of the record (${full.name})`)
-    for (const f of spec.filters ?? []) if (!(f in (full.joinFilters ?? {}))) throw new Error(`derived "${field}" names filter "${f}", which is not a join filter (${full.name})`)
+    for (const f of spec.filters ?? []) if (!(f in (full.customFilters ?? {}))) throw new Error(`derived "${field}" names filter "${f}", which is not a custom filter (${full.name})`)
   }
   const sorts = full.sorts ?? []
   sorts.forEach((field, i) => {
@@ -271,7 +271,7 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
   })
   if (sorts.length > 0) {
     for (const key of ['sort', 'order']) {
-      if (key in (full.filters ?? {}) || key in (full.joinFilters ?? {})) throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${full.name})`)
+      if (key in (full.filters ?? {}) || key in (full.customFilters ?? {})) throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${full.name})`)
     }
   }
   if (full.associable) {

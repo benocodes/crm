@@ -97,18 +97,18 @@ describe('the column projection: only the record columns are selected, so a narr
   })
 })
 
-describe('CORE25 load-time checks (embeds, join filters, the files reference)', () => {
+describe('CORE25 load-time checks (embeds, custom filters, the files reference)', () => {
   const idOnly = z.object({ id: z.uuid(), thread_id: z.uuid().nullable() })
   const interaction = (over: Record<string, unknown> = {}) =>
     ({ name: 'interactions', eventName: 'interaction', table: 'interactions' as const, record: idOnly, operations: ['list', 'get'], ...over }) as never
   const jf = { schema: z.uuid(), where: () => undefined as never }
 
-  it('a joinFilters key that is a column of the table is refused', () => {
-    expect(() => definePreparedResource(interaction({ joinFilters: { thread_id: jf } }))).toThrow(/thread_id/)
-    expect(() => definePreparedResource(interaction({ joinFilters: { identity_id: jf } }))).not.toThrow()
+  it('a customFilters key that is a column of the table is refused', () => {
+    expect(() => definePreparedResource(interaction({ customFilters: { thread_id: jf } }))).toThrow(/customFilters key "thread_id" is a column of interactions/)
+    expect(() => definePreparedResource(interaction({ customFilters: { identity_id: jf } }))).not.toThrow()
   })
-  it('a joinFilters key that is also in filters is refused', () => {
-    expect(() => definePreparedResource(interaction({ filters: { identity_id: { schema: z.string() } }, joinFilters: { identity_id: jf } }))).toThrow(/identity_id/)
+  it('a customFilters key that is also in filters is refused', () => {
+    expect(() => definePreparedResource(interaction({ filters: { identity_id: { schema: z.string() } }, customFilters: { identity_id: jf } }))).toThrow(/customFilters key "identity_id" is also in filters/)
   })
   it('an embed on an unknown child table, key or column is refused naming the embed', () => {
     const embed = (over: Record<string, unknown>) => ({ participants: { table: 'interaction_participants', key: 'interaction_id', columns: ['identity_id', 'role'], orderBy: ['role'], ...over } })

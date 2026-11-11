@@ -252,7 +252,7 @@ definePreparedResource({ surface: 'api',
   filters: { bogus: filter },
 })
 
-// --- CORE25: embeds, join filters, the files reference, hidden columns ---------------------------------
+// --- CORE25: embeds, custom filters, the files reference, hidden columns ---------------------------------
 
 import { sql } from 'kysely'
 
@@ -261,7 +261,7 @@ const messagesBase = { id: z.uuid(), thread_id: z.uuid(), kind: z.enum(['message
 const interactionsBase = { id: z.uuid(), kind: z.enum(['message', 'reaction']), thread_id: z.uuid().nullable() }
 const goodEmbed = { attachments: { table: 'message_attachments', key: 'message_id', columns: ['id', 'position', 'size_bytes'], orderBy: ['position'] } } as const
 
-// positive siblings: an embed whose record field is an array, a join filter, a files reference, a hidden column typed right
+// positive siblings: an embed whose record field is an array, a custom filter, a files reference, a hidden column typed right
 export const okMessages = definePreparedResource({ surface: 'api',
   name: 'messages',
   eventName: 'message',
@@ -277,7 +277,7 @@ export const okInteractions = definePreparedResource({ surface: 'api',
   record: z.object(interactionsBase),
   operations: ['list', 'get'],
   filters: { thread_id: filter },
-  joinFilters: { identity_id: { schema: z.uuid(), where: () => sql<boolean>`true` } },
+  customFilters: { identity_id: { schema: z.uuid(), where: () => sql<boolean>`true` } },
 })
 export const okContactFiles = definePreparedResource({ surface: 'api',
   name: 'contact_files',
@@ -337,16 +337,16 @@ definePreparedResource({ surface: 'api',
   embed: goodEmbed,
 })
 
-// 6. a join filter whose `where` is not a boolean expression
+// 6. a custom filter whose `where` is not a boolean expression
 definePreparedResource({ surface: 'api',
   name: 'interactions',
   eventName: 'interaction',
   table: 'interactions',
   record: z.object(interactionsBase),
-  joinFilters: {
+  customFilters: {
     identity_id: {
       schema: z.uuid(),
-      // @ts-expect-error a join filter predicate is a boolean expression
+      // @ts-expect-error a custom filter predicate is a boolean expression
       where: () => sql<string>`'x'`,
     },
   },
@@ -362,7 +362,7 @@ definePreparedResource({ surface: 'api',
   references: { file_id: { table: 'threads' } },
 })
 
-// 8. contact_id is not a column of interactions, so it cannot be a column filter (it is a join filter)
+// 8. contact_id is not a column of interactions, so it cannot be a column filter (it is a custom filter)
 definePreparedResource({ surface: 'api',
   name: 'interactions',
   eventName: 'interaction',
@@ -434,4 +434,14 @@ definePreparedResource({
   // @ts-expect-error bogus is not declared derived
   record: z.object({ id: z.uuid(), bogus: z.number() }),
   derived: { title_length: lengthOf },
+})
+
+// CORE199: the old property name `joinFilters` no longer exists on a definition (excess-property check on a literal)
+definePreparedResource({ surface: 'api',
+  name: 'interactions',
+  eventName: 'interaction',
+  table: 'interactions',
+  record: z.object(interactionsBase),
+  // @ts-expect-error `joinFilters` was renamed to `customFilters`
+  joinFilters: { identity_id: { schema: z.uuid(), where: () => sql<boolean>`true` } },
 })

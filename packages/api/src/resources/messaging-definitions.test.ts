@@ -54,7 +54,7 @@ describe('messaging definitions (CORE25 C1)', () => {
     }
   })
 
-  it('list query schemas carry the column filters and the join filters', () => {
+  it('list query schemas carry the column filters and the custom filters', () => {
     const reg = createVaultRegistry()
     const keys = (name: string) => Object.keys(((reg.get(name) as { request: { query: { shape: object } } }).request.query as { shape: object }).shape).sort()
     expect(keys('messages.list')).toEqual(['after', 'limit', 'sort', 'order', 'thread_id', 'channel', 'kind', 'external_id', 'in_reply_to'].sort())

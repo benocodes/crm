@@ -179,9 +179,9 @@ export type ListRestriction = 'nothing' | ((qc: QueryContext) => Expression<SqlB
 export function listOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> }, restriction?: ListRestriction): PreparedOperation<ListResult<R>> {
   // 400s first (a malformed query is refused whatever the caller may see), then 403s ([[CORE133]] D5); both before any query is built.
   const { after, limit, filters, sort } = prepareListQuery(def, raw)
-  // [[CORE129]] D12: a join filter may need scopes beyond the list's own; refused here, before any query is built.
+  // [[CORE129]] D12: a custom filter may need scopes beyond the list's own; refused here, before any query is built.
   for (const column of Object.keys(filters)) {
-    for (const scope of def.joinFilters?.[column]?.requires ?? []) {
+    for (const scope of def.customFilters?.[column]?.requires ?? []) {
       if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to filter ${def.name} by ${column}`)
     }
   }
@@ -202,7 +202,7 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
       if (sort?.position) q = q.where(afterPosition(def, qc, { ...sort, position: sort.position }))
       else if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
       for (const [column, value] of Object.entries(filters)) {
-        const join = def.joinFilters?.[column]
+        const join = def.customFilters?.[column]
         q = q.where(join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`)
       }
       // `null` is the oldest value: first ascending, last descending. Spelled out because Postgres would put it the other way round.

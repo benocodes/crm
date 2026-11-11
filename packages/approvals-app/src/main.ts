@@ -1,7 +1,7 @@
 // The approvals page. Everything agent-supplied reaches the DOM through textContent only, never innerHTML.
 import { createApi, ApiFailure, type Api } from './api.js'
 import { loadSession, type Session } from './clerk.js'
-import { byCreatedDesc, effectiveArguments, isExpired, operationTitle, prettyJson, relativeTime, type ActionRequest } from './format.js'
+import { byCreatedDesc, effectiveArguments, emailPreview, isExpired, operationTitle, prettyJson, relativeTime, withFullArguments, type ActionRequest } from './format.js'
 
 type Tab = 'pending' | 'executed' | 'failed' | 'rejected'
 const TABS: Tab[] = ['pending', 'executed', 'failed', 'rejected']
@@ -44,6 +44,8 @@ class Page {
   private busy = new Set<string>()
   private open = new Set<string>()
   private notes = new Map<string, string>()
+  /** Full records of messages.send requests (body text included), by id; a body never changes under its request. */
+  private full = new Map<string, ActionRequest>()
   private timer: number | undefined
 
   constructor(private root: HTMLElement, private session: Session, private api: Api) {}
@@ -62,7 +64,7 @@ class Page {
       this.draw()
     }
     try {
-      this.items = (await this.api.list(this.tab)).sort(byCreatedDesc)
+      this.items = (await this.hydrate(await this.api.list(this.tab))).sort(byCreatedDesc)
       this.error = null
     } catch (e) {
       this.error = this.describe(e)
@@ -70,6 +72,19 @@ class Page {
     }
     this.loading = false
     this.draw()
+  }
+
+  /** The list returns only a descriptor for a message body; read the full record once per send request. A failed read leaves the descriptor, and the card says so. */
+  private async hydrate(listed: ActionRequest[]): Promise<ActionRequest[]> {
+    const missing = listed.filter((r) => r.operation === 'messages.send' && !this.full.has(r.id))
+    await Promise.all(missing.map(async (r) => {
+      try {
+        this.full.set(r.id, await this.api.get(r.id))
+      } catch {
+        /* shown as "Message text unavailable" */
+      }
+    }))
+    return listed.map((r) => (this.full.has(r.id) ? withFullArguments(r, this.full.get(r.id)!) : r))
   }
 
   private describe(e: unknown): string {
@@ -118,6 +133,14 @@ class Page {
     this.root.replaceChildren(header, tabs, body)
   }
 
+  private email(e: NonNullable<ReturnType<typeof emailPreview>>): HTMLElement {
+    const line = (label: string, values: string[]) => (values.length === 0 ? [] : [h('div', { class: 'field' }, h('span', { class: 'label', text: label }), h('span', { text: values.join(', ') }))])
+    return h('div', { class: 'email' },
+      ...line('To', e.to), ...line('Cc', e.cc), ...line('Bcc', e.bcc),
+      h('div', { class: 'field' }, h('span', { class: 'label', text: 'Subject' }), h('strong', { text: e.subject || '(no subject)' })),
+      e.body === null ? h('p', { class: 'error', text: 'Message text unavailable. Do not approve what you cannot read.' }) : h('div', { class: 'body', text: e.body }))
+  }
+
   private card(r: ActionRequest, now: number): HTMLElement {
     const pending = r.status === 'pending'
     const expired = pending && isExpired(r, now)
@@ -125,7 +148,9 @@ class Page {
       ? `proposed ${relativeTime(r.created_at, now)} · ${expired ? 'expired' : `expires ${relativeTime(r.expires_at, now)}`}`
       : `${r.status}${r.decided_at ? ` ${relativeTime(r.decided_at, now)}` : ''}`
     const card = h('article', { class: 'card' }, h('div', { class: 'row' }, h('h2', { text: operationTitle(r.operation) }), h('code', { text: r.operation })), h('p', { class: 'reason', text: r.reason }), h('p', { class: 'muted', text: meta }))
-    const details = h('details', {}, h('summary', { text: 'Arguments' }), h('pre', { text: prettyJson(effectiveArguments(r)) }))
+    const email = emailPreview(r)
+    if (email) card.append(this.email(email))
+    const details = h('details', {}, h('summary', { text: email ? 'Raw arguments' : 'Arguments' }), h('pre', { text: prettyJson(effectiveArguments(r)) }))
     if (this.open.has(r.id)) details.open = true
     details.addEventListener('toggle', () => (details.open ? this.open.add(r.id) : this.open.delete(r.id)))
     card.append(details)
