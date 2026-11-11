@@ -26,6 +26,7 @@ import { ApiError } from '../errors.js'
 import { formatScope } from '../scopes.js'
 import { eventStatement } from '../outbox.js'
 import { physicalTable, softDeletes, type Conflict, type PreparedEnv, type PreparedResource, type ReferenceTarget } from './definition.js'
+import { compileCondition, type Condition } from './column-filters.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 import { encodeCursor, type SortRequest } from '../resources/sort-cursor.js'
 
@@ -203,7 +204,8 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
       else if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
       for (const [column, value] of Object.entries(filters)) {
         const join = def.customFilters?.[column]
-        q = q.where(join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`)
+        const spec = def.columnFilters?.[column]
+        q = q.where(spec ? compileCondition(qc, ref(def, column), spec.kind, value as Condition) : join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`)
       }
       // `null` is the oldest value: first ascending, last descending. Spelled out because Postgres would put it the other way round.
       if (sort && sort.field !== 'id') q = q.orderBy(sql`${def.sortKinds ? sortExpression(def, qc, sort) : sql.ref(sort.field)} ${sort.order === 'asc' ? sql`asc nulls first` : sql`desc nulls last`}`)

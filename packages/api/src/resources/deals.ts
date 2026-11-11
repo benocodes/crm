@@ -4,8 +4,9 @@ import { codecs, readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { deleteDealOperation } from '../identity/cascades.js'
 import { definePreparedResource, type DerivedDecl, type CustomFilter } from '../storage/definition.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 import { withColumnSorts } from '../storage/sorts.js'
-import { linkedToFilter } from './tag-filter.js'
+import { linkedToFilter, tagNameFilter } from './tag-filter.js'
 
 export type DealRecord = {
   id: string
@@ -85,7 +86,7 @@ const statusFilter: CustomFilter = {
  * must be a live one of this organisation (the generic reference check, re-checked at commit). `stage_id` and `pipeline_id` are refused on update:
  * the stage changes through `deals.move_stage` (`deals/operations.ts`). `status` is derived from the stage and never in an event.
  */
-export const deals = withColumnSorts(definePreparedResource({
+export const deals = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'deals',
   eventName: 'deal',
@@ -95,7 +96,8 @@ export const deals = withColumnSorts(definePreparedResource({
   create,
   update,
   createOnly: { stage_id: 'use deals.move_stage to change the stage', pipeline_id: 'a deal moves between stages of its pipeline with deals.move_stage' },
-  filters: { pipeline_id: { schema: z.uuid() }, stage_id: { schema: z.uuid() }, owner_id: { schema: z.uuid() }, created_by: { schema: z.uuid() } },
+  // [[CORE199]] D6, D8: per-column options of the column filter grammar (`withColumnFilters`, below): each UUID operand is validated, and a currency operand is upper-cased as stored.
+  filters: { pipeline_id: { schema: z.uuid() }, stage_id: { schema: z.uuid() }, owner_id: { schema: z.uuid() }, created_by: { schema: z.uuid() }, currency: { schema: z.string(), normalize: (v) => (v as string).toUpperCase() } },
   associable: true,
   // [[CORE130]] D14: a deal links to the records around it; deal-deal and deal-interaction links are refused (the 400 names this list).
   neighbours: ['companies', 'contacts', 'notes', 'tags', 'tasks', 'threads'],
@@ -103,6 +105,7 @@ export const deals = withColumnSorts(definePreparedResource({
   customFilters: {
     status: statusFilter,
     tag_id: linkedToFilter('deals', 'tags', 'Only deals linked to this tag.'),
+    tag: tagNameFilter('deals'),
     company_id: linkedToFilter('deals', 'companies', 'Only deals linked to this company (an association).'),
     contact_id: linkedToFilter('deals', 'contacts', 'Only deals linked to this contact (an association).'),
   },
@@ -137,4 +140,6 @@ export const deals = withColumnSorts(definePreparedResource({
       },
     ]
   },
-}), ['name'])
+}), ['name']), {
+  amount_minor: 'It compares the minor units of each deal in its own currency and does not need a currency filter: for one currency send amount_minor=gt.500000&currency=eq.USD.',
+})

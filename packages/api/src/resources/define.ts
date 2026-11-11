@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
+import { parseCondition, type ColumnFilterSpec } from '../storage/column-filters.js'
 import { SORT_ORDERS, decodeCursor, type SortKind, type SortOrder, type SortRequest } from './sort-cursor.js'
 
 export type Filter = {
@@ -27,7 +28,7 @@ const LIMIT = z.coerce.number().int().min(1).max(200)
  * What parseListQuery needs of a definition. `sorts` names derived fields ([[CORE133]] D8): only a list that declares them takes `sort` and
  * `order`; on any other list those are not parameters, so `sort` is an unknown filter as it always was.
  */
-type ListDef = { filters?: Record<string, Filter>; customFilters?: Record<string, Filter>; sorts?: readonly string[]; sortKinds?: Readonly<Record<string, SortKind>>; derived?: Record<string, { kind: string }> }
+type ListDef = { columnFilters?: Readonly<Record<string, ColumnFilterSpec>>; filters?: Record<string, Filter>; customFilters?: Record<string, Filter>; sorts?: readonly string[]; sortKinds?: Readonly<Record<string, SortKind>>; derived?: Record<string, { kind: string }> }
 
 export function parseListQuery(
   def: ListDef,
@@ -60,7 +61,14 @@ export function parseListQuery(
   }
   const declared = { ...(def.filters ?? {}), ...(def.customFilters ?? {}) }
   const parsed: Record<string, unknown> = {}
+  const conditions: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(raw.filters ?? {})) {
+    // [[CORE200]] D2-D6: a column filter of a list that adopted `withColumnFilters` is a condition in the grammar, parsed against its kind.
+    const column = def.columnFilters && Object.hasOwn(def.columnFilters, key) ? def.columnFilters[key] : undefined
+    if (column) {
+      conditions[key] = parseCondition(key, column, String(value))
+      continue
+    }
     const filter = declared[key]
     if (!filter) throw new ApiError(400, 'validation_error', `unknown filter: ${key}`)
     const r = filter.schema.safeParse(value)
@@ -81,5 +89,5 @@ export function parseListQuery(
       throw new ApiError(400, 'validation_error', `filter ${key}: ${err instanceof Error ? err.message : 'invalid'}`)
     }
   }
-  return { after, limit, filters, sort }
+  return { after, limit, filters: { ...conditions, ...filters }, sort }
 }

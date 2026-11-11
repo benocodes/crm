@@ -121,6 +121,9 @@ pnpm -r typecheck
 pnpm -r build      # where a package has a build
 ```
 
+The `@vault/api` suite runs about 20 minutes and the default reporter prints nothing until it ends, so a slow run looks like a
+hang: run it as `pnpm -C packages/api test --reporter=dot` (or `verbose`) and keep its log ([[CORE200]] retro).
+
 D1 is the oracle (AGENTS.md, "Engines"): the D1 suites, typecheck and build must be green. The Postgres
 suites are off by default (the `postgres` vitest project, switched in the root `vitest.config.ts`; `pnpm -r test` skips
 them, no Postgres database needed); don't run `pnpm test:postgres` in a cycle unless the cycle is about Postgres.
