@@ -384,6 +384,24 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   insufficient_scope` naming the first missing scope. Never check them ad hoc in an override ([[CORE129]] D12a). An `EXISTS`
   over `associations` must match **both canonical sides** (the tag is `b` for companies, contacts and notes, `a` for tasks)
   and only live edges. Prove each with its own absence mutation.
+- **Column filter grammar** ([[CORE199]] D2–D9, shipped on deals by [[CORE200]]; `src/storage/column-filters.ts`). A list
+  opts in with `withColumnFilters(def, notes?)` (outermost wrapper, around `withColumnSorts`): every record column of a
+  filterable kind (`uuid`, `text`, `integer`, `timestamp`, `boolean`; not `json`/`string_array`) except `organization_id`
+  becomes `columnFilters[col] = { kind, nullable, schema?, normalize?, note? }`. On such a list the old `filters` map is
+  **per-column options**, not the filter set: `schema` validates each scalar operand, `normalize` applies to `eq`, `in`
+  items and comparisons, never to patterns. `notes` adds a sentence to one column's generated description. Load errors: an
+  option or note key that is not a filterable column; a column named like a list parameter (`after`, `limit`, `sort`,
+  `order`) or like a custom filter. Flow: `parseListQuery` (`resources/define.ts`) turns the raw string into one
+  `Condition {not, op, value}` with `parseCondition`; `listOperation` (`storage/crud.ts`) compiles it with
+  `compileCondition(qc, ref, kind, cond)`; `registry.ts` makes it one `string` query parameter / MCP argument, described by
+  `describeColumnFilter` from `operatorsFor(kind, nullable)`. Never hand-write an operator list in a description; derive it
+  from that table. Semantics: `not.<op>` is `not (<cond>)` and never matches null; `is` only on nullable columns; `in` is one
+  bound parameter (`json_each(?)` on D1), 1–100 items; `ilike` is `LIKE … ESCAPE '\'` (ASCII folding), `like` is `GLOB`,
+  `*` the only wildcard. **Collation:** on D1 `=` and comparisons use the column's declared collation. `deals.name` is
+  BINARY, but `tags.name`, `pipelines.name` and `pipeline_stages.name` are `NOCASE`, so `eq`/`gt` on them fold ASCII case
+  unless the expression says `COLLATE BINARY` (the `tag` custom filter does, `resources/tag-filter.ts`). Check the
+  migration before promising case-sensitivity ([[CORE200]] retro). Custom filters keep one raw value and no operators.
+  Unadopted lists keep equality `filters` until [[CORE201]].
 - **A repeated query parameter is refused on REST** (`readInput` in `src/rest/app.ts`, [[CORE129]] D10a): Hono's
   `c.req.query()` keeps the first value, so `?x=a&x=b` is `400 validation_error` naming `x`. MCP refuses an array argument
   through the schema. The first operation that declares an array query parameter must exempt that parameter there and read

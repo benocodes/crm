@@ -120,6 +120,11 @@ with no findings. Its spec decisions (D16–D18) were settled at plan time, leav
 generated golden (6,388 lines here) is not counted against the budget. **CORE188** (`knowledge/specs/013-CORE188-execution-sort/RETRO.md`):
 5 groups (1 matrix), 7 decisions, no migration or E2E cost ~240k tokens / 118 calls, ~33 min, approved round 1. Seven
 absence mutations and a file rewritten after a bad restore drove the calls, not the counts; the budget holds.
+**CORE200** (`knowledge/specs/013-CORE200-deal-filter-grammar/RETRO.md`): 6 groups (1 matrix), 8 decisions, at the limit on
+both, no migration or E2E cost ~228k tokens / ~100 calls, +363 code / +596 test lines, one 3-call fix round (description
+text). A charter at the limit on two lines still fits one run. When a charter restates a spec's claim about stored data (a
+collation, a uniqueness, a nullability), check it against the migration at plan time or name it in Watch out as a premise
+the coder must test: CORE200's D7 premise (tag names case-sensitive "as the index is") was false.
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code

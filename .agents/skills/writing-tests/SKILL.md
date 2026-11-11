@@ -126,6 +126,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   An explicit collation needs a fixture with a conflicting stored default: a BINARY-default column stays green when
   `COLLATE BINARY` is removed. Use a real `NOCASE` column with `Z`/`a`, walk both directions one row at a time, and
   remove the override to prove both ordering and continuation comparisons (`knowledge/specs/012-CORE170-message-sort/RETRO.md`, M7).
+  The same holds for equality: a "case-sensitive" lookup needs a differently-cased live row in the fixture. A spec or charter
+  that states a column's case behaviour is a premise to test: [[CORE199]] D7 said tag names compare case-sensitively "as the
+  unique index is", but `tags.name` is `NOCASE`, and only the `Consultancy`/`consultancy` fixture showed it
+  (`knowledge/specs/013-CORE200-deal-filter-grammar/RETRO.md`, M5).
 - **Backfill order needs a separate capture clock.** Seed mail through `recordMessagesOperation` with an advancing
   injected `now`, then capture the oldest `occurred_at` last. Keep same-thread ties and another thread, so chronological
   walks differ from capture/id order and page breaks exercise the tie-break. Take the read-event baseline after capture
