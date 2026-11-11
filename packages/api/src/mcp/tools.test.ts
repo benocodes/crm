@@ -150,7 +150,7 @@ describe('deals tools (CORE130 D17)', () => {
     const named = tools.map((t) => t.tool.name)
     expect(named.filter((n) => n.startsWith('pipelines_'))).toEqual(['pipelines_list', 'pipelines_get', 'pipelines_create', 'pipelines_update', 'pipelines_delete'])
     expect(named.filter((n) => n.startsWith('pipeline_stages_'))).toEqual(['pipeline_stages_list', 'pipeline_stages_get', 'pipeline_stages_create', 'pipeline_stages_update', 'pipeline_stages_delete'])
-    expect(named.filter((n) => n.startsWith('deals_'))).toEqual(['deals_list', 'deals_get', 'deals_create', 'deals_update', 'deals_delete', 'deals_move_stage'])
+    expect(named.filter((n) => n.startsWith('deals_'))).toEqual(['deals_list', 'deals_aggregate', 'deals_get', 'deals_create', 'deals_update', 'deals_delete', 'deals_move_stage'])
   })
   it('pipelines and stages are configuration tools; deals are record tools; the filters are arguments', () => {
     expect(byName('pipelines_create').tool._meta['vibase/surface']).toBe('meta')

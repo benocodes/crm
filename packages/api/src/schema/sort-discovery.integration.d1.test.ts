@@ -163,7 +163,7 @@ describe('derived sortable and columns unchanged (CORE187 D10)', () => {
     }
   })
   it('a resource object has exactly the API63 keys, then sorts and filters', async () => {
-    expect(Object.keys(tableOf((await rest()).body, 'tasks').resource)).toEqual(['name', 'surface', 'path', 'operations', 'read_scope', 'write_scope', 'sorts', 'filters'])
+    expect(Object.keys(tableOf((await rest()).body, 'tasks').resource)).toEqual(['name', 'surface', 'path', 'operations', 'read_scope', 'write_scope', 'sorts', 'filters', 'aggregate'])
   })
 })
 

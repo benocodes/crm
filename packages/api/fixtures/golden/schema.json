@@ -270,7 +270,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -1045,7 +1046,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -1701,7 +1703,8 @@
                       "indexed": false,
                       "description": "Filter by delegated_by (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: delegated_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send delegated_by=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -2106,7 +2109,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -2678,7 +2682,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -3097,7 +3102,8 @@
                       "indexed": null,
                       "description": "Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -3355,7 +3361,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -3647,7 +3654,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -4040,7 +4048,8 @@
                       "indexed": null,
                       "description": "true: only contacts never interacted with; false: only contacts interacted with at least once. Needs interactions:read."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -4272,6 +4281,7 @@
                   "path": "/api/v1/deals",
                   "operations": [
                     "deals.list",
+                    "deals.aggregate",
                     "deals.get",
                     "deals.create",
                     "deals.update",
@@ -4525,7 +4535,36 @@
                       "indexed": null,
                       "description": "Only deals linked to this contact (an association)."
                     }
-                  ]
+                  ],
+                  "aggregate": {
+                    "sum": [
+                      "amount_minor"
+                    ],
+                    "avg": [
+                      "amount_minor"
+                    ],
+                    "min": [
+                      "name",
+                      "amount_minor",
+                      "currency",
+                      "expected_close_date",
+                      "closed_at",
+                      "created_at",
+                      "updated_at"
+                    ],
+                    "max": [
+                      "name",
+                      "amount_minor",
+                      "currency",
+                      "expected_close_date",
+                      "closed_at",
+                      "created_at",
+                      "updated_at"
+                    ],
+                    "money": {
+                      "amount_minor": "currency"
+                    }
+                  }
                 },
                 "columns": [
                   {
@@ -5110,7 +5149,8 @@
                       "indexed": false,
                       "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -5423,7 +5463,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -5965,7 +6006,8 @@
                       "indexed": null,
                       "description": "Takes one value and no operators."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -6297,7 +6339,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -6968,7 +7011,8 @@
                       "indexed": false,
                       "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -7358,7 +7402,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -7770,7 +7815,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -8073,7 +8119,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -8388,7 +8435,8 @@
                       "indexed": false,
                       "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -8751,7 +8799,8 @@
                       "indexed": null,
                       "description": "Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
@@ -9074,7 +9123,8 @@
                       "indexed": false,
                       "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
                     }
-                  ]
+                  ],
+                  "aggregate": null
                 },
                 "columns": [
                   {
