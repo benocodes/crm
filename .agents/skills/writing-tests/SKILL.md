@@ -35,7 +35,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   to rewrite it (`knowledge/specs/013-CORE188-execution-sort/RETRO.md`). Commit green first and restore from that
   commit. If you cannot, save the green file before mutating (a copy in the scratchpad that you copy back, or
   `git stash push -m <unique tag> -- <file>` followed at once by `git stash apply`, so the tagged stash stays as the
-  backup). Never bare-checkout a file that holds uncommitted changes you mean to keep.
+  backup). Never bare-checkout a file that holds uncommitted changes you mean to keep. The rule is not
+  mutation-only: [[CORE199]]'s coder lost uncommitted work the same way mid-run, outside a mutation (see
+  `execute-cycle` §3, "Setting work aside").
 - **A mutation that stays green is suspect before the test is.** Check `git diff` shows an executable line
   changed: [[CORE38]]'s mutation 7 (`remoteBindings: true`) first replaced the word in a code comment and
   stayed green; applied to the `return` line it turned red. Record which attempt counted.
@@ -329,7 +331,8 @@ One program, two engines: the same assertions run on Postgres and D1.
   planted files: put a `x.test.ts` under each of those trees and confirm `pnpm exec vitest list --filesOnly` at the
   root doesn't list it (OPS92 review; the normal file count proved nothing).
 - **A refactor that moves or splits tests proves it kept them with a test-name manifest**: the full
-  `package + test name` list before and after (`vitest run --reporter=json`), diffed as a multiset, with every
+  `package + test name` list before and after (`vitest run --reporter=json`; not `vitest list`, which errors on
+  the D1 suites, [[CORE199]]), diffed as a multiset, with every
   difference explained (OPS92: 2750 → 2761, each delta named). A green run alone can't show a test went missing.
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
