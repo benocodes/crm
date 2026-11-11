@@ -7,7 +7,11 @@ export interface StatedFilterCost { readonly list: string; readonly filter: stri
 export interface FilterExemption { readonly list: string; readonly reason: string }
 
 const COLUMN = 'no (organization_id, column, id) index (D12): eq reads the organisation\'s live rows, hundreds to low thousands outside mail'
-const MAIL = 'no index constrains this column (D12): eq reads the organisation\'s live rows of a mail table, the largest tables; a measured slow filter gets an index at the next migration'
+const MAIL = 'no index constrains this column (D12): eq reads the organisation\'s live rows of a mail table, the largest tables; a measured slow filter gets an (organization_id, column, id) index at the next migration (D12)'
+// An index exists but the default order's (organization_id, id) index wins the plan, so the query keeps reading the organisation's mail rows and the filter is not
+// served by it: idx_messages_thread_occurred and idx_interactions_thread_occurred (thread, occurred_at), idx_messages_external_id_unique (organization_id, channel, external_id).
+// The D12 remedy is an (organization_id, column, id) index.
+const MAIL_ORDERED = 'an index exists on this column but not in the default order: the planner keeps the (organization_id, id) index to avoid a sort, so eq reads the organisation\'s live mail rows (idx_messages_thread_occurred, idx_interactions_thread_occurred, idx_messages_external_id_unique need channel too); the D12 remedy is an (organization_id, column, id) index'
 const SMALL = 'the table holds a handful of rows per workspace (D12) and no index constrains this column: eq reads them all'
 // [[CORE188]] D5: action_executions is read through `operation IN (the readable operations)`, so the planner searches the (organization_id, operation) index once
 // per operation, and every other column is checked on those rows.
@@ -81,10 +85,10 @@ export const STATED_FILTER_COSTS: readonly StatedFilterCost[] = [
   { list: 'threads', filter: 'subject', reason: MAIL },
   { list: 'threads', filter: 'created_by', reason: MAIL },
   { list: 'threads', filter: 'created_at', reason: MAIL },
-  { list: 'messages', filter: 'thread_id', reason: MAIL },
+  { list: 'messages', filter: 'thread_id', reason: MAIL_ORDERED },
   { list: 'messages', filter: 'channel', reason: MAIL },
   { list: 'messages', filter: 'kind', reason: MAIL },
-  { list: 'messages', filter: 'external_id', reason: MAIL },
+  { list: 'messages', filter: 'external_id', reason: MAIL_ORDERED },
   { list: 'messages', filter: 'in_reply_to', reason: MAIL },
   { list: 'messages', filter: 'preview', reason: MAIL },
   { list: 'messages', filter: 'version', reason: MAIL },
@@ -94,7 +98,7 @@ export const STATED_FILTER_COSTS: readonly StatedFilterCost[] = [
   { list: 'interactions', filter: 'kind', reason: MAIL },
   { list: 'interactions', filter: 'channel', reason: MAIL },
   { list: 'interactions', filter: 'direction', reason: MAIL },
-  { list: 'interactions', filter: 'thread_id', reason: MAIL },
+  { list: 'interactions', filter: 'thread_id', reason: MAIL_ORDERED },
   { list: 'interactions', filter: 'created_by', reason: MAIL },
   { list: 'interactions', filter: 'created_at', reason: MAIL },
   { list: 'files', filter: 'name', reason: COLUMN },
