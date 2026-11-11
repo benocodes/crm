@@ -341,7 +341,14 @@ One program, two engines: the same assertions run on Postgres and D1.
   `configDefaults.exclude` does not cover `vendor/` (2000+ vendored test files), `.claude/` (other worktrees) or
   `knowledge/`; `EXCLUDE` in `vitest.projects.ts` lists them. When you add a project or glob, check it with
   planted files: put a `x.test.ts` under each of those trees and confirm `pnpm exec vitest list --filesOnly` at the
-  root doesn't list it (OPS92 review; the normal file count proved nothing).
+  root doesn't list it (OPS92 review; the normal file count proved nothing). Packages have no vitest config of their own:
+  run a full package suite with `pnpm -C packages/<pkg> test` (the script passes `--config ../../vitest.config.ts`), never a
+  bare `vitest run` in the package, which also collects `*.postgres.test.ts` and fails them (32 false failures in the
+  [[CORE202]] review; `execute-cycle` §5).
+- **A boundary comment needs a boundary fixture.** A test that says "exactly the limit is allowed" must seed values that
+  reach the limit exactly; [[CORE202]]'s summed a single `0` (#208). And a guard against a numeric limit computed in the
+  engine runs after the engine's own arithmetic: `abs(sum(x)) > 2^53−1` never sees an int64 overflow, because `sum()`
+  raises first (`knowledge/specs/013-CORE202-deal-aggregate/RETRO.md`).
 - **A refactor that moves or splits tests proves it kept them with a test-name manifest**: the full
   `package + test name` list before and after (`vitest run --reporter=json`; not `vitest list`, which errors on
   the D1 suites, [[CORE199]]), diffed as a multiset, with every
