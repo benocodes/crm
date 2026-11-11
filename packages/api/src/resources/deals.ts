@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { codecs, readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { deleteDealOperation } from '../identity/cascades.js'
-import { definePreparedResource, type DerivedDecl, type JoinFilter } from '../storage/definition.js'
+import { definePreparedResource, type DerivedDecl, type CustomFilter } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { linkedToFilter } from './tag-filter.js'
 
@@ -73,7 +73,7 @@ const dealDerived = {
   },
 } as const satisfies Record<string, DerivedDecl<'text'>>
 
-const statusFilter: JoinFilter = {
+const statusFilter: CustomFilter = {
   schema: z.enum(STATUSES).describe("Only deals whose stage is of this kind: open, won or lost."),
   where: (_qc, value) =>
     sql<boolean>`exists (select 1 from "pipeline_stages" where "pipeline_stages"."id" = ${sql.ref('deals.stage_id')} and "pipeline_stages"."organization_id" = ${sql.ref('deals.organization_id')} and "pipeline_stages"."kind" = ${value as string})`,
@@ -100,7 +100,7 @@ export const deals = withColumnSorts(definePreparedResource({
   // [[CORE130]] D14: a deal links to the records around it; deal-deal and deal-interaction links are refused (the 400 names this list).
   neighbours: ['companies', 'contacts', 'notes', 'tags', 'tasks', 'threads'],
   override: { delete: (env, id) => deleteDealOperation(env, id as string) },
-  joinFilters: {
+  customFilters: {
     status: statusFilter,
     tag_id: linkedToFilter('deals', 'tags', 'Only deals linked to this tag.'),
     company_id: linkedToFilter('deals', 'companies', 'Only deals linked to this company (an association).'),

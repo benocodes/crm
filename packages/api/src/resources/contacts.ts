@@ -54,7 +54,7 @@ export const contacts = withColumnSorts(definePreparedResource({
   eventName: 'contact',
   table: 'contacts',
   associable: true,
-  joinFilters: { tag_id: tagIdFilter('contacts'), ...contactActivityFilters },
+  customFilters: { tag_id: tagIdFilter('contacts'), ...contactActivityFilters },
   derived: contactDerived,
   record,
   create,

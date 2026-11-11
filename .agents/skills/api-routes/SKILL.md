@@ -374,11 +374,11 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   carry the same rendering from ONE helper (`embedJson` in `@vault/storage`: Postgres `coalesce(jsonb_agg(... order by ...), '[]')`,
   D1 `json_group_array(json_object(...) ORDER BY ...)`, wrapped in `json(...)` inside `recordJson`). An empty set is `[]`,
   never null. Table, key, columns and order are checked against `COLUMN_KINDS` at the call site (types) and at load.
-- **Join filters** ([[CORE25]] D51): `joinFilters: { <key>: { schema, normalize?, where(qc, value) } }` are list filters
+- **Custom filters** (named "join filters" in [[CORE25]] D51 and [[CORE129]]; renamed by [[CORE199]]): `customFilters: { <key>: { schema, normalize?, where(qc, value) } }` are list filters
   that are not columns (`interactions.contact_id`, `identity_id`, an `EXISTS` over a child table). A key may never be a
   column of the table nor also in `filters` (load-time throw); `where` is a synchronous Kysely/`sql` fragment ANDed into
   the list. `contact_id` joins through `identities` with `deleted_at IS NULL`, so it follows a merge and a deleted identity.
-  A join filter that reveals another resource or an edge declares the scopes it needs, `requires?: readonly Scope[]`
+  A custom filter that reveals another resource or an edge declares the scopes it needs, `requires?: readonly Scope[]`
   (`tag_id` on companies, contacts and tasks requires `tags:read` then `associations:read`, `src/resources/tag-filter.ts`).
   The generic `listOperation` checks them in declaration order, before it builds the query, and answers `403
   insufficient_scope` naming the first missing scope. Never check them ad hoc in an override ([[CORE129]] D12a). An `EXISTS`
@@ -399,7 +399,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   and emits its events (a cascade, a merge, a bulk op) needs a test that runs it as an actor holding the `requires`
   scope and asserts the keys absent from both sides of the event. Pin the D1 join order of a correlated derivation with
   `cross join` and assert the exact index lines of `EXPLAIN QUERY PLAN`, not just "SEARCH" (plain joins let SQLite start
-  from the wide table, still a SEARCH, [[CORE131]] Decision 7). A derived field may share its name with a join filter
+  from the wide table, still a SEARCH, [[CORE131]] Decision 7). A derived field may share its name with a custom filter
   only when it lists that filter in its own `filters` (`deals.status`, [[CORE130]]); any other clash is a load-time throw.
 - **Sorting by a derived field** ([[CORE133]], `sorts: [...]` on a definition, cursor codec in `src/resources/sort-cursor.ts`,
   keyset in `src/storage/crud.ts` `afterPosition`). Only a list that declares `sorts` gets `sort` and `order`. On every
@@ -413,7 +413,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   compares. Prove each branch and the `id` tie-break with its own absence mutation, over a walk at several page sizes
   where the breaks fall inside the nulls and inside a tie.
   - **Check order: every `400`, then every `403`.** `prepareListQuery` parses limit, sort, order, the cursor and the filters
-    first. Join-filter `requires` come next, then the sort field's `requires`, all before a query is built. A malformed
+    first. Custom-filter `requires` come next, then the sort field's `requires`, all before a query is built. A malformed
     cursor then reveals nothing about the caller's scopes, and a caller without the scope never receives a cursor that
     carries the value.
   - **Cursor typing is per list.** On a list that declares `sorts`, `after` and `next_cursor` are a plain `string`

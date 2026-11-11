@@ -65,7 +65,7 @@ export const tasks = withColumnSorts(definePreparedResource({
   eventName: 'task',
   table: 'tasks',
   associable: true,
-  joinFilters: { tag_id: tagIdFilter('tasks') },
+  customFilters: { tag_id: tagIdFilter('tasks') },
   override: { delete: (env, id) => deleteTaskOperation(env, id as string) },
   record,
   create,

@@ -263,7 +263,7 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
     const sortFields = sorts.length > 0 ? sortedQueryFields(def) : null
     const query: Record<string, z.ZodType> = sortFields ? { after: sortFields.after! } : { after: z.uuid().optional() }
     query.limit = z.coerce.number().int().min(1).max(200).optional()
-    for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.joinFilters ?? {}) })) query[key] = (f as { schema: z.ZodType }).schema.optional()
+    for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.customFilters ?? {}) })) query[key] = (f as { schema: z.ZodType }).schema.optional()
     if (sortFields) {
       query.sort = sortFields.sort!
       query.order = sortFields.order!

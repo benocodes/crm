@@ -1,7 +1,7 @@
 import { sql, type Expression, type SqlBool } from 'kysely'
 import { z } from 'zod'
 import type { QueryContext } from '@vault/storage'
-import type { DerivedDecl, JoinFilter } from '../storage/definition.js'
+import type { DerivedDecl, CustomFilter } from '../storage/definition.js'
 
 // [[CORE131]] D3, D7: the two derived activity fields of a contact and the six list filters over them. The derivation is one
 // scalar subquery per field, correlated on the contact: contact -> its live identities -> their participant rows -> the
@@ -53,7 +53,7 @@ type Field = keyof typeof contactDerived
 const valueOf = (field: Field, qc: QueryContext, parent: (column: string) => Expression<unknown>) => contactDerived[field].expression(qc, parent)
 const parentOf = (column: string) => sql.ref(`contacts.${column}`)
 
-const filter = (field: Field, schema: z.ZodType, normalize: JoinFilter['normalize'], where: (value: Expression<unknown>, v: unknown) => Expression<SqlBool>, description: string): JoinFilter => ({
+const filter = (field: Field, schema: z.ZodType, normalize: CustomFilter['normalize'], where: (value: Expression<unknown>, v: unknown) => Expression<SqlBool>, description: string): CustomFilter => ({
   schema: schema.describe(description),
   ...(normalize ? { normalize } : {}),
   requires: REQUIRES,
@@ -66,7 +66,7 @@ const notSince = (field: Field, what: string) =>
 const never = (field: Field, what: string) =>
   filter(field, flag, (v) => v === 'true', (value, v) => (v === true ? sql<SqlBool>`${value} is null` : sql<SqlBool>`${value} is not null`), `true: only contacts never ${what}; false: only contacts ${what} at least once. Needs interactions:read.`)
 
-/** The six join filters of `contacts.list`, ANDed with the others. */
+/** The six custom filters of `contacts.list`, ANDed with the others. */
 export const contactActivityFilters = {
   contacted_since: since('last_contacted_at', 'last contacted'),
   not_contacted_since: notSince('last_contacted_at', 'last contacted'),
@@ -74,4 +74,4 @@ export const contactActivityFilters = {
   interacted_since: since('last_interacted_at', 'last interacted with'),
   not_interacted_since: notSince('last_interacted_at', 'last interacted with'),
   never_interacted: never('last_interacted_at', 'interacted with'),
-} as const satisfies Record<string, JoinFilter>
+} as const satisfies Record<string, CustomFilter>

@@ -27,7 +27,7 @@ const LIMIT = z.coerce.number().int().min(1).max(200)
  * What parseListQuery needs of a definition. `sorts` names derived fields ([[CORE133]] D8): only a list that declares them takes `sort` and
  * `order`; on any other list those are not parameters, so `sort` is an unknown filter as it always was.
  */
-type ListDef = { filters?: Record<string, Filter>; joinFilters?: Record<string, Filter>; sorts?: readonly string[]; sortKinds?: Readonly<Record<string, SortKind>>; derived?: Record<string, { kind: string }> }
+type ListDef = { filters?: Record<string, Filter>; customFilters?: Record<string, Filter>; sorts?: readonly string[]; sortKinds?: Readonly<Record<string, SortKind>>; derived?: Record<string, { kind: string }> }
 
 export function parseListQuery(
   def: ListDef,
@@ -58,7 +58,7 @@ export function parseListQuery(
     if (!a.success) throw new ApiError(400, 'validation_error', sorts.length > 0 ? 'after must be a UUID (a sorted cursor needs the sort and order it came from)' : 'after must be a UUID')
     after = a.data
   }
-  const declared = { ...(def.filters ?? {}), ...(def.joinFilters ?? {}) }
+  const declared = { ...(def.filters ?? {}), ...(def.customFilters ?? {}) }
   const parsed: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(raw.filters ?? {})) {
     const filter = declared[key]

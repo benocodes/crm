@@ -7,7 +7,7 @@ const lower = (v: unknown) => (v as string).toLowerCase()
 
 /**
  * Read-only ([[CORE25]] D26), `interactions:read`: who did what with whom and when. Participants are identities embedded
- * ordered by role then identity id. `identity_id` and `contact_id` are join filters (D51): `contact_id` follows the
+ * ordered by role then identity id. `identity_id` and `contact_id` are custom filters (D51): `contact_id` follows the
  * identities that are live NOW, so after a merge the survivor owns the interactions and a deleted identity drops out.
  */
 export const interactions = withColumnSorts(definePreparedResource({
@@ -40,7 +40,7 @@ export const interactions = withColumnSorts(definePreparedResource({
     thread_id: { schema: z.uuid(), normalize: lower },
     message_id: { schema: z.uuid(), normalize: lower },
   },
-  joinFilters: {
+  customFilters: {
     identity_id: {
       schema: z.uuid(),
       normalize: lower,

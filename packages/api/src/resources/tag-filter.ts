@@ -1,6 +1,6 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
-import type { JoinFilter } from '../storage/definition.js'
+import type { CustomFilter } from '../storage/definition.js'
 
 /**
  * A "linked to this record" list filter ([[CORE129]] D9, D12; [[CORE130]] D15): an `EXISTS` over a live `associations` edge between a record of
@@ -8,7 +8,7 @@ import type { JoinFilter } from '../storage/definition.js'
  * predicate does not assume it). Using it needs the read scope of `otherType` and `associations:read` (hop-by-hop visibility).
  * `table` and `otherType` are registry table names, never input.
  */
-export const linkedToFilter = (table: string, otherType: string, description?: string): JoinFilter => ({
+export const linkedToFilter = (table: string, otherType: string, description?: string): CustomFilter => ({
   schema: description ? z.uuid().describe(description) : z.uuid(),
   normalize: (v) => (v as string).toLowerCase(),
   requires: [
@@ -24,4 +24,4 @@ export const linkedToFilter = (table: string, otherType: string, description?: s
 })
 
 /** The `tag_id` filter of a taggable table. */
-export const tagIdFilter = (table: string): JoinFilter => linkedToFilter(table, 'tags')
+export const tagIdFilter = (table: string): CustomFilter => linkedToFilter(table, 'tags')
