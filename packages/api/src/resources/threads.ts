@@ -1,13 +1,14 @@
 import { z } from 'zod'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 
 /**
  * Read-only ([[CORE25]] D26): threads are written by capture programs only (cycle 2), never by a REST route. A thread has
  * no `deleted_at` (D45), so the generic core adds no live-row condition and generates no delete. Its scope is
  * `messages:read` (D25: threads are part of content).
  */
-export const threads = withColumnSorts(definePreparedResource({
+export const threads = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'threads',
   eventName: 'thread',
@@ -23,4 +24,4 @@ export const threads = withColumnSorts(definePreparedResource({
     created_at: z.string(),
   }),
   filters: { channel: { schema: z.enum(['email']) } },
-}), ['subject'])
+}), ['subject']))

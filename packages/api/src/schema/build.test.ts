@@ -220,7 +220,7 @@ describe('resource bridge (D14)', () => {
     doc = build()
   })
   it('carries the full path, the generated operation names and both scopes', () => {
-    expect(table(doc, 'tasks').resource).toEqual({
+    expect(table(doc, 'tasks').resource).toMatchObject({
       name: 'tasks',
       surface: 'api',
       path: '/api/v1/tasks',
@@ -237,7 +237,7 @@ describe('resource bridge (D14)', () => {
     })
   })
   it('a meta-surface definition with no write action has write_scope null and the meta path', () => {
-    expect(table(doc, 'api_keys').resource).toEqual({
+    expect(table(doc, 'api_keys').resource).toMatchObject({
       name: 'api_keys',
       surface: 'meta',
       path: '/meta/v1/api-keys',

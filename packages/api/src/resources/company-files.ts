@@ -3,6 +3,7 @@ import { readMaybe } from '@vault/storage'
 import { ApiError } from '../errors.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 
 const fields = { company_id: z.uuid(), file_id: z.uuid() }
 
@@ -11,7 +12,7 @@ const fields = { company_id: z.uuid(), file_id: z.uuid() }
  * `companies` scopes (D25). Both ends must exist in this organisation (the company live); a second LIVE link for the same pair is
  * `409 link_exists` from the plan, and the partial unique index is the commit-time backstop.
  */
-export const companyFiles = withColumnSorts(definePreparedResource({
+export const companyFiles = withColumnFilters(withColumnSorts(definePreparedResource({
   notProposable: 'file links are not proposable yet',
   surface: 'api',
   name: 'company_files',
@@ -50,4 +51,4 @@ export const companyFiles = withColumnSorts(definePreparedResource({
       },
     ]
   },
-}), [])
+}), []))

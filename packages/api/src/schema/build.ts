@@ -4,6 +4,8 @@ import { resourceOperations } from '../registry.js'
 import { formatScope } from '../scopes.js'
 import { fullPath } from '../surfaces.js'
 import { STATED_SORT_COSTS } from '../storage/sort-costs.js'
+import { describeColumnFilter, operatorsFor } from '../storage/column-filters.js'
+import { STATED_FILTER_COSTS } from '../storage/filter-costs.js'
 import { crudActions, resourcePath, scopeResourceOf } from '../resources/define.js'
 import { CATALOG, HIDDEN_TABLES, defaultLabel, type Catalog } from './catalog.js'
 import type { SchemaDocument } from './document.js'
@@ -38,6 +40,8 @@ export interface BuildInput {
   hidden?: readonly string[]
   /** [[CORE187]] D16: the `(list, sort)` pairs whose plan needs a temporary sort; every other sort is indexed. */
   statedCosts?: readonly { readonly list: string; readonly sort: string }[]
+  /** [[CORE201]] D12: the `(list, filter)` pairs whose `eq` plan is not served by an index; every other column filter is indexed. */
+  statedFilterCosts?: readonly { readonly list: string; readonly filter: string }[]
 }
 
 /** D10: how each logical kind is stored on D1. */
@@ -76,7 +80,31 @@ function sortsOf(def: AnyResource, stated: ReadonlySet<string>) {
   return Object.entries(def.sortKinds ?? {}).map(([name, kind]) => ({ name, kind, indexed: !stated.has(`${def.name}\u0000${name}`) }))
 }
 
-function resourceOf(def: AnyResource, stated: ReadonlySet<string>) {
+/**
+ * [[CORE201]] D11, D12: the filters the list accepts: column filters in record field order (kind, the operators the kind allows, and the plan fact), then
+ * custom filters in declaration order, which take one bare value (`kind: null`, no operators, no plan fact).
+ */
+function filtersOf(def: AnyResource, statedFilters: ReadonlySet<string>) {
+  const column = Object.entries(def.columnFilters ?? {}).map(([name, spec]) => ({
+    name,
+    custom: false,
+    kind: spec.kind as string | null,
+    operators: [...operatorsFor(spec.kind, spec.nullable)] as string[],
+    indexed: !statedFilters.has(`${def.name}\u0000${name}`) as boolean | null,
+    description: describeColumnFilter(name, spec),
+  }))
+  const custom = Object.entries(def.customFilters ?? {}).map(([name, f]) => ({
+    name,
+    custom: true,
+    kind: null as string | null,
+    operators: [] as string[],
+    indexed: null as boolean | null,
+    description: (f.schema as { description?: string }).description ?? 'Takes one value and no operators.',
+  }))
+  return [...column, ...custom]
+}
+
+function resourceOf(def: AnyResource, stated: ReadonlySet<string>, statedFilters: ReadonlySet<string>) {
   const actions = new Set(crudActions(def))
   const scope = scopeResourceOf(def)
   return {
@@ -87,6 +115,7 @@ function resourceOf(def: AnyResource, stated: ReadonlySet<string>) {
     read_scope: formatScope({ resource: scope, action: 'read' }),
     write_scope: actions.has('create') || actions.has('update') || actions.has('delete') ? formatScope({ resource: scope, action: 'write' }) : null,
     sorts: sortsOf(def, stated),
+    filters: filtersOf(def, statedFilters),
   }
 }
 
@@ -108,6 +137,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
   const kinds = input.kinds ?? (COLUMN_KINDS as Record<string, Record<string, string>>)
   const hidden = new Set(input.hidden ?? HIDDEN_TABLES)
   const stated = new Set((input.statedCosts ?? STATED_SORT_COSTS).map((c) => `${c.list}\u0000${c.sort}`))
+  const statedFilters = new Set((input.statedFilterCosts ?? STATED_FILTER_COSTS).map((c) => `${c.list}\u0000${c.filter}`))
   const byTable = resourcesByTable(input.resources)
   const columnsOf = groupBy(input.columns, (r) => r.table_name)
   const fksOf = groupBy(input.foreignKeys, (r) => r.table_name)
@@ -153,7 +183,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
         label: text?.label ?? defaultLabel(name),
         description: text?.description ?? null,
         associable: def?.associable === true,
-        resource: def ? resourceOf(def, stated) : null,
+        resource: def ? resourceOf(def, stated, statedFilters) : null,
         columns: rows.map((c) => {
           const own = textOf(text?.columns[c.name])
           return {

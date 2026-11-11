@@ -7,6 +7,7 @@ import { eventStatement } from '../outbox.js'
 import { columnsOf, receipt, resultStep, toRecord, updateOperation } from '../storage/crud.js'
 import { definePreparedResource, type PreparedEnv } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 import { prepareCreate, prepareUpdate } from '../storage/prepare.js'
 
 export const agentRecord = z.object({
@@ -49,7 +50,7 @@ const scopesField = z.array(z.string()).max(100)
  * input only (P5): it drives `disabled_at` in `computed` and is never written as a column. The scope rule is
  * pure, so it runs in `prepare`; a scope change applies at once because the next request reads the stored list.
  */
-export const agents = withColumnSorts(definePreparedResource({
+export const agents = withColumnFilters(withColumnSorts(definePreparedResource({
   notProposable: 'access administration is not proposable',
   surface: 'meta',
   name: 'agents',
@@ -71,7 +72,7 @@ export const agents = withColumnSorts(definePreparedResource({
     create: (env, input) => createAgentOperation(env, input),
     update: (env, input) => updateAgentOperation(env, input as { id: string; body: unknown }),
   },
-}), ['name'])
+}), ['name']))
 
 const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((v, i) => v === b[i])
 

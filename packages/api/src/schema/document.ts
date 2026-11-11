@@ -42,6 +42,16 @@ export const schemaSort = z.object({
   indexed: z.boolean().describe('True when an index serves this sort. False is a stated cost: the database sorts the organisation\'s live rows in a temporary b-tree.'),
 })
 
+// [[CORE201]] D11, D12: one filter of the resource's list. Column filters take the grammar; custom filters take one bare value.
+export const schemaFilter = z.object({
+  name: z.string().describe('The query parameter: a column of the record, or a custom filter.'),
+  custom: z.boolean().describe('True for a custom filter (a tag by name, an association, a derived field): one bare value, no operators.'),
+  kind: z.string().nullable().describe('The logical kind of a column filter (see `kinds`), which decides its operators; null for a custom filter.'),
+  operators: z.array(z.string()).describe('The operators a column filter accepts, as [not.]<operator>.<value>; a bare value means eq. Empty for a custom filter.'),
+  indexed: z.boolean().nullable().describe('True when an index serves `eq` on this column. False is a stated cost: the database reads the organisation\'s live rows. neq, not., like and ilike read every live row whatever this says. Null for a custom filter, which is not measured.'),
+  description: z.string(),
+})
+
 export const schemaResource = z.object({
   name: z.string(),
   surface: z.enum(['api', 'meta']),
@@ -50,6 +60,7 @@ export const schemaResource = z.object({
   read_scope: z.string(),
   write_scope: z.string().nullable(),
   sorts: z.array(schemaSort).describe('The sorts the list accepts, in the order it accepts them (convention first, then the natural fields); empty when the list takes no `sort`.'),
+  filters: z.array(schemaFilter).describe('The filters the list accepts: column filters in record field order, then custom filters in declaration order.'),
 })
 
 export const schemaTable = z.object({

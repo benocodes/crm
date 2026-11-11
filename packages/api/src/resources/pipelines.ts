@@ -4,6 +4,7 @@ import { ApiError } from '../errors.js'
 import { deletePipelineOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 
 export type PipelineRecord = {
   id: string
@@ -33,7 +34,7 @@ const update = create.partial()
  * case-insensitively (the column's NOCASE collation): a live duplicate refuses the write in the plan (`409 pipeline_exists`), the partial
  * unique index is the commit-time backstop. Delete is refused while a live deal is in the pipeline and otherwise cascades its stages.
  */
-export const pipelines = withColumnSorts(definePreparedResource({
+export const pipelines = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'meta',
   name: 'pipelines',
   eventName: 'pipeline',
@@ -62,4 +63,4 @@ export const pipelines = withColumnSorts(definePreparedResource({
       },
     ]
   },
-}), ['name'])
+}), ['name']))

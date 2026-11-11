@@ -384,7 +384,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   insufficient_scope` naming the first missing scope. Never check them ad hoc in an override ([[CORE129]] D12a). An `EXISTS`
   over `associations` must match **both canonical sides** (the tag is `b` for companies, contacts and notes, `a` for tasks)
   and only live edges. Prove each with its own absence mutation.
-- **Column filter grammar** ([[CORE199]] D2–D9, shipped on deals by [[CORE200]]; `src/storage/column-filters.ts`). A list
+- **Column filter grammar** ([[CORE199]] D2–D12, D18; deals by [[CORE200]], every generic list by [[CORE201]]; `src/storage/column-filters.ts`). A list
   opts in with `withColumnFilters(def, notes?)` (outermost wrapper, around `withColumnSorts`): every record column of a
   filterable kind (`uuid`, `text`, `integer`, `timestamp`, `boolean`; not `json`/`string_array`) except `organization_id`
   becomes `columnFilters[col] = { kind, nullable, schema?, normalize?, note? }`. On such a list the old `filters` map is
@@ -399,9 +399,27 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   bound parameter (`json_each(?)` on D1), 1–100 items; `ilike` is `LIKE … ESCAPE '\'` (ASCII folding), `like` is `GLOB`,
   `*` the only wildcard. **Collation:** on D1 `=` and comparisons use the column's declared collation. `deals.name` is
   BINARY, but `tags.name`, `pipelines.name` and `pipeline_stages.name` are `NOCASE`, so `eq`/`gt` on them fold ASCII case
-  unless the expression says `COLLATE BINARY` (the `tag` custom filter does, `resources/tag-filter.ts`). Check the
-  migration before promising case-sensitivity ([[CORE200]] retro). Custom filters keep one raw value and no operators.
-  Unadopted lists keep equality `filters` until [[CORE201]].
+  unless the expression says `COLLATE BINARY` (the `tag` custom filter does, `resources/tag-filter.ts`). That folding is
+  kept on purpose ([[CORE199]] D18: search-before-create matches the `NOCASE` uniqueness); the compiler is unchanged and the
+  generated description says "Comparison folds ASCII case" or "Comparison is by byte order" per column, from
+  `NOCASE_COLUMNS` in `column-filters.ts`. A new `NOCASE` text column must be added there, or the filter contract fails
+  (`collation-text`, checked against `sqlite_master` both ways). Check the migration before promising case-sensitivity
+  ([[CORE200]] retro). Custom filters keep one raw value and no operators. A normaliser that depends on another filter
+  (identities `value` on `kind`) reads `siblings`, the call's other plain equalities (bare or `eq.`).
+  - **Every generic list adopts it; the registry filter contract enforces that** ([[CORE201]],
+    `src/storage/filter-contract.integration.d1.test.ts`, checker `src/test/filter-contract.ts`, lists in
+    `src/storage/filter-costs.ts`). Same shape as the sort contract: a generic list without `withColumnFilters` fails
+    `no-column-filters`; a hand-written list needs a `FILTER_EXEMPT_LISTS` entry (`associations`, `users`); every list ×
+    column filter whose `eq` plan at the default order does not search the list table through an index constraining that
+    column needs a `STATED_FILTER_COSTS` entry, exact both ways (`missing-cost`, `obsolete-cost`, `unknown-cost`). Adding a
+    record field to a generic resource adds a column filter, so it usually adds a stated entry. Reuse the reason constants
+    (`COLUMN`, `MAIL`, `SMALL`, `EXECUTION`) and helpers (`kept`, `behind`, `partial`); a reason that names an index is a
+    claim about the catalog, so check it against every index of the table, partial ones included, before writing it: the
+    contract does not check reason text yet (#205), and [[CORE201]] spent two review rounds on false ones.
+  - **Discovery** ([[CORE199]] D11): `schema.get`'s `resource.filters` is `[{ name, custom, kind, operators, indexed,
+    description }]`, column filters in record field order, then custom filters in declaration order (`custom: true`,
+    `kind: null`, `operators: []`, `indexed: null`). `indexed` = not in `STATED_FILTER_COSTS` (a `BuildInput` option,
+    default the checked-in list). Exempt lists have no `resource` object. A new filter regenerates `schema.json`.
 - **A repeated query parameter is refused on REST** (`readInput` in `src/rest/app.ts`, [[CORE129]] D10a): Hono's
   `c.req.query()` keeps the first value, so `?x=a&x=b` is `400 validation_error` naming `x`. MCP refuses an array argument
   through the schema. The first operation that declares an array query parameter must exempt that parameter there and read

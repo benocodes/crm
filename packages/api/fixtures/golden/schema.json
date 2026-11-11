@@ -61,6 +61,215 @@
                       "kind": "timestamp",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "operation",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by operation (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: operation=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send operation=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "status",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "action_request_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by action_request_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: action_request_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send action_request_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "authorised_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by authorised_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: authorised_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send authorised_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "idempotency_key",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by idempotency_key (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: idempotency_key=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send idempotency_key=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "error_code",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by error_code (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: error_code=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send error_code=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "error_message",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by error_message (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: error_message=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send error_message=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "deadline_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by deadline_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: deadline_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send deadline_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "done_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by done_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: done_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send done_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -532,6 +741,309 @@
                       "name": "decided_at",
                       "kind": "timestamp",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "operation",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by operation (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: operation=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send operation=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "status",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "reason",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by reason (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: reason=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send reason=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "contact_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by contact_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: contact_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send contact_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "thread_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by thread_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: thread_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send thread_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "interaction_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by interaction_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: interaction_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send interaction_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "dedup_key",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by dedup_key (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: dedup_key=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send dedup_key=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "expires_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by expires_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: expires_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send expires_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "decided_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by decided_by (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: decided_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send decided_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "decided_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by decided_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: decided_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send decided_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "decision_reason",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by decision_reason (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: decision_reason=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send decision_reason=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "superseded_by_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by superseded_by_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: superseded_by_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send superseded_by_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "error_code",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by error_code (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: error_code=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send error_code=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "error_message",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by error_message (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: error_message=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send error_message=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "executed_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by executed_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: executed_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send executed_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
                   ]
                 },
@@ -1026,6 +1538,169 @@
                       "kind": "text",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "disabled_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by disabled_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: disabled_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send disabled_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "auth_provider",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by auth_provider (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: auth_provider=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send auth_provider=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "auth_subject",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by auth_subject (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: auth_subject=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send auth_subject=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "auth_client_id",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by auth_client_id (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: auth_client_id=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send auth_client_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "delegated_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by delegated_by (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: delegated_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send delegated_by=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -1291,6 +1966,145 @@
                       "name": "expires_at",
                       "kind": "timestamp",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "agent_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by agent_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: agent_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send agent_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "prefix",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by prefix (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: prefix=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send prefix=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "last_used_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by last_used_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: last_used_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send last_used_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "revoked_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by revoked_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: revoked_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send revoked_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "expires_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by expires_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: expires_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send expires_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
                   ]
                 },
@@ -1712,6 +2526,158 @@
                       "kind": "timestamp",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "provider",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by provider (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: provider=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send provider=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "account_id",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by account_id (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: account_id=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send account_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "identity_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by identity_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: identity_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send identity_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "owner_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by owner_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: owner_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send owner_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "status",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "connected_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by connected_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: connected_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send connected_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -2020,6 +2986,117 @@
                       "kind": "text",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "domain",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by domain (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: domain=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send domain=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "tag_id",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only rows linked to this tag (an association). Needs tags:read and associations:read."
+                    },
+                    {
+                      "name": "tag",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read."
+                    }
                   ]
                 },
                 "columns": [
@@ -2195,6 +3272,88 @@
                       "name": "updated_at",
                       "kind": "timestamp",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "company_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by company_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: company_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send company_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "file_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by file_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: file_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send file_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
                   ]
                 },
@@ -2405,6 +3564,88 @@
                       "name": "updated_at",
                       "kind": "timestamp",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "contact_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by contact_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: contact_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send contact_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "file_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by file_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: file_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send file_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
                   ]
                 },
@@ -2631,6 +3872,173 @@
                       "name": "last_interacted_at",
                       "kind": "timestamp",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by name (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "company_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by company_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: company_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send company_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "merged_into_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by merged_into_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: merged_into_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send merged_into_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "tag_id",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only rows linked to this tag (an association). Needs tags:read and associations:read."
+                    },
+                    {
+                      "name": "tag",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read."
+                    },
+                    {
+                      "name": "contacted_since",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only contacts last contacted at or after this ISO-8601 time (Z or an offset). Needs interactions:read."
+                    },
+                    {
+                      "name": "not_contacted_since",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only contacts last contacted before this ISO-8601 time (Z or an offset), including those never last. Needs interactions:read."
+                    },
+                    {
+                      "name": "never_contacted",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "true: only contacts never contacted; false: only contacts contacted at least once. Needs interactions:read."
+                    },
+                    {
+                      "name": "interacted_since",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only contacts last interacted with at or after this ISO-8601 time (Z or an offset). Needs interactions:read."
+                    },
+                    {
+                      "name": "not_interacted_since",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only contacts last interacted with before this ISO-8601 time (Z or an offset), including those never last interacted with. Needs interactions:read."
+                    },
+                    {
+                      "name": "never_interacted",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "true: only contacts never interacted with; false: only contacts interacted with at least once. Needs interactions:read."
                     }
                   ]
                 },
@@ -2891,6 +4299,231 @@
                       "name": "name",
                       "kind": "text",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "pipeline_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by pipeline_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: pipeline_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send pipeline_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "stage_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by stage_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: stage_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send stage_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "amount_minor",
+                      "custom": false,
+                      "kind": "integer",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by amount_minor (integer, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: amount_minor=gt.500000. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. It compares the minor units of each deal in its own currency and does not need a currency filter: for one currency send amount_minor=gt.500000&currency=eq.USD. A value that starts with not. or an operator name and a dot is read as an operator: send amount_minor=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "currency",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by currency (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: currency=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send currency=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "expected_close_date",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by expected_close_date (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: expected_close_date=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send expected_close_date=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "owner_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by owner_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: owner_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send owner_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "closed_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by closed_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: closed_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send closed_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "status",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only deals whose stage is of this kind: open, won or lost."
+                    },
+                    {
+                      "name": "tag_id",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only deals linked to this tag."
+                    },
+                    {
+                      "name": "tag",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read."
+                    },
+                    {
+                      "name": "company_id",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only deals linked to this company (an association)."
+                    },
+                    {
+                      "name": "contact_id",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only deals linked to this contact (an association)."
                     }
                   ]
                 },
@@ -3365,6 +4998,118 @@
                       "kind": "text",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "mime_type",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by mime_type (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: mime_type=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send mime_type=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "size_bytes",
+                      "custom": false,
+                      "kind": "integer",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by size_bytes (integer). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: size_bytes=gt.500000. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send size_bytes=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "sha256",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by sha256 (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: sha256=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send sha256=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -3559,6 +5304,124 @@
                       "name": "value",
                       "kind": "text",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "kind",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by kind (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: kind=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send kind=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "value",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by value (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: value=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. Needs kind in the same call, as a plain equality (kind=email); each operand is normalised for that kind before it is compared. A value that starts with not. or an operator name and a dot is read as an operator: send value=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "contact_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by contact_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: contact_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send contact_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "own",
+                      "custom": false,
+                      "kind": "boolean",
+                      "operators": [
+                        "eq",
+                        "neq"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by own (boolean). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq. Example: own=eq.true. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send own=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
                   ]
                 },
@@ -3948,6 +5811,160 @@
                       "kind": "timestamp",
                       "indexed": true
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "kind",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by kind (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: kind=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send kind=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "channel",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by channel (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: channel=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send channel=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "direction",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by direction (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: direction=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send direction=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "occurred_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by occurred_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: occurred_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send occurred_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "thread_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by thread_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: thread_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send thread_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "message_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by message_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: message_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send message_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "identity_id",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Takes one value and no operators."
+                    },
+                    {
+                      "name": "contact_id",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Takes one value and no operators."
+                    }
                   ]
                 },
                 "columns": [
@@ -4191,6 +6208,94 @@
                       "name": "updated_at",
                       "kind": "timestamp",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "user_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by user_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: user_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send user_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "role",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by role (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: role=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send role=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
                     }
                   ]
                 },
@@ -4669,6 +6774,200 @@
                       "kind": "timestamp",
                       "indexed": true
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "thread_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by thread_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: thread_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send thread_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "channel",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by channel (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: channel=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send channel=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "kind",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by kind (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: kind=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send kind=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "external_id",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by external_id (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: external_id=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send external_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "in_reply_to",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by in_reply_to (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: in_reply_to=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send in_reply_to=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "occurred_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by occurred_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: occurred_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send occurred_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "preview",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by preview (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: preview=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send preview=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "version",
+                      "custom": false,
+                      "kind": "integer",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by version (integer). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: version=gt.500000. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send version=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "retracted_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by retracted_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: retracted_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send retracted_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -4964,6 +7263,101 @@
                       "kind": "text",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "title",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by title (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: title=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send title=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "content",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by content (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: content=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send content=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -5254,6 +7648,128 @@
                       "kind": "text",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "pipeline_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by pipeline_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: pipeline_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send pipeline_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison folds ASCII case (the column is case-insensitive, as its uniqueness is), so eq.CONSULTANCY matches consultancy. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "kind",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by kind (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: kind=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send kind=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "position",
+                      "custom": false,
+                      "kind": "integer",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by position (integer). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: position=gt.500000. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send position=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -5481,6 +7997,82 @@
                       "kind": "text",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison folds ASCII case (the column is case-insensitive, as its uniqueness is), so eq.CONSULTANCY matches consultancy. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -5701,6 +8293,101 @@
                       "kind": "text",
                       "indexed": false
                     }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison folds ASCII case (the column is case-insensitive, as its uniqueness is), so eq.CONSULTANCY matches consultancy. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "description",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by description (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: description=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send description=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
                   ]
                 },
                 "columns": [
@@ -5887,6 +8574,182 @@
                       "name": "title",
                       "kind": "text",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "title",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by title (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: title=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send title=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "notes",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by notes (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: notes=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send notes=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "status",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "due_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by due_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: due_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send due_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "completed_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by completed_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: completed_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send completed_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "assignee_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in",
+                        "is"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by assignee_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in, is. Example: assignee_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send assignee_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "tag_id",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only rows linked to this tag (an association). Needs tags:read and associations:read."
+                    },
+                    {
+                      "name": "tag",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": null,
+                      "description": "Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read."
                     }
                   ]
                 },
@@ -6131,6 +8994,85 @@
                       "name": "subject",
                       "kind": "text",
                       "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "channel",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by channel (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: channel=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send channel=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "subject",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in",
+                        "is",
+                        "like",
+                        "ilike"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by subject (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: subject=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send subject=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": [
+                        "eq",
+                        "neq",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "in"
+                      ],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
                     }
                   ]
                 },

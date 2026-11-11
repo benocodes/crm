@@ -67,7 +67,7 @@ describe('task preparation is pure and keeps the old validation', () => {
     [{ limit: '0' }, 'limit: Too small: expected number to be >=1'],
     [{ limit: '201' }, 'limit: Too big: expected number to be <=200'],
     [{ after: 'nope' }, 'after must be a UUID (a sorted cursor needs the sort and order it came from)'], // CORE175: tasks take sorts now
-    [{ filters: { title: 'x' } }, 'unknown filter: title'],
+    [{ filters: { colour: 'x' } }, 'unknown filter: colour'],
     [{ filters: { status: 'blocked' } }, 'filter status: Invalid option: expected one of "open"|"done"'],
   ])('list query %j is refused with the old message', (query, message) => {
     expect(refused(() => prepareListQuery(tasks, query))).toMatchObject({ status: 400, code: 'validation_error', message })
@@ -78,7 +78,8 @@ describe('task preparation is pure and keeps the old validation', () => {
     expect(prepareListQuery(tasks, { after: '0190B2C4-0000-7000-8000-00000000B002', filters: { assignee_id: '0190B2C4-0000-7000-8000-00000000B002' } })).toEqual({
       after: '0190b2c4-0000-7000-8000-00000000b002',
       limit: 50,
-      filters: { assignee_id: '0190b2c4-0000-7000-8000-00000000b002' },
+      // CORE201: assignee_id is a column filter, so it parses to an eq condition.
+      filters: { assignee_id: { not: false, op: 'eq', value: '0190b2c4-0000-7000-8000-00000000b002' } },
       sort: null,
     })
   })

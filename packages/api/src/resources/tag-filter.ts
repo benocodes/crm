@@ -24,7 +24,7 @@ export const linkedToFilter = (table: string, otherType: string, description?: s
 })
 
 /** The `tag_id` filter of a taggable table. */
-export const tagIdFilter = (table: string): CustomFilter => linkedToFilter(table, 'tags')
+export const tagIdFilter = (table: string): CustomFilter => linkedToFilter(table, 'tags', 'Only rows linked to this tag (an association). Needs tags:read and associations:read.')
 
 /**
  * [[CORE199]] D7: `tag=<name>` keeps rows linked to the live tag of exactly that name (trimmed and case-sensitive: the column's NOCASE collation would match `Consultancy` to `consultancy`, so the comparison names BINARY).
@@ -32,7 +32,7 @@ export const tagIdFilter = (table: string): CustomFilter => linkedToFilter(table
  * matches nothing. Needs `tags:read` and `associations:read`, as `tag_id` does ([[CORE129]] D12). `table` is a registry table name, never input.
  */
 export const tagNameFilter = (table: string): CustomFilter => ({
-  schema: z.string().trim().min(1).max(100).describe('Only rows linked to the live tag with exactly this name (trimmed, case-sensitive). An unknown name gives an empty page. Needs tags:read and associations:read.'),
+  schema: z.string().trim().min(1).max(100).describe('Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read.'),
   requires: [
     { resource: 'tags', action: 'read' },
     { resource: 'associations', action: 'read' },

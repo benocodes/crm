@@ -125,6 +125,12 @@ both, no migration or E2E cost ~228k tokens / ~100 calls, +363 code / +596 test 
 text). A charter at the limit on two lines still fits one run. When a charter restates a spec's claim about stored data (a
 collation, a uniqueness, a nullability), check it against the migration at plan time or name it in Watch out as a premise
 the coder must test: CORE200's D7 premise (tag names case-sensitive "as the index is") was false.
+**CORE201** (`knowledge/specs/013-CORE201-filter-rollout/RETRO.md`): 6 groups (1 matrix), 5 decisions, no migration or E2E
+cost ~250k tokens / ~80 calls initially (one run, continued past the 20-min api suite), then two fix rounds (31 and 7 calls,
+the cap) and three review rounds, all on the prose of checked-in stated-cost reasons. The budget held; the overrun came from a
+deliverable with no obligation on its truth. When a charter asks for checked-in reasons, descriptions or notes that state
+facts about the schema or indexes, either add an obligation that a test checks them against the catalog, or ask for
+category reasons that name no index; never leave their correctness to review.
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code

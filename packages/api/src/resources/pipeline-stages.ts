@@ -4,6 +4,7 @@ import { ApiError } from '../errors.js'
 import { deleteStageOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 
 export type PipelineStageRecord = {
   id: string
@@ -45,7 +46,7 @@ const update = create.pick({ name: true, position: true }).partial()
  * among the live stages of ONE pipeline, case-insensitively (`409 stage_exists`; the partial unique index is the commit-time backstop). A stage
  * holding a live deal cannot be deleted (`409 stage_in_use`, `identity/cascades.ts`).
  */
-export const pipelineStages = withColumnSorts(definePreparedResource({
+export const pipelineStages = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'meta',
   name: 'pipeline_stages',
   eventName: 'pipeline_stage',
@@ -84,4 +85,4 @@ export const pipelineStages = withColumnSorts(definePreparedResource({
       },
     ]
   },
-}), ['position', 'name'])
+}), ['position', 'name']))

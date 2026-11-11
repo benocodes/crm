@@ -30,10 +30,10 @@ describe('parseListQuery', () => {
     expect(await code(() => parseListQuery(tasks, { after: 'x' }))).toMatchObject({ status: 400, code: 'validation_error' })
   })
   it('unknown filter', async () => {
-    expect(await code(() => parseListQuery(tasks, { filters: { title: 'a' } }))).toMatchObject({
+    expect(await code(() => parseListQuery(tasks, { filters: { colour: 'a' } }))).toMatchObject({
       status: 400,
       code: 'validation_error',
-      message: 'unknown filter: title',
+      message: 'unknown filter: colour',
     })
   })
   // CORE188: no shipped list is left without sorts that takes plain filters, so the unsorted negative is a definition with no `sorts`.

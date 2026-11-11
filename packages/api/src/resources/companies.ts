@@ -5,7 +5,8 @@ import { deleteCompanyOperation } from '../identity/cascades.js'
 import { normalizeDomain } from '../identity/normalize.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
-import { tagIdFilter } from './tag-filter.js'
+import { withColumnFilters } from '../storage/column-filters.js'
+import { tagIdFilter, tagNameFilter } from './tag-filter.js'
 
 export type CompanyRecord = {
   id: string
@@ -39,13 +40,13 @@ const update = create.partial()
  * domain refuses the write in the plan (`409 domain_exists`); the partial unique index is the commit-time re-check.
  * Delete unlinks the company's live contacts as a set (`identity/cascades.ts`).
  */
-export const companies = withColumnSorts(definePreparedResource({
+export const companies = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'companies',
   eventName: 'company',
   table: 'companies',
   associable: true,
-  customFilters: { tag_id: tagIdFilter('companies') },
+  customFilters: { tag_id: tagIdFilter('companies'), tag: tagNameFilter('companies') },
   record,
   create,
   update,
@@ -71,4 +72,4 @@ export const companies = withColumnSorts(definePreparedResource({
     ]
   },
   override: { delete: (env, id) => deleteCompanyOperation(env, id as string) },
-}), ['name'])
+}), ['name']))

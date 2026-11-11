@@ -7,6 +7,7 @@ import { definePreparedResource, type PreparedEnv } from '../storage/definition.
 import { canonicalId } from '../storage/prepare.js'
 import { SORTED_NEXT, sortedQueryFields } from '../storage/sort-params.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { columnFilterParams, withColumnFilters } from '../storage/column-filters.js'
 
 export const EXECUTION_STATUSES = ['queued', 'claimed', 'done', 'failed'] as const
 
@@ -41,7 +42,7 @@ export type ExecutionRecord = z.infer<typeof record>
  * columns, the input hash, the resolution and the client reference stay in the table. It declares no generated operations: its two reads are
  * hand-written because their visibility is the enqueued operation's own read scope (`executionReadOperations`), not a scope of the table.
  */
-export const actionExecutions = withColumnSorts(definePreparedResource({
+export const actionExecutions = withColumnFilters(withColumnSorts(definePreparedResource({
   notProposable: 'executions are created by authorising an enqueued operation, never written directly',
   surface: 'api',
   name: 'action_executions',
@@ -57,7 +58,7 @@ export const actionExecutions = withColumnSorts(definePreparedResource({
   },
   // [[CORE188]] D1, D2: the convention sorts and done_at; the meanings are named where an agent chooses a sort.
   sortNote: EXECUTION_SORT_NOTE,
-}), ['done_at'])
+}), ['done_at']))
 
 const notFound = () => new ApiError(404, 'not_found', 'action execution not found')
 
@@ -120,9 +121,7 @@ export function executionReadOperations(registry: Registry): TenantOperation[] {
         query: z.object({
           ...sortedQueryFields(actionExecutions),
           limit: z.coerce.number().int().min(1).max(200).optional(),
-          status: z.enum(EXECUTION_STATUSES).optional(),
-          operation: z.string().min(1).max(100).optional(),
-          action_request_id: z.uuid().optional(),
+          ...columnFilterParams(actionExecutions),
         }),
       },
       response: { status: 200, schema: z.object({ data: z.array(record), next_cursor: SORTED_NEXT }) },

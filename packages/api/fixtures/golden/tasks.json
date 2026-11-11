@@ -1844,13 +1844,13 @@
           "as": "user",
           "at": "2026-10-22T09:12:00.000Z",
           "method": "GET",
-          "path": "/api/v1/tasks?title=t1",
+          "path": "/api/v1/tasks?colour=t1",
           "request": null,
           "status": 400,
           "response": {
             "error": {
               "code": "validation_error",
-              "message": "unknown filter: title"
+              "message": "unknown filter: colour"
             }
           },
           "events": []

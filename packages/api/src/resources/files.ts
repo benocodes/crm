@@ -1,12 +1,13 @@
 import { z } from 'zod'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withColumnFilters } from '../storage/column-filters.js'
 
 /**
  * Read-only ([[CORE25]] D26), `files:read`: the file's metadata. `storage_key` is not in the record (the bytes are
  * served by the content operation of [[CORE58]]). `size_bytes` is a JSON number on both engines (Postgres stores bigint).
  */
-export const files = withColumnSorts(definePreparedResource({
+export const files = withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'files',
   eventName: 'file',
@@ -23,4 +24,4 @@ export const files = withColumnSorts(definePreparedResource({
     created_at: z.string(),
   }),
   filters: { sha256: { schema: z.string().regex(/^[0-9a-fA-F]{64}$/), normalize: (v) => (v as string).toLowerCase() } },
-}), ['name'])
+}), ['name']))

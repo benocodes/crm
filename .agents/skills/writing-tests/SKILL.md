@@ -130,6 +130,14 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   that states a column's case behaviour is a premise to test: [[CORE199]] D7 said tag names compare case-sensitively "as the
   unique index is", but `tags.name` is `NOCASE`, and only the `Consultancy`/`consultancy` fixture showed it
   (`knowledge/specs/013-CORE200-deal-filter-grammar/RETRO.md`, M5).
+- **Checked-in prose that states a fact about the system needs a mechanical check.** A contract that checks the *set* of
+  stated entries exactly (from real plans) but not their *reasons* leaves the reasons as unverified claims. [[CORE201]]'s
+  `STATED_FILTER_COSTS` reasons named indexes and index shapes; two review rounds went to false ones (an audit of 142
+  entries rewrote 30) and two were still wrong after it (#205). When a reason, description or note names a column,
+  index, collation or nullability, derive it from the catalog (`pragma index_list`, `pragma index_info`, `sqlite_master`
+  on D1) or test it against the catalog, both ways, as [[CORE201]] does for the collation sentence (`collation-text`).
+  Prefer structured data (`{ kind, index }`) with the prose generated from it, so the text cannot drift from the check
+  (`knowledge/specs/013-CORE201-filter-rollout/RETRO.md`).
 - **Backfill order needs a separate capture clock.** Seed mail through `recordMessagesOperation` with an advancing
   injected `now`, then capture the oldest `occurred_at` last. Keep same-thread ties and another thread, so chronological
   walks differ from capture/id order and page breaks exercise the tie-break. Take the read-event baseline after capture
