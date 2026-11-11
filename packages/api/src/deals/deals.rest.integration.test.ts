@@ -47,7 +47,7 @@ describe('surface placement (D1)', () => {
     const meta = (await (await s.call(t, 'agent', FULL, 'GET', '/meta/v1/openapi.json')).json()) as any
     const api = (await (await s.call(t, 'agent', FULL, 'GET', '/api/v1/openapi.json')).json()) as any
     expect(Object.keys(meta.paths).filter((p) => /pipeline|deals/.test(p)).sort()).toEqual(['/meta/v1/pipeline-stages', '/meta/v1/pipeline-stages/{id}', '/meta/v1/pipelines', '/meta/v1/pipelines/{id}'])
-    expect(Object.keys(api.paths).filter((p) => /pipeline|deals/.test(p)).sort()).toEqual(['/api/v1/deals', '/api/v1/deals/{id}', '/api/v1/deals/{id}/move-stage'])
+    expect(Object.keys(api.paths).filter((p) => /pipeline|deals/.test(p)).sort()).toEqual(['/api/v1/deals', '/api/v1/deals/aggregate', '/api/v1/deals/{id}', '/api/v1/deals/{id}/move-stage'])
   })
 })
 

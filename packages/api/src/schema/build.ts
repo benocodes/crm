@@ -116,6 +116,7 @@ function resourceOf(def: AnyResource, stated: ReadonlySet<string>, statedFilters
     write_scope: actions.has('create') || actions.has('update') || actions.has('delete') ? formatScope({ resource: scope, action: 'write' }) : null,
     sorts: sortsOf(def, stated),
     filters: filtersOf(def, statedFilters),
+    aggregate: def.aggregate ? { sum: [...def.aggregate.fields.sum], avg: [...def.aggregate.fields.avg], min: [...def.aggregate.fields.min], max: [...def.aggregate.fields.max], money: { ...def.aggregate.money } } : null,
   }
 }
 

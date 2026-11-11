@@ -5,6 +5,7 @@ import { ApiError } from '../errors.js'
 import { deleteDealOperation } from '../identity/cascades.js'
 import { definePreparedResource, type DerivedDecl, type CustomFilter } from '../storage/definition.js'
 import { withColumnFilters } from '../storage/column-filters.js'
+import { withAggregate } from '../storage/aggregate.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { linkedToFilter, tagNameFilter } from './tag-filter.js'
 
@@ -86,7 +87,7 @@ const statusFilter: CustomFilter = {
  * must be a live one of this organisation (the generic reference check, re-checked at commit). `stage_id` and `pipeline_id` are refused on update:
  * the stage changes through `deals.move_stage` (`deals/operations.ts`). `status` is derived from the stage and never in an event.
  */
-export const deals = withColumnFilters(withColumnSorts(definePreparedResource({
+export const deals = withAggregate(withColumnFilters(withColumnSorts(definePreparedResource({
   surface: 'api',
   name: 'deals',
   eventName: 'deal',
@@ -142,4 +143,7 @@ export const deals = withColumnFilters(withColumnSorts(definePreparedResource({
   },
 }), ['name']), {
   amount_minor: 'It compares the minor units of each deal in its own currency and does not need a currency filter: for one currency send amount_minor=gt.500000&currency=eq.USD.',
+}), {
+  // [[CORE199]] D15: money fields of the aggregate, with the column that holds their currency: summing across currencies is refused.
+  amount_minor: 'currency',
 })

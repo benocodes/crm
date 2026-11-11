@@ -19,7 +19,7 @@ const place = (surface: Surface, resource: string, actions: string[]) => {
 }
 const CRUD = ['list', 'get', 'create', 'update', 'delete']
 for (const r of ['tasks', 'companies', 'contacts', 'notes', 'tags', 'deals']) place('api', r, CRUD)
-place('api', 'deals', ['move_stage'])
+place('api', 'deals', ['move_stage', 'aggregate'])
 for (const r of ['pipelines', 'pipeline_stages']) place('meta', r, CRUD)
 place('api', 'identities', [...CRUD, 'resolve'])
 place('api', 'contacts', ['merge'])
@@ -69,7 +69,7 @@ describe('placement (D6)', () => {
       'schema.get',
       'users.get', 'users.list',
     ].sort())
-    expect(ops.length).toBe(98)
+    expect(ops.length).toBe(99)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

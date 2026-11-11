@@ -123,6 +123,10 @@ pnpm -r build      # where a package has a build
 
 The `@vault/api` suite runs about 20 minutes and the default reporter prints nothing until it ends, so a slow run looks like a
 hang: run it as `pnpm -C packages/api test --reporter=dot` (or `verbose`) and keep its log ([[CORE200]] retro).
+Run a package's full suite only through its `test` script (`pnpm -C packages/<pkg> test`), which passes the root
+`vitest.config.ts` (D1 and engine-neutral projects). A bare `vitest run` or `pnpm exec vitest run` inside the package has no
+config, collects the `*.postgres.test.ts` files and fails them without a Postgres database: the [[CORE202]] reviewer's api
+run showed 32 such false failures. This holds for reviewers as much as coders.
 
 D1 is the oracle (AGENTS.md, "Engines"): the D1 suites, typecheck and build must be green. The Postgres
 suites are off by default (the `postgres` vitest project, switched in the root `vitest.config.ts`; `pnpm -r test` skips

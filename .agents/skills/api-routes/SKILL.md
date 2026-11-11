@@ -420,6 +420,23 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
     description }]`, column filters in record field order, then custom filters in declaration order (`custom: true`,
     `kind: null`, `operators: []`, `indexed: null`). `indexed` = not in `STATED_FILTER_COSTS` (a `BuildInput` option,
     default the checked-in list). Exempt lists have no `resource` object. A new filter regenerates `schema.json`.
+- **Aggregation over a filtered list** ([[CORE199]] D13–D16, D19; [[CORE202]]; `src/storage/aggregate.ts`,
+  `aggregateOperation` in `src/storage/crud.ts`). A list opts in with `withAggregate(def, money?)`, the outermost wrapper
+  around `withColumnFilters` (deals: `{ amount_minor: 'currency' }`); the registry then adds `<name>.aggregate` at
+  `GET <list path>/aggregate`, registered after `list` and **before `get`** (the router matches in registration order, so
+  after `get` the id route answers it with a 404). It takes the list's own filters through `filterFields(def)` and
+  `filterPredicates`/`checkFilterScopes` (shared with `listOperation`, same `400`-then-`403` order), refuses
+  `after`/`limit`/`sort`/`order`, and answers `{ count, sum?, avg?, min?, max?, currency? }` as a bare object. One
+  `FUNCTION_KINDS` table (sum/avg: integer; min/max: integer, timestamp, text) validates the terms, generates the parameter
+  descriptions and generates `schema.get`'s `resource.aggregate` (`null` on lists that did not opt in), so the three cannot
+  drift; extend the table, never a description. Load errors: no column filters, a column or filter named
+  `count|sum|avg|min|max`, a money field that is not integer → text. Everything is one statement: `count(*)`, the
+  functions, and per money field `group_concat(distinct <currency>)` over non-null amounts, judged in `decode` (mixed →
+  `400`). **Numeric limits:** the `> Number.MAX_SAFE_INTEGER` check is SQL beside each `sum`, but SQLite's `sum()` raises
+  `integer overflow` past int64 before that check runs (a `500`; needs ~1025 deals at the per-row cap). A guard against a
+  numeric limit must be computed in a type that cannot overflow (`total()`) or the engine error mapped (#208). The cost
+  sentence in the operation description is generated, names no index, and is checked against `EXPLAIN QUERY PLAN`
+  (`storage/aggregate-cost.integration.d1.test.ts`): keep it that way when a second list opts in.
 - **A repeated query parameter is refused on REST** (`readInput` in `src/rest/app.ts`, [[CORE129]] D10a): Hono's
   `c.req.query()` keeps the first value, so `?x=a&x=b` is `400 validation_error` naming `x`. MCP refuses an array argument
   through the schema. The first operation that declares an array query parameter must exempt that parameter there and read

@@ -131,6 +131,12 @@ the cap) and three review rounds, all on the prose of checked-in stated-cost rea
 deliverable with no obligation on its truth. When a charter asks for checked-in reasons, descriptions or notes that state
 facts about the schema or indexes, either add an obligation that a test checks them against the catalog, or ask for
 category reasons that name no index; never leave their correctness to review.
+**CORE202** (`knowledge/specs/013-CORE202-deal-aggregate/RETRO.md`): 6 groups (1 matrix), 5 decisions, no migration or E2E
+cost ~254k tokens / ~101 calls in one run, +297 code / +540 test lines, approved round 1 with no blocking findings and no
+fix round. A new registry operation exposed on REST, MCP and CLI is one definition and one test per surface, not three pieces
+of work. Applying the CORE201 lesson at plan time (the cost sentence generated, index-free and plan-checked as an obligation)
+removed the review rounds it had cost. When Watch out names a numeric limit, name the layer below it too (2^53 for JS, then
+int64 for the engine).
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code
