@@ -52,6 +52,15 @@ export const schemaFilter = z.object({
   description: z.string(),
 })
 
+// [[CORE202]] D19: how an aggregatable list aggregates; the field lists are D14's kind table applied to the record, `money` is D15's declaration.
+export const schemaAggregate = z.object({
+  sum: z.array(z.string()).describe('The fields `sum` takes (integers).'),
+  avg: z.array(z.string()).describe('The fields `avg` takes (integers).'),
+  min: z.array(z.string()).describe('The fields `min` takes (integers, timestamps and text).'),
+  max: z.array(z.string()).describe('The fields `max` takes (integers, timestamps and text).'),
+  money: z.record(z.string(), z.string()).describe('Money fields, each with the column that holds its currency: a function over one is refused when the matching amounts are in more than one currency.'),
+})
+
 export const schemaResource = z.object({
   name: z.string(),
   surface: z.enum(['api', 'meta']),
@@ -61,6 +70,7 @@ export const schemaResource = z.object({
   write_scope: z.string().nullable(),
   sorts: z.array(schemaSort).describe('The sorts the list accepts, in the order it accepts them (convention first, then the natural fields); empty when the list takes no `sort`.'),
   filters: z.array(schemaFilter).describe('The filters the list accepts: column filters in record field order, then custom filters in declaration order.'),
+  aggregate: schemaAggregate.nullable().describe('How `<list>.aggregate` aggregates this list, or null when the list has no aggregate operation.'),
 })
 
 export const schemaTable = z.object({

@@ -70,7 +70,7 @@ describe('the function parameters (D13, D14)', () => {
     expect(refusal({ min: 'closed_at,closed_at' })).toBe('min names closed_at twice')
   })
   it('at most 10 terms in all: 10 pass (a field may be in several functions), 11 are refused', () => {
-    const ten = { sum: 'amount_minor', avg: 'amount_minor', min: 'name,amount_minor,currency,expected_close_date,closed_at', max: 'closed_at,created_at' }
+    const ten = { sum: 'amount_minor', avg: 'amount_minor', min: 'name,amount_minor,currency,expected_close_date,closed_at,created_at', max: 'closed_at,created_at' }
     expect(Object.values(parseAggregateTerms(deals, ten)).flat()).toHaveLength(10)
     expect(refusal({ ...ten, max: 'closed_at,created_at,updated_at' })).toBe('at most 10 terms in all: sum, avg, min and max name 11')
   })

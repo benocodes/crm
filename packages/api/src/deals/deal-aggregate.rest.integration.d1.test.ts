@@ -105,7 +105,7 @@ describe('operation contract (D13)', () => {
   })
   it('more than 10 terms is a 400', async () => {
     await seed()
-    const r = await refused('min=name,amount_minor,currency,expected_close_date,closed_at&max=closed_at,created_at,updated_at&sum=amount_minor&avg=amount_minor&currency=eq.USD')
+    const r = await refused('min=name,amount_minor,currency,expected_close_date,closed_at,created_at&max=closed_at,created_at,updated_at&sum=amount_minor&avg=amount_minor&currency=eq.USD')
     expect([r.status, r.body.error.code]).toEqual([400, 'validation_error'])
   })
   it('GET /deals/aggregate is not captured by GET /deals/{id}, which still answers a real id and a 404 for a stranger', async () => {
@@ -128,7 +128,7 @@ describe('operation contract (D13)', () => {
     expect(registry.operations().filter((o) => o.name.endsWith('.aggregate')).map((o) => o.name)).toEqual(['deals.aggregate'])
     const doc = (await (await s.call(t, 'agent', FULL, 'GET', '/api/v1/openapi.json')).json()) as any
     expect(Object.keys(doc.paths).filter((p) => p.endsWith('/aggregate'))).toEqual(['/api/v1/deals/aggregate'])
-    expect((await call(FULL, 'GET', '/api/v1/contacts/aggregate')).status).toBe(404)
+    expect((await call([...FULL, 'contacts:read'], 'GET', '/api/v1/contacts/aggregate')).status).toBe(404)
   })
 })
 

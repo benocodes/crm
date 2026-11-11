@@ -7,8 +7,9 @@ import type { PhysicalTable, PreparedOperation, QueryContext } from '@vault/stor
 import type { ObjectStore } from './objects/store.js'
 import { softDeletes, type PreparedEnv, type PreparedResource } from './storage/definition.js'
 import { columnFilterParams } from './storage/column-filters.js'
+import { aggregateAnswer, aggregateDescription, aggregateParams } from './storage/aggregate.js'
 import { SORTED_NEXT, sortedQueryFields } from './storage/sort-params.js'
-import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
+import { aggregateOperation, createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
 import { endpointTypesOf, type EndpointTypes } from './associations/definition.js'
 import { embeddedFields, getWithAssociations, includeQuery } from './associations/embed.js'
 import { fullPath, type Surface } from './surfaces.js'
@@ -246,6 +247,16 @@ function checkEnqueued(op: TenantOperation, execution: ExecutionDecl): void {
 /** The MCP/CLI-safe name derived from a dotted operation name. */
 export const toolName = (name: string): string => name.replaceAll('.', '_')
 
+/**
+ * The query parameters a list's filters become, shared by `<list>.list` and `<list>.aggregate` ([[CORE202]] D13: the same filters): an equality parameter for each
+ * `filters` and custom filter, replaced by one grammar string where [[CORE200]] D9 made the column a column filter.
+ */
+function filterFields(def: PreparedResource<any, any>): Record<string, z.ZodType> {
+  const fields: Record<string, z.ZodType> = {}
+  for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.customFilters ?? {}) })) fields[key] = (f as { schema: z.ZodType }).schema.optional()
+  return Object.assign(fields, columnFilterParams(def))
+}
+
 /** The generic CRUD operations of a definition, in CRUD_ACTIONS order, for the actions it generates. */
 export function resourceOperations(def: PreparedResource<any, any>, types: () => EndpointTypes = () => endpointTypesOf([def])): TenantOperation[] {
   const p = resourcePath(def)
@@ -264,9 +275,7 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
     const sortFields = sorts.length > 0 ? sortedQueryFields(def) : null
     const query: Record<string, z.ZodType> = sortFields ? { after: sortFields.after! } : { after: z.uuid().optional() }
     query.limit = z.coerce.number().int().min(1).max(200).optional()
-    for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.customFilters ?? {}) })) query[key] = (f as { schema: z.ZodType }).schema.optional()
-    // [[CORE200]] D9: a column filter is one string parameter, described from the operator table; it replaces the equality parameter of the same name.
-    Object.assign(query, columnFilterParams(def))
+    Object.assign(query, filterFields(def))
     if (sortFields) {
       query.sort = sortFields.sort!
       query.order = sortFields.order!
@@ -286,6 +295,21 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
         const raw = sorts.length > 0 ? { after, limit, sort, order, filters: filters as Record<string, string> } : { after, limit, filters: { ...(sort !== undefined ? { sort } : {}), ...(order !== undefined ? { order } : {}), ...filters } as Record<string, string> }
         return def.override?.list ? def.override.list(env, raw) : listOperation(def, env, raw)
       },
+    })
+  }
+  // [[CORE202]] D13: `GET <list path>/aggregate`, registered BEFORE `get` so that `GET /deals/{id}` does not swallow it: the router matches in registration order.
+  if (actions.has('list') && def.aggregate) {
+    ops.push({
+      ...base,
+      name: `${def.name}.aggregate`,
+      summary: `Count ${def.name}, and sum, average or take the minimum or maximum of their fields`,
+      description: aggregateDescription(def),
+      method: 'get',
+      path: `${p}/aggregate`,
+      scope: { resource: s, action: 'read' },
+      request: { query: z.object({ ...aggregateParams(def), ...filterFields(def) }) },
+      response: { status: 200, schema: aggregateAnswer },
+      prepare: (env, input) => aggregateOperation(def, env, input.query),
     })
   }
   if (actions.has('get')) {

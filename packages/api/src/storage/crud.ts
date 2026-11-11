@@ -29,6 +29,7 @@ import { physicalTable, softDeletes, type Conflict, type PreparedEnv, type Prepa
 import { compileCondition, type Condition } from './column-filters.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 import { encodeCursor, type SortRequest } from '../resources/sort-cursor.js'
+import { aggregateSelect, decodeAggregate, parseAggregateTerms, planAggregate, type AggregateAnswer } from './aggregate.js'
 
 // The generic prepared CRUD core ([[CORE35]] C4): list, get, create, update and soft delete for any
 // `PreparedResource`, as pure programs over typed Kysely fragments. Every mutation is plan -> one unit:
@@ -170,6 +171,24 @@ function afterPosition(def: PreparedResource, qc: QueryContext, sort: SortReques
     : sql<SqlBool>`(${v} < ${value} or ${v} is null or (${v} = ${value} and ${idRef} < ${id}))`
 }
 
+/** [[CORE129]] D12: a custom filter may need scopes beyond the list's own; refused before any query is built (a list and an aggregate share this). */
+function checkFilterScopes(def: PreparedResource, env: PreparedEnv, filters: Record<string, unknown>): void {
+  for (const column of Object.keys(filters)) {
+    for (const scope of def.customFilters?.[column]?.requires ?? []) {
+      if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to filter ${def.name} by ${column}`)
+    }
+  }
+}
+
+/** The predicate of each parsed filter: a column condition, a custom filter's `where`, or plain equality; the one compilation a list and an aggregate share. */
+function filterPredicates(def: PreparedResource, qc: QueryContext, filters: Record<string, unknown>): Expression<SqlBool>[] {
+  return Object.entries(filters).map(([column, value]) => {
+    const join = def.customFilters?.[column]
+    const spec = def.columnFilters?.[column]
+    return spec ? compileCondition(qc, ref(def, column), spec.kind, value as Condition) : join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`
+  })
+}
+
 /**
  * [[CORE188]] D3: what else decides which rows a list may show, for a list whose visibility is not the table's scope (an execution is visible when
  * the caller may read its operation, [[AGT8]] D57). `'nothing'` means nothing is readable: no read is issued and the page is empty. A function
@@ -180,12 +199,7 @@ export type ListRestriction = 'nothing' | ((qc: QueryContext) => Expression<SqlB
 export function listOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> }, restriction?: ListRestriction): PreparedOperation<ListResult<R>> {
   // 400s first (a malformed query is refused whatever the caller may see), then 403s ([[CORE133]] D5); both before any query is built.
   const { after, limit, filters, sort } = prepareListQuery(def, raw)
-  // [[CORE129]] D12: a custom filter may need scopes beyond the list's own; refused here, before any query is built.
-  for (const column of Object.keys(filters)) {
-    for (const scope of def.customFilters?.[column]?.requires ?? []) {
-      if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to filter ${def.name} by ${column}`)
-    }
-  }
+  checkFilterScopes(def, env, filters)
   // [[CORE133]] D5: sorting by a derived field needs the scopes that show it; a caller without them never gets a cursor carrying its value.
   if (sort) {
     for (const scope of def.derived?.[sort.field]?.requires ?? []) {
@@ -202,11 +216,7 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
       if (sort && def.sortKinds) q = q.select(sql`${sortExpression(def, qc, sort)}`.as('__vault_sort_value'))
       if (sort?.position) q = q.where(afterPosition(def, qc, { ...sort, position: sort.position }))
       else if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
-      for (const [column, value] of Object.entries(filters)) {
-        const join = def.customFilters?.[column]
-        const spec = def.columnFilters?.[column]
-        q = q.where(spec ? compileCondition(qc, ref(def, column), spec.kind, value as Condition) : join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`)
-      }
+      for (const w of filterPredicates(def, qc, filters)) q = q.where(w)
       // `null` is the oldest value: first ascending, last descending. Spelled out because Postgres would put it the other way round.
       if (sort && sort.field !== 'id') q = q.orderBy(sql`${def.sortKinds ? sortExpression(def, qc, sort) : sql.ref(sort.field)} ${sort.order === 'asc' ? sql`asc nulls first` : sql`desc nulls last`}`)
       return { page: readAll(q.orderBy(ref(def, 'id'), sort?.order ?? 'asc').limit(limit + 1)) }
@@ -236,6 +246,36 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
       }),
   })
 }
+
+/** The parameters of an aggregate call that a list has and an aggregate does not ([[CORE202]] D13). */
+const PAGING = ['after', 'limit', 'sort', 'order'] as const
+
+/**
+ * [[CORE202]] D13-D16: `<list>.aggregate`. The same filters as the list through the same parser and compilation, then ONE statement over the live rows
+ * that match: `count(*)`, the requested functions, and (for a money field) the distinct currencies the money rule judges. No `LIMIT`: it reads every
+ * matching row, which the operation's description says. 400s first, then 403s, as a list does.
+ */
+export function aggregateOperation(def: PreparedResource, env: PreparedEnv, query: Record<string, unknown>): PreparedOperation<AggregateAnswer> {
+  if (!def.aggregate) throw new Error(`${def.name} does not aggregate`)
+  const { sum, avg, min, max, ...rest } = query
+  if (PAGING.some((key) => rest[key] !== undefined)) throw new ApiError(400, 'validation_error', 'after, limit, sort and order are not parameters of an aggregate')
+  const terms = parseAggregateTerms(def as never, { sum, avg, min, max })
+  const { filters } = prepareListQuery(def, { filters: rest as Record<string, string> })
+  checkFilterScopes(def, env, filters)
+  const plan = planAggregate(def as never, terms)
+  return defineOperation<AggregateAnswer>({
+    name: `${def.name}.aggregate`,
+    mutates: false,
+    reads: (qc): Record<string, Read> => {
+      let q = loose(qc).selectFrom(def.table).select(aggregateSelect(qc, def.table, plan, def.aggregate!.money) as never)
+      for (const w of live(def, env)) q = q.where(w)
+      for (const w of filterPredicates(def, qc, filters)) q = q.where(w)
+      return { aggregate: readMaybe(q) }
+    },
+    build: (found) => unit({ steps: [], events: [], decode: () => decodeAggregate(plan, found.maybe('aggregate')!) }),
+  })
+}
+
 
 export function getOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, rawId: string): PreparedOperation<R> {
   const id = canonicalId(def, rawId)
