@@ -57,8 +57,9 @@ describe('messaging definitions (CORE25 C1)', () => {
   it('list query schemas carry the column filters and the custom filters', () => {
     const reg = createVaultRegistry()
     const keys = (name: string) => Object.keys(((reg.get(name) as { request: { query: { shape: object } } }).request.query as { shape: object }).shape).sort()
-    expect(keys('messages.list')).toEqual(['after', 'limit', 'sort', 'order', 'thread_id', 'channel', 'kind', 'external_id', 'in_reply_to'].sort())
-    expect(keys('interactions.list')).toEqual(['after', 'limit', 'sort', 'order', 'kind', 'channel', 'direction', 'thread_id', 'message_id', 'identity_id', 'contact_id'].sort())
+    // CORE201: every filterable column of the record is a filter now, so the old parameters are a subset.
+    expect(keys('messages.list')).toEqual(expect.arrayContaining(['after', 'limit', 'sort', 'order', 'thread_id', 'channel', 'kind', 'external_id', 'in_reply_to', 'occurred_at']))
+    expect(keys('interactions.list')).toEqual(expect.arrayContaining(['after', 'limit', 'sort', 'order', 'kind', 'channel', 'direction', 'thread_id', 'message_id', 'identity_id', 'contact_id']))
   })
 
   it('the link body is strict', () => {
