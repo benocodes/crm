@@ -32,7 +32,7 @@ export const tagIdFilter = (table: string): CustomFilter => linkedToFilter(table
  * matches nothing. Needs `tags:read` and `associations:read`, as `tag_id` does ([[CORE129]] D12). `table` is a registry table name, never input.
  */
 export const tagNameFilter = (table: string): CustomFilter => ({
-  schema: z.string().trim().min(1).max(100).describe('Only rows linked to the live tag with exactly this name (trimmed, case-sensitive). An unknown name gives an empty page. Needs tags:read.'),
+  schema: z.string().trim().min(1).max(100).describe('Only rows linked to the live tag with exactly this name (trimmed, case-sensitive). An unknown name gives an empty page. Needs tags:read and associations:read.'),
   requires: [
     { resource: 'tags', action: 'read' },
     { resource: 'associations', action: 'read' },

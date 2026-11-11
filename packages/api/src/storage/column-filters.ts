@@ -255,7 +255,7 @@ export function describeColumnFilter(name: string, spec: ColumnFilterSpec): stri
   if (spec.kind === 'text') parts.push('Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order.')
   if (spec.kind === 'timestamp') parts.push('A value is a date (midnight UTC) or an ISO 8601 date-time with an offset.')
   if (spec.note) parts.push(spec.note)
-  parts.push(`A value that starts with an operator name and a dot is read as an operator: send ${name}=eq.<value> for a literal.`)
+  parts.push(`A value that starts with not. or an operator name and a dot is read as an operator: send ${name}=eq.<value> for a literal.`)
   return parts.join(' ')
 }
 
