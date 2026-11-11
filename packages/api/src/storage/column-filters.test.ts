@@ -188,9 +188,9 @@ describe('compiled SQL (D3, D4)', () => {
     expect(compile('d1', 'text', name, 'not.ilike.*a*').sql).toBe(`not ("deals"."name" like ? escape '\\')`)
   })
   it('Postgres: native LIKE and ILIKE with the same escaping, pinned (compiled, not run)', () => {
-    expect(compile('postgres', 'text', name, 'ilike.*a_b*')).toEqual({ sql: `"deals"."name" ilike $1 escape '\\'`, parameters: ['%a\\_b%'] })
-    expect(compile('postgres', 'text', name, 'like.*a%*')).toEqual({ sql: `"deals"."name" like $1 escape '\\'`, parameters: ['%a\\%%'] })
-    expect(compile('postgres', 'integer', col, 'gte.7')).toEqual({ sql: '"deals"."amount_minor" >= $1', parameters: [7] })
+    expect(compile('postgres', 'text', name, 'ilike.*a_b*')).toEqual({ sql: `"deals"."name" ilike cast($1 as text) escape '\\'`, parameters: ['%a\\_b%'] })
+    expect(compile('postgres', 'text', name, 'like.*a%*')).toEqual({ sql: `"deals"."name" like cast($1 as text) escape '\\'`, parameters: ['%a\\%%'] })
+    expect(compile('postgres', 'integer', col, 'gte.7')).toEqual({ sql: '"deals"."amount_minor" >= cast($1 as bigint)', parameters: [7] })
   })
 })
 
@@ -230,8 +230,7 @@ describe('withColumnFilters and its load checks (D6)', () => {
     expect(() => resolveColumnFilters({ name: 'widgets', columns: { id: 'uuid', tag: 'text' }, record: { shape: { id: z.uuid(), tag: z.string() } }, customFilters: { tag: {} } })).toThrow('column filter "tag" is also a custom filter (widgets)')
   })
   it('the extent on deals and on a test-only definition other than deals', () => {
-    expect(Object.keys((deals as any).columnFilters ?? {})).toEqual([])
-    const wrapped = withColumnFilters(deals as any) as any
+    const wrapped = deals as any
     expect(Object.keys(wrapped.columnFilters).sort()).toEqual(['amount_minor', 'closed_at', 'created_at', 'created_by', 'currency', 'expected_close_date', 'id', 'name', 'owner_id', 'pipeline_id', 'stage_id', 'updated_at'])
     const widgets = definePreparedResource({
       surface: 'api',

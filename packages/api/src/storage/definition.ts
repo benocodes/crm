@@ -5,6 +5,7 @@ import type { ColumnOf, PreparedOperation, PublicColumn, PhysicalTable, QueryCon
 import type { Actor } from '../auth/types.js'
 import type { Surface } from '../surfaces.js'
 import type { CrudAction, Filter } from '../resources/define.js'
+import type { ColumnFilterSpec } from './column-filters.js'
 import type { Scope, ScopeSet } from '../scopes.js'
 import type { SortKind } from '../resources/sort-cursor.js'
 import type { ObjectStore } from '../objects/store.js'
@@ -159,6 +160,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly neighbours?: readonly string[]
   readonly agentWritable?: readonly string[]
   readonly filters?: { readonly [K in ColumnOf<T>]?: Filter }
+  /**
+   * [[CORE199]] D6, set only by `withColumnFilters`: the columns of the list that take the filter grammar, with their kind and nullability. For those,
+   * `filters` is the per-column options (`schema`, `normalize`); a list without it keeps equality filters on the columns `filters` names.
+   */
+  readonly columnFilters?: Readonly<Record<string, ColumnFilterSpec>>
   /** List filters that are not columns (their keys never are, and never also in `filters`): `where` is ANDed into the list query. */
   readonly customFilters?: Readonly<Record<string, CustomFilter>>
   /** Embedded child rows rendered into the record and into an event's `after` (the record names the field as an array). */

@@ -1,4 +1,3 @@
-import { sql } from 'kysely'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createVaultRegistry } from '../operations.js'
 import { operatorsFor } from '../storage/column-filters.js'
@@ -45,15 +44,14 @@ async function seed() {
   const won = await must('POST', '/meta/v1/pipeline-stages', { pipeline_id: p.id, name: 'Won', kind: 'won', position: 90 })
   const P = await s.principalId(t, 'agent', FULL)
   const make = async (body: Record<string, unknown>) => (await must('POST', '/api/v1/deals', { stage_id: open.id, ...body })) as { id: string; name: string }
-  const A = await make({ name: 'Acme pilot', amount_minor: 600000, currency: 'usd', expected_close_date: '2026-11-01', owner_id: P })
+  // A and E are inserted directly: their closed_at is a chosen instant, which the API never takes.
+  const direct = async (row: Record<string, unknown>) => (await s.insert(t, 'deals', { pipeline_id: p.id, ...row })) as { id: string; name: string }
+  const A = await direct({ name: 'Acme pilot', stage_id: open.id, amount_minor: 600000, currency: 'USD', expected_close_date: '2026-11-01', owner_id: P, closed_at: '2026-11-01T00:00:00.000Z' })
   const B = await make({ name: 'Beta_100%', amount_minor: 400000, currency: 'USD', expected_close_date: '2026-12-15' })
   const C = await make({ name: 'Gamma', amount_minor: 700000, currency: 'EUR' })
   const D = await make({ name: 'acme renewal', expected_close_date: '2026-10-20' })
-  const E = await make({ name: 'José', stage_id: won.id })
+  const E = await direct({ name: 'José', stage_id: won.id, closed_at: '2026-11-01T01:00:00.000Z' })
   const F = await make({ name: 'Betaz100zz' })
-  for (const [d, at] of [[A, '2026-11-01T00:00:00.000Z'], [E, '2026-11-01T01:00:00.000Z']] as const) {
-    await sql`update deals set closed_at = ${at} where id = ${d.id}`.execute(s.owner)
-  }
   return { p, open, won, P, A, B, C, D, E, F }
 }
 
@@ -217,10 +215,11 @@ describe('tag by name (D7)', () => {
     expect((await call(FULL, 'DELETE', `/api/v1/associations/${edgeA.id}`)).status).toBe(204)
     expect(await list('tag=consultancy')).toEqual(['Beta_100%', 'Gamma'])
     expect(await list(`tag_id=${tag.id}`)).toEqual(['Beta_100%', 'Gamma'])
-    // The tag is deleted behind the edges' back (the API cascade would soft-delete them): a live edge to a deleted tag must not match.
-    await sql`update tags set deleted_at = ${'2026-11-02T00:00:00.000Z'} where id = ${tag.id}`.execute(s.owner)
-    expect(await list('tag=consultancy')).toEqual([])
-    expect(B).toBeTruthy()
+    // A deleted tag that still has a live edge (the API's cascade would have removed it, so the rows are inserted): its name matches nothing.
+    const ghost = await s.insert(t, 'tags', { name: 'ghost', deleted_at: '2026-11-02T00:00:00.000Z' })
+    await s.insert(t, 'associations', { a_type: 'deals', a_id: B.id, b_type: 'tags', b_id: ghost.id })
+    expect(await list('tag=ghost')).toEqual([])
+    expect(await list('tag=consultancy')).toEqual(['Beta_100%', 'Gamma'])
   })
   it('a live tag of the name is found even when an older tag of that name was deleted', async () => {
     const { A, tag } = await tagged()
