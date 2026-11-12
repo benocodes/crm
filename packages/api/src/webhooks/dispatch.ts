@@ -4,6 +4,7 @@ import { feedVisibility } from '../events/operations.js'
 import { readStableFeed, type FeedEvent } from '../events/feed.js'
 import type { Registry } from '../registry.js'
 import { ScopeSet } from '../scopes.js'
+import type { BudgetView } from './budget.js'
 
 // [[API7]] D4, D6, D17, D19, D20 ([[API219]]): the dispatcher. For every eligible subscription it reads the agent's own view of the event feed after the subscription's cursor
 // (`readStableFeed`, with `feedVisibility` computed from the agent's STORED scopes and identity), inserts one `pending` delivery row per event and moves the cursor in one `batch()`.
@@ -21,6 +22,8 @@ export interface DispatchDeps {
   registry: Registry
   clock: () => Date
   newId: () => string
+  /** [[API7]] D24: asked before each unit; absent means unlimited (the dispatch suites). */
+  budget?: BudgetView
 }
 /** A subscription that may be dispatched this tick, with the position it was read at and the grants of its agent as stored. */
 export interface DispatchTarget {
@@ -42,7 +45,13 @@ export interface DispatchSummary {
   unknownCursor: number
   /** Subscriptions whose dispatch threw (the rest of the tick ran). */
   failed: number
+  /** Subscriptions (D24) not served, or not served to the end of their backlog, because the budget could not cover another page: their cursors stay, the next tick serves them. */
+  deferred: number
 }
+
+/** D24's pinned costs: the eligibility read is one query; a page is its read and its write batch. */
+export const ELIGIBLE_COST = 1
+export const PAGE_COST = 2
 
 const organizationOf = (d: DispatchDeps): string | null => (d.binding.kind === 'd1' ? d.binding.organizationId : null)
 const ts = (d: DispatchDeps) => codecs.timestamp.write(d.clock())
@@ -146,13 +155,25 @@ export async function applyPage(d: DispatchDeps, plan: PagePlan): Promise<{ move
  * stop the others; it is retried by the next tick from the same cursor, and logged by id and error class (never a value).
  */
 export async function dispatchWebhooks(d: DispatchDeps): Promise<DispatchSummary> {
-  const out: DispatchSummary = { subscriptions: 0, events: 0, unknownCursor: 0, failed: 0 }
+  const out: DispatchSummary = { subscriptions: 0, events: 0, unknownCursor: 0, failed: 0, deferred: 0 }
   if (organizationOf(d) === null) return out
-  for (const target of await eligibleSubscriptions(d)) {
+  const affords = (cost: number) => d.budget === undefined || d.budget.remaining() >= cost
+  if (!affords(ELIGIBLE_COST)) return out
+  const targets = await eligibleSubscriptions(d)
+  for (const [index, target] of targets.entries()) {
+    if (!affords(PAGE_COST)) {
+      // Nothing is read or written for a subscription the budget cannot finish a page of: it keeps its cursor, and so do all after it (they cost the same).
+      out.deferred += targets.length - index
+      break
+    }
     try {
       let at = target
       let received = false
       for (let page = 0; page < MAX_PAGES; page++) {
+        if (page > 0 && !affords(PAGE_COST)) {
+          out.deferred++
+          break
+        }
         const plan = await readPage(d, at)
         if (plan.kind === 'unknown_cursor') {
           out.unknownCursor++

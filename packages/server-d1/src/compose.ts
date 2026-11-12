@@ -1,7 +1,8 @@
-import { CALLBACK_PATH, parseWebhooksConfig, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
+import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
 import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
+import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { gmailTransport } from '@vault/api'
 
@@ -14,6 +15,8 @@ export interface D1WorkerEnv {
   CLERK_JWT_KEY?: string
   /** Not read on D1 ([[CORE64]] D24): there is no webhook. Kept so an old `.dev.vars` still type-checks. */
   CLERK_WEBHOOK_SECRET?: string
+  /** [[API7]] D24: the per-minute invocation's budget of D1 queries plus outbound fetches; an integer 50..1000, default 50 (Workers Free). A bad value runs at 50 and is warned about by name. */
+  CRON_TICK_BUDGET?: string
   /** The session-token claim holding the workspace role; default `vibase_role` ([[CORE64]] D8). */
   AUTH_ROLE_CLAIM?: string
   /** The first-party CLI's public OAuth client id ([[CORE77]] D14, D16); optional. Set but blank is a configuration error. */
@@ -90,7 +93,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS', 'CRON_TICK_BUDGET'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -134,10 +137,11 @@ export function composeD1Worker(
 
   const clock = deps.clock ?? (() => new Date())
   // [[AGT8]] D52/D70: the real Gmail transport is shared by waitUntil and cron; test transports only arrive through `deps`.
-  const transportsFor=(binding:D1Binding):TransportRegistry=>{
+  const transportsFor=(binding:D1Binding,counted?:{fetch:typeof fetch;bodies:R2BucketLike;instances:MailSyncInstances|undefined}):TransportRegistry=>{
     if(deps.transports)return deps.transports
     if(!gmail.config||!env.BODIES)return {}
-    return {gmail:gmailTransport({binding,organizationId:binding.organizationId,config:gmail.config,objects:r2ObjectStore(env.BODIES),clock,newId:deps.newId??(()=>uuidv7(clock())),randomBytes:n=>crypto.getRandomValues(new Uint8Array(n)),...(deps.fetch?{fetch:deps.fetch}:{}),...(env.MAIL_SYNC?{instances:env.MAIL_SYNC}:{})})}
+    const instances=counted?counted.instances:env.MAIL_SYNC
+    return {gmail:gmailTransport({binding,organizationId:binding.organizationId,config:gmail.config,objects:r2ObjectStore(counted?counted.bodies:env.BODIES),clock,newId:deps.newId??(()=>uuidv7(clock())),randomBytes:n=>crypto.getRandomValues(new Uint8Array(n)),...(counted?.fetch??deps.fetch?{fetch:(counted?.fetch??deps.fetch)!}:{}),...(instances?{instances}:{})})}
   }
   // [[CHN5]] D78: parsed once (a bad value is logged by name, never by value). Off, `fetchFor` hands back `deps.fetch` itself, so nothing is wrapped.
   const recording = googleRecording({ raw: vars.GOOGLE_RECORDING_UNTIL, bucket: env.BODIES, clock, plain: deps.fetch })
@@ -164,11 +168,11 @@ export function composeD1Worker(
    * The migration state ([[CORE61]] D6): remembered for the isolate once `current` or `ahead`; while `behind` or `unknown` it is
    * re-read at most every 5 s; a read that threw is never remembered, so the next request reads again.
    */
-  async function migrations(): Promise<Migrations> {
+  async function migrations(db: D1Like = env.DB): Promise<Migrations> {
     if (settled) return settled
     const now = nowMs()
     if (latest && now - latest.at < MIGRATION_REREAD_MS) return latest
-    const read = await readMigrationState(env.DB, EXPECTED)
+    const read = await readMigrationState(db, EXPECTED)
     const state = { status: read.status, applied: read.applied }
     if (state.status === 'current' || state.status === 'ahead') settled = state
     latest = read.readFailed ? undefined : { ...state, at: now }
@@ -198,17 +202,17 @@ export function composeD1Worker(
   const profiles = authAdapter ? createProfileCache(authAdapter) : null
 
   /** The database, once it is initialised and not behind ([[CHN5]] D37): null otherwise, with the reason in `why`. */
-  async function syncBinding(): Promise<{ binding: D1Binding; organizationId: string } | { why: string }> {
+  async function syncBinding(db: D1Like = env.DB): Promise<{ binding: D1Binding; organizationId: string } | { why: string }> {
     let link
     try {
-      link = await readDeployment(env.DB)
+      link = await readDeployment(db)
     } catch (err) {
       if (/no such table/i.test(err instanceof Error ? err.message : '')) return { why: 'the deployment is not initialised' }
       throw err
     }
     if (!link) return { why: 'the deployment is not initialised' }
-    if ((await migrations()).status === 'behind') return { why: 'the database is behind its migrations' }
-    return { binding: d1Binding(env.DB, link), organizationId: link.organizationId }
+    if ((await migrations(db)).status === 'behind') return { why: 'the database is behind its migrations' }
+    return { binding: d1Binding(db, link), organizationId: link.organizationId }
   }
 
   /** Re-resolved by every Workflow step ([[CHN5]] D11): nothing here is ever returned from a step. Throws (retryably) when the deployment cannot sync. */
@@ -247,13 +251,21 @@ export function composeD1Worker(
   }
 
   /**
-   * The per-minute tick ([[AGT8]] D54, [[API7]] D6): the expiry sweep, then the runner sweep, then webhook dispatch ([[API219]]), behind the same gates as the Gmail tick (initialised, not behind
-   * its migrations). The rail and dispatch are independent: one failing does not stop the other, and the first failure is rethrown after both ran. Dispatch needs no CREDENTIALS_KEY (rows are
-   * written whatever the key; the sender is what skips without it).
+   * The per-minute tick ([[AGT8]] D54, [[API7]] D6): the expiry sweep, then the runner sweep, then webhook dispatch ([[API219]]), then the webhook sender ([[API220]]), behind the same gates as the
+   * Gmail tick (initialised, not behind its migrations). The three are independent: one failing does not stop the others, and the first failure is rethrown after all ran. Dispatch needs no
+   * CREDENTIALS_KEY (rows are written whatever the key); the sender idles without it. All of them share one budget of D1 queries plus outbound fetches ([[API7]] D24, `CRON_TICK_BUDGET`).
    */
   let railRegistry: Registry | undefined
   async function railScheduled(controller: ScheduledControllerLike): Promise<void> {
-    const found = await syncBinding()
+    // [[API7]] D24: ONE budget of D1 queries plus outbound fetches for the whole invocation. A counting D1 and a counting fetch are what every phase is handed (the marker read below included), so the
+    // rail's own traffic is counted without being planned against; dispatch and the sender ask `remaining()` before each unit.
+    const tickBudget = parseTickBudget(vars.CRON_TICK_BUDGET)
+    if (tickBudget.problem) console.warn(`[cron] ${controller.cron}: ${tickBudget.problem} must be an integer from 50 to 1000: running at ${DEFAULT_TICK_BUDGET}`)
+    const budget = new TickBudget(tickBudget.limit)
+    const db = countD1(env.DB, budget)
+    const outbound = countFetch((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => (deps.fetch ?? fetch)(input, init), budget) as typeof fetch
+    const tickStart = clock()
+    const found = await syncBinding(db)
     if ('why' in found) {
       console.log(`[cron] ${controller.cron}: skipped, ${found.why}`)
       return
@@ -261,18 +273,26 @@ export function composeD1Worker(
     railRegistry ??= createVaultRegistry(deps.operations ? { operations: deps.operations } : {})
     let failure: unknown
     try {
-      const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding), clock, newId,...(deps.transports?{}:{dueLimit:2}) })
+      const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding, { fetch: outbound, bodies: countCalls(env.BODIES ?? ({} as R2BucketLike), ['get', 'put', 'delete', 'createMultipartUpload'], budget), instances: env.MAIL_SYNC ? countCalls(env.MAIL_SYNC, ['create'], budget) : undefined }), clock, newId,...(deps.transports?{}:{dueLimit:2}) })
       console.log(`[cron] ${controller.cron}: rail expired ${out.expired} request(s), attempted ${out.attempted} execution(s)`)
     } catch (err) {
       console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
       failure = err
     }
     try {
-      const out = await dispatchWebhooks({ binding: found.binding, registry: railRegistry, clock, newId })
-      const trouble = [out.unknownCursor > 0 ? `${out.unknownCursor} with an unknown cursor` : '', out.failed > 0 ? `${out.failed} not dispatched` : ''].filter(Boolean)
+      // At most half of what the rail left (D24); the sender takes the rest.
+      const out = await dispatchWebhooks({ binding: found.binding, registry: railRegistry, clock, newId, budget: budget.slice(Math.floor(budget.remaining() / 2)) })
+      const trouble = [out.unknownCursor > 0 ? `${out.unknownCursor} with an unknown cursor` : '', out.failed > 0 ? `${out.failed} not dispatched` : '', out.deferred > 0 ? `${out.deferred} deferred` : ''].filter(Boolean)
       console.log(`[cron] ${controller.cron}: webhooks dispatched ${out.events} event(s) for ${out.subscriptions} subscription(s)${trouble.length > 0 ? ` (${trouble.join(', ')})` : ''}`)
     } catch (err) {
       console.error(`[cron] ${controller.cron}: webhook dispatch failed: ${err instanceof Error ? err.name : 'error'}`)
+      failure ??= err
+    }
+    try {
+      const out = await sendWebhooks({ binding: found.binding, registry: railRegistry, clock, newId, fetch: outbound, key: webhooks.runtime.key?.bytes ?? null, budget, startedAt: tickStart })
+      if (!out.noKey) console.log(`[cron] ${controller.cron}: webhooks sent ${out.sent}, failed ${out.failed}, dead ${out.dead}, cancelled ${out.cancelled}, deferred ${out.deferred}`)
+    } catch (err) {
+      console.error(`[cron] ${controller.cron}: webhook send failed: ${err instanceof Error ? err.name : 'error'}`)
       failure ??= err
     }
     if (failure) throw failure

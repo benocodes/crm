@@ -56,7 +56,7 @@ const json = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : (v ?? null
 const COLUMNS = sql`id, created_at, type, resource_type, resource_id, actor_id, "before", "after"`
 
 /** The visibility predicate, or null when nothing at all is visible. */
-function visible(d: FeedVisibility) {
+export function visible(d: FeedVisibility) {
   const parts = []
   if (d.readable.length > 0) parts.push(sql`resource_type in (${sql.join(d.readable)})`)
   if (d.edge && d.edge.endpointTypes.length > 0) {
@@ -69,7 +69,7 @@ function visible(d: FeedVisibility) {
   return parts.length > 0 ? sql`(${sql.join(parts, sql` or `)})` : null
 }
 
-const toEvent = (r: Record<string, unknown>): FeedEvent => ({
+export const toEvent = (r: Record<string, unknown>): FeedEvent => ({
   id: String(r.id),
   created_at: String(r.created_at),
   type: String(r.type),

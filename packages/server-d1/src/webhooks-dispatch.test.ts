@@ -14,7 +14,9 @@ const BASE = 'https://w.test'
 const KEY = Buffer.from(Uint8Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64')
 const SCOPES = ['webhooks:read', 'webhooks:write', 'events:read', 'tasks:read', 'tasks:write']
 const NAMES = MIGRATIONS.map((m) => m.name)
-const worker = () => composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY }, { clock: () => NOW, newId: () => uuidv7(NOW) })
+// API220: the sender runs after dispatch whenever the key is set, so these suites hand it a receiver that always answers 503: a row is dispatched, attempted once and left pending (nothing reaches a network).
+const receiver: typeof fetch = async () => new Response(null, { status: 503 })
+const worker = () => composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY }, { fetch: receiver, clock: () => NOW, newId: () => uuidv7(NOW) })
 const call = async (wk: ReturnType<typeof worker>, method: string, path: string, body?: unknown) => {
   const res = await wk.fetch(new Request(BASE + path, { method, headers: { authorization: `Bearer ${key}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) }))
   return { status: res.status, body: (await res.json().catch(() => null)) as any }
@@ -42,7 +44,7 @@ describe('the per-minute handler dispatches webhooks after the rail (D6)', () =>
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     await wk.scheduled({ cron: '* * * * *' })
     const delivered = await rows('select subscription_id, event_type, status, attempts from webhook_deliveries')
-    expect(delivered).toEqual([{ subscription_id: sub.body.id, event_type: 'task.created', status: 'pending', attempts: 0 }])
+    expect(delivered).toEqual([{ subscription_id: sub.body.id, event_type: 'task.created', status: 'pending', attempts: 1 }]) // API220: attempted once by the sender in the same tick
     const lines = log.mock.calls.map((c) => String(c[0]))
     const rail = lines.findIndex((l) => l.includes('rail expired 0 request(s), attempted 0 execution(s)'))
     const hooks = lines.findIndex((l) => l.includes('webhooks dispatched 1 event(s) for 1 subscription(s)'))
@@ -55,7 +57,7 @@ describe('the per-minute handler dispatches webhooks after the rail (D6)', () =>
   // The two halves are independent (a decision of this cycle): one failing does not stop the other, and the failure is rethrown after both ran. A statement that mentions
   // `table` throws at prepare time, standing in for a database fault in that half only.
   const breaking = (table: RegExp) => new Proxy(w.d1, { get: (t: any, p) => (p === 'prepare' ? (q: string) => (table.test(q) ? (() => { throw new Error('database fault') })() : t.prepare(q)) : typeof t[p] === 'function' ? t[p].bind(t) : t[p]) }) as typeof w.d1
-  const workerOn = (d1: typeof w.d1, at = NOW) => composeD1Worker({ DB: d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY }, { clock: () => at, newId: () => uuidv7(at) })
+  const workerOn = (d1: typeof w.d1, at = NOW) => composeD1Worker({ DB: d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY }, { fetch: receiver, clock: () => at, newId: () => uuidv7(at) })
 
   it('a failing rail sweep does not stop dispatch, and the failure is still raised after it', async () => {
     const wk = worker()

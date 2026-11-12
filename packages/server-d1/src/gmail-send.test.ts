@@ -35,6 +35,7 @@ const f:typeof fetch=async(input,init)=>{
     }
     return res
   }
+  if(url.hostname==='hook.test')return new Response(null,{status:200})
   return ck.fetch(input,init)
 }
 const env=(db=w.d1)=>({...ck.env,DB:db,BODIES:bucket,GOOGLE_CLIENT_ID:'fake-client',GOOGLE_CLIENT_SECRET:'fake-secret',OAUTH_STATE_SECRET:'fake-state-secret',CREDENTIALS_KEY:keyEncoded,MAIL_SYNC:{create:async()=>{starts++}}})
@@ -84,7 +85,7 @@ it('production tick caps real Gmail work at two and the next tick serves the rem
   const external=fetches+starts+(bucket.gets.length-getBefore)
   console.log('MEASURE '+JSON.stringify({key:'gmail-tick-100-2',...m,external,total:m.queries+external}))
   expect(mail.sendRequests).toHaveLength(2);expect(m.queries+external).toBeLessThanOrEqual(50)
-  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:22,external:10,total:32})
+  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:23,external:10,total:33}) // API220: 22 + the webhook sender's one claim read (no subscription here, so no write and no fetch)
   expect(m.maxParameters).toBeLessThanOrEqual(100);expect(m.maxStatementBytes).toBeLessThanOrEqual(100000)
   expect((await sql("select count(*) as n from action_requests where status='expired'"))[0].n).toBe(100)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(4)
@@ -156,6 +157,31 @@ it('cold scheduled reconciliation counts real refresh/search/confirmation and ne
   expect((await sql('select status from action_executions'))[0].status).toBe('done');expect(starts).toBe(1)
 })
 
+it('API220 D24: the Gmail rail worst case plus a webhook backlog stays within 50 counting D1 queries, fetches, Workflow starts and R2 reads, at the default budget',async()=>{
+  await createMigrationTracker(w.d1);await recordMigrations(w.d1,MIGRATIONS.map(m=>m.name))
+  const wk=worker()
+  const binding=d1Binding(w.d1,{organizationId:org,authProvider:'clerk',authOrgId:ck.issuer.issuer})
+  const captured=await runGmailSync({binding,organizationId:org,objects:r2ObjectStore(bucket),streams:nodeStreams(),config:{clientId:'fake-client',clientSecret:'fake-secret',credentialsKey:key,keyVersion:1,backfillDays:30,attachmentMaxBytes:1024},fetch:f,clock:()=>now,newId:uuidv7,randomBytes:n=>crypto.getRandomValues(new Uint8Array(n))},connection)
+  expect(captured.captured).toBe(1)
+  const thread=(await sql('select id from threads'))[0].id
+  // Ten subscriptions of the seeded agent (which may read events and tasks) and three task events each of them must be sent: more than the tick can finish after the rail's Gmail work.
+  const agent=(await sql("select id from agents where name='seed-agent'"))[0].id
+  await w.d1.prepare('update agents set scopes = ? where id = ?').bind(JSON.stringify(['events:read','tasks:read']),agent).run()
+  for(let i=0;i<10;i++)expect((await req(wk,'POST','/meta/v1/webhooks',{url:`https://hook.test/${i}`,event_types:['task.created'],agent_id:agent})).status).toBe(201)
+  for(let i=0;i<3;i++)expect((await req(wk,'POST','/api/v1/tasks',{title:`backlog ${i}`})).status).toBe(201)
+  for(let i=0;i<4;i++){
+    const r=await wk.fetch(new Request('https://vault.test/api/v1/messages/send',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({connection_id:connection,mode:'reply',thread_id:thread,to:Array.from({length:50},(_,j)=>`recipient${j}@example.test`),body:'x'.repeat(65536),idempotency_key:`wh-${i}`})}));expect(r.status).toBe(202)
+  }
+  for(let i=0;i<100;i++)await req(wk,'POST','/api/v1/action-requests',{operation:'tasks.create',arguments:{title:`expire-${i}`},reason:'expiry',expires_at:new Date(now.getTime()+1000).toISOString()})
+  now=new Date(now.getTime()+2000)
+  const meter=meterD1(w.d1),cold=worker(meter.d1);fetches=starts=0;const getBefore=bucket.gets.length
+  meter.start();await cold.scheduled({cron:'* * * * *'});const m=meter.take()
+  const external=fetches+starts+(bucket.gets.length-getBefore)
+  console.log('MEASURE '+JSON.stringify({key:'gmail-rail-plus-webhooks',...m,external,total:m.queries+external}))
+  expect(mail.sendRequests.length).toBeGreaterThan(0)
+  expect(m.queries+external).toBeLessThanOrEqual(50)
+  expect((await sql("select count(*) as n from webhook_deliveries"))[0].n).toBeGreaterThan(0)
+})
 it('production cap includes dispatch plus immediate terminal reconciliation, with 100 expiries and rotating refreshes',async()=>{
   await createMigrationTracker(w.d1);await recordMigrations(w.d1,MIGRATIONS.map(m=>m.name))
   const wk=worker()
@@ -174,7 +200,7 @@ it('production cap includes dispatch plus immediate terminal reconciliation, wit
   const external=fetches+starts+bucket.gets.length+bucket.calls.length-io
   console.log('MEASURE '+JSON.stringify({key:'gmail-terminal-tick',...measured,external,total:measured.queries+external}))
   expect(measured.queries+external).toBeLessThanOrEqual(50)
-  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:22,external:10,total:32})
+  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:23,external:10,total:33}) // API220: 22 + the webhook sender's one claim read (no subscription here, so no write and no fetch)
   expect(mail.sendRequests).toHaveLength(2);expect(starts).toBe(2)
   expect((await sql("select count(*) n from action_executions where status='done'"))[0].n).toBe(2)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(3)

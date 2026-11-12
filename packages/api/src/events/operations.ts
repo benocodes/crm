@@ -53,7 +53,7 @@ export function feedVisibility(registry: Registry, env: Pick<PreparedEnv, 'scope
   return { readable: readable.sort(), ...(edge ? { edge } : {}), ...(owned.length > 0 ? { owned } : {}) }
 }
 
-const record = (organizationId: string, ev: FeedEvent) => ({
+export const record = (organizationId: string, ev: FeedEvent) => ({
   id: ev.id,
   organization_id: organizationId,
   type: ev.type,
