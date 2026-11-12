@@ -29,7 +29,9 @@ const logs:string[]=[]
 let mf:Miniflare|undefined,secret='whsec_not_yet_issued',agentKey=''
 // The signed deliveries the receiver was sent, as the vault's sender made them (kept to replay one).
 const deliveries:Array<{headers:Record<string,string>,body:string}>=[]
-const receiver=async()=>mf!.getWorker('receiver')
+type Worker={fetch(url:string,init?:RequestInit):Promise<Response>}
+const worker=async(name:string)=>(await mf!.getWorker(name)) as unknown as Worker
+const receiver=()=>worker('receiver')
 const options=()=>({
   handleRuntimeStdio:(stdout:NodeJS.ReadableStream,stderr:NodeJS.ReadableStream)=>{for(const stream of [stdout,stderr])stream.on('data',(b:Buffer)=>logs.push(b.toString()))},
   d1Persist:join(dir,'d1'),r2Persist:join(dir,'r2'),workflowsPersist:join(dir,'workflows'),
@@ -58,7 +60,7 @@ const options=()=>({
       bindings:{WEBHOOK_SECRET:secret,VIBASE_URL:'http://vault.test',VIBASE_API_KEY:agentKey},
       outboundService:async(req:Request)=>{
         const u=new URL(req.url)
-        if(u.hostname==='vault.test')return (await mf!.getWorker('vault')).fetch(req.url,{method:req.method,headers:req.headers,...(req.method==='GET'||req.method==='HEAD'?{}:{body:await req.text()})})
+        if(u.hostname==='vault.test')return (await worker('vault')).fetch(req.url,{method:req.method,headers:req.headers,...(req.method==='GET'||req.method==='HEAD'?{}:{body:await req.text()})})
         throw new Error(`blocked E2E outbound host ${u.hostname}`)
       },
     },
