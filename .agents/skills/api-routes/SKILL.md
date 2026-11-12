@@ -28,6 +28,9 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/errors.ts` (`ApiError`, `mapStorageError`);
   - `src/scopes.ts` (`ScopeSet`);
   - `src/outbox.ts` (`eventStatement`, `eventSetStatement`: the only code that inserts into `events`);
+  - `src/events/feed.ts` (`readStableFeed`: the one feed read on D1, paging by `events.seq` after an event-id cursor;
+    `events` is append-only by trigger, and every D1 reader of events, tests, e2e and smoke scripts included, orders by
+    `seq`, never `id` or `rowid`: ids are minted before commit, [[API105]]);
   - `src/storage/internal.ts` (`InternalEnv { now, newId }`, `internalEnv(opts)`: built per request from
     `AppOptions.clock`/`newId`, handed to auth, first sight, the directory and the webhook, [[CORE41]] P5);
   - `src/resources/define.ts` (shared helpers only: `crudActions`, `scopeResourceOf`, `resourcePath`, `parseInput`,

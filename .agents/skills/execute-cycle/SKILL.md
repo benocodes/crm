@@ -52,6 +52,10 @@ with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never
 - **Cross-check a column-level grant against every writer of the table**, not just the resource's own
   operations: merges, cascades and programs from other areas ([[CORE25]]'s link-table grant missed
   merge's re-point).
+- **Grep the whole package, not just `src/`, when the charter changes how something is read or written.**
+  `e2e/` and `scripts/` (smokes) are outside the gate, so a stale reader there stays green until someone runs it
+  ([[API105]]: two `order by id`/`rowid` event readers in `packages/server-d1/e2e` and `scripts/smoke-worker.ts`
+  were found at review).
 - **A deletion's blast-radius grep is a floor.** Grep the deleted file's basename, its exports, and
   operation names as string literals; treat every surprise as a decision to make and record.
 - **A migration's number can go stale.** Check `ls packages/db/migrations | tail -3` (and the D1
@@ -180,7 +184,9 @@ recalibrate the size budget.
 ## 7. Report
 
 End with this, whether the cycle finished, handed off or is blocked. Facts from this session only, each
-backed by a command you ran or a file you wrote; "not run" is acceptable, a guess is not.
+backed by a command you ran or a file you wrote; "not run" is acceptable, a guess is not. **Send it once**, after
+every background command has finished: while waiting, send nothing, never the same report again ([[API105]]: repeated
+reports left the orchestrator sorting duplicates from a real final one).
 
 ```
 CYCLE REPORT — <ID>
