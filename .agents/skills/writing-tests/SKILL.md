@@ -159,6 +159,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   after, like `process.stdin` at its end. A fake that hands back the full input on every read hid a double read in the
   CLI's stale-cache retry ([[CORE136]] review); the test that caught it runs the same bad `--data -` fresh, then on the
   cached state, and asserts identical stderr and no request sent.
+- **A polling loop is tested through its injected clock, never real time.** The CLI's `--follow` sleeps through
+  `deps.sleep` and stops on an optional `deps.signal` (`AbortSignal`, checked after each drain and each sleep); the
+  test's `sleep` callback adds events to the fake feed and aborts on the nth call, then asserts the sleeps
+  (`r.sleeps`) and every request's `after`. The absence mutation that matters is "poll from the original start"
+  (duplicates → red) ([[API215]], `packages/cli/src/events-tail.test.ts`). For a file that must survive a crash, persist
+  per item and prove it with a run that fails mid-way and a resume that reprints nothing.
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
 - **A redaction canary suite needs structure-injection canaries**, not only content canaries. For every parser in the
