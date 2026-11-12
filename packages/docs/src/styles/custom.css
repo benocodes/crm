@@ -1,0 +1,103 @@
+:root {
+  --vibase-black: #080708;
+  --vibase-blue: #3772ff;
+  --vibase-red: #df2935;
+  --vibase-yellow: #fdca40;
+  --vibase-white: #e6e8e6;
+
+  --sl-color-white: var(--vibase-white);
+  --sl-color-gray-1: color-mix(in srgb, var(--vibase-white) 94%, var(--vibase-black));
+  --sl-color-gray-2: color-mix(in srgb, var(--vibase-white) 80%, var(--vibase-black));
+  --sl-color-gray-3: color-mix(in srgb, var(--vibase-white) 60%, var(--vibase-black));
+  --sl-color-gray-4: color-mix(in srgb, var(--vibase-white) 40%, var(--vibase-black));
+  --sl-color-gray-5: color-mix(in srgb, var(--vibase-white) 20%, var(--vibase-black));
+  --sl-color-gray-6: color-mix(in srgb, var(--vibase-white) 8%, var(--vibase-black));
+  --sl-color-black: var(--vibase-black);
+  --sl-color-accent-low: var(--sl-color-gray-6);
+  --sl-color-accent: var(--vibase-white);
+  --sl-color-accent-high: var(--vibase-white);
+}
+
+:root[data-theme='light'] {
+  --sl-color-white: var(--vibase-black);
+  --sl-color-gray-1: color-mix(in srgb, var(--vibase-black) 92%, var(--vibase-white));
+  --sl-color-gray-2: color-mix(in srgb, var(--vibase-black) 80%, var(--vibase-white));
+  --sl-color-gray-3: color-mix(in srgb, var(--vibase-black) 65%, var(--vibase-white));
+  --sl-color-gray-4: color-mix(in srgb, var(--vibase-black) 40%, var(--vibase-white));
+  --sl-color-gray-5: color-mix(in srgb, var(--vibase-black) 20%, var(--vibase-white));
+  --sl-color-gray-6: color-mix(in srgb, var(--vibase-black) 6%, var(--vibase-white));
+  --sl-color-gray-7: color-mix(in srgb, var(--vibase-black) 3%, var(--vibase-white));
+  --sl-color-black: var(--vibase-white);
+  --sl-color-accent-low: var(--sl-color-gray-6);
+  --sl-color-accent: var(--vibase-black);
+  --sl-color-accent-high: var(--vibase-black);
+}
+
+:root[data-theme] {
+  --sl-color-bg-nav: var(--sl-color-bg);
+  --sl-color-bg-sidebar: var(--sl-color-bg);
+  --sl-color-text-accent: var(--sl-color-white);
+  --sl-color-text-invert: var(--sl-color-black);
+  --sl-color-backdrop-overlay: #080708cc;
+
+  /* Keep API method badges monochrome alongside the documentation chrome. */
+  --sl-openapi-method-bg-get: var(--vibase-black);
+  --sl-openapi-method-bg-post: var(--vibase-black);
+  --sl-openapi-method-bg-put: var(--vibase-black);
+  --sl-openapi-method-bg-patch: var(--vibase-black);
+  --sl-openapi-method-bg-delete: var(--vibase-black);
+  --sl-openapi-method-bg-options: var(--vibase-black);
+  --sl-openapi-method-bg-head: var(--vibase-black);
+  --sl-openapi-method-bg-trace: var(--vibase-black);
+  --sl-openapi-method-border-get: var(--sl-color-gray-4);
+  --sl-openapi-method-border-post: var(--sl-color-gray-4);
+  --sl-openapi-method-border-put: var(--sl-color-gray-4);
+  --sl-openapi-method-border-patch: var(--sl-color-gray-4);
+  --sl-openapi-method-border-delete: var(--sl-color-gray-4);
+  --sl-openapi-method-border-options: var(--sl-color-gray-4);
+  --sl-openapi-method-border-head: var(--sl-color-gray-4);
+  --sl-openapi-method-border-trace: var(--sl-color-gray-4);
+}
+
+::selection {
+  background: var(--vibase-yellow);
+  color: var(--vibase-black);
+}
+
+:focus-visible {
+  outline-color: var(--vibase-blue);
+}
+
+.card {
+  --sl-card-border: var(--vibase-blue);
+  --sl-card-bg: color-mix(in srgb, var(--vibase-blue) 12%, var(--sl-color-bg));
+}
+
+.card:nth-child(3n + 2) {
+  --sl-card-border: var(--vibase-red);
+  --sl-card-bg: color-mix(in srgb, var(--vibase-red) 12%, var(--sl-color-bg));
+}
+
+.card:nth-child(3n + 3) {
+  --sl-card-border: var(--vibase-yellow);
+  --sl-card-bg: color-mix(in srgb, var(--vibase-yellow) 12%, var(--sl-color-bg));
+}
+
+.hero .tagline {
+  max-width: 38rem;
+}
+
+.site-title img {
+  height: 1.5rem;
+  width: auto;
+}
+
+:root[data-theme='dark'] .site-title img {
+  filter: invert(1);
+}
+
+@media print {
+  .site-title img {
+    filter: none;
+  }
+}

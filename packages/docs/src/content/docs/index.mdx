@@ -1,0 +1,37 @@
+---
+title: The headless, agentic CRM
+description: Vibase is a headless, agentic CRM with native MCP, CLI, and REST interfaces.
+template: splash
+hero:
+  title: Open, headless, agentic CRM
+  tagline: Manage contacts, deals, conversations, and follow-ups through the agents you choose. Own your infrastructure. Control their authority.
+  actions:
+    - text: Get started
+      link: /getting-started/quickstart/
+      icon: right-arrow
+    - text: Explore the project
+      link: https://github.com/benocodes/crm
+      icon: external
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## A backend for marketing, sales and customer success
+
+<CardGrid>
+  <Card title="Bring your own agents" icon="star">
+    Connect through MCP, the command line, or REST. Onboard any agent: Claude Code, Instinct, Dots, Grok Bot. Your workflows run where you choose; Vibase keeps the business records.
+  </Card>
+  <Card title="Delegate with control" icon="approve-check">
+    Grant reads, proposals, or direct writes per resource. Keep provider credentials inside Vibase and review actions when needed.
+  </Card>
+  <Card title="Own your deployment" icon="setting">
+    Run one workspace on Cloudflare Workers and D1 in your own account, with your own API URL and authentication.
+  </Card>
+  <Card title="Build your own experience" icon="pencil">
+    Use your agents conversationally or build dashboards and internal tools on the same API. There is no required CRM frontend.
+  </Card>
+</CardGrid>
+
+Start with the [core concepts](/concepts/overview/), [set up an instance with Clerk](/getting-started/quickstart/), or explore the [API reference](/api-reference/overview/).

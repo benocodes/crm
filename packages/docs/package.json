@@ -1,0 +1,26 @@
+{
+  "name": "@vault/docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "dev": "pnpm openapi:generate && astro dev",
+    "build": "pnpm openapi:generate && astro build",
+    "preview": "astro preview",
+    "typecheck": "pnpm openapi:generate && astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.38.5",
+    "astro": "6.4.8",
+    "starlight-openapi": "0.24.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@types/node": "^22",
+    "@vault/api": "workspace:*",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}
