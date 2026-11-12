@@ -379,6 +379,15 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   `api_keys.create` is `issueApiKeyOperation`, which adds the plaintext only to the successful result's
   `decode` ([[CORE27]] P6, [[CORE40]]). The contract fixture names the route in `handwritten: ['create']`,
   so the suite's "not generated" case skips it.
+- **An owner-scoped configuration object with no generic CRUD uses an unregistered definition as its record
+  helper.** `webhooks/operations.ts` ([[API7]] D22) builds `definePreparedResource({ …, operations: [] })` for
+  `webhook_subscriptions` and never registers it: `selectRecord`, `toRecord`, `afterOf`, `receipt` and
+  `resultStep` give the hand-written operations the same projection, event `after` and receipts as a resource,
+  with no generated route and no event-type map entry (register the type yourself, `{ invisible }` until its
+  visibility rule exists). Put the ownership predicate in every read, including the `before` read of each write,
+  and re-check plan-time limits at commit time inside the insert (`INSERT … SELECT … WHERE <guard>`, machinery
+  rows gated on `appliedPrev`, `replanOnDrift: true`) so a race answers the plan-time refusal (`409`), never a
+  silent eleventh row.
 - **Generic reads and writes name their columns** (the keys of `record`). A column left out of `record`
   (`api_keys.key_hash`, `content_key`) is never selected, never returned and never in an event, so
   column-level grants work ([[CORE15]]). Never select or return a whole row in `src/storage/crud.ts`.
@@ -848,7 +857,7 @@ A write appends an event row (`task.created`, `contact.updated`, with `before` a
 table **in the same transaction**. Hooks, webhooks, the agent cursor and the audit trail all read that one
 table. Because the event commits with the write, a crash between commit and delivery cannot lose it (the predecessor's in-memory after-commit kick could, and needed recovery crons). Commands emit through the same outbox.
 `before`/`after` scalars into a jsonb column need `JSON.stringify` (see `db-schema-and-migrations`).
-Writes that are not resources (identity bookkeeping, channel machinery, `bootstrap`) are the named
+Writes that are not resources (identity bookkeeping, channel machinery, `bootstrap`, execution leases, FTS indexes, webhook machinery) are the named
 exceptions in AGENTS.md invariant 5. A new exception needs a spec decision.
 
 ## Response shape and errors

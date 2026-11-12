@@ -139,6 +139,10 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   `UNIQUE (organization_id, id)` and reference `(organization_id, <col>) → <target>(organization_id, id)`
   (`packages/db/migrations/20261018_003_identity_model.ts`, [[CORE2]]). A self-reference
   (`contacts.merged_into_id`) is added with `ALTER TABLE` after the unique constraint exists.
+  On D1 (SQLite) the parent of a composite FK must have a UNIQUE index on exactly those columns, or every
+  insert fails with `foreign key mismatch`; a table whose id is already the primary key (`agents`) gets an
+  additive `CREATE UNIQUE INDEX … (organization_id, id)` in the migration that first references it
+  (`packages/storage-d1/migrations/0016_webhooks.sql`, [[API7]]).
 - **A new foreign key to `contacts(id)` must join merge's re-point list** (`CONTACT_REFERENCES` in
   `packages/api/src/identity/merge.ts`) or its exemptions; `merge-catalog.integration.suite.ts` fails
   otherwise ([[CORE2]] D11).

@@ -45,6 +45,9 @@
       },
       {
         "name": "0015_event_sequence.sql"
+      },
+      {
+        "name": "0016_webhooks.sql"
       }
     ],
     "success": true,

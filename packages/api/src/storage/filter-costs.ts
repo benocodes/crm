@@ -173,4 +173,5 @@ export const FILTER_EXEMPT_LISTS: readonly FilterExemption[] = [
   { list: 'associations', reason: `${HAND_WRITTEN}: oriented edges of an anchor, filtered by type and id` },
   { list: 'users', reason: `${HAND_WRITTEN}: users with a live membership` },
   { list: 'events', reason: 'the change feed (API214): equality filters on type, resource_type and resource_id only (API6 D5), served by one prepared feed program rather than a definition' },
+  { list: 'webhooks', reason: 'owner-scoped subscriptions (API7 D22): a hand-written list restricted to the caller\'s own for an agent, with an agent_id equality filter and keyset paging by id; no definition generates it' },
 ]

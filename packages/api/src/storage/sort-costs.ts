@@ -87,4 +87,5 @@ export const SORT_EXEMPT_LISTS: readonly SortExemption[] = [
   { list: 'associations', reason: `${HAND_WRITTEN}; oriented edges of an anchor, paged by association id` },
   { list: 'users', reason: `${HAND_WRITTEN}; users with a live membership` },
   { list: 'events', reason: 'the change feed (API214): paged by event id in commit order (seq), never sorted; its cursor is the id of the last event seen and it has no column filters (API6 D2, D5)' },
+  { list: 'webhooks', reason: 'owner-scoped subscriptions (API7 D22): a hand-written list paged by subscription id, ascending; no definition generates it' },
 ]

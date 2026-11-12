@@ -9386,6 +9386,196 @@
                     "on_delete": "CASCADE"
                   }
                 ]
+              },
+              {
+                "name": "webhook_subscriptions",
+                "origin": "built_in",
+                "label": "Webhook subscriptions",
+                "description": "An agent's standing request to have events POSTed, signed, to one https URL. Each belongs to one agent, which receives only event types it could read itself. Managed through the webhooks operations; the signing secret is shown once, when it is created or rotated, and is never stored readably.",
+                "associable": false,
+                "resource": null,
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "updated_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Updated at",
+                    "description": "When the row last changed.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "created_by",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created by",
+                    "description": "The principal (user or agent) that created the row.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "principals",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "agent_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Agent id",
+                    "description": "The agent that owns the subscription: whose read scopes decide which events it may receive.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "agents",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "url",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Url",
+                    "description": "Where the events are POSTed: https, a public host, at most 2048 characters.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "event_types",
+                    "type": "TEXT",
+                    "kind": "string_array",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Event types",
+                    "description": "The exact event types delivered (for example task.created), as a JSON array of 1 to 20 strings.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "status",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Status",
+                    "description": "active, paused (by a caller) or disabled (by the vault after sustained failure).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "deleted_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Deleted at",
+                    "description": "When the subscription was deleted; null while it exists.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  }
+                ],
+                "derived": [],
+                "foreign_keys": [
+                  {
+                    "columns": [
+                      "organization_id"
+                    ],
+                    "references": {
+                      "table": "organizations",
+                      "columns": [
+                        "id"
+                      ]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": [
+                      "created_by"
+                    ],
+                    "references": {
+                      "table": "principals",
+                      "columns": [
+                        "id"
+                      ]
+                    },
+                    "on_delete": "NO ACTION"
+                  },
+                  {
+                    "columns": [
+                      "organization_id",
+                      "agent_id"
+                    ],
+                    "references": {
+                      "table": "agents",
+                      "columns": [
+                        "organization_id",
+                        "id"
+                      ]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
               }
             ],
             "associations": {
