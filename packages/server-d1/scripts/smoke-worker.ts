@@ -67,6 +67,9 @@ const GOOGLE_HOSTS = new Set(['https://oauth2.googleapis.com', 'https://www.goog
 const CREDENTIALS_KEY_BYTES = new Uint8Array(32).fill(11)
 const google = await FakeGoogle.create({ clientId: 'smoke-client.apps.test', clientSecret: 'smoke-client-secret' })
 const hostsSeen = new Set<string>()
+// [[API220]]: the webhook sender's receiver. The outbound service answers it 200 and keeps what it was sent, so W6 sees a real signed POST leave the bundle.
+const HOOK_ORIGIN = 'https://hook.smoke.test'
+const hookPosts: { headers: Record<string, string>; body: string }[] = []
 // [[CHN141]]: the mailbox the connect flow connects holds three messages, served over HTTP at Gmail's real hostname through the outbound service.
 const SYNC_MAILBOX_MESSAGES = ['w-1', 'w-2', 'w-3']
 const syncGmail = new FakeGmail(
@@ -151,6 +154,10 @@ try {
         const rewritten = new URL(`${url.pathname}${url.search}`, FAKE_GOOGLE_ORIGIN)
         // The token endpoint lives at /token on the fake and at oauth2.googleapis.com/token for real: the path already matches.
         return google.fetch(rewritten.toString(), { method: req.method, headers: req.headers, body: req.method === 'POST' ? await req.text() : undefined })
+      }
+      if (url.origin === HOOK_ORIGIN) {
+        hookPosts.push({ headers: Object.fromEntries(req.headers), body: await req.text() })
+        return new Response(null, { status: 200 })
       }
       if (url.origin !== API_URL) return new Response('blocked by the smoke: not the fake Clerk or Google host', { status: 502 })
       return clerk(req.url, { headers: req.headers, method: req.method })
@@ -401,20 +408,22 @@ try {
   await new Promise((r) => setTimeout(r, 200))
   check('W4 the */15 cron in workerd runs without an error line (the connection is fresh, so it requests nothing)', !logLines.some((l) => /\[cron\].*(error|failed)/i.test(l)) && (await count('message_sources')) === 3, undefined)
   // W6, W7 ([[AGT8]] D54, D52, [[API219]] D6): the per-minute cron runs the rail tick, then webhook dispatch, on the real bundle in workerd; the bundle holds no test kit.
-  // A subscription of the smoke agent and one task event made after it must produce exactly one pending delivery row on that tick (nothing is sent: that is API220).
-  const hook = await json(await call('POST', '/meta/v1/webhooks', { token: key, body: { url: 'https://example.com/smoke-hook', event_types: ['task.created'] } }))
+  // A subscription of the smoke agent and one task event made after it must produce exactly one pending delivery row on that tick (API220: the sender then delivers it to the fake receiver in the same tick).
+  const hook = await json(await call('POST', '/meta/v1/webhooks', { token: key, body: { url: `${HOOK_ORIGIN}/smoke-hook`, event_types: ['task.created'] } }))
   const hooked = await json(await call('POST', '/api/v1/tasks', { token: key, body: { title: 'webhook dispatch task' } }))
   check('W6a a webhook subscription and a task made after it, before the per-minute cron (no delivery row yet)', typeof hook.id === 'string' && typeof hooked.id === 'string' && (await count('webhook_deliveries')) === 0, { hook: hook.id, task: hooked.id })
   await ((await mf.getWorker()) as unknown as { scheduled(o: { cron: string }): Promise<unknown> }).scheduled({ cron: '* * * * *' })
   await new Promise((r) => setTimeout(r, 200))
-  check('W6 the * * * * * cron in workerd runs the rail tick then webhook dispatch on the real bundle: both lines are logged in that order, with no error line, nothing expired or attempted, and one pending delivery row for the task event', (() => {
+  check('W6 the * * * * * cron in workerd runs the rail tick then webhook dispatch on the real bundle: both lines are logged in that order, with no error line, nothing expired or attempted, and one delivered row for the task event, sent after dispatch', (() => {
     const cron = logLines.filter((l) => l.includes('[cron] * * * * *'))
     const railAt = cron.findIndex((l) => l.includes('rail expired 0 request(s), attempted 0 execution(s)'))
     const hooksAt = cron.findIndex((l) => l.includes('webhooks dispatched 1 event(s) for 1 subscription(s)'))
-    return railAt >= 0 && hooksAt > railAt && !logLines.some((l) => /\[cron\] \* \* \* \* \*.*(error|failed)/i.test(l))
+    const sentAt = cron.findIndex((l) => l.includes('webhooks sent 1, failed 0, dead 0, cancelled 0, deferred 0'))
+    return railAt >= 0 && hooksAt > railAt && sentAt > hooksAt && !logLines.some((l) => /\[cron\] \* \* \* \* \*: (failed:|webhook (dispatch|send) failed)/i.test(l)) // the sender's own line says "failed 0": only the error lines count
   })(), logLines.filter((l) => l.includes('[cron]')).slice(-4))
   const delivery = await rows('select subscription_id, event_type, status, attempts from webhook_deliveries')
-  check('W6b the delivery row: the subscription, task.created, pending, attempts 0', delivery.length === 1 && delivery[0]!.subscription_id === hook.id && delivery[0]!.event_type === 'task.created' && delivery[0]!.status === 'pending' && Number(delivery[0]!.attempts) === 0, delivery)
+  check('W6b the delivery row: the subscription, task.created, delivered, attempts 1', delivery.length === 1 && delivery[0]!.subscription_id === hook.id && delivery[0]!.event_type === 'task.created' && delivery[0]!.status === 'delivered' && Number(delivery[0]!.attempts) === 1, delivery)
+  check('W6c the receiver got one POST with the five headers and the event record as the body, and the Worker log holds no signature', hookPosts.length === 1 && ['content-type', 'user-agent', 'webhook-id', 'webhook-signature', 'webhook-timestamp'].every((h) => typeof hookPosts[0]!.headers[h] === 'string') && JSON.parse(hookPosts[0]!.body).type === 'task.created' && !logLines.some((l) => l.includes(hookPosts[0]!.headers['webhook-signature']!)), hookPosts.map((p) => Object.keys(p.headers)))
   const bundleText = readFileSync(bundle, 'utf8')
   check('W7 the Worker bundle holds the rail but none of the test kit (no test operation, no fake transport)', bundleText.includes('action_executions.finish') && ['test.enqueue', 'test-enqueue', 'FakeTransport', 'registerTestOperations'].every((m) => !bundleText.includes(m)), undefined)
   const syncLogs = logLines.join('\n')
@@ -481,7 +490,7 @@ try {
 
   // 16: the network guard
   // CHN140: the Google hosts are answered by the fake too (check 43); nothing else may be reached.
-  check('16 the Worker reached only the fake Clerk host and the faked Google hosts', hostsSeen.size > 0 && [...hostsSeen].every((h) => h === API_URL || GOOGLE_HOSTS.has(h)), [...hostsSeen])
+  check('16 the Worker reached only the fake Clerk host, the faked Google hosts and the fake webhook receiver', hostsSeen.size > 0 && [...hostsSeen].every((h) => h === API_URL || GOOGLE_HOSTS.has(h) || h === HOOK_ORIGIN), [...hostsSeen])
 
   // 17-19: message content and file bytes from workerd's real R2 binding (CORE58)
   const bodies = (await mf.getR2Bucket('BODIES')) as unknown as R2BucketLike
