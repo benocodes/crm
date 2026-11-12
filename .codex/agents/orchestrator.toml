@@ -104,6 +104,9 @@ context: applying findings, fixing a failure. To re-run a suite or the gate on a
 separate, fresh agent (a new `coder` instance with `model: "gpt-6.1-sol"`, briefed "verify only, don't edit")
 in the same worktree. It reports counts; pass them to the coder only if something failed and needs fixing.
 Every extra run in the coder's own context bloats it for the rounds that matter.
+Never run a verify-only suite while the e2e-tester is running in the same worktree: they contend for the
+local Worker and ports, and the api contract suite fails with `ECONNREFUSED` that a later run on an idle machine
+does not reproduce ([[API214]]: 172 such failures). Wait for the tester's report, then verify.
 
 **You never run tests yourself, and you never read their output.** That covers the gate, a single package's
 suite, a "quick check" and a backgrounded run you poll for. Any run of tests, typecheck or build goes to a
