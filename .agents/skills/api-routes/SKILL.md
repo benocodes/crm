@@ -77,6 +77,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `remoteBindings` to **`true`**, so the CLI always passes `false`; `scripts/bootstrap.test.ts` pins it.
   - `scripts/smoke-worker.ts` (`pnpm -C packages/server-d1 smoke:worker`): esbuild bundle run in workerd through
     Miniflare. `outboundService` is the fake Clerk and fails on any other host, which proves no real network call.
+    Two workers that call each other (vault and a webhook receiver, `scripts/e2e-webhook-example.ts`, [[API221]]) go
+    in one Miniflare (`workers: [...]`), each with an `outboundService` that routes the other's host to
+    `mf.getWorker(name).fetch`; forward the request body as text (a stream body needs `duplex: 'half'`). Rebinding a
+    secret learned mid-run (the webhook secret) is `mf.setOptions`; persisted D1, R2 and Workflow state survive it.
   - The bundle needs **no `nodejs_compat`** (Web Crypto only). Keep Node built-ins out of `@vault/api` production
     code; the smoke is the check. A package whose entry imports Node built-ins at top level (`chat@4.43.0`) is
     a devDependency imported type-only; `production-boundary.test.ts` enforces that for `chat` ([[CORE69]] D25).

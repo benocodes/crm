@@ -156,6 +156,15 @@ const load = await step.do('load-and-claim', () => loadAndClaim(db, jobId))
 if (load.alreadyDone) return
 ```
 
+**Instance id as the dedupe key ([[API221]]).** `create({ id })` with an existing id throws on the deployed
+platform, with wording Cloudflare does not document; **Miniflare does not throw at all** (two creates with the
+same id both return). So: (1) treat "already exists" as success by a loose message match *and* a `get(id)`
+fallback for any other error (an instance that exists means the work is started; `get` throwing means it is
+not, so answer `5xx`); (2) never rely on the instance id alone for idempotency: the step that writes (here,
+proposing an action request) must look up its own prior effect first, because locally a duplicate create runs
+the workflow twice. Unit-test the "already exists" branch with a fake binding; a local E2E cannot reach it.
+See `packages/webhook-receiver-example/src/receiver.ts`.
+
 ## Loops with retries inside the orchestrator
 
 Keep a bounded retry loop in the orchestrator and give each attempt its own step name
