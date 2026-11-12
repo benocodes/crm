@@ -8,6 +8,7 @@ import { commandHelp, resourceHelp, topHelp } from './help.js'
 import { apiError, execute, json } from './http.js'
 import { deviceGrant, ensureFresh, fetchAuthServer, getJson, refreshProfile, revokeRefreshToken, withLock } from './oauth.js'
 import { GLOBAL_VALUE_FLAGS, parseInvocation } from './invoke.js'
+import { tail, TAIL_HELP, type Credential } from './tail.js'
 import type { Command, Deps } from './types.js'
 
 /**
@@ -101,6 +102,27 @@ async function main(argv: string[], deps: Deps): Promise<number> {
     return 0
   }
   let cmd = words.length === 2 ? lookup(commands) : undefined
+  if (words[0] === 'events' && words[1] === 'tail') {
+    if (g.help) {
+      await deps.stdout.write(TAIL_HELP)
+      return 0
+    }
+    const find = (cmds: Command[]) => cmds.find((c) => c.operationId === 'events.list')
+    let list = find(commands)
+    if (!list && !found.fresh) {
+      found = await discover(conn.server, deps, { cacheDir, refresh: true })
+      commands = deriveCommands(found.ops)
+      list = find(commands)
+    }
+    if (!list) throw usage(`${conn.server} has no events.list operation, which \`events tail\` reads: this instance does not serve the event feed`)
+    const credential: Credential = async () => {
+      const withKey = resolveConnection(cfg, g, deps.env, { needKey: true })
+      if (!withKey.oauth) return { server: withKey.server, key: withKey.key! }
+      const fresh = await ensureFresh(deps, withKey.profile, withKey.oauth)
+      return { server: withKey.server, key: fresh.access_token, refresh: async (rejected: string) => (await refreshProfile(deps, withKey.profile, { kind: 'rejected', stale: rejected })).access_token }
+    }
+    return tail(list, rest, credential, deps)
+  }
   if (words.length === 1 || g.help) {
     const resource = words[0]!.replace(/_/g, '-')
     let of = commands.filter((c) => c.resource === resource)

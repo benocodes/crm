@@ -18,6 +18,28 @@ export async function apiError(res: Response): Promise<CliError> {
   return new CliError(1, `http_${res.status}`, text.trim().slice(0, 200) || res.statusText || `HTTP ${res.status}`)
 }
 
+/**
+ * One authenticated request of an invocation. The one place the credential leaves the CLI: the path must stay on the server's origin ([[API6]] D18),
+ * whatever document it came from. `query` replaces the invocation's own.
+ */
+export async function sendRequest(cmd: Command, inv: Invocation, query: [string, string][], key: string, deps: Deps, server: string): Promise<Response> {
+  // The path comes from a document the server served: it must stay on the server's origin, whatever it contains.
+  const url = new URL(inv.path, server)
+  if (url.origin !== server || !inv.path.startsWith('/') || inv.path.startsWith('//')) throw usage(`refusing to send the credential to ${url.origin}: ${cmd.operationId} is not on ${server}`, 'origin_mismatch')
+  for (const [k, v] of query) url.searchParams.append(k, v)
+  const headers: Record<string, string> = { authorization: `Bearer ${key}`, 'user-agent': `vibase-cli/${deps.version}`, accept: cmd.binary ? '*/*' : 'application/json' }
+  let body: string | undefined
+  if (inv.body !== undefined) {
+    headers['content-type'] = 'application/json'
+    body = JSON.stringify(inv.body)
+  }
+  try {
+    return await deps.fetch(url.toString(), { method: cmd.method, headers, body, redirect: 'error' })
+  } catch (e) {
+    throw network(url.origin + url.pathname, e)
+  }
+}
+
 /** Runs one invocation against `server` with `key` and prints the result ([[API6]] D8, D14). Returns the exit code. */
 export async function execute(cmd: Command, inv: Invocation, conn: { server: string; key: string; refresh?: (rejected: string) => Promise<string> }, deps: Deps): Promise<number> {
   let key = conn.key
@@ -34,23 +56,7 @@ export async function execute(cmd: Command, inv: Invocation, conn: { server: str
     key = await conn.refresh(key)
     return sendOnce(query)
   }
-  const sendOnce = async (query: [string, string][]): Promise<Response> => {
-    // The path comes from a document the server served: it must stay on the server's origin, whatever it contains.
-    const url = new URL(inv.path, conn.server)
-    if (url.origin !== conn.server || !inv.path.startsWith('/') || inv.path.startsWith('//')) throw usage(`refusing to send the credential to ${url.origin}: ${cmd.operationId} is not on ${conn.server}`, 'origin_mismatch')
-    for (const [k, v] of query) url.searchParams.append(k, v)
-    const headers: Record<string, string> = { authorization: `Bearer ${key}`, 'user-agent': `vibase-cli/${deps.version}`, accept: cmd.binary ? '*/*' : 'application/json' }
-    let body: string | undefined
-    if (inv.body !== undefined) {
-      headers['content-type'] = 'application/json'
-      body = JSON.stringify(inv.body)
-    }
-    try {
-      return await deps.fetch(url.toString(), { method: cmd.method, headers, body, redirect: 'error' })
-    } catch (e) {
-      throw network(url.origin + url.pathname, e)
-    }
-  }
+  const sendOnce = (query: [string, string][]) => sendRequest(cmd, inv, query, key, deps, conn.server)
 
   if (cmd.binary) {
     const res = await send(inv.query)

@@ -4,7 +4,8 @@ export const HAND_COMMANDS = `Commands that are always here:
   vibase login --server <url> [--profile <name>] [--scope a,b]   sign in by device login (approve in any browser)
   vibase login --api-key --server <url> [--profile <name>]   store an API key (read from stdin, never argv)
   vibase logout [--profile <name>]                           forget a profile (revokes a device login's grant)
-  vibase config get|set <key> [value]                        read or change the configuration`
+  vibase config get|set <key> [value]                        read or change the configuration
+  vibase events tail [--follow] [--cursor-file <path>] ...   print the event feed as NDJSON from a position; with --follow keep polling (events tail --help)`
 
 export const GLOBAL_FLAGS = `Flags every command takes:
   --server <url>     the instance (an origin); overrides VIBASE_SERVER and the profile
@@ -24,7 +25,7 @@ export function topHelp(commands: Command[] | undefined, server?: string): strin
   const lines = ['vibase: the vault on the command line', '', 'Usage: vibase <resource> <action> [ids] [--flags] [--data <json>]', '']
   if (commands) {
     lines.push(`Resources of ${server}:`)
-    for (const [resource, cmds] of [...group(commands)].sort(([a], [b]) => a.localeCompare(b))) lines.push(`  ${resource.padEnd(22)}${cmds.map((c) => c.action).join(', ')}`)
+    for (const [resource, cmds] of [...group(commands)].sort(([a], [b]) => a.localeCompare(b))) lines.push(`  ${resource.padEnd(22)}${(resource === 'events' ? [...cmds.map((c) => c.action), 'tail'] : cmds.map((c) => c.action)).join(', ')}`)
   } else lines.push('Resources come from the instance: pass --server or run `vibase login --server <url>` (or `--api-key`) first.')
   lines.push('', HAND_COMMANDS, '', GLOBAL_FLAGS, '', 'vibase <resource> --help and vibase <resource> <action> --help describe a command.')
   return lines.join('\n') + '\n'
@@ -33,6 +34,7 @@ export function topHelp(commands: Command[] | undefined, server?: string): strin
 export function resourceHelp(resource: string, commands: Command[]): string {
   const lines = [`vibase ${resource} <action>`, '']
   for (const c of commands) lines.push(`  ${c.action.padEnd(14)}${c.summary}`)
+  if (resource === 'events') lines.push(`  ${'tail'.padEnd(14)}Print the event feed as NDJSON from a position; --follow keeps polling, --cursor-file resumes after a restart`)
   return lines.join('\n') + '\n'
 }
 
