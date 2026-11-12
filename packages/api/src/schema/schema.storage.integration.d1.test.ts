@@ -27,7 +27,7 @@ const column = (doc: any, t: string, c: string) => table(doc, t).columns.find((x
 const all = async (sqlText: string, ...binds: unknown[]) => ((await d1.d1!.prepare(sqlText).bind(...binds).all()).results as Record<string, any>[])
 
 // Written out, independent of the code under test.
-const HIDDEN = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors']
+const HIDDEN = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'webhook_secrets', 'webhook_dispatch_state']
 const PRESENT = ['events', 'principals', 'api_keys', 'notes', 'associations', 'organizations', 'users', 'memberships', 'agents']
 const realTables = async () =>
   (await all("select name from sqlite_schema where type = 'table' order by name")).map((r) => r.name as string)
