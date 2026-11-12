@@ -146,6 +146,9 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **A new foreign key to `contacts(id)` must join merge's re-point list** (`CONTACT_REFERENCES` in
   `packages/api/src/identity/merge.ts`) or its exemptions; `merge-catalog.integration.suite.ts` fails
   otherwise ([[CORE2]] D11).
+  The same suite treats any `<x>_id` + `<x>_type` column pair as a polymorphic reference that might name a contact.
+  A new table with such a pair that never names a contact (an event position, such as `webhook_deliveries.event_id`)
+  goes into `CONTACT_NON_FK_EXEMPTIONS` ([[API219]]).
 - **Index names** `idx_{table}_{columns}`; unique `idx_{table}_{purpose}_unique` or inline `.unique()`.
 - **Conflicts: `ON CONFLICT`, not catch-and-retry.** A caught `23505` inside a transaction does not save it;
   the transaction is already aborted. When the unique index is partial, the `onConflict` clause must repeat
