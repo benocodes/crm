@@ -502,12 +502,36 @@ export interface WebhookDispatchStateTable {
   last_success_at: NullableTimestamp
 }
 
+/**
+ * [[API7]] D4, D14, D20: one delivery of one event to one subscription (D1 only). The dispatcher inserts it `pending` (unique per subscription and event); the sender settles it. `event_id` is a position
+ * (no foreign key). `lease_*` are machinery columns of the sender's claim. Written without events; readable through `webhooks.deliveries` and listed in `schema.get`.
+ */
+export interface WebhookDeliveriesTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  subscription_id: string
+  event_id: string
+  event_type: string
+  status: 'pending' | 'delivered' | 'dead' | 'cancelled'
+  attempts: IntegerColumn
+  next_attempt_at: Timestamp
+  lease_until: NullableTimestamp
+  lease_token: string | null
+  last_attempt_at: NullableTimestamp
+  last_status_code: NullableIntegerColumn
+  last_error: string | null
+  delivered_at: NullableTimestamp
+}
+
 export interface StorageDatabase {
   action_executions: ActionExecutionsTable
   action_requests: ActionRequestsTable
   webhook_subscriptions: WebhookSubscriptionsTable
   webhook_secrets: WebhookSecretsTable
   webhook_dispatch_state: WebhookDispatchStateTable
+  webhook_deliveries: WebhookDeliveriesTable
   organizations: OrganizationsTable
   principals: PrincipalsTable
   events: EventsTable
@@ -967,6 +991,24 @@ export const COLUMN_KINDS = {
     subscription_id: 'uuid',
     sealed: 'text',
     key_version: 'integer',
+  },
+  webhook_deliveries: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    subscription_id: 'uuid',
+    event_id: 'uuid',
+    event_type: 'text',
+    status: 'text',
+    attempts: 'integer',
+    next_attempt_at: 'timestamp',
+    lease_until: 'timestamp',
+    lease_token: 'text',
+    last_attempt_at: 'timestamp',
+    last_status_code: 'integer',
+    last_error: 'text',
+    delivered_at: 'timestamp',
   },
   webhook_dispatch_state: {
     subscription_id: 'uuid',

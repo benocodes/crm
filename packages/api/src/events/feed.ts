@@ -32,6 +32,12 @@ export interface FeedVisibility {
    * type on both sides. An absent or unknown endpoint type is not in the list, so the event is hidden. An empty list shows no edge events.
    */
   edge?: { resourceType: string; endpointTypes: readonly string[] }
+  /**
+   * Per-type record predicates ([[API219]] D19): an event of `resourceType` is visible only when the record (`after`, or `before` for a delete) holds `equals` at the JSON `path`.
+   * Every entry is its own alternative, so a type listed here and in `readable` is visible through `readable` (a scope-wide reader sees all of it). The general shape #217's
+   * action-event predicates will use too.
+   */
+  owned?: readonly { resourceType: string; path: string; equals: string }[]
 }
 
 export interface StableFeedInput extends FeedVisibility {
@@ -59,6 +65,7 @@ function visible(d: FeedVisibility) {
       sql`(resource_type = ${d.edge.resourceType} and json_extract(${rec}, '$.a_type') in (${sql.join(d.edge.endpointTypes)}) and json_extract(${rec}, '$.b_type') in (${sql.join(d.edge.endpointTypes)}))`,
     )
   }
+  for (const o of d.owned ?? []) parts.push(sql`(resource_type = ${o.resourceType} and json_extract(coalesce("after", "before"), ${o.path}) = ${o.equals})`)
   return parts.length > 0 ? sql`(${sql.join(parts, sql` or `)})` : null
 }
 

@@ -400,10 +400,21 @@ try {
   await ((await mf.getWorker()) as unknown as { scheduled(o: { cron: string }): Promise<unknown> }).scheduled({ cron: '*/15 * * * *' })
   await new Promise((r) => setTimeout(r, 200))
   check('W4 the */15 cron in workerd runs without an error line (the connection is fresh, so it requests nothing)', !logLines.some((l) => /\[cron\].*(error|failed)/i.test(l)) && (await count('message_sources')) === 3, undefined)
-  // W6, W7 ([[AGT8]] D54, D52): the per-minute rail cron runs on the real bundle in workerd (an empty queue, so nothing is dispatched), and the bundle holds no test kit.
+  // W6, W7 ([[AGT8]] D54, D52, [[API219]] D6): the per-minute cron runs the rail tick, then webhook dispatch, on the real bundle in workerd; the bundle holds no test kit.
+  // A subscription of the smoke agent and one task event made after it must produce exactly one pending delivery row on that tick (nothing is sent: that is API220).
+  const hook = await json(await call('POST', '/meta/v1/webhooks', { token: key, body: { url: 'https://example.com/smoke-hook', event_types: ['task.created'] } }))
+  const hooked = await json(await call('POST', '/api/v1/tasks', { token: key, body: { title: 'webhook dispatch task' } }))
+  check('W6a a webhook subscription and a task made after it, before the per-minute cron (no delivery row yet)', typeof hook.id === 'string' && typeof hooked.id === 'string' && (await count('webhook_deliveries')) === 0, { hook: hook.id, task: hooked.id })
   await ((await mf.getWorker()) as unknown as { scheduled(o: { cron: string }): Promise<unknown> }).scheduled({ cron: '* * * * *' })
   await new Promise((r) => setTimeout(r, 200))
-  check('W6 the * * * * * cron in workerd runs the rail tick on the real bundle: its line is logged, with no error line and nothing expired or attempted', logLines.some((l) => l.includes('[cron] * * * * *: rail expired 0 request(s), attempted 0 execution(s)')) && !logLines.some((l) => /\[cron\] \* \* \* \* \*.*(error|failed)/i.test(l)), logLines.filter((l) => l.includes('[cron]')).slice(-4))
+  check('W6 the * * * * * cron in workerd runs the rail tick then webhook dispatch on the real bundle: both lines are logged in that order, with no error line, nothing expired or attempted, and one pending delivery row for the task event', (() => {
+    const cron = logLines.filter((l) => l.includes('[cron] * * * * *'))
+    const railAt = cron.findIndex((l) => l.includes('rail expired 0 request(s), attempted 0 execution(s)'))
+    const hooksAt = cron.findIndex((l) => l.includes('webhooks dispatched 1 event(s) for 1 subscription(s)'))
+    return railAt >= 0 && hooksAt > railAt && !logLines.some((l) => /\[cron\] \* \* \* \* \*.*(error|failed)/i.test(l))
+  })(), logLines.filter((l) => l.includes('[cron]')).slice(-4))
+  const delivery = await rows('select subscription_id, event_type, status, attempts from webhook_deliveries')
+  check('W6b the delivery row: the subscription, task.created, pending, attempts 0', delivery.length === 1 && delivery[0]!.subscription_id === hook.id && delivery[0]!.event_type === 'task.created' && delivery[0]!.status === 'pending' && Number(delivery[0]!.attempts) === 0, delivery)
   const bundleText = readFileSync(bundle, 'utf8')
   check('W7 the Worker bundle holds the rail but none of the test kit (no test operation, no fake transport)', bundleText.includes('action_executions.finish') && ['test.enqueue', 'test-enqueue', 'FakeTransport', 'registerTestOperations'].every((m) => !bundleText.includes(m)), undefined)
   const syncLogs = logLines.join('\n')

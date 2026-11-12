@@ -48,6 +48,9 @@
       },
       {
         "name": "0016_webhooks.sql"
+      },
+      {
+        "name": "0017_webhook_deliveries.sql"
       }
     ],
     "success": true,

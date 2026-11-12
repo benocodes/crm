@@ -40,6 +40,7 @@ describe('event types at create (D3)', () => {
     const a = await k.seedAgent(TASKS)
     refused(await post(a, { event_types: ['action_request.created'] }), 400, 'event_type_not_readable')
     refused(await post(a, { event_types: ['action_execution.created'] }), 400, 'event_type_not_readable')
+    // without webhooks:read (API219 D19 made webhook.* readable under that scope, see owner-visibility)
     refused(await post(a, { event_types: ['webhook.created'] }), 400, 'event_type_not_readable')
     refused(await post(a, { event_types: ['note.created'] }), 400, 'event_type_not_readable')
     refused(await post(a, { event_types: ['task.created', 'note.created'] }), 400, 'event_type_not_readable')

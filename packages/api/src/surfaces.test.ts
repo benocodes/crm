@@ -37,7 +37,7 @@ place('meta', 'memberships', CRUD)
 place('meta', 'users', ['list', 'get'])
 place('meta', 'me', ['get'])
 place('meta', 'schema', ['get'])
-place('meta', 'webhooks', ['list', 'get', 'create', 'update', 'delete', 'rotate_secret'])
+place('meta', 'webhooks', ['list', 'get', 'deliveries', 'create', 'update', 'delete', 'rotate_secret'])
 
 /** CRUD actions the registry does not generate (read-only resources, hard-lived tables, no public writer). Listed, never filtered. */
 const NOT_GENERATED = [
@@ -70,9 +70,9 @@ describe('placement (D6)', () => {
       ...['pipelines', 'pipeline_stages'].flatMap((r) => CRUD.map((a) => `${r}.${a}`)),
       'schema.get',
       'users.get', 'users.list',
-      'webhooks.create', 'webhooks.delete', 'webhooks.get', 'webhooks.list', 'webhooks.rotate_secret', 'webhooks.update',
+      'webhooks.create', 'webhooks.delete', 'webhooks.deliveries', 'webhooks.get', 'webhooks.list', 'webhooks.rotate_secret', 'webhooks.update',
     ].sort())
-    expect(ops.length).toBe(107)
+    expect(ops.length).toBe(108)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

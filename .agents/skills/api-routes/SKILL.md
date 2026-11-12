@@ -110,6 +110,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     dispatches and reconciles in one invocation (double refresh, send, metadata, search). Gmail measured
     65 calls at three sends, so production cron runs `dueLimit: 2` (worst case 27 D1 + 18 external = 45)
     while the generic default stays five (`knowledge/specs/008-AGT166-gmail-send/RETRO.md`).
+    The per-minute tick is ONE invocation for the rail and webhook dispatch (and the [[API220]] sender). Its D1
+    budget is shared: size new cron work against the rail's 45 worst case, not alone. Dispatch costs at least one
+    read per eligible subscription per tick, and up to 11 with a backlog
+    (`knowledge/specs/007-API219-webhook-dispatch/RETRO.md`).
   - `pnpm -C packages/server-d1 open:check` copies the open packages into a temp workspace and installs,
     typechecks production code, tests and smoke-runs them there. A new directory under `packages/` must be
     classified in `scripts/open-check.ts` (`OPEN_PACKAGES`/`ENTERPRISE_PACKAGES`), or the check fails.
@@ -699,6 +703,12 @@ interactive transaction, no `withContext` and no `executor` marker.
   - **A statement that inserts no row resets D1's `changes()` to 0**, and so does a holding assertion. Never put
     an `appliedPrev`-gated statement (such as `eventStatement`) directly after an assertion. Gate it on an
     `exists (event id)` instead, or rely on the `exactly` before it.
+  - **A compare-and-set `UPDATE` that matches no row does not fail a `batch()`.** To learn whether it applied,
+    follow it with a `result` step gated on `appliedPrev`. A cursor moved this way, with the rows it covers made
+    idempotent by a unique pair `ON CONFLICT DO NOTHING`, guarantees "each row once, the cursor never moves back".
+    It does not guarantee "the cursor ends at the newest page": a shorter overlapping page applied first wins and
+    holds the cursor until the next run converges. State test obligations that way
+    (`packages/api/src/webhooks/dispatch.ts`, `knowledge/specs/007-API219-webhook-dispatch/RETRO.md`).
 - **Sets cost a constant number of statements** ([[CORE36]] D5). Bind a set as ONE parameter with
   `jsonRows(qc, alias, columns, rows)` (D1 `json_each`, Postgres `jsonb_array_elements … with ordinality`), and
   emit its events with ONE `eventSetStatement` (ids and `before` in the parameter, `after` rendered from the

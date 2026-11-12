@@ -71,8 +71,11 @@ export const IDENTITY_REFERENCES: readonly { table: string; column: string }[] =
 export const CONTACT_NON_FK_REFERENCES: readonly { table: string; columns: readonly { id: string; type: string }[] }[] = [
   { table: 'associations', columns: [{ id: 'a_id', type: 'a_type' }, { id: 'b_id', type: 'b_type' }] },
 ]
-/** Polymorphic ids that merge must not touch: the audit log names records as they were. */
-export const CONTACT_NON_FK_EXEMPTIONS: readonly { table: string; column: string }[] = [{ table: 'events', column: 'resource_id' }]
+/**
+ * Polymorphic ids that merge must not touch: the audit log names records as they were, and a webhook delivery's `event_id` ([[API219]]; its `event_type` makes it look like a typed
+ * reference to the scan) is a position in that log, never a contact.
+ */
+export const CONTACT_NON_FK_EXEMPTIONS: readonly { table: string; column: string }[] = [{ table: 'events', column: 'resource_id' }, { table: 'webhook_deliveries', column: 'event_id' }]
 
 /** FKs to contacts(id) that merge must NOT re-point: the tombstone pointer itself (D10). */
 export const CONTACT_REFERENCE_EXEMPTIONS: readonly { table: string; column: string }[] = [{ table: 'contacts', column: 'merged_into_id' }]
