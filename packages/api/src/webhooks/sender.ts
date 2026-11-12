@@ -63,9 +63,14 @@ export interface SenderSummary {
   noKey: boolean
 }
 
+/** The three Standard Webhooks headers the sender sets on every POST ([[API221]] D21: the guide and the example's verifier are tested against this, not a copy). */
+export const WEBHOOK_HEADERS = { id: 'webhook-id', timestamp: 'webhook-timestamp', signature: 'webhook-signature' } as const
+/** Every value `webhook_deliveries.last_error` takes, failures then cancellations ([[API221]]: the guide is tested against this list). */
+export const DELIVERY_FAILURE_CODES = ['timeout', 'connection_failed', 'http_status', 'redirect', 'sender_failed'] as const
+export const DELIVERY_CANCEL_CODES = ['cancelled_subscription', 'cancelled_scope'] as const
 const SPENT = 'sender_failed'
-type FailureCode = 'http_status' | 'redirect' | 'timeout' | 'connection_failed' | typeof SPENT
-type CancelCode = 'cancelled_subscription' | 'cancelled_scope'
+type FailureCode = (typeof DELIVERY_FAILURE_CODES)[number]
+type CancelCode = (typeof DELIVERY_CANCEL_CODES)[number]
 type Outcome =
   | { kind: 'delivered'; status: number }
   | { kind: 'failed'; code: FailureCode; status: number | null }
@@ -372,7 +377,7 @@ async function sendWave(d: SenderDeps, key: Uint8Array, organizationId: string, 
           const body = JSON.stringify(eventRecord(organizationId, row.event))
           const timestamp = Math.floor(d.clock().getTime() / 1000)
           const signature = await signatureHeader({ secrets: opened as string[], id: row.eventId, timestamp, body })
-          const headers = { 'Content-Type': 'application/json', 'User-Agent': 'vibase-webhooks/1', 'webhook-id': row.eventId, 'webhook-timestamp': String(timestamp), 'webhook-signature': signature }
+          const headers = { 'Content-Type': 'application/json', 'User-Agent': 'vibase-webhooks/1', [WEBHOOK_HEADERS.id]: row.eventId, [WEBHOOK_HEADERS.timestamp]: String(timestamp), [WEBHOOK_HEADERS.signature]: signature }
           const outcome = await post(d, row.url, headers, body)
           recorded.set(row.id, outcome.kind === 'failed' ? fail(row, outcome.code, outcome.status) : { row, outcome, nextAt: null, dead: false })
         } catch {
