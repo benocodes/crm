@@ -60,6 +60,8 @@ export async function withLocalD1<T>(names: readonly string[], fn: (local: Local
 /** Like `withLocalD1` for a suite that keeps the bindings across tests: the caller must `dispose()`. */
 export async function openLocalD1(names: readonly string[], opts: { migrate?: boolean } = {}): Promise<LocalD1> {
   const mf = new Miniflare({
+    // OPS223 D6: an OS-assigned port, stated so a Miniflare upgrade that changes its default cannot reintroduce a fixed one (files run in parallel).
+    port: 0,
     modules: true,
     script: 'export default { fetch() { return new Response("local d1") } }',
     d1Databases: Object.fromEntries(names.map((n) => [n, `local-${n}-${crypto.randomUUID()}`])),

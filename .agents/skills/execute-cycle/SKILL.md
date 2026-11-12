@@ -120,12 +120,16 @@ don't guess: stop and report `blocked` with the question.
 All of it must be green before you report. Never report a test as passing without having run it.
 
 ```bash
-pnpm -r test
+pnpm -r --workspace-concurrency=1 --filter '!@vault/api' test   # every other package, one at a time
+pnpm -C packages/api test --reporter=dot                          # the api suite alone on the machine
 pnpm -r typecheck
 pnpm -r build      # where a package has a build
 ```
 
-The `@vault/api` suite runs about 20 minutes and the default reporter prints nothing until it ends, so a slow run looks like a
+The `@vault/api` suite runs its files in parallel at 4 workers ([[OPS223]]): about 4.5 to 6 minutes on the 8-core development machine
+(276 to 339 s measured at load 3.4 to 3.8 before the start; 971 s serial), alone on the machine. On a loaded machine lower it with
+`VITEST_MAX_WORKERS=N pnpm -C packages/api test` and name N in RESULT.md. A plain `pnpm -r test` runs the packages concurrently
+(api's 4 workers beside `cli` and `server-d1`), which is why the gate splits it as above. The default reporter prints nothing until the end, so a slow run looks like a
 hang: run it as `pnpm -C packages/api test --reporter=dot` (or `verbose`) and keep its log ([[CORE200]] retro).
 Run a package's full suite only through its `test` script (`pnpm -C packages/<pkg> test`), which passes the root
 `vitest.config.ts` (D1 and engine-neutral projects). A bare `vitest run` or `pnpm exec vitest run` inside the package has no
