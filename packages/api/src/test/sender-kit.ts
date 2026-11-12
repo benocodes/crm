@@ -105,6 +105,7 @@ export async function openSenderKit(): Promise<SenderKit> {
       s.calls.length = 0
       s.timers.length = 0
       s.maxInFlight = 0
+      inFlight = 0 // a test whose fetch never settles must not leak into the next
       s.handler = () => ok(200)
       s.autoFire = false
     },

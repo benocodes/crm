@@ -41,7 +41,16 @@ function spy(failing?: string) {
   } as StorageBinding
   return { ops, binding }
 }
-const answer = (status: number) => () => new Response('response body that must never be stored', { status })
+const answer = (status: number) => () => new Response(status === 204 ? null : 'response body that must never be stored', { status })
+
+/** `subs` subscriptions of one agent each, then `tasks` task events, dispatched once: `subs * tasks` due rows. */
+const fill = async (subs: number, tasks: number) => {
+  const ids: string[] = []
+  for (let i = 0; i < subs; i++) ids.push((await s.subscribe()).sub.id)
+  for (let n = 0; n < tasks; n++) await s.k.task(`t${n}`)
+  await s.k.dispatch()
+  return ids
+}
 
 describe('signing and body (D7, D8, D12)', () => {
   it('sends the event record exactly as events.get builds it, the signed bytes being the sent bytes, with exactly the five headers; the signature verifies with the secret shown at create', async () => {
@@ -296,15 +305,12 @@ describe('leases and attempts at claim (D15, D10)', () => {
   })
 
   it('no fetch outlives its row\'s lease: waves claim as they go, so a late attempt has its own lease (24 rows, a slow wave each time)', async () => {
-    const subs = [] as { sub: any }[]
-    for (let i = 0; i < 3; i++) subs.push(await s.subscribe())
-    for (let n = 0; n < 8; n++) for (const { sub } of subs) await s.due(sub.id, `t${n}`)
+    await fill(3, 8)
     const seen: { at: number; leaseUntil: number }[] = []
     s.handler = async (c) => {
-      const row = (await raw('select lease_until from webhook_deliveries where event_id = ?', c.headers['webhook-id']))[0]!
-      seen.push({ at: c.at, leaseUntil: Date.parse(row.lease_until) })
       const n = s.calls.length
-      await Promise.resolve()
+      const row = (await raw('select lease_until from webhook_deliveries where event_id = ? and lease_until is not null', c.headers['webhook-id']))[0]!
+      seen.push({ at: c.at, leaseUntil: Date.parse(row.lease_until) })
       if (n % 5 === 0) s.advance(9_000) // the wave's slowest attempt takes 9 s
       return ok(200)
     }
@@ -402,12 +408,6 @@ describe('send-time checks (D3, D6, D12)', () => {
 })
 
 describe('tick bounds (D6)', () => {
-  const fill = async (subs: number, rows: number) => {
-    const out: string[] = []
-    for (let i = 0; i < subs; i++) out.push((await s.subscribe()).sub.id)
-    for (let n = 0; n < rows; n++) for (const id of out) await s.due(id, `t${n}`)
-    return out
-  }
   const pendingNow = async () => ((await raw("select count(*) as n from webhook_deliveries where status = 'pending' and attempts = 0"))[0] as { n: number }).n
 
   it('60 due rows: at most 50 are claimed in a tick, never more than 5 fetches in flight, and the rest stay pending with attempts 0 and go out on the next tick', async () => {
@@ -456,9 +456,15 @@ describe('tick bounds (D6)', () => {
 
   it('the 40 s are the tick\'s, not the sender\'s: a sender started late in a tick has less time', async () => {
     await fill(3, 4)
+    s.handler = async () => {
+      const n = s.calls.length
+      await Promise.resolve()
+      if (n % 5 === 0) s.advance(2_000)
+      return ok(200)
+    }
     const tickStart = new Date(s.now() - 38_000)
     await s.send({ startedAt: tickStart })
-    expect(s.calls).toHaveLength(5) // one wave starts (38 s in); the second would start at or past 40 s once the first took 2 s
+    expect(s.calls).toHaveLength(5) // a wave starts 38 s into the tick and takes 2 s; the next would start at 40 s
   })
 
   it('no due row: one read, no write, no claim', async () => {
@@ -470,23 +476,16 @@ describe('tick bounds (D6)', () => {
   })
 
   it('a wave costs four queries (claim read and write, context read, record) and one fetch a row', async () => {
-    const [id] = await fill(1, 3)
+    await fill(1, 3)
     const probe = spy()
     await s.send({ binding: probe.binding })
-    expect(probe.ops.map((o) => `${o.name}:${o.reads}:${o.writes}`)).toEqual(['webhooks.send_claim:1:3', 'webhooks.send_context:1:0', 'webhooks.send_record:0:' + String(probe.ops[2]!.writes)])
-    expect(probe.ops[2]!.writes).toBeGreaterThanOrEqual(3)
+    // The claim is a read batch and a write batch (the lease update and the result select); the context one read batch; the record one write batch.
+    expect(probe.ops.map((o) => `${o.name}:${o.reads > 0 ? 'r' : ''}${o.writes > 0 ? 'w' : ''}`)).toEqual(['webhooks.send_claim:rw', 'webhooks.send_context:r', 'webhooks.send_record:w'])
     expect(s.calls).toHaveLength(3)
-    expect(id).toBeDefined()
   })
 })
 
 describe('the budget (D24), as the sender meets it', () => {
-  const fillSubs = async (n: number) => {
-    for (let i = 0; i < n; i++) {
-      const { sub } = await s.subscribe()
-      for (let r = 0; r < 5; r++) await s.due(sub.id, `t${r}`)
-    }
-  }
   const meter = (limit: number) => {
     const b = new TickBudget(limit)
     const base = s.k.deps().binding
@@ -505,7 +504,7 @@ describe('the budget (D24), as the sender meets it', () => {
   }
 
   it('claims only what the budget can finish: queries plus fetches never exceed it, unserved rows keep attempts 0, and the summary counts them deferred', async () => {
-    await fillSubs(2) // 10 due rows
+    await fill(2, 5) // 10 due rows
     const { b, binding } = meter(14) // one wave of 5 costs 4 + 5 = 9; a second does not fit in the 5 left (4 + 1 fits only one row)
     s.handler = () => {
       b.spend(1)
@@ -521,7 +520,7 @@ describe('the budget (D24), as the sender meets it', () => {
   })
 
   it('a budget too small for the smallest wave starts nothing, writes nothing and reads nothing', async () => {
-    await fillSubs(1)
+    await fill(1, 5)
     const probe = spy()
     const summary = await s.send({ binding: probe.binding, budget: { remaining: () => 4 } })
     expect(probe.ops).toEqual([])

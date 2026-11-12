@@ -40,7 +40,7 @@ const subscribe = async (wk: ReturnType<typeof worker>, n = 1) => {
   return ids
 }
 const task = async (wk: ReturnType<typeof worker>, title: string) => expect((await call(wk, 'POST', '/api/v1/tasks', { title })).status).toBe(201)
-const logs = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c) => String(c[0]))
+const logs = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((c) => String(c[0]))
 
 beforeAll(async () => {
   w = await openWorkerD1()

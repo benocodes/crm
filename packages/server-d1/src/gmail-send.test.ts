@@ -84,7 +84,7 @@ it('production tick caps real Gmail work at two and the next tick serves the rem
   const external=fetches+starts+(bucket.gets.length-getBefore)
   console.log('MEASURE '+JSON.stringify({key:'gmail-tick-100-2',...m,external,total:m.queries+external}))
   expect(mail.sendRequests).toHaveLength(2);expect(m.queries+external).toBeLessThanOrEqual(50)
-  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:22,external:10,total:32})
+  expect({queries:m.queries,external,total:m.queries+external}).toEqual({queries:23,external:10,total:33}) // API220: 22 + the webhook sender's one claim read (no subscription here, so no write and no fetch)
   expect(m.maxParameters).toBeLessThanOrEqual(100);expect(m.maxStatementBytes).toBeLessThanOrEqual(100000)
   expect((await sql("select count(*) as n from action_requests where status='expired'"))[0].n).toBe(100)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(4)
@@ -174,7 +174,7 @@ it('production cap includes dispatch plus immediate terminal reconciliation, wit
   const external=fetches+starts+bucket.gets.length+bucket.calls.length-io
   console.log('MEASURE '+JSON.stringify({key:'gmail-terminal-tick',...measured,external,total:measured.queries+external}))
   expect(measured.queries+external).toBeLessThanOrEqual(50)
-  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:22,external:10,total:32})
+  expect({queries:measured.queries,external,total:measured.queries+external}).toEqual({queries:23,external:10,total:33}) // API220: 22 + the webhook sender's one claim read (no subscription here, so no write and no fetch)
   expect(mail.sendRequests).toHaveLength(2);expect(starts).toBe(2)
   expect((await sql("select count(*) n from action_executions where status='done'"))[0].n).toBe(2)
   await cold.scheduled({cron:'* * * * *'});expect(mail.sendRequests).toHaveLength(3)
