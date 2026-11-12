@@ -44,6 +44,7 @@ export default defineConfig({
         { label: 'Connect your agents', items: [
           { label: 'Command line', slug: 'guides/cli' },
           { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
+          { label: 'Webhooks', slug: 'guides/webhooks' },
         ] },
         { label: 'API reference', items: [
           { label: 'About the reference', slug: 'api-reference/overview' },

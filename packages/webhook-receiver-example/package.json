@@ -1,0 +1,23 @@
+{
+  "name": "@vault/webhook-receiver-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A copyable Cloudflare Worker that receives a vault webhook, starts a Workflow keyed by the event id and answers 2xx at once; the Workflow reads the message with its own agent and proposes a reply through the action-request rail ([[API7]] D21).",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "WRANGLER_SEND_METRICS=false wrangler deploy --dry-run --outdir dist",
+    "dev": "wrangler dev --local --port 8789",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@vault/api": "workspace:*",
+    "esbuild": "0.28.2",
+    "standardwebhooks": "1.1.1",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3",
+    "wrangler": "4.149.0"
+  }
+}

@@ -1,0 +1,11 @@
+// The webhook receiver example ([[API7]] D21): one Worker with one Workflow binding. Deployed by you (see README); no account id here, it comes from CLOUDFLARE_ACCOUNT_ID.
+// Secrets (WEBHOOK_SECRET, VIBASE_API_KEY) are never put here: `.dev.vars` locally, `wrangler secret put` when deployed.
+{
+  "name": "vibase-webhook-receiver",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-30",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": { "VIBASE_URL": "https://api.example.com" },
+  "workflows": [{ "binding": "REPLY_WORKFLOW", "name": "vibase-reply-example", "class_name": "ReplyWorkflow" }]
+}
