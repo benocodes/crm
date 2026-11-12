@@ -79,6 +79,9 @@ importers:
       chat:
         specifier: 4.43.0
         version: 4.43.0(zod@4.6.5)
+      standardwebhooks:
+        specifier: 1.1.1
+        version: 1.1.1
       tsx:
         specifier: 4.23.15
         version: 4.23.15
