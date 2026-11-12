@@ -138,6 +138,12 @@ export interface AccountOperation extends OperationBase {
 export type Operation = TenantOperation | AccountOperation
 export type AnyResource = PreparedResource<any, any>
 
+/**
+ * [[API6]] D4: how an event's `resource_type` is shown in the feed. `scope`: the resource whose `read` scope the caller needs; `edge`: also checked
+ * on the edge record's endpoint types (the association events). `invisible`: never shown, with the reason (fail closed: a type with no entry is the same).
+ */
+export type EventTypeDecl = { scope: string; edge?: true } | { invisible: string }
+
 const OP_NAME = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
 const TOOL_NAME = /^[a-z0-9_]{1,64}$/
 
@@ -192,6 +198,14 @@ export class Registry {
 
   operations(): readonly Operation[] {
     return this.ops
+  }
+
+  registerEventType(_type: string, _decl: EventTypeDecl): this {
+    return this
+  }
+
+  eventTypes(): ReadonlyMap<string, EventTypeDecl> {
+    return new Map()
   }
 
   /** Replaces a registered operation with `change(op)`: the name, method and path must not move. For a hand-written stage on a generated operation ([[CHN155]] D91). */
