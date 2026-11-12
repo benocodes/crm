@@ -50,6 +50,9 @@ export const SCOPE_POLICY: ScopePolicy = {
   'connections:write': { member: true, agentGrantable: false },
   // The event feed ([[API6]] D4): history of everything the caller may also read; each event is additionally filtered by its resource's own read scope.
   'events:read': { member: true, agentGrantable: true },
+  // Webhook subscriptions ([[API7]] D2): integration plumbing, administered by owners and by the agent that owns one. Members never hold them (an endpoint may embed a token); no request_approval (a create answers a secret once).
+  'webhooks:read': { member: false, agentGrantable: true },
+  'webhooks:write': { member: false, agentGrantable: true },
   // Schema discovery ([[API63]] D8): designing against the schema is expected agent work.
   'schema:read': { member: true, agentGrantable: true },
   // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
@@ -97,6 +100,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'connections:read': 'See which mailboxes are connected and whether they are syncing',
   'connections:write': 'Connect and disconnect mailboxes',
   'events:read': 'Read the change feed: what changed, when and by whom, for the records you can already read',
+  'webhooks:read': 'View webhook subscriptions: where events are sent and for which types',
+  'webhooks:write': 'Create, change, pause and delete webhook subscriptions and rotate their signing secrets',
   'schema:read': 'Read the data schema: record types, fields and relations',
   'members:read': 'View the members of the workspace',
   'agents:read': 'View the workspace agents and their access',

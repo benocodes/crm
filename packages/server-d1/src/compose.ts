@@ -1,4 +1,4 @@
-import { CALLBACK_PATH, MAIL_SYNC_CRON, RAIL_CRON, railTick, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
+import { CALLBACK_PATH, parseWebhooksConfig, MAIL_SYNC_CRON, RAIL_CRON, railTick, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
 import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -90,7 +90,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -126,6 +126,8 @@ export function composeD1Worker(
 
   // [[CHN5]] D58: parsed once; the app logs what is missing or malformed (names only) and gates the Gmail surface on it.
   const gmail = parseGmailConfig(vars)
+  // [[API7]] D12, D13: read from `CREDENTIALS_KEY` on its own, so webhooks do not depend on the Google variables above.
+  const webhooks = parseWebhooksConfig(vars)
   // [[CHN5]] D87: push is judged once, by the parser `setup:remote` shares. It is ON only with Gmail and the MAIL_SYNC binding too; the app logs why when it is not.
   const pushParsed = parsePushConfig(vars)
   const pushOn = gmail.config !== null && env.MAIL_SYNC !== undefined && pushParsed.config !== null
@@ -175,7 +177,7 @@ export function composeD1Worker(
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
-    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
+    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, webhooks, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
 
   async function ensure(): Promise<App | undefined> {
     if (app) return app

@@ -25,7 +25,7 @@ export interface Catalog {
  * D9: tables that are engine or channel mechanism, never listed: the D1 tenancy marker, the runtime's assertion table, and
  * the channel provider-id maps ([[CORE25]] D17). `_cf_*`, `sqlite_*` and `d1_migrations` are excluded in SQL, by prefix.
  */
-export const HIDDEN_TABLES: readonly string[] = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors']
+export const HIDDEN_TABLES: readonly string[] = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'webhook_secrets', 'webhook_dispatch_state']
 
 /** D6: a column's default label is its name with `_` as spaces and the first letter capitalised (`due_at` -> "Due at"). */
 export const defaultLabel = (name: string): string => {
@@ -384,6 +384,17 @@ export const CATALOG: Catalog = {
         result: 'What the operation produced, as JSON; null until done.',
         error_code: 'Why it failed: reauth_required, permission_missing, anchor_missing, provider_rejected, outcome_unknown, attempts_exhausted or deadline_passed.',
         error_message: 'The vault\'s sentence for the failure; never a provider\'s own text.',
+      },
+    },
+    webhook_subscriptions: {
+      label: 'Webhook subscriptions',
+      description: 'An agent\'s standing request to have events POSTed, signed, to one https URL. Each belongs to one agent, which receives only event types it could read itself. Managed through the webhooks operations; the signing secret is shown once, when it is created or rotated, and is never stored readably.',
+      columns: {
+        agent_id: 'The agent that owns the subscription: whose read scopes decide which events it may receive.',
+        url: 'Where the events are POSTed: https, a public host, at most 2048 characters.',
+        event_types: 'The exact event types delivered (for example task.created), as a JSON array of 1 to 20 strings.',
+        status: 'active, paused (by a caller) or disabled (by the vault after sustained failure).',
+        deleted_at: 'When the subscription was deleted; null while it exists.',
       },
     },
     associations: {

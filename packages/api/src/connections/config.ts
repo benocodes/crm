@@ -26,7 +26,7 @@ const REQUIRED = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRE
 const present = (v: string | undefined): v is string => typeof v === 'string' && v.trim() !== ''
 
 /** base64 (standard alphabet, padded) to bytes; null when it is not base64. */
-function decodeBase64(text: string): Uint8Array | null {
+export function decodeBase64(text: string): Uint8Array | null {
   const t = text.trim()
   if (t.length === 0 || t.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(t)) return null
   try {

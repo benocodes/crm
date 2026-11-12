@@ -46,10 +46,10 @@ describe('hosts', () => {
     for (const u of ['https://2130706433/hook', 'https://0x7f000001/hook', 'https://127.1/hook', 'https://0177.0.0.1/hook']) no(u)
   })
   it('refuses IPv6 literals: loopback, unspecified, unique local, link-local, and IPv4-mapped private or loopback', () => {
-    for (const h of ['[::1]', '[::]', '[fc00::1]', '[fd12:3456::1]', '[fe80::1]', '[febf::1]', '[::ffff:10.0.0.1]', '[::ffff:7f00:1]', '[::ffff:100.64.0.1]', '[::ffff:169.254.169.254]']) no(`https://${h}/hook`)
+    for (const h of ['[::1]', '[::]', '[fc00::1]', '[fd12:3456::1]', '[fe80::1]', '[febf::1]', '[::ffff:10.0.0.1]', '[::ffff:7f00:1]', '[::ffff:100.64.0.1]', '[::ffff:169.254.169.254]', '[fec0::1]', '[64:ff9b::a00:1]']) no(`https://${h}/hook`)
   })
   it('accepts a public IPv6 literal and a mapped public IPv4', () => {
-    for (const h of ['[2606:4700:4700::1111]', '[2001:db8::1]', '[fec0::1]', '[::ffff:203.0.113.7]']) ok(`https://${h}/hook`)
+    for (const h of ['[2606:4700:4700::1111]', '[2001:db8::1]', '[::ffff:203.0.113.7]', '[64:ff9b::cb00:7107]']) ok(`https://${h}/hook`)
   })
 })
 
