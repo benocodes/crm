@@ -3,7 +3,7 @@ import { uuidv7 } from '@vault/storage'
 import { readStableFeed } from '../events/feed.js'
 import { OWNER_SCOPES, openWebhookKit, type WebhookKit } from '../test/webhook-kit.js'
 
-// API7 cycle 1 (invariant 5, D5, D19 fail-closed): every write emits exactly one event in its own unit, reads emit none, `webhook.*` events are invisible in the feed, and
+// API7 cycle 1 (invariant 5, D5, D19 fail-closed): every write emits exactly one event in its own unit, reads emit none, `webhook.*` events follow D19's owner predicate (flipped by API219), and
 // the creation horizon is the subscription's own creation event.
 let k: WebhookKit
 beforeAll(async () => {
@@ -130,28 +130,31 @@ describe('atomicity: a failing statement leaves nothing of the unit', () => {
   })
 })
 
-describe('webhook events are invisible in the feed (D19, fail closed until API219)', () => {
-  it('an owner and an agent holding webhooks:read and events:read see none, in list, in a type filter and in get', async () => {
+describe('webhook events in the feed (D19: flipped from the cycle 1 fail-closed rule)', () => {
+  it('an owner holding webhooks:read sees them in list, type filter and get; an agent that owns none, or lacks webhooks:read, sees none', async () => {
     const a = await k.seedAgent(TASKS)
     const made = await k.create(a)
     await k.owner('PATCH', `${BASE}/${made.id}`, { status: 'paused' })
     const raw = await webhookEvents()
     expect(raw).toHaveLength(2)
     await k.e.d1!.prepare("INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id) VALUES (?, ?, ?, 'task.created', 'task', ?, ?)").bind(uuidv7(), '2026-11-12T09:00:00.000Z', k.e.organizationId, uuidv7(), k.e.userId).run()
-    const scopes = ['webhooks:read', 'events:read', 'tasks:read']
-    for (const who of [{ as: 'user' as const, scopes: OWNER_SCOPES }, { as: 'agent' as const, id: k.e.agentId, scopes }]) {
-      const list = await k.call(who, 'GET', '/api/v1/events?limit=200')
-      expect(list.status, list.text).toBe(200)
-      expect(list.body.data.map((e: any) => e.type)).toEqual(['task.created'])
-      const filtered = await k.call(who, 'GET', '/api/v1/events?type=webhook.created')
-      expect(filtered.body.data).toEqual([])
+    const owner = { as: 'user' as const, scopes: OWNER_SCOPES }
+    const list = await k.call(owner, 'GET', '/api/v1/events?limit=200')
+    expect(list.status, list.text).toBe(200)
+    expect(list.body.data.map((e: any) => e.type)).toEqual(['webhook.created', 'webhook.updated', 'task.created'])
+    expect((await k.call(owner, 'GET', '/api/v1/events?type=webhook.created')).body.data).toHaveLength(1)
+    for (const e of raw) expect((await k.call(owner, 'GET', `/api/v1/events/${e.id}`)).status).toBe(200)
+    // The seeded agent owns no subscription (webhooks:read or not), and without webhooks:read nobody but an owner sees any.
+    for (const scopes of [['webhooks:read', 'events:read', 'tasks:read'], ['events:read', 'tasks:read']]) {
+      const who = { as: 'agent' as const, id: k.e.agentId, scopes }
+      expect((await k.call(who, 'GET', '/api/v1/events?limit=200')).body.data.map((e: any) => e.type)).toEqual(['task.created'])
+      expect((await k.call(who, 'GET', '/api/v1/events?type=webhook.created')).body.data).toEqual([])
       for (const e of raw) expect((await k.call(who, 'GET', `/api/v1/events/${e.id}`)).status).toBe(404)
     }
   })
 
-  it('the registry lists webhook as an invisible event type, with a reason', () => {
-    const decl = k.registry.eventTypes().get('webhook')
-    expect(decl && 'invisible' in decl ? decl.invisible : null).toMatch(/API219|owner predicate/)
+  it('the registry declares webhook under the webhooks scope with an owner predicate on agent_id, no longer invisible', () => {
+    expect(k.registry.eventTypes().get('webhook')).toEqual({ scope: 'webhooks', owner: { path: '$.agent_id' } })
   })
 })
 

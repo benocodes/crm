@@ -2,6 +2,7 @@
 // an injected clock, a caller that is the owner (a user) or an agent with explicit token scopes, and raw readers of the three webhook tables.
 import { uuidv7 } from '@vault/storage'
 import { createVaultRegistry } from '../operations.js'
+import { dispatchWebhooks, type DispatchDeps, type DispatchSummary } from '../webhooks/dispatch.js'
 import { createApp } from '../rest/app.js'
 import type { WebhooksRuntime } from '../webhooks/config.js'
 import { openD1Engine, type Engine } from './engines.js'
@@ -45,6 +46,18 @@ export interface WebhookKit {
   /** Creates a subscription as the owner for `agentId`; asserts success. */
   create(agentId: string, body?: Record<string, unknown>): Promise<any>
   all<T = Record<string, any>>(sqlText: string, ...binds: unknown[]): Promise<T[]>
+  /** The dependencies the dispatcher takes ([[API219]]): the engine's binding, the registry, the kit's clock and an id source on it. */
+  deps(): DispatchDeps
+  /** One dispatch tick, as the per-minute cron runs it. */
+  dispatch(): Promise<DispatchSummary>
+  /** A raw `events` row (the next `seq`), for events no operation emits; returns its id. `after`/`before` are stored as JSON. */
+  rawEvent(type: string, over?: { resourceType?: string; after?: unknown; before?: unknown }): Promise<string>
+  /** A task created through the REST app as the owner (one `task.created` event); returns that event's id. */
+  task(title: string): Promise<string>
+  /** `webhook_dispatch_state.cursor_event_id` of a subscription. */
+  cursorOf(subscriptionId: string): Promise<string>
+  /** The raw delivery rows of a subscription (all when omitted), oldest id first. */
+  deliveries(subscriptionId?: string): Promise<Record<string, any>[]>
   close(): Promise<void>
   reset(): Promise<void>
 }
@@ -92,6 +105,23 @@ export async function openWebhookKit(opts: { key?: Uint8Array | null; version?: 
       if (r.status >= 300) throw new Error(`create failed ${r.status}: ${r.text}`)
       return r.body
     },
+    deps: () => ({ binding: e.binding, registry, clock, newId: () => uuidv7(clock()) }),
+    dispatch: () => dispatchWebhooks(kit.deps()),
+    async rawEvent(type: string, over: { resourceType?: string; after?: unknown; before?: unknown } = {}) {
+      const id = uuidv7()
+      const json = (v: unknown) => (v === undefined ? null : JSON.stringify(v))
+      await e.d1!.prepare('INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, '2026-11-12T09:00:00.000Z', e.organizationId, type, over.resourceType ?? type.slice(0, type.indexOf('.')), uuidv7(), e.userId, json(over.before), json(over.after)).run()
+      return id
+    },
+    async task(title: string) {
+      const r = await kit.call({ as: 'user', scopes: [...OWNER_SCOPES, 'tasks:write'] }, 'POST', '/api/v1/tasks', { title })
+      if (r.status >= 300) throw new Error(`task failed ${r.status}: ${r.text}`)
+      return ((await kit.all("select id from events where type = 'task.created' and resource_id = ?", r.body.id))[0] as { id: string }).id
+    },
+    async cursorOf(subscriptionId: string) {
+      return ((await kit.all('select cursor_event_id from webhook_dispatch_state where subscription_id = ?', subscriptionId))[0] as { cursor_event_id: string }).cursor_event_id
+    },
+    deliveries: (subscriptionId?: string) => (subscriptionId === undefined ? kit.all('select * from webhook_deliveries order by id') : kit.all('select * from webhook_deliveries where subscription_id = ? order by id', subscriptionId)),
     async all(sqlText: string, ...binds: unknown[]) {
       return ((await e.d1!.prepare(sqlText).bind(...binds).all()).results ?? []) as any[]
     },

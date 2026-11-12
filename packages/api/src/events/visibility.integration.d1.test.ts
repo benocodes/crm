@@ -51,7 +51,7 @@ const rawEvent = async (type: string, resourceType: string, extra: { before?: un
   return id
 }
 
-// Every resource type the code emits, the read scope it is shown under, and the event types it emits (D4). `null`: invisible by design (#217).
+// Every resource type the code emits, the read scope it is shown under, and the event types it emits (D4). `null`: invisible by design (#217). `webhook` is shown under `webhooks:read` to a user; an agent sees only its own subscriptions' events (API219 D19, webhooks/owner-visibility).
 const MATRIX: [resourceType: string, readScope: string | null, types: string[]][] = [
   ['task', 'tasks:read', ['task.created', 'task.updated', 'task.deleted']],
   ['contact', 'contacts:read', ['contact.created', 'contact.updated', 'contact.deleted', 'contact.merged']],
@@ -74,7 +74,7 @@ const MATRIX: [resourceType: string, readScope: string | null, types: string[]][
   ['membership', 'members:read', ['membership.created', 'membership.updated', 'membership.deleted']],
   ['organization', 'members:read', ['organization.created', 'organization.updated']],
   ['action_request', null, ['action_request.created', 'action_request.executed', 'action_request.failed', 'action_request.expired', 'action_request.superseded']],
-  ['webhook', null, ['webhook.created', 'webhook.updated', 'webhook.deleted', 'webhook.secret_rotated']],
+  ['webhook', 'webhooks:read', ['webhook.created', 'webhook.updated', 'webhook.deleted', 'webhook.secret_rotated']],
   ['action_execution', null, ['action_execution.created', 'action_execution.completed', 'action_execution.failed']],
 ]
 
@@ -122,8 +122,8 @@ describe('visibility per resource type (matrix)', () => {
     const unplaced = [...emitted].filter((t) => !decl.has(t))
     expect(unplaced, 'emitted resource types with neither a scope entry nor an invisible entry').toEqual([])
     const invisible = [...decl].filter(([, d]) => 'invisible' in d).map(([t]) => t).sort()
-    expect(invisible).toEqual(['action_execution', 'action_request', 'webhook'])
-    for (const [, d] of decl) if ('invisible' in d) expect(d.invisible).toMatch(/#217|API219/)
+    expect(invisible).toEqual(['action_execution', 'action_request'])
+    for (const [, d] of decl) if ('invisible' in d) expect(d.invisible).toMatch(/#217/)
     for (const [t, readScope] of MATRIX.map(([t, s]) => [t, s] as const)) {
       const d = decl.get(t)
       expect(d, t).toBeDefined()
