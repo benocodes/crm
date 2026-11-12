@@ -20,8 +20,9 @@
     "./test/workerd-boundary": "./src/test/workerd-boundary.ts",
     "./test/rail": "./src/test/rail-kit.ts"
   },
+  "//": "test: --maxWorkers=4 is the default file parallelism, chosen by measurement (OPS223 D4); pass a lower --maxWorkers=N on a loaded machine and name N in RESULT.md. Postgres stays serial (vitest.projects.ts).",
   "scripts": {
-    "test": "vitest run --config ../../vitest.config.ts",
+    "test": "vitest run --config ../../vitest.config.ts --maxWorkers=4",
     "test:postgres": "vitest run --config ../../vitest.postgres.config.ts",
     "typecheck": "tsc --noEmit",
     "golden:generate": "tsx scripts/golden.ts generate",
