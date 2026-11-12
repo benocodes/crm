@@ -1,5 +1,5 @@
-// [[API7]] D24 ([[API220]]): the one budget of the per-minute invocation. It counts D1 queries (a `batch()` is one) and outbound fetches together, as Workers Free counts them (the repo's measured-limits
-// rule: queries + outbound <= 50). The composition does the counting (a counting D1 and a counting fetch wrap what the tick's phases are given); a phase only ASKS `remaining()` before it starts a unit,
+// [[API7]] D24 ([[API220]]): the one budget of the per-minute invocation. It counts D1 queries (a `batch()` is one) and every outbound call together (fetches, R2 operations and Workflow creates),
+// as Workers Free counts them (the repo's measured-limits rule: queries + external <= 50). The composition does the counting (a counting D1, fetch, R2 bucket and Workflow binding wrap what the tick's phases are given); a phase only ASKS `remaining()` before it starts a unit,
 // so a tick never starts work it cannot finish. Exhaustion defers, never fails.
 
 /** What a phase sees of the budget. */

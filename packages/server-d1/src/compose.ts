@@ -2,7 +2,7 @@ import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGE
 import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
-import { countD1 } from './count-d1.js'
+import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { gmailTransport } from '@vault/api'
 
@@ -137,10 +137,11 @@ export function composeD1Worker(
 
   const clock = deps.clock ?? (() => new Date())
   // [[AGT8]] D52/D70: the real Gmail transport is shared by waitUntil and cron; test transports only arrive through `deps`.
-  const transportsFor=(binding:D1Binding,counted?:typeof fetch):TransportRegistry=>{
+  const transportsFor=(binding:D1Binding,counted?:{fetch:typeof fetch;bodies:R2BucketLike;instances:MailSyncInstances|undefined}):TransportRegistry=>{
     if(deps.transports)return deps.transports
     if(!gmail.config||!env.BODIES)return {}
-    return {gmail:gmailTransport({binding,organizationId:binding.organizationId,config:gmail.config,objects:r2ObjectStore(env.BODIES),clock,newId:deps.newId??(()=>uuidv7(clock())),randomBytes:n=>crypto.getRandomValues(new Uint8Array(n)),...(counted??deps.fetch?{fetch:(counted??deps.fetch)!}:{}),...(env.MAIL_SYNC?{instances:env.MAIL_SYNC}:{})})}
+    const instances=counted?counted.instances:env.MAIL_SYNC
+    return {gmail:gmailTransport({binding,organizationId:binding.organizationId,config:gmail.config,objects:r2ObjectStore(counted?counted.bodies:env.BODIES),clock,newId:deps.newId??(()=>uuidv7(clock())),randomBytes:n=>crypto.getRandomValues(new Uint8Array(n)),...(counted?.fetch??deps.fetch?{fetch:(counted?.fetch??deps.fetch)!}:{}),...(instances?{instances}:{})})}
   }
   // [[CHN5]] D78: parsed once (a bad value is logged by name, never by value). Off, `fetchFor` hands back `deps.fetch` itself, so nothing is wrapped.
   const recording = googleRecording({ raw: vars.GOOGLE_RECORDING_UNTIL, bucket: env.BODIES, clock, plain: deps.fetch })
@@ -272,7 +273,7 @@ export function composeD1Worker(
     railRegistry ??= createVaultRegistry(deps.operations ? { operations: deps.operations } : {})
     let failure: unknown
     try {
-      const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding, outbound), clock, newId,...(deps.transports?{}:{dueLimit:2}) })
+      const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding, { fetch: outbound, bodies: countCalls(env.BODIES ?? ({} as R2BucketLike), ['get', 'put', 'delete', 'createMultipartUpload'], budget), instances: env.MAIL_SYNC ? countCalls(env.MAIL_SYNC, ['create'], budget) : undefined }), clock, newId,...(deps.transports?{}:{dueLimit:2}) })
       console.log(`[cron] ${controller.cron}: rail expired ${out.expired} request(s), attempted ${out.attempted} execution(s)`)
     } catch (err) {
       console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
