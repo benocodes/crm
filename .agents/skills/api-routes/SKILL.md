@@ -311,6 +311,13 @@ a route or an MCP tool that bypasses the registry.
   process: the stale-cache re-parse in `packages/cli/src/cli.ts` reads it through a memoised `io.readStdin`
   (`stdin ??= deps.readStdin()`), so a genuine usage error (bad JSON) answers the same on a cached run as on a fresh
   one. Any new retry around input parsing reuses that `io`, never `deps.readStdin` directly ([[CORE136]] review).
+- **A hand-written CLI command rides the derived one.** `vibase events tail` (`packages/cli/src/tail.ts`, [[API215]])
+  finds the derived `events.list` command, checks its filters with `parseInvocation` (so a flag is exactly as strict as on
+  `events list`), and sends through `sendRequest` in `packages/cli/src/http.ts`, the one place with the [[API6]] D18
+  same-origin check and the bearer header. Never build a URL or an `authorization` header by hand. Dispatch it in
+  `cli.ts` before the generic lookup, and add it to `resourceHelp`/`topHelp` beside the derived actions. A command that
+  runs for long (`--follow`) resolves its credential **per request** (a `Credential` function: `ensureFresh`, one refresh
+  and retry on `401`), never once at start, or an OAuth profile expires mid-run (D20).
 - There is no Hono RPC (`hc`) typing: a registry built in a loop gives no static route types. A TypeScript
   consumer that needs typed calls should generate a client from `/api/v1/openapi.json` and `/meta/v1/openapi.json` ([[CORE15]], [[API32]]).
 
