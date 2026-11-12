@@ -154,7 +154,11 @@ describe('one budget for the whole tick (D24)', () => {
     expect(sendLine.length).toBeGreaterThan(0)
     const after = await cursors()
     const moved = after.filter((c, i) => c !== before[i]).length
-    expect(moved).toBeLessThan(SUBS) // some subscriptions were deferred and kept their cursor
+    // The marker read and the rail spent 24 of the 50 (rail.test's pin of 25 less dispatch's own read), so dispatch may spend half of the 26 left: 13, which is the eligibility read and six
+    // subscriptions' pages (2 each). The other four keep their cursors.
+    expect(moved).toBe(6)
+    expect(dispatchLine.join('\n')).toMatch(/4 deferred/)
+    expect(sendLine.join('\n')).toMatch(/deferred [1-9]/)
     expect((await rows("select count(*) as n from webhook_deliveries"))[0]!.n).toBeLessThan(SUBS * 3)
     expect(m.maxParameters).toBeLessThanOrEqual(100)
   })
