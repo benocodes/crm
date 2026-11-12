@@ -48,6 +48,8 @@ export const SCOPE_POLICY: ScopePolicy = {
   // Connections ([[CHN5]] D20): members connect their own mailboxes; writing needs a person at Google's consent screen, so it is human-only.
   'connections:read': { member: true, agentGrantable: true },
   'connections:write': { member: true, agentGrantable: false },
+  // The event feed ([[API6]] D4): history of everything the caller may also read; each event is additionally filtered by its resource's own read scope.
+  'events:read': { member: true, agentGrantable: true },
   // Schema discovery ([[API63]] D8): designing against the schema is expected agent work.
   'schema:read': { member: true, agentGrantable: true },
   // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
@@ -94,6 +96,7 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'action_requests:read': 'View the queue of proposed changes and how each was decided',
   'connections:read': 'See which mailboxes are connected and whether they are syncing',
   'connections:write': 'Connect and disconnect mailboxes',
+  'events:read': 'Read the change feed: what changed, when and by whom, for the records you can already read',
   'schema:read': 'Read the data schema: record types, fields and relations',
   'members:read': 'View the members of the workspace',
   'agents:read': 'View the workspace agents and their access',

@@ -138,12 +138,19 @@ export interface AccountOperation extends OperationBase {
 export type Operation = TenantOperation | AccountOperation
 export type AnyResource = PreparedResource<any, any>
 
+/**
+ * [[API6]] D4: how an event's `resource_type` is shown in the feed. `scope`: the resource whose `read` scope the caller needs; `edge`: also checked
+ * on the edge record's endpoint types (the association events). `invisible`: never shown, with the reason (fail closed: a type with no entry is the same).
+ */
+export type EventTypeDecl = { scope: string; edge?: true } | { invisible: string }
+
 const OP_NAME = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
 const TOOL_NAME = /^[a-z0-9_]{1,64}$/
 
 export class Registry {
   private readonly ops: Operation[] = []
   private readonly defs: AnyResource[] = []
+  private readonly explicitEventTypes = new Map<string, EventTypeDecl>()
 
   /** Validates at load: a bad operation is a programming mistake (plain Error). */
   register(op: Operation): this {
@@ -192,6 +199,23 @@ export class Registry {
 
   operations(): readonly Operation[] {
     return this.ops
+  }
+
+  /**
+   * [[API6]] D4: how events of a resource type are shown in the feed, for a type no registered definition names (a command's or an account
+   * operation's). An explicit entry wins over the one a definition registers for the same type, whatever the order.
+   */
+  registerEventType(type: string, decl: EventTypeDecl): this {
+    this.explicitEventTypes.set(type, decl)
+    return this
+  }
+
+  /** The feed's visibility map: every registered definition's `eventName` under its scope resource, then the explicit entries. A type with no entry is invisible. */
+  eventTypes(): ReadonlyMap<string, EventTypeDecl> {
+    const out = new Map<string, EventTypeDecl>()
+    for (const def of this.defs) out.set(def.eventName, { scope: scopeResourceOf(def) })
+    for (const [type, decl] of this.explicitEventTypes) out.set(type, decl)
+    return out
   }
 
   /** Replaces a registered operation with `change(op)`: the name, method and path must not move. For a hand-written stage on a generated operation ([[CHN155]] D91). */

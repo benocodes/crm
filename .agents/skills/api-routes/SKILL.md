@@ -30,7 +30,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/outbox.ts` (`eventStatement`, `eventSetStatement`: the only code that inserts into `events`);
   - `src/events/feed.ts` (`readStableFeed`: the one feed read on D1, paging by `events.seq` after an event-id cursor;
     `events` is append-only by trigger, and every D1 reader of events, tests, e2e and smoke scripts included, orders by
-    `seq`, never `id` or `rowid`: ids are minted before commit, [[API105]]);
+    `seq`, never `id` or `rowid`: ids are minted before commit, [[API105]]). `events.list`/`events.get`
+    (`src/events/operations.ts`, `events:read`, D1 only) filter it in SQL through the registry's **event-type
+    visibility map** (`registry.eventTypes()`): every definition's `eventName` maps to `scopeResourceOf(def)`;
+    anything else that emits a `resourceType` must call `registry.registerEventType(type, { scope } | { scope, edge: true }
+    | { invisible: reason })`, and an explicit entry wins over a definition's. A type with no entry is hidden (fail
+    closed), and `src/events/visibility.integration.d1.test.ts` scans the source for `resourceType: '…'` literals and
+    fails on an emitted type with no entry, so a new emitter must decide its visibility in the same change. An unknown
+    `after` is `unknown_cursor` even when nothing is readable ([[API214]]);
   - `src/storage/internal.ts` (`InternalEnv { now, newId }`, `internalEnv(opts)`: built per request from
     `AppOptions.clock`/`newId`, handed to auth, first sight, the directory and the webhook, [[CORE41]] P5);
   - `src/resources/define.ts` (shared helpers only: `crudActions`, `scopeResourceOf`, `resourcePath`, `parseInput`,
@@ -788,6 +795,9 @@ service context enforces it, so scope checks are written once.
     A catalog test requires the policy's keys to equal `registry.declaredScopes()` exactly, so a cycle that
     declares a scope fails CI until it decides both flags in the same change. Owners hold every declared
     scope. A scope without a row is held by no member and granted to no agent (fail closed).
+  - **A new declared scope is not in a remote Clerk instance until `setup:remote` runs there** ([[OPS65]]):
+    `scopes_supported` advertises it at once, and `vibase login` requests every advertised scope ([[API6]] D19).
+    Name the mirror run as owed for each env in the retro and SPRINT.md (`events:read`, [[API214]]).
   - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
 - **Owner-granted resource authority** ([[AGT8]] D1, D30, D31; shipped in cycle 1): three actions,
   `<resource>:read`, `<resource>:request_approval`, `<resource>:write`. Write includes request_approval; read

@@ -12,7 +12,7 @@ import { FILTER_EXEMPT_LISTS, STATED_FILTER_COSTS } from './filter-costs.js'
 // [[CORE201]] D10, D12, D18: the registry-wide filter contract. The registry's real lists, the real D1 plan of each list's production query at
 // `<column>=eq.<value>` with the default order, the checked-in lists (`filter-costs.ts`) and the NOCASE columns of the real D1 schema are one input to a
 // pure checker; the strength tests then break that input one way at a time and name the check that must notice.
-const HAND_WRITTEN = ['associations', 'users']
+const HAND_WRITTEN = ['associations', 'events', 'users']
 // A filter value that parses as its kind and passes the column's own option (an enum, a UUID, a domain, a SHA-256), tried in order.
 const SAMPLES = ['018f0000-0000-7000-8000-000000000001', 'example.com', 'x', 'a@example.com', '0'.repeat(64), '1', '2026-01-01', 'true']
 // identities.value is normalised by its kind, so the call carries `kind=email` (the plan then has both predicates).
@@ -86,13 +86,13 @@ const find = (v: FilterContractViolation[], check: string, list: string, filter?
 const withDef = (name: string, patch: Partial<FilterContractDef>): FilterContractInput => ({ ...base, lists: base.lists.map((l) => (l.name === name ? { name, def: { ...(l.def as FilterContractDef), ...patch } } : l)) })
 
 describe('the registry satisfies the filter contract (CORE201 D10, D12, D18)', () => {
-  it('has twenty-one generic lists with column filters and exactly the two hand-written ones left out', () => {
+  it('has twenty-one generic lists with column filters and exactly the three hand-written ones left out', () => {
     expect(base.lists.filter((l) => l.def === null).map((l) => l.name).sort()).toEqual(HAND_WRITTEN)
     const generic = base.lists.filter((l) => l.def !== null)
     expect(generic).toHaveLength(21)
     for (const l of generic) expect(Object.keys(l.def!.columnFilters ?? {}).length, `${l.name} column filters`).toBeGreaterThan(0)
   })
-  it('the exemption list is exactly associations and users, each with a reason', () => {
+  it('the exemption list is exactly associations, events and users, each with a reason', () => {
     expect(FILTER_EXEMPT_LISTS.map((x) => x.list).sort()).toEqual(HAND_WRITTEN)
     for (const x of FILTER_EXEMPT_LISTS) expect(x.reason.length, x.list).toBeGreaterThan(10)
   })
