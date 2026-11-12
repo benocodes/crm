@@ -30,19 +30,27 @@ const listQuery = z.object({
   resource_id: z.uuid().optional().describe('The id of the resource the event is about.'),
 })
 
-/** What the caller may see, from its scopes and the registry's event-type map ([[API6]] D4). */
-export function feedVisibility(registry: Registry, env: Pick<PreparedEnv, 'scopes'>): FeedVisibility {
+/**
+ * What the principal may see, from its scopes and the registry's event-type map ([[API6]] D4). The principal matters only for a type with an `owner` predicate ([[API219]] D19): an
+ * agent sees that type's events only for its own records, a user holding the scope sees all. Dispatch passes the subscription's agent with its stored scopes.
+ */
+export function feedVisibility(registry: Registry, env: Pick<PreparedEnv, 'scopes' | 'actor'>): FeedVisibility {
   const can = (resource: string) => env.scopes.has({ resource, action: 'read' })
   const readable: string[] = []
+  const owned: NonNullable<FeedVisibility['owned']>[number][] = []
   let edge: FeedVisibility['edge']
   for (const [type, decl] of registry.eventTypes()) {
     if (!('scope' in decl) || !can(decl.scope)) continue
+    if (decl.owner && env.actor.kind === 'agent') {
+      owned.push({ resourceType: type, path: decl.owner.path, equals: env.actor.id })
+      continue
+    }
     if (decl.edge) {
       // The edge's own scope is held; each endpoint type must be readable too, checked on the stored edge record.
       edge = { resourceType: type, endpointTypes: [...endpointTypesOf(registry.resources()).values()].filter((t) => can(t.read.resource)).map((t) => t.type).sort() }
     } else readable.push(type)
   }
-  return { readable: readable.sort(), ...(edge ? { edge } : {}) }
+  return { readable: readable.sort(), ...(edge ? { edge } : {}), ...(owned.length > 0 ? { owned } : {}) }
 }
 
 const record = (organizationId: string, ev: FeedEvent) => ({

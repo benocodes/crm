@@ -160,7 +160,7 @@ describe('configuration (D12)', () => {
   it('the operations are registered whatever the configuration (the tool lists do not change per deployment)', async () => {
     const bare = await openWebhookKit({ key: null })
     try {
-      expect(bare.registry.operations().filter((o) => o.name.startsWith('webhooks.')).map((o) => o.name).sort()).toEqual(['webhooks.create', 'webhooks.delete', 'webhooks.get', 'webhooks.list', 'webhooks.rotate_secret', 'webhooks.update'])
+      expect(bare.registry.operations().filter((o) => o.name.startsWith('webhooks.')).map((o) => o.name).sort()).toEqual(['webhooks.create', 'webhooks.delete', 'webhooks.deliveries', 'webhooks.get', 'webhooks.list', 'webhooks.rotate_secret', 'webhooks.update'])
       expect(k.registry.declaredScopes()).toEqual(bare.registry.declaredScopes())
     } finally {
       await bare.close()

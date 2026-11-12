@@ -1,4 +1,4 @@
-import { CALLBACK_PATH, parseWebhooksConfig, MAIL_SYNC_CRON, RAIL_CRON, railTick, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
+import { CALLBACK_PATH, parseWebhooksConfig, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vault/api'
 import { uuidv7, type D1Binding } from '@vault/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vault/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -246,7 +246,11 @@ export function composeD1Worker(
     }
   }
 
-  /** The per-minute tick ([[AGT8]] D54): the expiry sweep, then the runner sweep, behind the same gates as the Gmail tick (initialised, not behind its migrations). */
+  /**
+   * The per-minute tick ([[AGT8]] D54, [[API7]] D6): the expiry sweep, then the runner sweep, then webhook dispatch ([[API219]]), behind the same gates as the Gmail tick (initialised, not behind
+   * its migrations). The rail and dispatch are independent: one failing does not stop the other, and the first failure is rethrown after both ran. Dispatch needs no CREDENTIALS_KEY (rows are
+   * written whatever the key; the sender is what skips without it).
+   */
   let railRegistry: Registry | undefined
   async function railScheduled(controller: ScheduledControllerLike): Promise<void> {
     const found = await syncBinding()
@@ -255,13 +259,23 @@ export function composeD1Worker(
       return
     }
     railRegistry ??= createVaultRegistry(deps.operations ? { operations: deps.operations } : {})
+    let failure: unknown
     try {
       const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding), clock, newId,...(deps.transports?{}:{dueLimit:2}) })
       console.log(`[cron] ${controller.cron}: rail expired ${out.expired} request(s), attempted ${out.attempted} execution(s)`)
     } catch (err) {
       console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
-      throw err
+      failure = err
     }
+    try {
+      const out = await dispatchWebhooks({ binding: found.binding, registry: railRegistry, clock, newId })
+      const trouble = [out.unknownCursor > 0 ? `${out.unknownCursor} with an unknown cursor` : '', out.failed > 0 ? `${out.failed} not dispatched` : ''].filter(Boolean)
+      console.log(`[cron] ${controller.cron}: webhooks dispatched ${out.events} event(s) for ${out.subscriptions} subscription(s)${trouble.length > 0 ? ` (${trouble.join(', ')})` : ''}`)
+    } catch (err) {
+      console.error(`[cron] ${controller.cron}: webhook dispatch failed: ${err instanceof Error ? err.name : 'error'}`)
+      failure ??= err
+    }
+    if (failure) throw failure
   }
 
   /** The shared `scheduled` handler ([[CHN5]] D14, [[AGT8]] D54): dispatches on the cron expression; an unknown one is logged, not thrown. */

@@ -52,6 +52,32 @@ describe('the per-minute handler dispatches webhooks after the rail (D6)', () =>
     expect(await rows('select id from webhook_deliveries')).toHaveLength(1)
   })
 
+  // The two halves are independent (a decision of this cycle): one failing does not stop the other, and the failure is rethrown after both ran. A statement that mentions
+  // `table` throws at prepare time, standing in for a database fault in that half only.
+  const breaking = (table: RegExp) => new Proxy(w.d1, { get: (t: any, p) => (p === 'prepare' ? (q: string) => (table.test(q) ? (() => { throw new Error('database fault') })() : t.prepare(q)) : typeof t[p] === 'function' ? t[p].bind(t) : t[p]) }) as typeof w.d1
+  const workerOn = (d1: typeof w.d1, at = NOW) => composeD1Worker({ DB: d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY }, { clock: () => at, newId: () => uuidv7(at) })
+
+  it('a failing rail sweep does not stop dispatch, and the failure is still raised after it', async () => {
+    const wk = worker()
+    await call(wk, 'POST', '/meta/v1/webhooks', { url: 'https://example.com/hook', event_types: ['task.created'] })
+    await call(wk, 'POST', '/api/v1/tasks', { title: 'rail is down' })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(workerOn(breaking(/action_requests/)).scheduled({ cron: '* * * * *' })).rejects.toThrow()
+    expect(await rows('select id from webhook_deliveries')).toHaveLength(1)
+    expect(error.mock.calls.map((c) => String(c[0])).join('\n')).toContain('failed')
+  })
+
+  it('a failing dispatch does not undo the rail, and the failure is raised', async () => {
+    const wk = worker()
+    const r = await call(wk, 'POST', '/api/v1/action-requests', { operation: 'tasks.create', arguments: { title: 't' }, reason: 'r', expires_at: new Date(NOW.getTime() + 60_000).toISOString() })
+    expect(r.status).toBe(201)
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(workerOn(breaking(/webhook_dispatch_state/), new Date(NOW.getTime() + 120_000)).scheduled({ cron: '* * * * *' })).rejects.toThrow()
+    expect((await rows(`select status from action_requests where id = '${r.body.id}'`))[0]!.status).toBe('expired')
+  })
+
   it('the 15-minute expression dispatches nothing', async () => {
     const wk = worker()
     await call(wk, 'POST', '/meta/v1/webhooks', { url: 'https://example.com/hook', event_types: ['task.created'] })

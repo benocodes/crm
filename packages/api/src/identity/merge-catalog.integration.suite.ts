@@ -98,7 +98,7 @@ export function engineSuite(engineName: EngineName): void {
         expect(await d1PolymorphicReferences()).toEqual(listed)
       })
       it('guard: the scan sees associations on both sides (and the audit log resource_id, an exemption), and the entries name real columns', async () => {
-        expect(await d1PolymorphicReferences()).toEqual(['associations.a_id', 'associations.b_id', 'events.resource_id'])
+        expect(await d1PolymorphicReferences()).toEqual(['associations.a_id', 'associations.b_id', 'events.resource_id', 'webhook_deliveries.event_id'])
         for (const r of CONTACT_NON_FK_REFERENCES) {
           const lite = ((await d1.prepare(`SELECT name FROM pragma_table_info('${r.table}')`).all()).results as Array<{ name: string }>).map((x) => x.name)
           for (const c of r.columns) expect(lite).toEqual(expect.arrayContaining([c.id, c.type]))

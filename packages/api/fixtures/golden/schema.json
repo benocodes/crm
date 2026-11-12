@@ -9388,6 +9388,274 @@
                 ]
               },
               {
+                "name": "webhook_deliveries",
+                "origin": "built_in",
+                "label": "Webhook deliveries",
+                "description": "One row per event per webhook subscription: the dispatcher adds it pending when the event reaches the subscription's position in the feed, and the sender settles it as delivered, dead or cancelled. Read a subscription's rows through webhooks.deliveries to see why a hook did or did not fire. The vault writes it; nothing here is edited by callers.",
+                "associable": false,
+                "resource": null,
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "created_by",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created by",
+                    "description": "The principal (user or agent) that created the row.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "principals",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "subscription_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Subscription id",
+                    "description": "The webhook subscription this delivery belongs to.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "webhook_subscriptions",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "event_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Event id",
+                    "description": "The id of the event to deliver (the event feed's id; there is no foreign key, an event id is a position).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "event_type",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Event type",
+                    "description": "The event's type, for example task.created.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "status",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Status",
+                    "description": "pending (waiting or between attempts), delivered, dead (every attempt failed) or cancelled (the subscription was deleted or lost its read scope).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "attempts",
+                    "type": "INTEGER",
+                    "kind": "integer",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "0",
+                    "label": "Attempts",
+                    "description": "How many attempts were started.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "next_attempt_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Next attempt at",
+                    "description": "When the next attempt is due.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "lease_until",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Lease until",
+                    "description": "When the running attempt's lease lapses; internal, never returned.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "lease_token",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Lease token",
+                    "description": "Identifies the sender holding the lease; internal, never returned.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "last_attempt_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Last attempt at",
+                    "description": "When the last attempt started; null before the first.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "last_status_code",
+                    "type": "INTEGER",
+                    "kind": "integer",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Last status code",
+                    "description": "The HTTP status the last attempt got, when it got one.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "last_error",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Last error",
+                    "description": "Why the last attempt failed: timeout, connection_failed, http_status, redirect, sender_failed, cancelled_subscription or cancelled_scope. A response body is never stored.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "delivered_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Delivered at",
+                    "description": "When a 2xx answered; null until then.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  }
+                ],
+                "derived": [],
+                "foreign_keys": [
+                  {
+                    "columns": [
+                      "organization_id"
+                    ],
+                    "references": {
+                      "table": "organizations",
+                      "columns": [
+                        "id"
+                      ]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": [
+                      "created_by"
+                    ],
+                    "references": {
+                      "table": "principals",
+                      "columns": [
+                        "id"
+                      ]
+                    },
+                    "on_delete": "NO ACTION"
+                  },
+                  {
+                    "columns": [
+                      "organization_id",
+                      "subscription_id"
+                    ],
+                    "references": {
+                      "table": "webhook_subscriptions",
+                      "columns": [
+                        "organization_id",
+                        "id"
+                      ]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
+              },
+              {
                 "name": "webhook_subscriptions",
                 "origin": "built_in",
                 "label": "Webhook subscriptions",

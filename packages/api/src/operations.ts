@@ -69,8 +69,8 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime;
   for (const op of executionReadOperations(registry)) registry.register(op)
   for (const op of schemaOperations(() => registry.resources())) registry.register(op)
   for (const op of eventOperations(() => registry)) registry.register(op)
-  // [[API7]] D2, D22: the webhook subscriptions. `webhook` events are invisible until the owner predicate of [[API219]] (D19): fail closed.
-  registry.registerEventType('webhook', { invisible: 'owner predicate, API219 (D19): an agent may see only its own subscriptions\' events' })
+  // [[API7]] D2, D19, D22: the webhook subscriptions. `webhooks:read` shows their events; an agent sees only its own subscriptions' (the record's `agent_id`), a user holding the scope all.
+  registry.registerEventType('webhook', { scope: 'webhooks', owner: { path: '$.agent_id' } })
   for (const op of webhookOperations(options.webhooks ?? null, () => registry)) registry.register(op)
   return registry
 }

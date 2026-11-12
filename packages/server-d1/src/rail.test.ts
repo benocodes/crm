@@ -177,8 +177,9 @@ describe('bounded sweeps (CORE47)', () => {
     const m = meter.take()
     console.log('MEASURE ' + JSON.stringify({ key: 'rail-tick-100-5', ...m }))
     // Pinned from the first green run (a new round trip is a reviewed change): the deployment marker 1, the expiry sweep 2 (plan read, one write batch), the due list 1,
-    // and 4 per execution (claim 1, stamp 1, finish plan read 1, finish batch 1) times 5 = 24. Workers Free allows 50.
-    expect(m.queries).toBe(24)
+    // and 4 per execution (claim 1, stamp 1, finish plan read 1, finish batch 1) times 5 = 24, plus webhook dispatch's one read of the eligible
+    // subscriptions (API219: none here, so nothing else) = 25. Workers Free allows 50.
+    expect(m.queries).toBe(25)
     expect(m.queries).toBeLessThanOrEqual(50)
     expect(m.maxParameters).toBeLessThanOrEqual(100)
     expect(m.maxStatementBytes).toBeLessThanOrEqual(100_000)
