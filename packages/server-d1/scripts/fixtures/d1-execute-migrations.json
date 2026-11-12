@@ -42,6 +42,9 @@
       },
       {
         "name": "0014_search_indexes.sql"
+      },
+      {
+        "name": "0015_event_sequence.sql"
       }
     ],
     "success": true,

@@ -97,7 +97,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
       return goldenSend({ app, clerk, scopes }, actor, method, path, body, now)
     },
     async events() {
-      const rows = (await d1.prepare('SELECT * FROM events ORDER BY rowid').all()).results as Array<Record<string, string | null>>
+      const rows = (await d1.prepare('SELECT * FROM events ORDER BY seq').all()).results as Array<Record<string, string | null>>
       return rows.map(
         (r): EventView => ({
           type: r.type!,

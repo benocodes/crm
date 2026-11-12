@@ -150,9 +150,11 @@ describe('the read program (D2 resolution, D22)', () => {
     expect(await feed({ after: '' })).toEqual({ status: 'unknown_cursor' })
   })
 
-  it('an empty readable list returns nothing', async () => {
+  it('an empty readable list (or an empty types list) returns nothing, even for an unknown cursor: no existence leak', async () => {
     await rawEvent(uuidv7(), 'task.created', 'task')
     expect(await feed({ readable: [] })).toEqual({ status: 'ok', events: [], has_more: false })
+    expect(await feed({ readable: [], after: uuidv7() })).toEqual({ status: 'ok', events: [], has_more: false })
+    expect(await feed({ types: [] })).toEqual({ status: 'ok', events: [], has_more: false })
   })
 
   it('readable and types exclude other types; types is an exact event type', async () => {

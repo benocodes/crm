@@ -86,7 +86,7 @@ export function d1Backend(): ContractBackend {
         async eventsOf(id): Promise<EventRow[]> {
           const rows: EventRow[] = []
           for (const { d1 } of all()) {
-            const r = await d1.prepare('SELECT * FROM events WHERE resource_id = ? ORDER BY id').bind(id).all()
+            const r = await d1.prepare('SELECT * FROM events WHERE resource_id = ? ORDER BY seq').bind(id).all()
             rows.push(...(r.results as EventRow[]).map((e) => ({ ...e, before: parse(e.before), after: parse(e.after) })))
           }
           return rows
