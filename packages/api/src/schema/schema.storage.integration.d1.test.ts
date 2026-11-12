@@ -126,6 +126,7 @@ describe('catalog completeness (D16)', () => {
     const seq = column(doc, 'events', 'seq')
     expect(seq).toBeDefined()
     expect(seq.primary_key).toBe(true)
+    expect(seq.nullable).toBe(false)
     expect(seq.description).toMatch(/commit order/i)
     expect(column(doc, 'events', 'id').description).not.toMatch(/the id is the cursor/i)
     expect(doc.tables.map((t: any) => t.name)).not.toContain('sqlite_sequence')

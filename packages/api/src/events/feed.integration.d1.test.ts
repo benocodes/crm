@@ -116,7 +116,7 @@ describe('emit order and atomicity within a unit', () => {
           decode: () => null,
         }),
     })
-    await expect(e.run(bad)).rejects.toThrow()
+    await expect(e.run(bad)).rejects.toThrow(/rolled back \(not_null\)/)
     expect((await page({})).events).toEqual([])
     expect(await e.rows('events')).toEqual([])
   })

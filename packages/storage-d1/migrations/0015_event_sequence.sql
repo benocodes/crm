@@ -5,7 +5,7 @@
 PRAGMA defer_foreign_keys = on;
 
 CREATE TABLE events_new (
-  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  seq INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   id TEXT NOT NULL UNIQUE
     CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
   created_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),

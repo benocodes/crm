@@ -4857,7 +4857,7 @@
                     "name": "seq",
                     "type": "INTEGER",
                     "kind": "integer",
-                    "nullable": true,
+                    "nullable": false,
                     "primary_key": true,
                     "default": null,
                     "label": "Seq",
