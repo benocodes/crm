@@ -7,6 +7,7 @@ import { identityOperations } from './identity/operations.js'
 import { assertNeighbours, endpointTypesOf } from './associations/definition.js'
 import { associationOperations } from './associations/operations.js'
 import { schemaOperations } from './schema/operations.js'
+import { eventOperations } from './events/operations.js'
 import { Registry } from './registry.js'
 import { agents } from './resources/agents.js'
 import { apiKeys } from './resources/api-keys.js'
@@ -48,6 +49,9 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime;
   for (const op of associationOperations(() => registry.resources())) registry.register(op)
   for (const op of contentOperations()) registry.register(op)
   registry.registerResource(memberships).registerResource(agents).registerResource(apiKeys)
+  // [[API6]] D4: the feed's visibility map. Definitions register their own `eventName`; these are the types no definition names or that the feed hides.
+  registry.registerEventType('association', { scope: 'associations', edge: true })
+  registry.registerEventType('organization', { scope: 'members' })
   for (const op of adminOperations()) registry.register(op)
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
@@ -55,10 +59,13 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime;
   registry.register(messageSendOperation())
   // [[AGT8]] D33: last, because the `operation` enum of `action_requests.create` lists the proposal-eligible operations registered before it.
   registry.registerResource(actionRequests)
+  registry.registerEventType('action_request', { invisible: 'visibility is per row (the target operation\'s authority, AGT8 D38/D57), not per type: a row predicate is #217' })
   for (const op of actionRequestOperations(registry)) registry.register(op)
   // [[AGT8]] D57: the execution reads, after every enqueued operation so a caller's readable set is the registry's whole.
   registry.registerResource(actionExecutions)
+  registry.registerEventType('action_execution', { invisible: 'visibility is per row (the target operation\'s authority, AGT8 D57), not per type: a row predicate is #217' })
   for (const op of executionReadOperations(registry)) registry.register(op)
   for (const op of schemaOperations(() => registry.resources())) registry.register(op)
+  for (const op of eventOperations(() => registry)) registry.register(op)
   return registry
 }

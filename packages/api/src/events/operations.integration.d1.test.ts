@@ -255,6 +255,12 @@ describe('record shape and get (D3, D6)', () => {
     expect((await call([...TASKS, 'contacts:read'], `/api/v1/events/${c}`)).status).toBe(200)
   })
 
+  it('ids are matched case-insensitively, as a UUID is', async () => {
+    const [a, b] = [await rawEvent('task.created', 'task'), await rawEvent('task.updated', 'task')]
+    expect(ids(await list(TASKS, `after=${a.toUpperCase()}`))).toEqual([b])
+    expect((await call(TASKS, `/api/v1/events/${a.toUpperCase()}`)).body.id).toBe(a)
+  })
+
   it('no write response carries an event id: the bodies of real writes and every response schema', async () => {
     const bodies: unknown[] = []
     const task = await must('/api/v1/tasks', { method: 'POST', body: { title: 'x' } })

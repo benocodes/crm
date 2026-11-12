@@ -29,6 +29,7 @@ place('api', 'files', ['content'])
 place('api', 'associations', ['list', 'get', 'create', 'delete'])
 place('api', 'action_requests', ['list', 'get', 'create', 'withdraw', 'approve', 'reject'])
 place('api', 'action_executions', ['list', 'get'])
+place('api', 'events', ['list', 'get'])
 place('meta', 'agents', CRUD)
 place('meta', 'connections', ['list', 'get', 'delete', 'authorize', 'sync'])
 place('meta', 'api_keys', [...CRUD, 'revoke'])
@@ -69,7 +70,7 @@ describe('placement (D6)', () => {
       'schema.get',
       'users.get', 'users.list',
     ].sort())
-    expect(ops.length).toBe(99)
+    expect(ops.length).toBe(101)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

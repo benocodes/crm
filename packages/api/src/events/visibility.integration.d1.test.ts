@@ -137,9 +137,9 @@ describe('visibility per resource type (matrix)', () => {
     expect(await types(['messages:read'])).toEqual(['thread.created', 'message.created'])
     expect(await types(['files:read'])).toEqual(['file.created'])
     expect(await types(['messages:read', 'files:read', 'interactions:read'])).toEqual(['thread.created', 'message.created', 'file.created', 'interaction.created'])
-    expect(await types(['tasks:read', 'contacts:read'])).toEqual([])
+    expect((await types(['tasks:read', 'contacts:read'])).filter((t) => /^(thread|message|file|interaction)\./.test(t))).toEqual([])
     await rawEvent('contact_file.created', 'contact_file')
-    expect(await types(['contacts:read'])).toEqual(['contact_file.created'])
+    expect(await types(['contacts:read'])).toEqual(['contact.created', 'contact.created', 'identity.created', 'identity.created', 'contact_file.created'])
   })
 
   it('real writes are visible to their reader and to nobody else: task, contact, deal move', async () => {
@@ -166,7 +166,7 @@ describe('the edge predicate (association events)', () => {
   ]
   /** Which association events a caller may see, computed from the stored rows: `associations:read` and both endpoint types readable. */
   const expected = async (scopes: string[]) => {
-    const rows = await e.d1!.prepare("select id, coalesce(after, before) as rec from events where resource_type = 'association' order by seq").all<{ id: string; rec: string }>()
+    const rows = (await e.d1!.prepare("select id, coalesce(after, before) as rec from events where resource_type = 'association' order by seq").all()) as unknown as { results: { id: string; rec: string }[] }
     const has = (resource: string) => scopes.includes(`${resource}:read`)
     return rows.results
       .filter((r) => {
@@ -208,10 +208,12 @@ describe('the edge predicate (association events)', () => {
     await link(['companies', m.company], ['contacts', m.contact])
     await link(['contacts', m.contact], ['tasks', m.task])
     await must(`/api/v1/contacts/${m.contact}`, { method: 'DELETE' })
-    const cascaded = (await e.d1!.prepare("select count(*) as n from events where type = 'association.deleted'").first<{ n: number }>())!.n
+    const cascaded = ((await e.d1!.prepare("select count(*) as n from events where type = 'association.deleted'").first()) as { n: number }).n
     expect(cascaded, 'the cascade emitted association.deleted events').toBe(2)
     await check('after cascade')
-    expect(await edgeEvents(['events:read', 'associations:read', 'contacts:read', 'companies:read'])).toHaveLength(3)
+    // created and deleted for the company edge; the task edge needs tasks:read.
+    expect(await edgeEvents(['events:read', 'associations:read', 'contacts:read', 'companies:read'])).toHaveLength(2)
+    expect(await edgeEvents(['events:read', 'associations:read', 'contacts:read', 'tasks:read'])).toHaveLength(2)
     expect(await edgeEvents(['events:read', 'associations:read', 'companies:read'])).toHaveLength(0)
   })
 
@@ -224,7 +226,7 @@ describe('the edge predicate (association events)', () => {
     await link(['companies', other], ['contacts', m.contact])
     await link(['contacts', m.contact], ['tasks', m.task])
     await must(`/api/v1/contacts/${survivor}/merge`, { method: 'POST', body: { source_id: m.contact } })
-    const types = (await e.d1!.prepare("select distinct type from events where resource_type = 'association' order by type").all<{ type: string }>()).results.map((r) => r.type)
+    const types = ((await e.d1!.prepare("select distinct type from events where resource_type = 'association' order by type").all()) as unknown as { results: { type: string }[] }).results.map((r) => r.type)
     expect(types, 'the merge emitted edge events beyond create').toEqual(expect.arrayContaining(['association.created', 'association.deleted', 'association.updated']))
     await check('after merge')
     expect((await edgeEvents(['events:read', 'associations:read', 'contacts:read', 'tasks:read'])).length).toBeGreaterThan(0)
