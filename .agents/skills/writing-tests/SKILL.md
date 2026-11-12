@@ -385,6 +385,13 @@ A test that fails once and then passes is a bug until its cause is found. Do not
 - Never run two suites against one database at once (`pgrep -f vitest`); run the `db` and `api` suites
   serially. Inside a package, Vitest 4+ has no `poolOptions.forks.singleFork`: use `pool: 'forks'` with
   `fileParallelism: false`.
+- **`@vault/api` runs its files in parallel ([[OPS223]]).** The `engine-neutral` and `d1` projects allow file parallelism (each file
+  has a private in-memory D1 in its own forked process) and `packages/api`'s `test` script sets 4 workers; every other package stays
+  at the root's `maxWorkers: 1`. The `postgres` project stays serial (`fileParallelism: false`, `vitest.postgres.config.ts` has
+  `maxWorkers: 1`; `packages/storage/src/test-config.test.ts` asserts both). The api suite takes about 5 to 6 minutes (971 s serial) and
+  must be alone on the machine; on a loaded one run `VITEST_MAX_WORKERS=N pnpm -C packages/api test` with a lower N and name N in
+  RESULT.md. Vitest rejects a second `--maxWorkers` flag, so use the variable. A new test file must not rely on running
+  alone: no fixed ports, no files under the repo, no `process.env` another file reads.
 - **Run the heavy suites one package at a time.** `packages/api` (the `contract.integration.d1` file especially), `packages/cli`
   and `packages/server-d1` interfere when they run side by side on the development machine. You get hook timeouts at
   10000 ms, `ECONNRESET`, a `deployment.singleton` collision and off-by-one query counts in `measured-limits.test.ts`, and

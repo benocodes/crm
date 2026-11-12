@@ -125,7 +125,10 @@ pnpm -r typecheck
 pnpm -r build      # where a package has a build
 ```
 
-The `@vault/api` suite runs about 20 minutes and the default reporter prints nothing until it ends, so a slow run looks like a
+The `@vault/api` suite runs its files in parallel at 4 workers ([[OPS223]]): about 5 to 6 minutes on the 8-core development machine
+(276 to 339 s measured at load 3.4 to 3.8 before the start; 971 s serial), alone on the machine. On a loaded machine lower it with
+`VITEST_MAX_WORKERS=N pnpm -C packages/api test` and name N in RESULT.md. `pnpm -r test` runs the packages concurrently, so run
+the api suite on its own for the gate. The default reporter prints nothing until the end, so a slow run looks like a
 hang: run it as `pnpm -C packages/api test --reporter=dot` (or `verbose`) and keep its log ([[CORE200]] retro).
 Run a package's full suite only through its `test` script (`pnpm -C packages/<pkg> test`), which passes the root
 `vitest.config.ts` (D1 and engine-neutral projects). A bare `vitest run` or `pnpm exec vitest run` inside the package has no
