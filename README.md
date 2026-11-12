@@ -6,6 +6,9 @@ interaction; agents read it and propose actions; people approve them from their 
 Product thinking and architecture live in the private knowledge repo (`benocodes/crm-knowledge`).
 Contributor and agent guidance is in [AGENTS.md](AGENTS.md).
 
+The public documentation site uses Astro and Starlight in [packages/docs](packages/docs/README.md).
+Run it locally with `pnpm -C packages/docs dev`.
+
 Status: pre-code. The first cycles build the tenancy, schema and service layer.
 
 ## License
