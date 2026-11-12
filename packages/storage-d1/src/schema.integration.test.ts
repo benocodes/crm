@@ -496,9 +496,9 @@ describe('the messaging slice (CORE25 C1)', () => {
 
   it('has the append-only triggers on the eight capture tables and none on the links', async () => {
     const trg = await all<{ name: string; tbl_name: string }>("SELECT name, tbl_name FROM sqlite_master WHERE type = 'trigger'")
-    // the eight capture append-only triggers, the events one (API105 D15), and the CORE194 search-index triggers (three per indexed resource); nothing else
+    // the eight capture append-only triggers, the events one (API105 D15), the CORE194 search-index triggers (three per indexed resource), and the webhook secrets one (API7 D12); nothing else
     const search = ['companies', 'notes', 'tasks'].flatMap((t) => ['ai', 'au', 'ad'].map((k) => `${t}_search_${k}`))
-    expect(trg.map((t) => t.name).sort()).toEqual([...CAPTURE.map((t) => `${t}_append_only`), 'events_append_only', ...search].sort())
+    expect(trg.map((t) => t.name).sort()).toEqual([...CAPTURE.map((t) => `${t}_append_only`), 'events_append_only', 'webhook_secrets_append_only', ...search].sort())
     for (const t of trg.filter((x) => x.name.endsWith('_append_only'))) expect(t.name).toBe(`${t.tbl_name}_append_only`)
     for (const t of LINKS) expect(trg.some((x) => x.tbl_name === t)).toBe(false)
   })

@@ -466,9 +466,48 @@ export interface ActionExecutionsTable {
   error_message: string | null
 }
 
+/**
+ * [[API7]] D1, D16: a webhook subscription (D1 only): one agent's standing request to POST exact event types to one URL. Soft-deleted. `event_types` is a JSON array of 1..20 strings.
+ */
+export interface WebhookSubscriptionsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  agent_id: string
+  url: string
+  event_types: StringArrayColumn
+  status: 'active' | 'paused' | 'disabled'
+  deleted_at: NullableTimestamp
+}
+/** [[API7]] D12, D20: a signing secret, SEALED (AES-256-GCM under `CREDENTIALS_KEY`). Machinery: append-only (a trigger aborts an UPDATE), hidden from `schema.get`, written without an event. D1 only. */
+export interface WebhookSecretsTable {
+  id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  subscription_id: string
+  sealed: string
+  key_version: IntegerColumn
+}
+/** [[API7]] D5, D20: a subscription's position in the event feed (`cursor_event_id`, an event id and no foreign key). Machinery, hidden, written without an event. D1 only. */
+export interface WebhookDispatchStateTable {
+  subscription_id: string
+  created_at: Timestamp
+  organization_id: string
+  created_by: string
+  cursor_event_id: string
+  last_dispatched_at: NullableTimestamp
+  last_success_at: NullableTimestamp
+}
+
 export interface StorageDatabase {
   action_executions: ActionExecutionsTable
   action_requests: ActionRequestsTable
+  webhook_subscriptions: WebhookSubscriptionsTable
+  webhook_secrets: WebhookSecretsTable
+  webhook_dispatch_state: WebhookDispatchStateTable
   organizations: OrganizationsTable
   principals: PrincipalsTable
   events: EventsTable
@@ -517,6 +556,8 @@ export interface SecretColumns {
   files: 'storage_key'
   /** [[CHN5]] D41: the ciphertext of the refresh token; only the credentials module selects it, by an explicit column list. */
   channel_credentials: 'refresh_token_ciphertext'
+  /** [[API7]] D12: the sealed signing secret; only the sender will open it, by an explicit column list. */
+  webhook_secrets: 'sealed'
 }
 export type PublicColumn<T extends Table> = Exclude<ColumnOf<T>, T extends keyof SecretColumns ? SecretColumns[T] : never>
 
@@ -905,6 +946,36 @@ export const COLUMN_KINDS = {
     result: 'json',
     error_code: 'text',
     error_message: 'text',
+  },
+  webhook_subscriptions: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    agent_id: 'uuid',
+    url: 'text',
+    event_types: 'string_array',
+    status: 'text',
+    deleted_at: 'timestamp',
+  },
+  webhook_secrets: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    subscription_id: 'uuid',
+    sealed: 'text',
+    key_version: 'integer',
+  },
+  webhook_dispatch_state: {
+    subscription_id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    cursor_event_id: 'uuid',
+    last_dispatched_at: 'timestamp',
+    last_success_at: 'timestamp',
   },
   thread_sources: {
     id: 'uuid',
