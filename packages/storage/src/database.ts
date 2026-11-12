@@ -41,6 +41,8 @@ export interface PrincipalsTable {
   created_at: Timestamp
 }
 export interface EventsTable {
+  /** D1 only ([[API105]] D16): the commit-order key SQLite assigns at insert; Postgres keeps `id` as the key. Never written by a program. */
+  seq?: number
   id: string
   created_at: Timestamp
   organization_id: string
@@ -531,6 +533,7 @@ export const COLUMN_KINDS = {
   organizations: { id: 'uuid', name: 'text', auth_provider: 'text', auth_org_id: 'text', created_at: 'timestamp', updated_at: 'timestamp' },
   principals: { id: 'uuid', kind: 'text', created_at: 'timestamp' },
   events: {
+    seq: 'integer',
     id: 'uuid',
     created_at: 'timestamp',
     organization_id: 'uuid',

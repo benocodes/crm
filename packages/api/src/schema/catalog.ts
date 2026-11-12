@@ -66,9 +66,10 @@ export const CATALOG: Catalog = {
     },
     events: {
       label: 'Events',
-      description: 'The outbox: one row per change to a record, written in the same unit as the change. Hooks and the agent cursor read it; no operation lists it yet.',
+      description: 'The outbox: one row per change to a record, written in the same unit as the change. Append-only: a stored event is never changed. Hooks and the agent cursor read it; no operation lists it yet.',
       columns: {
-        id: 'Event id (UUIDv7); ids increase with time, so the id is the cursor.',
+        seq: 'The commit order: SQLite assigns it as each event is stored, so it always increases in the order changes became visible. The feed pages by it; it is never shown to callers (the event id is the cursor).',
+        id: 'Event id (UUIDv7), the public identifier of the event. It increases with the time the event was minted, which is not always the order it was committed in; use seq for order.',
         created_at: 'When the event was recorded.',
         type: 'Event type, resource.action (for example task.created).',
         resource_type: 'The kind of record that changed (for example task).',

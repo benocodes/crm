@@ -121,6 +121,16 @@ describe('catalog completeness (D16)', () => {
       for (const c of Object.keys(entry.columns)) expect(cols, `${name}.${c}`).toContain(c)
     }
   })
+  it('describes events.seq as the commit-order key and lists no sqlite_sequence (API105 D16)', async () => {
+    const doc = await getDoc()
+    const seq = column(doc, 'events', 'seq')
+    expect(seq).toBeDefined()
+    expect(seq.primary_key).toBe(true)
+    expect(seq.nullable).toBe(false)
+    expect(seq.description).toMatch(/commit order/i)
+    expect(column(doc, 'events', 'id').description).not.toMatch(/the id is the cursor/i)
+    expect(doc.tables.map((t: any) => t.name)).not.toContain('sqlite_sequence')
+  })
   it('the fixed CORE62 texts are literal', async () => {
     const doc = await getDoc()
     expect(column(doc, 'contacts', 'company_id').label).toBe('Primary company')

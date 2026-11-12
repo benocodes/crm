@@ -49,6 +49,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   **A safe backstop can hide the guard you mutate:** AGT166's first M13 removed the pending-transition guard and stayed
   green, because the unique request index also refused the duplicate and the test accepted any `409`. Assert the
   specific code (`action_request_not_pending`) and the winner's attribution, so only the guarded path passes.
+  **An atomicity test names its failure the same way:** a bare `rejects.toThrow()` also passes when the unit fails at
+  plan or build time, before any batch runs, so "nothing was written" proves no rollback. Assert the in-batch error
+  (`rolled back (not_null)`, `packages/api/src/events/feed.integration.d1.test.ts`, [[API105]]).
 - **A filtered run that ran nothing is not a result.** `vitest -t` with a pattern that matches no test exits `0` with
   every test `skipped`, which reads like "the mutation stayed green". [[CORE58]]'s first mutation pass prefixed the
   pattern with the `describe` title (`-t "content operations on d1 file bytes and headers"`) and matched nothing for

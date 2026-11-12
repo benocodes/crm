@@ -339,7 +339,7 @@ try {
   const refresh = google.refreshTokens.at(-1) ?? ''
   const opened = cred ? await openToken(CREDENTIALS_KEY_BYTES, String(cred.refresh_token_ciphertext)).catch(() => '') : ''
   const ownValues = (await rows('select value from identities where own = 1 order by value')).map((r) => String(r.value))
-  const newEvents = (await rows('select type, actor_id from events order by rowid')).slice(eventsBeforeConnect)
+  const newEvents = (await rows('select type, actor_id from events order by seq')).slice(eventsBeforeConnect)
   const cursor = (await rows('select * from mail_sync_cursors'))[0]
   check(
     '44 the callback in workerd -> 200 built-in page; one connection owned by the user, an encrypted credential that opens to the refresh token, the cursor, own identities and the events; and the watch row (push is on), registered for INBOX and SENT',
@@ -566,7 +566,7 @@ try {
   check('27 POST /mcp tools/list -> the agent\'s tools, no human-only tool, no binary tool', m.status === 200 && toolNames.includes('tasks_create') && toolNames.includes('schema_get') && !toolNames.some((n) => n.startsWith('agents_')) && !toolNames.includes('files_content'), toolNames.length)
   const mcpEventsBefore = await count('events')
   m = await mcp('tools/call', { name: 'tasks_create', arguments: { title: 'from mcp' } })
-  const mcpActor = await rows("select actor_id from events where type = 'task.created' order by rowid desc limit 1")
+  const mcpActor = await rows("select actor_id from events where type = 'task.created' order by seq desc limit 1")
   check('28 POST /mcp tools/call tasks_create -> a task, one event attributed to the key\'s agent', m.status === 200 && m.body.result?.isError === undefined && m.body.result?.structuredContent?.title === 'from mcp' && (await count('events')) === mcpEventsBefore + 1 && mcpActor[0]?.actor_id === boot.agentId, m)
   // 30-32: MCP OAuth discovery ([[API115]]): the path-specific document, the `mcp` field and the preflight, in workerd.
   res = await call('GET', '/.well-known/oauth-protected-resource/mcp')

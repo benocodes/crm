@@ -141,7 +141,7 @@ test('7. W lists the pending requests through MCP action_requests_list', async (
 
 test('8. the events: task.updated attributed to W, action_request.* to P, W and the owner', async () => {
   const ownerPrincipal = sql(`select id from users where auth_subject = '${OWNER.id}'`)[0]!.id
-  const events = sql(`select type, actor_id, resource_id from events where type like 'action_request.%' or (type = 'task.updated' and resource_id = '${taskId}') order by id`)
+  const events = sql(`select type, actor_id, resource_id from events where type like 'action_request.%' or (type = 'task.updated' and resource_id = '${taskId}') order by seq`)
   const pick = (type: string, resource: string) => events.filter((e) => e.type === type && e.resource_id === resource).map((e) => e.actor_id)
   expect(pick('task.updated', taskId)).toEqual([W.id])
   expect(pick('action_request.created', firstRequest)).toEqual([P.id])

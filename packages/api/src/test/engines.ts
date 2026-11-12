@@ -181,7 +181,7 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
       return (await d1.prepare('select * from tasks order by rowid').all()).results as RawRow[]
     },
     async events() {
-      return ((await d1.prepare('select * from events order by rowid').all()).results as RawRow[]).map((r) => ({ ...r, before: parse(r.before), after: parse(r.after) }))
+      return ((await d1.prepare('select * from events order by seq').all()).results as RawRow[]).map((r) => ({ ...r, before: parse(r.before), after: parse(r.after) }))
     },
     async insertTask(row) {
       const at = row.at ?? '2026-10-22T08:00:00.000Z'

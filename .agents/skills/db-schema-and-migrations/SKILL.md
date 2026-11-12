@@ -187,6 +187,11 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   first (CHN140 added `ensureConnection` to `packages/api/src/test/capture-kit.ts` and fixed seeds in `server-d1`'s
   `compose.test.ts` and `measured-limits.test.ts`). Before migrating a deployed database, check the child table holds no
   row the new key would refuse: the copy aborts the whole migration.
+- **A D1 `INTEGER PRIMARY KEY` needs an explicit `NOT NULL`.** It is the rowid, but `pragma_table_info` reports
+  `notnull = 0` without it, so `schema.get` publishes the key as `nullable: true`. `INTEGER PRIMARY KEY AUTOINCREMENT
+  NOT NULL` still auto-assigns. `AUTOINCREMENT` creates `sqlite_sequence` (hidden from `schema.get`), which clearing the
+  table does not reset: compare relative order in tests, never absolute values (`events.seq`, `0015_event_sequence.sql`,
+  [[API105]]).
 - **Vocabulary CHECKs are named identically on both engines** (`<table>_<purpose>`) so the schema audit needs no difference.
   Widening one later is a Postgres `DROP/ADD CONSTRAINT` and, on D1, a table rebuild under `PRAGMA defer_foreign_keys`: budget for it.
 - **A new FK onto `identities` joins `IDENTITY_REFERENCES`** (`packages/api/src/identity/merge.ts`), like a FK onto contacts joins `CONTACT_REFERENCES`.
