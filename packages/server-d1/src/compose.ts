@@ -34,6 +34,8 @@ export interface D1WorkerEnv {
   OAUTH_STATE_SECRET?: string
   CREDENTIALS_KEY?: string
   CREDENTIALS_KEY_VERSION?: string
+  /** [[API7]] D13: `true` admits `http://` and loopback webhook targets. Local development and the local E2E only; never in a deployed env's `vars`. */
+  WEBHOOK_ALLOW_INSECURE_URLS?: string
   PUBLIC_BASE_URL?: string
   CONNECT_RETURN_URL?: string
   /**

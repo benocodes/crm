@@ -32,12 +32,14 @@ import { actionRequests } from './action-requests/definition.js'
 import { actionRequestOperations } from './action-requests/operations.js'
 import { actionExecutions, executionReadOperations } from './executions/definition.js'
 import { messageSendOperation } from './messaging/send.js'
+import { webhookOperations } from './webhooks/operations.js'
+import type { WebhooksRuntime } from './webhooks/config.js'
 
 /**
  * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
  * authorize operation reads ([[CHN5]] D58); the registry has the same operations whatever it is.
  */
-export function createVaultRegistry(options: { connections?: ConnectionsRuntime; /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */ operations?: (registry: Registry) => void } = {}): Registry {
+export function createVaultRegistry(options: { connections?: ConnectionsRuntime; /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */ operations?: (registry: Registry) => void; /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */ webhooks?: WebhooksRuntime } = {}): Registry {
   const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes).registerResource(tags)
   registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
   registry.registerResource(connections)
@@ -67,5 +69,8 @@ export function createVaultRegistry(options: { connections?: ConnectionsRuntime;
   for (const op of executionReadOperations(registry)) registry.register(op)
   for (const op of schemaOperations(() => registry.resources())) registry.register(op)
   for (const op of eventOperations(() => registry)) registry.register(op)
+  // [[API7]] D2, D22: the webhook subscriptions. `webhook` events are invisible until the owner predicate of [[API219]] (D19): fail closed.
+  registry.registerEventType('webhook', { invisible: 'owner predicate, API219 (D19): an agent may see only its own subscriptions\' events' })
+  for (const op of webhookOperations(options.webhooks ?? null, () => registry)) registry.register(op)
   return registry
 }

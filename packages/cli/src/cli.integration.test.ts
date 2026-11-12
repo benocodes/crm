@@ -23,11 +23,11 @@ afterEach(() => {
 beforeEach(async () => {
   await w.reset()
   hideOperation = undefined
-  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read', 'interactions:read', 'deals:read', 'deals:write', 'pipelines:read', 'pipelines:write', 'companies:read', 'companies:write', 'associations:read', 'associations:write'] })
+  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read', 'interactions:read', 'deals:read', 'deals:write', 'pipelines:read', 'pipelines:write', 'companies:read', 'companies:write', 'associations:read', 'associations:write', 'webhooks:read', 'webhooks:write', 'tasks:read'] })
   key = b.key
 })
-const session = async () => {
-  const worker = composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' })
+const session = async (env: { CREDENTIALS_KEY?: string } = {}) => {
+  const worker = composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '', ...env })
   const r = rig({
     fetch: async (req) => {
       const res = await worker.fetch(req)
@@ -313,5 +313,35 @@ describe('against the D1 app', () => {
     const res = await r.run(['contacts', 'list', '--refresh'])
     expect(res.code).toBe(2)
     expect((await r.run(['contacts', 'get', id])).code).toBe(0)
+  })
+})
+
+describe('webhook subscriptions through the CLI ([[API7]])', () => {
+  const KEY = Buffer.from(Uint8Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64')
+
+  it('webhooks create, list, get, update, rotate-secret and delete, derived from the meta document', async () => {
+    const r = await session({ CREDENTIALS_KEY: KEY })
+    const created = JSON.parse((await ok(r, ['webhooks', 'create', '--url', 'https://example.com/hook', '--event-types', '["task.created"]'])).stdout)
+    expect(created).toMatchObject({ url: 'https://example.com/hook', event_types: ['task.created'], status: 'active' })
+    expect(created.secret).toMatch(/^whsec_/)
+    const listed = JSON.parse((await ok(r, ['webhooks', 'list'])).stdout)
+    expect(listed.data.map((s: any) => s.id)).toEqual([created.id])
+    expect(JSON.stringify(listed)).not.toContain('whsec_')
+    const got = JSON.parse((await ok(r, ['webhooks', 'get', created.id])).stdout)
+    expect(got.id).toBe(created.id)
+    const paused = JSON.parse((await ok(r, ['webhooks', 'update', created.id, '--status', 'paused'])).stdout)
+    expect(paused.status).toBe('paused')
+    const rotated = JSON.parse((await ok(r, ['webhooks', 'rotate-secret', created.id])).stdout)
+    expect(Object.keys(rotated).sort()).toEqual(['previous_valid_until', 'secret'])
+    expect((await ok(r, ['webhooks', 'delete', created.id])).stdout).toBe('')
+    expect(JSON.parse((await ok(r, ['webhooks', 'list'])).stdout).data).toEqual([])
+    noKey(await ok(r, ['webhooks', 'list']))
+  })
+
+  it('without the key the CLI reports the 501 as an error naming webhooks_not_configured', async () => {
+    const r = await session()
+    const res = await r.run(['webhooks', 'create', '--url', 'https://example.com/hook', '--event-types', '["task.created"]'])
+    expect(res.code).not.toBe(0)
+    expect(res.stderr).toContain('webhooks_not_configured')
   })
 })
