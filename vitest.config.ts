@@ -9,7 +9,8 @@ const RUN_POSTGRES_PROJECT = false
 
 export default defineConfig({
   test: {
-    // One worker: the projects share the machine (Miniflare per file) and, with the postgres project on, one database.
+    // One worker by default: the projects share the machine (Miniflare per file) and, with the postgres project on, one database.
+    // `@vault/api`'s `test` script raises it (OPS223 D3/D4); every other package stays serial.
     maxWorkers: 1,
     projects: [engineNeutralProject, d1Project, ...(RUN_POSTGRES_PROJECT ? [postgresProject] : [])],
   },

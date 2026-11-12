@@ -16,17 +16,19 @@ const common = {
   environment: 'node',
   // Miniflare (workerd) starts per file and the D1 golden replays, over-cap cases and concurrency trials are slow under load.
   testTimeout: 30_000,
-  // Vitest 4+ removed `poolOptions`; the Postgres suites share one database, so run files serially.
+  // One forked process per file, so each file's workerd child dies with it (OPS223 D3).
   pool: 'forks',
-  fileParallelism: false,
 } as const
 
 export const engineNeutralProject: TestProjectInlineConfiguration = {
-  test: { ...common, name: 'engine-neutral', include: [TESTS], exclude: [...EXCLUDE, '**/*.d1.test.ts', '**/*.postgres.test.ts'] },
+  // OPS223 D3: the default projects allow files side by side (each opens a private in-memory D1); the worker count stays the root's
+  // `maxWorkers: 1` unless a package's `test` script raises it (`@vault/api`, D4).
+  test: { ...common, fileParallelism: true, name: 'engine-neutral', include: [TESTS], exclude: [...EXCLUDE, '**/*.d1.test.ts', '**/*.postgres.test.ts'] },
 }
 export const d1Project: TestProjectInlineConfiguration = {
-  test: { ...common, name: 'd1', include: ['**/{src,scripts}/**/*.d1.test.ts'], exclude: EXCLUDE },
+  test: { ...common, fileParallelism: true, name: 'd1', include: ['**/{src,scripts}/**/*.d1.test.ts'], exclude: EXCLUDE },
 }
 export const postgresProject: TestProjectInlineConfiguration = {
-  test: { ...common, name: 'postgres', include: ['**/{src,scripts}/**/*.postgres.test.ts'], exclude: EXCLUDE, setupFiles: [POSTGRES_SETUP] },
+  // OPS223 D5: the Postgres suites share one per-worktree database (invariant 2): always serial.
+  test: { ...common, fileParallelism: false, name: 'postgres', include: ['**/{src,scripts}/**/*.postgres.test.ts'], exclude: EXCLUDE, setupFiles: [POSTGRES_SETUP] },
 }
