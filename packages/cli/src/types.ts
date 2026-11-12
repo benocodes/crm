@@ -17,6 +17,8 @@ export interface Deps {
   sleep(ms: number): Promise<void>
   homedir: string
   version: string
+  /** Ends a `--follow` loop cleanly (tests; the real process stops on SIGTERM, which is safe because files are replaced by rename). */
+  signal?: AbortSignal
 }
 
 export type JsonSchema = { [key: string]: unknown }
