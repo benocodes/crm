@@ -110,6 +110,16 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     dispatches and reconciles in one invocation (double refresh, send, metadata, search). Gmail measured
     65 calls at three sends, so production cron runs `dueLimit: 2` (worst case 27 D1 + 18 external = 45)
     while the generic default stays five (`knowledge/specs/008-AGT166-gmail-send/RETRO.md`).
+  - **The cron tick's shared budget** ([[API7]] D24, API220). The per-minute invocation carries one
+    `TickBudget` (`CRON_TICK_BUDGET`, default 50) built in `packages/server-d1/src/compose.ts`
+    `railScheduled`: the phases get a counting D1 (`countD1`), a counting fetch (`countFetch`) and counting
+    R2/Workflow bindings (`countCalls`), and only *ask* `remaining()` before a unit with a pinned cost. Count
+    **every external call kind** the tick can make (fetch, R2 operations, Workflow `create`s), not only the
+    ones your new phase makes: the first cut counted fetch alone, and the Gmail rail plus a webhook backlog
+    measured 36 queries + 15 external = 51. A new phase in the tick, or a new binding call in an existing one,
+    must go through these wrappers, and the proof is a test of the **composed** worst case (rail with a real
+    transport plus every later phase saturated, as `gmail-send.test.ts`'s `API220 D24` test does), never each
+    phase alone (`knowledge/specs/007-API220-webhook-delivery/RETRO.md`).
     The per-minute tick is ONE invocation for the rail and webhook dispatch (and the [[API220]] sender). Its D1
     budget is shared: size new cron work against the rail's 45 worst case, not alone. Dispatch costs at least one
     read per eligible subscription per tick, and up to 11 with a backlog
