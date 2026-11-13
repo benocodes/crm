@@ -45,7 +45,7 @@ describe('resolveTarget (C4)', () => {
     refusal(() => resolveTarget({ name: 'vb', d1_databases: [{ binding: 'DB', database_id: PLACEHOLDER_DATABASE_ID }] }, 'nope'), 'unknown env nope')
   })
   it('refuses an env with no DB binding', () => {
-    refusal(() => resolveTarget({ name: 'vault-x', d1_databases: [] }, 'x'), 'env x has no DB binding')
+    refusal(() => resolveTarget({ name: 'vibase-x', d1_databases: [] }, 'x'), 'env x has no DB binding')
   })
   it('refuses the placeholder id', () => {
     const c = { name: 'vault-smoked1', d1_databases: [{ binding: 'DB', database_id: PLACEHOLDER_DATABASE_ID, remote: true }] }

@@ -213,7 +213,7 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
       if (restriction === 'nothing') return {}
       let q = selectRecord(def, qc, env)
       if (restriction) q = q.where(restriction(qc))
-      if (sort && def.sortKinds) q = q.select(sql`${sortExpression(def, qc, sort)}`.as('__vault_sort_value'))
+      if (sort && def.sortKinds) q = q.select(sql`${sortExpression(def, qc, sort)}`.as('__vibase_sort_value'))
       if (sort?.position) q = q.where(afterPosition(def, qc, { ...sort, position: sort.position }))
       else if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
       for (const w of filterPredicates(def, qc, filters)) q = q.where(w)
@@ -231,13 +231,13 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
           const last = page[page.length - 1]
           const cursor = (): string => {
             if (!sort) return last!.id as string
-            const value = last![def.sortKinds ? '__vault_sort_value' : sort.field]
+            const value = last![def.sortKinds ? '__vibase_sort_value' : sort.field]
             return encodeCursor(sort.field, sort.order, value === null || value === undefined ? null : sort.kind === 'integer' ? Number(value) : String(value), last!.id as string)
           }
           return {
             data: page.map((r) => {
               if (!sort || !def.sortKinds) return toRecord(def, r)
-              const { __vault_sort_value: _value, ...record } = r
+              const { __vibase_sort_value: _value, ...record } = r
               return toRecord(def, record)
             }),
             next_cursor: rows.length > limit ? cursor() : null,

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { eligible, FIXTURES, directCall, prereq } from '../test/action-fixtures.js'
 import { memoryObjectStore } from '../objects/store.js'
 import { describeSendBody } from '../messaging/send-body.js'
@@ -8,7 +8,7 @@ import { openActionKit, type ActionKit } from '../test/action-kit.js'
 // [[AGT8]] Required validation 1: the permission matrix, generated from the manifest. For every proposal-eligible operation and for read-only,
 // proposal-only, write and no scopes: the direct write, the action request, the approval. A newly eligible operation fails the first case until
 // it has a fixture (`test/action-fixtures.ts`).
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const ops = eligible(registry)
 let k: ActionKit
 beforeAll(async () => {

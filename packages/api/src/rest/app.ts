@@ -17,7 +17,7 @@ import { CALLBACK_PATH } from '../connections/operations.js'
 import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js'
 import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { webhooksConfigNotice, type WebhooksRuntime } from '../webhooks/config.js'
 import type { ObjectStore } from '../objects/store.js'
 import { validateOperationInput, type BinaryBody, type Operation, type OperationInput, type PrepareContext, type Registry } from '../registry.js'
@@ -92,7 +92,7 @@ export interface AppOptions {
   executions?: { transports: TransportRegistry; start?: (run: () => Promise<unknown>) => void }
   /** [[API7]] D12, D13: the webhook configuration from `parseWebhooksConfig` (the credentials key, the insecure-URL switch) and its problems (names only, logged once). Absent: unconfigured; `create` and `rotate_secret` answer `501 webhooks_not_configured`. Ignored when `registry` is given. */
   webhooks?: { runtime: WebhooksRuntime; problems?: readonly string[] }
-  /** Extra operations registered before the queue's (Node tests; see `createVaultRegistry`). Ignored when `registry` is given. */
+  /** Extra operations registered before the queue's (Node tests; see `createVibaseRegistry`). Ignored when `registry` is given. */
   extraOperations?: (registry: Registry) => void
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
   objects?: ObjectStore
@@ -233,7 +233,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   }
   const gmail = options.gmail
   const push: PushConfig | null = gmail?.config && gmail.instances && gmail.push ? gmail.push : null
-  const registry = options.registry ?? createVaultRegistry({ operations: options.extraOperations, ...(options.webhooks ? { webhooks: options.webhooks.runtime } : {}), connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}), push, ...(gmail?.fetch ? { fetch: gmail.fetch } : {}), ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}) } })
+  const registry = options.registry ?? createVibaseRegistry({ operations: options.extraOperations, ...(options.webhooks ? { webhooks: options.webhooks.runtime } : {}), connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}), push, ...(gmail?.fetch ? { fetch: gmail.fetch } : {}), ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}) } })
   // [[CHN5]] D58: a partial configuration is a startup log line naming what is wrong; nothing configured at all is simply "off".
   if (gmail?.problems && gmail.problems.length > 0 && !gmailUnconfigured(gmail.problems)) console.warn(gmailConfigNotice(gmail.problems))
   if (options.webhooks?.problems && options.webhooks.problems.length > 0) console.warn(webhooksConfigNotice(options.webhooks.problems))

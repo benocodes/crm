@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding } from '@vibase/storage-d1'
-import { createVaultRegistry, scopesForRole } from '@vibase/api'
+import { createVibaseRegistry, scopesForRole } from '@vibase/api'
 import { mintClerkToken, orgClaim } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -25,7 +25,7 @@ beforeEach(async () => {
 })
 
 const BASE = 'https://w.test'
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 type Res = { status: number; json: any }
 
 /** A workspace deployment written directly (marker and organisation), independent of the bootstrap CLI's code. */
@@ -50,7 +50,7 @@ const call = async (wk: ReturnType<typeof worker>, method: string, path: string,
 const profile = (sub: string, email = `${sub}@x.test`) => kit.profiles.set(sub, clerkUser({ id: sub, email, verified: true }))
 const count = async (t: string) => Number(((await w.d1.prepare(`select count(*) n from "${t}"`).first()) as { n: number }).n)
 const state = async () => ({ users: await count('users'), principals: await count('principals'), events: await count('events'), memberships: await count('memberships') })
-const meSchema = () => (createVaultRegistry().operations().find((o) => o.name === 'me.get') as { response: { schema: { parse(v: unknown): unknown } } }).response.schema
+const meSchema = () => (createVibaseRegistry().operations().find((o) => o.name === 'me.get') as { response: { schema: { parse(v: unknown): unknown } } }).response.schema
 
 describe('the role claim admits a user (D8, D9)', () => {
   it.each(['owner', 'member'] as const)('vibase_role %s resolves to a user of the deployment organisation with the role scopes', async (role) => {

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { ContractSession, ContractTenant } from '../test/contract.js'
 import { d1Backend } from '../test/d1-backend.js'
 
@@ -8,7 +8,7 @@ const FULL = ['notes:read', 'notes:write', 'associations:read', 'associations:wr
 let s: ContractSession
 let t: ContractTenant
 beforeAll(async () => {
-  s = await d1Backend().open(createVaultRegistry())
+  s = await d1Backend().open(createVibaseRegistry())
 })
 afterAll(async () => {
   await s.close()

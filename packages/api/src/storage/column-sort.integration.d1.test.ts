@@ -100,7 +100,7 @@ describe('generic column walks on D1 (CORE170 D4)', () => {
     expect(page.data[0]).toMatchObject({ id: id(5), due_at: 'public-day' })
     expect(JSON.parse(Buffer.from(page.next_cursor!, 'base64url').toString())).toEqual(['due_at', 'desc', T2, id(5)])
     expect(await walk(def, 'due_at', 'desc', 1)).toEqual([...ASC].reverse())
-    expect(page.data[0]).not.toHaveProperty('__vault_sort_value')
+    expect(page.data[0]).not.toHaveProperty('__vibase_sort_value')
   })
 })
 

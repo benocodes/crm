@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { fullPath, type Surface } from '../surfaces.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
@@ -13,7 +13,7 @@ import { schemaDocument } from './document.js'
 // OpenAPI parameters and from the D3 operator table written out here as literals, never from the definition the builder reads.
 let e: Engine
 let app: ReturnType<typeof createApp>
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 beforeAll(async () => {
   e = await openD1Engine()
   app = createApp({ registry, storage: () => e.binding, userAuthenticator: fakeUserAuthenticator() })

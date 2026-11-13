@@ -7,7 +7,7 @@ import { ApiError } from '../errors.js'
 import { enqueuedOperation } from '../executions/enqueue.js'
 import { runDueExecutions, railTick, runExecution, expireOverdueRequests, type RailDeps, type RunOutcome } from '../executions/runner.js'
 import type { DispatchOutcome, PermanentCode, ReconcileOutcome, Transport, TransportCall } from '../executions/transport.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { Registry } from '../registry.js'
 import type { RawRow } from './engines.js'
 import { openActionKit, type ActionKit, type Actor, type Res } from './action-kit.js'
@@ -176,7 +176,7 @@ export async function openRailKit(opts: { now?: Date } = {}): Promise<RailKit> {
   const transport = new FakeTransport()
   const pending: Promise<unknown>[] = []
   const state = { starts: 0, suppress: true }
-  const registry = createVaultRegistry({ operations: registerTestOperations })
+  const registry = createVibaseRegistry({ operations: registerTestOperations })
   const base = await openActionKit({
     ...(opts.now ? { now: opts.now } : {}),
     registry,

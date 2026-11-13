@@ -6,7 +6,7 @@ import { ATTEMPT_TIMEOUT_MS, DEFAULT_EVENT_TYPES, DEFAULT_TICK_BUDGET, DELIVERY_
 import { ROTATION_OVERLAP_MS } from '../../api/src/webhooks/secrets.js'
 import { eventOperations } from '../../api/src/events/operations.js'
 import { TOLERANCE_SECONDS } from '../src/verify.js'
-import { REQUIRED_SCOPES } from '../src/vault.js'
+import { REQUIRED_SCOPES } from '../src/vibase.js'
 
 // The guide states facts the code defines; each is checked against the code's own constant, never a copy ([[CORE201]]'s lesson). The guide is read as text and a fact is a backticked name or a rendered number.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')

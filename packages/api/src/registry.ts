@@ -34,7 +34,7 @@ export type RetryPolicy = 'reconcile' | 'idempotent' | 'never'
 export interface Authorisation {
   /** An anchor, a connection: whatever the transport needs that was true when the call was authorised. */
   resolution?: Record<string, unknown>
-  /** The domain of the execution's `client_ref` (`{execution_id}@{domain}`); default `vault.invalid`. */
+  /** The domain of the execution's `client_ref` (`{execution_id}@{domain}`); default `vibase.invalid`. */
   clientRefDomain?: string
   /** Commit-time guards on what `resolution` rests on: false at commit and the authorisation writes nothing. */
   guards?: (qc: QueryContext) => Expression<SqlBool>[]

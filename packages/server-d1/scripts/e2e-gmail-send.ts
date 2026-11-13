@@ -20,8 +20,8 @@ import { bootstrapD1 } from '../src/bootstrap-d1.js'
 
 const dir=mkdtempSync(join(tmpdir(),'vb-gmail-send-e2e-'))
 const bundle=join(dir,'worker.mjs'),key=new Uint8Array(32).fill(11)
-const issuer=await testIssuer(),clerk=fakeClerkFetch(new Map([['user_send_owner',clerkUser({id:'user_send_owner',email:'owner@vault.test',role:'owner'})],['user_send_member',clerkUser({id:'user_send_member',email:'member@vault.test',role:'member'})]]))
-const mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vault.test',historyId:'1000'}})
+const issuer=await testIssuer(),clerk=fakeClerkFetch(new Map([['user_send_owner',clerkUser({id:'user_send_owner',email:'owner@vibase.test',role:'owner'})],['user_send_member',clerkUser({id:'user_send_member',email:'member@vibase.test',role:'member'})]]))
+const mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vibase.test',historyId:'1000'}})
 const logs:string[]=[]
 let mf:Miniflare|undefined,googleCalls=0,refreshes=0
 const options=()=>({
@@ -50,7 +50,7 @@ try{
   const oldRequestRow=await d1.prepare('select * from action_requests where id=?').bind(oldRequest).first()
   await d1.prepare("insert into action_executions (id,organization_id,created_by,authorised_by,created_at,updated_at,operation,arguments,resolution,status,client_ref,input_hash,deadline_at,next_attempt_at) values (?,?,?,?,?,?,'legacy.enqueue','{}','{}','queued',?,?,?,?)").bind(oldId,org,boot.agentId,boot.agentId,at,at,'legacy@e2e.test','a'.repeat(64),at,at).run()
   await createMigrationTracker(d1);await recordMigrations(d1,MIGRATIONS.map(m=>m.name).filter(n=>n<'0013'))
-  assert.equal((await mf.dispatchFetch('https://vault.test/meta/v1/me')).status,503,'new Worker refuses old schema')
+  assert.equal((await mf.dispatchFetch('https://vibase.test/meta/v1/me')).status,503,'new Worker refuses old schema')
   await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR,'0013_send_connection.sql'),'utf8')).map(s=>d1.prepare(s)));await recordMigrations(d1,['0013_send_connection.sql'])
   assert.deepEqual(await d1.prepare('select * from action_requests where id=?').bind(oldRequest).first(),oldRequestRow)
   const later=readdirSync(MIGRATIONS_DIR).filter(f=>/^\d{4}_.+\.sql$/.test(f)&&f>'0013').sort()
@@ -62,13 +62,13 @@ try{
   const ownerToken=await mintClerkToken(issuer,{sub:'user_send_owner',exp:Math.floor(Date.now()/1000)+3600,extra:{vibase_role:'owner'}})
   const humanToken=await mintClerkToken(issuer,{sub:'user_send_member',exp:Math.floor(Date.now()/1000)+3600,extra:{vibase_role:'member'}})
   const call=async(token:string,method:string,path:string,body?:unknown)=>{
-    const res=await mf!.dispatchFetch('https://vault.test'+path,{method,headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})})
+    const res=await mf!.dispatchFetch('https://vibase.test'+path,{method,headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})})
     return {status:res.status,body:await res.json() as any}
   }
   const owner=(await call(ownerToken,'GET','/meta/v1/me')).body.principal.id
   const binding=d1Binding(d1,{organizationId:org,authProvider:'clerk',authOrgId:issuer.issuer})
   const env={actor:{id:owner,kind:'user' as const},organizationId:org,scopes:ScopeSet.parse([]),now:new Date(),newId:uuidv7,randomBytes:(n:number)=>crypto.getRandomValues(new Uint8Array(n))}
-  const connection=(await execute(binding,{kind:'tenant',actorId:owner,organizationId:org},connectOperation(env,{google_sub:'e2e-mailbox',mailbox:'owner@vault.test',own_addresses:['owner@vault.test'],granted_scopes:['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.send'],ciphertext:await sealToken(key,'send-e2e-refresh',crypto.getRandomValues(new Uint8Array(12))),key_version:1,history_id:'1000'}))).value.connection_id
+  const connection=(await execute(binding,{kind:'tenant',actorId:owner,organizationId:org},connectOperation(env,{google_sub:'e2e-mailbox',mailbox:'owner@vibase.test',own_addresses:['owner@vibase.test'],granted_scopes:['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.send'],ciphertext:await sealToken(key,'send-e2e-refresh',crypto.getRandomValues(new Uint8Array(12))),key_version:1,history_id:'1000'}))).value.connection_id
   const actor=async(name:string,scopes:string[])=>{
     const id=uuidv7(),secret='vk_'+Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
     await seedAgent(d1,{id,organizationId:org,createdBy:owner,name,scopes})
@@ -139,7 +139,7 @@ try{
     assert.equal(m.interaction_actor,owner)
     for(const [id,type] of [[m.id,'message.created'],[m.interaction_id,'interaction.created']])assert.equal((await rows('select actor_id from events where resource_id=? and type=?',id,type))[0].actor_id,owner)
     const participants=await rows('select i.value,p.role from interaction_participants p join identities i on i.id=p.identity_id where p.interaction_id=? order by p.role,i.value',m.interaction_id)
-    assert.deepEqual(participants,[{value:'owner@vault.test',role:'from'},{value:'recipient@example.test',role:'to'}])
+    assert.deepEqual(participants,[{value:'owner@vibase.test',role:'from'},{value:'recipient@example.test',role:'to'}])
     assert.equal((await rows('select created_by from message_sources where message_id=?',m.id))[0].created_by,owner)
   }
   const reviewed=executions.find(e=>e.id===approved.body.execution_id)!;assert.equal(reviewed.created_by,proposer.id);assert.equal(reviewed.authorised_by,reviewer.id)

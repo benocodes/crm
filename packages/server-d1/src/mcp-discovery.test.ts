@@ -3,7 +3,7 @@ import { extractWWWAuthenticateParams, discoverOAuthProtectedResourceMetadata } 
 import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { createVaultRegistry, grantableScopes, toProviderScope } from '@vibase/api'
+import { createVibaseRegistry, grantableScopes, toProviderScope } from '@vibase/api'
 import { mintClerkToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -32,7 +32,7 @@ const VIBASE = '/.well-known/vibase'
 const PRM = '/.well-known/oauth-protected-resource'
 const PRM_MCP = `${PRM}/mcp`
 const NAMES = MIGRATIONS.map((m) => m.name)
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 const grantable = grantableScopes(declared).map(toProviderScope)
 const rootChallenge = (origin: string) => `Bearer resource_metadata="${origin}${PRM}"`
 const mcpChallenge = (origin: string) => `Bearer resource_metadata="${origin}${PRM_MCP}", scope="${grantable.join(' ')}"`

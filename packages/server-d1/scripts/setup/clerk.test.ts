@@ -1,7 +1,7 @@
 // `setup:remote --auth clerk` ([[OPS87]] charter obligations 1-13), against fakes only: the fake Clerk (test/clerk-world.ts), cycle 1's fake world.
 import { createPublicKey } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { SCOPE_POLICY, createVaultRegistry, toProviderScope } from '@vibase/api'
+import { SCOPE_POLICY, createVibaseRegistry, toProviderScope } from '@vibase/api'
 import { execute } from '@vibase/storage'
 import { d1Binding } from '@vibase/storage-d1'
 import { parse } from 'jsonc-parser'
@@ -22,7 +22,7 @@ const text = (o: SetupOutcome, step = 'clerk') => {
   return [r.detail, ...(r.lines ?? [])].join('\n')
 }
 
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 const cliScopes = [...declared.map(toProviderScope), 'offline_access']
 const readScopes = declared.filter((s) => SCOPE_POLICY[s]?.agentGrantable === true && s.split(':')[1] === 'read').map(toProviderScope)
 const sameSet = (a: string[], b: string[]) => [...a].sort().join() === [...b].sort().join()

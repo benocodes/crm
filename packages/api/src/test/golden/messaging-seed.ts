@@ -33,7 +33,7 @@ export const messagingCorpus = (): FakeMessageScript[] => [
     inReplyTo: '<m1@fake.test>',
     threadHints: ['<m1@fake.test>'],
     markdown: 'Thanks, notes attached.',
-    from: 'owner@vault.test',
+    from: 'owner@vibase.test',
     to: ['jane@acme.test'],
     cc: ['bob@acme.test'],
     sentByConnection: true,

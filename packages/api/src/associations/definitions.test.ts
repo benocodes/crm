@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 
 // CORE62 D9, D11, D12: the associable set comes from the registry's definition flag, and the four operations are declared.
 describe('associations registration', () => {
-  const registry = createVaultRegistry()
+  const registry = createVibaseRegistry()
 
   it('exactly contacts, companies, deals, tasks, notes, tags, threads and interactions are associable', () => {
     expect(registry.resources().filter((d) => d.associable).map((d) => d.table).sort()).toEqual(['companies', 'contacts', 'deals', 'interactions', 'notes', 'tags', 'tasks', 'threads'])

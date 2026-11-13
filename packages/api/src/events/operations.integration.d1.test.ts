@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { uuidv7 } from '@vibase/storage'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { isAgentGrantable, scopesForRole } from '../auth/roles.js'
 import { captureMessage } from '../test/capture-kit.js'
@@ -11,7 +11,7 @@ import { coldStorage } from '../test/storage.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 
 // API214 (D2, D3, D4, D5, D6, D17): events.list and events.get through the real router on D1.
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const ALL = registry.declaredScopes()
 const AT = '2026-11-12T10:00:00.000Z'
 const NO_SUCH = '0190b2c4-0000-7000-8000-00000000dead'

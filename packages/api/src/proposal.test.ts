@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, grantableScopes } from './auth/roles.js'
 import { deriveTools } from './mcp/tools.js'
-import { createVaultRegistry } from './operations.js'
+import { createVibaseRegistry } from './operations.js'
 import { proposableOperations, proposalMeta } from './proposal.js'
 import { Registry, type TenantOperation } from './registry.js'
 import { createApp } from './rest/app.js'
@@ -10,7 +10,7 @@ import { fakeUserAuthenticator, mintTestUserToken } from './test/user-auth.js'
 import { coldStorage } from './test/storage.js'
 
 // [[AGT8]] D2, D30, D32, D40: the proposal manifest and discovery.
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const ELIGIBLE = [
   'associations.create', 'associations.delete',
   'companies.create', 'companies.delete', 'companies.update',

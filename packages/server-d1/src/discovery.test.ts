@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { createVaultRegistry, toProviderScope, scopesForRole } from '@vibase/api'
+import { createVibaseRegistry, toProviderScope, scopesForRole } from '@vibase/api'
 import { mintClerkToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -40,7 +40,7 @@ const tracker = async (names: readonly string[]) => {
   await createMigrationTracker(w.d1)
   await recordMigrations(w.d1, names)
 }
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 
 describe('D21 GET /.well-known/vibase', () => {
   it('answers the documented shape on the request origin, and a different origin gives a different body', async () => {

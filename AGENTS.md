@@ -230,11 +230,14 @@ in-place edits ([[CORE29]] retro).
 
 - Files and folders kebab-case; functions and variables camelCase; types PascalCase; database fields and
   API responses snake_case; environment variables UPPER_SNAKE_CASE.
-- Names ([[OPS262]]): packages are `@vibase/*`, new local resource names use `vb`, and user-visible text says
-  "Vibase". "The vault" stays the internal term in comments and knowledge prose. Wire and stored identifiers
-  (`x-vault-proposal`, `vault.invalid`, `vault_*` Postgres roles, the existing `vault-<env>` instances and
-  `setup`'s derivation until [[OPS260]]) and TypeScript identifiers (`createVaultRegistry`) are kept: renaming
-  them changes a contract, so it needs a spec decision.
+- Names ([[OPS262]], [[OPS265]]): packages are `@vibase/*`, new local resource names use `vb`, and user-visible
+  text says "Vibase". TypeScript identifiers, file names, the `x-vibase-proposal` OpenAPI extension, the
+  `vibase.invalid` default `client_ref` domain, test hosts (`vibase.test`) and the `VIBASE_SMOKED1_*` script env vars
+  all say Vibase, with no aliases. "The vault" stays the internal term in comments and knowledge prose. What keeps
+  `vault`: stored `…@vault.invalid` rows (history, never rewritten), the `vault_*` Postgres roles and
+  databases (#266), the existing `vault-<env>` instances (`vault-smoked1`, `vault-hq`, `vault-approvals-hq`:
+  [[OPS251]], [[OPS252]]) and `setup`'s `vault-${env}` derivation ([[OPS260]]); no code may hard-code a `vault`
+  prefix for anything new.
 - UUIDv7 primary keys (`uuid_generate_v7()`), never v4.
 - Migrations: Kysely, forward-only, one squashed baseline to start.
 - Commits: Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`, ...). Branches:

@@ -27,7 +27,7 @@ export const IDS = {
   agent: '0192f4a0-0000-7000-8000-000000000009',
 } as const
 
-export class FakeVault {
+export class FakeVibase {
   requests: FakeRequest[] = []
   interactions = new Map<string, FakeInteraction>()
   messages = new Map<string, { id: string; author: { user_id: string } }>()

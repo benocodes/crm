@@ -20,7 +20,7 @@ export function documentOperation(app: OpenAPIHono<AppEnv>, op: Operation): void
     tags: op.tags,
     security: [{ bearerAuth: [] }],
     // [[AGT8]] D40: every tenant operation says whether it can be proposed, and with which scope.
-    ...(op.kind === 'tenant' ? { 'x-vault-proposal': proposalMeta(op) } : {}),
+    ...(op.kind === 'tenant' ? { 'x-vibase-proposal': proposalMeta(op) } : {}),
     request: {
       params: request?.params,
       query: request?.query,

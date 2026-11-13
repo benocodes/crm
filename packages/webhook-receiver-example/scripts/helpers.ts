@@ -1,6 +1,6 @@
 // Shared by the example's tests: signing as the vault does, the event record a delivery carries, and a fake Workflow binding.
 import { signatureHeader } from '@vibase/api'
-import { IDS } from './fake-vault.js'
+import { IDS } from './fake-vibase.js'
 import type { WorkflowBinding } from '../src/receiver.js'
 
 /** A fixed secret in the vault's `whsec_<base64 of 32 bytes>` shape. */

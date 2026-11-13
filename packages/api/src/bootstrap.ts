@@ -4,7 +4,7 @@ import { generateApiKey } from './auth/api-keys.js'
 import { assertAgentGrantable, grantableScopes } from './auth/roles.js'
 import { ApiError } from './errors.js'
 import { normalizeIdentityValue } from './identity/normalize.js'
-import { createVaultRegistry } from './operations.js'
+import { createVibaseRegistry } from './operations.js'
 import { ScopeSet } from './scopes.js'
 
 export type BootstrapResult = { organizationId: string; userId: string; agentId: string; apiKeyId: string; key: string }
@@ -170,7 +170,7 @@ export async function bootstrap(
   },
   env: { now?: Date; newId?: () => string; randomBytes?: (n: number) => Uint8Array } = {},
 ): Promise<BootstrapResult> {
-  const declared = createVaultRegistry().declaredScopes()
+  const declared = createVibaseRegistry().declaredScopes()
   const scopes = opts.scopes ? ScopeSet.parse(opts.scopes).toStrings() : grantableScopes(declared)
   for (const s of scopes) if (!declared.includes(s)) throw new Error(`unknown scope: ${s}`)
   assertAgentGrantable(scopes, declared)

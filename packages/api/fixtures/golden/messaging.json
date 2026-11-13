@@ -94,8 +94,8 @@
                 "external_id": "<m2@fake.test>",
                 "in_reply_to": "<m1@fake.test>",
                 "author": {
-                  "user_id": "owner@vault.test",
-                  "user_name": "owner@vault.test",
+                  "user_id": "owner@vibase.test",
+                  "user_name": "owner@vibase.test",
                   "full_name": "owner",
                   "is_bot": false
                 },
@@ -421,8 +421,8 @@
                 "external_id": "<m2@fake.test>",
                 "in_reply_to": "<m1@fake.test>",
                 "author": {
-                  "user_id": "owner@vault.test",
-                  "user_name": "owner@vault.test",
+                  "user_id": "owner@vibase.test",
+                  "user_name": "owner@vibase.test",
                   "full_name": "owner",
                   "is_bot": false
                 },
@@ -625,8 +625,8 @@
                 "external_id": "<m2@fake.test>",
                 "in_reply_to": "<m1@fake.test>",
                 "author": {
-                  "user_id": "owner@vault.test",
-                  "user_name": "owner@vault.test",
+                  "user_id": "owner@vibase.test",
+                  "user_name": "owner@vibase.test",
                   "full_name": "owner",
                   "is_bot": false
                 },
@@ -729,8 +729,8 @@
                 "external_id": "<m2@fake.test>",
                 "in_reply_to": "<m1@fake.test>",
                 "author": {
-                  "user_id": "owner@vault.test",
-                  "user_name": "owner@vault.test",
+                  "user_id": "owner@vibase.test",
+                  "user_name": "owner@vibase.test",
                   "full_name": "owner",
                   "is_bot": false
                 },
@@ -1265,8 +1265,8 @@
                 "external_id": "<m2@fake.test>",
                 "in_reply_to": "<m1@fake.test>",
                 "author": {
-                  "user_id": "owner@vault.test",
-                  "user_name": "owner@vault.test",
+                  "user_id": "owner@vibase.test",
+                  "user_name": "owner@vibase.test",
                   "full_name": "owner",
                   "is_bot": false
                 },

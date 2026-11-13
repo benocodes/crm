@@ -483,7 +483,7 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   RLS has nothing to separate and the assertion passes for the wrong reason.
 - **The contract suite runs over every resource definition automatically**
   (`src/contract.integration.d1.test.ts` and `src/contract.integration.postgres.test.ts`, which call `runContractSuite`
-  from `src/test/contract.ts`). There are **two runs**: Postgres over `createVaultRegistry()`, and D1 over a
+  from `src/test/contract.ts`). There are **two runs**: Postgres over `createVibaseRegistry()`, and D1 over a
   hand-built registry and fixture map. A resource missing from the D1 run's registry is contract-tested only on
   Postgres, which is off by default (`pnpm test:postgres`): the default run exercises only the D1 registry, so a
   resource missing from it has no contract coverage at all ([[CORE68]]: the messaging fixtures went to `kit.capture`
@@ -497,7 +497,7 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   - routes that should not be generated;
   - the OpenAPI document.
 
-  To add a resource, register its definition in `createVaultRegistry` and add one entry in
+  To add a resource, register its definition in `createVibaseRegistry` and add one entry in
   `src/test/fixtures.ts`:
   - `input` and `patch` builders, each producing unique values per call;
   - `make` for read-only definitions.

@@ -1,6 +1,6 @@
 // [[API214]]: `vibase events list` and `vibase events get` come to the CLI from the registry's OpenAPI like every other command; no CLI code is involved.
 import { afterEach, expect, it } from 'vitest'
-import { createVaultRegistry } from '../../api/src/operations.js'
+import { createVibaseRegistry } from '../../api/src/operations.js'
 import { createApp } from '../../api/src/rest/app.js'
 import { coldStorage } from '../../api/src/test/storage.js'
 import { fakeInstance, json, KEY, rig, SERVER } from './test/harness.js'
@@ -10,7 +10,7 @@ afterEach(() => { while (rigs.length) rigs.pop()!.dispose() })
 const ID = '0190b2c4-0000-7000-8000-0000000000e1'
 
 async function run(args: string[], answer: unknown) {
-  const app = createApp({ storage: coldStorage(), registry: createVaultRegistry() })
+  const app = createApp({ storage: coldStorage(), registry: createVibaseRegistry() })
   const api = await (await app.request('/api/v1/openapi.json')).json()
   const instance = fakeInstance({ api, routes: req => (new URL(req.url).pathname.startsWith('/api/v1/events') ? json(answer) : undefined) })
   const r = rig({ fetch: instance.fetch, env: { VIBASE_SERVER: SERVER, VIBASE_API_KEY: KEY } })

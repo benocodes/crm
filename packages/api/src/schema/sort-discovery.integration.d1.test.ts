@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { fullPath, type Surface } from '../surfaces.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
@@ -12,7 +12,7 @@ import { schemaDocument } from './document.js'
 // costs are written out below as literals for the spot checks.
 let e: Engine
 let app: ReturnType<typeof createApp>
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const ALL = registry.declaredScopes()
 beforeAll(async () => {
   e = await openD1Engine()

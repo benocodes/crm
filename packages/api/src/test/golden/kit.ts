@@ -6,7 +6,7 @@ import type { Hono } from 'hono'
 import { createUserAuthenticator } from '../../auth/user-authenticator.js'
 import type { UserAuthenticator } from '../../auth/types.js'
 import { clerkWebhookHandler } from '../../directory/webhook.js'
-import { createVaultRegistry } from '../../operations.js'
+import { createVibaseRegistry } from '../../operations.js'
 import { clerkMembership, clerkOrganization, clerkUser, mintClerkToken, orgClaim, signClerkWebhook, testClerkAdapter } from '../clerk.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../user-auth.js'
 import { GOLDEN_AGENT_KEY, GOLDEN_EXPIRED_KEY, IDS, type GoldenActor, type GoldenClerk } from './scenarios.js'
@@ -30,7 +30,7 @@ export function loadGoldenClerk(kit: GoldenClerkKit, spec: GoldenClerk | undefin
 
 /** An `alg: none` token is the injected-principal stand-in the older scenarios use; anything else is verified for real. */
 export function goldenAuthenticator(clerk: GoldenClerkKit): UserAuthenticator {
-  const real = createUserAuthenticator({ adapter: clerk.adapter, declaredScopes: createVaultRegistry().declaredScopes() })
+  const real = createUserAuthenticator({ adapter: clerk.adapter, declaredScopes: createVibaseRegistry().declaredScopes() })
   const fake = fakeUserAuthenticator()
   return {
     authenticate(token, req) {

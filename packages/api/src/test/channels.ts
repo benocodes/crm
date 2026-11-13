@@ -116,7 +116,7 @@ export class FakeChannel implements ChannelPort<ConnectionRef> {
           s.participants ??
           [
             { kind: 'email', value: from, name: from.split('@')[0]!, role: 'from' },
-            ...(s.to ?? ['owner@vault.test']).map((value) => ({ kind: 'email' as const, value, role: 'to' as const })),
+            ...(s.to ?? ['owner@vibase.test']).map((value) => ({ kind: 'email' as const, value, role: 'to' as const })),
             ...(s.cc ?? []).map((value) => ({ kind: 'email' as const, value, role: 'cc' as const })),
           ],
         sent_by_connection: s.sentByConnection ?? false,
@@ -156,8 +156,8 @@ export function standardScripts(): Record<string, FakeMessageScript> {
     reaction: { providerMessageId: 'reaction', kind: 'reaction', markdown: '👍', inReplyTo: '<plain@fake.test>' },
     reply: { providerMessageId: 'reply', inReplyTo: '<parent@fake.test>', threadHints: ['<parent@fake.test>'], occurredAt: '2026-10-22T09:05:00.000Z', providerThreadId: 't-conversation' },
     parent: { providerMessageId: 'parent', occurredAt: '2026-10-22T09:00:00.000Z', providerThreadId: 't-conversation' },
-    nonAscii: { providerMessageId: 'non-ascii', participants: [{ kind: 'email', value: 'jane@acme.test', role: 'from' }, { kind: 'email', value: 'jörg@bücher.test', role: 'to' }, { kind: 'email', value: 'ok@vault.test', role: 'to' }] },
-    noSender: { providerMessageId: 'no-sender', participants: [{ kind: 'email', value: 'jörg@bücher.test', role: 'from' }, { kind: 'email', value: 'ok@vault.test', role: 'to' }] },
+    nonAscii: { providerMessageId: 'non-ascii', participants: [{ kind: 'email', value: 'jane@acme.test', role: 'from' }, { kind: 'email', value: 'jörg@bücher.test', role: 'to' }, { kind: 'email', value: 'ok@vibase.test', role: 'to' }] },
+    noSender: { providerMessageId: 'no-sender', participants: [{ kind: 'email', value: 'jörg@bücher.test', role: 'from' }, { kind: 'email', value: 'ok@vibase.test', role: 'to' }] },
     overCap: { providerMessageId: 'over-cap', to: many },
     failingAttachment: { providerMessageId: 'failing-attachment', attachments: [{ name: 'gone.pdf', bytes: bytesOf(10), fail: new AttachmentFetchError('not_found', 'https://mail.example/secret-token') }] },
     brokenAttachment: { providerMessageId: 'broken-attachment', attachments: [{ name: 'x.bin', bytes: bytesOf(10), fail: new Error('socket hang up for https://mail.example/token=abc') }] },

@@ -6,7 +6,7 @@ import { fromHtml } from 'hast-util-from-html'
 import { toMdast } from 'hast-util-to-mdast'
 import type { PhrasingContent, Root } from 'mdast'
 import { toPlainText } from '../markdown.js'
-import type { ChannelFacts, ChannelMessage, ParticipantRole, VaultMessage } from '../port.js'
+import type { ChannelFacts, ChannelMessage, ParticipantRole, VibaseMessage } from '../port.js'
 import { charsetOf, decodeCharset, decodeMimeWords, header, messageIdTokens, parseAddressList } from './mime.js'
 import type { GmailMessagePart, GmailMessageResource } from './types.js'
 
@@ -147,7 +147,7 @@ export function mapGmailMessage(input: MapperInput): ChannelMessage | { skip: st
 
   const prefix = `gmail:${base64Url(conn.mailbox)}`
   const fullName = from?.name ?? from?.value.split('@')[0] ?? ''
-  const message: VaultMessage = {
+  const message: VibaseMessage = {
     id: `${prefix}:${resource.id}`,
     threadId: `${prefix}:${resource.threadId}`,
     text: toPlainText(formatted),

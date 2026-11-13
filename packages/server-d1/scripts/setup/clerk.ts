@@ -2,7 +2,7 @@
 // (plain `fetch`, no SDK), the Frontend API and the issuer's metadata. Every row is evaluated and the whole checklist is printed (D26); a
 // dashboard-only row is checked where a read exists and otherwise `manual`, never claimed. Requests go only to the paths of the table
 // (D33): no Platform API, no dashboard endpoints. Nothing here prints a key, the PEM, an invitation link or a client secret.
-import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, createVaultRegistry, toProviderScope } from '@vibase/api'
+import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, createVibaseRegistry, toProviderScope } from '@vibase/api'
 import { parse } from 'jsonc-parser'
 import { pemFromJwk, type ClerkKeys } from './clerk-keys.js'
 import type { SetupDeps, SetupOptions, Status, StepResult } from './types.js'
@@ -37,7 +37,7 @@ interface Reply {
 
 /** The scopes of the desired state, from the operation registry (D40). */
 export function desiredScopes() {
-  const declared = createVaultRegistry().declaredScopes()
+  const declared = createVibaseRegistry().declaredScopes()
   const provider = declared.map(toProviderScope)
   return {
     declared,

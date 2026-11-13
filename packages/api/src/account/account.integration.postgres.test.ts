@@ -3,7 +3,7 @@ import { pgStorage } from '../test/storage.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vibase/db'
 import { createOwnerTestDb, createTestDb, seedAgent, seedMembership, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { seedApiKey } from '../test/keys.js'
 import { mintClerkToken, orgClaim, testClerkAdapter, type ClerkUserJson } from '../test/clerk.js'
@@ -14,7 +14,7 @@ let owner: Kysely<Database>
 let profiles: Map<string, ClerkUserJson>
 let kit: Awaited<ReturnType<typeof testClerkAdapter>>
 let app: ReturnType<typeof createApp>
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 
 beforeAll(() => {
   db = createTestDb()

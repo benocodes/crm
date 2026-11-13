@@ -6,7 +6,7 @@ import { ScopeSet, formatScope, type Scope } from './scopes.js'
 // [[AGT8]] D2, D32, D34, D40: the proposal metadata of the registry. One module answers "may this operation be proposed, and what does
 // proposing it need", for the action-request operations, the refusal hint, discovery (OpenAPI, tool descriptions) and the manifest test.
 
-/** What a client is told about an operation ([[AGT8]] D40): the `x-vault-proposal` extension of OpenAPI. */
+/** What a client is told about an operation ([[AGT8]] D40): the `x-vibase-proposal` extension of OpenAPI. */
 export interface ProposalMeta {
   eligible: boolean
   /** Why not, when `eligible` is false. */

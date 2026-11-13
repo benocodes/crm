@@ -25,7 +25,7 @@
   // the files itself (adding the security headers); no asset is reachable at any other path. `assets` is inherited by every env.
   "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*"] },
   // Local R2 (no account needed): message bodies and file bytes, served by messages.content and files.content.
-  "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-bodies" }],
+  "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vb-bodies" }],
   // Secrets (CLERK_JWT_KEY, CLERK_SECRET_KEY) are never put here: .dev.vars locally, wrangler secret put when deployed.
   "vars": {
     "AUTH_PROVIDER": "",

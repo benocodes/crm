@@ -3,7 +3,7 @@
 import { bytesOf } from './channels.js'
 import { buildGmailMessage, type BuiltGmailMessage, type MessageSpec } from './gmail.js'
 
-export const MAILBOX = 'owner@vault.test'
+export const MAILBOX = 'owner@vibase.test'
 const base = (id: string, extra: Partial<MessageSpec> & Pick<MessageSpec, 'payload'>, headers: Array<[string, string]> = []): MessageSpec => ({
   id,
   headers: [

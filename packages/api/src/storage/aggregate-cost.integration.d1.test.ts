@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { compileOperation, type PreparedOperation } from '@vibase/storage'
 import type { TenantOperation } from '../registry.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { ScopeSet } from '../scopes.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { buildSchemaDocument } from '../schema/build.js'
@@ -11,7 +11,7 @@ import { deals } from '../resources/deals.js'
 // [[CORE202]] D16, D19: the cost sentence of `deals.aggregate` ("a filter schema.get marks `indexed` narrows that read through an index") is backed by the
 // real D1 plans, the way [[CORE201]] D12 backs `indexed`. A pure checker over what discovery says and what the plans show; the strength test breaks one input.
 let e: Engine
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const op = registry.get('deals.aggregate') as TenantOperation
 const SAMPLES = ['018f0000-0000-7000-8000-000000000001', 'x', '1', '2026-01-01']
 

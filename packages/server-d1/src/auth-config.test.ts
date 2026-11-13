@@ -5,7 +5,7 @@ import { clerkKit, openWorkerD1, type ClerkKit, type WorkerD1 } from './test/kit
 // [[CORE243]] D6, P2: the configuration of `AUTH_PROVIDER=better-auth`. A missing or malformed value fails closed (`500 internal` on every non-health request,
 // `/health` still 200), the log names the variable and never its value; `clerk` and unset never read the two variables for auth.
 const SECRET = 'a-valid-auth-secret-of-exactly-32!' // 34 characters
-const VALID = { AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: 'https://vault.example.workers.dev' } as const
+const VALID = { AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: 'https://vibase.example.workers.dev' } as const
 
 let w: WorkerD1
 let kit: ClerkKit
@@ -33,9 +33,9 @@ describe('AUTH_SECRET and PUBLIC_BASE_URL for better-auth', () => {
     ['AUTH_SECRET padded with spaces', { AUTH_SECRET: `  ${SECRET}  ` }, 'AUTH_SECRET'],
     ['AUTH_SECRET with a trailing newline', { AUTH_SECRET: `${SECRET}\n` }, 'AUTH_SECRET'],
     ['PUBLIC_BASE_URL missing', { PUBLIC_BASE_URL: undefined }, 'PUBLIC_BASE_URL'],
-    ['PUBLIC_BASE_URL with a path', { PUBLIC_BASE_URL: 'https://vault.example.workers.dev/app' }, 'PUBLIC_BASE_URL'],
-    ['PUBLIC_BASE_URL http on a non-localhost host', { PUBLIC_BASE_URL: 'http://vault.example.workers.dev' }, 'PUBLIC_BASE_URL'],
-    ['PUBLIC_BASE_URL not a URL', { PUBLIC_BASE_URL: 'vault.example.workers.dev' }, 'PUBLIC_BASE_URL'],
+    ['PUBLIC_BASE_URL with a path', { PUBLIC_BASE_URL: 'https://vibase.example.workers.dev/app' }, 'PUBLIC_BASE_URL'],
+    ['PUBLIC_BASE_URL http on a non-localhost host', { PUBLIC_BASE_URL: 'http://vibase.example.workers.dev' }, 'PUBLIC_BASE_URL'],
+    ['PUBLIC_BASE_URL not a URL', { PUBLIC_BASE_URL: 'vibase.example.workers.dev' }, 'PUBLIC_BASE_URL'],
   ])('%s: a non-health request is 500 internal, /health is 200, and the log names the variable but never a value', async (_n, change, name) => {
     const env = { ...VALID, ...change } as Partial<D1WorkerEnv>
     const wk = worker(env)
@@ -51,7 +51,7 @@ describe('AUTH_SECRET and PUBLIC_BASE_URL for better-auth', () => {
   })
 
   it.each([
-    ['the minimum secret (32 characters) and an https origin', { AUTH_SECRET: 'abcdefghij0123456789abcdefghijkl', PUBLIC_BASE_URL: 'https://vault.example' }],
+    ['the minimum secret (32 characters) and an https origin', { AUTH_SECRET: 'abcdefghij0123456789abcdefghijkl', PUBLIC_BASE_URL: 'https://vibase.example' }],
     ['a workers.dev origin', {}],
     ['http://localhost for local development', { PUBLIC_BASE_URL: 'http://localhost:8787' }],
   ])('%s serves: an API route is the normal answer, not a configuration error', async (_n, change) => {

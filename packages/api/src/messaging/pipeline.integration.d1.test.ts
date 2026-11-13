@@ -373,7 +373,7 @@ function engineSuite(): void {
       expect(structuredClone(result)).toEqual(result)
       expect(Object.keys(result).sort()).toEqual(['attachments', 'captured', 'existing', 'orphaned_objects', 'skipped'])
       const text = JSON.stringify(result)
-      for (const secret of ['acme.test', 'vault.test', 'fake.test', 'Hello', 'secret-token', 'bücher', e.organizationId]) expect(text).not.toContain(secret)
+      for (const secret of ['acme.test', 'vibase.test', 'fake.test', 'Hello', 'secret-token', 'bücher', e.organizationId]) expect(text).not.toContain(secret)
       expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/)
     })
 

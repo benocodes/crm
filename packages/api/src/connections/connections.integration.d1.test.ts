@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { IDENTITY_REFERENCES } from '../identity/merge.js'
 import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, isAgentGrantable } from '../auth/roles.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { captureMessage, runCapture } from '../test/capture-kit.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
@@ -26,19 +26,19 @@ beforeEach(async () => {
 
 const call = async (method: string, path: string, scopes: string[], kind: 'user' | 'agent' = 'user', body?: unknown) => {
   const token = mintTestUserToken({ userId: kind === 'agent' ? e.agentId : e.userId, organizationId: e.organizationId, scopes, kind })
-  const res = await app.request(`https://vault.test${path}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+  const res = await app.request(`https://vibase.test${path}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
   const text = await res.text()
   return { status: res.status, text, body: text ? (JSON.parse(text) as any) : null }
 }
 let n = 0
 async function seedConnection(over: Record<string, unknown> = {}) {
   n++
-  const identity = await e.insert('identities', { kind: 'email', value: `own-${n}@vault.test`, contact_id: null, own: true })
+  const identity = await e.insert('identities', { kind: 'email', value: `own-${n}@vibase.test`, contact_id: null, own: true })
   return e.insert('channel_connections', { provider: 'google', account_id: `sub-${n}`, identity_id: identity.id, owner_id: e.userId, status: 'active', granted_scopes: ['openid', 'email'], connected_at: SEED_AT, ...over })
 }
 async function seedMachinery(connectionId: string, opts: { synced?: string; errorCode?: string } = {}) {
   await e.insert('channel_credentials', { connection_id: connectionId, refresh_token_ciphertext: 'c2VhbGVk-SENTINEL-CIPHERTEXT', key_version: 1 })
-  await e.insert('gmail_watches', { connection_id: connectionId, mailbox: `m-${connectionId.slice(-6)}@vault.test`, expires_at: '2026-11-12T00:00:00.000Z' })
+  await e.insert('gmail_watches', { connection_id: connectionId, mailbox: `m-${connectionId.slice(-6)}@vibase.test`, expires_at: '2026-11-12T00:00:00.000Z' })
   await e.insert('mail_sync_state', { connection_id: connectionId, ...(opts.errorCode ? { last_error_code: opts.errorCode, last_error_at: SEED_AT } : {}) })
   await e.insert('mail_sync_cursors', { connection_id: connectionId, history_id: '123', ...(opts.synced ? { last_synced_at: opts.synced } : {}) })
 }
@@ -119,7 +119,7 @@ describe('scopes (D20)', () => {
     expect(isAgentGrantable('connections:write')).toBe(false)
     expect(SCOPE_POLICY['connections:read']).toEqual({ member: true, agentGrantable: true })
     expect(SCOPE_POLICY['connections:write']).toEqual({ member: true, agentGrantable: false })
-    const declared = createVaultRegistry().declaredScopes()
+    const declared = createVibaseRegistry().declaredScopes()
     expect(declared).toEqual(expect.arrayContaining(['connections:read', 'connections:write']))
     for (const s of ['connections:read', 'connections:write']) expect(SCOPE_DESCRIPTIONS[s]?.length, s).toBeGreaterThan(10)
   })
@@ -137,7 +137,7 @@ describe('scopes (D20)', () => {
       gmail: { config: parseGmailConfig({ GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's', OAUTH_STATE_SECRET: 'o', CREDENTIALS_KEY: Buffer.alloc(32).toString('base64') }).config },
     })
     const token = (scopes: string[]) => mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
-    const post = (scopes: string[]) => auth.request('https://vault.test/meta/v1/connections/authorize', { method: 'POST', headers: { authorization: `Bearer ${token(scopes)}`, 'content-type': 'application/json' }, body: JSON.stringify({ provider: 'google' }) })
+    const post = (scopes: string[]) => auth.request('https://vibase.test/meta/v1/connections/authorize', { method: 'POST', headers: { authorization: `Bearer ${token(scopes)}`, 'content-type': 'application/json' }, body: JSON.stringify({ provider: 'google' }) })
     expect((await post(['connections:read'])).status).toBe(403)
     const withWrite = await post(['connections:write'])
     expect(withWrite.status).toBe(403)
@@ -194,13 +194,13 @@ describe('Postgres compiles only (D29): the connection operations and the callba
       gmail: { config: parseGmailConfig({ GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's', OAUTH_STATE_SECRET: 'o', CREDENTIALS_KEY: Buffer.alloc(32).toString('base64') }).config },
     })
     const token = mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes: ['connections:read', 'connections:write'] })
-    const send = (method: string, path: string, body?: unknown) => pg.request(`https://vault.test${path}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+    const send = (method: string, path: string, body?: unknown) => pg.request(`https://vibase.test${path}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
     const id = '0190b2c4-0000-7000-8000-000000000001'
     for (const [method, path, body] of [['GET', '/meta/v1/connections'], ['GET', `/meta/v1/connections/${id}`], ['DELETE', `/meta/v1/connections/${id}`], ['POST', '/meta/v1/connections/authorize', { provider: 'google' }]] as const) {
       const res = await send(method, path, body)
       expect([res.status, ((await res.json()) as any).error.code], `${method} ${path}`).toEqual([501, 'not_implemented'])
     }
-    const cb = await pg.request('https://vault.test/oauth/google/callback?code=x&state=y')
+    const cb = await pg.request('https://vibase.test/oauth/google/callback?code=x&state=y')
     expect(cb.status).toBe(501)
   })
 })

@@ -3,7 +3,7 @@
 import type { Message } from 'chat'
 
 /** The contract with the SDK: a renamed or retyped field upstream fails typecheck here. Plain data, hand-constructible. */
-export type VaultMessage = Pick<Message, 'id' | 'threadId' | 'text' | 'formatted' | 'author' | 'metadata' | 'attachments'>
+export type VibaseMessage = Pick<Message, 'id' | 'threadId' | 'text' | 'formatted' | 'author' | 'metadata' | 'attachments'>
 
 export type ChannelName = 'email'
 export type ParticipantRole = 'from' | 'to' | 'cc' | 'bcc'
@@ -35,7 +35,7 @@ export interface ChannelRaw {
 }
 
 export interface ChannelMessage {
-  message: VaultMessage
+  message: VibaseMessage
   facts: ChannelFacts
   raw: ChannelRaw
 }

@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../../api/src/operations.js'
+import { createVibaseRegistry } from '../../api/src/operations.js'
 import { createApp } from '../../api/src/rest/app.js'
 import { coldStorage } from '../../api/src/test/storage.js'
 import { fakeInstance, json, KEY, rig, SERVER } from './test/harness.js'
@@ -16,7 +16,7 @@ const id = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')
 const ev = (n: number, type = 'task.created') => ({ id: id(n), type, resource_type: 'task', resource_id: id(1000 + n) })
 
 let apiDocPromise: Promise<any> | undefined
-const apiDoc = () => (apiDocPromise ??= (async () => (await createApp({ storage: coldStorage(), registry: createVaultRegistry() }).request('/api/v1/openapi.json')).json())())
+const apiDoc = () => (apiDocPromise ??= (async () => (await createApp({ storage: coldStorage(), registry: createVibaseRegistry() }).request('/api/v1/openapi.json')).json())())
 
 interface Feed {
   events: ReturnType<typeof ev>[]

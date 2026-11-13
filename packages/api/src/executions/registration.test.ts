@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { Registry, type TenantOperation } from '../registry.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { enqueuedOperation } from './enqueue.js'
 import { registerTestOperations, TEST_OPS } from '../test/rail-kit.js'
 
@@ -79,11 +79,11 @@ describe('Registry.register of an enqueued operation', () => {
 
 describe('the production registry', () => {
   it('registers Gmail send as the sole production enqueued operation', () => {
-    expect(createVaultRegistry().operations().filter((o) => o.kind === 'tenant' && o.execution).map(o => o.name)).toEqual(['messages.send'])
-    expect(createVaultRegistry().get('messages.send')).toMatchObject({execution:{transport:'gmail'},response:{status:202}})
+    expect(createVibaseRegistry().operations().filter((o) => o.kind === 'tenant' && o.execution).map(o => o.name)).toEqual(['messages.send'])
+    expect(createVibaseRegistry().get('messages.send')).toMatchObject({execution:{transport:'gmail'},response:{status:202}})
   })
   it('has the two execution reads, which declare no scope of their own and add none to the catalog', () => {
-    const r = createVaultRegistry()
+    const r = createVibaseRegistry()
     for (const name of ['action_executions.list', 'action_executions.get']) {
       const op = r.get(name)
       expect(op).toMatchObject({ kind: 'tenant', scope: null, authority: 'read', d1Only: true, surface: 'api' })
@@ -92,11 +92,11 @@ describe('the production registry', () => {
   })
   it('the test operations only exist where a test registers them', () => {
     const names = (r: Registry) => r.operations().map((o) => o.name)
-    expect(names(createVaultRegistry())).not.toContain(TEST_OPS.reconcile)
-    expect(names(createVaultRegistry({ operations: registerTestOperations }))).toEqual(expect.arrayContaining(Object.values(TEST_OPS)))
+    expect(names(createVibaseRegistry())).not.toContain(TEST_OPS.reconcile)
+    expect(names(createVibaseRegistry({ operations: registerTestOperations }))).toEqual(expect.arrayContaining(Object.values(TEST_OPS)))
   })
   it('an enqueued operation is listed by action_requests.create like any proposable one, ahead of the queue itself', () => {
-    const r = createVaultRegistry({ operations: registerTestOperations })
+    const r = createVibaseRegistry({ operations: registerTestOperations })
     const create = r.get('action_requests.create') as TenantOperation
     const op = (create.request!.body as z.ZodObject).shape.operation as z.ZodEnum
     expect(op.options).toEqual(expect.arrayContaining(Object.values(TEST_OPS)))

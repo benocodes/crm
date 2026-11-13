@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { createVaultRegistry } from '../../api/src/operations.js'
+import { createVibaseRegistry } from '../../api/src/operations.js'
 import { createApp } from '../../api/src/rest/app.js'
 import { coldStorage } from '../../api/src/test/storage.js'
 import { fakeInstance, json, KEY, rig, SERVER } from './test/harness.js'
@@ -10,7 +10,7 @@ const rigs: ReturnType<typeof rig>[] = []
 afterEach(() => { while (rigs.length) rigs.pop()!.dispose() })
 const CURSOR = Buffer.from(JSON.stringify(['occurred_at', 'desc', '2026-10-01T00:00:00.000Z', '0190b2c4-0000-7000-8000-000000000001'])).toString('base64url')
 async function session() {
-  const app = createApp({ storage: coldStorage(), registry: createVaultRegistry() })
+  const app = createApp({ storage: coldStorage(), registry: createVibaseRegistry() })
   const api = await (await app.request('/api/v1/openapi.json')).json()
   const instance = fakeInstance({ api, routes: req => {
     const u = new URL(req.url)

@@ -14,7 +14,7 @@ import { SignJWT, exportSPKI, generateKeyPair } from 'jose'
 import { sql } from 'kysely'
 import { createDb, withServiceRole } from '@vibase/db'
 import { postgresBinding } from '@vibase/storage-postgres'
-import { createApp, createAuthAdapter, createVaultRegistry } from '@vibase/api'
+import { createApp, createAuthAdapter, createVibaseRegistry } from '@vibase/api'
 
 const ISSUER = 'https://smoke.clerk.test'
 const rand = randomBytes(4).toString('hex')
@@ -96,7 +96,7 @@ const storage = postgresBinding(db)
 const app = createApp({ authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
 const server = serve({ fetch: app.fetch, port: appPort, hostname: '127.0.0.1' })
 const base = `http://127.0.0.1:${appPort}`
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 
 const mint = (sub: string, o: { azp?: string; exp?: number; rol?: string } = {}) => {
   const now = Math.floor(Date.now() / 1000)
@@ -173,7 +173,7 @@ try {
   for (const surface of ['api', 'meta'] as const) {
     await check(`GET /${surface}/v1/openapi.json`, { path: `/${surface}/v1/openapi.json` }, 200, (j) => {
       const have = new Set(Object.values(j.paths).flatMap((p: any) => Object.values(p).map((o: any) => o.operationId)))
-      const missing = createVaultRegistry().operations().filter((o) => o.surface === surface).map((o) => o.name).filter((n) => !have.has(n))
+      const missing = createVibaseRegistry().operations().filter((o) => o.surface === surface).map((o) => o.name).filter((n) => !have.has(n))
       return missing.length ? `missing ${missing.join(', ')}` : undefined
     })
   }

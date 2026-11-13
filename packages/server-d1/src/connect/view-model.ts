@@ -7,7 +7,7 @@ const SCOPE_WRITE_AGENTS = 'agents:write'
 const EMPTY: ViewModel = { state: 'loading', message: null, showSignIn: false, who: null, connect: null, agents: null, account: null, error: null }
 
 const apiKeyDirections = (origin: string): { command: string; note: string } => ({
-  command: `printf %s "$VAULT_API_KEY" | vibase login --api-key --server ${origin}`,
+  command: `printf %s "$VIBASE_API_KEY" | vibase login --api-key --server ${origin}`,
   note: 'For scripts and agents that cannot use a browser. An owner creates a key with `vibase api-keys create`; the key is read from stdin, never from the command line.',
 })
 

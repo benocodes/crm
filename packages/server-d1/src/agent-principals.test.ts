@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding } from '@vibase/storage-d1'
-import { SCOPE_POLICY, createVaultRegistry, createWorkspaceAuthAdapter, createWorkspaceAuthenticator, grantableScopes, scopesForRole, type ScopePolicy } from '@vibase/api'
+import { SCOPE_POLICY, createVibaseRegistry, createWorkspaceAuthAdapter, createWorkspaceAuthenticator, grantableScopes, scopesForRole, type ScopePolicy } from '@vibase/api'
 import { mintClerkToken, mintOAuthToken } from '@vibase/api/test/clerk'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
@@ -29,7 +29,7 @@ beforeEach(async () => {
 const BASE = 'https://w.test'
 const CLI = 'client_cli'
 const DCR = 'client_dcr'
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 const grantable = grantableScopes(declared)
 type Res = { status: number; json: any }
 
@@ -59,7 +59,7 @@ const rows = async (sqlText: string, ...binds: unknown[]) => (await w.d1.prepare
 const count = async (t: string) => Number(((await w.d1.prepare(`select count(*) n from "${t}"`).first()) as { n: number }).n)
 const state = async () => ({ users: await count('users'), principals: await count('principals'), agents: await count('agents'), events: await count('events') })
 const userFetches = (sub: string) => kit.fetch.calls.filter((c) => c.url.endsWith(`/v1/users/${sub}`)).length
-const meSchema = () => (createVaultRegistry().operations().find((o) => o.name === 'me.get') as { response: { schema: { parse(v: unknown): unknown } } }).response.schema
+const meSchema = () => (createVibaseRegistry().operations().find((o) => o.name === 'me.get') as { response: { schema: { parse(v: unknown): unknown } } }).response.schema
 const ALL = grantable.join(' ')
 
 describe('the profile cache (D12)', () => {

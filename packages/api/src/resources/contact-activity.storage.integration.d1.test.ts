@@ -15,7 +15,7 @@ import { identities } from './identities.js'
 // [[CORE131]] D2-D4, D10 on the D1 oracle. Interaction rows come only from the capture unit (D14); contacts and identities
 // are set-up rows. Assertions on the derived values go through the contacts operations, as a caller sees them.
 const C1 = '0190b2c4-0000-7000-8000-0000000000c1'
-const OWNER = 'owner@vault.test'
+const OWNER = 'owner@vibase.test'
 const READ = ['contacts:read', 'contacts:write', 'interactions:read']
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 

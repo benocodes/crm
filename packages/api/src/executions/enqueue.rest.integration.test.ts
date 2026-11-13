@@ -267,7 +267,7 @@ describe('discovery (D40, D51, D57)', () => {
     const body = op.requestBody.content['application/json'].schema
     expect(body.required).toContain('idempotency_key')
     expect(body.properties.idempotency_key).toMatchObject({ type: 'string', minLength: 1, maxLength: 200 })
-    expect(op['x-vault-proposal']).toMatchObject({ eligible: true, request_scope: 'tasks:request_approval' })
+    expect(op['x-vibase-proposal']).toMatchObject({ eligible: true, request_scope: 'tasks:request_approval' })
     const enumValues = (doc.paths['/api/v1/action-requests'].post.requestBody.content['application/json'].schema.properties.operation.enum as string[]) ?? []
     expect(enumValues).toContain(TEST_OPS.reconcile)
   })

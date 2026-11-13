@@ -21,10 +21,10 @@ import { API_URL,SECRET_KEY,clerkUser,fakeClerkFetch,mintClerkToken,testIssuer }
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
 
 const dir=mkdtempSync(join(tmpdir(),'vb-webhook-example-e2e-'))
-const vaultBundle=join(dir,'vibase.mjs'),receiverBundle=join(dir,'receiver.mjs'),key=new Uint8Array(32).fill(13)
+const vibaseBundle=join(dir,'vibase.mjs'),receiverBundle=join(dir,'receiver.mjs'),key=new Uint8Array(32).fill(13)
 const KEY_B64=Buffer.from(key).toString('base64')
-const issuer=await testIssuer(),clerk=fakeClerkFetch(new Map([['user_hook_owner',clerkUser({id:'user_hook_owner',email:'owner@vault.test',role:'owner'})]]))
-const mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vault.test',historyId:'1000'}})
+const issuer=await testIssuer(),clerk=fakeClerkFetch(new Map([['user_hook_owner',clerkUser({id:'user_hook_owner',email:'owner@vibase.test',role:'owner'})]]))
+const mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vibase.test',historyId:'1000'}})
 const logs:string[]=[]
 let mf:Miniflare|undefined,secret='whsec_not_yet_issued',agentKey=''
 // The signed deliveries the receiver was sent, as the vault's sender made them (kept to replay one).
@@ -37,7 +37,7 @@ const options=()=>({
   d1Persist:join(dir,'d1'),r2Persist:join(dir,'r2'),workflowsPersist:join(dir,'workflows'),
   workers:[
     {
-      name:'vb',modules:[{type:'ESModule',path:vaultBundle,contents:readFileSync(vaultBundle,'utf8')}],modulesRoot:dir,compatibilityDate:'2026-07-30',compatibilityFlags:['nodejs_compat'],
+      name:'vb',modules:[{type:'ESModule',path:vibaseBundle,contents:readFileSync(vibaseBundle,'utf8')}],modulesRoot:dir,compatibilityDate:'2026-07-30',compatibilityFlags:['nodejs_compat'],
       d1Databases:{DB:'webhook-example-e2e'},r2Buckets:['BODIES'],
       workflows:{MAIL_SYNC:{name:'webhook-example-e2e-sync',className:'MailSyncWorkflow'}},
       bindings:{AUTH_PROVIDER:'clerk',CLERK_JWT_KEY:issuer.pem,CLERK_ISSUER:issuer.issuer,CLERK_AUTHORIZED_PARTIES:issuer.party,CLERK_SECRET_KEY:SECRET_KEY,CLERK_API_URL:API_URL,CORS_ALLOWED_ORIGINS:'',GOOGLE_CLIENT_ID:'hook-e2e-client',GOOGLE_CLIENT_SECRET:'hook-e2e-secret',OAUTH_STATE_SECRET:'hook-e2e-state',CREDENTIALS_KEY:KEY_B64,WEBHOOK_ALLOW_INSECURE_URLS:'true'},
@@ -57,10 +57,10 @@ const options=()=>({
     {
       name:'receiver',modules:true,scriptPath:receiverBundle,modulesRoot:dir,compatibilityDate:'2026-07-30',compatibilityFlags:['nodejs_compat'],
       workflows:{REPLY_WORKFLOW:{name:'webhook-example-e2e-reply',className:'ReplyWorkflow'}},
-      bindings:{WEBHOOK_SECRET:secret,VIBASE_URL:'http://vault.test',VIBASE_API_KEY:agentKey},
+      bindings:{WEBHOOK_SECRET:secret,VIBASE_URL:'http://vibase.test',VIBASE_API_KEY:agentKey},
       outboundService:async(req:Request)=>{
         const u=new URL(req.url)
-        if(u.hostname==='vault.test')return (await worker('vb')).fetch(req.url,{method:req.method,headers:req.headers,...(req.method==='GET'||req.method==='HEAD'?{}:{body:await req.text()})})
+        if(u.hostname==='vibase.test')return (await worker('vb')).fetch(req.url,{method:req.method,headers:req.headers,...(req.method==='GET'||req.method==='HEAD'?{}:{body:await req.text()})})
         throw new Error(`blocked E2E outbound host ${u.hostname}`)
       },
     },
@@ -68,9 +68,9 @@ const options=()=>({
 })
 try{
   const bundle=(entry:string,outfile:string)=>build({entryPoints:[entry],bundle:true,format:'esm',platform:'browser',conditions:['workerd','worker','browser'],target:'es2022',outfile,external:['cloudflare:workers','cloudflare:workflows','node:*'],logLevel:'warning'})
-  await bundle(fileURLToPath(new URL('../src/worker.ts',import.meta.url)),vaultBundle)
+  await bundle(fileURLToPath(new URL('../src/worker.ts',import.meta.url)),vibaseBundle)
   await bundle(fileURLToPath(new URL('../../webhook-receiver-example/src/index.ts',import.meta.url)),receiverBundle)
-  console.log(`bundles: vibase ${statSync(vaultBundle).size} bytes, receiver ${statSync(receiverBundle).size} bytes`)
+  console.log(`bundles: vibase ${statSync(vibaseBundle).size} bytes, receiver ${statSync(receiverBundle).size} bytes`)
   mf=new Miniflare(options() as never);await mf.ready
   let d1=await mf.getD1Database('DB') as unknown as D1Like
   const migrations=readdirSync(MIGRATIONS_DIR).filter(f=>/^\d{4}_.+\.sql$/.test(f)).sort()
@@ -81,13 +81,13 @@ try{
   const rows=async(s:string,...binds:unknown[])=>(await d1.prepare(s).bind(...binds).all()).results as any[]
   const ownerToken=await mintClerkToken(issuer,{sub:'user_hook_owner',exp:Math.floor(Date.now()/1000)+3600,extra:{vibase_role:'owner'}})
   const call=async(token:string,method:string,path:string,body?:unknown)=>{
-    const res=await mf!.dispatchFetch('https://vault.test'+path,{method,headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})})
+    const res=await mf!.dispatchFetch('https://vibase.test'+path,{method,headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})})
     return {status:res.status,body:await res.json() as any}
   }
   const owner=(await call(ownerToken,'GET','/meta/v1/me')).body.principal.id
   const binding=d1Binding(d1,{organizationId:org,authProvider:'clerk',authOrgId:issuer.issuer})
   const env={actor:{id:owner,kind:'user' as const},organizationId:org,scopes:ScopeSet.parse([]),now:new Date(),newId:uuidv7,randomBytes:(n:number)=>crypto.getRandomValues(new Uint8Array(n))}
-  const connection=(await execute(binding,{kind:'tenant',actorId:owner,organizationId:org},connectOperation(env,{google_sub:'e2e-mailbox',mailbox:'owner@vault.test',own_addresses:['owner@vault.test'],granted_scopes:['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.send'],ciphertext:await sealToken(key,'hook-e2e-refresh',crypto.getRandomValues(new Uint8Array(12))),key_version:1,history_id:'1000'}))).value.connection_id
+  const connection=(await execute(binding,{kind:'tenant',actorId:owner,organizationId:org},connectOperation(env,{google_sub:'e2e-mailbox',mailbox:'owner@vibase.test',own_addresses:['owner@vibase.test'],granted_scopes:['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.send'],ciphertext:await sealToken(key,'hook-e2e-refresh',crypto.getRandomValues(new Uint8Array(12))),key_version:1,history_id:'1000'}))).value.connection_id
   // One agent: it owns the subscription and is the Workflow's own identity.
   const agentId=uuidv7();agentKey='vk_'+Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
   await seedAgent(d1,{id:agentId,organizationId:org,createdBy:owner,name:'hook-agent',scopes:['webhooks:read','webhooks:write','events:read','interactions:read','messages:read','messages:request_approval','action_requests:read','connections:read']})

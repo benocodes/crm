@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { parseInput, scopeResourceOf } from './define.js'
 import { companyFiles } from './company-files.js'
 import { contactFiles } from './contact-files.js'
@@ -17,7 +17,7 @@ describe('messaging definitions (CORE25 C1)', () => {
   })
 
   it('declared scopes', () => {
-    expect(createVaultRegistry().declaredScopes()).toEqual([
+    expect(createVibaseRegistry().declaredScopes()).toEqual([
       'action_requests:read', 'agents:read', 'agents:write', 'associations:read', 'associations:request_approval', 'associations:write', 'companies:read', 'companies:request_approval', 'companies:write', 'connections:read', 'connections:write',
       'contacts:read', 'contacts:request_approval', 'contacts:write', 'deals:read', 'deals:request_approval', 'deals:write', 'events:read', 'files:read', 'interactions:read', 'members:read', 'messages:read', 'messages:request_approval', 'messages:write', 'notes:read', 'notes:request_approval', 'notes:write',
       'pipelines:read', 'pipelines:request_approval', 'pipelines:write', 'schema:read', 'tags:read', 'tags:request_approval', 'tags:write', 'tasks:read', 'tasks:request_approval', 'tasks:write', 'webhooks:read', 'webhooks:write',
@@ -25,7 +25,7 @@ describe('messaging definitions (CORE25 C1)', () => {
   })
 
   it('generates exactly the planned routes among the new names, and no update for any of the six', () => {
-    const ops = createVaultRegistry().operations()
+    const ops = createVibaseRegistry().operations()
     const names = ops.map((o) => o.name)
     const fresh = names.filter((n) => /^(threads|messages|interactions|files|contact_files|company_files)\./.test(n)).sort()
     expect(fresh).toEqual(
@@ -36,12 +36,12 @@ describe('messaging definitions (CORE25 C1)', () => {
       ].sort(),
     )
     expect(ops.filter((o) => fresh.includes(o.name) && o.method === 'patch')).toEqual([])
-    expect(createVaultRegistry().get('contact_files.list')).toMatchObject({ path: '/contact-files' })
-    expect(createVaultRegistry().get('company_files.get')).toMatchObject({ path: '/company-files/{id}' })
+    expect(createVibaseRegistry().get('contact_files.list')).toMatchObject({ path: '/contact-files' })
+    expect(createVibaseRegistry().get('company_files.get')).toMatchObject({ path: '/company-files/{id}' })
   })
 
   it('the content operations (CORE58)', () => {
-    const reg = createVaultRegistry()
+    const reg = createVibaseRegistry()
     expect(reg.get('files.content')).toMatchObject({ output: 'binary', method: 'get', path: '/files/{id}/content', scope: { resource: 'files', action: 'read' } })
     expect(reg.get('messages.content')).toMatchObject({ method: 'get', path: '/messages/{id}/content', scope: { resource: 'messages', action: 'read' } })
   })
@@ -55,7 +55,7 @@ describe('messaging definitions (CORE25 C1)', () => {
   })
 
   it('list query schemas carry the column filters and the custom filters', () => {
-    const reg = createVaultRegistry()
+    const reg = createVibaseRegistry()
     const keys = (name: string) => Object.keys(((reg.get(name) as { request: { query: { shape: object } } }).request.query as { shape: object }).shape).sort()
     // CORE201: every filterable column of the record is a filter now, so the old parameters are a subset.
     expect(keys('messages.list')).toEqual(expect.arrayContaining(['after', 'limit', 'sort', 'order', 'thread_id', 'channel', 'kind', 'external_id', 'in_reply_to', 'occurred_at']))

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { recordMessagesOperation } from '../messaging/capture.js'
 import { captureMessage, ensureConnection } from '../test/capture-kit.js'
@@ -19,7 +19,7 @@ beforeAll(async () => { e = await openD1Engine() })
 afterAll(async () => { await e.close() })
 beforeEach(async () => {
   await e.reset()
-  app = createApp({ registry: createVaultRegistry(), storage: () => e.binding, userAuthenticator: fakeUserAuthenticator() })
+  app = createApp({ registry: createVibaseRegistry(), storage: () => e.binding, userAuthenticator: fakeUserAuthenticator() })
 })
 
 describe('interactions and mail cursor integration (CORE174)', () => {

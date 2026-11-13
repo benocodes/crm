@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { parseListQuery } from '../resources/define.js'
 import { describeColumnFilter } from './column-filters.js'
 
 // [[CORE201]] D10, D12, D18: engine-neutral checks of the rollout's declarations.
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const def = (name: string) => registry.resources().find((d) => d.name === name) as any
 
 describe('every generic list is wrapped (D10)', () => {

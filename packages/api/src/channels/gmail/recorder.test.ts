@@ -334,12 +334,12 @@ describe('shapes survive', () => {
     expect(hist!.rec.request.query[0]![1]).not.toBe('5000')
   })
   it('numbers, booleans, null, key order and array lengths are kept; send-as keeps its flags and the enum the parser reads', async () => {
-    const { f, bucket } = rig(() => jsonRes({ sendAs: [{ sendAsEmail: 'owner@vault.test', displayName: 'The Owner', isPrimary: true, verificationStatus: 'accepted', treatAsAlias: false, replyToAddress: null, n: 3 }, { sendAsEmail: 'alias@vault.test', verificationStatus: 'pending' }] }))
+    const { f, bucket } = rig(() => jsonRes({ sendAs: [{ sendAsEmail: 'owner@vibase.test', displayName: 'The Owner', isPrimary: true, verificationStatus: 'accepted', treatAsAlias: false, replyToAddress: null, n: 3 }, { sendAsEmail: 'alias@vibase.test', verificationStatus: 'pending' }] }))
     await drain(await f(`${G}/settings/sendAs`))
     const body = recorded(bucket)[0]!.rec.response.body as { sendAs: Array<Record<string, unknown>> }
     expect(body.sendAs).toHaveLength(2)
     expect(Object.keys(body.sendAs[0]!)).toEqual(['sendAsEmail', 'displayName', 'isPrimary', 'verificationStatus', 'treatAsAlias', 'replyToAddress', 'n'])
-    expect(body.sendAs[0]).toMatchObject({ sendAsEmail: 'xxxxx@xxxxx.xxxx', displayName: 'Xxx Xxxxx', isPrimary: true, verificationStatus: 'accepted', treatAsAlias: false, replyToAddress: null, n: 3 })
+    expect(body.sendAs[0]).toMatchObject({ sendAsEmail: 'xxxxx@xxxxxx.xxxx', displayName: 'Xxx Xxxxx', isPrimary: true, verificationStatus: 'accepted', treatAsAlias: false, replyToAddress: null, n: 3 })
   })
   it('the base64 summary: length, padding, alphabet and the decoded byte count equal the input\'s', async () => {
     for (const bytes of [Uint8Array.from([1, 2, 3, 4, 5, 6]), Uint8Array.from([250, 251, 252, 253, 254]), Uint8Array.from([9, 8, 7, 6]), new Uint8Array(0), Uint8Array.from({ length: 100_000 }, (_, i) => i % 256)]) {

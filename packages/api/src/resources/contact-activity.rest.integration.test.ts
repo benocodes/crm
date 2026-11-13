@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { captureMessage } from '../test/capture-kit.js'
 import type { ContractSession, ContractTenant } from '../test/contract.js'
 import { d1Backend } from '../test/d1-backend.js'
@@ -7,7 +7,7 @@ import { d1Backend } from '../test/d1-backend.js'
 // [[CORE131]] over REST on the D1 app: the privacy split (D5, D6), the six filters (D5, D7), never writable (D1) and the
 // OpenAPI document (D12). Interaction rows come only from the capture unit (D14).
 const C1 = '0190b2c4-0000-7000-8000-0000000000c1'
-const OWNER = 'owner@vault.test'
+const OWNER = 'owner@vibase.test'
 const BASE = ['contacts:read', 'contacts:write']
 const WITH = [...BASE, 'interactions:read']
 const FULL = [...WITH, 'tags:read', 'tags:write', 'associations:read', 'associations:write', 'companies:read', 'companies:write']
@@ -16,7 +16,7 @@ const FIELDS = ['last_contacted_at', 'last_interacted_at'] as const
 let s: ContractSession
 let t: ContractTenant
 beforeAll(async () => {
-  s = await d1Backend().open(createVaultRegistry())
+  s = await d1Backend().open(createVibaseRegistry())
 })
 afterAll(async () => {
   await s.close()

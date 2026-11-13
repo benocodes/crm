@@ -59,7 +59,7 @@ export async function replay(fx: RecordingFixture): Promise<{ result: unknown } 
   const rec = fx.recording
   const served: typeof fetch = async () => wireResponse(rec)
   const client = new HttpGmailClient({ accessToken: async () => 'replay-token', fetch: served })
-  const conn = { id: 'conn-replay', mailbox: 'owner@vault.test' }
+  const conn = { id: 'conn-replay', mailbox: 'owner@vibase.test' }
   try {
     switch (rec.kind) {
       case 'token_refresh': {

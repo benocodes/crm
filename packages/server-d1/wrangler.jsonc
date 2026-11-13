@@ -22,10 +22,10 @@
   // the files itself (adding the security headers); no asset is reachable at any other path. `assets` is inherited by every env.
   "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*"] },
   // Local R2 (no account needed): message bodies and file bytes, served by messages.content and files.content.
-  "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-bodies" }],
+  "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vb-bodies" }],
   // The Gmail sync run ([[CHN141]], CHN5 D34): a Workflow whose class `src/worker.ts` exports, and the 15-minute cron that requests syncs. Neither is
   // inherited by an env: each env states its own. They come into being with `deploy:remote`, like a route.
-  "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-mail-sync", "class_name": "MailSyncWorkflow" }],
+  "workflows": [{ "binding": "MAIL_SYNC", "name": "vb-mail-sync", "class_name": "MailSyncWorkflow" }],
   // The second cron ([[AGT8]] D54) is the execution rail: the expiry sweep and the runner sweep, every minute. The first keeps the Gmail tick on its own cadence.
   "triggers": { "crons": ["*/15 * * * *", "* * * * *"] },
   // Secrets (CLERK_JWT_KEY, CLERK_SECRET_KEY) are never put here: .dev.vars locally, wrangler secret put when deployed.

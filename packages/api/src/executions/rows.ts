@@ -23,7 +23,7 @@ export interface NewExecution {
 }
 
 const KINDS = COLUMN_KINDS.action_executions as Record<string, ColumnKind>
-const DEFAULT_CLIENT_REF_DOMAIN = 'vault.invalid'
+const DEFAULT_CLIENT_REF_DOMAIN = 'vibase.invalid'
 export const DEADLINE_MS = 10 * 60_000
 
 export const clientRefOf = (id: string, domain: string | undefined): string => `${id}@${domain ?? DEFAULT_CLIENT_REF_DOMAIN}`

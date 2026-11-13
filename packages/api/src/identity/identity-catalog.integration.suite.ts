@@ -4,7 +4,7 @@ import type { Database } from '@vibase/db'
 import { createOwnerTestDb } from '@vibase/db/test'
 import { openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import type { D1Like } from '@vibase/storage-d1'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { EngineName } from '../test/engines.js'
 import { CONTACT_NON_FK_REFERENCES, IDENTITY_REFERENCES } from './merge.js'
 
@@ -74,7 +74,7 @@ export function engineSuite(engineName: EngineName): void {
     // (D9: addresses owned by a contact), which keeps them out of the polymorphic list; the list itself is guarded in merge-catalog.
     describe('polymorphic references to identities (CORE62)', () => {
       it('identities are not an associable type, and the non-FK list is not empty', () => {
-        const associable = createVaultRegistry().resources().filter((d) => d.associable).map((d) => d.table)
+        const associable = createVibaseRegistry().resources().filter((d) => d.associable).map((d) => d.table)
         expect(associable.length).toBeGreaterThan(0)
         expect(associable).not.toContain('identities')
         expect(CONTACT_NON_FK_REFERENCES.map((r) => r.table)).toContain('associations')

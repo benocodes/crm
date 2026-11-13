@@ -7,7 +7,7 @@ import { authOptions } from '../auth.js'
 export async function generateAuthDdl(): Promise<string> {
   const sqlite = new DatabaseSync(':memory:')
   try {
-    const options = authOptions({ prepare: () => undefined }, { secret: 'x'.repeat(40), baseURL: 'https://vault.example' })
+    const options = authOptions({ prepare: () => undefined }, { secret: 'x'.repeat(40), baseURL: 'https://vibase.example' })
     const plan = await getMigrations({ ...options, database: sqlite } as never)
     return await plan.compileMigrations()
   } finally {

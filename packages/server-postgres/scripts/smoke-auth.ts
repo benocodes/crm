@@ -13,7 +13,7 @@ import { SignJWT, exportSPKI, generateKeyPair } from 'jose'
 import { sql } from 'kysely'
 import { createDb, withOrganization } from '@vibase/db'
 import { postgresBinding } from '@vibase/storage-postgres'
-import { createApp, createAuthAdapter, createVaultRegistry } from '@vibase/api'
+import { createApp, createAuthAdapter, createVibaseRegistry } from '@vibase/api'
 
 const ISSUER = 'https://smoke.clerk.test'
 const rand = randomBytes(4).toString('hex')
@@ -86,7 +86,7 @@ const storage = postgresBinding(db)
 const app = createApp({ authAdapter: adapter, corsOrigins: [origin], storage: () => storage })
 const server = serve({ fetch: app.fetch, port: appPort, hostname: '127.0.0.1' })
 const base = `http://127.0.0.1:${appPort}`
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 
 const mint = (sub: string, o: { azp?: string; exp?: number; org?: { id: string; rol: string } } = {}) => {
   const now = Math.floor(Date.now() / 1000)

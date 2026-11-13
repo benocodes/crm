@@ -6,7 +6,7 @@ import { uuidv7 } from '@vibase/storage'
 import { d1Binding, type D1Like } from '@vibase/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp, type AppEnv, type AppOptions } from '../rest/app.js'
 import type { Registry } from '../registry.js'
 import type { D1Binding } from '@vibase/storage'
@@ -43,7 +43,7 @@ export interface ActionKit {
   close(): Promise<void>
 }
 
-export const ALL_DECLARED = createVaultRegistry().declaredScopes()
+export const ALL_DECLARED = createVibaseRegistry().declaredScopes()
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 
 export async function openActionKit(opts: { now?: Date; registry?: Registry; executions?: AppOptions['executions']; objects?: AppOptions['objects'] } = {}): Promise<ActionKit> {
@@ -51,7 +51,7 @@ export async function openActionKit(opts: { now?: Date; registry?: Registry; exe
   const raw = local.bindings.ACTION!
   const pending: { hook: (() => Promise<void>) | null } = { hook: null }
   const d1 = interceptD1(raw, pending)
-  const registry = opts.registry ?? createVaultRegistry()
+  const registry = opts.registry ?? createVibaseRegistry()
   let clock = opts.now ?? new Date('2026-11-06T10:00:00.000Z')
   const kit = { binding: undefined as unknown as D1Binding, organizationId: '', owner: { id: '', kind: 'user', scopes: ALL_DECLARED } as Actor, app: undefined as unknown as OpenAPIHono<AppEnv> }
   const known = new Map<string, Actor>()

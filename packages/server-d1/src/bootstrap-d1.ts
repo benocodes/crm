@@ -99,7 +99,7 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
 export async function probeBatchAtomicity(d1: D1Like, link: DeploymentLink): Promise<'atomic' | 'not-atomic' | 'skipped'> {
   if (await readDeployment(d1)) return 'skipped'
   try {
-    await d1.batch([markerInsert(d1, link), d1.prepare('select * from __vault_atomicity_probe')])
+    await d1.batch([markerInsert(d1, link), d1.prepare('select * from __vibase_atomicity_probe')])
     return 'not-atomic'
   } catch {
     // expected: the second statement has no such table

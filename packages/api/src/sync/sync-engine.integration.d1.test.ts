@@ -531,7 +531,7 @@ describe('secrecy', () => {
     const shim = makeWorkerdStepShim()
     await run(s, shim)
     // And a failing run: its error message carries no provider text or token.
-    const t = await setup({ messages: [], mailbox: 'second@vault.test', sub: 'sub-second' })
+    const t = await setup({ messages: [], mailbox: 'second@vibase.test', sub: 'sub-second' })
     google.revoke(t.refreshToken)
     const failed = await run(t).catch((err: Error) => err.message)
     const secrets = [s.refreshToken, t.refreshToken, ...google.refreshTokens, ...google.accessTokens, CONFIG.clientSecret]

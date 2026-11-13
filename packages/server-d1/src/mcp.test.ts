@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport, StreamableHTTPError } from '@modelcontex
 import { McpError, ListResourcesResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding } from '@vibase/storage-d1'
-import { closeScopes, createVaultRegistry, grantableScopes, toolName } from '@vibase/api'
+import { closeScopes, createVibaseRegistry, grantableScopes, toolName } from '@vibase/api'
 import { mintClerkToken, mintOAuthToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -36,7 +36,7 @@ beforeEach(async () => {
 const BASE = 'https://w.test'
 const CLI = 'client_cli'
 const DCR = 'client_dcr'
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const grantable = grantableScopes(registry.declaredScopes())
 
 async function initWorkspace() {

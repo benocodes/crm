@@ -8,8 +8,8 @@ export const PUSH: PushConfig = {
   topicName: 'projects/vb-p/topics/gmail.watch',
   subscription: 'projects/vb-p/subscriptions/gmail.push',
   serviceAccount: 'gmail-push@vb-p.iam.gserviceaccount.com',
-  publicBaseUrl: 'https://vault.test',
-  audience: 'https://vault.test/gmail/push',
+  publicBaseUrl: 'https://vibase.test',
+  audience: 'https://vibase.test/gmail/push',
 }
 
 export interface PushKey {
@@ -67,6 +67,6 @@ export function jwksFetch(keys: PushKey[]): { fetch: typeof fetch; urls: string[
 const b64 = (s: string): string => btoa(s).replace(/\+/g, '-').replace(/\//g, '_')
 /** Pub/Sub's push request body: the Gmail notification is the base64url `message.data`. `data` overrides it whole (a payload that does not decode). */
 export function pushBody(o: { emailAddress?: string; historyId?: string; subscription?: string; data?: string } = {}): string {
-  const data = o.data ?? b64(JSON.stringify({ emailAddress: o.emailAddress ?? 'owner@vault.test', historyId: o.historyId ?? '1234567' }))
+  const data = o.data ?? b64(JSON.stringify({ emailAddress: o.emailAddress ?? 'owner@vibase.test', historyId: o.historyId ?? '1234567' }))
   return JSON.stringify({ message: { data, messageId: '2070443601311540', message_id: '2070443601311540', publishTime: '2026-11-05T10:00:00.000Z', publish_time: '2026-11-05T10:00:00.000Z' }, subscription: o.subscription ?? PUSH.subscription })
 }
