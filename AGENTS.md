@@ -236,8 +236,9 @@ in-place edits ([[CORE29]] retro).
   all say Vibase, with no aliases. "The vault" stays the internal term in comments and knowledge prose. What keeps
   `vault`: stored `…@vault.invalid` rows (history, never rewritten), the `vault_*` Postgres roles and
   databases (#266), the existing `vault-<env>` instances (`vault-smoked1`, `vault-hq`, `vault-approvals-hq`:
-  [[OPS251]], [[OPS252]]) and `setup`'s `vault-${env}` derivation ([[OPS260]]); no code may hard-code a `vault`
-  prefix for anything new.
+  [[OPS251]], [[OPS252]]); no code may hard-code a `vault` prefix for anything new. Both setup front-ends derive
+  `vb-<env>`, `vb-crm-<env>`, `vb-bodies-<env>` for a new instance and take an existing instance's names from its
+  record (settings file, or `wrangler.jsonc`'s env block), refusing a differing name flag ([[OPS276]]).
 - UUIDv7 primary keys (`uuid_generate_v7()`), never v4.
 - Migrations: Kysely, forward-only, one squashed baseline to start.
 - Commits: Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`, ...). Branches:

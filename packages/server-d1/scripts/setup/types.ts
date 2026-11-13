@@ -80,6 +80,8 @@ export interface SetupOptions {
   workerName: string
   d1Name: string
   r2Name: string
+  /** The names given as flags, before any default or recorded name filled them ([[OPS276]] P3). */
+  nameFlags?: { workerName?: string; d1Name?: string; r2Name?: string }
   only?: StepName[]
   dryRun: boolean
   /** `--clerk-env-file`; default `.env.<env>` at the repo root. */

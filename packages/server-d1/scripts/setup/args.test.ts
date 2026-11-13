@@ -8,7 +8,7 @@ const clerk = ['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-ema
 describe('parseSetupArgs: valid input (D6, D9, D18, D20)', () => {
   it('derives names from the env and defaults the organisation to the env name', () => {
     const o = parseSetupArgs(['--', ...base])
-    expect(o).toMatchObject({ env: 'acme', apiHost: 'api.acme.vibase.ai', auth: 'none', org: 'acme', workerName: 'vault-acme', d1Name: 'vault-acme', r2Name: 'vault-acme-bodies', origins: [], dryRun: false })
+    expect(o).toMatchObject({ env: 'acme', apiHost: 'api.acme.vibase.ai', auth: 'none', org: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', r2Name: 'vb-bodies-acme', origins: [], dryRun: false })
   })
   it('overrides names, collects origins in order, and reads --only in the given order', () => {
     const o = parseSetupArgs([...base, '--worker-name', 'w', '--d1-name', 'd', '--r2-name', 'r', '--org', 'Acme Ltd', '--operator-agent', 'operator', '--key-env', 'K', '--owner-email', 'o@example.com', '--web-origin', 'https://app.example.com', '--extra-origin', 'https://a.example.com', '--extra-origin', 'https://b.example.com:8443', '--only', 'migrate,verify', '--dry-run'])

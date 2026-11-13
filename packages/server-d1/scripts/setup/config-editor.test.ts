@@ -8,7 +8,7 @@ import { FIXTURE_CONFIG_PATH } from './test/world.js'
 const real = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const UUID = '13f7fb64-d909-44e7-9ce7-cc3c753bb3bc'
 const smoked1: DesiredEnv = { env: 'smoked1', workerName: 'vault-smoked1', d1Name: 'vault-smoked1', d1Id: UUID, r2Name: 'vault-smoked1-bodies', apiHost: 'api.smoked1.vibase.ai', corsOrigins: '' }
-const acme: DesiredEnv = { env: 'acme', workerName: 'vault-acme', d1Name: 'vault-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vault-acme-bodies', apiHost: 'api.acme.vibase.ai', corsOrigins: 'https://app.example.com' }
+const acme: DesiredEnv = { env: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vb-bodies-acme', apiHost: 'api.acme.vibase.ai', corsOrigins: 'https://app.example.com' }
 
 /** True when `a` is `b` with characters only added (no edits, no deletions). */
 const onlyAdditions = (a: string, b: string) => {
@@ -34,13 +34,13 @@ describe('reconcileEnvBlock (D9)', () => {
     const cfg = parse(r.text) as { env: Record<string, Record<string, unknown>> }
     expect(cfg.env.smoked1).toEqual((parse(real) as typeof cfg).env.smoked1)
     expect(cfg.env.acme).toEqual({
-      name: 'vault-acme',
+      name: 'vb-acme',
       workers_dev: false,
       preview_urls: false,
       routes: [{ pattern: 'api.acme.vibase.ai', custom_domain: true }],
       observability: { enabled: true },
-      d1_databases: [{ binding: 'DB', database_name: 'vault-acme', database_id: acme.d1Id, migrations_dir: '../storage-d1/migrations', remote: true }],
-      r2_buckets: [{ binding: 'BODIES', bucket_name: 'vault-acme-bodies' }],
+      d1_databases: [{ binding: 'DB', database_name: 'vb-crm-acme', database_id: acme.d1Id, migrations_dir: '../storage-d1/migrations', remote: true }],
+      r2_buckets: [{ binding: 'BODIES', bucket_name: 'vb-bodies-acme' }],
       vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: 'https://app.example.com' },
     })
   })

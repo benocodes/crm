@@ -57,6 +57,9 @@ export function isWriteArgs(args: readonly string[]): boolean {
   return j.includes(' d1 create ') || j.includes(' r2 bucket create ') || j.includes(' d1 migrations apply ') || args[0] === 'deploy' || j.includes(' secret bulk ')
 }
 
+/** [[OPS262]] D5: a new instance's Workflow; an existing record's name wins (the settings file's `workflow.name`). */
+export const workflowName = (env: string): string => `vb-mail-sync-${env}`
+
 const CORS = (o: SetupOptions) => o.origins.join(',')
 
 /** The settings the flags (and the clerk and Gmail inputs) ask for; the database id is the discovered one, or the placeholder while it is only planned. */
@@ -85,7 +88,7 @@ export function desiredSettings(ctx: SetupCtx): InstanceSettings {
     api_host: opts.apiHost,
     d1: { name: opts.d1Name, id: d1?.uuid ?? PLACEHOLDER_DATABASE_ID },
     r2_bucket: opts.r2Name,
-    workflow: { name: `${opts.workerName}-mail-sync` },
+    workflow: { name: ctx.existing?.workflow.name ?? workflowName(opts.env) },
     vars: block.vars as Record<string, string>,
   }
 }

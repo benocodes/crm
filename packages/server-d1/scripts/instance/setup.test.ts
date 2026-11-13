@@ -35,7 +35,7 @@ describe('arguments (P1)', () => {
     const o = parseInstanceSetupArgs(['--env', 'demo', '--api-host', API_HOST, '--owner-email', 'o@x.invalid', '--settings', '/s/demo.json', '--secrets-file', '/s/demo.env', '--only', 'migrate,deploy', '--rotate-secrets', '--no-dcr'])
     expect(o.settingsPath).toBe('/s/demo.json')
     expect(o.secretsPath).toBe('/s/demo.env')
-    expect(o.opts).toMatchObject({ env: 'demo', apiHost: API_HOST, auth: 'clerk', workerName: 'vault-demo', d1Name: 'vault-demo', r2Name: 'vault-demo-bodies', only: ['migrate', 'deploy'], rotateSecrets: true, noDcr: true })
+    expect(o.opts).toMatchObject({ env: 'demo', apiHost: API_HOST, auth: 'clerk', workerName: 'vb-demo', d1Name: 'vb-crm-demo', r2Name: 'vb-bodies-demo', only: ['migrate', 'deploy'], rotateSecrets: true, noDcr: true })
     expect(() => parseInstanceSetupArgs([...NONE_ARGS, '--clerk-env-file', '.env.demo'])).toThrow(/clerk-env-file/)
     expect(() => parseInstanceSetupArgs(['--api-host', API_HOST, '--auth', 'none'])).toThrow(/--env/)
     expect(() => parseInstanceSetupArgs([...NONE_ARGS, '--no-dcr'])).toThrow(/--auth clerk/)
@@ -57,13 +57,13 @@ describe('fresh install, release mode', () => {
       expect(c.args.join(' ')).not.toMatch(/\b(pnpm|git)\b/)
     }
     expect(readdirSync(s.w.tmpRoot)).toEqual([])
-    expect(s.writes().map((a) => a.slice(0, 3).join(' '))).toEqual(['d1 create vault-demo', 'r2 bucket create', 'd1 migrations apply', 'deploy --no-bundle --var'])
+    expect(s.writes().map((a) => a.slice(0, 3).join(' '))).toEqual(['d1 create vb-crm-demo', 'r2 bucket create', 'd1 migrations apply', 'deploy --no-bundle --var'])
     const deploy = s.w.wrangler.find((c) => c.args[0] === 'deploy')!
     expect(deploy.args).toEqual(deployArgs('0.1.0', 'abc1234', deploy.configPath!))
     expect(s.sim.d1s).toHaveLength(1)
     expect(s.sim.opened).toHaveLength(1)
     const settings = loadSettings(s.w.settingsPath, 'demo')
-    expect(settings).toEqual({ version: 1, env: 'demo', worker: 'vault-demo', api_host: API_HOST, d1: { name: 'vault-demo', id: s.sim.d1s[0]!.uuid }, r2_bucket: 'vault-demo-bodies', workflow: { name: 'vault-demo-mail-sync' }, vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' } })
+    expect(settings).toEqual({ version: 1, env: 'demo', worker: 'vb-demo', api_host: API_HOST, d1: { name: 'vb-crm-demo', id: s.sim.d1s[0]!.uuid }, r2_bucket: 'vb-bodies-demo', workflow: { name: 'vb-mail-sync-demo' }, vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' } })
 
     // The second identical run: every step ok, zero writes, the file byte for byte the same.
     const before = s.settings()
@@ -89,7 +89,9 @@ describe('fresh install, release mode', () => {
 describe('adoption and the settings file', () => {
   const fx = JSON.parse(readFileSync(new URL('./test/source-env-blocks.json', import.meta.url), 'utf8')) as Record<string, any>
   const pick = (c: Record<string, any>) => ({ name: c.name, routes: c.routes, d1: { ...c.d1_databases[0], migrations_dir: undefined }, r2_buckets: c.r2_buckets, vars: c.vars })
-  const FLAGS = [...NONE_ARGS, '--web-origin', 'https://app.demo.invalid']
+  // An instance adopted from `vault-` names with no settings file yet: the names come from flags ([[OPS276]]; with a file, from the record).
+  const ADOPT = ['--worker-name', 'vault-demo', '--d1-name', 'vault-demo', '--r2-name', 'vault-demo-bodies']
+  const FLAGS = [...NONE_ARGS, ...ADOPT, '--web-origin', 'https://app.demo.invalid']
 
   it('adopts existing resources by name (the smoked1 shape): nothing created, the file written with the adopted id, the marker found', async () => {
     const s = world({ sim: ADOPTED() })
@@ -113,18 +115,18 @@ describe('adoption and the settings file', () => {
     expect(pick(configsOf(none).at(-1)!)).toEqual(pick(fx.none))
 
     const clerk = world({ sim: { ...ADOPTED(), marker: { organization_id: 'org-1', auth_provider: 'clerk', auth_org_id: 'https://acme-test-12.clerk.accounts.dev', organizations: 1 }, clerk: makeClerk() }, secretsText: CLERK_SECRETS_TEXT })
-    expect(await run(clerk, CLERK_ARGS)).toBe(0)
+    expect(await run(clerk, [...CLERK_ARGS, ...ADOPT])).toBe(0)
     expect(pick(configsOf(clerk).at(-1)!)).toEqual(pick(fx.clerk))
     expect(loadSettings(clerk.w.settingsPath, 'demo').vars).toEqual(fx.clerk.vars)
   })
 
   it('a settings file that differs from the flags fails config:write, names the key, and stays unchanged', async () => {
-    const s = world({ sim: ADOPTED(), settings: validSettings({ r2_bucket: 'some-other-bucket' }) })
+    const s = world({ sim: ADOPTED(), settings: validSettings({ api_host: 'other.demo.invalid' }) })
     const before = s.settings()
     expect(await run(s)).toBe(3)
     const fail = s.rows().find((r) => r.status === 'fail')!
     expect(fail.step).toBe('config:write')
-    expect(fail.detail).toMatch(/r2_bucket/)
+    expect(fail.detail).toMatch(/api_host/)
     expect(s.rows().map((r) => r.step)).not.toContain('migrate')
     expect(s.settings()).toBe(before)
     expect(s.writes()).toEqual([])
@@ -241,7 +243,7 @@ describe('refusals and failures (the matrix)', () => {
 })
 
 describe('bootstrap from the release (P3, P4)', () => {
-  const OPERATOR = [...NONE_ARGS, '--owner-email', 'owner@example.com', '--operator-agent', 'operator', '--key-env', 'DEMO_KEY']
+  const OPERATOR = [...NONE_ARGS, '--worker-name', 'vault-demo', '--d1-name', 'vault-demo', '--r2-name', 'vault-demo-bodies', '--owner-email', 'owner@example.com', '--operator-agent', 'operator', '--key-env', 'DEMO_KEY']
   const count = async (table: string) => ((await d1.d1.prepare(`select count(*) as n from ${table}`).first()) as { n: number }).n
 
   it('opens the generated config with remoteBindings and no persistence, and writes the marker, the organisation and the operator key to the secrets file', async () => {

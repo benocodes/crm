@@ -70,8 +70,8 @@ describe('empty state: the first real run (rule 3, D10)', () => {
     expect(o.exitCode).toBe(0)
     expect(o.stoppedAfterConfigWrite).toBe(true)
     expect(states(o)).toEqual(['preflight:ok', 'config:resources:create', 'config:write:update'])
-    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create vault-acme', 'bucket create vault-acme-bodies'])
-    const created = w.state.d1s.find((d) => d.name === 'vault-acme')!
+    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create vb-crm-acme', 'bucket create vb-bodies-acme'])
+    const created = w.state.d1s.find((d) => d.name === 'vb-crm-acme')!
     const cfg = parse(w.state.configText) as { env: Record<string, { d1_databases: { database_id: string }[] }> }
     expect(cfg.env.acme!.d1_databases[0]!.database_id).toBe(created.uuid)
     expect(cfg.env.acme!.d1_databases[0]!.database_id).not.toBe(PLACEHOLDER_DATABASE_ID)
@@ -116,7 +116,8 @@ describe('smoked1 plans no change (--auth none)', () => {
 describe('D9 refusal: a differing present value fails naming the key and stops the run', () => {
   const cases: [string, string, string[], RegExp][] = [
     ['resource id', realConfig.replace(SMOKED1_ID, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'), SMOKED1, /database_id/],
-    ['name', realConfig.replace('"name": "vault-smoked1"', '"name": "hand-tuned"'), SMOKED1, /smoked1\.name/],
+    // The Worker, D1 and R2 names are the record itself now ([[OPS276]]): drift is shown on another key.
+    ['workers_dev', realConfig.replace('"workers_dev": false', '"workers_dev": true'), SMOKED1, /smoked1\.workers_dev/],
     ['var', realConfig, [...SMOKED1, '--web-origin', 'https://app.example.com'], /CORS_ALLOWED_ORIGINS/],
   ]
   it.each(cases)('%s', async (_n, configText, args, key) => {
