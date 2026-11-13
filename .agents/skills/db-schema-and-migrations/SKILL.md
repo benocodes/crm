@@ -371,6 +371,14 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   `openLocalD1(..., { control })` (`@vibase/storage-d1/test`); locally, `wrangler d1 migrations apply CONTROL_DB --local`.
 - **Control `0001` is generated** (`pnpm -C packages/auth schema:generate --write`) and `packages/auth/src/schema.test.ts`
   compares it with Better Auth's schema; that test splits on `;`, so a header comment must contain none.
+- **Tooling maps each database by its `binding`, never by position** ([[OPS260]]): `DB` → `migrations/`,
+  `CONTROL_DB` → `control-migrations/`, each with its own `database_id` and `migrations_dir`
+  (`packages/release/src/check-config.ts`). `db:migrate:remote` applies control first and stops on its failure;
+  control is "current" only when applied = shipped exactly (unknown and ahead are not). Until [[CORE261]], an env
+  whose config has no `CONTROL_DB` entry is CRM only, with a printed not-configured line ([[CORE259]] P1).
+- **Dropping or moving a table: grep every package for its name** (sources, tests, fixtures), not only the package
+  that owns the migration. CRM `0019` (drop `auth_*`) broke `packages/server-d1/src/auth-routing.test.ts`, which the
+  charter's watch list missed and only the full gate found ([[OPS260]]).
 - Adding a binding means updating every harness that composes the Worker (storage-d1 test support, the server
   kit, the auth harness, `smoke:worker`) and every test that composes `better-auth` without it, which otherwise
   fails with the same `500` as the fail-closed refusal: assert the log line naming the cause.
