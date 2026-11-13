@@ -78,6 +78,13 @@ describe('D11 temp directory', () => {
     expect(existsSync(dir)).toBe(false)
     expect(readdirSync(root)).toEqual([])
   })
+  it('the resources-only config of `setup` also refuses the local top-level worker name (OPS262 D3), and a real name passes', () => {
+    const root = mkTmp()
+    const run = (worker: string) => withGeneratedConfig({ packageDir: stagedPackage().dir, settings: settings({ worker }), tmpRoot: root, resourcesOnly: true }, () => 'ran')
+    expect(() => run('vb')).toThrow(/unknown env demo/)
+    expect(run('vb-demo')).toBe('ran')
+    expect(readdirSync(root)).toEqual([])
+  })
   it('deletes it when the callback throws', () => {
     const root = mkTmp()
     expect(() => withGeneratedConfig({ packageDir: stagedPackage().dir, settings: settings(), tmpRoot: root }, () => { throw new Error('boom') })).toThrow('boom')
