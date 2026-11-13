@@ -1,7 +1,7 @@
 // Deploys the Worker to a named instance ([[OPS4]] C6, D3, D12):
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env <name>
 // Guards first (env flag, confirmation, clean tree, credentials, target), then typecheck, the suite, and `wrangler deploy
-// --env <name> --var VERSION:<sha>` so /health reports the commit that is live.
+// --env <name> --var VERSION:<sha> --var COMMIT:<sha>` so /health reports the commit that is live.
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { unstable_readConfig } from 'wrangler'

@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { run } from './cli.js'
-import pkg from '../package.json' with { type: 'json' }
+// Injected by `scripts/build.ts` from `@vault/release`'s package.json ([[OPS210]] D1); an unbuilt run (tsx) is `dev`.
+declare const __VIBASE_VERSION__: string | undefined
 
 const readStdin = async () => {
   const chunks: Buffer[] = []
@@ -21,6 +22,6 @@ const code = await run(process.argv.slice(2), {
   now: () => Date.now(),
   sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
   homedir: homedir(),
-  version: pkg.version,
+  version: typeof __VIBASE_VERSION__ === 'string' ? __VIBASE_VERSION__ : 'dev',
 })
 process.exitCode = code

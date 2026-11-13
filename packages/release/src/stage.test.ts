@@ -20,7 +20,7 @@ describe('D3 layout (cycle-1 subset)', () => {
     stageRelease({ ...s, outDir })
     expect(listFiles(outDir)).toEqual([
       'LICENSE', 'README.md', 'assets/connect/connect.js', 'assets/connect/index.html', 'cli/vibase.js',
-      'migrations/0001_a.sql', 'migrations/0002_b.sql', 'package.json', 'release.json', 'wrangler.base.jsonc', 'worker/worker.js',
+      'migrations/0001_a.sql', 'migrations/0002_b.sql', 'package.json', 'release.json', 'worker/worker.js', 'wrangler.base.jsonc',
     ])
   })
 })

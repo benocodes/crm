@@ -10,7 +10,7 @@ describe('what ships', () => {
     expect(sources.length).toBeGreaterThan(5)
     for (const f of sources) {
       const specifiers = [...readFileSync(dir + f, 'utf8').matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map((m) => m[1]!)
-      for (const s of specifiers) expect(s.startsWith('node:') || s.startsWith('./') || s === '../package.json', `${f} imports ${s}`).toBe(true)
+      for (const s of specifiers) expect(s.startsWith('node:') || s.startsWith('./'), `${f} imports ${s}`).toBe(true)
     }
   })
   it('declares no runtime dependencies', () => {
