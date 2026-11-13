@@ -123,6 +123,10 @@ Next Action) and tells the user before any of these, and never works around one:
   **Standing exception, `smoked1` (user, 2026-10-28):** the internal single-org D1 instance
   (`--env smoked1`, Worker `vault-smoked1`, `api.smoked1.vibase.ai`) is the agents' own; they may deploy
   and migrate it without stopping, through the guarded `deploy:remote` / `db:migrate:remote` scripts.
+  **Extended (user, 2026-11-13, [[OPS250]]):** agents may also generate and set `smoked1`'s own
+  `AUTH_SECRET` (Better Auth, [[CORE243]]) as a Worker secret; the value lives only in the gitignored
+  `.env.smoked1` or the macOS keychain, is never printed, logged or committed, and may be regenerated (it
+  signs everyone out of `smoked1`).
   Creating resources beyond it, DNS, Clerk, and any other environment stay hard stops.
   **Standing exception, Clerk dev instance (user, 2026-11-02):** the Clerk *development* instance whose
   keys are in the gitignored `.env.dev` (`sk_test_`/`pk_test_`, `CLERK_JWT_KEY`, `CLERK_FRONTEND_API_URL`)
