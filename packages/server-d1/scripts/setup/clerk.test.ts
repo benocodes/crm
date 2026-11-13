@@ -59,7 +59,7 @@ const run = async (w: World, clerk: FakeClerk, args: string[], env: NodeJS.Proce
 const acmeConfig = async (clientId = 'client_1') => {
   const { reconcileEnvBlock } = await import('./config-editor.js')
   return reconcileEnvBlock(realConfig, {
-    env: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vb-bodies-acme', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
+    env: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', controlD1Name: 'vb-control-acme', controlD1Id: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', r2Name: 'vb-bodies-acme', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
     authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: PK_TEST, CLERK_AUTHORIZED_PARTIES: 'https://api.acme.vibase.ai', AUTH_CLI_CLIENT_ID: clientId },
   }).text
 }
@@ -334,7 +334,7 @@ describe('5. desired-state rows', () => {
       const configText = realConfig.replace(/\n\s*"env": \{/, (m) => m) // the env block is added below
       const { reconcileEnvBlock } = await import('./config-editor.js')
       const withBlock = reconcileEnvBlock(configText, {
-        env: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vb-bodies-acme', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
+        env: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', controlD1Name: 'vb-control-acme', controlD1Id: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', r2Name: 'vb-bodies-acme', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
         authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: PK_TEST, CLERK_AUTHORIZED_PARTIES: 'https://api.acme.vibase.ai', AUTH_CLI_CLIENT_ID: 'client_2' },
       }).text
       const { clerk, w } = setup(settled({ apps: [{ name: 'Vibase CLI', scopes: '' }, { name: 'Renamed', scopes: cliScopes.join(' ') }] }), { configText: withBlock })
@@ -426,7 +426,7 @@ describe('7. a Clerk fail stops before config:write, with every row evaluated an
     expect(states(o)).toEqual(['preflight:ok', 'config:resources:create', 'clerk:fail'])
     expect(w.state.configText).toBe(realConfig)
     expect(w.state.configWrites).toBe(0)
-    expect(w.state.d1s.map((d) => d.name)).toEqual(['vb-crm-acme'])
+    expect(w.state.d1s.map((d) => d.name)).toEqual(['vb-crm-acme', 'vb-control-acme'])
     for (const row of ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10']) expect(text(o), row).toMatch(new RegExp(`^${row}\\s`, 'm'))
     expect(text(o)).toMatch(/^C1\s+fail/m)
     expect(text(o)).toMatch(/^C5\s+fail/m)
@@ -644,7 +644,7 @@ describe('D7 the connect page origin and the publishable key', () => {
   const vars = (w: World, env = 'acme') => (parse(w.state.configText) as { env: Record<string, { vars: Record<string, string> }> }).env[env]!.vars
   const API = 'https://api.acme.vibase.ai'
   // The resources acmeConfig's block names already exist, so the config step is the only thing under test.
-  const EXISTING = { d1s: [{ uuid: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', name: 'vb-crm-acme' }], r2s: ['vb-bodies-acme'] }
+  const EXISTING = { d1s: [{ uuid: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', name: 'vb-crm-acme' }, { uuid: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', name: 'vb-control-acme' }], r2s: ['vb-bodies-acme'] }
 
   it('--auth clerk writes CLERK_PUBLISHABLE_KEY and the api origin as the only authorized party; CORS and Clerk allowed_origins stay empty', async () => {
     const { clerk, w } = setup()

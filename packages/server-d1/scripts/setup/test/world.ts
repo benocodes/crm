@@ -33,8 +33,8 @@ export function isWriteCommand(argv: readonly string[]): boolean {
  * A control database that holds only the marker (OPS279): enough for `control-store`'s two statements. `onInsert` runs before the row is stored,
  * so a test can look at the CRM database at the moment the control marker is written.
  */
-export function memoryControl(onInsert?: (organizationId: string) => Promise<void>): D1Like & { inserts: string[]; marker(): string | null } {
-  let org: string | null = null
+export function memoryControl(onInsert?: (organizationId: string) => Promise<void>, initial: string | null = null): D1Like & { inserts: string[]; marker(): string | null } {
+  let org: string | null = initial
   const inserts: string[] = []
   const prep = (q: string, args: unknown[] = []): D1PreparedLike => ({
     bind: (...v: unknown[]) => prep(q, v),

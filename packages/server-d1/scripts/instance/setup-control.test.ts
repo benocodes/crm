@@ -24,6 +24,8 @@ const applies = (s: SetupWorld) => s.writes().filter((a) => a[1] === 'migrations
 const control = (s: SetupWorld) => openControlDb(s.control)
 const MARKER = { organization_id: 'org-1', auth_provider: 'none', auth_org_id: 'demo', organizations: 1 }
 const HEALTHY = { version: 'a'.repeat(40), commit: null }
+/** Settings that already hold every var the flags ask for, so `config:write` has nothing to add and does not stop a dry run. */
+const VARS = { vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' } }
 const crmOnly = () => ({ d1s: [{ uuid: UUID, name: 'vault-demo' }], r2s: ['vault-demo-bodies'] })
 
 describe('derive, create, record (matrix: no D1 of that name, D1 of that name exists, recorded)', () => {
@@ -42,7 +44,7 @@ describe('derive, create, record (matrix: no D1 of that name, D1 of that name ex
   })
 
   it('recorded: a re-run creates nothing and the settings file is untouched', async () => {
-    const s = world({ settings: controlSettings(), sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: CONTROL_D1.name }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], marker: MARKER, deployed: HEALTHY } })
+    const s = world({ settings: controlSettings(VARS), sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: CONTROL_D1.name }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], marker: MARKER, deployed: HEALTHY } })
     const before = s.settings()
     expect(await run(s)).toBe(0)
     expect(creates(s)).toEqual([])
@@ -77,7 +79,7 @@ describe('derive, create, record (matrix: no D1 of that name, D1 of that name ex
 })
 
 describe('the recorded control name wins, and a disagreeing flag is refused (P3 extended, P4)', () => {
-  const recorded = () => world({ settings: controlSettings(), sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: CONTROL_D1.name }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], marker: MARKER, deployed: HEALTHY } })
+  const recorded = () => world({ settings: controlSettings(VARS), sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: CONTROL_D1.name }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], marker: MARKER, deployed: HEALTHY } })
 
   it('a re-run with a recorded control database uses it with no --control-d1-name: every generated config binds the recorded name and id', async () => {
     const s = recorded()
@@ -103,7 +105,7 @@ describe('the recorded control name wins, and a disagreeing flag is refused (P3 
   })
 
   it('P4: a recorded vault-<env> CRM database and no control database gets vb-control-<env> created and recorded, every CRM name as recorded', async () => {
-    const s = world({ settings: validSettings(), sim: { ...crmOnly(), applied: [...ALL_MIGRATIONS], marker: MARKER, deployed: HEALTHY } })
+    const s = world({ settings: validSettings(VARS), sim: { ...crmOnly(), applied: [...ALL_MIGRATIONS], marker: MARKER, deployed: HEALTHY } })
     expect(await run(s)).toBe(0)
     expect(creates(s)).toEqual(['vb-control-demo'])
     const saved = JSON.parse(s.settings()!)
@@ -111,7 +113,7 @@ describe('the recorded control name wins, and a disagreeing flag is refused (P3 
   })
 
   it('P4 --dry-run: nothing is created and the settings file is untouched', async () => {
-    const s = world({ settings: validSettings(), sim: { ...crmOnly(), applied: [...ALL_MIGRATIONS], marker: MARKER, deployed: HEALTHY } })
+    const s = world({ settings: validSettings(VARS), sim: { ...crmOnly(), applied: [...ALL_MIGRATIONS], marker: MARKER, deployed: HEALTHY } })
     const before = s.settings()
     expect(await run(s, [...NONE_ARGS, '--dry-run'])).toBe(0)
     expect(s.writes()).toEqual([])
@@ -149,7 +151,7 @@ describe('migrate control first, then CRM (D14)', () => {
   })
 
   it('--dry-run lists both databases, control first, and applies nothing', async () => {
-    const s = world({ settings: controlSettings(), sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: CONTROL_D1.name }], r2s: ['vault-demo-bodies'] } })
+    const s = world({ settings: controlSettings(VARS), sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: CONTROL_D1.name }], r2s: ['vault-demo-bodies'] } })
     expect(await run(s, [...NONE_ARGS, '--dry-run'])).toBe(0)
     expect(s.writes()).toEqual([])
     const out = s.w.out.join('\n')
@@ -161,7 +163,7 @@ describe('migrate control first, then CRM (D14)', () => {
 })
 
 describe('the control marker in the bootstrap step (D7, D9)', () => {
-  const ready = async () => world({ settings: controlSettings(), sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: CONTROL_D1.name }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], marker: await readMarker(d1.d1) } })
+  const ready = async () => world({ settings: controlSettings(VARS), sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: CONTROL_D1.name }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], marker: await readMarker(d1.d1) } })
   const legacyBootstrap = () => bootstrapD1(d1.d1, { organizationName: 'demo', authProvider: 'none', authOrgId: 'demo', email: 'owner@example.com', agentName: 'op' })
 
   it('fresh instance, marker only: the control marker follows the CRM deployment row and names its organisation', async () => {

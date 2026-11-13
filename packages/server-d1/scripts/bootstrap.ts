@@ -13,9 +13,10 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { uuidv7 } from '@vibase/storage'
-import { openControlDb, type D1Like } from '@vibase/storage-d1'
+import { openControlDb, readControlMarker, type ControlDb, type D1Like } from '@vibase/storage-d1'
 import { bootstrapD1, probeBatchAtomicity, type BootstrapD1Result } from '../src/bootstrap-d1.js'
-import { CONFIG_PATH, ROOT_ENV_PATH, RemoteRefusal, loadRootEnv, requireConfirm, resolveTarget, type ConfigLike, type Target } from './remote.js'
+import { readDeployment } from '../src/init-deployment.js'
+import { CONFIG_PATH, ROOT_ENV_PATH, RemoteRefusal, controlNotConfigured, loadRootEnv, requireConfirm, resolveTarget, type ConfigLike, type Target } from './remote.js'
 
 type Values = Record<string, string | undefined>
 
@@ -117,9 +118,74 @@ export interface BootstrapIo {
   readEnvText(): string
   writeEnvText(text: string): void
 }
-/** OPS279: the body of `main` once the proxy is open, as a function a test can call. Returns the exit code. */
-export async function runBootstrap(_run: BootstrapRun, _proxy: { env: { DB: D1Like; CONTROL_DB?: D1Like } }, _io: BootstrapIo): Promise<number> {
-  throw new Error('not implemented')
+/**
+ * OPS279: the body of `main` once the proxy is open, as a function a test can call; returns the exit code. A remote env whose config binds `CONTROL_DB` pairs the control
+ * database ([[CORE259]] D7): the marker follows the CRM row, and a marker for another organisation is refused before anything is written (even the atomicity probe). An env
+ * that binds none stays CRM only and says so ([[CORE259]] P1). Locally the control database is paired when the local env binds one, as before.
+ */
+export async function runBootstrap(run: BootstrapRun, proxy: { env: { DB: D1Like; CONTROL_DB?: D1Like } }, io: BootstrapIo): Promise<number> {
+  const { values, authOrgId } = run
+  const authProvider = values['auth-provider']
+  let control: ControlDb | undefined
+  if (run.mode === 'remote') {
+    const target = run.target!
+    if (!target.control) io.log(controlNotConfigured(target.env))
+    else if (!proxy.env.CONTROL_DB) {
+      io.error(`bootstrap: env ${target.env} binds CONTROL_DB in wrangler.jsonc but the remote proxy has none: nothing was written`)
+      return 1
+    } else control = openControlDb(proxy.env.CONTROL_DB)
+  } else if (proxy.env.CONTROL_DB) control = openControlDb(proxy.env.CONTROL_DB)
+  try {
+    let organizationId = values['organization-id']
+    if (control) {
+      const paired = await readControlMarker(control).catch((err: unknown) => {
+        if (/no such table/i.test(err instanceof Error ? err.message : '')) throw new Error('the control database has no control_deployment table: apply its migrations first')
+        throw err
+      })
+      const expected = (await readDeployment(proxy.env.DB))?.organizationId ?? organizationId
+      if (paired && paired.organizationId !== expected) throw new Error(`the control database is already paired with organization ${paired.organizationId}`)
+    }
+    if (run.mode === 'remote') {
+      const link = { organizationId: values['organization-id'] ?? uuidv7(), authProvider: authProvider ?? 'clerk', authOrgId }
+      const probe = await probeBatchAtomicity(proxy.env.DB, link)
+      if (probe === 'not-atomic') {
+        io.error('atomicity probe: FAILED (a failed batch left a row): stopping')
+        return 1
+      }
+      io.log(probe === 'atomic' ? 'atomicity probe: atomic' : 'atomicity probe: skipped (marker present)')
+      organizationId = probe === 'atomic' ? link.organizationId : values['organization-id']
+    }
+    const r = await bootstrapD1(
+      proxy.env.DB,
+      {
+        organizationName: values.org!,
+        email: values.email,
+        userName: values.name,
+        agentName: values.agent,
+        scopes: values.scopes ? values.scopes.split(',').map((x) => x.trim()).filter(Boolean) : undefined,
+        authProvider,
+        authOrgId,
+        authSubject: values['auth-subject'],
+        organizationId,
+      },
+      // [[CORE259]] D7: the control marker follows the CRM deployment row.
+      { control },
+    )
+    if (run.mode === 'remote' && r.key !== null) {
+      try {
+        io.writeEnvText(appendEnvVar(io.readEnvText(), run.keyEnv!, r.key))
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code ?? 'unknown'
+        io.error(`api_key: could not be written to .env (${code}); the key is lost: revoke api key ${r.apiKeyId} and create a new one`)
+        return 1
+      }
+    }
+    for (const line of reportLines(r, run.mode, run.keyEnv)) io.log(line)
+    return 0
+  } catch (err) {
+    io.error(`bootstrap failed: ${err instanceof Error ? err.message : String(err)}`)
+    return 1
+  }
 }
 
 function usage(message: string): never {
@@ -151,7 +217,7 @@ async function main(): Promise<void> {
 
   const { getPlatformProxy, unstable_readConfig } = await import('wrangler')
   let proxy: Awaited<ReturnType<RemoteGuardDeps['getPlatformProxy']>>
-  let organizationId = values['organization-id']
+  let target: Target | undefined
   if (parsed.mode === 'remote') {
     try {
       const guarded = await runRemoteGuards({ envName: parsed.envName!, keyEnv: parsed.keyEnv! }, process.env, {
@@ -167,6 +233,7 @@ async function main(): Promise<void> {
         getPlatformProxy: (o) => getPlatformProxy<{ DB: D1Like; CONTROL_DB?: D1Like }>(o),
       })
       proxy = guarded.proxy
+      target = guarded.target
     } catch (err) {
       if (!(err instanceof RemoteRefusal)) throw err
       console.error(`bootstrap: ${err.message}`)
@@ -176,45 +243,12 @@ async function main(): Promise<void> {
     proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB?: D1Like }>(proxyOptions())
   }
   try {
-    const authProvider = values['auth-provider']
-    if (parsed.mode === 'remote') {
-      const link = { organizationId: values['organization-id'] ?? uuidv7(), authProvider: authProvider ?? 'clerk', authOrgId: authOrgId! }
-      const probe = await probeBatchAtomicity(proxy.env.DB, link)
-      if (probe === 'not-atomic') {
-        console.error('atomicity probe: FAILED (a failed batch left a row): stopping')
-        process.exitCode = 1
-        return
-      }
-      console.log(probe === 'atomic' ? 'atomicity probe: atomic' : 'atomicity probe: skipped (marker present)')
-      organizationId = probe === 'atomic' ? link.organizationId : values['organization-id']
-    }
-    const r = await bootstrapD1(proxy.env.DB, {
-      organizationName: values.org,
-      email: values.email,
-      userName: values.name,
-      agentName: values.agent,
-      scopes: values.scopes ? values.scopes.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
-      authProvider,
-      authOrgId: authOrgId!,
-      authSubject: values['auth-subject'],
-      organizationId,
-    },
-    // [[CORE259]] D7: the local control database's marker follows the CRM deployment row. A remote instance has no control database yet ([[OPS260]]); its env block binds none.
-    { control: parsed.mode === 'local' && proxy.env.CONTROL_DB ? openControlDb(proxy.env.CONTROL_DB) : undefined })
-    if (parsed.mode === 'remote' && r.key !== null) {
-      try {
-        writeFileSync(ROOT_ENV_PATH, appendEnvVar(readFileSync(ROOT_ENV_PATH, 'utf8'), parsed.keyEnv!, r.key))
-      } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code ?? 'unknown'
-        console.error(`api_key: could not be written to .env (${code}); the key is lost: revoke api key ${r.apiKeyId} and create a new one`)
-        process.exitCode = 1
-        return
-      }
-    }
-    for (const line of reportLines(r, parsed.mode, parsed.keyEnv)) console.log(line)
-  } catch (err) {
-    console.error('bootstrap failed:', err instanceof Error ? err.message : err)
-    process.exitCode = 1
+    process.exitCode = await runBootstrap({ mode: parsed.mode, keyEnv: parsed.keyEnv, values, authOrgId: authOrgId!, target }, proxy, {
+      log: (l) => console.log(l),
+      error: (l) => console.error(l),
+      readEnvText: () => readFileSync(ROOT_ENV_PATH, 'utf8'),
+      writeEnvText: (t) => writeFileSync(ROOT_ENV_PATH, t),
+    })
   } finally {
     await proxy.dispose()
   }

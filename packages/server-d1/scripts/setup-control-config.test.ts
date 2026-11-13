@@ -38,9 +38,9 @@ describe('the written block under wrangler', () => {
       for (const d of [by('DB'), by('CONTROL_DB')]) expect(d.database_id).toMatch(/^[0-9a-f-]{36}$/)
       expect(by('CONTROL_DB').database_id).not.toBe('00000000-0000-0000-0000-000000000001')
       const dir = resolve(PACKAGE, '../storage-d1/control-migrations')
-      expect(resolve(by('CONTROL_DB').migrations_dir)).toBe(dir)
+      expect(resolve(PACKAGE, by('CONTROL_DB').migrations_dir)).toBe(dir)
       expect(existsSync(dir) && readdirSync(dir).some((f) => f.endsWith('.sql'))).toBe(true)
-      expect(by('DB').migrations_dir).toBe(resolve(PACKAGE, '../storage-d1/migrations'))
+      expect(resolve(PACKAGE, by('DB').migrations_dir)).toBe(resolve(PACKAGE, '../storage-d1/migrations'))
       for (const env of ['smoked1', 'hq']) expect(blockText(w.state.configText, env)).toBe(blockText(REAL, env))
     } finally {
       await db.dispose()

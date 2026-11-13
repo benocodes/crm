@@ -82,7 +82,7 @@ describe('derive, create, record (matrix: no D1 of that name, D1 of that name ex
 
   it.each([
     ['a control name over 63 characters', [...ACME, '--control-d1-name', 'a'.repeat(64)], /63/],
-    ['a derived control name over 63 characters', ['--env', 'a'.repeat(52), '--auth', 'none', '--api-host', 'api.acme.vibase.ai'], /63/],
+    ['a derived control name over 63 characters', ['--env', 'a'.repeat(53), '--auth', 'none', '--api-host', 'api.acme.vibase.ai'], /63/],
     ['a control name equal to the derived CRM name', [...ACME, '--control-d1-name', 'vb-crm-acme'], /own database|differ/],
     ['both D1 names given and equal', [...ACME, '--d1-name', 'same', '--control-d1-name', 'same'], /own database|differ/],
   ])('refuses %s before any call', async (_n, argv, message) => {

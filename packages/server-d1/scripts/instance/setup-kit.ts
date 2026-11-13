@@ -85,6 +85,8 @@ export interface SetupWorldOptions extends Omit<WorldOptions, 'runner' | 'fetch'
   d1: WorkerD1
   /** Runs before the control marker is stored (OPS279), to look at the CRM database at that moment. */
   onControlInsert?: (organizationId: string) => Promise<void>
+  /** The organisation the control marker already names (an instance paired before this run). */
+  controlMarker?: string
   /** Overrides the runner for some calls: return a result to answer, `undefined` to fall through to the simulation. */
   intercept?: (args: string[], env: Record<string, string>, input?: string) => RunResult | undefined
   /** Overrides a fetch answer; `undefined` falls through. */
@@ -94,7 +96,7 @@ export interface SetupWorldOptions extends Omit<WorldOptions, 'runner' | 'fetch'
 export function setupWorld(o: SetupWorldOptions): SetupWorld {
   const sim: Sim = { d1s: [], r2s: [], applied: null, controlApplied: null, deployed: null, marker: null, secrets: [], bulk: [], zones: ['demo.invalid'], opened: [], ...o.sim }
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
-  const control = memoryControl(o.onControlInsert)
+  const control = memoryControl(o.onControlInsert, o.controlMarker)
   const ok = (stdout: string): RunResult => ({ status: 0, stdout, stderr: '' })
   const health = (): Response => {
     if (sim.deployed === null) return new Response('', { status: 522 })
