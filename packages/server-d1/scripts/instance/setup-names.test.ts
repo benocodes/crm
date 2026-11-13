@@ -61,7 +61,7 @@ describe('recorded names win (matrix: resource kind)', () => {
     return [kind, n] as const
   })
   it.each(cases)('%s: a re-run with no name flags creates nothing, keeps the record and targets the recorded names', async (kind, n) => {
-    const settings = validSettings({ worker: n.worker, d1: { name: n.d1, id: UUID }, r2_bucket: n.r2, workflow: { name: n.workflow } })
+    const settings = validSettings({ worker: n.worker, d1: { name: n.d1, id: UUID }, r2_bucket: n.r2, workflow: { name: n.workflow }, vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' } })
     const s = world({ settings, sim: { d1s: [{ uuid: UUID, name: n.d1 }], r2s: [n.r2], applied: [...ALL_MIGRATIONS], marker: MARKER, deployed: { version: 'a'.repeat(40), commit: null } } })
     const before = s.settings()
     expect(await run(s)).toBe(0)

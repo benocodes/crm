@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { verifyRelease, type ReleaseManifest } from '../../../release/src/manifest.js'
 import { requireConfirm, resolveTarget } from '../remote.js'
+import { applyRecordedNames } from '../setup/names.js'
 import { loadClerkKeys } from '../setup/clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from '../setup/gmail.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type EnvFileProbe, type StepResult } from '../setup/types.js'
@@ -43,7 +44,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       if (!isRefusal(e)) throw e
       throw new InstanceRefusal(`${(e as Error).message}; ${USAGE}`)
     }
-    const { opts } = parsed
+    const { opts: derived } = parsed
 
     // (a) the installed package is the release, before any network call or child process.
     const problems = verifyRelease(deps.packageDir)
@@ -51,13 +52,15 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     manifest = JSON.parse(readFileSync(join(deps.packageDir, 'release.json'), 'utf8')) as ReleaseManifest
 
     // (b) the secrets file (D10: mode refusal) and the settings file, if there is one.
-    const secretsPath = parsed.secretsPath ?? defaultSecretsPath(deps.env, deps.homedir, opts.env)
+    const secretsPath = parsed.secretsPath ?? defaultSecretsPath(deps.env, deps.homedir, derived.env)
     const secrets = loadSecrets(secretsPath, deps.env)
     redactSecrets = secrets.redact
-    const settingsPath = parsed.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, opts.env)
-    const existing = existsSync(settingsPath) ? loadSettings(settingsPath, opts.env) : null
+    const settingsPath = parsed.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, derived.env)
+    const existing = existsSync(settingsPath) ? loadSettings(settingsPath, derived.env) : null
+    // [[OPS276]]: the names the settings file records win over the derivation; a name flag that differs is refused before any step.
+    const opts = existing ? applyRecordedNames(derived, { workerName: existing.worker, d1Name: existing.d1.name, r2Name: existing.r2_bucket }, settingsPath) : derived
     // The target guard of every remote command ([[OPS4]] C4): a Worker named `vault` is the local-only top level.
-    resolveTarget({ name: existing?.worker ?? opts.workerName, d1_databases: [{ binding: 'DB', database_id: existing?.d1.id ?? '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', remote: true }] }, opts.env)
+    resolveTarget({ name: opts.workerName, d1_databases: [{ binding: 'DB', database_id: existing?.d1.id ?? '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', remote: true }] }, opts.env)
 
     // The Clerk and Gmail values come from the secrets file, judged by the source path's own rules.
     const probe: EnvFileProbe = { display: secretsPath, status: 'ok', text: secrets.text }

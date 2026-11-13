@@ -30,8 +30,8 @@ describe('the written block under wrangler', () => {
       writeFileSync(path, w.state.configText)
       const cfg = unstable_readConfig({ config: path, env: 'acme' })
       expect(cfg.name).toBe('vb-acme')
-      expect(cfg.d1_databases.find((d) => d.binding === 'DB')!.database_name).toBe('vb-crm-acme')
-      expect(cfg.r2_buckets.find((b) => b.binding === 'BODIES')!.bucket_name).toBe('vb-bodies-acme')
+      expect(cfg.d1_databases.find((d: { binding: string }) => d.binding === 'DB')!.database_name).toBe('vb-crm-acme')
+      expect(cfg.r2_buckets.find((b: { binding: string }) => b.binding === 'BODIES')!.bucket_name).toBe('vb-bodies-acme')
       for (const env of ['smoked1', 'hq']) expect(blockText(w.state.configText, env)).toBe(blockText(REAL, env))
     } finally {
       await db.dispose()
