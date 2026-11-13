@@ -387,6 +387,14 @@ One program, two engines: the same assertions run on Postgres and D1.
   `package + test name` list before and after (`vitest run --reporter=json`; not `vitest list`, which errors on
   the D1 suites, [[CORE199]]), diffed as a multiset, with every
   difference explained (OPS92: 2750 → 2761, each delta named). A green run alone can't show a test went missing.
+- **A scripted rename also rewrites the tests that guard it.** Three things follow ([[OPS262]],
+  `knowledge/specs/015-OPS262-vibase-rename/RETRO.md`). First, a red test that names the old string on purpose
+  (`d.startsWith('@vibase/') || d.startsWith('@vault/')`) comes out of the rewrite as `X || X`: green, and no longer
+  checking the old name. Leave red-test files out of the rewrite, and grep the diff for duplicated operands. Second, a
+  guard keyed on the old name (`config.name === 'vault'`) whose test fixtures were renamed with it passes only if
+  both changed. One absence mutation per guard (put the old string back) is the only proof the guard still
+  bites. Third, a mutation can show the guard has no test at all: in OPS262, `scripts/instance/config.ts`'s
+  resources-only refusal left 91 instance tests green. Add the missing case in the same cycle.
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
 - **A test never spawns a real external tool** (wrangler, npm, a CLI that talks to a provider). Inject the runner

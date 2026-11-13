@@ -228,6 +228,11 @@ in-place edits ([[CORE29]] retro).
 
 - Files and folders kebab-case; functions and variables camelCase; types PascalCase; database fields and
   API responses snake_case; environment variables UPPER_SNAKE_CASE.
+- Names ([[OPS262]]): packages are `@vibase/*`, new local resource names use `vb`, and user-visible text says
+  "Vibase". "The vault" stays the internal term in comments and knowledge prose. Wire and stored identifiers
+  (`x-vault-proposal`, `vault.invalid`, `vault_*` Postgres roles, the existing `vault-<env>` instances and
+  `setup`'s derivation until [[OPS260]]) and TypeScript identifiers (`createVaultRegistry`) are kept: renaming
+  them changes a contract, so it needs a spec decision.
 - UUIDv7 primary keys (`uuid_generate_v7()`), never v4.
 - Migrations: Kysely, forward-only, one squashed baseline to start.
 - Commits: Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`, ...). Branches:

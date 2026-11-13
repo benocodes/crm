@@ -29,7 +29,7 @@ describe('OPS262 workspace package names', () => {
   it('neither published package.json depends on any @vibase/* package', () => {
     for (const p of [clientPackageJson('1.2.3'), serverPackageJson('1.2.3', '4.5.6')]) {
       const deps = Object.keys({ ...(p.dependencies as object), ...(p.devDependencies as object), ...(p.peerDependencies as object), ...(p.optionalDependencies as object) })
-      expect(deps.filter((d) => d.startsWith('@vibase/') || d.startsWith('@vibase/'))).toEqual([])
+      expect(deps.filter((d) => d.startsWith('@vibase/'))).toEqual([])
     }
   })
 })

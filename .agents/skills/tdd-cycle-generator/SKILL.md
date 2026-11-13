@@ -350,4 +350,7 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    known-size path instead. A measurement obligation names the artifact to measure. "The Worker bundle size before and
    after" could not show the cost, because `src/worker.ts` tree-shakes a module with no route yet. Name the bundle
    that contains the module (there, the smoke pipeline bundle), or defer the measurement to the cycle that wires the
-   route.
+   route. **A guard or file the obligation names must exist: one `git grep` before the charter ships.** OPS262's charter
+   asked for an absence mutation of "`packages/release`'s forbidden list", which names no package (it scans for
+   secrets); the coder had to find the real guards. When the grep finds nothing, name the property instead and let
+   the coder find its guards (`knowledge/specs/015-OPS262-vibase-rename/RETRO.md`).
