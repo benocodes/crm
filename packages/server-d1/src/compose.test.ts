@@ -58,8 +58,8 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
   })
 
   it.each([
-    ['/api/v1/openapi.json', 'Vault records API'],
-    ['/meta/v1/openapi.json', 'Vault meta API'],
+    ['/api/v1/openapi.json', 'Vibase records API'],
+    ['/meta/v1/openapi.json', 'Vibase meta API'],
   ])('GET %s is served before initialisation', async (path, title) => {
     const res = await get(composeD1Worker(noAuth()), path)
     expect(res.status).toBe(200)

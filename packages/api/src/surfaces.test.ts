@@ -121,8 +121,8 @@ describe('documents (D4, D5)', () => {
   it('each surface has a titled document listing exactly its operations at full paths, and no operation is in both', async () => {
     const api = await docOf(app, '/api/v1/openapi.json')
     const meta = await docOf(app, '/meta/v1/openapi.json')
-    expect(api.info.title).toBe('Vault records API')
-    expect(meta.info.title).toBe('Vault meta API')
+    expect(api.info.title).toBe('Vibase records API')
+    expect(meta.info.title).toBe('Vibase meta API')
     expect(api.openapi).toBe('3.1.0')
     for (const p of Object.keys(api.paths)) expect(p.startsWith('/api/v1/')).toBe(true)
     for (const p of Object.keys(meta.paths)) expect(p.startsWith('/meta/v1/')).toBe(true)

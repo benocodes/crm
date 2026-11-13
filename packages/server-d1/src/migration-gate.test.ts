@@ -120,7 +120,7 @@ describe('the behind gate (D4)', () => {
     const root = await get(worker, '/openapi.json')
     expect(root.status).toBe(404)
     expect(((await root.json()) as { error: { code: string } }).error.code).toBe('not_found')
-    for (const [path, title] of [['/api/v1/openapi.json', 'Vault records API'], ['/meta/v1/openapi.json', 'Vault meta API']] as const) {
+    for (const [path, title] of [['/api/v1/openapi.json', 'Vibase records API'], ['/meta/v1/openapi.json', 'Vibase meta API']] as const) {
       const doc = await get(worker, path)
       expect(doc.status).toBe(200)
       expect(((await doc.json()) as { info: { title: string } }).info.title).toBe(title)

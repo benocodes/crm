@@ -163,8 +163,8 @@ describe('refusals and failures (the matrix)', () => {
     const d = world({ processEnv: { CONFIRM_REMOTE: undefined } })
     expect(await run(d, [...NONE_ARGS, '--dry-run'])).toBe(0)
   })
-  it('worker "vault" in an existing settings file', async () => {
-    const s = world({ settings: validSettings({ worker: 'vault' }) })
+  it('worker "vb" in an existing settings file', async () => {
+    const s = world({ settings: validSettings({ worker: 'vb' }) })
     refused(s, await run(s), /unknown env demo/, true)
     expect(s.w.wrangler).toHaveLength(0)
   })

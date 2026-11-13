@@ -404,8 +404,8 @@ describe('secrets and side effects', () => {
 })
 
 describe('P4 refusal mapping', () => {
-  it('worker "vault" in the settings file exits 2 with resolveTarget\'s message', async () => {
-    const { w, code } = await run(sim(), ['--env', 'demo'], { settings: validSettings({ worker: 'vault' }) })
+  it('worker "vb" in the settings file exits 2 with resolveTarget\'s message', async () => {
+    const { w, code } = await run(sim(), ['--env', 'demo'], { settings: validSettings({ worker: 'vb' }) })
     expect(code).toBe(2)
     expect(w.err.join('\n')).toMatch(/vibase-server upgrade: unknown env demo/)
     expect(writes(w)).toEqual([])

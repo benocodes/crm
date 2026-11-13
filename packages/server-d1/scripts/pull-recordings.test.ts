@@ -40,7 +40,7 @@ describe('guards (the same as the other remote scripts)', () => {
     const r = rig()
     expect(() => runPull(['--env', 'hq'], {}, r.deps)).toThrow(RemoteRefusal)
     expect(() => runPull([], { CONFIRM_REMOTE: '1' }, r.deps)).toThrow(RemoteRefusal)
-    const top = rig({}, { ...CONFIG, name: 'vault' })
+    const top = rig({}, { ...CONFIG, name: 'vb' })
     expect(() => runPull(['--env', 'x'], { CONFIRM_REMOTE: '1' }, top.deps)).toThrow(RemoteRefusal)
     expect([...r.cmds, ...top.cmds]).toEqual([])
   })

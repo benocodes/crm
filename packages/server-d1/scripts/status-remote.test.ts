@@ -34,7 +34,7 @@ describe('db:status:remote guards (same as db:migrate:remote)', () => {
     expect(calls).toEqual([])
   })
   it('refuses the local top-level config', () => {
-    const d = { ...deps('[]'), readConfig: () => ({ ...config, name: 'vault' }) }
+    const d = { ...deps('[]'), readConfig: () => ({ ...config, name: 'vb' }) }
     expect(() => runStatus(['--env', 'nope'], { CONFIRM_REMOTE: '1' }, d)).toThrow('unknown env nope')
   })
   it('reads through wrangler d1 execute --remote --json for the named env', () => {

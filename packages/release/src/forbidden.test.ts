@@ -55,7 +55,7 @@ describe('D8 forbidden content', () => {
   })
   it('refuses an env key in wrangler.base.jsonc', () => {
     const d = clean()
-    put(d, 'wrangler.base.jsonc', '{ "name": "vault", "env": { "x": {} } }')
+    put(d, 'wrangler.base.jsonc', '{ "name": "vb", "env": { "x": {} } }')
     expect(scanForbidden(d, { databaseIds: realIds })).toContainEqual({ file: 'wrangler.base.jsonc', kind: 'env-key' })
   })
   it('every real env id is found, one by one', () => {

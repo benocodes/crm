@@ -48,7 +48,7 @@ describe('D11 generated config', () => {
     const c = generateConfig(base(), settings(), paths)
     c.d1_databases[0].remote = false
     expect(() => resolveTarget(c, 'demo')).toThrow(/remote: true/)
-    expect(() => resolveTarget(generateConfig(base(), settings({ worker: 'vault' }), paths), 'demo')).toThrow(/unknown env/)
+    expect(() => resolveTarget(generateConfig(base(), settings({ worker: 'vb' }), paths), 'demo')).toThrow(/unknown env/)
   })
   it('contains no secret value', () => {
     const text = JSON.stringify(generateConfig(base(), settings(), paths))

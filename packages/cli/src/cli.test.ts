@@ -107,6 +107,7 @@ describe('output and exit codes', () => {
     await login(r)
     const top = await r.run(['--help'])
     expect(top.code).toBe(0)
+    expect(top.stdout.split('\n')[0]).toBe('vibase: Vibase on the command line')
     for (const word of ['widgets', 'parts', 'api-keys', 'login', 'logout', 'config']) expect(top.stdout).toContain(word)
     const one = await r.run(['widgets', 'create', '--help'])
     expect(one.code).toBe(0)
