@@ -18,12 +18,12 @@
       "migrations_dir": "../storage-d1/migrations"
     },
     // The control-plane database ([[CORE259]] D1): Better Auth's tables and the control marker, with its own compiled migrations and its own d1_migrations tracker. Local only for now: the smoked1 and hq
-    // env blocks bind none (the instance tooling creates and binds theirs, [[OPS260]]); a Worker on AUTH_PROVIDER=better-auth refuses without it, every other mode never reads it. The same placeholder
-    // database_id as above; every remote script refuses it.
+    // env blocks bind none (the instance tooling creates and binds theirs, [[OPS260]]); a Worker on AUTH_PROVIDER=better-auth refuses without it, every other mode never reads it. Its own placeholder
+    // database_id (local wrangler and Miniflare key the SQLite file by it, so the same id would make DB and CONTROL_DB one database); every remote script refuses both.
     {
       "binding": "CONTROL_DB",
       "database_name": "vb-control",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "00000000-0000-0000-0000-000000000001",
       "migrations_dir": "../storage-d1/control-migrations"
     }
   ],

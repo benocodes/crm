@@ -63,7 +63,10 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
   let link = await readDeployment(d1)
   // [[CORE259]] D7: a control marker for another organisation is refused before either database is written.
   if (env.control) {
-    const marker = await readControlMarker(env.control)
+    const marker = await readControlMarker(env.control).catch((err: unknown) => {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) throw new Error('the control database has no control_deployment table: run `wrangler d1 migrations apply CONTROL_DB --local` first')
+      throw err
+    })
     const expected = link?.organizationId ?? opts.organizationId
     if (marker && marker.organizationId !== expected) throw new Error(`the control database is already paired with organization ${marker.organizationId}`)
   }

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { PLACEHOLDER_DATABASE_ID, RemoteRefusal, deployCommands, loadRootEnv, migrateCommands, parseEnvFlag, requireConfirm, resolveTarget } from './remote.js'
+import { CONTROL_PLACEHOLDER_DATABASE_ID, PLACEHOLDER_DATABASE_ID, RemoteRefusal, deployCommands, loadRootEnv, migrateCommands, parseEnvFlag, requireConfirm, resolveTarget } from './remote.js'
 
 const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
 const OTHER = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
@@ -19,6 +19,16 @@ const refusal = (fn: () => unknown, message: string) => {
   expect(fn).toThrow(RemoteRefusal)
   expect(fn).toThrow(message)
 }
+
+describe('the control placeholder ([[CORE259]])', () => {
+  it('is its own id, and an env whose CONTROL_DB still holds either placeholder is refused', () => {
+    expect(CONTROL_PLACEHOLDER_DATABASE_ID).not.toBe(PLACEHOLDER_DATABASE_ID)
+    for (const id of [PLACEHOLDER_DATABASE_ID, CONTROL_PLACEHOLDER_DATABASE_ID]) {
+      const config = { ...good, d1_databases: [...good.d1_databases, { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: id, remote: true }] }
+      refusal(() => resolveTarget(config, 'smoked1'), 'CONTROL_DB still has a placeholder database_id')
+    }
+  })
+})
 
 describe('parseEnvFlag (C3)', () => {
   it('requires --env', () => {

@@ -4,6 +4,7 @@ import { d1Binding, openControlDb, readControlMarker, writeControlMarker } from 
 import { authenticateApiKey, hashApiKey } from '@vibase/api'
 import { bootstrapD1, probeBatchAtomicity } from './bootstrap-d1.js'
 import { initDeploymentOperation, readDeployment } from './init-deployment.js'
+import { openLocalD1 } from '@vibase/storage-d1/test'
 import { NOW, openWorkerPair, spyD1, testId, type WorkerPair } from './test/kit.js'
 
 let w: WorkerPair
@@ -160,6 +161,16 @@ describe('bootstrapD1 pairs the control database (CORE259 D7)', () => {
     await expect(bootstrapD1(w.d1, base, { ...env(), control: control() })).rejects.toThrow(/already paired/)
     expect(await all('deployment')).toEqual([])
     expect(await readControlMarker(control())).toEqual({ organizationId: OTHER })
+  })
+
+  it('an unmigrated control database is refused with the migrate command, before anything is written', async () => {
+    const bare = await openLocalD1(['B'], { migrate: false })
+    try {
+      await expect(bootstrapD1(w.d1, base, { ...env(), control: openControlDb(bare.bindings.B!) })).rejects.toThrow(/migrations apply CONTROL_DB --local/)
+      expect(await all('deployment')).toEqual([])
+    } finally {
+      await bare.dispose()
+    }
   })
 
   it('without a control database (a remote or Clerk instance that has none yet) bootstrap behaves as before', async () => {

@@ -14,10 +14,6 @@ export class ControlDb {
   constructor(d1: D1Like) {
     handles.set(this, d1)
   }
-  /** Brand check only. */
-  static is(value: unknown): value is ControlDb {
-    return value instanceof ControlDb && value.#control
-  }
 }
 
 /** Opens the handle on the `CONTROL_DB` binding. Composition and bootstrap call this; nothing else has the binding. */
