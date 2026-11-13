@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'kysely'
-import { step, uuidv7 } from '@vault/storage'
+import { step, uuidv7 } from '@vibase/storage'
 import { resolveOperation } from '../identity/resolve.js'
 import type { Role } from '../auth/roles.js'
 import { SCOPE_POLICY, type ScopePolicy } from '../auth/roles.js'

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { UnitDriftError, execute } from '@vault/storage'
-import { d1Binding } from '@vault/storage-d1'
+import { UnitDriftError, execute } from '@vibase/storage'
+import { d1Binding } from '@vibase/storage-d1'
 import { initDeploymentOperation, readDeployment, type DeploymentLink } from './init-deployment.js'
 import { openWorkerD1, spyD1, type WorkerD1 } from './test/kit.js'
 

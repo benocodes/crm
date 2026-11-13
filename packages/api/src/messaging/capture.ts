@@ -18,7 +18,7 @@ import {
   type Row,
   type Step,
   type Unit,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { cleanName, resolveProgram, type ResolveEntry } from '../identity/resolve.js'
 import { normalizeIdentityValue } from '../identity/normalize.js'
 import { operationOf, type Program } from '../identity/program.js'

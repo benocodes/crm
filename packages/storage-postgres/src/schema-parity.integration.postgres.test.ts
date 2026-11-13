@@ -1,7 +1,7 @@
 import { sql } from 'kysely'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createOwnerTestDb } from '@vault/db/test'
-import { COLUMN_KINDS } from '@vault/storage'
+import { createOwnerTestDb } from '@vibase/db/test'
+import { COLUMN_KINDS } from '@vibase/storage'
 
 // The portable StorageDatabase types are bound to the physical Postgres schema: every modelled table has at
 // least the modelled columns; since CORE40 the second test requires them to be exactly the modelled columns.

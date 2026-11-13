@@ -1,6 +1,6 @@
 import { sql, type AliasedRawBuilder } from 'kysely'
 import { z } from 'zod'
-import { codecs, type QueryContext } from '@vault/storage'
+import { codecs, type QueryContext } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import type { FilterKind } from './column-filters.js'
 import type { PreparedResource } from './definition.js'

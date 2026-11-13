@@ -1,6 +1,6 @@
 // Test-only. One valid call per proposal-eligible operation ([[AGT8]] D32), so the permission matrix is generated from the manifest and a
 // newly eligible operation fails the suite until it has a fixture here. A fixture makes its prerequisites as the owner, through the public API.
-import { execute, uuidv7 } from '@vault/storage'
+import { execute, uuidv7 } from '@vibase/storage'
 import { ScopeSet } from '../scopes.js'
 import { connectOperation } from '../connections/connect.js'
 import type { Operation, Registry, TenantOperation } from '../registry.js'

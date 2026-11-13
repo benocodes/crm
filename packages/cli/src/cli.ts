@@ -227,7 +227,7 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
   loadConfig(path) // a malformed or world-readable config is refused before the user is asked to approve anything
   const wkUrl = `${server}/.well-known/vibase`
   const wk = await getJson(wkUrl, deps)
-  if (wk.status !== 200 || typeof wk.body !== 'object' || wk.body === null) throw usage(`${wkUrl} answered ${wk.status}: this does not look like a vault instance`, 'discovery_failed')
+  if (wk.status !== 200 || typeof wk.body !== 'object' || wk.body === null) throw usage(`${wkUrl} answered ${wk.status}: this does not look like a Vibase instance`, 'discovery_failed')
   const auth = wk.body.auth
   if (!auth || typeof auth !== 'object' || !nonEmpty(auth.cli_client_id) || !nonEmpty(auth.issuer)) {
     throw usage(`this instance accepts API keys only (no sign-in is configured for the CLI): use \`vibase login --api-key --server ${server}\``, 'api_keys_only')

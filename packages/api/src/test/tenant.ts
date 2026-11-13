@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely'
-import { seedAgent, seedOrganization, seedUser } from '@vault/db/test'
-import type { Database } from '@vault/db'
+import { seedAgent, seedOrganization, seedUser } from '@vibase/db/test'
+import type { Database } from '@vibase/db'
 
 export type Tenant = { organizationId: string; userId: string; agentId: string }
 

@@ -1,7 +1,7 @@
 // Test-only. The registry-wide sort contract of [[CORE170]] D12 and [[CORE175]] D15, as a pure checker over what the registry declares,
 // what the real D1 plans show and the two checked-in lists (`storage/sort-costs.ts`). It returns violations instead of throwing, so a test can
 // break one input at a time and name the check that must notice.
-import type { ColumnKind } from '@vault/storage'
+import type { ColumnKind } from '@vibase/storage'
 import type { StatedSortCost, SortExemption } from '../storage/sort-costs.js'
 
 /** What the contract reads of a generic list's definition. */

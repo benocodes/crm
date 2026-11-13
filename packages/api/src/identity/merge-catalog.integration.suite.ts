@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sql, type Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { createOwnerTestDb } from '@vault/db/test'
-import { openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
-import type { D1Like } from '@vault/storage-d1'
+import type { Database } from '@vibase/db'
+import { createOwnerTestDb } from '@vibase/db/test'
+import { openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
+import type { D1Like } from '@vibase/storage-d1'
 import type { EngineName } from '../test/engines.js'
 import { CONTACT_NON_FK_EXEMPTIONS, CONTACT_NON_FK_REFERENCES, CONTACT_REFERENCES, CONTACT_REFERENCE_EXEMPTIONS } from './merge.js'
 

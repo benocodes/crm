@@ -2,7 +2,7 @@
 // instance's own env file (the Clerk keys' file, D34), with `--auth none` as well. Secrets go to the Worker by `wrangler secret bulk`, vars into the
 // env's `vars` block. Shapes are checked before any command. Nothing here ever puts a value in a message: refusals name the variable.
 import { parseEnv } from 'node:util'
-import { isValidPushVar, parseGmailConfig } from '@vault/api'
+import { isValidPushVar, parseGmailConfig } from '@vibase/api'
 import { RemoteRefusal } from '../remote.js'
 import type { EnvFileProbe, SetupOptions } from './types.js'
 

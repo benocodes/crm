@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Webhook } from 'standardwebhooks'
-import type { StorageBinding } from '@vault/storage'
+import type { StorageBinding } from '@vibase/storage'
 import { KEY_BYTES } from '../test/webhook-kit.js'
 import { ok, openSenderKit, READ_SCOPES, type FetchCall, type SenderKit } from '../test/sender-kit.js'
 import { TickBudget } from './budget.js'

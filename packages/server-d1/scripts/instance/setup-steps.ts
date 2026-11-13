@@ -4,8 +4,8 @@
 // Nothing here reads a repo path or the process environment: every value comes in through `InstanceDeps` and the secrets file. Nothing logs a secret.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { uuidv7, execute } from '@vault/storage'
-import { d1Binding } from '@vault/storage-d1'
+import { uuidv7, execute } from '@vibase/storage'
+import { d1Binding } from '@vibase/storage-d1'
 import { bootstrapD1, probeBatchAtomicity } from '../../src/bootstrap-d1.js'
 import { initDeploymentOperation } from '../../src/init-deployment.js'
 import { PLACEHOLDER_DATABASE_ID, formatMigrationDiff, statusOf } from '../remote.js'

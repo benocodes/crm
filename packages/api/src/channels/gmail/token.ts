@@ -1,7 +1,7 @@
 // The token resolver ([[CHN5]] D4, D68): built per page call. It opens the connection's newest credential, does the vault's one refresh POST lazily
 // on the first Gmail call, keeps the access token in memory for that page only, and rotates the credential (insert the new row, delete older rows,
 // one unit) when Google returns a new refresh token. Errors carry a short code only: never a token, the key or provider text.
-import { defineOperation, execute, readMaybe, step, unit, type StorageBinding } from '@vault/storage'
+import { defineOperation, execute, readMaybe, step, unit, type StorageBinding } from '@vibase/storage'
 import { sealToken, openToken } from '../../connections/credentials.js'
 import { GoogleRefreshError, refreshAccessToken, GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../../connections/google.js'
 

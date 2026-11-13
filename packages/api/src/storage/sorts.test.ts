@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { sql } from 'kysely'
 import { z } from 'zod'
-import { COLUMN_KINDS } from '@vault/storage'
+import { COLUMN_KINDS } from '@vibase/storage'
 import { tasks } from '../resources/tasks.js'
 import { contacts } from '../resources/contacts.js'
 import { resolveSorts, withColumnSorts, type SortMetadata } from './sorts.js'

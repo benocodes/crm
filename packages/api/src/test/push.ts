@@ -5,9 +5,9 @@ import { GOOGLE_JWKS_URL } from '../channels/gmail/push.js'
 import type { PushConfig } from '../connections/config.js'
 
 export const PUSH: PushConfig = {
-  topicName: 'projects/vault-p/topics/gmail.watch',
-  subscription: 'projects/vault-p/subscriptions/gmail.push',
-  serviceAccount: 'gmail-push@vault-p.iam.gserviceaccount.com',
+  topicName: 'projects/vb-p/topics/gmail.watch',
+  subscription: 'projects/vb-p/subscriptions/gmail.push',
+  serviceAccount: 'gmail-push@vb-p.iam.gserviceaccount.com',
   publicBaseUrl: 'https://vault.test',
   audience: 'https://vault.test/gmail/push',
 }

@@ -4,16 +4,16 @@
 // reach the pipeline; when [[CHN5]]'s route lands this entry goes. `/run` drives `FakeChannel`; `/gmail` ([[CHN5]] cycle 1) drives the
 // real `GmailChannel` over `FakeGmail`, which serves Gmail's wire form, so the streaming base64url decoder and the HTML-to-markdown
 // libraries run in workerd.
-import { uuidv7 } from '@vault/storage'
-import { d1Binding, type D1Like } from '@vault/storage-d1'
-import { captureMessages, r2ObjectStore, ScopeSet, workerdStreams, type GmailSyncDeps, type PipelineContext, type R2BucketLike } from '@vault/api'
-import { execute } from '@vault/storage'
-import { ensureConnection } from '@vault/api/test/capture'
-import { bytesOf, FakeChannel } from '@vault/api/test/channels'
-import { FakeGmail, type MessageSpec } from '@vault/api/test/gmail'
-import { gmailFixture, MAILBOX } from '@vault/api/test/gmail-fixtures'
-import { runGmailSync, seedGmailConnection } from '@vault/api/test/gmail-sync'
-import { GmailChannel } from '@vault/api'
+import { uuidv7 } from '@vibase/storage'
+import { d1Binding, type D1Like } from '@vibase/storage-d1'
+import { captureMessages, r2ObjectStore, ScopeSet, workerdStreams, type GmailSyncDeps, type PipelineContext, type R2BucketLike } from '@vibase/api'
+import { execute } from '@vibase/storage'
+import { ensureConnection } from '@vibase/api/test/capture'
+import { bytesOf, FakeChannel } from '@vibase/api/test/channels'
+import { FakeGmail, type MessageSpec } from '@vibase/api/test/gmail'
+import { gmailFixture, MAILBOX } from '@vibase/api/test/gmail-fixtures'
+import { runGmailSync, seedGmailConnection } from '@vibase/api/test/gmail-sync'
+import { GmailChannel } from '@vibase/api'
 import { ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
 
 interface Env {

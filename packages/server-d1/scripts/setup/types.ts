@@ -1,5 +1,5 @@
 // Shared types of `setup:remote` ([[OPS65]] D6, D7): the step model and the seams the tests fake (command runner, fetch, files, D1).
-import type { D1Like } from '@vault/storage-d1'
+import type { D1Like } from '@vibase/storage-d1'
 
 export const STEP_NAMES = ['preflight', 'config:resources', 'clerk', 'config:write', 'migrate', 'bootstrap', 'deploy', 'secrets', 'verify'] as const
 /** Steps that exist only with `--auth clerk` ([[OPS65]] D11); `secrets` also runs on `--auth none` for the Gmail group ([[OPS65]] D41). */

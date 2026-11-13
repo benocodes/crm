@@ -7,7 +7,7 @@
 import { sql } from 'kysely'
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
 import type { Context } from 'hono'
-import { defineOperation, execute, readSet, unit, uuidv7, type D1Binding, type StorageBinding } from '@vault/storage'
+import { defineOperation, execute, readSet, unit, uuidv7, type D1Binding, type StorageBinding } from '@vibase/storage'
 import type { PushConfig } from '../../connections/config.js'
 import { instanceId, markRequested, type MailSyncInstances } from '../../sync/request.js'
 

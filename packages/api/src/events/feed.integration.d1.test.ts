@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'kysely'
-import { defineOperation, step, unit, uuidv7, type PreparedOperation } from '@vault/storage'
+import { defineOperation, step, unit, uuidv7, type PreparedOperation } from '@vibase/storage'
 import { eventSetStatement } from '../outbox.js'
 import { afterOf } from '../storage/crud.js'
 import { tasks } from '../resources/tasks.js'

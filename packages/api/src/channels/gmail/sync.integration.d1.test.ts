@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { openToken } from '../../connections/credentials.js'
 import { memoryObjectStore } from '../../objects/store.js'
 import { openD1Engine, type Engine } from '../../test/engines.js'

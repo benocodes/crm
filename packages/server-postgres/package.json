@@ -1,7 +1,7 @@
 {
-  "name": "@vault/server-postgres",
+  "name": "@vibase/server-postgres",
   "private": true,
-  "description": "Enterprise tier (spec CORE36 D22): the Postgres composition of the vault API. The dev server, bootstrap CLI and smokes. Open packages never import this one.",
+  "description": "Enterprise tier (spec CORE36 D22): the Postgres composition of the Vibase API. The dev server, bootstrap CLI and smokes. Open packages never import this one.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -14,10 +14,10 @@
   },
   "dependencies": {
     "@hono/node-server": "2.1.3",
-    "@vault/api": "workspace:*",
-    "@vault/db": "workspace:*",
-    "@vault/storage": "workspace:*",
-    "@vault/storage-postgres": "workspace:*",
+    "@vibase/api": "workspace:*",
+    "@vibase/db": "workspace:*",
+    "@vibase/storage": "workspace:*",
+    "@vibase/storage-postgres": "workspace:*",
     "jose": "6.2.12",
     "kysely": "0.29.6"
   },

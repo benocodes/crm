@@ -15,23 +15,23 @@ export interface Rule {
   skipTests?: boolean
 }
 
-const ENTERPRISE = ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres', '@vault/api']
+const ENTERPRISE = ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres', '@vibase/api']
 
 export const RULES: readonly Rule[] = [
   // The portable core: no driver, no enterprise code, no runtime, no API.
-  { dir: 'storage/src', forbid: [...ENTERPRISE, '@vault/storage-d1'], allow: { 'import-boundary.test.ts': 'holds forbidden imports as test data' } },
+  { dir: 'storage/src', forbid: [...ENTERPRISE, '@vibase/storage-d1'], allow: { 'import-boundary.test.ts': 'holds forbidden imports as test data' } },
   // The D1 runtime is open: no `pg`, no enterprise runtime, no Postgres tenancy package, no API barrel.
   { dir: 'storage-d1/src', forbid: ENTERPRISE },
   // The domain programs (open): production code and scripts never import enterprise code or `pg`, and the rules have no allow-list
-  // ([[CORE36]] D22): the Postgres composition lives in @vault/server-postgres. `api/scripts` is empty and the rule guards it.
-  { dir: 'api/src', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'], skipTests: true },
-  { dir: 'api/scripts', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'] },
+  // ([[CORE36]] D22): the Postgres composition lives in @vibase/server-postgres. `api/scripts` is empty and the rule guards it.
+  { dir: 'api/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
+  { dir: 'api/scripts', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] },
   // The built-in auth provider ([[CORE243]] D21): open, never imports enterprise code or `pg`; no allow-list.
-  { dir: 'auth/src', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'], skipTests: true },
-  { dir: 'auth/scripts', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'] },
-  // The open D1 Worker composition ([[CORE38]] D1): it composes @vault/api (allowed) and never the enterprise runtime or `pg`.
-  { dir: 'server-d1/src', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'], skipTests: true },
-  { dir: 'server-d1/scripts', forbid: ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'] },
+  { dir: 'auth/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
+  { dir: 'auth/scripts', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] },
+  // The open D1 Worker composition ([[CORE38]] D1): it composes @vibase/api (allowed) and never the enterprise runtime or `pg`.
+  { dir: 'server-d1/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
+  { dir: 'server-d1/scripts', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] },
 ]
 
 const SPECIFIER = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g
@@ -84,7 +84,7 @@ export function checkBoundary(packagesRoot: string, rules: readonly Rule[] = RUL
 /** Test files that hold forbidden imports as data (strings), each with the reason. */
 const NAMING_EXEMPT: Readonly<Record<string, string>> = { 'storage/src/import-boundary.test.ts': 'holds forbidden imports as test data' }
 export const POSTGRES_INTEGRATION = '<integration test in a Postgres package>'
-const POSTGRES_CODE = ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres']
+const POSTGRES_CODE = ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres']
 const TYPE_ONLY_IMPORT = /\bimport\s+type\b[^;'"]*?\bfrom\s+['"][^'"]+['"]/gs
 
 /**

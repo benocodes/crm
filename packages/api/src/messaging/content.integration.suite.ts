@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { createApp } from '../rest/app.js'
 import { memoryObjectStore, type ObjectStore } from '../objects/store.js'
 import { openEngines, type Engine, type EngineName } from '../test/engines.js'

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { defineOperation, step, unit, uuidv7, type PreparedOperation } from '@vault/storage'
+import { defineOperation, step, unit, uuidv7, type PreparedOperation } from '@vibase/storage'
 import { eventSetStatement as eventSet } from '../outbox.js'
 import { ApiError } from '../errors.js'
 import { mergeOperation } from '../identity/merge.js'

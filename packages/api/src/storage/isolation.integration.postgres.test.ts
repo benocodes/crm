@@ -1,6 +1,6 @@
 import { sql } from 'kysely'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { ForeignOrganizationError, execute, uuidv7 } from '@vault/storage'
+import { ForeignOrganizationError, execute, uuidv7 } from '@vibase/storage'
 import { seedTenant } from '../test/tenant.js'
 import { ApiError } from '../errors.js'
 import { Registry } from '../registry.js'

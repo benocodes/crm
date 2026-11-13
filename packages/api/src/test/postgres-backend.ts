@@ -1,8 +1,8 @@
 // Test-only. The Postgres backend of the shared contract suite ([[CORE35]] D16): imported by `*.postgres.test.ts` entry files only.
 import { sql, type Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } from '@vault/db/test'
-import { postgresBinding } from '@vault/storage-postgres'
+import type { Database } from '@vibase/db'
+import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } from '@vibase/db/test'
+import { postgresBinding } from '@vibase/storage-postgres'
 import { createApp } from '../rest/app.js'
 import { captureAs } from './capture-kit.js'
 import type { ContractBackend, ContractTenant } from './contract.js'

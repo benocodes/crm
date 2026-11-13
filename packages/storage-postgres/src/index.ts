@@ -1,5 +1,5 @@
 import { CompiledQuery, sql, type Kysely, type Transaction } from 'kysely'
-import { withOrganization, withServiceRole, type Database } from '@vault/db'
+import { withOrganization, withServiceRole, type Database } from '@vibase/db'
 import {
   DEFAULT_MAX_SET_SIZE,
   StatementFailed,
@@ -15,7 +15,7 @@ import {
   type Row,
   type Runtime,
   type StorageIdentity,
-} from '@vault/storage'
+} from '@vibase/storage'
 
 // The Postgres runtime ([[CORE35]] C2), enterprise tier (D14). It delegates role and session setup to the
 // tenancy wrappers (AGENTS.md invariant 1), runs the plan phase and the commit phase in ONE transaction under

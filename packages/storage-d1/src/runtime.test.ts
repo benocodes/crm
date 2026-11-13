@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CommitOutcomeUnknown, ForeignOrganizationError, StatementFailed, StorageError, UnitDriftError, defineOperation, step, unit } from '@vault/storage'
+import { CommitOutcomeUnknown, ForeignOrganizationError, StatementFailed, StorageError, UnitDriftError, defineOperation, step, unit } from '@vibase/storage'
 import { sql } from 'kysely'
 import { classifyD1Error, createD1Runtime, d1Binding, D1_MAX_PARAMETERS } from './index.js'
 import type { D1Like } from './binding.js'

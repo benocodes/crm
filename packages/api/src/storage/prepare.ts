@@ -1,4 +1,4 @@
-import { COLUMN_KINDS, codecs, type ColumnKind } from '@vault/storage'
+import { COLUMN_KINDS, codecs, type ColumnKind } from '@vibase/storage'
 import type { Actor } from '../auth/types.js'
 import { ApiError } from '../errors.js'
 import { parseInput, parseListQuery } from '../resources/define.js'

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { createVaultRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { captureMessage, runCapture } from '../test/capture-kit.js'

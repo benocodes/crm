@@ -6,7 +6,7 @@ import { betterAuth, type BetterAuthOptions } from 'better-auth'
 import { getAuthTables } from 'better-auth/db'
 import { jwt } from 'better-auth/plugins'
 import { D1Dialect } from 'kysely-d1'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { hashPassword, verifyPassword } from './password.js'
 
 /** What the composition needs beyond the database: both are validated by the Worker's composition before they reach here ([[CORE243]] D6, P2). */

@@ -149,7 +149,7 @@ export const CATALOG: Catalog = {
     },
     agents: {
       label: 'Agents',
-      description: 'Software principals that read the vault and propose actions, each with a fixed list of scopes and its own API keys.',
+      description: 'Software principals that read Vibase and propose actions, each with a fixed list of scopes and its own API keys.',
       columns: {
         id: 'The agent id; equals the principal id.',
         name: 'Display name of the agent.',
@@ -308,7 +308,7 @@ export const CATALOG: Catalog = {
         currency: 'Optional ISO 4217 code such as USD, stored upper case. Required when an amount is set.',
         expected_close_date: 'Optional calendar date (YYYY-MM-DD) the deal is expected to close.',
         owner_id: 'Optional: the user or agent responsible for the deal.',
-        closed_at: 'When the deal last became won or lost; null while it is open. Set by the vault when the deal enters a won or lost stage (also at creation), cleared when it is reopened.',
+        closed_at: 'When the deal last became won or lost; null while it is open. Set by Vibase when the deal enters a won or lost stage (also at creation), cleared when it is reopened.',
       },
       derived: {
         status: "The kind of the deal's stage: open, won or lost. Derived, read-only; filter with ?status=.",
@@ -316,7 +316,7 @@ export const CATALOG: Catalog = {
     },
     channel_connections: {
       label: 'Connections',
-      description: "A mailbox connected to the vault through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
+      description: "A mailbox connected to Vibase through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
       columns: {
         provider: 'The provider of the account; google only for now.',
         account_id: "The provider's stable id for the account (Google's sub), not the address, which can change. Unique among live connections.",
@@ -361,7 +361,7 @@ export const CATALOG: Catalog = {
     },
     action_executions: {
       label: 'Action executions',
-      description: 'The durable run of an operation that talks to the outside world (an enqueued operation), created when a direct call or an approved action request authorises it. The vault runs it with retries and reconciliation; the row holds its status, final arguments and outcome. Read through action_executions.list and .get, which show you the executions whose operation you may read.',
+      description: 'The durable run of an operation that talks to the outside world (an enqueued operation), created when a direct call or an approved action request authorises it. Vibase runs it with retries and reconciliation; the row holds its status, final arguments and outcome. Read through action_executions.list and .get, which show you the executions whose operation you may read.',
       columns: {
         connection_id: 'The authorised sending connection, null for executions without a connection.',
         created_by: 'The principal that asked: the proposer for an approved request, the caller for a direct call.',
@@ -371,7 +371,7 @@ export const CATALOG: Catalog = {
         arguments: 'The operation\'s final arguments, as JSON, fixed when it was authorised.',
         resolution: 'What was resolved when it was authorised (a reply anchor, a connection), as JSON. Internal; not returned by the API.',
         status: 'queued (waiting or between attempts), claimed (an attempt is running), done or failed.',
-        client_ref: 'The identifier the vault gave the outgoing item, the same on every attempt; internal.',
+        client_ref: 'The identifier Vibase gave the outgoing item, the same on every attempt; internal.',
         idempotency_key: 'The key a direct caller chose: the same key and arguments answer the same execution. Unique per caller; null for an approved request.',
         input_hash: 'A SHA-256 of the operation and its canonical arguments, to recognise a repeated key; internal.',
         deadline_at: 'When an execution that was never attempted stops being attempted (ten minutes after authorisation).',
@@ -385,7 +385,7 @@ export const CATALOG: Catalog = {
         last_error_code: 'The class of the last attempt\'s failure, while it is retried; internal.',
         result: 'What the operation produced, as JSON; null until done.',
         error_code: 'Why it failed: reauth_required, permission_missing, anchor_missing, provider_rejected, outcome_unknown, attempts_exhausted or deadline_passed.',
-        error_message: 'The vault\'s sentence for the failure; never a provider\'s own text.',
+        error_message: 'Vibase\'s sentence for the failure; never a provider\'s own text.',
       },
     },
     webhook_subscriptions: {
@@ -395,13 +395,13 @@ export const CATALOG: Catalog = {
         agent_id: 'The agent that owns the subscription: whose read scopes decide which events it may receive.',
         url: 'Where the events are POSTed: https, a public host, at most 2048 characters.',
         event_types: 'The exact event types delivered (for example task.created), as a JSON array of 1 to 20 strings.',
-        status: 'active, paused (by a caller) or disabled (by the vault after sustained failure).',
+        status: 'active, paused (by a caller) or disabled (by Vibase after sustained failure).',
         deleted_at: 'When the subscription was deleted; null while it exists.',
       },
     },
     webhook_deliveries: {
       label: 'Webhook deliveries',
-      description: 'One row per event per webhook subscription: the dispatcher adds it pending when the event reaches the subscription\'s position in the feed, and the sender settles it as delivered, dead or cancelled. Read a subscription\'s rows through webhooks.deliveries to see why a hook did or did not fire. The vault writes it; nothing here is edited by callers.',
+      description: 'One row per event per webhook subscription: the dispatcher adds it pending when the event reaches the subscription\'s position in the feed, and the sender settles it as delivered, dead or cancelled. Read a subscription\'s rows through webhooks.deliveries to see why a hook did or did not fire. Vibase writes it; nothing here is edited by callers.',
       columns: {
         subscription_id: 'The webhook subscription this delivery belongs to.',
         event_id: 'The id of the event to deliver (the event feed\'s id; there is no foreign key, an event id is a position).',
@@ -419,7 +419,7 @@ export const CATALOG: Catalog = {
     },
     associations: {
       label: 'Associations',
-      description: 'Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; the vault checks both ends exist).',
+      description: 'Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; Vibase checks both ends exist).',
       columns: {
         a_type: 'Table of the first end; the lower of the two ends in canonical order.',
         a_id: 'Record id of the first end.',

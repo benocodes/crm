@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { SCOPE_POLICY, type Role } from '../auth/roles.js'
 import { parseGmailConfig } from '../connections/config.js'
 import { createApp } from '../rest/app.js'

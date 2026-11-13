@@ -18,7 +18,7 @@ import {
   type Found,
   type Row,
   type Step,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
 import { companies } from '../resources/companies.js'

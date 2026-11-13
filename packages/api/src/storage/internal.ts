@@ -1,4 +1,4 @@
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 
 /**
  * What a unit of internal work needs from the application ([[CORE41]] P5): the clock and the id source, built once per

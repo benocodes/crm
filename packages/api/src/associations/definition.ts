@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { COLUMN_KINDS, type ColumnKind } from '@vault/storage'
+import { COLUMN_KINDS, type ColumnKind } from '@vibase/storage'
 import type { Scope } from '../scopes.js'
 import { scopeResourceOf } from '../resources/define.js'
 import { definePreparedResource, type PreparedResource } from '../storage/definition.js'

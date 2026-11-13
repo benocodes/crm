@@ -1,5 +1,5 @@
 import { sql } from 'kysely'
-import { defineOperation, readAll, unit, type PreparedOperation } from '@vault/storage'
+import { defineOperation, readAll, unit, type PreparedOperation } from '@vibase/storage'
 
 // [[API105]] D22: the stable feed read. On D1 every committed event is in the stable prefix (one `batch()` per unit, `seq` assigned by SQLite inside the
 // single writer, reads on the primary), so the only ordering predicate is `seq > (the cursor's seq)`. INTERNAL: no registered operation, route or job calls

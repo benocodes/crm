@@ -122,13 +122,13 @@ don't guess: stop and report `blocked` with the question.
 All of it must be green before you report. Never report a test as passing without having run it.
 
 ```bash
-pnpm -r --workspace-concurrency=1 --filter '!@vault/api' test   # every other package, one at a time
+pnpm -r --workspace-concurrency=1 --filter '!@vibase/api' test   # every other package, one at a time
 pnpm -C packages/api test --reporter=dot                          # the api suite alone on the machine
 pnpm -r typecheck
 pnpm -r build      # where a package has a build
 ```
 
-The `@vault/api` suite runs its files in parallel at 4 workers ([[OPS223]]): about 4.5 to 6 minutes on the 8-core development machine
+The `@vibase/api` suite runs its files in parallel at 4 workers ([[OPS223]]): about 4.5 to 6 minutes on the 8-core development machine
 (276 to 339 s measured at load 3.4 to 3.8 before the start; 971 s serial), alone on the machine. On a loaded machine lower it with
 `VITEST_MAX_WORKERS=N pnpm -C packages/api test` and name N in RESULT.md. A plain `pnpm -r test` runs the packages concurrently
 (api's 4 workers beside `cli` and `server-d1`), which is why the gate splits it as above. The default reporter prints nothing until the end, so a slow run looks like a
@@ -143,7 +143,7 @@ suites are off by default (the `postgres` vitest project, switched in the root `
 them, no Postgres database needed); don't run `pnpm test:postgres` in a cycle unless the cycle is about Postgres.
 If you do run them, their failures are drift to report, not to fix by bending D1 behaviour.
 A new test that needs Postgres is a `*.postgres.test.ts` file, never a list entry or a guard. A failure that reproduces on a clean `main` is pre-existing: report it, don't fix it in this cycle.
-The `@vault/api` Postgres baseline is tracked in #89 (128 failures on `main` `7bd7973`, D1-only schema):
+The `@vibase/api` Postgres baseline is tracked in #89 (128 failures on `main` `7bd7973`, D1-only schema):
 compare the count against it, and if it rises name the D1 migration responsible ([[CORE84]] retro), instead of
 re-running a clean `main` to prove the failures predate the branch.
 The charter's E2E scenario is not part of the gate; in a sprint the e2e-tester runs it.

@@ -1,9 +1,9 @@
 // Test-only. The Postgres engine of the both-engine storage suites ([[CORE35]] D16): `vault_app` (no presets: invariant 2)
 // and the owner pool for raw reads. Loaded by `openEngines(['postgres'])` only, so D1 runs never import it.
 import { sql } from 'kysely'
-import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
-import { uuidv7 } from '@vault/storage'
-import { postgresBinding } from '@vault/storage-postgres'
+import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
+import { uuidv7 } from '@vibase/storage'
+import { postgresBinding } from '@vibase/storage-postgres'
 import { LINK, SEED_AT, decodeRow, kindsOf, shared, withDefaults, type Engine, type RawRow } from './engines.js'
 
 export async function openPostgres(opts: { maxConnections?: number; maxSetSize?: number }): Promise<Engine> {

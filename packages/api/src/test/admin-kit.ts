@@ -3,9 +3,9 @@
 import { pgStorage } from './storage.js'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 import { sql, type Kysely } from 'kysely'
-import type { Database } from '@vault/db'
+import type { Database } from '@vibase/db'
 import { randomBytes } from 'node:crypto'
-import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
+import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
 import { createApp } from '../rest/app.js'
 import {
   clerkMembership,

@@ -1,5 +1,5 @@
 {
-  "name": "@vault/docs",
+  "name": "@vibase/docs",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -19,7 +19,7 @@
   "devDependencies": {
     "@astrojs/check": "0.9.12",
     "@types/node": "^22",
-    "@vault/api": "workspace:*",
+    "@vibase/api": "workspace:*",
     "tsx": "4.23.15",
     "typescript": "5.9.3"
   }

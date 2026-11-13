@@ -1,5 +1,5 @@
-import type { D1Like, D1PreparedLike } from '@vault/storage-d1'
-import type { TickBudget } from '@vault/api'
+import type { D1Like, D1PreparedLike } from '@vibase/storage-d1'
+import type { TickBudget } from '@vibase/api'
 
 // [[API7]] D24 ([[API220]]): the tick's counters. D24's "outbound" is every external call the invocation makes (the planner's clarification): fetches, R2 operations and Workflow creates, beside D1
 // queries. `countD1` is a D1 that spends one of the tick's budget per query: `run`, `all` and `first` are one each, and a `batch()` is one however many statements it holds (the platform's own

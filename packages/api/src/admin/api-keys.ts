@@ -1,5 +1,5 @@
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, bind, codecs, defineOperation, readMaybe, step, ts, unit, type PreparedOperation } from '@vault/storage'
+import { UnitDriftError, bind, codecs, defineOperation, readMaybe, step, ts, unit, type PreparedOperation } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { apiKeys, type ApiKeyRecord } from '../resources/api-keys.js'

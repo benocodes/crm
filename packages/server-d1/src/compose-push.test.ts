@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { execute, uuidv7 } from '@vault/storage'
-import { ScopeSet } from '@vault/api'
-import { fakeR2Bucket } from '@vault/api/test/objects'
-import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vault/api/test/google'
-import { FakeGmail } from '@vault/api/test/gmail'
-import { seedGmailConnection } from '@vault/api/test/gmail-sync'
-import { MIGRATIONS, d1Binding } from '@vault/storage-d1'
-import { createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
+import { execute, uuidv7 } from '@vibase/storage'
+import { ScopeSet } from '@vibase/api'
+import { fakeR2Bucket } from '@vibase/api/test/objects'
+import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vibase/api/test/google'
+import { FakeGmail } from '@vibase/api/test/gmail'
+import { seedGmailConnection } from '@vibase/api/test/gmail-sync'
+import { MIGRATIONS, d1Binding } from '@vibase/storage-d1'
+import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { readDeployment } from './init-deployment.js'
@@ -94,7 +94,7 @@ describe('the cron with push on (D89)', () => {
   it('a watch that fails does not stop the tick: the sync request is still made and the tick does not throw', async () => {
     const t = await boot()
     const id = await seed(t)
-    const gmail = new FakeGmail().failWhen((c) => c.op === 'watch', new (await import('@vault/api')).GmailApiError({ status: 403, reason: 'forbidden' }))
+    const gmail = new FakeGmail().failWhen((c) => c.op === 'watch', new (await import('@vibase/api')).GmailApiError({ status: 403, reason: 'forbidden' }))
     const lines = logs()
     await expect(tick(PUSH_ENV, gmail)).resolves.toBeUndefined()
     expect(watchCalls(gmail)).toBe(1)

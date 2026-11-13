@@ -1,5 +1,5 @@
 {
-  "name": "@vault/release",
+  "name": "@vibase/release",
   "version": "0.1.0",
   "private": true,
   "description": "The product release ([[OPS210]], [[OPS240]]): the one product version (D1), the build of the two release packages @vibase/cli and @vibase/server-d1 (D2-D6, D22) and the check that proves they run outside the repo (D8).",
@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vault/storage-d1": "workspace:*",
+    "@vibase/storage-d1": "workspace:*",
     "jsonc-parser": "3.3.1"
   },
   "devDependencies": {

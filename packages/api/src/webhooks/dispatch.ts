@@ -1,5 +1,5 @@
 import { sql } from 'kysely'
-import { appliedPrev, codecs, defineOperation, execute, readAll, step, unit, type PreparedOperation, type StorageBinding } from '@vault/storage'
+import { appliedPrev, codecs, defineOperation, execute, readAll, step, unit, type PreparedOperation, type StorageBinding } from '@vibase/storage'
 import { feedVisibility } from '../events/operations.js'
 import { readStableFeed, type FeedEvent } from '../events/feed.js'
 import type { Registry } from '../registry.js'

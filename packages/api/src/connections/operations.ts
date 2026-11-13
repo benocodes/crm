@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vault/storage'
+import { defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vibase/storage'
 import { stopWatch } from '../channels/gmail/watch.js'
 import { ApiError } from '../errors.js'
 import type { TenantOperation } from '../registry.js'
@@ -33,7 +33,7 @@ export const redirectUriOf = (config: GmailConfig, origin: string | undefined): 
 
 const body = z.strictObject({ provider: z.literal('google') })
 const response = z.object({
-  authorize_url: z.string().describe("Open this URL in a browser: Google's consent screen. The vault records the connection when Google sends the person back."),
+  authorize_url: z.string().describe("Open this URL in a browser: Google's consent screen. Vibase records the connection when Google sends the person back."),
   expires_at: z.string().describe('When the link stops working (ten minutes).'),
 })
 
@@ -54,7 +54,7 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
       name: 'connections.authorize',
       summary: 'Start connecting a Google account: returns the Google consent URL to open in a browser',
       description:
-        'Human only: a person connects their own mailbox, because someone has to be at Google\'s consent screen. The URL is valid for ten minutes. When the person has consented, Google sends the browser back to the vault, which records the connection, its encrypted credential and the mailbox addresses as own identities; nothing is read from the mailbox yet. Answers 501 provider_not_configured when the deployment has no Google OAuth client.',
+        'Human only: a person connects their own mailbox, because someone has to be at Google\'s consent screen. The URL is valid for ten minutes. When the person has consented, Google sends the browser back to Vibase, which records the connection, its encrypted credential and the mailbox addresses as own identities; nothing is read from the mailbox yet. Answers 501 provider_not_configured when the deployment has no Google OAuth client.',
       tags: ['connections'],
       method: 'post',
       path: '/connections/authorize',
@@ -85,7 +85,7 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
       kind: 'tenant',
       surface: 'meta',
       name: 'connections.sync',
-      summary: "Ask the vault to read a connected mailbox now, instead of waiting for the next scheduled read",
+      summary: "Ask Vibase to read a connected mailbox now, instead of waiting for the next scheduled read",
       description:
         "Human only. Records a sync request and starts a background run; answers 202 at once, before anything is read. The run captures new mail, and a mailbox that has never synced starts with a backfill. Read connections.get for last_synced_at (when it finished) and last_error_code (why it did not). 404 for an unknown or disconnected connection; 409 connection_inactive when the connection needs a reconnect (reauth_required or suspended); 501 provider_not_configured when this deployment cannot sync.",
       tags: ['connections'],

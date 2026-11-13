@@ -1,11 +1,11 @@
-# @vault/server-d1
+# @vibase/server-d1
 
-The vault as a Cloudflare module Worker on **one D1 database**: one organisation per deployment, the open tier
+Vibase as a Cloudflare module Worker on **one D1 database**: one organisation per deployment, the open tier
 (licence: Apache-2.0, as declared in `package.json` today; nothing more is claimed here). It is the self-hosted
-shape of the vault. Agents you bring read and propose over REST; the vault executes.
+shape of Vibase. Agents you bring read and propose over REST; Vibase executes.
 
 This package holds the Worker entry (`src/worker.ts`), its composition (`src/compose.ts`), the local bootstrap CLI and
-`wrangler.jsonc`. The storage engine is `@vault/storage-d1`; the API is `@vault/api`.
+`wrangler.jsonc`. The storage engine is `@vibase/storage-d1`; the API is `@vibase/api`.
 
 ## Requirements
 
@@ -49,7 +49,7 @@ node -e 'console.log(JSON.stringify({identities:Array.from({length:101},(_, i)=>
 
 ## The MCP endpoint
 
-The Worker serves a remote MCP endpoint at `<api origin>/mcp` [[API106]]: stateless Streamable HTTP, JSON responses, one tool per vault operation
+The Worker serves a remote MCP endpoint at `<api origin>/mcp` [[API106]]: stateless Streamable HTTP, JSON responses, one tool per Vibase operation
 the caller's scopes allow (`schema_get`, `contacts_create`, ...). An API key works as a static header, for any MCP client that can send one:
 
 ```bash
@@ -305,7 +305,7 @@ them with the ones you already use before running anything.
    its refresh tokens expire after 7 days; for real use publish it, and because `gmail.readonly` and `gmail.send` are restricted scopes Google requires
    app verification (and, for restricted scopes, a security assessment) before more than 100 users. Internal avoids all of that.
 3. **Scopes** (the consent screen's data access): `openid`, `email`, `https://www.googleapis.com/auth/gmail.readonly` and
-   `https://www.googleapis.com/auth/gmail.send`. The vault requires `gmail.readonly` (a grant without it is refused as `scope_missing`); `gmail.send` is
+   `https://www.googleapis.com/auth/gmail.send`. Vibase requires `gmail.readonly` (a grant without it is refused as `scope_missing`); `gmail.send` is
    recorded when granted and used by nothing yet.
 4. **OAuth client**: a *Web application*. Authorised redirect URI, exactly: `https://<api-host>/oauth/google/callback` (it is `PUBLIC_BASE_URL` plus
    `/oauth/google/callback`, so they must agree). The client id is `GOOGLE_CLIENT_ID` (a var); the client secret is `GOOGLE_CLIENT_SECRET` (a secret).
@@ -326,12 +326,12 @@ gcloud pubsub topics add-iam-policy-binding gmail.watch \
 
 ### 3. The push service account and the authenticated subscription
 
-Pub/Sub calls the vault with an OIDC token signed as a service account you create. The vault checks the token's signature against Google's keys, its
+Pub/Sub calls Vibase with an OIDC token signed as a service account you create. Vibase checks the token's signature against Google's keys, its
 issuer, its **audience (it must equal `<PUBLIC_BASE_URL>/gmail/push` exactly)**, its `email` (this service account) and `email_verified`, and that the body
 names this subscription.
 
 ```bash
-gcloud iam service-accounts create gmail-push --display-name="Vault Gmail push"
+gcloud iam service-accounts create gmail-push --display-name="Vibase Gmail push"
 
 # Optional: only if Pub/Sub cannot mint tokens as that account (a project from before 2021, or an organisation policy). The Pub/Sub service agent needs
 # the token-creator role. Check the subscription's delivery before adding it: with the grant already in place this is a no-op.
@@ -348,7 +348,7 @@ gcloud pubsub subscriptions create gmail.push \
 ```
 
 `GMAIL_PUSH_SUBSCRIPTION` is `projects/<project id>/subscriptions/gmail.push`; `GMAIL_PUSH_SERVICE_ACCOUNT` is `gmail-push@<project id>.iam.gserviceaccount.com`.
-Pub/Sub's tokens may be up to an hour old; the vault accepts them until their `exp` (with 30 seconds of clock tolerance).
+Pub/Sub's tokens may be up to an hour old; Vibase accepts them until their `exp` (with 30 seconds of clock tolerance).
 
 ### 4. Variables, secrets and the order
 
@@ -360,7 +360,7 @@ the vars `GOOGLE_CLIENT_ID`, `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMA
 2. Set the vars and secrets, **migrate, then deploy** (`db:migrate:remote`, then `deploy:remote`). Push is on once all four push vars are set.
 3. Connect the mailbox (`connections.authorize`). The callback registers the watch (INBOX and SENT) before it writes the connection; if that fails the connection
    still commits and the next cron tick registers it. Mailboxes connected before push was configured get their watch at the next tick (every 15 minutes).
-4. The 15-minute cron renews every watch with less than 6 days left (Google drops a watch after 7 days) and stays the safety net: a push the vault never got is
+4. The 15-minute cron renews every watch with less than 6 days left (Google drops a watch after 7 days) and stays the safety net: a push Vibase never got is
    served by the next tick. Deleting a connection calls Gmail's `users.stop` after the delete commits, best effort.
 
 If you arm the Google recorder on a deployment whose cron is on (see the recorder section above), arm it for one tick at most: the cron's watch calls and a sync run
@@ -373,7 +373,7 @@ can overlap, and the recorder's index is one object read, extended and written b
 | `[gmail] push is off: set or fix <names>` at startup | a push variable is missing or malformed | set it; `PUBLIC_BASE_URL` must be an origin only |
 | `[gmail] push is off: the MAIL_SYNC binding is missing` | no Workflow binding | add the `workflows` block to the env |
 | `[watch] ... misconfigured connection=<id> status=403` | the topic's publisher grant is missing, or the topic is in another project | step 2's `add-iam-policy-binding`; check `GMAIL_TOPIC_NAME` |
-| `[watch] ... misconfigured ... status=400` | a bad topic name, or Google refusing `labelFilterBehavior` (the vault sends `include`; Google's reference lists lowercase, its push guide's example writes `INCLUDE`) | fix the topic; if the status stays 400 on a correct topic, the casing is the cause (one constant in `client.ts`) |
+| `[watch] ... misconfigured ... status=400` | a bad topic name, or Google refusing `labelFilterBehavior` (Vibase sends `include`; Google's reference lists lowercase, its push guide's example writes `INCLUDE`) | fix the topic; if the status stays 400 on a correct topic, the casing is the cause (one constant in `client.ts`) |
 | `[watch] ... misconfigured ... status=404` | the topic does not exist | create it |
 | `[watch] ... throttled` | `429`, or a rate-limit `403` | none: the next tick retries (each failing connection costs one call per tick) |
 | `[watch] ... failed` | a network error or a `5xx` | none: the next tick retries |
@@ -390,7 +390,7 @@ can overlap, and the recorder's index is one object read, extended and written b
 This engine is built and tested for a **small deployment**: up to about five users, a few agents, and mostly
 sequential work. One organisation per database; a second organisation cannot be stored.
 
-- **A cap of 100 per set.** Anything the vault must touch as one bounded set is limited to 100 rows:
+- **A cap of 100 per set.** Anything Vibase must touch as one bounded set is limited to 100 rows:
   - a resolve batch (`POST /identities/resolve`) is refused by the request schema: `400 validation_error`;
   - the live children of a delete cascade (`DELETE /companies/{id}` unlinks its contacts, `DELETE /contacts/{id}`
     tombstones its identities) and the members of a directory snapshot are refused by the runtime:
@@ -455,7 +455,7 @@ This deployment profile is a small organisation of about 5 to 10 members. Every 
 bounds at that size, **except the 100-member directory snapshot** (201 D1 queries and, with its 101 outbound Clerk
 fetches, 302 subrequests). That one is held to the Paid bound in the test and is not a supported Free-plan size.
 
-The cost of a directory delivery (a Clerk webhook, after which the vault fetches the organisation's whole member list)
+The cost of a directory delivery (a Clerk webhook, after which Vibase fetches the organisation's whole member list)
 grows with the number of **first-seen members** k: 2k+3 D1 queries and 3k+5 subrequests (the members page, the
 organisation fetch, one profile fetch per new member, plus the D1 queries). The subrequest total is the binding one:
 3k+5 stays at or under 50 up to **k = 15 new members in one delivery**, so organisations of 5 to 10 members have room
@@ -481,8 +481,8 @@ replay pass.
 
 ## Open and enterprise packages
 
-`@vault/storage`, `@vault/storage-d1`, `@vault/api` and this package are the **open** tier. `@vault/db`,
-`@vault/storage-postgres` and `@vault/server-postgres` are the **enterprise** tier; open packages never import them.
+`@vibase/storage`, `@vibase/storage-d1`, `@vibase/api` and this package are the **open** tier. `@vibase/db`,
+`@vibase/storage-postgres` and `@vibase/server-postgres` are the **enterprise** tier; open packages never import them.
 The check below proves it by copying only the open packages into a temporary workspace and installing, typechecking
 (production code), testing and smoke-running them there:
 

@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { parseEnv } from 'node:util'
-import { publishableKeyHost } from '@vault/api'
+import { publishableKeyHost } from '@vibase/api'
 
 export interface DevClerkEnv {
   secretKey: string

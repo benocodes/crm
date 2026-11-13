@@ -1,5 +1,5 @@
 {
-  "name": "@vault/storage-d1",
+  "name": "@vibase/storage-d1",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vault/storage": "workspace:*",
+    "@vibase/storage": "workspace:*",
     "kysely": "0.29.6"
   },
   "devDependencies": {

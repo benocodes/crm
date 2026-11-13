@@ -31,7 +31,7 @@
                 "name": "action_executions",
                 "origin": "built_in",
                 "label": "Action executions",
-                "description": "The durable run of an operation that talks to the outside world (an enqueued operation), created when a direct call or an approved action request authorises it. The vault runs it with retries and reconciliation; the row holds its status, final arguments and outcome. Read through action_executions.list and .get, which show you the executions whose operation you may read.",
+                "description": "The durable run of an operation that talks to the outside world (an enqueued operation), created when a direct call or an approved action request authorises it. Vibase runs it with retries and reconciliation; the row holds its status, final arguments and outcome. Read through action_executions.list and .get, which show you the executions whose operation you may read.",
                 "associable": false,
                 "resource": {
                   "name": "action_executions",
@@ -458,7 +458,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Client ref",
-                    "description": "The identifier the vault gave the outgoing item, the same on every attempt; internal.",
+                    "description": "The identifier Vibase gave the outgoing item, the same on every attempt; internal.",
                     "values": null,
                     "exposed": false,
                     "references": null
@@ -627,7 +627,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Error message",
-                    "description": "The vault's sentence for the failure; never a provider's own text.",
+                    "description": "Vibase's sentence for the failure; never a provider's own text.",
                     "values": null,
                     "exposed": true,
                     "references": null
@@ -1505,7 +1505,7 @@
                 "name": "agents",
                 "origin": "built_in",
                 "label": "Agents",
-                "description": "Software principals that read the vault and propose actions, each with a fixed list of scopes and its own API keys.",
+                "description": "Software principals that read Vibase and propose actions, each with a fixed list of scopes and its own API keys.",
                 "associable": false,
                 "resource": {
                   "name": "agents",
@@ -2310,7 +2310,7 @@
                 "name": "associations",
                 "origin": "built_in",
                 "label": "Associations",
-                "description": "Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; the vault checks both ends exist).",
+                "description": "Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; Vibase checks both ends exist).",
                 "associable": false,
                 "resource": null,
                 "columns": [
@@ -2496,7 +2496,7 @@
                 "name": "channel_connections",
                 "origin": "built_in",
                 "label": "Connections",
-                "description": "A mailbox connected to the vault through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
+                "description": "A mailbox connected to Vibase through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
                 "associable": false,
                 "resource": {
                   "name": "connections",
@@ -4730,7 +4730,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Closed at",
-                    "description": "When the deal last became won or lost; null while it is open. Set by the vault when the deal enters a won or lost stage (also at creation), cleared when it is reopened.",
+                    "description": "When the deal last became won or lost; null while it is open. Set by Vibase when the deal enters a won or lost stage (also at creation), cleared when it is reopened.",
                     "values": null,
                     "exposed": true,
                     "references": null
@@ -9391,7 +9391,7 @@
                 "name": "webhook_deliveries",
                 "origin": "built_in",
                 "label": "Webhook deliveries",
-                "description": "One row per event per webhook subscription: the dispatcher adds it pending when the event reaches the subscription's position in the feed, and the sender settles it as delivered, dead or cancelled. Read a subscription's rows through webhooks.deliveries to see why a hook did or did not fire. The vault writes it; nothing here is edited by callers.",
+                "description": "One row per event per webhook subscription: the dispatcher adds it pending when the event reaches the subscription's position in the feed, and the sender settles it as delivered, dead or cancelled. Read a subscription's rows through webhooks.deliveries to see why a hook did or did not fire. Vibase writes it; nothing here is edited by callers.",
                 "associable": false,
                 "resource": null,
                 "columns": [
@@ -9784,7 +9784,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Status",
-                    "description": "active, paused (by a caller) or disabled (by the vault after sustained failure).",
+                    "description": "active, paused (by a caller) or disabled (by Vibase after sustained failure).",
                     "values": null,
                     "exposed": false,
                     "references": null

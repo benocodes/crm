@@ -1,5 +1,5 @@
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, assertStep, codecs, defineOperation, execute, readMaybe, step, unit, type PreparedOperation, type Read, type Step, type StorageBinding } from '@vault/storage'
+import { UnitDriftError, assertStep, codecs, defineOperation, execute, readMaybe, step, unit, type PreparedOperation, type Read, type Step, type StorageBinding } from '@vibase/storage'
 import { ApiError, mapStorageError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from '../directory/system-principal.js'

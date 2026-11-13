@@ -1,5 +1,5 @@
 import { sql } from 'kysely'
-import { boundIds, coldDb, defineOperation, execute, memberOf, readSet, step, unit, UnitDriftError, type QueryContext, type StorageBinding, type StorageIdentity } from '@vault/storage'
+import { boundIds, coldDb, defineOperation, execute, memberOf, readSet, step, unit, UnitDriftError, type QueryContext, type StorageBinding, type StorageIdentity } from '@vibase/storage'
 import type { ChannelMessage, ChannelPort, ConnectionRef } from '../channels/port.js'
 import { operationOf, type Program } from '../identity/program.js'
 import type { ObjectStore } from '../objects/store.js'

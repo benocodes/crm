@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { MIGRATIONS } from '@vault/storage-d1'
+import { MIGRATIONS } from '@vibase/storage-d1'
 import { RemoteRefusal, formatMigrationDiff, parseTrackerOutput, statusExitCode, statusOf, trackerReadCommand } from './remote.js'
 import { EXPECTED, runStatus, type StatusDeps } from './status-remote.js'
 

@@ -1,12 +1,12 @@
 // Test-only. One harness over both engines for the storage-level suites ([[CORE35]] D16): the same program
 // runs on Postgres (`vault_app`, no presets: invariant 2) and on a local D1 binding, with the same raw reads.
 import type { Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { COLUMN_KINDS, uuidv7, type ColumnKind, type ExecutionResult, type PreparedOperation, type StorageBinding, type StorageIdentity } from '@vault/storage'
-import { d1Binding, type D1Like, type D1PreparedLike } from '@vault/storage-d1'
-import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
-import { seedAgent as seedD1Agent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
-import { execute } from '@vault/storage'
+import type { Database } from '@vibase/db'
+import { COLUMN_KINDS, uuidv7, type ColumnKind, type ExecutionResult, type PreparedOperation, type StorageBinding, type StorageIdentity } from '@vibase/storage'
+import { d1Binding, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
+import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
+import { seedAgent as seedD1Agent, seedDeployment, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
+import { execute } from '@vibase/storage'
 import { ScopeSet } from '../scopes.js'
 import { d1Value } from './insert.js'
 import type { PreparedEnv } from '../storage/definition.js'

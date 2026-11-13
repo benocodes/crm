@@ -21,7 +21,7 @@ async function getJson(url: string, deps: Deps): Promise<unknown> {
   } catch (e) {
     throw new CliError(1, 'network_error', `could not reach ${url}: ${e instanceof Error ? e.message : 'request failed'}`)
   }
-  if (!res.ok) throw usage(`${url} answered ${res.status}: this does not look like a vault instance`, 'discovery_failed')
+  if (!res.ok) throw usage(`${url} answered ${res.status}: this does not look like a Vibase instance`, 'discovery_failed')
   try {
     return await res.json()
   } catch {

@@ -246,14 +246,14 @@ describe('same-origin rule for credentials (D18)', () => {
 
   it('http to a non-loopback host is refused, for --server and for login; https and loopback are accepted', async () => {
     const { r } = setup()
-    const bad = await r.run(['login', '--api-key', '--server', 'http://vault.example.com'], { stdin: KEY })
+    const bad = await r.run(['login', '--api-key', '--server', 'http://vibase.example.com'], { stdin: KEY })
     expect(bad.code).toBe(2)
     expect(existsSync(r.configFile)).toBe(false)
     await login(r)
-    const flag = await r.run(['me', 'get', '--server', 'http://vault.example.com'])
+    const flag = await r.run(['me', 'get', '--server', 'http://vibase.example.com'])
     expect(flag.code).toBe(2)
-    expect(r.seen.filter((s) => s.url.includes('vault.example.com'))).toEqual([])
-    for (const ok of ['https://vault.example.com', 'http://localhost:8787', 'http://127.0.0.1:1']) {
+    expect(r.seen.filter((s) => s.url.includes('vibase.example.com'))).toEqual([])
+    for (const ok of ['https://vibase.example.com', 'http://localhost:8787', 'http://127.0.0.1:1']) {
       expect((await r.run(['login', '--api-key', '--server', ok, '--profile', 'p' + ok.length], { stdin: KEY })).code).toBe(0)
     }
   })

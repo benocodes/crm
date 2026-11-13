@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { SetLimitExceeded, uuidv7 } from '@vault/storage'
-import { withFault } from '@vault/storage/test'
+import { SetLimitExceeded, uuidv7 } from '@vibase/storage'
+import { withFault } from '@vibase/storage/test'
 import { ApiError, mapStorageError } from '../errors.js'
 import { openEngines, type Engine, type EngineName, type RawRow } from '../test/engines.js'
 import { captureMessage, ensureConnection, runCapture, storedAttachment, type CaptureOverrides } from '../test/capture-kit.js'

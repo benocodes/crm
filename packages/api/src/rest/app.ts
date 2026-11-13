@@ -1,7 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
-import { UnitDriftError, execute, uuidv7, type StorageBinding } from '@vault/storage'
+import { UnitDriftError, execute, uuidv7, type StorageBinding } from '@vibase/storage'
 import type { AuthAdapter } from '../auth/adapter.js'
 import { mcpChallenge, resourceMetadataChallenge } from '../discovery.js'
 import { authMiddleware } from '../auth/middleware.js'

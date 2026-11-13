@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'jsonc-parser'
 import { describe, expect, it } from 'vitest'
-import { parseRecordingSwitch } from '@vault/api'
+import { parseRecordingSwitch } from '@vibase/api'
 import { PULL_DIR, PULL_VERBS, bucketOf, getCommand, parseIndex, runPull, safeKey, type PullDeps } from './pull-recordings.js'
 import { REPO_ROOT, RemoteRefusal, type Cmd, type ConfigLike } from './remote.js'
 

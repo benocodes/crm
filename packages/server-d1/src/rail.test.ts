@@ -1,17 +1,17 @@
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
-import { uuidv7 } from '@vault/storage'
-import { MIGRATIONS } from '@vault/storage-d1'
-import { createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
-import { FakeTransport, TEST_OPS, TEST_TRANSPORT, registerTestOperations } from '@vault/api/test/rail'
+import { uuidv7 } from '@vibase/storage'
+import { MIGRATIONS } from '@vibase/storage-d1'
+import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
+import { FakeTransport, TEST_OPS, TEST_TRANSPORT, registerTestOperations } from '@vibase/api/test/rail'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { NOW, meterD1, openWorkerD1, type WorkerD1 } from './test/kit.js'
 
 // [[AGT8]] D13, D49, D54, D55, D56: the entry paths of the execution rail through the real Worker composition over a local D1 (Miniflare): the `waitUntil`
 // kick, the per-minute cron, the separation from the 15-minute cron, the migration gate, the expiry sweep and the bounded tick. The runner's own
-// behaviour is proven in @vault/api against the same fake transport; the real bundle runs the empty tick in workerd (`pnpm smoke:worker`).
+// behaviour is proven in @vibase/api against the same fake transport; the real bundle runs the empty tick in workerd (`pnpm smoke:worker`).
 let w: WorkerD1
 let now = NOW
 let key: string

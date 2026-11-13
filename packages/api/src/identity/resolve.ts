@@ -19,7 +19,7 @@ import {
   type Row,
   type Step,
   type Unit,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
 import { contacts, type ContactRecord } from '../resources/contacts.js'

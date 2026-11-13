@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createOwnerTestDb } from '@vault/db/test'
-import { COLUMN_KINDS } from '@vault/storage'
-import { openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
+import { createOwnerTestDb } from '@vibase/db/test'
+import { COLUMN_KINDS } from '@vibase/storage'
+import { openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { ENGINE_DIFFERENCES, NOT_COMPARED, d1Shape, diffShapes, postgresShape, type EngineDifference, type SchemaShape } from './test/schema-audit.js'
 
 // Spec CORE38 D10: the physical constraints of the two engines are bound to each other, and every difference is

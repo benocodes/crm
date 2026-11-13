@@ -7,7 +7,7 @@
 // There is deliberately no account_id: it comes from CLOUDFLARE_ACCOUNT_ID. A fork replaces the env's names, database_id and
 // hostname with its own (see the README's Deploy section). Secrets are never put here: .dev.vars locally, wrangler secret put when deployed.
 {
-  "name": "vault",
+  "name": "vb",
   "main": "src/worker.ts",
   // nodejs_compat: the built-in auth provider's bundle (Better Auth, [[CORE243]] D2) imports `node:*`. Set here, inherited by every env, and carried into the release package's base config;
   // `smoke:worker` lists the `node:` modules the bundle may import. Keep the date at or below the workerd that Miniflare and wrangler bundle.
@@ -16,7 +16,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "vault",
+      "database_name": "vb-crm",
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "../storage-d1/migrations"
     }

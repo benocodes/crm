@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { compileOperation, type PreparedOperation } from '@vault/storage'
+import { compileOperation, type PreparedOperation } from '@vibase/storage'
 import type { TenantOperation } from '../registry.js'
 import { createVaultRegistry } from '../operations.js'
 import { ScopeSet } from '../scopes.js'

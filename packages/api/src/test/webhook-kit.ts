@@ -1,6 +1,6 @@
 // Test-only: never import from non-test code. The webhook suites' harness ([[API7]]): the D1 engine, a registry with the webhook configuration injected, the app with
 // an injected clock, a caller that is the owner (a user) or an agent with explicit token scopes, and raw readers of the three webhook tables.
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { createVaultRegistry } from '../operations.js'
 import { dispatchWebhooks, type DispatchDeps, type DispatchSummary } from '../webhooks/dispatch.js'
 import { createApp } from '../rest/app.js'

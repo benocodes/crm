@@ -1,6 +1,6 @@
 import { sql, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import { defineOperation, readAll, readMaybe, ts, unit, type PreparedOperation, type QueryContext } from '@vault/storage'
+import { defineOperation, readAll, readMaybe, ts, unit, type PreparedOperation, type QueryContext } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import type { PreparedEnv } from '../storage/definition.js'
 

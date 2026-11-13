@@ -17,7 +17,7 @@ import {
   type Row,
   type Step,
   type StatementLabel,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
 import { contactFiles } from '../resources/contact-files.js'

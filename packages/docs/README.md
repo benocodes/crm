@@ -34,6 +34,6 @@ Author public content in `src/content/docs/`; keep private knowledge notes and c
 
 ## API reference
 
-`dev`, `build`, and `typecheck` first run `openapi:generate`. The generator requests both public OpenAPI documents from the production `@vault/api` router in process, using its single-workspace configuration. Storage execution throws: generation must never query a database or read credentials. No running server is required.
+`dev`, `build`, and `typecheck` first run `openapi:generate`. The generator requests both public OpenAPI documents from the production `@vibase/api` router in process, using its single-workspace configuration. Storage execution throws: generation must never query a database or read credentials. No running server is required.
 
 The unmodified documents are written to the ignored `public/openapi/api.json` and `public/openapi/meta.json`. `starlight-openapi` renders their operation pages and sidebars; the same JSON is published for download. Never hand-edit generated contracts. Run `pnpm -C packages/docs openapi:generate` after changing backend operations during an active dev session, or restart the docs server.

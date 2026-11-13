@@ -21,12 +21,12 @@ export function foreignImports(file: string, text: string, root = src): string[]
 describe('the example is copyable', () => {
   const sources = files(src).filter((f) => f.endsWith('.ts'))
   it('has sources', () => expect(sources.length).toBeGreaterThan(3))
-  it('imports nothing from @vault/*, outside src/, or any npm package', () => {
+  it('imports nothing from @vibase/*, outside src/, or any npm package', () => {
     for (const f of sources) expect(foreignImports(f, readFileSync(f, 'utf8')), relative(pkg, f)).toEqual([])
   })
   it('the detector sees a workspace import, a path outside src and a bare package', () => {
     const f = join(src, 'x.ts')
-    expect(foreignImports(f, `import { a } from '@vault/api'`)).toEqual(['@vault/api'])
+    expect(foreignImports(f, `import { a } from '@vibase/api'`)).toEqual(['@vibase/api'])
     expect(foreignImports(f, `import { a } from '../scripts/x.js'`)).toEqual(['../scripts/x.js'])
     expect(foreignImports(f, `import x from 'hono'; import { y } from './y.js'; import z from 'node:fs'`)).toEqual(['hono'])
   })

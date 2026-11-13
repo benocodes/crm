@@ -1,7 +1,7 @@
 {
-  "name": "@vault/cli",
+  "name": "@vibase/cli",
   "private": true,
-  "description": "vibase: the vault's command line ([[API6]] D12). Every registry operation of the instance it discovers at run time, as a command.",
+  "description": "vibase: Vibase's command line ([[API6]] D12). Every registry operation of the instance it discovers at run time, as a command.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "bin": {
@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "@types/node": "^22",
-    "@vault/server-d1": "workspace:*",
+    "@vibase/server-d1": "workspace:*",
     "esbuild": "0.28.2",
     "tsx": "4.23.15",
     "typescript": "7.0.2",

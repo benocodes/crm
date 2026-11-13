@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { codecs } from '@vault/storage'
+import { codecs } from '@vibase/storage'
 import { deleteTaskOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'

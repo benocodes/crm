@@ -3,7 +3,7 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { MIGRATIONS } from '@vault/storage-d1'
+import { MIGRATIONS } from '@vibase/storage-d1'
 import { sources } from '../../../release/src/fixtures.js'
 import { stageServer } from '../../../release/src/stage.js'
 import { composeD1Worker } from '../../src/compose.js'

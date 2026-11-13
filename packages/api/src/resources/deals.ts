@@ -1,6 +1,6 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
-import { codecs, readMaybe } from '@vault/storage'
+import { codecs, readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { deleteDealOperation } from '../identity/cascades.js'
 import { definePreparedResource, type DerivedDecl, type CustomFilter } from '../storage/definition.js'

@@ -1,7 +1,7 @@
 // Shared guards of the remote scripts ([[OPS4]] C3, C4): every command that can reach a deployed instance goes through
 // these, before any network call or query. Pure parts are exported and unit-tested; nothing here logs an environment value.
 import { fileURLToPath } from 'node:url'
-import { compareMigrations, type MigrationStatus } from '@vault/storage-d1'
+import { compareMigrations, type MigrationStatus } from '@vibase/storage-d1'
 
 export const PLACEHOLDER_DATABASE_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -74,7 +74,7 @@ export function loadRootEnv(path: string = ROOT_ENV_PATH): void {
 
 /** The instance a remote script would touch, or a refusal. The top level (`name: vault`) is local-only ([[OPS4]] D3). */
 export function resolveTarget(config: ConfigLike, envName: string): Target {
-  if (config.name === 'vault') throw new RemoteRefusal(`unknown env ${envName}`)
+  if (config.name === 'vb') throw new RemoteRefusal(`unknown env ${envName}`)
   const db = config.d1_databases?.find((d) => d.binding === 'DB')
   if (!db) throw new RemoteRefusal(`env ${envName} has no DB binding`)
   if (db.database_id === PLACEHOLDER_DATABASE_ID) {

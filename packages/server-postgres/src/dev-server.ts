@@ -1,8 +1,8 @@
 import { serve } from '@hono/node-server'
-import { createDb } from '@vault/db'
+import { createDb } from '@vibase/db'
 import { sql } from 'kysely'
-import { createApp, createAuthAdapter, parseOriginList } from '@vault/api'
-import { postgresBinding } from '@vault/storage-postgres'
+import { createApp, createAuthAdapter, parseOriginList } from '@vibase/api'
+import { postgresBinding } from '@vibase/storage-postgres'
 
 const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhost/vault_dev')
 const authAdapter = createAuthAdapter(process.env)

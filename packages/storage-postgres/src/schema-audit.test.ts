@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { MIGRATIONS_DIR } from '@vault/storage-d1/test'
+import { MIGRATIONS_DIR } from '@vibase/storage-d1/test'
 import { d1CheckNames, diffShapes, fkItem, indexItem, normalizePredicate, uniqueItem, type SchemaShape, type TableShape } from './test/schema-audit.js'
 
 const empty = (): TableShape => ({ primaryKey: [], foreignKeys: [], uniqueKeys: [], indexes: [], namedChecks: [] })

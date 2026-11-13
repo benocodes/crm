@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { StatementFailed } from '@vault/storage'
+import { StatementFailed } from '@vibase/storage'
 import { ApiError, mapStorageError } from './errors.js'
 
 describe('errors', () => {

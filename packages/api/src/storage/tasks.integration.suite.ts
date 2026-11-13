@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { codecs, uuidv7 } from '@vault/storage'
+import { codecs, uuidv7 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { taskCompletion, tasks } from '../resources/tasks.js'
 import { createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './crud.js'

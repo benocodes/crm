@@ -20,12 +20,12 @@ describe('D1 one product version', () => {
   it('changing only the release package.json version changes it', async () => {
     const d = tmp()
     const pkg = join(d, 'package.json')
-    writeFileSync(pkg, JSON.stringify({ name: '@vault/release', version: '7.8.9' }))
+    writeFileSync(pkg, JSON.stringify({ name: '@vibase/release', version: '7.8.9' }))
     const out = join(d, 'vibase.js')
     await buildCli({ outfile: out, releasePackageJson: pkg })
     expect(version(out)).toBe('vibase-cli/7.8.9')
   })
-  it("@vault/cli's own package.json no longer carries a version", () => {
+  it("@vibase/cli's own package.json no longer carries a version", () => {
     expect(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version).toBeUndefined()
   })
 })

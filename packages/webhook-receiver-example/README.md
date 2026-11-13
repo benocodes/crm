@@ -1,10 +1,10 @@
 # webhook-receiver-example
 
-A copyable Cloudflare Worker that turns a vault webhook into a Workflow ([[API7]] D21). It is the worked example for the
+A copyable Cloudflare Worker that turns a Vibase webhook into a Workflow ([[API7]] D21). It is the worked example for the
 [webhooks guide](../docs/src/content/docs/guides/webhooks.md).
 
 ```text
-vault ──POST (signed)──> Worker ──create({ id: webhook-id })──> Workflow
+Vibase ──POST (signed)──> Worker ──create({ id: webhook-id })──> Workflow
                           2xx at once                            read the message  (own agent key)
                                                                  draft a reply     (draftReply, yours to replace)
                                                                  propose it        (POST /api/v1/action-requests)
@@ -22,7 +22,7 @@ To copy it: take `src/`, `wrangler.jsonc` and `.dev.vars.example`. Nothing under
 
 ## Set up (no Cloudflare account needed to try it locally)
 
-1. In your vault, create an agent for the Workflow with the scopes `interactions:read`, `messages:read`, `connections:read`,
+1. In your Vibase, create an agent for the Workflow with the scopes `interactions:read`, `messages:read`, `connections:read`,
    `action_requests:read` and `messages:request_approval`, and an API key for it. Add `messages:write` instead of
    `messages:request_approval` only if you want the Workflow to send directly (change `propose-reply` to `POST /api/v1/messages/send`).
 2. Copy `.dev.vars.example` to `.dev.vars` and set `VIBASE_URL` and `VIBASE_API_KEY`.
@@ -34,8 +34,8 @@ To copy it: take `src/`, `wrangler.jsonc` and `.dev.vars.example`. Nothing under
      -d '{"url":"http://127.0.0.1:8789/"}'
    ```
 
-   A plain `http://` target needs `WEBHOOK_ALLOW_INSECURE_URLS=true` on the vault and is for local use only. The answer carries `secret` once: put it in `.dev.vars` as `WEBHOOK_SECRET` and restart the Worker.
-5. The vault's per-minute cron dispatches and sends; the next inbound email starts a Workflow instance and, a moment later, a pending `messages.send` request appears under `/api/v1/action-requests`.
+   A plain `http://` target needs `WEBHOOK_ALLOW_INSECURE_URLS=true` on Vibase and is for local use only. The answer carries `secret` once: put it in `.dev.vars` as `WEBHOOK_SECRET` and restart the Worker.
+5. Vibase's per-minute cron dispatches and sends; the next inbound email starts a Workflow instance and, a moment later, a pending `messages.send` request appears under `/api/v1/action-requests`.
 
 ## Deploy (yours to run: it creates a Cloudflare resource)
 
@@ -51,7 +51,7 @@ Set `VIBASE_URL` in `wrangler.jsonc`, then subscribe the deployed `https://` URL
 
 ## Tests
 
-`pnpm -C packages/webhook-receiver-example test` runs the verifier against the vault's own signer and `standardwebhooks`, the receiver with a fake Workflow binding,
-the Workflow against a fake vault with the workerd step shim, the copyability checks, and the guide's facts against the code's constants. The tests live in `scripts/`
-(not `src/`) because they import the vault's packages; the example's own sources do not.
+`pnpm -C packages/webhook-receiver-example test` runs the verifier against Vibase's own signer and `standardwebhooks`, the receiver with a fake Workflow binding,
+the Workflow against a fake Vibase with the workerd step shim, the copyability checks, and the guide's facts against the code's constants. The tests live in `scripts/`
+(not `src/`) because they import Vibase's packages; the example's own sources do not.
 The end-to-end run (a real capture through workerd, no network) is `pnpm -C packages/server-d1 e2e:webhook-example`.

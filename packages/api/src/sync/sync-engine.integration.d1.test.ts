@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { SCOPE_POLICY, type Role, type ScopePolicy } from '../auth/roles.js'
 import { GmailApiError } from '../channels/gmail/client.js'
 import type { GmailSyncDeps } from '../channels/gmail/sync.js'

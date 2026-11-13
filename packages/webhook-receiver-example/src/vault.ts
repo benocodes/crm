@@ -29,7 +29,7 @@ export function createVault(deps: VaultDeps): Vault {
     })
     if (res.ok) return (await res.json()) as T
     const detail = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null
-    const message = `vault ${res.status} ${detail?.error?.code ?? 'error'} on ${method} ${path.split('?')[0]}: ${detail?.error?.message ?? 'no detail'}`
+    const message = `vibase ${res.status} ${detail?.error?.code ?? 'error'} on ${method} ${path.split('?')[0]}: ${detail?.error?.message ?? 'no detail'}`
     // Everything but a retryable client error below 500 ends the step: the same request would be refused the same way.
     throw res.status < 500 && !RETRYABLE_CLIENT_ERRORS.has(res.status) ? deps.nonRetryable(message) : new Error(message)
   }

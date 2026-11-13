@@ -1,4 +1,4 @@
-import { COLUMN_KINDS, type ColumnKind } from '@vault/storage'
+import { COLUMN_KINDS, type ColumnKind } from '@vibase/storage'
 import type { SortKind } from '../resources/sort-cursor.js'
 import type { PreparedResource } from './definition.js'
 

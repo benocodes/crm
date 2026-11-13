@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { compileOperation, type Dialect } from '@vault/storage'
+import { compileOperation, type Dialect } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { tasks } from '../resources/tasks.js'
 import { definePreparedResource } from './definition.js'

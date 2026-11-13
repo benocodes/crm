@@ -1,21 +1,21 @@
 import { afterAll,beforeAll,beforeEach,expect,it } from 'vitest'
-import { execute,uuidv7 } from '@vault/storage'
-import { sealToken,ScopeSet,r2ObjectStore } from '@vault/api'
+import { execute,uuidv7 } from '@vibase/storage'
+import { sealToken,ScopeSet,r2ObjectStore } from '@vibase/api'
 import { connectOperation } from '../../api/src/connections/connect.js'
-import { FakeGmail } from '@vault/api/test/gmail'
-import { gmailFixture } from '@vault/api/test/gmail-fixtures'
-import { fakeR2Bucket } from '@vault/api/test/objects'
+import { FakeGmail } from '@vibase/api/test/gmail'
+import { gmailFixture } from '@vibase/api/test/gmail-fixtures'
+import { fakeR2Bucket } from '@vibase/api/test/objects'
 import { rig,SERVER } from '../../cli/src/test/harness.js'
-import { mintOAuthToken } from '@vault/api/test/clerk'
-import { createMigrationTracker,recordMigrations } from '@vault/storage-d1/test'
-import { MIGRATIONS } from '@vault/storage-d1'
-import { mintClerkToken } from '@vault/api/test/clerk'
+import { mintOAuthToken } from '@vibase/api/test/clerk'
+import { createMigrationTracker,recordMigrations } from '@vibase/storage-d1/test'
+import { MIGRATIONS } from '@vibase/storage-d1'
+import { mintClerkToken } from '@vibase/api/test/clerk'
 import { composeD1Worker } from './compose.js'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { clerkKit,openWorkerD1,meterD1,type WorkerD1,type ClerkKit } from './test/kit.js'
-import { d1Binding } from '@vault/storage-d1'
-import { runGmailSync } from '@vault/api/test/gmail-sync'
-import { nodeStreams } from '@vault/api/test/streams'
+import { d1Binding } from '@vibase/storage-d1'
+import { runGmailSync } from '@vibase/api/test/gmail-sync'
+import { nodeStreams } from '@vibase/api/test/streams'
 
 let w:WorkerD1,ck:ClerkKit,connection:string,owner:string,org:string,token:string
 let spoilFirstConfirmation=false
@@ -53,7 +53,7 @@ beforeEach(async()=>{
   await w.reset();await w.d1.prepare('drop table if exists d1_migrations').run();now=new Date();fetches=starts=0;spoilFirstConfirmation=false;confirmedOnce.clear();bucket=fakeR2Bucket();mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vault.test',historyId:'1000'}})
   const boot=await bootstrapD1(w.d1,{organizationName:'Send test',agentName:'seed-agent',authOrgId:ck.issuer.issuer});org=boot.organizationId
   token=await mintClerkToken(ck.issuer,{sub:'user_send_owner',extra:{vibase_role:'owner'}})
-  ck.profiles.set('user_send_owner',{...(await import('@vault/api/test/clerk')).clerkUser({id:'user_send_owner',email:'owner@vault.test',role:'owner'})})
+  ck.profiles.set('user_send_owner',{...(await import('@vibase/api/test/clerk')).clerkUser({id:'user_send_owner',email:'owner@vault.test',role:'owner'})})
   const me=await req(worker(),'GET','/meta/v1/me');owner=me.body.principal.id
   const binding=d1Binding(w.d1,{organizationId:org,authProvider:'clerk',authOrgId:ck.issuer.issuer})
   const e={actor:{id:owner,kind:'user' as const},organizationId:org,scopes:ScopeSet.parse([]),now,newId:uuidv7,randomBytes:(n:number)=>crypto.getRandomValues(new Uint8Array(n))}

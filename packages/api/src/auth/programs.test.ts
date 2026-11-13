@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Found, queryContext, toCompiled, type Dialect, type PreparedOperation, type Row, type Step, type Unit } from '@vault/storage'
+import { Found, queryContext, toCompiled, type Dialect, type PreparedOperation, type Row, type Step, type Unit } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { apiKeyAuthOperation } from './api-keys.js'
 import { firstSightOperation, firstSightRecheckOperation, lookupUserOperation } from './first-sight.js'

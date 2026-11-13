@@ -1,6 +1,6 @@
 import { sql, type Expression, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import { COLUMN_KINDS, bind, codecs, jsonRows, type ColumnKind, type QueryContext } from '@vault/storage'
+import { COLUMN_KINDS, bind, codecs, jsonRows, type ColumnKind, type QueryContext } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import type { PreparedResource } from './definition.js'
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { readMaybe } from '@vault/storage'
+import { readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { deletePipelineOperation } from '../identity/cascades.js'
 import { definePreparedResource } from '../storage/definition.js'

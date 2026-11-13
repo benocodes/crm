@@ -7,15 +7,15 @@ import type { StageInput } from './stage.js'
 
 export const BASE_SOURCE = `{
   // comment
-  "name": "vault",
+  "name": "vb",
   "main": "src/worker.ts",
   "compatibility_date": "2026-07-30",
   "compatibility_flags": ["nodejs_compat"],
-  "d1_databases": [{ "binding": "DB", "database_name": "vault", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../storage-d1/migrations" }],
+  "d1_databases": [{ "binding": "DB", "database_name": "vb-crm", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../storage-d1/migrations" }],
   "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*"] },
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": { "AUTH_PROVIDER": "" },
-  "env": { "prod": { "name": "vault-prod", "d1_databases": [{ "binding": "DB", "database_name": "p", "database_id": "11111111-2222-3333-4444-555555555555" }] } }
+  "env": { "prod": { "name": "vb-prod", "d1_databases": [{ "binding": "DB", "database_name": "p", "database_id": "11111111-2222-3333-4444-555555555555" }] } }
 }`
 
 export function sources(): Omit<StageInput, 'outDir'> & { root: string } {

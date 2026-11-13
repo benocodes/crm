@@ -3,7 +3,7 @@
 // ("bypassing the program under test"): the read-only messaging resources have no writer until cycle 2's
 // `recordMessages`. Production code has none (D26). Every row satisfies the table CHECKs: a 64-character lowercase
 // hex sha256, a preview of at most 200 characters, a content key on every `message` kind.
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 
 /** `Engine.insert` or the contract kit's `insert`: fills `id`, `organization_id`, `created_by` and the stamps when omitted. */
 export type Insert = (table: string, row: Record<string, unknown>) => Promise<Record<string, any>>

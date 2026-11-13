@@ -1,7 +1,7 @@
 import { enqueuedOperation } from '../executions/enqueue.js'
 import { sendInput } from './send-input.js'
 import { sql, type SqlBool } from 'kysely'
-import { defineOperation,readMaybe,unit,type QueryContext,type Row } from '@vault/storage'
+import { defineOperation,readMaybe,unit,type QueryContext,type Row } from '@vibase/storage'
 import type { Authorisation,PrepareContext } from '../registry.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import { ApiError } from '../errors.js'

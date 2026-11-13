@@ -1,5 +1,5 @@
 {
-  "name": "@vault/auth",
+  "name": "@vibase/auth",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Open tier (spec CORE243): the built-in auth provider, Better Auth composed for the D1 Worker.",
@@ -18,7 +18,7 @@
     "@better-auth/oauth-provider": "1.7.22",
     "better-auth": "1.7.22",
     "kysely-d1": "0.4.0",
-    "@vault/storage": "workspace:*"
+    "@vibase/storage": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261113.1",
@@ -28,6 +28,6 @@
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vitest": "5.0.3",
-    "@vault/storage-d1": "workspace:*"
+    "@vibase/storage-d1": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { codecs, defineOperation, readAll, readMaybe, readOne, unit, type PreparedOperation } from '@vault/storage'
+import { codecs, defineOperation, readAll, readMaybe, readOne, unit, type PreparedOperation } from '@vibase/storage'
 import type { Role } from '../auth/roles.js'
 import type { AccountEnv, AccountOperation } from '../registry.js'
 

@@ -1,5 +1,5 @@
 import { sql, type SqlBool } from 'kysely'
-import { appliedPrev, defineOperation, readAll, step, unit, type EventReceipt, type PreparedOperation, type Row, type Step } from '@vault/storage'
+import { appliedPrev, defineOperation, readAll, step, unit, type EventReceipt, type PreparedOperation, type Row, type Step } from '@vibase/storage'
 import { eventStatement } from '../outbox.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import { afterOf, beforeRead, receipt, toRecord } from '../storage/crud.js'

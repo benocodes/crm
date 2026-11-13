@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, assertStep, defineOperation, exactly, step, unit, uuidv7, type PreparedOperation, type QueryContext, type Step } from '@vault/storage'
+import { UnitDriftError, assertStep, defineOperation, exactly, step, unit, uuidv7, type PreparedOperation, type QueryContext, type Step } from '@vibase/storage'
 import { mapStorageError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { openEngines, type Engine, type EngineName } from '../test/engines.js'

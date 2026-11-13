@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { createVaultRegistry } from './operations.js'
 import { Registry, type Operation } from './registry.js'
 import { createApp } from './rest/app.js'

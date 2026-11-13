@@ -3,7 +3,7 @@
 A small static page for reviewing what agents have proposed: lists `action_requests` (Pending, Executed, Failed, Rejected),
 shows the operation, reason and arguments, and approves or rejects with an optional note. No framework, no server code: built
 by esbuild into `dist/` and served by Cloudflare Workers Static Assets at `app.hq.vibase.ai`. Sign-in is Clerk (clerk-js from
-the instance's Frontend API); the page calls the vault's REST API (`/api/v1/action-requests…`) with the session token as a Bearer.
+the instance's Frontend API); the page calls Vibase's REST API (`/api/v1/action-requests…`) with the session token as a Bearer.
 
 ```bash
 pnpm -C packages/approvals-app test && pnpm -C packages/approvals-app typecheck
@@ -13,7 +13,7 @@ pnpm -C packages/approvals-app dev          # wrangler dev on :8788 (the origin 
 
 ## Deploy (user only: a hard stop for agents)
 
-1. **Vault first:** `wrangler.jsonc` in `server-d1` adds `https://app.hq.vibase.ai` to `CORS_ALLOWED_ORIGINS` and
+1. **Vibase first:** `wrangler.jsonc` in `server-d1` adds `https://app.hq.vibase.ai` to `CORS_ALLOWED_ORIGINS` and
    `CLERK_AUTHORIZED_PARTIES` for `hq`. Deploy `vault-hq` (`deploy:remote -- --env hq`) so the browser calls are allowed and the
    Clerk token's `azp` is accepted.
 2. **App:** `CLOUDFLARE_ACCOUNT_ID=… pnpm -C packages/approvals-app deploy:remote` (creates the `app.hq.vibase.ai` custom domain).

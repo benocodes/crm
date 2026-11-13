@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely'
-import { withServiceRole, type Database } from '@vault/db'
+import { withServiceRole, type Database } from '@vibase/db'
 import { generateApiKey } from '../auth/api-keys.js'
 
 /**

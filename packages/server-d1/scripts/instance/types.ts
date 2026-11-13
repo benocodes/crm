@@ -1,5 +1,5 @@
 // Shared types of the `vibase-server` commands ([[OPS231]]). Everything that touches the world comes in through `InstanceDeps`, so a test passes fakes.
-import type { D1Like } from '@vault/storage-d1'
+import type { D1Like } from '@vibase/storage-d1'
 
 /** A refusal: printed as `vibase-server <command>: <message>` and exit 2. A message names a key or a path, never a secret value. */
 export class InstanceRefusal extends Error {}

@@ -1,5 +1,5 @@
 {
-  "name": "@vault/api",
+  "name": "@vibase/api",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
-    "@vault/storage": "workspace:*",
+    "@vibase/storage": "workspace:*",
     "hast-util-from-html": "2.0.3",
     "hast-util-to-mdast": "10.1.2",
     "hono": "4.13.12",
@@ -47,9 +47,9 @@
     "@types/hast": "3.0.5",
     "@types/mdast": "4.0.4",
     "@types/node": "^22",
-    "@vault/db": "workspace:*",
-    "@vault/storage-d1": "workspace:*",
-    "@vault/storage-postgres": "workspace:*",
+    "@vibase/db": "workspace:*",
+    "@vibase/storage-d1": "workspace:*",
+    "@vibase/storage-postgres": "workspace:*",
     "chat": "4.43.0",
     "standardwebhooks": "1.1.1",
     "tsx": "4.23.15",

@@ -12,8 +12,8 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { uuidv7 } from '@vault/storage'
-import type { D1Like } from '@vault/storage-d1'
+import { uuidv7 } from '@vibase/storage'
+import type { D1Like } from '@vibase/storage-d1'
 import { bootstrapD1, probeBatchAtomicity, type BootstrapD1Result } from '../src/bootstrap-d1.js'
 import { CONFIG_PATH, ROOT_ENV_PATH, RemoteRefusal, loadRootEnv, requireConfirm, resolveTarget, type ConfigLike, type Target } from './remote.js'
 

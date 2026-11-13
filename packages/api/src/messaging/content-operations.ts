@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineOperation, readMaybe, selectColumns, unit } from '@vault/storage'
+import { defineOperation, readMaybe, selectColumns, unit } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { files } from '../resources/files.js'
 import { messages } from '../resources/messages.js'

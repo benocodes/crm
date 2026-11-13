@@ -2,9 +2,9 @@
 // through the service role, the clock and ids injected through the app options.
 import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
-import { withServiceRole, type Database } from '@vault/db'
-import { createOwnerTestDb, createTestDb, truncateAll } from '@vault/db/test'
-import { postgresBinding } from '@vault/storage-postgres'
+import { withServiceRole, type Database } from '@vibase/db'
+import { createOwnerTestDb, createTestDb, truncateAll } from '@vibase/db/test'
+import { postgresBinding } from '@vibase/storage-postgres'
 import { createApp } from '../../rest/app.js'
 import { hashApiKey } from '../../auth/api-keys.js'
 import { goldenAuthenticator, goldenClerk, goldenSend, loadGoldenClerk, mountGoldenWebhook, type GoldenClerkKit } from './kit.js'

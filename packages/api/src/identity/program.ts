@@ -1,5 +1,5 @@
-import type { Found, PreparedOperation, QueryContext, Read, Unit } from '@vault/storage'
-import { defineOperation } from '@vault/storage'
+import type { Found, PreparedOperation, QueryContext, Read, Unit } from '@vibase/storage'
+import { defineOperation } from '@vibase/storage'
 
 /**
  * The exported plan/build pair of a concrete identity program ([[CORE36]] D15): `reads` is the plan phase, `build`

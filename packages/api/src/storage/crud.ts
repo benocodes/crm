@@ -21,7 +21,7 @@ import {
   type Row,
   type Step,
   type StorageDatabase,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { formatScope } from '../scopes.js'
 import { eventStatement } from '../outbox.js'
@@ -35,7 +35,7 @@ import { aggregateSelect, decodeAggregate, parseAggregateTerms, planAggregate, t
 // `PreparedResource`, as pure programs over typed Kysely fragments. Every mutation is plan -> one unit:
 // the write, its event (INSERT...SELECT gated on the write having applied) and the result select.
 
-// REVIEWED ADAPTER BOUNDARY (#2 of 2, with @vault/storage helpers.ts): Kysely cannot relate a generic table
+// REVIEWED ADAPTER BOUNDARY (#2 of 2, with @vibase/storage helpers.ts): Kysely cannot relate a generic table
 // name to its columns, so the dynamic builders go through this untyped view. Every exported signature here is
 // typed by `PreparedResource<T>`, and the type fixtures prove the public helpers still reject bad input.
 type Loose = Kysely<Record<string, Record<string, unknown>>>

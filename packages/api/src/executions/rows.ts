@@ -1,5 +1,5 @@
 import { sql, type Expression, type Kysely, type SqlBool } from 'kysely'
-import { COLUMN_KINDS, bind, type ColumnKind, type QueryContext } from '@vault/storage'
+import { COLUMN_KINDS, bind, type ColumnKind, type QueryContext } from '@vibase/storage'
 
 // [[AGT8]] D11, D49, D51: the one statement that creates an execution row, shared by a direct enqueue and a queued approval. A guarded
 // INSERT ... SELECT (the guards are the resolution's commit-time checks and, for an approval, "the request's transition applied"), so a refused guard writes

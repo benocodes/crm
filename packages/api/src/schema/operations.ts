@@ -1,4 +1,4 @@
-import { defineOperation, readAll, unit, type PreparedOperation } from '@vault/storage'
+import { defineOperation, readAll, unit, type PreparedOperation } from '@vibase/storage'
 import { sql } from 'kysely'
 import { ApiError } from '../errors.js'
 import type { AnyResource, TenantOperation } from '../registry.js'

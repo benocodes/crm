@@ -1,10 +1,10 @@
-// The sync run ([[CHN5]] D11, D12, D16, D33, D37, D66): Node-safe orchestrator. `MailSyncWorkflow` (in `@vault/server-d1`, which imports
+// The sync run ([[CHN5]] D11, D12, D16, D33, D37, D66): Node-safe orchestrator. `MailSyncWorkflow` (in `@vibase/server-d1`, which imports
 // `cloudflare:workers`) delegates here with Cloudflare's `step`; tests pass the workerd step shim.
 //
 // Rules this file keeps (`cloudflare-workflows`): every non-determinism (the run id, the start time) is captured by the `seed` step; every step re-resolves
 // the runtime from `resolve()` and returns only plain data (ids, counts, page tokens, history ids, bounds, outcomes: never a client, a resolver, a row or a
 // token); business outcomes cross the step boundary as return values, never as error classes. Step names are unique per instance (`p<pass>-…`).
-import { execute } from '@vault/storage'
+import { execute } from '@vibase/storage'
 import type { Role, ScopePolicy } from '../auth/roles.js'
 import { scopesForRole } from '../auth/roles.js'
 import { beginScan, captureHistoryPage, captureScanPage, loadSyncState, markConnectionStatus, type GmailSyncDeps, type PageResult, type Scan, type ScanStart } from '../channels/gmail/sync.js'

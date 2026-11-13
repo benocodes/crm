@@ -1,4 +1,4 @@
-import type { StorageBinding } from '@vault/storage'
+import type { StorageBinding } from '@vibase/storage'
 import type { Role } from './roles.js'
 import type { ScopeSet } from '../scopes.js'
 import type { InternalEnv } from '../storage/internal.js'

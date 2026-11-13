@@ -3,5 +3,5 @@
 WEBHOOK_SECRET=whsec_replace_me
 # An API key of an agent with the scopes listed in the README.
 VIBASE_API_KEY=vk_replace_me
-# Your vault's origin.
+# Your Vibase instance's origin.
 VIBASE_URL=http://127.0.0.1:8787

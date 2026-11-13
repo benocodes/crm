@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, afterAll } from 'vitest'
-import { ForeignOrganizationError, execute, uuidv7 } from '@vault/storage'
-import { d1Binding, type D1Like } from '@vault/storage-d1'
+import { ForeignOrganizationError, execute, uuidv7 } from '@vibase/storage'
+import { d1Binding, type D1Like } from '@vibase/storage-d1'
 import { ApiError } from '../errors.js'
 import { Registry } from '../registry.js'
 import { tasks } from '../resources/tasks.js'

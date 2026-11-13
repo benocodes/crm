@@ -24,7 +24,7 @@ importers:
       '@hono/zod-openapi':
         specifier: 1.6.3
         version: 1.6.3(hono@4.13.12)(zod@4.6.5)
-      '@vault/storage':
+      '@vibase/storage':
         specifier: workspace:*
         version: link:../storage
       hast-util-from-html:
@@ -67,13 +67,13 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
-      '@vault/db':
+      '@vibase/db':
         specifier: workspace:*
         version: link:../db
-      '@vault/storage-d1':
+      '@vibase/storage-d1':
         specifier: workspace:*
         version: link:../storage-d1
-      '@vault/storage-postgres':
+      '@vibase/storage-postgres':
         specifier: workspace:*
         version: link:../storage-postgres
       chat:
@@ -118,7 +118,7 @@ importers:
       '@better-auth/oauth-provider':
         specifier: 1.7.22
         version: 1.7.22(@better-auth/core@1.7.22(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.5(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.22(pg@8.23.1)(vitest@5.0.3(@types/node@22.20.5)(happy-dom@21.0.4)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))))(better-call@1.4.5(zod@4.6.5))
-      '@vault/storage':
+      '@vibase/storage':
         specifier: workspace:*
         version: link:../storage
       better-auth:
@@ -134,7 +134,7 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
-      '@vault/storage-d1':
+      '@vibase/storage-d1':
         specifier: workspace:*
         version: link:../storage-d1
       esbuild:
@@ -158,7 +158,7 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
-      '@vault/server-d1':
+      '@vibase/server-d1':
         specifier: workspace:*
         version: link:../server-d1
       esbuild:
@@ -220,7 +220,7 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
-      '@vault/api':
+      '@vibase/api':
         specifier: workspace:*
         version: link:../api
       tsx:
@@ -232,7 +232,7 @@ importers:
 
   packages/release:
     dependencies:
-      '@vault/storage-d1':
+      '@vibase/storage-d1':
         specifier: workspace:*
         version: link:../storage-d1
       jsonc-parser:
@@ -260,16 +260,16 @@ importers:
 
   packages/server-d1:
     dependencies:
-      '@vault/api':
+      '@vibase/api':
         specifier: workspace:*
         version: link:../api
-      '@vault/auth':
+      '@vibase/auth':
         specifier: workspace:*
         version: link:../auth
-      '@vault/storage':
+      '@vibase/storage':
         specifier: workspace:*
         version: link:../storage
-      '@vault/storage-d1':
+      '@vibase/storage-d1':
         specifier: workspace:*
         version: link:../storage-d1
       kysely:
@@ -318,16 +318,16 @@ importers:
       '@hono/node-server':
         specifier: 2.1.3
         version: 2.1.3(hono@4.13.12)
-      '@vault/api':
+      '@vibase/api':
         specifier: workspace:*
         version: link:../api
-      '@vault/db':
+      '@vibase/db':
         specifier: workspace:*
         version: link:../db
-      '@vault/storage':
+      '@vibase/storage':
         specifier: workspace:*
         version: link:../storage
-      '@vault/storage-postgres':
+      '@vibase/storage-postgres':
         specifier: workspace:*
         version: link:../storage-postgres
       jose:
@@ -365,7 +365,7 @@ importers:
 
   packages/storage-d1:
     dependencies:
-      '@vault/storage':
+      '@vibase/storage':
         specifier: workspace:*
         version: link:../storage
       kysely:
@@ -387,10 +387,10 @@ importers:
 
   packages/storage-postgres:
     dependencies:
-      '@vault/db':
+      '@vibase/db':
         specifier: workspace:*
         version: link:../db
-      '@vault/storage':
+      '@vibase/storage':
         specifier: workspace:*
         version: link:../storage
       kysely:
@@ -406,7 +406,7 @@ importers:
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
-      '@vault/storage-d1':
+      '@vibase/storage-d1':
         specifier: workspace:*
         version: link:../storage-d1
       miniflare:
@@ -424,7 +424,7 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
-      '@vault/api':
+      '@vibase/api':
         specifier: workspace:*
         version: link:../api
       esbuild:

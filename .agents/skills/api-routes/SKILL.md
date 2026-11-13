@@ -20,7 +20,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
                           |
    prepared unit: plan reads → typed statements, run by the storage binding as one identity
                           |
-     Postgres (Hyperdrive, @vault/storage-postgres) or D1 (@vault/storage-d1) ── outbox: events (same unit)
+     Postgres (Hyperdrive, @vibase/storage-postgres) or D1 (@vibase/storage-d1) ── outbox: events (same unit)
 ```
 
 **What exists:**
@@ -48,16 +48,16 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
   - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events).
-- **Postgres composition** (`@vault/server-postgres`, enterprise, [[CORE36]] D22, since [[CORE44]]): every entry point
-  that picks the Postgres runtime lives here, importing the app from the `@vault/api` barrel.
-  `packages/api` production code imports none of `pg`, `@vault/db`, `@vault/storage-postgres` or
-  `@vault/server-postgres` (AGENTS.md invariant 10):
+- **Postgres composition** (`@vibase/server-postgres`, enterprise, [[CORE36]] D22, since [[CORE44]]): every entry point
+  that picks the Postgres runtime lives here, importing the app from the `@vibase/api` barrel.
+  `packages/api` production code imports none of `pg`, `@vibase/db`, `@vibase/storage-postgres` or
+  `@vibase/server-postgres` (AGENTS.md invariant 10):
   - `src/dev-server.ts` (`pnpm -C packages/server-postgres dev`; `AUTH_PROVIDER` empty runs agent-only);
   - `scripts/bootstrap.ts` (`pnpm -C packages/server-postgres bootstrap -- --org … --email … --agent …`);
   - `scripts/smoke-auth.ts`, `scripts/smoke-admin.ts` (below).
   The golden generator is not here: it is open code, `packages/api/scripts/golden.ts` (`pnpm -C packages/api
   golden:generate|check`, on D1, [[CORE72]]).
-- **D1 composition** (`@vault/server-d1`, open, [[CORE38]]): the self-hosted module Worker on one D1 binding `DB`.
+- **D1 composition** (`@vibase/server-d1`, open, [[CORE38]]): the self-hosted module Worker on one D1 binding `DB`.
   Its boundary rules (`server-d1/src`, `server-d1/scripts`) forbid every enterprise import with no allow-list.
   - `src/compose.ts` (`composeD1Worker(env, deps?)`, Node-testable): the organisation comes from the **deployment
     marker** (`readDeployment`), never from Worker vars. Only success is cached per isolate: an absent marker answers
@@ -67,7 +67,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     table counts as an absent marker.
   - **Migration gate** ([[CORE61]]): `fetch` runs in this order: `/health` → the two discovery documents ([[CORE84]]: `discoveryResponse`, answered unless `configError`, which is `500` there too) → the `behind` gate
     (`503 migrations_pending`; the two OpenAPI documents, `GET /api/v1/openapi.json` and `GET /meta/v1/openapi.json`, are exempt; the root `/openapi.json` no longer exists and answers like any unknown path: `503` while uninitialised or behind, `404` otherwise, [[API32]] D5) → the auth-config `500` → the marker. The state comes from
-    `readMigrationState` (`@vault/storage-d1`) against `MIGRATIONS`. It is cached per isolate once
+    `readMigrationState` (`@vibase/storage-d1`) against `MIGRATIONS`. It is cached per isolate once
     `current`/`ahead`, re-read at most every 5 s (`deps.nowMs`, not `deps.clock`) while `behind`/`unknown`, and
     never cached after a thrown read. `/health.migrations` reports it. The tracker read is one more query on a
     cold isolate.
@@ -86,7 +86,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     *installed* package's `worker/`, `assets/` and migrations in that Miniflare 4; the installed wrangler applies the
     migrations (`d1 migrations apply --local --persist-to <dir>`) and Miniflare reads `<dir>/v3/d1`.
   - The Worker runs with **`nodejs_compat`** for the built-in auth provider only ([[CORE243]] D2: Better Auth imports
-    `node:crypto`). Keep Node built-ins out of `@vault/api` production code anyway (Web Crypto only). `smoke:worker`
+    `node:crypto`). Keep Node built-ins out of `@vibase/api` production code anyway (Web Crypto only). `smoke:worker`
     fails on any `node:` import outside `ALLOWED_NODE_MODULES` and on a bundle over `BUNDLE_SIZE_CEILING`
     (`packages/server-d1/scripts/node-imports.ts`); widening either is a reviewed decision, not a fix to make the smoke
     pass. The flag lives in `wrangler.jsonc`'s top level and in the release base config (`serverProblems` refuses one
@@ -96,11 +96,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - **Load the real Worker into Miniflare with an explicit module list** (`modules: [{ type: 'ESModule', path, contents }]`
     plus `modulesRoot`), not `modules: true` + `scriptPath`: Better Auth's Kysely adapter has an `import(variable)`
     that Miniflare's own module scan refuses (`ERR_MODULE_DYNAMIC_SPEC`), while wrangler and workerd accept it
-    ([[CORE243]] D-j; `smoke-worker.ts`, `packages/release/scripts/check.ts`, `@vault/auth/test`'s `startWorkerd`).
+    ([[CORE243]] D-j; `smoke-worker.ts`, `packages/release/scripts/check.ts`, `@vibase/auth/test`'s `startWorkerd`).
   - **workerd streams** ([[CORE69]]): R2's `put` refuses a `ReadableStream` of unknown length (`TypeError`), so pipe a
     known-size stream through `FixedLengthStream(size)` and send an unknown-size one through `ObjectStore.putStream`
-    (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vault/api` only as
-    injected `StreamPrimitives` (`workerdStreams()`; Node versions in `@vault/api/test`). Node fakes accept any
+    (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vibase/api` only as
+    injected `StreamPrimitives` (`workerdStreams()`; Node versions in `@vibase/api/test`). Node fakes accept any
     stream, so only the smoke proves this path. A smoke-only entry (`scripts/smoke-pipeline-entry.ts`) may export
     only its handler; constants it shares with the smoke go in a sibling module.
   - **Provider bodies as JSON with one base64url member** (Gmail's `raw` and attachment `data`, [[CHN5]] D25): pipe the
@@ -155,7 +155,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/account/` (`me.get` only, a prepared account operation `meOperation(env)`; organisations and memberships
     come from Clerk, [[CORE29]]);
   - **D1 workspace sign-in** ([[CORE64]] cycle 1). `createApp({ workspace: { adapter? } })` is exclusive with
-    `authAdapter`/`userAuthenticator`. `@vault/server-d1` sets it for every composition, `AUTH_PROVIDER` unset
+    `authAdapter`/`userAuthenticator`. `@vibase/server-d1` sets it for every composition, `AUTH_PROVIDER` unset
     included. It uses `createWorkspaceAuthAdapter` (never reads `CLERK_WEBHOOK_SECRET`) and
     `src/auth/workspace-authenticator.ts`. The role is read on every request from the claim `AUTH_ROLE_CLAIM`
     (default `vibase_role`) and mapped through `SCOPE_POLICY`. The vault never reads or writes `memberships`
@@ -194,7 +194,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     tests, not goldens. A browser
     preflight (`OPTIONS`) on the documents falls through to the shared CORS policy (no `*`): the MCP adapter spec
     revisits it.
-    The Organizations authenticator stays for `@vault/server-postgres` and the engine-harness suites;
+    The Organizations authenticator stays for `@vibase/server-postgres` and the engine-harness suites;
   - `packages/server-postgres/scripts/smoke-auth.ts` (`SMOKE_EXPECT_DATABASE=<db> pnpm -C packages/server-postgres smoke:auth`: local key pair, fake
     Clerk API, real app; it also runs the identity-model flow). It refuses to run unless `current_database()`
     equals `SMOKE_EXPECT_DATABASE`, because an exported `DATABASE_URL` overrides `--env-file` ([[CORE36]]).
@@ -307,7 +307,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - **The Google OAuth callback** (`GET /oauth/google/callback`, `src/connections/callback.ts`) is the second plain
     route: the signed state is its credential, every refusal is a fixed code (redirect parameter or built-in page)
     that writes nothing, and log lines carry the code or error class only. A new OAuth-style callback follows it.
-  - `GET /api/v1/openapi.json` (`Vault records API`) and `GET /meta/v1/openapi.json` (`Vault meta API`) are
+  - `GET /api/v1/openapi.json` (`Vibase records API`) and `GET /meta/v1/openapi.json` (`Vibase meta API`) are
     unauthenticated; each lists only its surface's operations at full paths. There is no root document and no
     root resource path ([[API32]] D4, D5, D8). Machinery (`/health`, `/webhooks/clerk`) stays at the root,
     unversioned, outside the registry (D7).
@@ -428,7 +428,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   into the record as a JSON array (`messages.attachments`, `interactions.participants`). The record schema names the
   field as an array; `columnsOf(def)` returns the physical columns only (record keys minus embed keys), `embedsOf(def)`
   the specs, and `afterOf(def)` is the `after` of an event (`{ table, columns, embeds }`), so the record and the event
-  carry the same rendering from ONE helper (`embedJson` in `@vault/storage`: Postgres `coalesce(jsonb_agg(... order by ...), '[]')`,
+  carry the same rendering from ONE helper (`embedJson` in `@vibase/storage`: Postgres `coalesce(jsonb_agg(... order by ...), '[]')`,
   D1 `json_group_array(json_object(...) ORDER BY ...)`, wrapped in `json(...)` inside `recordJson`). An empty set is `[]`,
   never null. Table, key, columns and order are checked against `COLUMN_KINDS` at the call site (types) and at load.
 - **Custom filters** (named "join filters" in [[CORE25]] D51 and [[CORE129]]; renamed by [[CORE199]]): `customFilters: { <key>: { schema, normalize?, where(qc, value) } }` are list filters
@@ -586,7 +586,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
     claim follows from these plain plans (`knowledge/specs/012-CORE174-mail-sort/RETRO.md`).
 - **A read-only resource written by a program** (`threads`, `messages`, `interactions`, `files`): `operations: ['list',
   'get']`, no `create`/`update`, no `deleted_at` on the table. Until the capture program exists (CORE25 cycle 2) the
-  fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vault/api/test/messaging`, `src/test/messaging-kit.ts`)
+  fixtures seed rows by direct insert: `seedConversation(insert, opts)` (`@vibase/api/test/messaging`, `src/test/messaging-kit.ts`)
   through `Engine.insert` or the contract kit's `insert`. Production code has no other writer.
 - A `ReferenceTarget` may name `files` (no `deleted_at`, so never `live`). A link resource (`contact_files`) is create +
   soft delete only, with a `conflicts` read for the live pair (`409 link_exists`) and the partial unique index as backstop.
@@ -643,14 +643,14 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   parity and audit failures). That is accepted drift under AGENTS.md *Engines*: list the failing groups in the
   cycle's RESULT, keep Postgres compiling, never bend D1. The future Postgres adapter needs each such table with RLS.
 - **Content operations** ([[CORE58]]): `src/messaging/content-operations.ts` holds `messages.content` (JSON, `messages:read`) and
-  `files.content` (binary, `files:read`), registered in `createVaultRegistry`. `SecretColumns` (`@vault/storage`) now holds
+  `files.content` (binary, `files:read`), registered in `createVaultRegistry`. `SecretColumns` (`@vibase/storage`) now holds
   `messages.content_key` and `files.storage_key`: a record naming either is a compile error, and the operations read them with
   `selectColumns`, never `publicSelect`.
 
 ## Prepared resources: the storage seam ([[CORE35]])
 
 Every operation is a **prepared operation**: a bounded program of typed Kysely statements that runs as one
-atomic unit on Postgres (`@vault/storage-postgres`, enterprise) or D1 (`@vault/storage-d1`, open). The worked
+atomic unit on Postgres (`@vibase/storage-postgres`, enterprise) or D1 (`@vibase/storage-d1`, open). The worked
 example is `src/resources/tasks.ts`; the identity model, administration, auth, the directory and bootstrap
 followed in [[CORE36]], [[CORE40]] and [[CORE41]]. Since [[CORE44]] it is the only path: there is no
 interactive transaction, no `withContext` and no `executor` marker.
@@ -778,7 +778,7 @@ interactive transaction, no `withContext` and no `executor` marker.
 
 Every operation runs as one prepared unit under a storage identity carrying the actor (user or agent principal),
 and, for tenant units, the organisation. The granted scopes are checked by `run()` before the unit. Tenancy is the **organisation**. The scoping wrappers in
-`packages/db/src/tenancy.ts` (exported from `@vault/db`) are the only code that sets role or session config:
+`packages/db/src/tenancy.ts` (exported from `@vibase/db`) are the only code that sets role or session config:
 
 | Wrapper | Use |
 |---|---|
@@ -792,7 +792,7 @@ only `SELECT, INSERT` on `events`, and nothing on `api_keys`. `vault_service` ha
 
 Programs never call the wrappers or touch a transaction. The Postgres runtime picks the wrapper from the unit's
 `StorageIdentity`: `withOrganization` for `tenant`, `withServiceRole` for `account` and `internal`. Only enterprise
-packages and tests import `@vault/db` (invariant 10); seeds run under `withServiceRole`.
+packages and tests import `@vibase/db` (invariant 10); seeds run under `withServiceRole`.
 
 - **Do not use a plain `db.transaction()` because "RLS isn't wired yet".** The role and gate exist; bypasses
   that rely on future-you remembering to switch back are dead on arrival.
@@ -939,7 +939,7 @@ message bodies or addresses at info level (customer communications are personal 
 - **The instructions text (`src/mcp/instructions.ts`) is pinned:** a test fails if it names a tool that doesn't
   exist. Renaming an operation it mentions means editing the text.
 - **The reference client is the referee.** `@modelcontextprotocol/sdk` is an exact-pinned devDependency of
-  `@vault/server-d1` only; its `Client` runs against `composeD1Worker` in `src/mcp.test.ts`, and `smoke:worker`
+  `@vibase/server-d1` only; its `Client` runs against `composeD1Worker` in `src/mcp.test.ts`, and `smoke:worker`
   checks the bundle does not contain it. Never import it from `packages/api/src` or `src/worker.ts`.
 
 ## A static page on the API origin ([[UI30]])
@@ -965,7 +965,7 @@ message bodies or addresses at info level (customer communications are personal 
 
 - `ObjectStore` (`src/objects/store.ts`, [[CORE58]]) is `put`, `get`, `delete`: `r2ObjectStore(bucket)` over the structural
   `R2BucketLike` (no `@cloudflare/workers-types` import) and `memoryObjectStore()` for tests. No Node built-in: production
-  `@vault/api` runs in workerd (`smoke:worker` and `open:check` are the checks). `AppOptions.objects` carries it; the D1 Worker
+  `@vibase/api` runs in workerd (`smoke:worker` and `open:check` are the checks). `AppOptions.objects` carries it; the D1 Worker
   builds it from an optional `BODIES` binding. Postgres holds a pointer and metadata only.
 - The key layout ([[CORE25]] D23) is pure functions in `src/messaging/r2-keys.ts`: `content_key` is
   `orgs/<org>/messages/<channel>/<sha256 hex of external_id>` (no trailing slash), the body `<content_key>/v<version>/body.md`,
@@ -1037,7 +1037,7 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
 
 ## Things to avoid
 
-- Importing `db`, `@vault/db` or a runtime package in `packages/api` production code (the boundary test fails).
+- Importing `db`, `@vibase/db` or a runtime package in `packages/api` production code (the boundary test fails).
 - Inserting into a resource's table from anywhere but its service layer.
 - A route or MCP tool that bypasses the registry.
 - Re-declaring middleware-set context variables on a route's `Hono<{ Variables }>`.
@@ -1045,6 +1045,6 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
 - Normalizing a stored string value (an error code, a status) without first grepping the OLD spelling across
   **every** package, not just the one being touched.
 - Re-writing, in a script or another package, the rule the Worker uses to accept a configuration value (a key's
-  encoding, an integer's range). Export the Worker's parser from `@vault/api` and call it, mapping its problem
+  encoding, an integer's range). Export the Worker's parser from `@vibase/api` and call it, mapping its problem
   *names* to the message: a hand copy drifts (OPS150: setup's lenient base64 accepted URL-safe and unpadded
   `CREDENTIALS_KEY`s that `parseGmailConfig` rejects, so setup would have put a key the Worker then refuses).
