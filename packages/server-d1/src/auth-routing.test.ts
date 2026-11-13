@@ -39,7 +39,7 @@ describe('/auth by provider (D1)', () => {
   })
 
   it('unset and empty AUTH_PROVIDER: /auth/* is 404 not_found in the app envelope', async () => {
-    for (const bindings of [{ AUTH_PROVIDER: '' }, {}]) {
+    for (const bindings of [{ AUTH_PROVIDER: '' }, {}] as Array<Record<string, string>>) {
       const w = await start(bindings)
       for (const path of ['/auth/ok', '/auth/get-session', '/auth', '/auth/sign-up/email']) {
         const res = await w.call(path)

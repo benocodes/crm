@@ -32,7 +32,7 @@ const PRESENT = ['events', 'principals', 'api_keys', 'notes', 'associations', 'o
 const realTables = async () =>
   (await all("select name from sqlite_schema where type = 'table' order by name")).map((r) => r.name as string)
 const shownReal = async () =>
-  (await realTables()).filter((n) => !n.startsWith('_cf_') && !n.startsWith('sqlite_') && n !== 'd1_migrations' && !/^(companies|notes|tasks)_search(_|$)/.test(n) && !HIDDEN.includes(n))
+  (await realTables()).filter((n) => !n.startsWith('_cf_') && !n.startsWith('sqlite_') && n !== 'd1_migrations' && !n.startsWith('auth_') && !/^(companies|notes|tasks)_search(_|$)/.test(n) && !HIDDEN.includes(n))
 
 describe('schema.get on the migrated D1 (D9)', () => {
   it('lists exactly the real tables minus the engine tables and the hidden machinery list, sorted', async () => {

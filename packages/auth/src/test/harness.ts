@@ -54,8 +54,8 @@ export async function startWorkerd(o: { bundle: Bundle; bindings?: Record<string
   const capture = (stream: NodeJS.ReadableStream) => stream.on('data', (c: Buffer) => logs.push(...c.toString().split('\n').filter(Boolean)))
   const options: MiniflareOptions = {
     port: 0,
-    modules: true,
-    scriptPath: o.bundle.path,
+    // Explicit modules: Better Auth's Kysely adapter has `import(variable)` (for `node:sqlite`) that Miniflare's own module scan refuses; wrangler and workerd are fine with it.
+    modules: [{ type: 'ESModule', path: o.bundle.path, contents: readFileSync(o.bundle.path, 'utf8') }],
     modulesRoot: o.bundle.dir,
     compatibilityDate: '2026-07-30',
     compatibilityFlags: o.flags ?? ['nodejs_compat'],

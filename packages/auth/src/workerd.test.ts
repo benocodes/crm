@@ -86,7 +86,7 @@ describe('Better Auth in workerd on migration 0018 (test admission)', () => {
         redirect_uris: ['https://client.test/callback'],
       },
     })
-    expect(reg.status, await reg.clone().text()).toBe(200)
+    expect(reg.status, await reg.clone().text()).toBe(201)
     const client = (await reg.json()) as { client_id: string }
     const codes = await open.call('/auth/device/code', { body: { client_id: client.client_id, scope: 'openid offline_access', resource: 'http://localhost:8787' } })
     expect(codes.status, await codes.clone().text()).toBe(200)
@@ -135,9 +135,10 @@ describe('the shipped composition (no test admission) refuses admission (P1)', (
 describe('the hasher in workerd (P3)', () => {
   const hashProbe = (iterations: number) => open.call(`/__hash?kdf=pbkdf2&iterations=${iterations}`)
 
-  it('hashes at the configured iteration count, and workerd refuses one more (the cap is what the constant is set to)', async () => {
+  // The Miniflare workerd of this repo (4.20260730) accepts PBKDF2 counts far above 100,000 (measured: hasher:measure). Cloudflare's documented production cap is unconfirmed, so the
+  // constant stays at the historical 100,000 that every runtime accepts; this test pins that the chosen count works in workerd and that the stored hash carries it.
+  it('hashes at the configured iteration count in workerd', async () => {
     expect((await hashProbe(100_000)).status).toBe(200)
-    expect((await hashProbe(100_001)).status).toBe(500)
   })
 
   it('verifies, inside workerd, a hash made elsewhere with other parameters', async () => {

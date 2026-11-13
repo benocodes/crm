@@ -25,7 +25,7 @@ const mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@v
 const logs:string[]=[]
 let mf:Miniflare|undefined,googleCalls=0,refreshes=0
 const options=()=>({
-  modules:true,scriptPath:bundle,modulesRoot:dir,compatibilityDate:'2026-07-30',
+  modules:[{type:'ESModule',path:bundle,contents:readFileSync(bundle,'utf8')}],modulesRoot:dir,compatibilityDate:'2026-07-30',compatibilityFlags:['nodejs_compat'],
   d1Databases:{DB:'gmail-send-e2e'},d1Persist:join(dir,'d1'),r2Buckets:['BODIES'],r2Persist:join(dir,'r2'),
   workflows:{MAIL_SYNC:{name:'gmail-send-e2e-sync',className:'MailSyncWorkflow'}},
   bindings:{AUTH_PROVIDER:'clerk',CLERK_JWT_KEY:issuer.pem,CLERK_ISSUER:issuer.issuer,CLERK_AUTHORIZED_PARTIES:issuer.party,CLERK_SECRET_KEY:SECRET_KEY,CLERK_API_URL:API_URL,CORS_ALLOWED_ORIGINS:'',GOOGLE_CLIENT_ID:'send-e2e-client',GOOGLE_CLIENT_SECRET:'send-e2e-secret',OAUTH_STATE_SECRET:'send-e2e-state',CREDENTIALS_KEY:Buffer.from(key).toString('base64')},
@@ -39,7 +39,7 @@ const options=()=>({
   },
 })
 try{
-  await build({entryPoints:[fileURLToPath(new URL('../src/worker.ts',import.meta.url))],bundle:true,format:'esm',platform:'browser',conditions:['workerd','worker','browser'],target:'es2022',outfile:bundle,external:['cloudflare:workers'],logLevel:'warning'})
+  await build({entryPoints:[fileURLToPath(new URL('../src/worker.ts',import.meta.url))],bundle:true,format:'esm',platform:'browser',conditions:['workerd','worker','browser'],target:'es2022',outfile:bundle,external:['cloudflare:workers','node:*'],logLevel:'warning'})
   console.log(`bundle ${statSync(bundle).size} bytes`)
   mf=new Miniflare(options());await mf.ready
   let d1=await mf.getD1Database('DB') as unknown as D1Like
