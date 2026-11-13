@@ -54,6 +54,9 @@
       },
       {
         "name": "0018_auth_tables.sql"
+      },
+      {
+        "name": "0019_drop_auth_tables.sql"
       }
     ],
     "success": true,

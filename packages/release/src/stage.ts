@@ -22,11 +22,14 @@ export interface StageInput {
   /** The built `connect/` directory, copied to `assets/connect/`. */
   assetsConnectDir: string
   migrationsDir: string
+  /** The control-plane database's compiled migrations ([[CORE259]] D4), shipped as `control-migrations/` ([[OPS260]] D14). */
+  controlMigrationsDir: string
   baseConfigText: string
   license: string
   clientReadme: string
   serverReadme: string
   migrations: readonly { name: string; sha256: string }[]
+  controlMigrations: readonly { name: string; sha256: string }[]
 }
 
 /** The wrangler version `@vibase/server-d1` pins, read from its `package.json` so it is never typed twice ([[OPS210]] D6). */
@@ -59,6 +62,7 @@ export const SERVER_EXPORTS: Record<string, string> = {
   './wrangler.base.jsonc': './wrangler.base.jsonc',
   './release.json': './release.json',
   './migrations/*': './migrations/*',
+  './control-migrations/*': './control-migrations/*',
   './assets/*': './assets/*',
   './package.json': './package.json',
 }
@@ -80,13 +84,13 @@ export function serverPackageJson(version: string, wrangler: string): Record<str
 }
 
 /** The top level of the source `wrangler.jsonc` (no `env` blocks), with the three paths a build or a deploy relocates. */
-export function deriveBaseConfig(sourceText: string, paths: { main: string; assetsDirectory: string; migrationsDir: string }): Record<string, unknown> {
+export function deriveBaseConfig(sourceText: string, paths: { main: string; assetsDirectory: string; migrationsDir: string; controlMigrationsDir: string }): Record<string, unknown> {
   const { env: _env, ...top } = parse(sourceText) as Record<string, any>
   return {
     ...top,
     main: paths.main,
     assets: { ...top.assets, directory: paths.assetsDirectory },
-    d1_databases: (top.d1_databases ?? []).map((d: Record<string, unknown>) => ({ ...d, migrations_dir: paths.migrationsDir })),
+    d1_databases: (top.d1_databases ?? []).map((d: Record<string, unknown>) => ({ ...d, migrations_dir: d.binding === 'CONTROL_DB' ? paths.controlMigrationsDir : paths.migrationsDir })),
   }
 }
 
@@ -104,19 +108,20 @@ export function stageClient(i: StageInput): void {
   writeFileSync(join(out, 'package.json'), `${JSON.stringify(clientPackageJson(i.version), null, 2)}\n`)
 }
 
-/** `@vibase/server-d1`: the `vibase-server` program, the Worker, the connect assets, the migrations, the base config and `release.json` ([[OPS210]] D3, D4). */
+/** `@vibase/server-d1`: the `vibase-server` program, the Worker, the connect assets, the migrations (CRM and control plane), the base config and `release.json` ([[OPS210]] D3, D4). */
 export function stageServer(i: StageInput): ReleaseManifest {
   const out = i.outDir
   copyInto(join(out, 'cli', 'server.js'), i.serverJs)
   copyInto(join(out, 'worker', 'worker.js'), i.workerEntry)
   for (const f of readdirSync(i.assetsConnectDir)) copyInto(join(out, 'assets', 'connect', f), join(i.assetsConnectDir, f))
   for (const f of readdirSync(i.migrationsDir).filter((n) => n.endsWith('.sql'))) copyInto(join(out, 'migrations', f), join(i.migrationsDir, f))
-  const base = deriveBaseConfig(i.baseConfigText, { main: 'worker/worker.js', assetsDirectory: 'assets', migrationsDir: 'migrations' })
+  for (const f of readdirSync(i.controlMigrationsDir).filter((n) => n.endsWith('.sql'))) copyInto(join(out, 'control-migrations', f), join(i.controlMigrationsDir, f))
+  const base = deriveBaseConfig(i.baseConfigText, { main: 'worker/worker.js', assetsDirectory: 'assets', migrationsDir: 'migrations', controlMigrationsDir: 'control-migrations' })
   writeFileSync(join(out, 'wrangler.base.jsonc'), `// The base Worker config of a vibase release: no instance in it. An instance deploy generates its own config from this one and the instance settings.\n${JSON.stringify(base, null, 2)}\n`)
   writeFileSync(join(out, 'LICENSE'), i.license)
   writeFileSync(join(out, 'README.md'), i.serverReadme)
   writeFileSync(join(out, 'package.json'), `${JSON.stringify(serverPackageJson(i.version, i.wranglerVersion), null, 2)}\n`)
-  const manifest = buildReleaseManifest({ name: '@vibase/server-d1', dir: out, version: i.version, commit: i.commit, builtAt: i.builtAt, wrangler: i.wranglerVersion, compatibilityDate: i.compatibilityDate, node: i.node, migrations: i.migrations })
+  const manifest = buildReleaseManifest({ name: '@vibase/server-d1', dir: out, version: i.version, commit: i.commit, builtAt: i.builtAt, wrangler: i.wranglerVersion, compatibilityDate: i.compatibilityDate, node: i.node, migrations: i.migrations, controlMigrations: i.controlMigrations })
   writeFileSync(join(out, 'release.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   return manifest
 }

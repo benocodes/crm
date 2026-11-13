@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'jsonc-parser'
-import { MIGRATIONS } from '@vibase/storage-d1'
+import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
 import { buildCli } from '../../cli/scripts/build.js'
 import { buildConnect } from '../../server-d1/scripts/build-connect.js'
 import { buildInstance } from '../../server-d1/scripts/instance/build.js'
@@ -42,8 +42,9 @@ export async function buildRelease(opts: { allowDirty?: boolean } = {}): Promise
     const assets = join(work, 'assets')
     await buildConnect(assets)
     const migrationsDir = join(REPO, 'packages', 'storage-d1', 'migrations')
+    const controlMigrationsDir = join(REPO, 'packages', 'storage-d1', 'control-migrations')
     const buildConfig = join(work, 'wrangler.build.jsonc')
-    writeFileSync(buildConfig, JSON.stringify(deriveBaseConfig(sourceConfig, { main: join(SERVER_D1, 'src', 'worker.ts'), assetsDirectory: assets, migrationsDir })))
+    writeFileSync(buildConfig, JSON.stringify(deriveBaseConfig(sourceConfig, { main: join(SERVER_D1, 'src', 'worker.ts'), assetsDirectory: assets, migrationsDir, controlMigrationsDir })))
     const wrangler = join(SERVER_D1, 'node_modules', '.bin', 'wrangler')
     execFileSync(wrangler, ['deploy', '--dry-run', '--outdir', join(work, 'wout'), '-c', buildConfig], { cwd: work, env: wranglerEnv(), stdio: ['ignore', 'ignore', 'inherit'] })
     const common = {
@@ -58,11 +59,13 @@ export async function buildRelease(opts: { allowDirty?: boolean } = {}): Promise
       workerEntry: join(work, 'wout', 'worker.js'),
       assetsConnectDir: join(assets, 'connect'),
       migrationsDir,
+      controlMigrationsDir,
       baseConfigText: sourceConfig,
       license: readFileSync(join(REPO, 'LICENSE'), 'utf8'),
       clientReadme: readFileSync(join(PKG, 'templates', 'cli-README.md'), 'utf8'),
       serverReadme: readFileSync(join(PKG, 'templates', 'server-d1-README.md'), 'utf8'),
       migrations: MIGRATIONS,
+      controlMigrations: CONTROL_MIGRATIONS,
     }
     const clientDir = join(work, 'package-cli')
     const serverDir = join(work, 'package-server-d1')
