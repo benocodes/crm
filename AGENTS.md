@@ -75,7 +75,7 @@ on a single issue (`fix-bugs`, `work-on-ready-issues`), are not orchestrated: do
 
 | Agent | Model | Job |
 |---|---|---|
-| `orchestrator` | Opus | The main session (`claude --agent orchestrator`). Picks the next item from `knowledge/SPRINT.md`, briefs the others, merges approved PRs, keeps SPRINT.md current. Reads reports, not code. |
+| `orchestrator` | Sonnet | The main session (`claude --agent orchestrator`). Picks the next item from `knowledge/SPRINT.md`, briefs the others, merges approved PRs, keeps SPRINT.md current. Reads reports, not code. |
 | `planner` | Opus | Modes: `spec` (draft and approve a spec), `plan` (a short charter via `tdd-cycle-generator`), `review` (the diff against charter and spec), `retro` (`/retrospect` and ingest). |
 | `coder` | Sonnet | Implements the charter via `execute-cycle`: surveys the code, proves every test obligation, runs the gate (all suites, typecheck, build; must be green) in the cycle's worktree, records its design decisions; applies review findings. |
 | `e2e-tester` | Sonnet | Runs the charter's E2E scenario (initial state, real actions, expected end state) against a real database or UI, only when the charter has one, and reports evidence. Never edits. |
