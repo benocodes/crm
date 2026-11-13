@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { fakeInstance, rig } from './test/harness.js'
 
-// [[OPS231]] D12: `vibase instance …` is a sibling bundle of a release package. The client core only dispatches to it.
+// OPS240 D12: the instance commands left the client for `@vibase/server-d1`'s `vibase-server`. `vibase instance …` only says where they went.
 const rigs: ReturnType<typeof rig>[] = []
 afterEach(() => { while (rigs.length) rigs.pop()!.dispose() })
 const setup = () => {
@@ -10,39 +10,21 @@ const setup = () => {
   rigs.push(r)
   return r
 }
+const REDIRECT = 'instance commands moved to the server package: npx @vibase/server-d1@0.0.0-test <command> …\n'
 
-describe('D12 dispatch', () => {
-  it('without a sibling instance.js it prints the release-only message, exits non-zero and touches no network', async () => {
+describe('D12 redirect', () => {
+  it('prints the moved line with the client\'s own version on stderr and exits 2, for `instance`, `instance --help` and `instance status --env demo`', async () => {
     const r = setup()
-    for (const argv of [['instance', 'status', '--env', 'demo'], ['instance'], ['instance', '--help']]) {
-      const res = await r.run(argv, { loadInstance: async () => undefined })
-      expect(res.code).not.toBe(0)
-      expect(res.stderr).toMatch(/instance commands are only available from a release package/)
+    for (const argv of [['instance'], ['instance', '--help'], ['instance', 'status', '--env', 'demo']]) {
+      const res = await r.run(argv)
+      expect(res.code, argv.join(' ')).toBe(2)
+      expect(res.stderr, argv.join(' ')).toBe(REDIRECT)
+      expect(res.stdout, argv.join(' ')).toBe('')
     }
-    expect(r.seen).toEqual([])
   })
-  it('with no loader at all (an unbuilt or checkout run) it prints the same message', async () => {
+  it('touches no network, whatever follows `instance`', async () => {
     const r = setup()
-    const res = await r.run(['instance', 'status', '--env', 'demo'])
-    expect(res.code).not.toBe(0)
-    expect(res.stderr).toMatch(/only available from a release package/)
-    expect(r.seen).toEqual([])
-  })
-  it('with a sibling it passes the words after `instance` and returns its exit code', async () => {
-    const r = setup()
-    const got: { argv: string[] }[] = []
-    const res = await r.run(['instance', 'status', '--env', 'demo'], {
-      loadInstance: async () => async (argv, io) => {
-        got.push({ argv })
-        io.stdout('from instance\n')
-        io.stderr('and stderr\n')
-        return 7
-      },
-    })
-    expect(got).toEqual([{ argv: ['status', '--env', 'demo'] }])
-    expect(res.code).toBe(7)
-    expect(res.stdout).toBe('from instance\n')
-    expect(res.stderr).toBe('and stderr\n')
+    for (const argv of [['instance', 'upgrade', '--env', 'demo', '--rollback'], ['instance', 'setup', '--env', 'x', '--api-host', 'h'], ['--server', 'https://x.invalid', 'instance', 'status']]) await r.run(argv)
     expect(r.seen).toEqual([])
   })
 })

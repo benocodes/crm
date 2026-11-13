@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -19,8 +19,8 @@ describe('instance entry', () => {
       expect(await runInstance(argv, r.io, stagedPackage().dir)).toBe(0)
       expect(r.out.join('')).toBe(INSTANCE_HELP)
     }
-    expect(INSTANCE_HELP).toMatch(/vibase instance status --env/)
-    expect(INSTANCE_HELP).toMatch(/vibase instance upgrade --env <name> \[--dry-run\] \[--rollback\]/)
+    expect(INSTANCE_HELP).toMatch(/vibase-server status --env/)
+    expect(INSTANCE_HELP).toMatch(/vibase-server upgrade --env <name> \[--dry-run\] \[--rollback\]/)
     expect(INSTANCE_HELP).toMatch(/wrangler rollback/)
     expect(INSTANCE_HELP).toMatch(/newer schema/)
   })
@@ -28,6 +28,26 @@ describe('instance entry', () => {
     const r = io()
     expect(await runInstance(['bogus'], r.io, stagedPackage().dir)).toBe(2)
     expect(r.err.join('')).toMatch(/unknown command "bogus"/)
+  })
+  it('OPS240 D21: --version prints vibase-server/<version> (<commit>) from the release.json of the package, exit 0, nothing on stderr', async () => {
+    const pkg = stagedPackage()
+    const release = JSON.parse(readFileSync(join(pkg.dir, 'release.json'), 'utf8')) as { version: string; commit: string }
+    const r = io()
+    expect(await runInstance(['--version'], r.io, pkg.dir)).toBe(0)
+    expect(r.out.join('')).toBe(`vibase-server/${release.version} (${release.commit})\n`)
+    expect(r.err).toEqual([])
+  })
+  it('OPS240 D21: --version of a directory with no release.json refuses (exit 2) naming it, never prints a made-up version', async () => {
+    const r = io()
+    const dir = mkTmp()
+    expect(await runInstance(['--version'], r.io, dir)).toBe(2)
+    expect(r.out).toEqual([])
+    expect(r.err.join('')).toContain(dir)
+  })
+  it('OPS240 D21: the help names the program vibase-server and no longer mentions `vibase instance`', () => {
+    expect(INSTANCE_HELP).toMatch(/^vibase-server: /)
+    expect(INSTANCE_HELP).not.toMatch(/vibase instance/)
+    expect(INSTANCE_HELP).toMatch(/vibase-server setup --env <name> --api-host <host>/)
   })
   it('status with no settings file (real deps) refuses naming the default path, before any network call', async () => {
     const xdg = mkTmp()
@@ -53,7 +73,7 @@ describe('instance entry', () => {
       const r = io({ XDG_CONFIG_HOME: w.config, PATH: process.env.PATH, HOME: w.deps.homedir, CONFIRM_REMOTE: '1' })
       const code = await runInstance([command, '--env', 'demo'], r.io, pkgDir, { fetch: w.deps.fetch })
       expect(code).toBe(2)
-      expect(r.err.join('')).toContain(`vibase instance ${command}: `)
+      expect(r.err.join('')).toContain(`vibase-server ${command}: `)
       expect(r.err.join('')).toContain(pkgDir)
       expect(r.err.join('')).toMatch(/wrangler/)
     }

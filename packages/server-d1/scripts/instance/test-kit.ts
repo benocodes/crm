@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { MIGRATIONS } from '@vault/storage-d1'
 import { sources } from '../../../release/src/fixtures.js'
-import { stageRelease } from '../../../release/src/stage.js'
+import { stageServer } from '../../../release/src/stage.js'
 import { composeD1Worker } from '../../src/compose.js'
 import { openWorkerD1 } from '../../src/test/kit.js'
 import type { InstanceDeps, OpenD1Options, RunResult } from './types.js'
@@ -39,13 +39,19 @@ export interface PackageFixture {
   dir: string
   migrations: string[]
 }
-/** The release layout as `stageRelease` writes it: a real package directory with the real base config of `wrangler.jsonc`. */
+/** The release layout as `stageServer` writes it: a real package directory with the real base config of `wrangler.jsonc`. */
 export function stagedPackage(): PackageFixture {
   const s = sources()
   dirs.push(s.root)
   const dir = mkTmp('ops231-pkg-')
-  stageRelease({ ...s, baseConfigText: WRANGLER_BASE, outDir: dir })
+  stageServer({ ...s, baseConfigText: WRANGLER_BASE, outDir: dir })
   return { dir, migrations: s.migrations.map((m) => m.name) }
+}
+
+/** The first line every instance command prints (OPS240 P1, D13): the program, its version and commit, and how many files verified. */
+export function packageLine(dir: string): string {
+  const r = JSON.parse(readFileSync(join(dir, 'release.json'), 'utf8')) as { version: string; commit: string; files: Record<string, string> }
+  return `package: vibase-server/${r.version} (${r.commit}), ${Object.keys(r.files).length} files verified`
 }
 
 export const validSettings = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
