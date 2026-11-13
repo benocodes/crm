@@ -1,5 +1,5 @@
 # [[OPS210]] D19, D24 / [[OPS237]]: build and check the two release tarballs from a fresh checkout. Dispatch: upload them as a workflow artifact.
-# A `v*` tag: the same, then a DRAFT GitHub Release carrying exactly the two tarballs and SHA256SUMS. Nothing is published to npm; a person does that.
+# The version is the fixed group of packages/cli and packages/server-d1 (changesets, version.yml); a tag must be v<version>. A `v*` tag: the same, then a DRAFT GitHub Release carrying exactly the two tarballs and SHA256SUMS. Nothing is published to npm; a person does that.
 name: release
 
 on:
@@ -76,4 +76,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ls -1 assets
-          gh release create "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" --verify-tag --draft --title "$GITHUB_REF_NAME" --notes "Draft release $GITHUB_REF_NAME: the two tarballs and SHA256SUMS. Check them against SHA256SUMS, then publish to npm and publish this release by hand."
+          gh release create "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" --verify-tag --draft --title "$GITHUB_REF_NAME" --notes "Draft release $GITHUB_REF_NAME: the two tarballs and SHA256SUMS. Changes: packages/cli/CHANGELOG.md and packages/server-d1/CHANGELOG.md at this tag. Check the tarballs against SHA256SUMS, then publish to npm (server first, then client) and publish this release by hand."

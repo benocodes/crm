@@ -112,7 +112,7 @@ export function versionWorkflowProblems(src: string): string[] {
     if (!m) out.push(`uses ${s.uses} is not pinned to a 40-hex commit SHA`)
     else if (m[1] === 'changesets/action') {
       cs++
-      if (s.with && 'publish' in s.with) out.push('changesets/action must have no publish input')
+      if (Object.keys(s.with ?? {}).some((k) => /publish/i.test(k))) out.push('changesets/action must have no publish input')
     } else if (!(m[1]!.startsWith('actions/') || m[1] === 'pnpm/action-setup')) out.push(`uses ${m[1]} is not allowed`)
   }
   if (cs !== 1) out.push(`expected exactly one changesets/action step, found ${cs}`)
@@ -133,11 +133,11 @@ describe('version.yml (D19, D25, D24)', () => {
       expect(mutated).not.toEqual(versionText())
       expect(versionWorkflowProblems(mutated).join('\n')).toMatch(expected)
     })
-  mutateV('a publish input on the action', (t) => t.replace(/^( +)with:\n/m, '$1with:\n$1  publish: pnpm changeset publish\n'), /no publish input|publishes/)
+  mutateV('a publish input on the action (publish-script in v2.1.2)', (t) => t.replace(/^( +)pr-title: .*$/m, '$&\n$1publish-script: pnpm changeset publish'), /no publish input|publishes/)
   mutateV('NPM_TOKEN in version.yml', (t) => t.replace(/secrets\.GITHUB_TOKEN/, 'secrets.NPM_TOKEN'), /NPM_TOKEN|publishes/)
   mutateV('the action pinned to a tag', (t) => t.replace(/changesets\/action@[0-9a-f]{40}/, 'changesets/action@v1'), /not pinned/)
   mutateV('a pull_request trigger', (t) => t.replace(/^on:\n/m, 'on:\n  pull_request:\n'), /push to main only/)
-  mutateV('an extra permission', (t) => t.replace(/pull-requests: write/, 'pull-requests: write\n      id-token: write'), /permissions must be exactly/)
+  mutateV('an extra permission', (t) => t.replace(/pull-requests: write/, 'pull-requests: write\n  id-token: write'), /permissions must be exactly/)
 })
 
 describe('release.yml (D19, D24, P3)', () => {

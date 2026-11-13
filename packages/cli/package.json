@@ -1,5 +1,6 @@
 {
   "name": "@vibase/cli",
+  "version": "0.1.0",
   "private": true,
   "description": "vibase: Vibase's command line ([[API6]] D12). Every registry operation of the instance it discovers at run time, as a command.",
   "license": "AGPL-3.0-only",
