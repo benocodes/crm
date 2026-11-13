@@ -3,19 +3,47 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'jsonc-parser'
-import { unstable_readConfig } from 'wrangler'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { getPlatformProxy, unstable_readConfig } from 'wrangler'
 
 const CONFIG = fileURLToPath(new URL('../wrangler.jsonc', import.meta.url))
 const PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
+const CONTROL_PLACEHOLDER = '00000000-0000-0000-0000-000000000001'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+// [[CORE259]] D1, D2: two bindings must be two databases locally. Through wrangler's own local proxy on the real config, a table made via DB is not visible via CONTROL_DB.
+describe('the local DB and CONTROL_DB are separate databases', () => {
+  it('a write through DB is not visible through CONTROL_DB', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wrangler-local-'))
+    const proxy = await getPlatformProxy<{ DB: { prepare(q: string): { run(): Promise<unknown>; all(): Promise<unknown> } }; CONTROL_DB: { prepare(q: string): { all(): Promise<unknown> } } }>({ configPath: CONFIG, persist: { path: dir }, remoteBindings: false })
+    try {
+      await proxy.env.DB.prepare('create table only_in_crm (id text)').run()
+      await expect(proxy.env.CONTROL_DB.prepare('select * from only_in_crm').all()).rejects.toThrow(/no such table/i)
+    } finally {
+      await proxy.dispose()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('wrangler.jsonc (OPS4 C2)', () => {
   it('the top level is unchanged and local-only', () => {
     const c = unstable_readConfig({ config: CONFIG })
     expect(c.name).toBe('vb')
-    expect(c.d1_databases).toHaveLength(1)
+    // [[CORE259]] D1: the control-plane database beside the CRM one, each with its own migrations directory.
+    expect(c.d1_databases).toHaveLength(2)
+    expect(c.d1_databases[0]!.binding).toBe('DB')
     expect(c.d1_databases[0]!.database_name).toBe('vb-crm')
     expect(c.d1_databases[0]!.database_id).toBe(PLACEHOLDER)
+    expect(c.d1_databases[0]!.migrations_dir).toMatch(/storage-d1\/migrations$/)
+    expect(c.d1_databases[1]!.binding).toBe('CONTROL_DB')
+    expect(c.d1_databases[1]!.database_name).toBe('vb-control')
+    // Its own placeholder: wrangler and Miniflare key a local database's SQLite file by database_id, so a shared id would make DB and CONTROL_DB one database.
+    expect(c.d1_databases[1]!.database_id).toBe(CONTROL_PLACEHOLDER)
+    expect(c.d1_databases[1]!.database_id).not.toBe(c.d1_databases[0]!.database_id)
+    expect(c.d1_databases[1]!.migrations_dir).toMatch(/storage-d1\/control-migrations$/)
     expect(c.routes ?? []).toEqual([])
     expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vb-bodies' }])
     expect(c.account_id).toBeUndefined()
@@ -38,6 +66,13 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
     expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vault-smoked1-bodies' }])
     expect(c.vars).toEqual({ AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' })
     expect(c.account_id).toBeUndefined()
+  })
+
+  it('no deployed env binds CONTROL_DB yet (its database comes with OPS260), and each env keeps exactly its DB binding', () => {
+    for (const env of ['smoked1', 'hq']) {
+      const c = unstable_readConfig({ config: CONFIG, env })
+      expect(c.d1_databases.map((d: { binding: string }) => d.binding), env).toEqual(['DB'])
+    }
   })
 
   it('names no reserved production hostname or environment (D23)', () => {

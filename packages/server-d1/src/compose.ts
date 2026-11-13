@@ -1,6 +1,6 @@
 import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
-import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
+import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readControlMarker, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
@@ -10,6 +10,11 @@ import { parseBuiltInAuthConfig } from './auth-config.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
+  /**
+   * The control-plane database ([[CORE259]] D1): its own compiled migrations and tracker, Better Auth composed on it. Read only for `AUTH_PROVIDER=better-auth` (D6): there a missing
+   * binding is `500 internal`; `clerk` and unset never read it, present or not. Only this composition reads it (D5); the operations receive `DB` alone.
+   */
+  CONTROL_DB?: D1Like
   AUTH_PROVIDER?: string
   /** `AUTH_PROVIDER=better-auth` only ([[CORE243]] D6): a Worker secret, at least 32 characters; Better Auth signs cookies and encrypts its signing key with it. */
   AUTH_SECRET?: string
@@ -126,7 +131,11 @@ export function composeD1Worker(
   const builtIn = vars.AUTH_PROVIDER?.trim() === 'better-auth'
   let builtInConfig: AuthRuntimeConfig | undefined
   let builtInHandler: ((req: Request) => Promise<Response>) | undefined
+  // [[CORE259]] D5: the control handle is opened here, once, and goes to the auth provider and the control gate below; nothing else is handed it.
+  const control: ControlDb | undefined = builtIn && env.CONTROL_DB ? openControlDb(env.CONTROL_DB) : undefined
   try {
+    // [[CORE259]] D6: the built-in provider keeps its credentials in the control-plane database; without the binding it fails closed like a bad variable (the message names the binding).
+    if (builtIn && !control) throw new Error('AUTH_PROVIDER=better-auth requires the CONTROL_DB binding (the control-plane database)')
     if (builtIn) builtInConfig = parseBuiltInAuthConfig(vars)
     authAdapter = createWorkspaceAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
     cliClientId = parseCliClientId(vars)
@@ -189,6 +198,49 @@ export function composeD1Worker(
     if (state.status === 'current' || state.status === 'ahead') settled = state
     latest = read.readFailed ? undefined : { ...state, at: now }
     return state
+  }
+
+  /**
+   * The control plane's migration state ([[CORE259]] D4, D6): the same per-isolate memory as the CRM database's (`current` or `ahead` is remembered; `behind` or `unknown` is re-read at most every
+   * 5 s; a failed read is not remembered). Unlike the CRM gate, an `unknown` tracker (no `d1_migrations`: nobody has applied the control migrations) refuses too: an unmigrated control
+   * plane has no `control_deployment` and no auth tables, and a real database always has the tracker (wrangler creates it).
+   */
+  let controlSettled: boolean | undefined
+  let controlLatest: { at: number; ok: boolean } | undefined
+  async function controlMigrated(c: ControlDb): Promise<boolean> {
+    if (controlSettled) return true
+    const now = nowMs()
+    if (controlLatest && now - controlLatest.at < MIGRATION_REREAD_MS) return controlLatest.ok
+    const read = await readControlMigrations(c)
+    const ok = read.status === 'current' || read.status === 'ahead'
+    if (ok) controlSettled = true
+    controlLatest = read.readFailed ? undefined : { at: now, ok }
+    return ok
+  }
+  /**
+   * The control gate for `better-auth` ([[CORE259]] D6, D7): `503 migrations_pending` while the control migrations are behind, `503 not_initialised` while the CRM database has no
+   * marker to pair with, `500 internal` (log `control database not paired`) when the control marker is missing or names another organisation. A pairing that held is remembered for the isolate (the
+   * marker is written once and never changes); a refusal is never cached, so bootstrap's marker is picked up by the next request. `undefined` means go on.
+   */
+  let paired = false
+  async function controlGate(): Promise<Response | undefined> {
+    if (!builtIn || !control || paired) return undefined
+    if (!(await controlMigrated(control))) return json(MIGRATIONS_PENDING, 503)
+    let link
+    try {
+      link = await readDeployment(env.DB)
+    } catch (err) {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) return json(NOT_INITIALISED, 503)
+      throw err
+    }
+    if (!link) return json(NOT_INITIALISED, 503)
+    const marker = await readControlMarker(control)
+    if (!marker || marker.organizationId !== link.organizationId) {
+      console.error('[d1-worker] control database not paired: its marker is missing or names another organisation')
+      return json(INTERNAL, 500)
+    }
+    paired = true
+    return undefined
   }
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
@@ -390,12 +442,16 @@ export function composeD1Worker(
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
         // [[CORE243]] D1: `/auth/*` exists only for the built-in provider; for clerk and unset it is no route at all, before every gate. For better-auth it passes the migration gate
-        // (the auth tables come with 0018) and the configuration gate, and needs no deployment marker: it touches no vault table (D5).
+        // and the configuration gate, then the control gate ([[CORE259]] D6, D7: the auth tables live in the control-plane database, which must be migrated and paired with this
+        // CRM database). It still touches no vault table (CORE243 D5).
         if (url.pathname === '/auth' || url.pathname.startsWith('/auth/')) {
           if (!builtIn) return json(NO_SUCH_ROUTE, 404)
           if (configError || !builtInConfig) return json(INTERNAL, 500)
           if ((await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
-          builtInHandler ??= createAuthHandler(env.DB, builtInConfig)
+          const refused = await controlGate()
+          if (refused) return refused
+          // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
+          builtInHandler ??= createAuthHandler(controlAuthDatabase(control!), builtInConfig)
           return await builtInHandler(req)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
@@ -407,6 +463,10 @@ export function composeD1Worker(
         if (doc) return configError ? json(INTERNAL, 500) : doc
         if (!spec && (await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
         if (configError) return json(INTERNAL, 500)
+        if (!spec) {
+          const refused = await controlGate()
+          if (refused) return refused
+        }
         const ready = await ensure()
         // D78: the connect callback records under its own request id, so it gets an app whose Gmail `fetch` is a recorder of this one request (only while recording is on).
         // D92: so does a connection's delete (its `users.stop` is a Google call), under its own request id.

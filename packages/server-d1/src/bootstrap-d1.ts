@@ -1,6 +1,6 @@
 import { bootstrap, bootstrapWorkspace } from '@vibase/api'
 import { execute, uuidv7 } from '@vibase/storage'
-import { d1Binding, type D1Like } from '@vibase/storage-d1'
+import { d1Binding, readControlMarker, writeControlMarker, type ControlDb, type D1Like } from '@vibase/storage-d1'
 import { initDeploymentOperation, markerInsert, readDeployment, type DeploymentLink } from './init-deployment.js'
 
 export interface BootstrapD1Options {
@@ -30,7 +30,13 @@ export interface BootstrapD1Result {
   deployment: 'created' | 'existing'
 }
 
-type BootstrapD1Env = { now?: Date; newId?: () => string; randomBytes?: (n: number) => Uint8Array }
+type BootstrapD1Env = {
+  now?: Date
+  newId?: () => string
+  randomBytes?: (n: number) => Uint8Array
+  /** The control-plane database ([[CORE259]] D7), when the local environment has one: its marker is written after the CRM deployment row. Absent: no control marker (remote and Clerk instances until [[OPS260]]). */
+  control?: ControlDb
+}
 
 /**
  * The local D1 bootstrap ([[CORE38]] D6, P7): the deployment marker, then the first organisation, owner and agent key, as
@@ -55,6 +61,15 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
   const now = env.now ?? new Date()
   const newId = env.newId ?? (() => uuidv7(now))
   let link = await readDeployment(d1)
+  // [[CORE259]] D7: a control marker for another organisation is refused before either database is written.
+  if (env.control) {
+    const marker = await readControlMarker(env.control).catch((err: unknown) => {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) throw new Error('the control database has no control_deployment table: run `wrangler d1 migrations apply CONTROL_DB --local` first')
+      throw err
+    })
+    const expected = link?.organizationId ?? opts.organizationId
+    if (marker && marker.organizationId !== expected) throw new Error(`the control database is already paired with organization ${marker.organizationId}`)
+  }
   let deployment: 'created' | 'existing'
   if (link) {
     const differs =
@@ -69,6 +84,8 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
     link = wanted
     deployment = done.value
   }
+  // The control marker follows the CRM deployment row, so a crash between the two is resumed by the next run (idempotent).
+  if (env.control) await writeControlMarker(env.control, link.organizationId)
   if ((link.authProvider === 'clerk') !== clerk) throw new Error(`the marker's provider is ${link.authProvider}: pass --auth-provider ${link.authProvider}`)
   if (clerk) {
     const w = await bootstrapWorkspace(d1Binding(d1, link), { organizationName: opts.organizationName, agentName: opts.agentName, scopes: opts.scopes }, { now, newId, randomBytes: env.randomBytes })

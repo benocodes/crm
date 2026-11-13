@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { uuidv7 } from '@vibase/storage'
-import type { D1Like } from '@vibase/storage-d1'
+import { openControlDb, type D1Like } from '@vibase/storage-d1'
 import { bootstrapD1, probeBatchAtomicity, type BootstrapD1Result } from '../src/bootstrap-d1.js'
 import { CONFIG_PATH, ROOT_ENV_PATH, RemoteRefusal, loadRootEnv, requireConfirm, resolveTarget, type ConfigLike, type Target } from './remote.js'
 
@@ -83,7 +83,7 @@ export interface RemoteGuardDeps {
   loadEnv: () => void
   readEnvText: () => string
   readConfig: () => ConfigLike
-  getPlatformProxy: (options: ReturnType<typeof remoteProxyOptions>) => Promise<{ env: { DB: D1Like }; dispose(): Promise<void> }>
+  getPlatformProxy: (options: ReturnType<typeof remoteProxyOptions>) => Promise<{ env: { DB: D1Like; CONTROL_DB?: D1Like }; dispose(): Promise<void> }>
   log?: (line: string) => void
 }
 
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
           }
         },
         readConfig: () => unstable_readConfig({ config: CONFIG_PATH, env: parsed.envName }) as unknown as ConfigLike,
-        getPlatformProxy: (o) => getPlatformProxy<{ DB: D1Like }>(o),
+        getPlatformProxy: (o) => getPlatformProxy<{ DB: D1Like; CONTROL_DB?: D1Like }>(o),
       })
       proxy = guarded.proxy
     } catch (err) {
@@ -154,7 +154,7 @@ async function main(): Promise<void> {
       process.exit(1)
     }
   } else {
-    proxy = await getPlatformProxy<{ DB: D1Like }>(proxyOptions())
+    proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB?: D1Like }>(proxyOptions())
   }
   try {
     const authProvider = values['auth-provider']
@@ -179,7 +179,9 @@ async function main(): Promise<void> {
       authOrgId: authOrgId!,
       authSubject: values['auth-subject'],
       organizationId,
-    })
+    },
+    // [[CORE259]] D7: the local control database's marker follows the CRM deployment row. A remote instance has no control database yet ([[OPS260]]); its env block binds none.
+    { control: parsed.mode === 'local' && proxy.env.CONTROL_DB ? openControlDb(proxy.env.CONTROL_DB) : undefined })
     if (parsed.mode === 'remote' && r.key !== null) {
       try {
         writeFileSync(ROOT_ENV_PATH, appendEnvVar(readFileSync(ROOT_ENV_PATH, 'utf8'), parsed.keyEnv!, r.key))

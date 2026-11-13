@@ -17,8 +17,8 @@ import { FakeGmail } from '@vibase/api/test/gmail'
 import { gmailFixture } from '@vibase/api/test/gmail-fixtures'
 import { bytesOf } from '@vibase/api/test/channels'
 import { ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
-import { applyMigrations, createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { MIGRATIONS, type D1Like } from '@vibase/storage-d1'
+import { applyControlMigrations, applyMigrations, createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
+import { MIGRATIONS, openControlDb, writeControlMarker, type D1Like } from '@vibase/storage-d1'
 import {
   API_URL,
   SECRET_KEY,
@@ -91,6 +91,7 @@ const PUSH_SERVICE_ACCOUNT = 'push@smoke-p.iam.gserviceaccount.com'
 const PUSH_BASE_URL = 'https://push.test'
 let mf: Miniflare | undefined
 let pipelineMf: Miniflare | undefined
+const authMfs: Miniflare[] = []
 
 try {
   await build({
@@ -586,6 +587,45 @@ try {
   body = await json(res)
   check('25a GET /auth/ok with AUTH_PROVIDER=clerk -> 404 not_found in the app envelope', res.status === 404 && body.error?.code === 'not_found', { status: res.status, body })
 
+  // [[CORE259]] D1, D3, D6, D7: the real bundle with AUTH_PROVIDER=better-auth in workerd, with and without the control-plane binding. Each is its own Miniflare (the main one is Clerk).
+  const betterAuth = async (withControl: boolean) => {
+    const auth = new Miniflare({
+      modules: [{ type: 'ESModule', path: bundle, contents: readFileSync(bundle, 'utf8') }],
+      modulesRoot: workerDir,
+      compatibilityDate: '2026-07-30',
+      compatibilityFlags: ['nodejs_compat'],
+      d1Databases: { DB: `smoke-auth-crm-${crypto.randomUUID()}`, ...(withControl ? { CONTROL_DB: `smoke-auth-control-${crypto.randomUUID()}` } : {}) },
+      d1Persist: false,
+      bindings: { AUTH_PROVIDER: 'better-auth', AUTH_SECRET: 'smoke-auth-secret-0123456789-abcdefghij-klmnop', PUBLIC_BASE_URL: 'http://localhost:8787' },
+      outboundService: () => new Response('blocked by the smoke', { status: 502 }),
+    })
+    authMfs.push(auth)
+    const url = await auth.ready
+    const crm = (await auth.getD1Database('DB')) as unknown as D1Like
+    await applyMigrations(crm)
+    const boot = await bootstrapD1(crm, { organizationName: 'Auth smoke', agentName: 'auth-bot', authProvider: 'better-auth', email: 'o@smoke.test', authOrgId: 'org_auth_smoke' })
+    let control: D1Like | undefined
+    if (withControl) {
+      control = (await auth.getD1Database('CONTROL_DB')) as unknown as D1Like
+      await applyControlMigrations(control)
+      await writeControlMarker(openControlDb(control), boot.organizationId)
+    }
+    const get = (path: string) => fetch(new URL(path, url), { headers: { origin: 'http://localhost:8787', 'cf-connecting-ip': '203.0.113.9' } })
+    return { crm, control, get }
+  }
+  {
+    const without = await betterAuth(false)
+    res = await without.get('/auth/ok')
+    check('25b better-auth without CONTROL_DB -> 500 internal on /auth, /health stays 200', res.status === 500 && (await without.get('/health')).status === 200, { status: res.status })
+    const withControl = await betterAuth(true)
+    res = await withControl.get('/auth/ok')
+    check('25c better-auth with a migrated, paired CONTROL_DB -> /auth/ok 200 in workerd', res.status === 200, { status: res.status })
+    res = await withControl.get('/auth/jwks')
+    const keyRows = Number(((await withControl.control!.prepare('select count(*) as n from auth_jwks').first()) as { n: number }).n)
+    const crmRows = Number(((await withControl.crm.prepare('select count(*) as n from auth_jwks').first()) as { n: number }).n)
+    check('25d better-auth /auth/jwks writes the signing key into CONTROL_DB and leaves the CRM auth_jwks empty', res.status === 200 && keyRows > 0 && crmRows === 0, { status: res.status, keyRows, crmRows })
+  }
+
   // 26-29: the MCP endpoint ([[API106]] D4): hand-written JSON-RPC in the bundle, no SDK.
   const mcp = async (method: string, params?: unknown, id = 1) => {
     const r = await call('POST', '/mcp', { token: key, headers: { 'content-type': 'application/json' }, body: { jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) } })
@@ -729,6 +769,7 @@ try {
 } finally {
   await mf?.dispose()
   await pipelineMf?.dispose()
+  for (const a of authMfs) await a.dispose()
   rmSync(workerDir, { recursive: true, force: true })
 }
 

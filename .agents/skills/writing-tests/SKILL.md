@@ -553,6 +553,6 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   (`page.waitForFunction(() => window.Clerk?.session)`) before `session.getToken()`.
 - **A hosted provider screen's labels are not ours** (Clerk's consent button): match tolerantly and treat the
   click as optional while waiting for the outcome you actually assert (the callback, a URL).
-- **Local setup:** `wrangler d1 migrations apply DB --local` before `bootstrap`; in `.dev.vars` write the
+- **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.

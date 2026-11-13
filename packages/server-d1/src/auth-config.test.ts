@@ -1,16 +1,17 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { clerkKit, openWorkerD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
+import { clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
 
 // [[CORE243]] D6, P2: the configuration of `AUTH_PROVIDER=better-auth`. A missing or malformed value fails closed (`500 internal` on every non-health request,
-// `/health` still 200), the log names the variable and never its value; `clerk` and unset never read the two variables for auth.
+// `/health` still 200), the log names the variable and never its value; `clerk` and unset never read the two variables for auth. The control-plane database is bound throughout
+// ([[CORE259]] D6: `better-auth` without it is its own refusal, in control-plane.test.ts), so each case isolates the variable it names.
 const SECRET = 'a-valid-auth-secret-of-exactly-32!' // 34 characters
 const VALID = { AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: 'https://vibase.example.workers.dev' } as const
 
-let w: WorkerD1
+let w: WorkerPair
 let kit: ClerkKit
 beforeAll(async () => {
-  w = await openWorkerD1()
+  w = await openWorkerPair()
   kit = await clerkKit()
 })
 afterAll(() => w.dispose())
@@ -22,7 +23,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-const worker = (extra: Partial<D1WorkerEnv>) => composeD1Worker({ DB: w.d1, ...extra }, { fetch: kit.fetch })
+const worker = (extra: Partial<D1WorkerEnv>) => composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, ...extra }, { fetch: kit.fetch })
 const get = (wk: ReturnType<typeof worker>, path: string) => wk.fetch(new Request(`https://w.test${path}`))
 
 describe('AUTH_SECRET and PUBLIC_BASE_URL for better-auth', () => {

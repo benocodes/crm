@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 import { compareMigrations, type MigrationStatus } from '@vibase/storage-d1'
 
 export const PLACEHOLDER_DATABASE_ID = '00000000-0000-0000-0000-000000000000'
+/** The local CONTROL_DB's placeholder ([[CORE259]]): a different id, because a local database's file is keyed by it. Also never a deployable id. */
+export const CONTROL_PLACEHOLDER_DATABASE_ID = '00000000-0000-0000-0000-000000000001'
 
 /** A refusal the CLIs print as `<script>: <message>` (exit 1) before any network call or query. */
 export class RemoteRefusal extends Error {
@@ -79,6 +81,10 @@ export function resolveTarget(config: ConfigLike, envName: string): Target {
   if (!db) throw new RemoteRefusal(`env ${envName} has no DB binding`)
   if (db.database_id === PLACEHOLDER_DATABASE_ID) {
     throw new RemoteRefusal(`env ${envName} still has the placeholder database_id: create the database and commit its id first`)
+  }
+  const control = config.d1_databases?.find((d) => d.binding === 'CONTROL_DB')
+  if (control && (control.database_id === PLACEHOLDER_DATABASE_ID || control.database_id === CONTROL_PLACEHOLDER_DATABASE_ID)) {
+    throw new RemoteRefusal(`env ${envName}'s CONTROL_DB still has a placeholder database_id: create the control database and commit its id first`)
   }
   if (db.remote !== true || (db.preview_database_id !== undefined && db.preview_database_id !== db.database_id)) {
     throw new RemoteRefusal(`env ${envName}'s DB binding must be remote: true with no preview_database_id`)

@@ -1,1 +1,1 @@
-export { BASE, NODE_IMPORT, SECRET, bundleWorker, startWorkerd, type Bundle, type Workerd } from './harness.js'
+export { BASE, NODE_IMPORT, PAIRED_ORG, SECRET, bundleWorker, startWorkerd, type Bundle, type Workerd } from './harness.js'

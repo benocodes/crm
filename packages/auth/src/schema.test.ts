@@ -2,19 +2,20 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { AUTH_TABLES } from './index.js'
-import { generateAuthDdl } from './test/schema-gen.js'
+import { CONTROL_DEPLOYMENT_DDL, generateAuthDdl } from './test/schema-gen.js'
 
-const MIGRATION = fileURLToPath(new URL('../../storage-d1/migrations/0018_auth_tables.sql', import.meta.url))
+const MIGRATION = fileURLToPath(new URL('../../storage-d1/control-migrations/0001_control_plane.sql', import.meta.url))
 const statements = (text: string) =>
   text
     .split(';')
     .map((s) => s.replace(/--.*$/gm, '').trim())
     .filter(Boolean)
 
-// [[CORE243]] D4: the migration IS the offline-generated DDL. A library upgrade or an option change that alters the schema fails here until a new reviewed migration is written.
+// [[CORE243]] D4, [[CORE259]] D4/D13: control migration 0001 IS the offline-generated DDL, then the control marker. A library upgrade or an option change that alters the schema
+// fails here until a new reviewed control migration is written.
 describe('the auth schema (D4)', () => {
-  it('migration 0018 is exactly what Better Auth generates for the composed options', async () => {
-    expect(statements(readFileSync(MIGRATION, 'utf8'))).toEqual(statements(await generateAuthDdl()))
+  it('control migration 0001 is exactly what Better Auth generates for the composed options, then control_deployment', async () => {
+    expect(statements(readFileSync(MIGRATION, 'utf8'))).toEqual([...statements(await generateAuthDdl()), ...statements(CONTROL_DEPLOYMENT_DDL)])
   })
 
   it('every table is auth_ prefixed, every column snake_case, and the tables are the exported list', async () => {

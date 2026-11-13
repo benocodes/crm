@@ -25,11 +25,11 @@ afterAll(async () => {
 })
 
 const vibaseRows = (w: Workerd) => Promise.all(['events', 'users', 'principals', 'memberships'].map((t) => w.rows(`select * from ${t} order by 1`)))
-const idsOf = async (w: Workerd, table: string) => (await w.rows<{ id: string }>(`select id from ${table}`)).map((r) => r.id)
+const idsOf = async (w: Workerd, table: string) => (await w.controlRows<{ id: string }>(`select id from ${table}`)).map((r) => r.id)
 
 // [[CORE243]] D4, D5, P1, P3 in workerd: Better Auth writes into the migrated auth_* tables through the test composition (the only one that admits sign-up and
 // client registration), the hasher round-trips, and a vault with data in it is untouched.
-describe('Better Auth in workerd on migration 0018 (test admission)', () => {
+describe('Better Auth in workerd on control migration 0001 (test admission)', () => {
   let cookie: string
   let vibaseBefore: unknown[]
 
@@ -50,12 +50,12 @@ describe('Better Auth in workerd on migration 0018 (test admission)', () => {
       expect(ids.length, t).toBeGreaterThan(0)
       for (const id of ids) expect(id, `${t}.id`).toMatch(UUIDV7)
     }
-    const [account] = await open.rows<{ password: string }>('select password from auth_accounts')
+    const [account] = await open.controlRows<{ password: string }>('select password from auth_accounts')
     expect(account!.password).toMatch(/^pbkdf2-sha256\$100000\$/)
   })
 
   it('records the timestamp form Better Auth writes: ISO-8601 text', async () => {
-    const [u] = await open.rows<{ created_at: unknown; email_verified: unknown }>('select created_at, email_verified from auth_users')
+    const [u] = await open.controlRows<{ created_at: unknown; email_verified: unknown }>('select created_at, email_verified from auth_users')
     expect(typeof u!.created_at).toBe('string')
     expect(new Date(u!.created_at as string).toISOString()).toBe(u!.created_at)
     expect(u!.email_verified).toBe(0)
@@ -66,7 +66,7 @@ describe('Better Auth in workerd on migration 0018 (test admission)', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { keys: Array<{ kid: string }> }
     expect(body.keys.length).toBeGreaterThan(0)
-    const rows = await open.rows<{ id: string; public_key: string; private_key: string }>('select id, public_key, private_key from auth_jwks')
+    const rows = await open.controlRows<{ id: string; public_key: string; private_key: string }>('select id, public_key, private_key from auth_jwks')
     expect(rows.length).toBeGreaterThan(0)
     for (const r of rows) {
       expect(r.id).toMatch(UUIDV7)
@@ -95,15 +95,15 @@ describe('Better Auth in workerd on migration 0018 (test admission)', () => {
       expect(ids.length, t).toBe(1)
       expect(ids[0], t).toMatch(UUIDV7)
     }
-    const [c] = await open.rows<{ client_id: string; redirect_uris: string; token_endpoint_auth_method: string }>('select client_id, redirect_uris, token_endpoint_auth_method from auth_oauth_clients')
+    const [c] = await open.controlRows<{ client_id: string; redirect_uris: string; token_endpoint_auth_method: string }>('select client_id, redirect_uris, token_endpoint_auth_method from auth_oauth_clients')
     expect(c!.client_id).toBe(client.client_id)
     expect(c!.token_endpoint_auth_method).toBe('none')
-    const [d] = await open.rows<{ client_id: string; status: string; polling_interval: number }>('select client_id, status, polling_interval from auth_device_codes')
+    const [d] = await open.controlRows<{ client_id: string; status: string; polling_interval: number }>('select client_id, status, polling_interval from auth_device_codes')
     expect(d).toMatchObject({ client_id: client.client_id, status: 'pending' })
   })
 
   it('the rate limiter keeps its counters in auth_rate_limits', async () => {
-    const rows = await open.rows<{ id: string }>('select id from auth_rate_limits')
+    const rows = await open.controlRows<{ id: string }>('select id from auth_rate_limits')
     expect(rows.length).toBeGreaterThan(0)
     for (const r of rows) expect(r.id).toMatch(UUIDV7)
   })
@@ -118,7 +118,7 @@ describe('the shipped composition (no test admission) refuses admission (P1)', (
     const res = await shut.call('/auth/sign-up/email', { body: { name: 'Nobody', email: 'nobody@auth.test', password: PASSWORD } })
     expect(res.status).toBeGreaterThanOrEqual(400)
     expect(res.status).toBeLessThan(500)
-    expect(await shut.rows('select id from auth_users')).toEqual([])
+    expect(await shut.controlRows('select id from auth_users')).toEqual([])
   })
 
   it('refuses dynamic client registration and writes no client', async () => {
@@ -127,7 +127,7 @@ describe('the shipped composition (no test admission) refuses admission (P1)', (
     })
     expect(res.status).toBeGreaterThanOrEqual(400)
     expect(res.status).toBeLessThan(500)
-    expect(await shut.rows('select id from auth_oauth_clients')).toEqual([])
+    expect(await shut.controlRows('select id from auth_oauth_clients')).toEqual([])
   })
 })
 

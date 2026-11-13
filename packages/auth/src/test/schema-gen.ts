@@ -14,3 +14,11 @@ export async function generateAuthDdl(): Promise<string> {
     sqlite.close()
   }
 }
+
+/** The control marker's DDL ([[CORE259]] D7): appended to the generated Better Auth DDL in control migration 0001. */
+export const CONTROL_DEPLOYMENT_DDL = `create table control_deployment (
+  singleton integer primary key not null check (singleton = 1),
+  organization_id text not null
+    check (length(organization_id) = 36 and organization_id not glob '*[^0-9a-f-]*' and substr(organization_id, 9, 1) = '-' and substr(organization_id, 14, 1) = '-' and substr(organization_id, 19, 1) = '-' and substr(organization_id, 24, 1) = '-')
+) strict;
+`

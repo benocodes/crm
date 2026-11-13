@@ -1,14 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { execute, uuidv7 } from '@vibase/storage'
-import { d1Binding } from '@vibase/storage-d1'
+import { d1Binding, openControlDb, readControlMarker, writeControlMarker } from '@vibase/storage-d1'
 import { authenticateApiKey, hashApiKey } from '@vibase/api'
 import { bootstrapD1, probeBatchAtomicity } from './bootstrap-d1.js'
 import { initDeploymentOperation, readDeployment } from './init-deployment.js'
-import { NOW, openWorkerD1, spyD1, testId, type WorkerD1 } from './test/kit.js'
+import { openLocalD1 } from '@vibase/storage-d1/test'
+import { NOW, openWorkerPair, spyD1, testId, type WorkerPair } from './test/kit.js'
 
-let w: WorkerD1
+let w: WorkerPair
 beforeAll(async () => {
-  w = await openWorkerD1()
+  w = await openWorkerPair()
 })
 afterAll(() => w.dispose())
 beforeEach(() => w.reset())
@@ -123,5 +124,58 @@ describe('probeBatchAtomicity (C8)', () => {
     expect(r.deployment).toBe('existing')
     expect(r.organizationId).toBe(l.organizationId)
     expect(await all('organizations')).toHaveLength(1)
+  })
+})
+
+// [[CORE259]] D7: bootstrap writes the control marker after the CRM deployment row, naming the same organisation.
+describe('bootstrapD1 pairs the control database (CORE259 D7)', () => {
+  const control = () => openControlDb(w.control)
+  const OTHER = '0190b2c4-0000-7000-8000-00000000a0aa'
+
+  it('fresh databases: the CRM deployment row, then the control marker with the same organisation', async () => {
+    expect(await readControlMarker(control())).toBeNull()
+    const r = await bootstrapD1(w.d1, base, { ...env(), control: control() })
+    const [marker] = await all('deployment')
+    expect(marker).toMatchObject({ organization_id: r.organizationId })
+    expect(await readControlMarker(control())).toEqual({ organizationId: r.organizationId })
+  })
+
+  it('a re-run changes nothing in the control database and is refused for the organisation (as today), not for the marker', async () => {
+    const r = await bootstrapD1(w.d1, base, { ...env(), control: control() })
+    const before = JSON.stringify((await w.control.prepare('select * from control_deployment').all()).results)
+    await expect(bootstrapD1(w.d1, base, { ...env(), control: control() })).rejects.toThrow(`organization ${r.organizationId} is already initialised`)
+    expect(JSON.stringify((await w.control.prepare('select * from control_deployment').all()).results)).toBe(before)
+  })
+
+  it('resumes after a crash between the CRM marker and the control marker: the marker is written, idempotently', async () => {
+    const link = { organizationId: uuidv7(NOW), authProvider: 'none', authOrgId: 'org_acme' }
+    await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+    expect(await readControlMarker(control())).toBeNull()
+    const r = await bootstrapD1(w.d1, base, { ...env(), control: control() })
+    expect(r.deployment).toBe('existing')
+    expect(await readControlMarker(control())).toEqual({ organizationId: link.organizationId })
+  })
+
+  it('a control marker for another organisation is refused before anything is written to either database', async () => {
+    await writeControlMarker(control(), OTHER)
+    await expect(bootstrapD1(w.d1, base, { ...env(), control: control() })).rejects.toThrow(/already paired/)
+    expect(await all('deployment')).toEqual([])
+    expect(await readControlMarker(control())).toEqual({ organizationId: OTHER })
+  })
+
+  it('an unmigrated control database is refused with the migrate command, before anything is written', async () => {
+    const bare = await openLocalD1(['B'], { migrate: false })
+    try {
+      await expect(bootstrapD1(w.d1, base, { ...env(), control: openControlDb(bare.bindings.B!) })).rejects.toThrow(/migrations apply CONTROL_DB --local/)
+      expect(await all('deployment')).toEqual([])
+    } finally {
+      await bare.dispose()
+    }
+  })
+
+  it('without a control database (a remote or Clerk instance that has none yet) bootstrap behaves as before', async () => {
+    const r = await bootstrapD1(w.d1, base, env())
+    expect(r.deployment).toBe('created')
+    expect(await readControlMarker(control())).toBeNull()
   })
 })

@@ -20,8 +20,9 @@ From the repository root, after `pnpm install`:
 ```bash
 export WRANGLER_SEND_METRICS=false CI=1
 
-# 1. Apply the migrations to the local D1 (0001 to 0004).
+# 1. Apply the migrations to both local D1 databases: the CRM one (DB) and the control-plane one (CONTROL_DB, CORE259), each from its own directory.
 pnpm -C packages/server-d1 exec wrangler d1 migrations apply DB --local
+pnpm -C packages/server-d1 exec wrangler d1 migrations apply CONTROL_DB --local
 
 # 2. Create the deployment marker, the first organisation and an operator agent. The key is printed once. A Clerk-backed deployment
 #    creates no human: the owner signs in with a Clerk session token whose `vibase_role` claim is `owner` (CORE64). --issuer is the

@@ -11,8 +11,9 @@ const PASSWORD = 'a long enough password 123'
 // clerk and unset give 404 not_found in the app's envelope; the shipped composition admits nobody.
 let bundle: Bundle
 const started: Workerd[] = []
-const start = async (bindings: Record<string, string>) => {
-  const w = await startWorkerd({ bundle, bindings })
+const start = async (bindings: Record<string, string>, opts: { control?: boolean; paired?: boolean } = {}) => {
+  // [[CORE259]] D7: the real Worker on better-auth serves only a paired control plane, so the harness pairs the two databases (as bootstrap does) unless a test says otherwise.
+  const w = await startWorkerd({ bundle, bindings, paired: opts.paired ?? true, control: opts.control })
   started.push(w)
   return w
 }
@@ -78,7 +79,33 @@ describe('the shipped composition admits nobody (P1)', () => {
     })
     expect(reg.status).toBeGreaterThanOrEqual(400)
     expect(reg.status).toBeLessThan(500)
-    for (const t of ['auth_users', 'auth_accounts', 'auth_sessions', 'auth_oauth_clients']) expect(await w.rows(`select * from ${t}`), t).toEqual([])
+    for (const t of ['auth_users', 'auth_accounts', 'auth_sessions', 'auth_oauth_clients']) {
+      expect(await w.controlRows(`select * from ${t}`), t).toEqual([])
+      expect(await w.rows(`select * from ${t}`), t).toEqual([])
+    }
+  })
+})
+
+// [[CORE259]] D3, D8: Better Auth is composed on CONTROL_DB. A request that makes it read and write rows (the signing key, created on first use, and the rate limiter's counters; sign-up
+// is still refused, P1) lands them in the control database and leaves every CRM auth_* table empty.
+describe('Better Auth uses the control database, never the CRM one (D3)', () => {
+  const AUTH_TABLES_IN_CRM = ['auth_users', 'auth_sessions', 'auth_accounts', 'auth_verifications', 'auth_jwks', 'auth_oauth_clients', 'auth_oauth_resources', 'auth_oauth_client_resources', 'auth_oauth_refresh_tokens', 'auth_oauth_access_tokens', 'auth_oauth_consents', 'auth_oauth_client_assertions', 'auth_device_codes', 'auth_rate_limits']
+
+  it('/auth/jwks writes the signing key into CONTROL_DB and no CRM auth_* table gains a row', async () => {
+    const w = await start(BETTER)
+    const res = await w.call('/auth/jwks')
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { keys: unknown[] }).keys.length).toBeGreaterThan(0)
+    expect((await w.controlRows<{ id: string }>('select id from auth_jwks')).length).toBeGreaterThan(0)
+    for (const t of AUTH_TABLES_IN_CRM) expect(await w.rows(`select * from ${t}`), `CRM ${t}`).toEqual([])
+  })
+
+  it('the Worker with no CONTROL_DB binding refuses (500, the log names CONTROL_DB) and /health stays 200', async () => {
+    const w = await start(BETTER, { control: false, paired: false })
+    for (const path of ['/auth/ok', '/api/v1/contacts']) expect((await w.call(path)).status, path).toBe(500)
+    expect((await w.call('/health')).status).toBe(200)
+    await new Promise((r) => setTimeout(r, 200))
+    expect(w.logs.join('\n')).toContain('CONTROL_DB')
   })
 })
 
