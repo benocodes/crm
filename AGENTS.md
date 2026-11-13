@@ -123,6 +123,17 @@ Next Action) and tells the user before any of these, and never works around one:
   **Standing exception, `smoked1` (user, 2026-10-28):** the internal single-org D1 instance
   (`--env smoked1`, Worker `vault-smoked1`, `api.smoked1.vibase.ai`) is the agents' own; they may deploy
   and migrate it without stopping, through the guarded `deploy:remote` / `db:migrate:remote` scripts.
+  **Extended (user, 2026-11-13, [[OPS250]]):** agents may also generate and set `smoked1`'s own
+  `AUTH_SECRET` (Better Auth, [[CORE243]]) as a Worker secret; the value lives only in the gitignored
+  `.env.smoked1` or the macOS keychain, is never printed, logged or committed, and may be regenerated (it
+  signs everyone out of `smoked1`).
+  **Extended (user, 2026-11-13, [[CORE259]], [[OPS262]]):** agents may also create `smoked1`'s resources under
+  the `vb-` naming (databases `vb-crm-smoked1` and `vb-control-smoked1`, the Worker `vb-smoked1`, and its
+  queues, workflows and buckets named `vb-<kind>-smoked1`), apply the control-plane migrations to them, and
+  move `smoked1` onto them (the rename and the Better Auth cutover, [[OPS250]]). Deleting the old
+  `vault-smoked1` resources, DNS and custom-domain changes stay hard stops until the user confirms them. New
+  installs and every new resource anywhere use `vb-<kind>-<env>` names; `hq` keeps its `vault-hq` names unless
+  the user says otherwise, and no code may hard-code a `vault` prefix.
   Creating resources beyond it, DNS, Clerk, and any other environment stay hard stops.
   **Standing exception, Clerk dev instance (user, 2026-11-02):** the Clerk *development* instance whose
   keys are in the gitignored `.env.dev` (`sk_test_`/`pk_test_`, `CLERK_JWT_KEY`, `CLERK_FRONTEND_API_URL`)
