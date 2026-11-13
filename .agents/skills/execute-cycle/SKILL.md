@@ -56,6 +56,10 @@ with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never
   `e2e/` and `scripts/` (smokes) are outside the gate, so a stale reader there stays green until someone runs it
   ([[API105]]: two `order by id`/`rowid` event readers in `packages/server-d1/e2e` and `scripts/smoke-worker.ts`
   were found at review).
+- **A new CLI flag goes into every help and usage text that lists its command's flags**, not only the parser and
+  the docs: grep the command's neighbouring flag (`--d1-name`) to find them. [[OPS279]]'s review round 1 was only
+  this: `--control-d1-name` parsed and documented, missing from `INSTANCE_HELP`
+  (`packages/server-d1/scripts/instance/main.ts`).
 - **A deletion's blast-radius grep is a floor.** Grep the deleted file's basename, its exports, and
   operation names as string literals; treat every surprise as a decision to make and record. A move or rename
   of an entry point is a deletion too: grep for importers of each export the old module had, since a default

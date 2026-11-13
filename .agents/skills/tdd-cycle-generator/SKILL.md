@@ -157,6 +157,12 @@ refusal as "refused before any call, with that front-end's refusal exit code", n
 both setup front-ends, but `setup:remote` exits 1 for every refusal, and the coder had to amend it. And when a cycle changes a
 default name, ship the guard that keeps existing instances on their recorded names in the same cycle, and say where the record is
 read relative to the first step that creates a resource.
+**OPS279** (`knowledge/specs/015-OPS279-setup-control-database/RETRO.md`): 6 groups (1 matrix), 7 decisions, at the limit on
+groups, no migration, scripts-only, cost ~320k / 97 calls in one run plus a one-line fix round. Twice OPS276's cost for 1.5x the
+counts: the unbudgeted work was a planner decision (P4: setup adds a control database to *every* recorded instance) that changed
+the plan of every existing fixture, so 8 suites asserting "nothing planned" for `smoked1`/`demo` had to record a control database.
+When a charter decision changes the default plan or output for every existing instance or fixture, say so in **Watch out** and
+name it in the Size line ("rider: existing fixtures"), so the split question is asked with that cost in view.
 
 ### Step 3: Resolve identities
 
