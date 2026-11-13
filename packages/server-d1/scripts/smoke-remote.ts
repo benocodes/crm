@@ -5,6 +5,9 @@
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { RemoteRefusal, loadRootEnv } from './remote.js'
+import { JWT_SHAPE_CHECK, MALFORMED_KEY_CHECK, NO_AUTH_CHECK, ROOT_DOC_CHECK, afterHealthOk, errCode } from './smoke-checks.js'
+
+export { afterHealthOk }
 
 export function percentile(sortedMs: number[], p: number): number {
   const rank = Math.max(1, Math.ceil((p / 100) * sortedMs.length))
@@ -44,7 +47,6 @@ async function call(base: string, method: string, path: string, key?: string | n
   }
   return { status: res.status, json }
 }
-const errCode = (j: Json | null) => ((j?.error as Json | undefined)?.code as string | undefined) ?? null
 
 async function before(base: string, version: string): Promise<void> {
   const h = await call(base, 'GET', '/health')
@@ -60,24 +62,17 @@ async function before(base: string, version: string): Promise<void> {
   check('GET /openapi.json -> 503 not_initialised (no root document, not exempt)', root.status === 503 && errCode(root.json) === 'not_initialised', { status: root.status, code: errCode(root.json) })
 }
 
-/** The `after` health check: initialised, the expected version, and every core migration applied ([[CORE61]] D7). */
-export function afterHealthOk(status: number, json: Json | null, version: string): boolean {
-  return status === 200 && json?.initialised === true && json?.version === version && (json?.migrations as Json | undefined)?.status === 'current'
-}
-
 async function after(base: string, version: string, key: string): Promise<void> {
   const h = await call(base, 'GET', '/health')
   check('health -> 200 ok, initialised true, version, migrations current', afterHealthOk(h.status, h.json, version), { status: h.status, initialised: h.json?.initialised, version: h.json?.version, migrations: h.json?.migrations })
-  const root = await call(base, 'GET', '/openapi.json')
-  check('GET /openapi.json -> 404 not_found (no root document)', root.status === 404 && errCode(root.json) === 'not_found', { status: root.status, code: errCode(root.json) })
+  const root = await call(base, 'GET', ROOT_DOC_CHECK.path)
+  check(ROOT_DOC_CHECK.name, ROOT_DOC_CHECK.ok(root.status, root.json), { status: root.status, code: errCode(root.json) })
   const list = await call(base, 'GET', '/api/v1/tasks', key)
   check('GET /api/v1/tasks with the key -> 200, data array', list.status === 200 && Array.isArray(list.json?.data), { status: list.status })
-  const none = await call(base, 'GET', '/api/v1/tasks')
-  check('no Authorization -> 401', none.status === 401, { status: none.status })
-  const mal = await call(base, 'GET', '/api/v1/tasks', null, undefined, 'Bearer vk_malformed')
-  check('Bearer vk_malformed -> 401', mal.status === 401, { status: mal.status })
-  const jwt = await call(base, 'GET', '/api/v1/tasks', null, undefined, 'Bearer a.b.c')
-  check('Bearer a.b.c -> 401', jwt.status === 401, { status: jwt.status })
+  for (const c of [NO_AUTH_CHECK, MALFORMED_KEY_CHECK, JWT_SHAPE_CHECK]) {
+    const r = await call(base, 'GET', c.path, null, undefined, c.authorization)
+    check(c.name, c.ok(r.status, r.json), { status: r.status })
+  }
 
   const title = `smoke-${version}`
   const created = await call(base, 'POST', '/api/v1/tasks', key, { title })

@@ -76,6 +76,9 @@ export interface World {
   secretsPath: string
   tmpRoot: string
   fetchUrls: string[]
+  fetchCalls: { url: string; init?: RequestInit }[]
+  /** Milliseconds the fake clock advanced (the verify loop's sleeps). */
+  clock: { t: number }
   wrangler: WranglerCall[]
   out: string[]
   err: string[]
@@ -88,6 +91,8 @@ export interface WorldOptions {
   processEnv?: Record<string, string | undefined>
   /** The `/health` answer: a Response factory, or an Error to throw. */
   health?: () => Response | Promise<Response>
+  /** Answers every request instead (a router by URL); `health` is ignored when set. */
+  fetch?: (url: string, init?: RequestInit) => Response | Promise<Response>
   /** What the fake wrangler answers. */
   runner?: (args: string[], env: Record<string, string>) => RunResult
 }
@@ -110,11 +115,15 @@ export function makeWorld(o: WorldOptions = {}): World {
   const out: string[] = []
   const err: string[] = []
   const fetchUrls: string[] = []
+  const fetchCalls: { url: string; init?: RequestInit }[] = []
+  const clock = { t: 0 }
   const wrangler: WranglerCall[] = []
   const deps: InstanceDeps = {
     packageDir: pkg.dir,
-    fetch: (async (input: RequestInfo | URL) => {
+    fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchUrls.push(String(input))
+      fetchCalls.push({ url: String(input), init })
+      if (o.fetch) return o.fetch(String(input), init)
       return (o.health ?? (() => new Response('{}', { status: 200 })))()
     }) as typeof fetch,
     runWrangler: (args, opts) => {
@@ -128,6 +137,8 @@ export function makeWorld(o: WorldOptions = {}): World {
     tmpRoot,
     out: (l) => void out.push(l),
     err: (l) => void err.push(l),
+    now: () => clock.t,
+    sleep: async (ms) => void (clock.t += ms),
   }
-  return { deps, pkg, config, settingsPath, secretsPath, tmpRoot, fetchUrls, wrangler, out, err, all: () => [...out, ...err].join('\n') }
+  return { deps, pkg, config, settingsPath, secretsPath, tmpRoot, fetchUrls, fetchCalls, clock, wrangler, out, err, all: () => [...out, ...err].join('\n') }
 }

@@ -3,7 +3,7 @@
 import { parseArgs } from 'node:util'
 import { formatMigrationDiff, statusOf } from '../remote.js'
 import { runGate } from './gate.js'
-import { InstanceRefusal, type InstanceDeps } from './types.js'
+import { InstanceRefusal, isRefusal, type InstanceDeps } from './types.js'
 
 /** Exit codes: 0 the instance is at this release and `current`; 1 it is not (a plan or a note was printed); 2 refused. */
 export const EXIT_CURRENT = 0
@@ -39,7 +39,7 @@ export async function runStatus(argv: string[], deps: InstanceDeps): Promise<num
     for (const n of g.pending) deps.out(`  ${n}`)
     return EXIT_BEHIND
   } catch (e) {
-    if (!(e instanceof InstanceRefusal)) throw e
+    if (!isRefusal(e)) throw e
     deps.err(`vibase instance status: ${e.message}`)
     return EXIT_REFUSED
   }

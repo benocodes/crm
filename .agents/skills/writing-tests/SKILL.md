@@ -379,6 +379,16 @@ One program, two engines: the same assertions run on Postgres and D1.
   difference explained (OPS92: 2750 → 2761, each delta named). A green run alone can't show a test went missing.
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
+- **A test never spawns a real external tool** (wrangler, npm, a CLI that talks to a provider). Inject the runner
+  (`InstanceDeps.runWrangler`, `fetch`) and use the fake. A test of the *real* deps path (`realDeps`, `runInstance`
+  with no runner override) must stop before the spawn for a reason the test itself sets up, and must not hand the
+  child anything that would let it write: no `CONFIRM_REMOTE=1` unless the case needs it. Do not assume a package
+  directory in a temp dir has no tool. `pnpm test` exports `NODE_PATH` (`node_modules/.pnpm/node_modules`), so
+  `createRequire(<tmp>/package.json).resolve('wrangler/…')` falls through to the repo's real wrangler. In [[OPS234]] a
+  "wrangler cannot be resolved" test did that and spawned a real `wrangler d1 execute --remote` with the kit's fake
+  token. It failed auth and wrote nothing, but it reached Cloudflare. To make resolution fail, plant a nearer
+  `node_modules/<tool>/package.json` with no `bin` (`packages/server-d1/scripts/instance/main.test.ts`), and check
+  the red run's output for a real child's stderr before you trust it.
 - Clean up in `afterEach`, delete only the exact rows this test seeded by their own ids, never a "nothing
   references it" query against shared reference data (`db-schema-and-migrations`).
 

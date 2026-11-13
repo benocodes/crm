@@ -14,6 +14,8 @@ import { parse } from 'jsonc-parser'
 import { ReleaseRefusal } from '../src/errors.js'
 import { assertNoForbidden, envDatabaseIds } from '../src/forbidden.js'
 import { assertRelease, type ReleaseManifest } from '../src/manifest.js'
+import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
+import { deployArgs } from '../../server-d1/scripts/instance/upgrade.js'
 import { wranglerEnv } from './build.js'
 
 const PKG = fileURLToPath(new URL('..', import.meta.url))
@@ -79,6 +81,15 @@ export async function checkRelease(tarballArg: string, log: (line: string) => vo
     const expectedPath = join(emptyConfig, 'vibase', 'instances', 'check.json')
     if (noSettings.status !== 2 || !noSettings.stderr.includes(expectedPath)) throw new ReleaseRefusal(`the installed \`vibase instance status\` did not refuse at the missing settings file (exit ${noSettings.status}): ${noSettings.stderr.trim()}`)
     log(`vibase instance: help ok; status refuses at ${expectedPath} (exit 2)`)
+    // [[OPS234]]: `upgrade` is in the installed bundle, refuses at the same missing settings file, and the installed wrangler accepts the exact deploy argument list
+    // `upgrade` builds (plus `--dry-run`, which makes no network call) against a config generated from a sample settings file; the settings' vars must survive `--var`.
+    if (!/vibase instance upgrade --env <name> \[--dry-run\] \[--rollback\]/.test(instanceHelp)) throw new ReleaseRefusal('the installed `vibase instance help` does not list `upgrade [--dry-run] [--rollback]`')
+    const noSettingsUpgrade = spawnSync(vibaseBin, ['instance', 'upgrade', '--env', 'check'], { cwd: install, env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig }, encoding: 'utf8' })
+    if (noSettingsUpgrade.status !== 2 || !noSettingsUpgrade.stderr.includes(expectedPath)) throw new ReleaseRefusal(`the installed \`vibase instance upgrade\` did not refuse at the missing settings file (exit ${noSettingsUpgrade.status}): ${noSettingsUpgrade.stderr.trim()}`)
+    const sample = { version: 1 as const, env: 'check', worker: 'vault-check', api_host: 'api.check.invalid', d1: { name: 'vault-check', id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b' }, r2_bucket: 'vault-check-bodies', workflow: { name: 'vault-check-mail-sync' }, vars: { AUTH_PROVIDER: '', SAMPLE_SETTING: 'kept-by-var' } }
+    const dryRun = withGeneratedConfig({ packageDir: installed, settings: sample, tmpRoot: root }, (configPath) => sh(wranglerBin, [...deployArgs(manifest.version, manifest.commit, configPath), '--dry-run'], root, wranglerEnv()))
+    for (const needle of [`VERSION`, `COMMIT`, `SAMPLE_SETTING`, `Total Upload`]) if (!dryRun.includes(needle)) throw new ReleaseRefusal(`the installed wrangler's deploy --dry-run of the upgrade argument list did not report ${needle}: ${dryRun.trim()}`)
+    log('vibase instance upgrade: help lists it; refuses at the missing settings file (exit 2); the installed wrangler accepts the deploy argument list (--dry-run) with the settings vars and the VERSION and COMMIT vars')
 
     // 4. the installed migrations on a fresh local D1, applied by the installed wrangler.
     const base = parse(readFileSync(join(installed, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>

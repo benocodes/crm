@@ -1,11 +1,12 @@
-import { readdirSync } from 'node:fs'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { runStatus } from './status.js'
-import { ACCOUNT, captureHealthBody, cleanup, makeWorld, NO_TRACKER_JSON, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
+import { ACCOUNT, captureHealthBody, cleanup, makeWorld, mkTmp, NO_TRACKER_JSON, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
 
 afterEach(cleanup)
 let HEALTH: Record<string, any>
-beforeAll(async () => { HEALTH = await captureHealthBody() })
+beforeAll(async () => { HEALTH = await captureHealthBody() }, 60_000)
 const healthRes = (version: string) => () => new Response(JSON.stringify({ ...HEALTH, version }), { status: 200, headers: { 'content-type': 'application/json' } })
 const status = async (o: WorldOptions & { version?: string; argv?: string[] } = {}) => {
   const w = makeWorld({ health: healthRes(o.version ?? '0.1.0'), ...o })
@@ -139,5 +140,25 @@ describe('D10 secrets are never printed', () => {
     const { w } = await status()
     expect(w.wrangler[0]!.configText).toContain('vault-demo')
     leaks(w)
+  })
+})
+
+describe('P4 refusal mapping', () => {
+  it('worker "vault" in the settings file exits 2 with resolveTarget\'s message, not an internal error', async () => {
+    const { w, code } = await status({ settings: validSettings({ worker: 'vault' }) })
+    expect(code).toBe(2)
+    expect(w.err.join('\n')).toMatch(/vibase instance status: unknown env demo/)
+    expect(readdirSync(w.tmpRoot)).toEqual([])
+  })
+  it('a missing CLOUDFLARE value refuses even when HOME holds a wrangler login', async () => {
+    const home = mkTmp('ops234-home-')
+    mkdirSync(join(home, '.wrangler', 'config'), { recursive: true })
+    writeFileSync(join(home, '.wrangler', 'config', 'default.toml'), 'oauth_token = "stored-login-token"\n')
+    for (const secretsText of ['CLOUDFLARE_ACCOUNT_ID=e2e-acct-0000\n', 'CLOUDFLARE_API_TOKEN=e2e-token-SECRET-0000\n']) {
+      const { w, code } = await status({ secretsText, processEnv: { HOME: home } })
+      expect(code).toBe(2)
+      expect(w.err.join('\n')).toMatch(/CLOUDFLARE_(ACCOUNT_ID|API_TOKEN) is not set/)
+      expect(w.wrangler).toEqual([])
+    }
   })
 })

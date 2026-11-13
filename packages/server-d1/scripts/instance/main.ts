@@ -7,7 +7,8 @@ import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runStatus, EXIT_REFUSED } from './status.js'
-import type { InstanceDeps, RunResult } from './types.js'
+import { runUpgrade } from './upgrade.js'
+import { InstanceRefusal, type InstanceDeps, type RunResult } from './types.js'
 
 export const INSTANCE_HELP = `vibase instance: manage the vault instance this release package deploys
 
@@ -15,6 +16,15 @@ export const INSTANCE_HELP = `vibase instance: manage the vault instance this re
       Reads the settings and secrets files, verifies this package, asks the live instance
       and prints the upgrade plan. Read-only. Exit 0: the instance is at this release and its
       migrations are current; 1: not (the plan is printed); 2: refused.
+
+  vibase instance upgrade --env <name> [--dry-run] [--rollback] [--settings <path>] [--secrets-file <path>]
+      Migrates the instance's database, deploys this package's own Worker and assets, verifies /health and
+      runs a read-only smoke. Needs CONFIRM_REMOTE=1 (not for --dry-run, which prints the plan and stops).
+      Exit 0: done, or nothing to do; 2: refused before any change; 3: failed after a change began
+      (the instance may be partly upgraded: run status, then upgrade again).
+      --rollback, run from an OLDER installed release, deploys that release's Worker and runs no migration:
+      the database stays at its newer schema. The fast path for a bad deploy is Cloudflare's own
+      \`wrangler rollback\` (previous Worker version), with the same warning: it never reverses a migration.
 
 Settings: $XDG_CONFIG_HOME/vibase/instances/<env>.json (~/.config when unset)
 Secrets:  <env>.env beside it, mode 600, with CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN
@@ -35,7 +45,13 @@ export function realDeps(io: { stdout(t: string): void; stderr(t: string): void;
     packageDir,
     fetch,
     runWrangler: (args, opts): RunResult => {
-      const r = spawnSync(process.execPath, [wranglerBin(packageDir), ...args], { cwd: opts.cwd, env: opts.env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+      let bin: string
+      try {
+        bin = wranglerBin(packageDir)
+      } catch (e) {
+        throw new InstanceRefusal(`cannot resolve the wrangler of the installed package at ${packageDir}: ${e instanceof Error ? e.message : 'not found'}: reinstall it`)
+      }
+      const r = spawnSync(process.execPath, [bin, ...args], { cwd: opts.cwd, env: opts.env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
       return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
     },
     env: io.env,
@@ -43,17 +59,20 @@ export function realDeps(io: { stdout(t: string): void; stderr(t: string): void;
     tmpRoot: tmpdir(),
     out: (l) => io.stdout(`${l}\n`),
     err: (l) => io.stderr(`${l}\n`),
+    now: () => Date.now(),
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   }
 }
 
 /** The words after `instance`; returns the exit code. */
-export async function runInstance(argv: string[], io: { stdout(t: string): void; stderr(t: string): void; env: Record<string, string | undefined> }, packageDir = fileURLToPath(new URL('..', import.meta.url))): Promise<number> {
+export async function runInstance(argv: string[], io: { stdout(t: string): void; stderr(t: string): void; env: Record<string, string | undefined> }, packageDir = fileURLToPath(new URL('..', import.meta.url)), overrides: Partial<InstanceDeps> = {}): Promise<number> {
   const [command, ...rest] = argv
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
     io.stdout(INSTANCE_HELP)
     return 0
   }
-  if (command === 'status') return runStatus(rest, realDeps(io, packageDir))
+  if (command === 'status') return runStatus(rest, { ...realDeps(io, packageDir), ...overrides })
+  if (command === 'upgrade') return runUpgrade(rest, { ...realDeps(io, packageDir), ...overrides })
   io.stderr(`vibase instance: unknown command "${command}"\n${INSTANCE_HELP}`)
   return EXIT_REFUSED
 }

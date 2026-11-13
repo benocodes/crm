@@ -35,4 +35,10 @@ export interface InstanceDeps {
   tmpRoot: string
   out(line: string): void
   err(line: string): void
+  /** The clock of the verify loop ([[OPS234]]): injected so a test never waits for real. */
+  now(): number
+  sleep(ms: number): Promise<void>
 }
+
+/** A refusal of either kind: `InstanceRefusal`, or `RemoteRefusal` from `resolveTarget` / `requireConfirm` (it has its own class in `remote.ts`). */
+export const isRefusal = (e: unknown): e is Error => e instanceof InstanceRefusal || (e instanceof Error && e.name === 'RemoteRefusal')
