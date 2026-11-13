@@ -354,6 +354,27 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   `unit_assertion_holds` lets `assertStep` abort a D1 batch. The D1 runtime classifies that one constraint as
   drift, so never reuse the name.
 
+### Two D1 databases: CRM and control plane ([[CORE259]])
+
+The Worker binds `DB` (CRM data, `migrations/`) and `CONTROL_DB` (auth and other control-plane machinery,
+`packages/storage-d1/control-migrations/NNNN_*.sql`, numbered from `0001`). Each directory has its own manifest
+(`control-migrations-manifest.ts` mirrors `migrations-manifest.ts`, same rules) and its own `d1_migrations`
+tracker inside its own database. No foreign key or trigger crosses them; they link by value.
+
+- **Distinct `database_id` per binding, placeholders included.** Local wrangler and Miniflare key the SQLite
+  file by `database_id`; two entries sharing one are silently one database (CORE259 review round 1). Prove
+  separation on the real `wrangler.jsonc` (`getPlatformProxy`, write via `DB`, absent via `CONTROL_DB`;
+  `packages/server-d1/src/wrangler-config.test.ts`), because harnesses that build their own Miniflare never see
+  the config's ids.
+- **The control gate refuses `unknown`** (no tracker = no tables), unlike the CRM gate. A test that needs a
+  served control plane applies the files with their tracker: `applyControlMigrations` or
+  `openLocalD1(..., { control })` (`@vibase/storage-d1/test`); locally, `wrangler d1 migrations apply CONTROL_DB --local`.
+- **Control `0001` is generated** (`pnpm -C packages/auth schema:generate --write`) and `packages/auth/src/schema.test.ts`
+  compares it with Better Auth's schema; that test splits on `;`, so a header comment must contain none.
+- Adding a binding means updating every harness that composes the Worker (storage-d1 test support, the server
+  kit, the auth harness, `smoke:worker`) and every test that composes `better-auth` without it, which otherwise
+  fails with the same `500` as the fail-closed refusal: assert the log line naming the cause.
+
 ### FTS5 search indexes in D1 ([[CORE194]])
 
 - **Shape:** standalone `CREATE VIRTUAL TABLE <table>_search USING fts5(id UNINDEXED, <fields>, tokenize = 'trigram')`, kept

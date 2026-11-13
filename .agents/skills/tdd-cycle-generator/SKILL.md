@@ -137,6 +137,13 @@ fix round. A new registry operation exposed on REST, MCP and CLI is one definiti
 of work. Applying the CORE201 lesson at plan time (the cost sentence generated, index-free and plan-checked as an obligation)
 removed the review rounds it had cost. When Watch out names a numeric limit, name the layer below it too (2^53 for JS, then
 int64 for the engine).
+**CORE259** (`knowledge/specs/015-CORE259-control-plane-database/RETRO.md`): 6 groups (1 matrix), 8 decisions, 1 migration
+(at the limit on three lines), no E2E cost 294k tokens / 152 calls (263k/115 initial, ~31k/37 for one fix round), ~25 min
+gate; the budget holds. The calls went to harness rewrites in three packages for a second database binding. When a cycle adds a
+binding or a database, (1) list every harness and test that composes the Worker in Watch out, and (2) add an obligation against
+the **real** `wrangler.jsonc` (`getPlatformProxy`), not only the test kit's own Miniflare: the shared placeholder
+`database_id` that made the two databases one locally passed every kit-based test and was caught only at review.
+
 ### Step 3: Resolve identities
 
 - **New cycle ID** (follow-on only): the GitHub issue number tracking it, with the spec's area code

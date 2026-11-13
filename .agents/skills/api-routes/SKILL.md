@@ -97,6 +97,13 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     plus `modulesRoot`), not `modules: true` + `scriptPath`: Better Auth's Kysely adapter has an `import(variable)`
     that Miniflare's own module scan refuses (`ERR_MODULE_DYNAMIC_SPEC`), while wrangler and workerd accept it
     ([[CORE243]] D-j; `smoke-worker.ts`, `packages/release/scripts/check.ts`, `@vibase/auth/test`'s `startWorkerd`).
+  - **`CONTROL_DB` stays out of operations** ([[CORE259]] D5). Better Auth is composed on `CONTROL_DB` only, through
+    `controlAuthDatabase` in `packages/storage-d1/src/control-store.ts`; `ControlDb` is opaque (not a `D1Like`), so
+    `d1Binding(control)` does not typecheck. Only `server-d1/src/compose.ts`, `server-d1/src/bootstrap-d1.ts`,
+    `server-d1/scripts/*` and the control store may name it (`packages/server-d1/src/control-boundary.test.ts`); a new
+    reader is a spec decision. Under `better-auth` the Worker fails closed without the binding (`500`, log names
+    `CONTROL_DB`), refuses an untracked or behind control database (`503 migrations_pending`) and an unpaired control
+    marker (`500`, log `control database not paired`); `clerk` and unset never open it.
   - **workerd streams** ([[CORE69]]): R2's `put` refuses a `ReadableStream` of unknown length (`TypeError`), so pipe a
     known-size stream through `FixedLengthStream(size)` and send an unknown-size one through `ObjectStore.putStream`
     (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vibase/api` only as
