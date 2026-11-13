@@ -34,7 +34,7 @@
     "@vibase/storage": "workspace:*",
     "hast-util-from-html": "2.0.3",
     "hast-util-to-mdast": "10.1.2",
-    "hono": "4.13.12",
+    "hono": "4.13.17",
     "jose": "6.2.12",
     "kysely": "0.29.6",
     "remark-gfm": "4.0.1",
