@@ -146,6 +146,10 @@ A new test that needs Postgres is a `*.postgres.test.ts` file, never a list entr
 The `@vibase/api` Postgres baseline is tracked in #89 (128 failures on `main` `7bd7973`, D1-only schema):
 compare the count against it, and if it rises name the D1 migration responsible ([[CORE84]] retro), instead of
 re-running a clean `main` to prove the failures predate the branch.
+**The one allowed skip** ([[OPS275]]): when every changed file is outside `@vibase/api` and outside the packages it
+depends on (`packages/api/package.json`: today `storage`, `storage-d1`, and the parked `db`, `storage-postgres`), for
+example a diff confined to `packages/server-d1/scripts/` or `packages/release/`, the `@vibase/api` suite may be skipped.
+Say so in RESULT.md with the `git diff --name-only` list that justifies it; typecheck and build still run in full.
 The charter's E2E scenario is not part of the gate; in a sprint the e2e-tester runs it.
 When the scenario is a script you wrote (a Playwright `*.e2e.ts`) and it needs only a local Worker and
 `.env.dev`, run it once before you report and fix what is yours. The tester's run is still the evidence; yours
