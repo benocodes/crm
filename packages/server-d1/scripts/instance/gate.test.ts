@@ -56,10 +56,10 @@ describe('D14 gate matrix', () => {
     await refusal(gate(w), /worker\/worker\.js \(mismatch\)/)
     expect(calls(w)).toEqual({ fetch: 0, wrangler: 0, tmp: [] })
   })
-  it('(a) a tampered cli/instance.js is refused too (D12: verify covers it)', async () => {
+  it('(a) a tampered cli/server.js is refused too (D12: verify covers it)', async () => {
     const w = world()
-    appendFileSync(join(w.pkg.dir, 'cli', 'instance.js'), 'x')
-    await refusal(gate(w), /cli\/instance\.js \(mismatch\)/)
+    appendFileSync(join(w.pkg.dir, 'cli', 'server.js'), 'x')
+    await refusal(gate(w), /cli\/server\.js \(mismatch\)/)
     expect(calls(w)).toEqual({ fetch: 0, wrangler: 0, tmp: [] })
   })
 

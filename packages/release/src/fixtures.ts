@@ -22,7 +22,7 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
   mkdirSync(join(root, 'assets'), { recursive: true })
   mkdirSync(join(root, 'migrations'), { recursive: true })
   writeFileSync(join(root, 'vibase.js'), '#!/usr/bin/env node\nconsole.log(1)\n')
-  writeFileSync(join(root, 'instance.js'), 'export const runInstance = () => 0\n')
+  writeFileSync(join(root, 'server.js'), '#!/usr/bin/env node\nconsole.log(2)\n')
   writeFileSync(join(root, 'worker.js'), 'export default {}\n')
   writeFileSync(join(root, 'assets', 'index.html'), '<html></html>')
   writeFileSync(join(root, 'assets', 'connect.js'), 'x')
@@ -40,13 +40,14 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
     compatibilityDate: '2026-07-30',
     node: '>=22',
     cliJs: join(root, 'vibase.js'),
-    instanceJs: join(root, 'instance.js'),
+    serverJs: join(root, 'server.js'),
     workerEntry: join(root, 'worker.js'),
     assetsConnectDir: join(root, 'assets'),
     migrationsDir: join(root, 'migrations'),
     baseConfigText: BASE_SOURCE,
     license: 'LICENSE text\n',
-    readme: '# vibase\n',
+    clientReadme: '# @vibase/cli\n',
+    serverReadme: '# @vibase/server-d1\n',
     migrations: mig.map(([name, t]) => ({ name, sha256: sha256(t) })),
   }
 }

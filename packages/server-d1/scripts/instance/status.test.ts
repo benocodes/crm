@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { runStatus } from './status.js'
-import { ACCOUNT, captureHealthBody, cleanup, makeWorld, mkTmp, NO_TRACKER_JSON, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
+import { ACCOUNT, captureHealthBody, cleanup, makeWorld, mkTmp, NO_TRACKER_JSON, packageLine, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
 
 afterEach(cleanup)
 let HEALTH: Record<string, any>
@@ -35,6 +35,12 @@ describe('D15 status', () => {
     expect(w.out.join('\n')).toMatch(/migrations: current \(2 applied, 2 expected\)/)
     expect(w.err).toEqual([])
     expect(readdirSync(w.tmpRoot)).toEqual([])
+  })
+
+  it('OPS240 P1: prints the package line as vibase-server/<version> (<commit>), <n> files verified, before the plan', async () => {
+    const { w } = await status()
+    expect(w.out[0]).toBe(packageLine(w.pkg.dir))
+    expect(w.out.join('\n')).not.toMatch(/package: vibase /)
   })
 
   it('an older live version prints the plan (both versions, the pending names in order) and exits 1', async () => {
@@ -70,7 +76,7 @@ describe('D15 status', () => {
   it('a refusal exits 2 and prints one line on stderr naming the cause', async () => {
     const { w, code } = await status({ settings: validSettings({ extra: 1 }) })
     expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/vibase instance status: .*extra/)
+    expect(w.err.join('\n')).toMatch(/vibase-server status: .*extra/)
     expect(w.wrangler).toEqual([])
   })
   it('a newer live version exits 2', async () => {
@@ -147,7 +153,7 @@ describe('P4 refusal mapping', () => {
   it('worker "vault" in the settings file exits 2 with resolveTarget\'s message, not an internal error', async () => {
     const { w, code } = await status({ settings: validSettings({ worker: 'vault' }) })
     expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/vibase instance status: unknown env demo/)
+    expect(w.err.join('\n')).toMatch(/vibase-server status: unknown env demo/)
     expect(readdirSync(w.tmpRoot)).toEqual([])
   })
   it('a missing CLOUDFLARE value refuses even when HOME holds a wrangler login', async () => {

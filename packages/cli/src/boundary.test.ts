@@ -7,6 +7,7 @@ const dir = fileURLToPath(new URL('.', import.meta.url))
 const sources = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
 export const specifiersOf = (text: string) => [...text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map((m) => m[1]!)
 /** The imports the client core must never have ([[OPS231]] D12): the instance code, wrangler, the release tooling, the server packages. */
+export const referencesInstanceEntry = (text: string) => /instance\.js|loadInstance/.test(text)
 export const FORBIDDEN = /(^|\/)scripts\/instance|(^|\/)instance\.js$|(^|\/)wrangler($|\/)|^@vault\/release|release\/src|server-d1/
 
 describe('what ships', () => {
@@ -37,7 +38,13 @@ describe('OPS231 D12: the client core imports no server, wrangler or release cod
     }
     for (const ok of ['node:fs', './cli.js', './config.js']) expect(FORBIDDEN.test(ok), ok).toBe(false)
   })
-  it('the sources reference the sibling bundle only as a file name beside the running file', () => {
-    expect(readFileSync(dir + 'bin.ts', 'utf8')).toMatch(/instance\.js/)
+  it('OPS240 D12: bin.ts no longer references instance.js, nor loads any sibling bundle', () => {
+    const bin = readFileSync(dir + 'bin.ts', 'utf8')
+    expect(referencesInstanceEntry(bin)).toBe(false)
+    expect(bin).not.toMatch(/loadInstance/)
+  })
+  it('the bin check catches a bin.ts that references instance.js (absence mutation fixture)', () => {
+    for (const bad of ["new URL('./instance.js', import.meta.url)", 'await import("./instance.js")', "const loadInstance = async () => undefined"]) expect(referencesInstanceEntry(bad), bad).toBe(true)
+    expect(referencesInstanceEntry("import { run } from './cli.js'")).toBe(false)
   })
 })

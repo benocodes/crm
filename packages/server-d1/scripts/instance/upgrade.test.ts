@@ -2,7 +2,7 @@ import { readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { runUpgrade } from './upgrade.js'
-import { ACCOUNT, captureHealthBody, cleanup, makeWorld, NO_TRACKER_JSON, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
+import { ACCOUNT, captureHealthBody, cleanup, makeWorld, NO_TRACKER_JSON, packageLine, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
 
 afterEach(cleanup)
 let HEALTH: Record<string, any>
@@ -132,10 +132,16 @@ describe('D15 upgrade sequence and guards', () => {
     noTemp(w)
   })
 
+  it('OPS240 P1: prints the package line as vibase-server/<version> (<commit>), <n> files verified, before the plan', async () => {
+    const { w } = await run(sim(), ['--env', 'demo', '--dry-run'], { processEnv: {} })
+    expect(w.out[0]).toBe(packageLine(w.pkg.dir))
+    expect(w.out.join('\n')).not.toMatch(/package: vibase /)
+  })
+
   it('without CONFIRM_REMOTE it refuses after the plan with zero write calls; exit 2', async () => {
     const { w, code } = await run(sim(), ['--env', 'demo'], { processEnv: {} })
     expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/vibase instance upgrade: .*CONFIRM_REMOTE=1/)
+    expect(w.err.join('\n')).toMatch(/vibase-server upgrade: .*CONFIRM_REMOTE=1/)
     expect(w.out.join('\n')).toMatch(/0001_a\.sql/)
     expect(writes(w)).toEqual([])
     noTemp(w)
@@ -167,7 +173,7 @@ describe('D15 upgrade sequence and guards', () => {
     for (const argv of [[], ['--env', 'demo', '--bogus'], ['--env', 'Bad_Name']]) {
       const { w, code } = await run(sim(), argv)
       expect(code).toBe(2)
-      expect(w.err.join('\n')).toMatch(/vibase instance upgrade:/)
+      expect(w.err.join('\n')).toMatch(/vibase-server upgrade:/)
       expect(w.fetchUrls).toEqual([])
       expect(w.wrangler).toEqual([])
     }
@@ -177,7 +183,7 @@ describe('D15 upgrade sequence and guards', () => {
 describe('D15 failure stops (exit 3, the step named, no later write)', () => {
   const failed = (w: World, code: number, step: RegExp) => {
     expect(code).toBe(3)
-    expect(w.err.join('\n')).toMatch(/vibase instance upgrade: .*partly upgraded/)
+    expect(w.err.join('\n')).toMatch(/vibase-server upgrade: .*partly upgraded/)
     expect(w.err.join('\n')).toMatch(step)
     noTemp(w)
   }
@@ -401,7 +407,7 @@ describe('P4 refusal mapping', () => {
   it('worker "vault" in the settings file exits 2 with resolveTarget\'s message', async () => {
     const { w, code } = await run(sim(), ['--env', 'demo'], { settings: validSettings({ worker: 'vault' }) })
     expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/vibase instance upgrade: unknown env demo/)
+    expect(w.err.join('\n')).toMatch(/vibase-server upgrade: unknown env demo/)
     expect(writes(w)).toEqual([])
     noTemp(w)
   })

@@ -1,4 +1,4 @@
-// The steps of `vibase instance setup` ([[OPS232]], [[OPS210]] D17): [[OPS65]]'s steps (D11 order) over the settings and secrets files, from an installed release.
+// The steps of `vibase-server setup` ([[OPS232]], [[OPS210]] D17): [[OPS65]]'s steps (D11 order) over the settings and secrets files, from an installed release.
 // Every wrangler call is the package's own wrangler on a config generated per call (`-c <path>`), never `pnpm`, `git` or `--env`. The parsers, the Clerk rows, the
 // preflight and the desired vars are the source path's own code; the steps that touch a command or a file are written here, so `setup:remote` is untouched (D18).
 // Nothing here reads a repo path or the process environment: every value comes in through `InstanceDeps` and the secrets file. Nothing logs a secret.

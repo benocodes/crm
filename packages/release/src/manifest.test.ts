@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { MIGRATIONS } from '@vault/storage-d1'
 import { sources } from './fixtures.js'
 import { assertRelease, listFiles, sha256, verifyRelease } from './manifest.js'
-import { stageRelease } from './stage.js'
+import { stageServer } from './stage.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -13,7 +13,7 @@ function stage() {
   const s = sources()
   const outDir = mkdtempSync(join(tmpdir(), 'ops210-out-'))
   dirs.push(s.root, outDir)
-  const manifest = stageRelease({ ...s, outDir })
+  const manifest = stageServer({ ...s, outDir })
   return { outDir, manifest, s }
 }
 
@@ -21,7 +21,7 @@ describe('D4 release.json', () => {
   it('has every field, and files covers every file but release.json and package.json', () => {
     const { outDir, manifest, s } = stage()
     expect(Object.keys(manifest).sort()).toEqual(['built_at', 'commit', 'compatibility_date', 'files', 'migrations', 'name', 'node', 'version', 'wrangler'])
-    expect(manifest).toMatchObject({ name: 'vibase', version: '0.1.0', commit: 'abc1234', wrangler: '4.149.0', compatibility_date: '2026-07-30', node: '>=22' })
+    expect(manifest).toMatchObject({ name: '@vibase/server-d1', version: '0.1.0', commit: 'abc1234', wrangler: '4.149.0', compatibility_date: '2026-07-30', node: '>=22' })
     expect(JSON.parse(readFileSync(join(outDir, 'release.json'), 'utf8'))).toEqual(manifest)
     expect(Object.keys(manifest.files).sort()).toEqual(listFiles(outDir).filter((f) => f !== 'release.json' && f !== 'package.json'))
     expect(manifest.files['worker/worker.js']).toBe(sha256(readFileSync(s.workerEntry)))
@@ -33,7 +33,7 @@ describe('D4 release.json', () => {
     dirs.push(s.root)
     const outDir = mkdtempSync(join(tmpdir(), 'ops210-out-'))
     dirs.push(outDir)
-    const m = stageRelease({ ...s, outDir, migrationsDir: dir, migrations: MIGRATIONS })
+    const m = stageServer({ ...s, outDir, migrationsDir: dir, migrations: MIGRATIONS })
     expect(m.migrations).toEqual(MIGRATIONS)
     expect(verifyRelease(outDir)).toEqual([])
   })
@@ -41,9 +41,9 @@ describe('D4 release.json', () => {
     const { outDir } = stage()
     const p = join(outDir, 'release.json')
     const m = JSON.parse(readFileSync(p, 'utf8'))
-    delete m.files['cli/vibase.js']
+    delete m.files['cli/server.js']
     writeFileSync(p, JSON.stringify(m))
-    expect(verifyRelease(outDir)).toContainEqual({ path: 'cli/vibase.js', kind: 'extra' })
+    expect(verifyRelease(outDir)).toContainEqual({ path: 'cli/server.js', kind: 'extra' })
   })
 })
 
@@ -51,7 +51,7 @@ describe('D4 verify refusals', () => {
   it('a clean stage verifies', () => {
     expect(verifyRelease(stage().outDir)).toEqual([])
   })
-  it.each(['worker/worker.js', 'assets/connect/index.html', 'migrations/0001_a.sql', 'cli/vibase.js'])('a changed byte in %s names the path', (f) => {
+  it.each(['worker/worker.js', 'assets/connect/index.html', 'migrations/0001_a.sql', 'cli/server.js'])('a changed byte in %s names the path', (f) => {
     const { outDir } = stage()
     writeFileSync(join(outDir, f), readFileSync(join(outDir, f), 'utf8') + ' ')
     expect(verifyRelease(outDir)).toEqual([{ path: f, kind: 'mismatch' }])

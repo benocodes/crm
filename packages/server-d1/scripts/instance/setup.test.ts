@@ -1,4 +1,4 @@
-// `vibase instance setup` ([[OPS232]] P1-P6): every case runs against the kit's fake wrangler runner and fake fetch, a simulated account, and a real
+// `vibase-server setup` ([[OPS232]] P1-P6): every case runs against the kit's fake wrangler runner and fake fetch, a simulated account, and a real
 // local D1 behind the bootstrap step. Nothing here spawns a tool, reaches Cloudflare or Clerk, or reads a .env.
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,7 +10,7 @@ import { runInstance } from './main.js'
 import { parseInstanceSetupArgs } from './setup-args.js'
 import { ALL_MIGRATIONS, API_HOST, CLERK_ARGS, CLERK_SECRET_VALUES, CLERK_SECRETS_TEXT, NONE_ARGS, isWrite, setupWorld, type SetupWorld, type SetupWorldOptions } from './setup-kit.js'
 import { runSetup } from './setup.js'
-import { cleanup, mkTmp, TOKEN, UUID, validSettings } from './test-kit.js'
+import { cleanup, mkTmp, packageLine, TOKEN, UUID, validSettings } from './test-kit.js'
 import { loadSettings } from './settings.js'
 import { deployArgs } from './upgrade.js'
 import { InstanceRefusal } from './types.js'
@@ -136,7 +136,7 @@ describe('refusals and failures (the matrix)', () => {
   const refused = (s: SetupWorld, code: number, re: RegExp, existingSettings = false) => {
     expect(code).toBe(2)
     expect(s.w.err.join('\n')).toMatch(re)
-    expect(s.w.err.join('\n')).toMatch(/^vibase instance setup: /)
+    expect(s.w.err.join('\n')).toMatch(/^vibase-server setup: /)
     expect(s.writes()).toEqual([])
     expect(s.sim.opened).toEqual([])
     expect(s.sim.bulk).toEqual([])
@@ -184,7 +184,7 @@ describe('refusals and failures (the matrix)', () => {
     const err: string[] = []
     const code = await runInstance(['setup', ...NONE_ARGS], { stdout: (t) => void out.push(t), stderr: (t) => void err.push(t), env: { XDG_CONFIG_HOME: s.w.config, PATH: process.env.PATH, HOME: s.w.deps.homedir, CONFIRM_REMOTE: '1' } }, pkgDir, { fetch: s.w.deps.fetch, now: s.w.deps.now, sleep: s.w.deps.sleep })
     expect(code).toBe(2)
-    expect(err.join('')).toMatch(/vibase instance setup: .*wrangler/)
+    expect(err.join('')).toMatch(/vibase-server setup: .*wrangler/)
     expect(err.join('')).toContain(pkgDir)
     expect(existsSync(s.w.settingsPath)).toBe(false)
   })
@@ -199,7 +199,7 @@ describe('refusals and failures (the matrix)', () => {
     expect(code).toBe(3)
     const rows = s.rows()
     expect(rows.at(-1)).toMatchObject({ status: 'fail', step })
-    expect(s.w.err.join('\n')).toMatch(new RegExp(`^vibase instance setup: ${step} failed`))
+    expect(s.w.err.join('\n')).toMatch(new RegExp(`^vibase-server setup: ${step} failed`))
   }
   it('ahead at migrate: exit 3, nothing deployed', async () => {
     const s = world({ sim: { ...ADOPTED(), applied: [...ALL_MIGRATIONS, '0003_from_the_future.sql'] } })
@@ -218,6 +218,12 @@ describe('refusals and failures (the matrix)', () => {
     failedAt(s, await run(s), 'verify')
     expect(s.w.clock.t).toBeGreaterThanOrEqual(300_000)
     expect(s.w.clock.t).toBeLessThan(400_000)
+  })
+  it('OPS240 P1: prints the package line as vibase-server/<version> (<commit>), <n> files verified, before the first step', async () => {
+    const s = world({ processEnv: { CONFIRM_REMOTE: undefined } })
+    expect(await run(s, [...NONE_ARGS, '--dry-run'])).toBe(0)
+    expect(s.w.out[0]).toBe(packageLine(s.w.pkg.dir))
+    expect(s.w.out.join('\n')).not.toMatch(/package: vibase /)
   })
   it('--dry-run exits 0 and writes nothing: no resource, no settings file, no deploy, no D1', async () => {
     const s = world({ processEnv: { CONFIRM_REMOTE: undefined } })
@@ -321,7 +327,7 @@ describe('secrets and side effects', () => {
 describe('the instance entry', () => {
   it('lists setup in the help', async () => {
     const { INSTANCE_HELP } = await import('./main.js')
-    expect(INSTANCE_HELP).toMatch(/vibase instance setup --env <name> --api-host <host>/)
+    expect(INSTANCE_HELP).toMatch(/vibase-server setup --env <name> --api-host <host>/)
     expect(INSTANCE_HELP).toMatch(/--secrets-file/)
     expect(INSTANCE_HELP).toMatch(/Exit 0: done, or the dry run is complete; 2: refused before the first step; 3: a step failed/)
   })

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { assertNoForbidden, envDatabaseIds, scanForbidden } from './forbidden.js'
 import { sources } from './fixtures.js'
-import { stageRelease } from './stage.js'
+import { stageServer } from './stage.js'
 
 const WRANGLER_JSONC = new URL('../../server-d1/wrangler.jsonc', import.meta.url).pathname
 const dirs: string[] = []
@@ -13,7 +13,7 @@ function clean() {
   const s = sources()
   const outDir = mkdtempSync(join(tmpdir(), 'ops210-out-'))
   dirs.push(s.root, outDir)
-  stageRelease({ ...s, outDir })
+  stageServer({ ...s, outDir })
   return outDir
 }
 const put = (dir: string, f: string, text: string) => { mkdirSync(dirname(join(dir, f)), { recursive: true }); writeFileSync(join(dir, f), text) }
@@ -42,7 +42,7 @@ describe('D8 forbidden content', () => {
     ['wrangler.jsonc', 'wrangler.jsonc', '{}', 'wrangler-config'],
     ['sk_live_', 'worker/worker.js', 'const k = "sk_live_abcdef"', 'sk_live_'],
     ['sk_test_', 'assets/connect/connect.js', 'const k = "sk_test_abcdef"', 'sk_test_'],
-    ['a PEM block', 'cli/vibase.js', 'k = "-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC"', 'pem'],
+    ['a PEM block', 'cli/server.js', 'k = "-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC"', 'pem'],
     ['an env database_id (first)', 'migrations/0001_a.sql', `-- ${realIds[0]}`, 'database-id'],
     ['an env database_id (last)', 'README.md', `id ${realIds.at(-1)}`, 'database-id'],
   ]

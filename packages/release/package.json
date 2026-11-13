@@ -2,7 +2,7 @@
   "name": "@vault/release",
   "version": "0.1.0",
   "private": true,
-  "description": "The product release ([[OPS210]]): the one product version (D1), the build of the release package vibase-<version>.tgz (D3-D6) and the check that proves it runs outside the repo (D8).",
+  "description": "The product release ([[OPS210]], [[OPS240]]): the one product version (D1), the build of the two release packages @vibase/cli and @vibase/server-d1 (D2-D6, D22) and the check that proves they run outside the repo (D8).",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {

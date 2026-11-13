@@ -1,4 +1,4 @@
-// `vibase instance setup --env <name> --api-host <host> [flags]` ([[OPS210]] D17, D18, [[OPS232]] P1-P6): from an installed release package, one guarded and idempotent
+// `vibase-server setup --env <name> --api-host <host> [flags]` ([[OPS210]] D17, D18, [[OPS232]] P1-P6): from an installed release package, one guarded and idempotent
 // run from nothing (or from an instance deployed from source) to a migrated, bootstrapped, deployed, verified instance. The steps are [[OPS65]]'s (D11 order) over the
 // settings and secrets files; `config:write` writes the settings file and the run goes on. Exit 0: done, or the dry run is complete; 2: refused before the first step;
 // 3: a step failed (named; no later step ran). Nothing here reads a repo path or the process environment.
@@ -20,7 +20,7 @@ export const EXIT_DONE = 0
 export const EXIT_REFUSED = 2
 export const EXIT_FAILED = 3
 
-const USAGE = 'usage: vibase instance setup --env <name> --api-host <host> [--auth clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
+const USAGE = 'usage: vibase-server setup --env <name> --api-host <host> [--auth clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
 const row = (r: StepResult) => `${r.status.padEnd(7)} ${r.step.padEnd(17)} ${r.detail}`
 
 /** A step's failure that is a refusal (an unresolvable wrangler) before anything was written is a refusal, not a failed step. */
@@ -68,7 +68,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     // (c) P2: a live instance that is a newer release refuses before any write; no answer or a non-semver version (a source deploy) proceeds.
     const live = await readLiveVersion(opts.apiHost, deps)
     if (live !== null && parseSemver(live) !== null && parseSemver(manifest.version) !== null && compareSemver(live, manifest.version) > 0) {
-      throw new InstanceRefusal(`the instance runs ${live} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package's \`vibase instance upgrade --rollback\`)`)
+      throw new InstanceRefusal(`the instance runs ${live} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package's \`vibase-server upgrade --rollback\`)`)
     }
     ctx = {
       opts,
@@ -89,14 +89,14 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     if (live !== null && parseSemver(live) === null) out(`note: live version "${live}" is not a release version (a source deploy?): continuing`)
   } catch (e) {
     if (!isRefusal(e)) throw e
-    err(`vibase instance setup: ${(e as Error).message}`)
+    err(`vibase-server setup: ${(e as Error).message}`)
     return EXIT_REFUSED
   }
 
   const { opts } = ctx
   const say = out
   const say2 = err
-  say(`package: vibase ${manifest.version} @ ${manifest.commit} (${Object.keys(manifest.files).length} files verified)`)
+  say(`package: vibase-server/${manifest.version} (${manifest.commit}), ${Object.keys(manifest.files).length} files verified`)
   say(`setup: env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}, settings ${ctx.settingsPath}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
   if (ctx.keys) say(`clerk instance: ${ctx.keys.kind}${ctx.keys.kind === 'development' ? " (warning: a development instance is a test instance, with Clerk's user cap and dev-browser handshake)" : ''}, issuer ${ctx.keys.issuer}, keys from ${ctx.secretsPath}`)
   say(
@@ -113,7 +113,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     } catch (e) {
       const refusal = refusalOf(e, ctx)
       if (refusal) {
-        say2(`vibase instance setup: ${refusal.message}`)
+        say2(`vibase-server setup: ${refusal.message}`)
         return EXIT_REFUSED
       }
       r = { step: name, status: 'fail', detail: redact(e instanceof Error ? e.message : 'failed') }
@@ -131,7 +131,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   }
   const failed = results.find((r) => r.status === 'fail')
   if (failed) {
-    say2(`vibase instance setup: ${failed.step} failed: ${failed.detail}`)
+    say2(`vibase-server setup: ${failed.step} failed: ${failed.detail}`)
     return EXIT_FAILED
   }
   say(opts.dryRun ? 'setup: dry run complete, nothing was changed' : 'setup: done')

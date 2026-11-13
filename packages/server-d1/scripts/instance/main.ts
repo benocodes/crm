@@ -1,5 +1,5 @@
-// The entry of `cli/instance.js` ([[OPS231]] D12): `vibase instance <command>`, loaded by the client CLI from beside itself in a release package.
-// It builds the real dependencies (the process, the network, the package's own wrangler) and hands them to the command.
+// The commands of `cli/server.js` ([[OPS231]] D12, [[OPS240]] D21): `vibase-server <command>`, the bin of the server package `@vibase/server-d1`.
+// It builds the real dependencies (the process, the network, the package's own wrangler) and hands them to the command; `bin.ts` is the process entry.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -12,14 +12,14 @@ import { runSetup } from './setup.js'
 import { runUpgrade } from './upgrade.js'
 import { InstanceRefusal, type InstanceDeps, type RunResult } from './types.js'
 
-export const INSTANCE_HELP = `vibase instance: manage the vault instance this release package deploys
+export const INSTANCE_HELP = `vibase-server: manage the vault instance this server package deploys
 
-  vibase instance status --env <name> [--settings <path>] [--secrets-file <path>]
+  vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]
       Reads the settings and secrets files, verifies this package, asks the live instance
       and prints the upgrade plan. Read-only. Exit 0: the instance is at this release and its
       migrations are current; 1: not (the plan is printed); 2: refused.
 
-  vibase instance upgrade --env <name> [--dry-run] [--rollback] [--settings <path>] [--secrets-file <path>]
+  vibase-server upgrade --env <name> [--dry-run] [--rollback] [--settings <path>] [--secrets-file <path>]
       Migrates the instance's database, deploys this package's own Worker and assets, verifies /health and
       runs a read-only smoke. Needs CONFIRM_REMOTE=1 (not for --dry-run, which prints the plan and stops).
       Exit 0: done, or nothing to do; 2: refused before any change; 3: failed after a change began
@@ -28,7 +28,7 @@ export const INSTANCE_HELP = `vibase instance: manage the vault instance this re
       the database stays at its newer schema. The fast path for a bad deploy is Cloudflare's own
       \`wrangler rollback\` (previous Worker version), with the same warning: it never reverses a migration.
 
-  vibase instance setup --env <name> --api-host <host> [--auth clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
+  vibase-server setup --env <name> --api-host <host> [--auth clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
                         [--dry-run] [--only <steps>] [--settings <path>] [--secrets-file <path>] [more flags: --web-origin, --extra-origin, --org,
                         --worker-name, --d1-name, --r2-name, --clerk-publishable-key, --clerk-production, --no-dcr, --rotate-secrets]
       From nothing, or from an instance deployed from source, to a migrated, bootstrapped, deployed, verified instance, with no checkout:
@@ -36,6 +36,11 @@ export const INSTANCE_HELP = `vibase instance: manage the vault instance this re
       bootstrap, deploy, secrets, verify. Clerk keys, Gmail values and the Cloudflare credentials come from the secrets file; an operator key
       is appended to it as --key-env. Needs CONFIRM_REMOTE=1 (not for --dry-run, which reads only). Refuses a live instance that is newer than
       this package. Exit 0: done, or the dry run is complete; 2: refused before the first step; 3: a step failed (it is named; no later step ran).
+
+  vibase-server --version
+      Prints vibase-server/<version> (<commit>) of this package.
+
+Run a pinned version without installing it: npx @vibase/server-d1@<version> <command> ...
 
 Settings: $XDG_CONFIG_HOME/vibase/instances/<env>.json (~/.config when unset)
 Secrets:  <env>.env beside it, mode 600, with CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN
@@ -97,18 +102,30 @@ export function realDeps(io: { stdout(t: string): void; stderr(t: string): void;
   }
 }
 
-/** The words after `instance`; returns the exit code. */
+/** `vibase-server/<version> (<commit>)` from the `release.json` beside `cli/` ([[OPS240]] D13): one source for the version, the manifest every command verifies against. */
+function printVersion(io: { stdout(t: string): void; stderr(t: string): void }, packageDir: string): number {
+  try {
+    const m = JSON.parse(readFileSync(join(packageDir, 'release.json'), 'utf8')) as { version?: unknown; commit?: unknown }
+    if (typeof m.version !== 'string' || typeof m.commit !== 'string') throw new Error('release.json has no version or commit')
+    io.stdout(`vibase-server/${m.version} (${m.commit})\n`)
+    return 0
+  } catch (e) {
+    io.stderr(`vibase-server: cannot read the release of ${packageDir}: ${e instanceof Error ? e.message : 'unreadable'}: this is not an installed release package\n`)
+    return EXIT_REFUSED
+  }
+}
+
+/** The words after the program name; returns the exit code. */
 export async function runInstance(argv: string[], io: { stdout(t: string): void; stderr(t: string): void; env: Record<string, string | undefined> }, packageDir = fileURLToPath(new URL('..', import.meta.url)), overrides: Partial<InstanceDeps> = {}): Promise<number> {
   const [command, ...rest] = argv
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
     io.stdout(INSTANCE_HELP)
     return 0
   }
+  if (command === '--version') return printVersion(io, packageDir)
   if (command === 'status') return runStatus(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'upgrade') return runUpgrade(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'setup') return runSetup(rest, { ...realDeps(io, packageDir), ...overrides })
-  io.stderr(`vibase instance: unknown command "${command}"\n${INSTANCE_HELP}`)
+  io.stderr(`vibase-server: unknown command "${command}"\n${INSTANCE_HELP}`)
   return EXIT_REFUSED
 }
-
-export default runInstance

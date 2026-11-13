@@ -213,14 +213,20 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   `packages/release/src/forbidden.ts`). Match the secret's shape (header plus body, prefix plus value), and keep
   the clean-pass case on the real output in the charter's run.
   The scan covers **source too, once a module is bundled**: when `vibase instance setup` pulled
-  `scripts/setup/clerk-keys.ts` into `cli/instance.js`, its error message `neither sk_test_… nor sk_live_…`
+  `scripts/setup/clerk-keys.ts` into `cli/instance.js` (now `cli/server.js`, [[OPS240]]), its error message `neither sk_test_… nor sk_live_…`
   failed `release:build`. The prose now assembles the prefixes at run time (`sk_${'test'}_`), with a comment
   naming the scan. A cycle that adds an import to a shipped bundle runs `release:build` in its gate ([[OPS232]]).
 - **A bundle loaded at run time is proven by running the installed artifact.** Unit tests import the
-  TypeScript source, so they cannot see a broken bundle. `cli/instance.js` passed every suite. It then failed when installed,
+  TypeScript source, so they cannot see a broken bundle. `cli/instance.js` (now `cli/server.js`) passed every suite. It then failed when installed,
   with "Dynamic require of ./impl/format": esbuild took `jsonc-parser`'s UMD `main` into an ESM bundle. The fix is
-  `mainFields: ['module', 'main']`. Only `release:check`'s step that runs the installed `vibase instance` caught it ([[OPS231]],
-  `packages/server-d1/scripts/instance/build.ts`). For every new bundle a release ships, run it from the install.
+  `mainFields: ['module', 'main']`. Only `release:check`'s step that runs the installed `vibase instance` (now
+  `vibase-server`) caught it ([[OPS231]], `packages/server-d1/scripts/instance/build.ts`). For every new bundle a
+  release ships, run it from the install.
+- **A release of several packages installs each into its own empty directory**, with `npm_config_cache` pointed at
+  a temporary directory. One shared directory hides a client that pulls the server in; a shared cache can serve a
+  stale copy. The absence mutations of `release:check` run on **repacked copies** of the tarballs, never on the
+  recorded `dist/` pair, so the recorded run's artifacts and `SHA256SUMS` stay what RESULT.md cites ([[OPS240]],
+  `packages/release/scripts/check.ts`).
 - **"A secret is never printed" is tested with a fake child that fails and echoes its whole environment.**
   Assert that no value appears in stdout, stderr, any refusal or the generated files. The mutation that
   proves the test is one that writes a secret into the generated config ([[OPS231]],
