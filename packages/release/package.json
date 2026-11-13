@@ -8,6 +8,7 @@
   "scripts": {
     "release:build": "tsx scripts/build.ts",
     "release:check": "tsx scripts/check.ts",
+    "release:ci": "tsx scripts/ci.ts",
     "test": "vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
