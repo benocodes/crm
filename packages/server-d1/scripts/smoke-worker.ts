@@ -586,7 +586,7 @@ try {
   body = await json(res)
   check('25a GET /auth/ok with AUTH_PROVIDER=clerk -> 404 not_found in the app envelope', res.status === 404 && body.error?.code === 'not_found', { status: res.status, body })
 
-  // 26-29: the MCP endpoint ([[API106]] D4): hand-written JSON-RPC in the bundle, no SDK, no nodejs_compat (this Miniflare sets none).
+  // 26-29: the MCP endpoint ([[API106]] D4): hand-written JSON-RPC in the bundle, no SDK.
   const mcp = async (method: string, params?: unknown, id = 1) => {
     const r = await call('POST', '/mcp', { token: key, headers: { 'content-type': 'application/json' }, body: { jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) } })
     return { status: r.status, body: await json(r) }
