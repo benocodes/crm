@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const OPEN_PACKAGES = ['auth', 'storage', 'storage-d1', 'api', 'server-d1'] as const
 export const ENTERPRISE_PACKAGES = ['db', 'storage-postgres', 'server-postgres'] as const
-export const ENTERPRISE_SPECIFIERS = ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'] as const
+export const ENTERPRISE_SPECIFIERS = ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] as const
 
 export interface PackageJson {
   name?: string
@@ -88,7 +88,7 @@ function main(): void {
   }
   console.log("not covered: packages/api's test suites (the Postgres-backed oracle, spec D14)")
 
-  const dir = mkdtempSync(join(tmpdir(), 'vault-open-check-'))
+  const dir = mkdtempSync(join(tmpdir(), 'vb-open-check-'))
   console.log(`workspace ${dir}`)
   try {
     // copy
@@ -127,7 +127,7 @@ function main(): void {
     if (existsSync(store)) present.push(...readdirSync(store).filter((e) => e.startsWith('pg@')))
     for (const base of [dir, ...readdirSync(join(dir, 'packages')).map((p) => join(dir, 'packages', p))]) {
       for (const name of ['db', 'storage-postgres', 'server-postgres']) {
-        if (existsSync(join(base, 'node_modules', '@vault', name))) present.push(join(base, 'node_modules', '@vault', name).replace(dir, '.'))
+        if (existsSync(join(base, 'node_modules', '@vibase', name))) present.push(join(base, 'node_modules', '@vibase', name).replace(dir, '.'))
       }
     }
     step('no-enterprise-in-node_modules', present.length === 0, present.join(', '))

@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { unstable_readConfig } from 'wrangler'
-import { MIGRATIONS } from '@vault/storage-d1'
+import { MIGRATIONS } from '@vibase/storage-d1'
 import { CONFIG_PATH, PACKAGE_DIR, RemoteRefusal, formatMigrationDiff, loadRootEnv, parseEnvFlag, parseTrackerOutput, requireConfirm, resolveTarget, statusExitCode, statusOf, trackerReadCommand, type Cmd, type ConfigLike, type Target } from './remote.js'
 
 export const EXPECTED = MIGRATIONS.map((m) => m.name)

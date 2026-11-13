@@ -1,4 +1,4 @@
-import { COLUMN_KINDS } from '@vault/storage'
+import { COLUMN_KINDS } from '@vibase/storage'
 import type { AnyResource } from '../registry.js'
 import { resourceOperations } from '../registry.js'
 import { formatScope } from '../scopes.js'

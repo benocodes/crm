@@ -9,19 +9,19 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
-import { execute,uuidv7 } from '@vault/storage'
-import { d1Binding,MIGRATIONS,type D1Like } from '@vault/storage-d1'
-import { MIGRATIONS_DIR,splitStatements,createMigrationTracker,recordMigrations } from '@vault/storage-d1/test'
-import { seedAgent } from '@vault/storage-d1/test/seed'
-import { ScopeSet,sealToken,hashApiKey } from '@vault/api'
+import { execute,uuidv7 } from '@vibase/storage'
+import { d1Binding,MIGRATIONS,type D1Like } from '@vibase/storage-d1'
+import { MIGRATIONS_DIR,splitStatements,createMigrationTracker,recordMigrations } from '@vibase/storage-d1/test'
+import { seedAgent } from '@vibase/storage-d1/test/seed'
+import { ScopeSet,sealToken,hashApiKey } from '@vibase/api'
 import { connectOperation } from '../../api/src/connections/connect.js'
-import { FakeGmail } from '@vault/api/test/gmail'
-import { gmailFixture } from '@vault/api/test/gmail-fixtures'
-import { API_URL,SECRET_KEY,clerkUser,fakeClerkFetch,mintClerkToken,testIssuer } from '@vault/api/test/clerk'
+import { FakeGmail } from '@vibase/api/test/gmail'
+import { gmailFixture } from '@vibase/api/test/gmail-fixtures'
+import { API_URL,SECRET_KEY,clerkUser,fakeClerkFetch,mintClerkToken,testIssuer } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
 
-const dir=mkdtempSync(join(tmpdir(),'vault-webhook-example-e2e-'))
-const vaultBundle=join(dir,'vault.mjs'),receiverBundle=join(dir,'receiver.mjs'),key=new Uint8Array(32).fill(13)
+const dir=mkdtempSync(join(tmpdir(),'vb-webhook-example-e2e-'))
+const vaultBundle=join(dir,'vibase.mjs'),receiverBundle=join(dir,'receiver.mjs'),key=new Uint8Array(32).fill(13)
 const KEY_B64=Buffer.from(key).toString('base64')
 const issuer=await testIssuer(),clerk=fakeClerkFetch(new Map([['user_hook_owner',clerkUser({id:'user_hook_owner',email:'owner@vault.test',role:'owner'})]]))
 const mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vault.test',historyId:'1000'}})
@@ -37,7 +37,7 @@ const options=()=>({
   d1Persist:join(dir,'d1'),r2Persist:join(dir,'r2'),workflowsPersist:join(dir,'workflows'),
   workers:[
     {
-      name:'vault',modules:[{type:'ESModule',path:vaultBundle,contents:readFileSync(vaultBundle,'utf8')}],modulesRoot:dir,compatibilityDate:'2026-07-30',compatibilityFlags:['nodejs_compat'],
+      name:'vb',modules:[{type:'ESModule',path:vaultBundle,contents:readFileSync(vaultBundle,'utf8')}],modulesRoot:dir,compatibilityDate:'2026-07-30',compatibilityFlags:['nodejs_compat'],
       d1Databases:{DB:'webhook-example-e2e'},r2Buckets:['BODIES'],
       workflows:{MAIL_SYNC:{name:'webhook-example-e2e-sync',className:'MailSyncWorkflow'}},
       bindings:{AUTH_PROVIDER:'clerk',CLERK_JWT_KEY:issuer.pem,CLERK_ISSUER:issuer.issuer,CLERK_AUTHORIZED_PARTIES:issuer.party,CLERK_SECRET_KEY:SECRET_KEY,CLERK_API_URL:API_URL,CORS_ALLOWED_ORIGINS:'',GOOGLE_CLIENT_ID:'hook-e2e-client',GOOGLE_CLIENT_SECRET:'hook-e2e-secret',OAUTH_STATE_SECRET:'hook-e2e-state',CREDENTIALS_KEY:KEY_B64,WEBHOOK_ALLOW_INSECURE_URLS:'true'},
@@ -60,7 +60,7 @@ const options=()=>({
       bindings:{WEBHOOK_SECRET:secret,VIBASE_URL:'http://vault.test',VIBASE_API_KEY:agentKey},
       outboundService:async(req:Request)=>{
         const u=new URL(req.url)
-        if(u.hostname==='vault.test')return (await worker('vault')).fetch(req.url,{method:req.method,headers:req.headers,...(req.method==='GET'||req.method==='HEAD'?{}:{body:await req.text()})})
+        if(u.hostname==='vault.test')return (await worker('vb')).fetch(req.url,{method:req.method,headers:req.headers,...(req.method==='GET'||req.method==='HEAD'?{}:{body:await req.text()})})
         throw new Error(`blocked E2E outbound host ${u.hostname}`)
       },
     },
@@ -70,7 +70,7 @@ try{
   const bundle=(entry:string,outfile:string)=>build({entryPoints:[entry],bundle:true,format:'esm',platform:'browser',conditions:['workerd','worker','browser'],target:'es2022',outfile,external:['cloudflare:workers','cloudflare:workflows','node:*'],logLevel:'warning'})
   await bundle(fileURLToPath(new URL('../src/worker.ts',import.meta.url)),vaultBundle)
   await bundle(fileURLToPath(new URL('../../webhook-receiver-example/src/index.ts',import.meta.url)),receiverBundle)
-  console.log(`bundles: vault ${statSync(vaultBundle).size} bytes, receiver ${statSync(receiverBundle).size} bytes`)
+  console.log(`bundles: vibase ${statSync(vaultBundle).size} bytes, receiver ${statSync(receiverBundle).size} bytes`)
   mf=new Miniflare(options() as never);await mf.ready
   let d1=await mf.getD1Database('DB') as unknown as D1Like
   const migrations=readdirSync(MIGRATIONS_DIR).filter(f=>/^\d{4}_.+\.sql$/.test(f)).sort()
@@ -97,7 +97,7 @@ try{
     while(Date.now()<stop){if(await check())return;await new Promise(r=>setTimeout(r,100))}
     throw new Error(`E2E timeout: ${label}`)
   }
-  const scheduled=async()=>{await (await mf!.getWorker('vault') as unknown as {scheduled(o:{cron:string}):Promise<unknown>}).scheduled({cron:'* * * * *'})}
+  const scheduled=async()=>{await (await mf!.getWorker('vb') as unknown as {scheduled(o:{cron:string}):Promise<unknown>}).scheduled({cron:'* * * * *'})}
 
   // 1. Subscribe; hand the receiver its secret (a reload: the persisted D1, R2 and Workflow state stay).
   const created=await call(agentKey,'POST','/meta/v1/webhooks',{url:'http://receiver.test/hook'})

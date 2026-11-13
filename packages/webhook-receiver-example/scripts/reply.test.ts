@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { makeWorkerdStepShim } from '@vault/api/test/workerd-boundary'
+import { makeWorkerdStepShim } from '@vibase/api/test/workerd-boundary'
 import { draftReply, runReply } from '../src/reply.js'
 import { FakeVault, IDS } from './fake-vault.js'
 import { eventRecord } from './helpers.js'

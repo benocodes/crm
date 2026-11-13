@@ -43,7 +43,7 @@ function writeConfig(o: ConfigOptions): { dir: string; path: string } {
   const base = parse(readFileSync(join(o.packageDir, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>
   const config = generateConfig(base, o.settings, { worker: join(o.packageDir, 'worker', 'worker.js'), assets: join(o.packageDir, 'assets'), migrations: join(o.packageDir, 'migrations') })
   if (o.resourcesOnly) {
-    if (config.name === 'vault') throw new RemoteRefusal(`unknown env ${o.settings.env}`)
+    if (config.name === 'vb') throw new RemoteRefusal(`unknown env ${o.settings.env}`)
   } else resolveTarget(config, o.settings.env)
   const dir = mkdtempSync(join(o.tmpRoot, 'vibase-instance-'))
   const path = join(dir, 'wrangler.jsonc')

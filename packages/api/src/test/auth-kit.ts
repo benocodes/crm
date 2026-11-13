@@ -1,7 +1,7 @@
 // Test-only. A real authenticator and webhook over the fake Clerk, on either engine's binding (CORE41 P17): one
 // `call` per Clerk subject, one `keyCall` per API key, a spy over the binding that records every unit it ran
 // (name, identity, stats) and can arm D1's between-plan-and-commit hook for ONE named unit.
-import { uuidv7, type ExecutionStats, type StorageBinding, type StorageIdentity } from '@vault/storage'
+import { uuidv7, type ExecutionStats, type StorageBinding, type StorageIdentity } from '@vibase/storage'
 import { createApp } from '../rest/app.js'
 import { internalEnv, type InternalEnv } from '../storage/internal.js'
 import { clerkUser, mintClerkToken, orgClaim, signClerkWebhook, testClerkAdapter, type ClerkUserJson } from './clerk.js'

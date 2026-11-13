@@ -2,11 +2,11 @@
 // PER TENANT (never two tenants in one D1), the real app and the prepared path, the injected-principal
 // authentication stand-in. Nothing reaches a remote database.
 import type { Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { coldDb, uuidv7, type StorageBinding } from '@vault/storage'
-import { d1Binding, type D1Like } from '@vault/storage-d1'
-import { clearD1, openLocalD1 } from '@vault/storage-d1/test'
-import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
+import type { Database } from '@vibase/db'
+import { coldDb, uuidv7, type StorageBinding } from '@vibase/storage'
+import { d1Binding, type D1Like } from '@vibase/storage-d1'
+import { clearD1, openLocalD1 } from '@vibase/storage-d1/test'
+import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { Registry } from '../registry.js'
 import { createApp } from '../rest/app.js'
 import type { ContractBackend, ContractSession, ContractTenant, EventRow } from './contract.js'

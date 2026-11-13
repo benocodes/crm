@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { memoryObjectStore } from '../../objects/store.js'
 import { captureMessages, type PipelineContext } from '../../messaging/pipeline.js'
 import { ensureConnection } from '../../test/capture-kit.js'

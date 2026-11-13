@@ -228,6 +228,11 @@ in-place edits ([[CORE29]] retro).
 
 - Files and folders kebab-case; functions and variables camelCase; types PascalCase; database fields and
   API responses snake_case; environment variables UPPER_SNAKE_CASE.
+- Names ([[OPS262]]): packages are `@vibase/*`, new local resource names use `vb`, and user-visible text says
+  "Vibase". "The vault" stays the internal term in comments and knowledge prose. Wire and stored identifiers
+  (`x-vault-proposal`, `vault.invalid`, `vault_*` Postgres roles, the existing `vault-<env>` instances and
+  `setup`'s derivation until [[OPS260]]) and TypeScript identifiers (`createVaultRegistry`) are kept: renaming
+  them changes a contract, so it needs a spec decision.
 - UUIDv7 primary keys (`uuid_generate_v7()`), never v4.
 - Migrations: Kysely, forward-only, one squashed baseline to start.
 - Commits: Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`, ...). Branches:
@@ -238,12 +243,12 @@ in-place edits ([[CORE29]] retro).
 ## Engines (from 2026-10-30)
 
 **D1 is the oracle.** Behaviour, contracts and goldens are defined by the D1 adapter; the MVP ships on it.
-The Postgres adapters (`@vault/storage-postgres`, `@vault/server-postgres`, `@vault/db`) are kept alive
+The Postgres adapters (`@vibase/storage-postgres`, `@vibase/server-postgres`, `@vibase/db`) are kept alive
 because a fuller Postgres adapter is planned (schema per workspace or database per workspace, decided by
 plan and size) and shared code must not drift from it:
 
 - Postgres packages stay in the **typecheck and build** gate (blocking, cheap): a change to shared code
-  (`@vault/storage`, `@vault/api`) must still compile against both adapters.
+  (`@vibase/storage`, `@vibase/api`) must still compile against both adapters.
 - Postgres **test suites are off by default** (2026-11-02, OPS92): an engine is a vitest **project**, chosen by the
   file name. `*.postgres.test.ts` runs in the `postgres` project, `*.d1.test.ts` and engine-neutral `*.test.ts` (no
   engine infix) in the default projects, so `pnpm test` and `pnpm -r test` run D1 and engine-neutral suites only and
@@ -252,7 +257,7 @@ plan and size) and shared code must not drift from it:
   (needs `TEST_DATABASE_URL` / `.env.test.local`); run it when un-parking Postgres, or on demand to see drift
   (non-blocking: a failure is drift to note, never a reason to bend D1 behaviour). **Naming rule:** a test file that
   needs Postgres carries the `.postgres.` infix (`x.integration.postgres.test.ts`); a file with no infix must not
-  import `@vault/db`, `@vault/storage-postgres` or `pg` directly (a boundary test in `@vault/storage` enforces it; it sees
+  import `@vibase/db`, `@vibase/storage-postgres` or `pg` directly (a boundary test in `@vibase/storage` enforces it; it sees
   direct imports only, and the runtime is the backstop: the default projects load no Postgres env, so `createTestDb`
   throws `TEST_APP_DATABASE_URL is not set`, unless the shell already exports that variable). A suite
   that proves the same behaviour on both engines is one shared body (`x.integration.suite.ts`, exporting
@@ -301,10 +306,10 @@ Carried over from the predecessor product, where each cost real time. Add new on
 8. **A migration's number can go stale** between plan and implementation; re-check before creating it.
 9. **Resolve an operation's anchor at authorisation time, not draft time:** approval time for a
    proposal, submission time for an authorised direct send ([[AGT8]]).
-10. **Open packages never import enterprise code** (`@vault/storage-postgres`, `@vault/server-postgres`,
-    `@vault/db`, `pg`); `packages/storage/src/import-boundary.test.ts` enforces it, with no allow-list entries for
+10. **Open packages never import enterprise code** (`@vibase/storage-postgres`, `@vibase/server-postgres`,
+    `@vibase/db`, `pg`); `packages/storage/src/import-boundary.test.ts` enforces it, with no allow-list entries for
     `packages/api` ([[CORE35]] D14/D15, [[CORE36]] D22). Postgres composition (dev server, bootstrap, smokes) lives in
-    `@vault/server-postgres`; the golden generator is open code in `@vault/api` ([[CORE72]]).
+    `@vibase/server-postgres`; the golden generator is open code in `@vibase/api` ([[CORE72]]).
 
 ## Knowledge hygiene
 

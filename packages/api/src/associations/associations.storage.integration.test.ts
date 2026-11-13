@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { ALL_READ, NO_MESSAGES, assocKit, type AssocKit, type Rec } from '../test/assoc-kit.js'
 

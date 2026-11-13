@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { splitArguments } from '../mcp/tools.js'
 import { mergeOperation } from '../identity/merge.js'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { assocKit, type AssocKit, type Rec } from '../test/assoc-kit.js'
 

@@ -2,7 +2,7 @@
 // bearer token, so the signed state is its only binding to a vault user. Every refusal answers a short code (a redirect parameter or the
 // built-in page), writes nothing and emits nothing; nothing from Google, the query string or a secret reaches the page or a log line.
 import type { Context } from 'hono'
-import { defineOperation, execute, unit, uuidv7, type PreparedOperation, type StorageBinding } from '@vault/storage'
+import { defineOperation, execute, unit, uuidv7, type PreparedOperation, type StorageBinding } from '@vibase/storage'
 import type { Role, ScopePolicy } from '../auth/roles.js'
 import { scopesForRole } from '../auth/roles.js'
 import { GmailApiError, HttpGmailClient } from '../channels/gmail/client.js'

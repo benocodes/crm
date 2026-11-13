@@ -1,6 +1,6 @@
 import { sql, type Expression, type Kysely, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import { UnitDriftError, bind, codecs, defineOperation, readAll, readMaybe, recordColumns, step, ts, unit, type PreparedOperation, type QueryContext } from '@vault/storage'
+import { UnitDriftError, bind, codecs, defineOperation, readAll, readMaybe, recordColumns, step, ts, unit, type PreparedOperation, type QueryContext } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { parseInput } from '../resources/define.js'

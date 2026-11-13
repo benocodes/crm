@@ -2,14 +2,14 @@
 // demand (an id, a kind and the scopes the fake authenticator injects), the clock is injectable, and one hook can run between a unit's plan
 // reads and its commit batch (a concurrent writer, deterministic).
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { uuidv7 } from '@vault/storage'
-import { d1Binding, type D1Like } from '@vault/storage-d1'
-import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
-import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
+import { uuidv7 } from '@vibase/storage'
+import { d1Binding, type D1Like } from '@vibase/storage-d1'
+import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
+import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { createVaultRegistry } from '../operations.js'
 import { createApp, type AppEnv, type AppOptions } from '../rest/app.js'
 import type { Registry } from '../registry.js'
-import type { D1Binding } from '@vault/storage'
+import type { D1Binding } from '@vibase/storage'
 import { decodeRow, interceptD1, type RawRow } from './engines.js'
 import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 

@@ -1,7 +1,7 @@
 import { sql } from 'kysely'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { COLUMN_KINDS, queryContext } from '@vault/storage'
+import { COLUMN_KINDS, queryContext } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { deals } from '../resources/deals.js'
 import { definePreparedResource } from './definition.js'

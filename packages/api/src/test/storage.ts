@@ -1,8 +1,8 @@
 // Test-only. The Postgres storage binding for suites that build the app over a `vault_app` pool.
 import type { Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { postgresBinding } from '@vault/storage-postgres'
-import { defineOperation, unit, type PreparedOperation, type StorageBinding } from '@vault/storage'
+import type { Database } from '@vibase/db'
+import { postgresBinding } from '@vibase/storage-postgres'
+import { defineOperation, unit, type PreparedOperation, type StorageBinding } from '@vibase/storage'
 
 /** `createApp({ storage: pgStorage(db) })`: one binding for the pool, as composition code would make it. */
 export function pgStorage(db: Kysely<Database>): () => StorageBinding {

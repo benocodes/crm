@@ -1,5 +1,5 @@
 // Test-only seeds for one D1 deployment: the marker, the local organisation and fixed principals.
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import type { D1Like } from '../binding.js'
 
 export const SEED_AT = '2026-10-22T08:00:00.000Z'

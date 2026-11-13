@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Found, compileOperation, queryContext, type Dialect, type PreparedOperation } from '@vault/storage'
+import { Found, compileOperation, queryContext, type Dialect, type PreparedOperation } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { agents, createAgentOperation } from '../resources/agents.js'
 import { ScopeSet } from '../scopes.js'

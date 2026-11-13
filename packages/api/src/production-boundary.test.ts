@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-// [[CORE69]] charter, "Import boundary". `@vault/api` production code runs in workerd: no Node built-in ([[CORE25]] D52, D53),
+// [[CORE69]] charter, "Import boundary". `@vibase/api` production code runs in workerd: no Node built-in ([[CORE25]] D52, D53),
 // and the test kit (`src/test/`, which holds `FakeChannel` and the Node stream primitives) is not reachable from the production
 // barrel `src/index.ts`. The storage package's boundary test covers the enterprise imports; this one covers these two rules.
 const SRC = dirname(fileURLToPath(import.meta.url))
@@ -21,7 +21,7 @@ describe('production boundary', () => {
     expect(offenders).toEqual([])
   })
 
-  it("`chat` is imported type-only everywhere in @vault/api/src except test files (it cannot load in workerd, D25)", () => {
+  it("`chat` is imported type-only everywhere in @vibase/api/src except test files (it cannot load in workerd, D25)", () => {
     const runtimeChat = /^\s*(?:import|export)\s+(?!type\b)[^;]*?from\s+['"]chat['"]|^\s*import\s+['"]chat['"]|\bimport\(\s*['"]chat['"]\s*\)/m
     const offenders = walk(SRC)
       .filter((f) => f.endsWith('.ts') && !/\.test\.ts$/.test(f))

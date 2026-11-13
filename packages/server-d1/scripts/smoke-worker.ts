@@ -11,14 +11,14 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
 import { createHash } from 'node:crypto'
-import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, openToken, type R2BucketLike } from '@vault/api'
-import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vault/api/test/google'
-import { FakeGmail } from '@vault/api/test/gmail'
-import { gmailFixture } from '@vault/api/test/gmail-fixtures'
-import { bytesOf } from '@vault/api/test/channels'
+import { hashApiKey, messageContentPrefix, messageBodyKey, fileBlobKey, openToken, type R2BucketLike } from '@vibase/api'
+import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vibase/api/test/google'
+import { FakeGmail } from '@vibase/api/test/gmail'
+import { gmailFixture } from '@vibase/api/test/gmail-fixtures'
+import { bytesOf } from '@vibase/api/test/channels'
 import { ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED, ORIGINAL_BYTES } from './smoke-pipeline-sizes.js'
-import { applyMigrations, createMigrationTracker, recordMigrations } from '@vault/storage-d1/test'
-import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
+import { applyMigrations, createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
+import { MIGRATIONS, type D1Like } from '@vibase/storage-d1'
 import {
   API_URL,
   SECRET_KEY,
@@ -27,7 +27,7 @@ import {
   mintClerkToken,
   orgClaim,
   testIssuer,
-} from '@vault/api/test/clerk'
+} from '@vibase/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
 import { buildConnect } from './build-connect.js'
 import { ALLOWED_NODE_MODULES, BUNDLE_SIZE_CEILING, nodeImportProblems, nodeImportsOf } from './node-imports.js'
@@ -51,7 +51,7 @@ const capture = (stream: NodeJS.ReadableStream, into: string[] = logLines) => {
   stream.on('end', () => rest && into.push(rest))
 }
 
-const workerDir = mkdtempSync(join(tmpdir(), 'vault-d1-worker-'))
+const workerDir = mkdtempSync(join(tmpdir(), 'vb-d1-worker-'))
 const bundle = join(workerDir, 'worker.mjs')
 const assetsDir = join(workerDir, 'assets')
 const entry = fileURLToPath(new URL('../src/worker.ts', import.meta.url))
@@ -123,7 +123,7 @@ try {
     d1Persist: false,
     r2Buckets: ['BODIES'],
     // [[CHN141]] D34: the real MailSyncWorkflow, exported by the real bundle, run by Miniflare's Workflows engine.
-    workflows: { MAIL_SYNC: { name: 'vault-smoke-mail-sync', className: 'MailSyncWorkflow' } },
+    workflows: { MAIL_SYNC: { name: 'vb-smoke-mail-sync', className: 'MailSyncWorkflow' } },
     assets: { directory: assetsDir, binding: 'ASSETS', routerConfig: { has_user_worker: true, static_routing: { user_worker: ['/connect', '/connect/*'] } } },
     handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
       capture(stdout)
@@ -200,7 +200,7 @@ try {
   check('2 GET /api/v1/tasks before bootstrap -> 503 not_initialised', res.status === 503 && body.error?.code === 'not_initialised', { status: res.status, body })
 
   // 2a: the two OpenAPI documents are served before initialisation; the old root document is not exempt ([[API32]] D4, D5)
-  for (const [path, title] of [['/api/v1/openapi.json', 'Vault records API'], ['/meta/v1/openapi.json', 'Vault meta API']] as const) {
+  for (const [path, title] of [['/api/v1/openapi.json', 'Vibase records API'], ['/meta/v1/openapi.json', 'Vibase meta API']] as const) {
     res = await call('GET', path)
     body = await json(res)
     check(`2a GET ${path} before bootstrap -> 200, ${title}`, res.status === 200 && body.openapi === '3.1.0' && body.info?.title === title, { status: res.status })

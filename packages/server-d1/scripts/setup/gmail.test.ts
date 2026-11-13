@@ -3,7 +3,7 @@
 // a log line, a result, a diff or a message. No network, no remote call.
 import { readFileSync } from 'node:fs'
 import { parse } from 'jsonc-parser'
-import { parsePushConfig } from '@vault/api'
+import { parsePushConfig } from '@vibase/api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { reconcileEnvBlock } from './config-editor.js'

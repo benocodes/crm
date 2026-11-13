@@ -4,7 +4,7 @@
 // connection statement (insert, or the reconnect update, stamp-guarded), then the machinery rows. Assertions abort the whole batch as
 // drift when an expected event is missing, so a stale plan never leaves half a connect behind.
 import { sql, type SqlBool } from 'kysely'
-import { Found, UnitDriftError, assertStep, codecs, defineOperation, readMaybe, step, ts, unit, type EventReceipt, type PreparedOperation, type Row, type Step } from '@vault/storage'
+import { Found, UnitDriftError, assertStep, codecs, defineOperation, readMaybe, step, ts, unit, type EventReceipt, type PreparedOperation, type Row, type Step } from '@vibase/storage'
 import { eventStatement } from '../outbox.js'
 import { watchUpsertStep } from '../channels/gmail/watch.js'
 import { ensureOwnProgram } from '../identity/resolve.js'

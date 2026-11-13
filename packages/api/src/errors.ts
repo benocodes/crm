@@ -1,4 +1,4 @@
-import { ForeignOrganizationError, SetLimitExceeded, StatementFailed, UnitDriftError } from '@vault/storage'
+import { ForeignOrganizationError, SetLimitExceeded, StatementFailed, UnitDriftError } from '@vibase/storage'
 export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 501 | 503
 
 export class ApiError extends Error {

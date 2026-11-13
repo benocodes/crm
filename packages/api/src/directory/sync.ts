@@ -24,7 +24,7 @@ import {
   type Row,
   type Step,
   type StorageBinding,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { membershipRecord, organizationRecord } from '../account/organizations.js'
 import { AuthFailure, type AuthAdapter } from '../auth/adapter.js'
 import { lookupUser, provisionUser } from '../auth/first-sight.js'

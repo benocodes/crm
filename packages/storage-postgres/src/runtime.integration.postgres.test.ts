@@ -1,9 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'kysely'
-import { createOwnerTestDb, createTestDb, seedOrganization, seedUser, truncateAll } from '@vault/db/test'
+import { createOwnerTestDb, createTestDb, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
 import type { Kysely } from 'kysely'
-import type { Database } from '@vault/db'
-import { StatementFailed, StorageError, UnitDriftError, defineOperation, execute, readAll, readMaybe, selectColumns, step, unit, eq } from '@vault/storage'
+import type { Database } from '@vibase/db'
+import { StatementFailed, StorageError, UnitDriftError, defineOperation, execute, readAll, readMaybe, selectColumns, step, unit, eq } from '@vibase/storage'
 import { classifyPostgresError, orgWriterKey, postgresBinding } from './index.js'
 
 const db = createTestDb({ max: 4 })

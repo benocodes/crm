@@ -13,7 +13,7 @@ describe('GET /api/v1/openapi.json', () => {
   it('is served unauthenticated', async () => {
     const d = await doc()
     expect(d.openapi).toBe('3.1.0')
-    expect(d.info.title).toBe('Vault records API')
+    expect(d.info.title).toBe('Vibase records API')
   })
   it('documents the tags operations and the tag_id filter on the three taggable lists (CORE129 D14; the CLI derives its commands from this document)', async () => {
     const d = await doc()

@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest'
-import { composeD1Worker } from '@vault/server-d1/compose'
-import { bootstrapD1 } from '@vault/server-d1/bootstrap'
-import { openWorkerD1, type WorkerD1 } from '@vault/server-d1/test'
+import { composeD1Worker } from '@vibase/server-d1/compose'
+import { bootstrapD1 } from '@vibase/server-d1/bootstrap'
+import { openWorkerD1, type WorkerD1 } from '@vibase/server-d1/test'
 import { rig, SERVER } from './test/harness.js'
 
 // [[API215]]: `vibase events tail` against the real D1 app in process, with real events and a restart.

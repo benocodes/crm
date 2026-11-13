@@ -1,5 +1,5 @@
 import { sql, type SqlBool } from 'kysely'
-import { assertStep, codecs, defineOperation, execute, readMaybe, step, ts, unit, uuidv7, type PreparedOperation, type Read, type StorageBinding } from '@vault/storage'
+import { assertStep, codecs, defineOperation, execute, readMaybe, step, ts, unit, uuidv7, type PreparedOperation, type Read, type StorageBinding } from '@vibase/storage'
 import { generateApiKey } from './auth/api-keys.js'
 import { assertAgentGrantable, grantableScopes } from './auth/roles.js'
 import { ApiError } from './errors.js'

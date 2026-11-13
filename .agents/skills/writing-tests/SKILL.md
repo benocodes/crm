@@ -265,7 +265,7 @@ When the contract is a compile-time one (a typed storage or definition API), tes
 One program, two engines: the same assertions run on Postgres and D1.
   - **The engine is in the file name (OPS92).** `*.postgres.test.ts` runs in the `postgres` vitest project (off by
     default, needs a database), `*.d1.test.ts` and engine-neutral `*.test.ts` in the default projects. A file with no
-    `.postgres.` infix must not import `@vault/db`, `@vault/storage-postgres` or `pg` directly; a boundary test fails it.
+    `.postgres.` infix must not import `@vibase/db`, `@vibase/storage-postgres` or `pg` directly; a boundary test fails it.
     That check sees direct imports only (most `.postgres.` files reach Postgres through relative helpers). The runtime
     is the backstop: the default projects load no Postgres env, so `createTestDb` throws `TEST_APP_DATABASE_URL is not
     set`. Its one hole is a shell that already exports `TEST_APP_DATABASE_URL`.
@@ -295,7 +295,7 @@ One program, two engines: the same assertions run on Postgres and D1.
     Tests that pin derived lists (the declared scopes in `identity-definitions.test.ts` and
     `messaging-definitions.test.ts`) also change when a scope is declared; fix them in the same change.
     The generator (`packages/api/scripts/golden.ts`) is open code under the import-boundary rule for `api/scripts`;
-    the fixture list, scenarios and both backends are exported through `@vault/api/test/golden` ([[CORE44]] P12).
+    the fixture list, scenarios and both backends are exported through `@vibase/api/test/golden` ([[CORE44]] P12).
     `messaging.json` is seeded through `captureMessages` with `FakeChannel` into the memory `ObjectStore` the app reads
     (a scenario declares `seed: 'messaging'`, seeded in `load()`, not `reset()`); it replays on D1 only. A transcript
     records a non-`application/json` response as `{ binary: { headers, sha256, size } }` ([[CORE69]] D23); read ids out
@@ -307,7 +307,7 @@ One program, two engines: the same assertions run on Postgres and D1.
   - Suites written after the vertical exists prove their strength with absence mutations (break the
     runtime, see the target test fail), recorded in RESULT.md.
 - **Read-only resources have no writer to seed through.** Seed them with `seedConversation(insert, opts)`
-  (`@vault/api/test/messaging`) and `Engine.insert` (storage suites) or `kit.insert` (contract fixtures' `make`/`input`),
+  (`@vibase/api/test/messaging`) and `Engine.insert` (storage suites) or `kit.insert` (contract fixtures' `make`/`input`),
   direct inserts that satisfy the table CHECKs. `Engine.insert` encodes json (JSON text) and booleans (0/1) per
   `COLUMN_KINDS` on D1. Replace them with the real capture helper when `recordMessages` exists.
 - Assert engine differences explicitly, never hide them. Since [[CORE36]] D2 there is no timestamp
@@ -369,7 +369,7 @@ One program, two engines: the same assertions run on Postgres and D1.
   with the trigger in [[CORE36]]). If such a guard trips, run `pnpm db:test:worktree`.
 - **Test support lives under `src/test/`.** The import-boundary checker treats a file as test code only by its
   `*.test.ts` or `*.suite.ts` suffix or a `/test/` path segment. A support file elsewhere in `src` is production code
-  to it and fails the rule that forbids `@vault/db` in `api/src`. Vitest setup files are not in the package: the
+  to it and fails the rule that forbids `@vibase/db` in `api/src`. Vitest setup files are not in the package: the
   `postgres` project loads `packages/db/src/test-setup.ts` from `vitest.projects.ts`.
 - **The root vitest config collects from the directory it starts in.** Its include globs are relative, and
   `configDefaults.exclude` does not cover `vendor/` (2000+ vendored test files), `.claude/` (other worktrees) or
@@ -387,6 +387,14 @@ One program, two engines: the same assertions run on Postgres and D1.
   `package + test name` list before and after (`vitest run --reporter=json`; not `vitest list`, which errors on
   the D1 suites, [[CORE199]]), diffed as a multiset, with every
   difference explained (OPS92: 2750 → 2761, each delta named). A green run alone can't show a test went missing.
+- **A scripted rename also rewrites the tests that guard it.** Three things follow ([[OPS262]],
+  `knowledge/specs/015-OPS262-vibase-rename/RETRO.md`). First, a red test that names the old string on purpose
+  (`d.startsWith('@vibase/') || d.startsWith('@vault/')`) comes out of the rewrite as `X || X`: green, and no longer
+  checking the old name. Leave red-test files out of the rewrite, and grep the diff for duplicated operands. Second, a
+  guard keyed on the old name (`config.name === 'vault'`) whose test fixtures were renamed with it passes only if
+  both changed. One absence mutation per guard (put the old string back) is the only proof the guard still
+  bites. Third, a mutation can show the guard has no test at all: in OPS262, `scripts/instance/config.ts`'s
+  resources-only refusal left 91 instance tests green. Add the missing case in the same cycle.
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
 - **A test never spawns a real external tool** (wrangler, npm, a CLI that talks to a provider). Inject the runner
@@ -420,7 +428,7 @@ A test that fails once and then passes is a bug until its cause is found. Do not
 - Never run two suites against one database at once (`pgrep -f vitest`); run the `db` and `api` suites
   serially. Inside a package, Vitest 4+ has no `poolOptions.forks.singleFork`: use `pool: 'forks'` with
   `fileParallelism: false`.
-- **`@vault/api` runs its files in parallel ([[OPS223]]).** The `engine-neutral` and `d1` projects allow file parallelism (each file
+- **`@vibase/api` runs its files in parallel ([[OPS223]]).** The `engine-neutral` and `d1` projects allow file parallelism (each file
   has a private in-memory D1 in its own forked process) and `packages/api`'s `test` script sets 4 workers; every other package stays
   at the root's `maxWorkers: 1`. The `postgres` project stays serial (`fileParallelism: false`, `vitest.postgres.config.ts` has
   `maxWorkers: 1`; `packages/storage/src/test-config.test.ts` asserts both). The api suite takes about 4.5 to 6 minutes (276 to 339 s; 971 s serial) and
@@ -451,7 +459,7 @@ directly. Unit tests only for pure helpers.
 
 **The test pool behaves like production: nothing is preset.** The predecessor's test pool presets
 `app.organization_id` and `service_role` globally, so a query that skips its tenancy wrapper passes every
-test and reads or writes zero rows in production. The vault's pool (`createTestDb()` from `@vault/db/test`)
+test and reads or writes zero rows in production. The vault's pool (`createTestDb()` from `@vibase/db/test`)
 connects as `vault_app` and presets nothing, every fixture names its organisation, and a query without a
 wrapper fails in tests. Seeds (`seedOrganization`, `seedUser`, `seedAgent`) run under `withServiceRole`;
 there is deliberately no task or event seed: create those through the service layer. `createOwnerTestDb()`

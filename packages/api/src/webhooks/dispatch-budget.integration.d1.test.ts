@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import type { StorageBinding } from '@vault/storage'
+import type { StorageBinding } from '@vibase/storage'
 import { openWebhookKit, type WebhookKit } from '../test/webhook-kit.js'
 import { TickBudget } from './budget.js'
 import { dispatchWebhooks } from './dispatch.js'

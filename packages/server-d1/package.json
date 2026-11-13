@@ -1,7 +1,7 @@
 {
-  "name": "@vault/server-d1",
+  "name": "@vibase/server-d1",
   "private": true,
-  "description": "Open tier (spec CORE38): the vault as a Cloudflare module Worker on one D1 database. The Worker entry, its composition, the local D1 bootstrap CLI and wrangler.jsonc.",
+  "description": "Open tier (spec CORE38): Vibase as a Cloudflare module Worker on one D1 database. The Worker entry, its composition, the local D1 bootstrap CLI and wrangler.jsonc.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "src/worker.ts",
@@ -33,10 +33,10 @@
     "recordings:pull": "tsx scripts/pull-recordings.ts"
   },
   "dependencies": {
-    "@vault/api": "workspace:*",
-    "@vault/auth": "workspace:*",
-    "@vault/storage": "workspace:*",
-    "@vault/storage-d1": "workspace:*",
+    "@vibase/api": "workspace:*",
+    "@vibase/auth": "workspace:*",
+    "@vibase/storage": "workspace:*",
+    "@vibase/storage-d1": "workspace:*",
     "kysely": "0.29.6"
   },
   "devDependencies": {

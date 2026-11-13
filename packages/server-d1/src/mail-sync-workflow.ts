@@ -1,7 +1,7 @@
 // The Workflow of one sync run ([[CHN5]] D11, D34). It imports `cloudflare:workers`, so only the Worker bundle loads it; the orchestrator itself is
-// `runMailSync` in `@vault/api` (Node-safe, tested with the workerd step shim), reached through the composition.
+// `runMailSync` in `@vibase/api` (Node-safe, tested with the workerd step shim), reached through the composition.
 import { WorkflowEntrypoint } from 'cloudflare:workers'
-import type { MailSyncParams, MailSyncSummary, WorkflowEventLike, WorkflowStepLike } from '@vault/api'
+import type { MailSyncParams, MailSyncSummary, WorkflowEventLike, WorkflowStepLike } from '@vibase/api'
 import type { D1WorkerEnv } from './compose.js'
 import { workerFor } from './instance.js'
 

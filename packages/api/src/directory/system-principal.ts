@@ -1,5 +1,5 @@
 import { sql, type SqlBool } from 'kysely'
-import { assertStep, readMaybe, step, type QueryContext, type Read, type Row, type Step } from '@vault/storage'
+import { assertStep, readMaybe, step, type QueryContext, type Read, type Row, type Step } from '@vibase/storage'
 
 /**
  * The one `system` principal that directory writes are attributed to ([[CORE3]] D22, [[CORE41]] P10). It stays lazy:

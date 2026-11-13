@@ -1,6 +1,6 @@
 import { sql, type Expression, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import type { QueryContext } from '@vault/storage'
+import type { QueryContext } from '@vibase/storage'
 import type { DerivedDecl, CustomFilter } from '../storage/definition.js'
 
 // [[CORE131]] D3, D7: the two derived activity fields of a contact and the six list filters over them. The derivation is one

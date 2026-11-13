@@ -1,6 +1,6 @@
-# @vault/cli: `vibase`
+# @vibase/cli: `vibase`
 
-The vault on the command line ([[API6]] cycle 1). Every operation of the instance it talks to becomes a command, discovered at run time
+Vibase on the command line ([[API6]] cycle 1). Every operation of the instance it talks to becomes a command, discovered at run time
 from `<server>/.well-known/vibase` and the two OpenAPI documents it names. No runtime dependencies, Node 22.4 or later.
 
 From the repo root, `pnpm vibase <args>` runs the built CLI (it builds `dist/vibase.js` first if it is missing) in the directory you
@@ -41,7 +41,7 @@ vibase logout                                               # revokes the refres
 
 The CLI never opens a browser: it prints `verification_uri_complete` (or the URL and the user code) and the expiry on stderr, then polls.
 Stdout stays machine-readable (the `me` document). By default it asks for every scope the instance supports plus `offline_access`; the
-vault caps the token at what the person or agent account may do, so asking for all loses nothing. The profile (kind `oauth`) is stored in
+Vibase caps the token at what the person or agent account may do, so asking for all loses nothing. The profile (kind `oauth`) is stored in
 the same `config.json`. A login that is denied, expires or fails leaves the profile as it was.
 
 The access token is refreshed when it is within 60 s of expiry and once when the server answers `401`; parallel `vibase` processes

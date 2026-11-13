@@ -181,7 +181,7 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   `UPDATE (deleted_at, updated_at)` instead, plus any column a command re-points (merge moves `contact_files.contact_id`).
 - **Probe D1's SQLite by behaviour, not by version.** `sqlite_version()` is not authorised in D1 or Miniflare
   (`not authorized to use function`); run the feature you need (an ordered `json_group_array`, a trigger) instead ([[CORE25]]).
-- **The D1 splitter knows triggers.** `splitStatements` (`@vault/storage-d1/test`) ends a `CREATE TRIGGER` at the line that
+- **The D1 splitter knows triggers.** `splitStatements` (`@vibase/storage-d1/test`) ends a `CREATE TRIGGER` at the line that
   closes it with `END;`; wrangler applies the same file as written.
 - **Source tables are machinery** (`message_sources`, `thread_sources`): no events, no API; the provider's ids map to ours.
   Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `channel_connections`.
@@ -309,10 +309,10 @@ tests.
 
 ## D1 migrations ([[CORE35]])
 
-`packages/db` is the Postgres package. D1's schema lives in the open `@vault/storage-d1`, as
+`packages/db` is the Postgres package. D1's schema lives in the open `@vibase/storage-d1`, as
 `packages/storage-d1/migrations/NNNN_<name>.sql`: forward-only and wrangler-compatible. Each cycle that
 migrates a resource appends a file. Local tests apply the files to disposable Miniflare bindings
-(`@vault/storage-d1/test`); never point tooling at a remote database id.
+(`@vibase/storage-d1/test`); never point tooling at a remote database id.
 
 - **Tenancy is the database** (spec D18). A singleton `deployment` row fixes the organisation id,
   `organizations.id` references it, and every tenant table's `organization_id` references
@@ -332,7 +332,7 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   - a statement is at most 100 KB.
 - **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
   inspects `sqlite_master`/PRAGMA. `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
-  physical columns to `COLUMN_KINDS` in `@vault/storage`, so a new column changes all three together.
+  physical columns to `COLUMN_KINDS` in `@vibase/storage`, so a new column changes all three together.
 - **Each implementation cycle adds one numbered file** (`0002_identity_model.sql`: companies, contacts,
   identities). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
   owner and tombstone CHECKs, the email CHECK `value = lower(value) AND value NOT GLOB '*[^ -~]*'`. Add the new
@@ -348,7 +348,7 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   never a literal, so the next migration does not break them ([[CORE62]]).
 - **`d1_migrations` is wrangler's table, never the vault's.** The local harness doesn't create it, so its
   status is `unknown` and nothing is gated. Tests that need `current`, `behind` or `ahead` create it with
-  `createMigrationTracker` and fill it with `recordMigrations`/`forgetMigrations` (`@vault/storage-d1/test`).
+  `createMigrationTracker` and fill it with `recordMigrations`/`forgetMigrations` (`@vibase/storage-d1/test`).
   `clearD1` must never delete from it.
 - **`unit_assertion`** (in 0002) is machinery, not a resource: an always-empty table whose named CHECK
   `unit_assertion_holds` lets `assertStep` abort a D1 batch. The D1 runtime classifies that one constraint as

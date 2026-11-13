@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { execute, uuidv7 } from '@vault/storage'
-import { d1Binding } from '@vault/storage-d1'
-import { createVaultRegistry, scopesForRole } from '@vault/api'
-import { mintClerkToken, orgClaim } from '@vault/api/test/clerk'
+import { execute, uuidv7 } from '@vibase/storage'
+import { d1Binding } from '@vibase/storage-d1'
+import { createVaultRegistry, scopesForRole } from '@vibase/api'
+import { mintClerkToken, orgClaim } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
@@ -259,7 +259,7 @@ describe('me.get for an API-key agent (spec me.get)', () => {
       .prepare('insert into agents (id, created_at, updated_at, organization_id, name, scopes, created_by) values (?, ?, ?, ?, ?, ?, ?)')
       .bind(agentId, at, at, org.organizationId, 'operator', JSON.stringify(['tasks:read']), sys)
       .run()
-    const { generateApiKey } = await import('@vault/api')
+    const { generateApiKey } = await import('@vibase/api')
     const secret = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
     await w.d1
       .prepare('insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)')

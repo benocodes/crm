@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Webhook } from 'standardwebhooks'
-import { signatureHeader, WEBHOOK_HEADERS as VAULT_HEADERS } from '@vault/api'
+import { signatureHeader, WEBHOOK_HEADERS as VAULT_HEADERS } from '@vibase/api'
 import { TOLERANCE_SECONDS, WEBHOOK_HEADERS, verifyWebhook } from '../src/verify.js'
 import { EVENT_ID, NOW_MS, OTHER_SECRET, SECRET, eventRecord, signedRequest } from './helpers.js'
 

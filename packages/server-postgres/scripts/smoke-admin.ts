@@ -12,9 +12,9 @@ import type { AddressInfo } from 'node:net'
 import { serve } from '@hono/node-server'
 import { SignJWT, exportSPKI, generateKeyPair } from 'jose'
 import { sql } from 'kysely'
-import { createDb, withServiceRole } from '@vault/db'
-import { postgresBinding } from '@vault/storage-postgres'
-import { createApp, createAuthAdapter, createVaultRegistry } from '@vault/api'
+import { createDb, withServiceRole } from '@vibase/db'
+import { postgresBinding } from '@vibase/storage-postgres'
+import { createApp, createAuthAdapter, createVaultRegistry } from '@vibase/api'
 
 const ISSUER = 'https://smoke.clerk.test'
 const rand = randomBytes(4).toString('hex')

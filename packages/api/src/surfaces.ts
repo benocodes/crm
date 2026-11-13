@@ -12,7 +12,7 @@ export const API_PREFIX = SURFACE_PREFIX.api
 export const META_PREFIX = SURFACE_PREFIX.meta
 
 /** D4: the title of each surface's OpenAPI document. */
-export const SURFACE_TITLE: Readonly<Record<Surface, string>> = { api: 'Vault records API', meta: 'Vault meta API' }
+export const SURFACE_TITLE: Readonly<Record<Surface, string>> = { api: 'Vibase records API', meta: 'Vibase meta API' }
 
 /** The path of a surface's OpenAPI document. */
 export const openApiPath = (surface: Surface): string => `${SURFACE_PREFIX[surface]}/openapi.json`

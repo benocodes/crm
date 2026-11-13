@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { defineOperation, unit } from '@vault/storage'
+import { defineOperation, unit } from '@vibase/storage'
 import { Registry, resourceOperations, toolName, type Operation } from './registry.js'
 import { tasks } from './resources/tasks.js'
 import { probeUnit } from './test/storage.js'

@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import type { D1Like } from '@vault/storage-d1'
+import type { D1Like } from '@vibase/storage-d1'
 import { appendEnvVar, remoteProxyOptions } from './bootstrap.js'
 import { CONFIG_PATH, PACKAGE_DIR, REPO_ROOT, ROOT_ENV_PATH, loadRootEnv } from './remote.js'
 import { probeEnvFile } from './setup/env-file.js'

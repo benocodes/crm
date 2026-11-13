@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { StatementFailed, type PreparedOperation, type StatementLabel } from '@vault/storage'
-import { withFault } from '@vault/storage/test'
+import { StatementFailed, type PreparedOperation, type StatementLabel } from '@vibase/storage'
+import { withFault } from '@vibase/storage/test'
 import { deleteCompanyOperation, deleteContactOperation } from '../identity/cascades.js'
 import { mergeOperation } from '../identity/merge.js'
 import { ensureOwnIdentity, resolveOperation } from '../identity/resolve.js'

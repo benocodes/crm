@@ -1,5 +1,5 @@
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, codecs, defineOperation, execute, memberOf, readAll, step, unit, type Found, type PreparedOperation, type Row, type StorageBinding } from '@vault/storage'
+import { UnitDriftError, codecs, defineOperation, execute, memberOf, readAll, step, unit, type Found, type PreparedOperation, type Row, type StorageBinding } from '@vibase/storage'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from '../directory/system-principal.js'
 import { eventSetStatement } from '../outbox.js'
 import type { Registry, RetryPolicy } from '../registry.js'

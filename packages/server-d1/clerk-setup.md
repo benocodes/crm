@@ -1,14 +1,14 @@
-# Configuring Clerk for a vault deployment
+# Configuring Clerk for a Vibase deployment
 
-One Clerk application per vault deployment (each organisation runs its own Worker and its own Clerk app). Clerk handles sign-in and
-roles; the vault keeps principals, agents and scopes. Spec: OPS65 (the `--auth clerk` side), CORE64 (what the vault expects).
+One Clerk application per Vibase deployment (each organisation runs its own Worker and its own Clerk app). Clerk handles sign-in and
+roles; Vibase keeps principals, agents and scopes. Spec: OPS65 (the `--auth clerk` side), CORE64 (what Vibase expects).
 
 `setup:remote --auth clerk` checks all of this and configures what Clerk's API allows. Three settings are dashboard-only: do them first.
 
 ## Organizations: off
 
 Yes, **Organizations must be disabled** (Dashboard → Configure → Organizations). A D1 deployment is one workspace, so there is nothing for
-Organizations to do: membership and roles come from the `vibase_role` claim, not from Clerk orgs. If Organizations are on, the vault ignores
+Organizations to do: membership and roles come from the `vibase_role` claim, not from Clerk orgs. If Organizations are on, Vibase ignores
 the `o` claim in tokens, so nothing breaks, but setup warns (row C2) because it is a sign of a misconfigured app. Turn it off for clarity.
 
 ## Do by hand in the Clerk dashboard
@@ -35,7 +35,7 @@ the `o` claim in tokens, so nothing breaks, but setup warns (row C2) because it 
 - Allowed origins: the API host, plus `--web-origin` / `--extra-origin` (added to what is there, never wildcards).
 - Dynamic client registration on (unless `--no-dcr`), with the agent-grantable read scopes as the default scopes for registered clients.
 - JWT access tokens (instance-wide).
-- The `Vibase CLI` OAuth application: public client, device authorization grant, consent screen on, every vault scope plus `offline_access`.
+- The `Vibase CLI` OAuth application: public client, device authorization grant, consent screen on, every Vibase scope plus `offline_access`.
   Its creation also proves the custom scope catalog (Clerk refuses unknown scope keys).
 - The first owner: an invitation with `public_metadata.vibase_role = owner` to `--owner-email` (Clerk emails the link).
 

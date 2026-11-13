@@ -150,8 +150,8 @@ describe('D10 secrets are never printed', () => {
 })
 
 describe('P4 refusal mapping', () => {
-  it('worker "vault" in the settings file exits 2 with resolveTarget\'s message, not an internal error', async () => {
-    const { w, code } = await status({ settings: validSettings({ worker: 'vault' }) })
+  it('worker "vb" in the settings file exits 2 with resolveTarget\'s message, not an internal error', async () => {
+    const { w, code } = await status({ settings: validSettings({ worker: 'vb' }) })
     expect(code).toBe(2)
     expect(w.err.join('\n')).toMatch(/vibase-server status: unknown env demo/)
     expect(readdirSync(w.tmpRoot)).toEqual([])

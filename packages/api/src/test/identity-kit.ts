@@ -1,7 +1,7 @@
 // Test-only. Drives the prepared identity-model operations on either engine with a ticking injected clock,
 // and reads back what the program wrote (raw rows, events in write order). Used by the both-engine suites.
 import { expect } from 'vitest'
-import { type PreparedOperation } from '@vault/storage'
+import { type PreparedOperation } from '@vibase/storage'
 import { ApiError, mapStorageError } from '../errors.js'
 import { companies } from '../resources/companies.js'
 import { contacts } from '../resources/contacts.js'
@@ -70,8 +70,8 @@ export type IdentityKit = ReturnType<typeof identityKit>
 
 /** Postgres only: a second real organisation with its own user, to prove cross-tenant refusals. */
 export async function foreignTenant(e: Engine) {
-  const { seedOrganization, seedUser } = await import('@vault/db/test')
-  const { execute } = await import('@vault/storage')
+  const { seedOrganization, seedUser } = await import('@vibase/db/test')
+  const { execute } = await import('@vibase/storage')
   if (!e.app) throw new Error('a foreign organisation exists on Postgres only (a D1 database holds one organisation)')
   const org = await seedOrganization(e.app, { name: 'Foreign org' })
   const user = await seedUser(e.app, { organizationId: org.id, role: 'owner' })

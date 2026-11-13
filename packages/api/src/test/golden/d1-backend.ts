@@ -1,8 +1,8 @@
 // Test-only. The D1 golden backend: one local Miniflare D1, the same fixed principals as the Postgres backend,
 // the real app and the prepared path, the clock and ids injected. Replays the committed fixtures.
-import { d1Binding, type D1Like } from '@vault/storage-d1'
-import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
-import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vault/storage-d1/test/seed'
+import { d1Binding, type D1Like } from '@vibase/storage-d1'
+import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
+import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { memoryObjectStore, type ObjectStore } from '../../objects/store.js'
 import { createApp } from '../../rest/app.js'
 import { hashApiKey } from '../../auth/api-keys.js'

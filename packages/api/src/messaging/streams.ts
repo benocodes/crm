@@ -1,5 +1,5 @@
 // The two workerd-only stream tools content storage needs ([[CORE69]] D4), injected so Node tests can supply their own
-// (`@vault/api/test/streams`). Typed structurally: no @cloudflare/workers-types import.
+// (`@vibase/api/test/streams`). Typed structurally: no @cloudflare/workers-types import.
 export interface StreamPrimitives {
   /** A SHA-256 sink: pipe bytes into `writable`; `digest` resolves when it closes. */
   sha256(): { writable: WritableStream<Uint8Array>; digest: Promise<ArrayBuffer> }

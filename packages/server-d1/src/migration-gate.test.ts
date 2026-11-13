@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
-import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
-import { createMigrationTracker, forgetMigrations, openLocalD1, recordMigrations, type LocalD1 } from '@vault/storage-d1/test'
+import { uuidv7 } from '@vibase/storage'
+import { MIGRATIONS, type D1Like } from '@vibase/storage-d1'
+import { createMigrationTracker, forgetMigrations, openLocalD1, recordMigrations, type LocalD1 } from '@vibase/storage-d1/test'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { NOW, openWorkerD1, spyD1, type WorkerD1 } from './test/kit.js'
@@ -120,7 +120,7 @@ describe('the behind gate (D4)', () => {
     const root = await get(worker, '/openapi.json')
     expect(root.status).toBe(404)
     expect(((await root.json()) as { error: { code: string } }).error.code).toBe('not_found')
-    for (const [path, title] of [['/api/v1/openapi.json', 'Vault records API'], ['/meta/v1/openapi.json', 'Vault meta API']] as const) {
+    for (const [path, title] of [['/api/v1/openapi.json', 'Vibase records API'], ['/meta/v1/openapi.json', 'Vibase meta API']] as const) {
       const doc = await get(worker, path)
       expect(doc.status).toBe(200)
       expect(((await doc.json()) as { info: { title: string } }).info.title).toBe(title)

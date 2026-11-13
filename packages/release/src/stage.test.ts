@@ -61,7 +61,7 @@ describe('D12 cli/server.js', () => {
 })
 
 describe('D3/D6 published package.json', () => {
-  it('has the bin, engines and one exact dependency equal to @vault/server-d1 wrangler (drift test, not a literal)', () => {
+  it('has the bin, engines and one exact dependency equal to @vibase/server-d1 wrangler (drift test, not a literal)', () => {
     const wrangler = readWranglerVersion(SERVER_D1_PKG)
     expect(wrangler).toBe(JSON.parse(readFileSync(SERVER_D1_PKG, 'utf8')).devDependencies.wrangler)
     const pkg = serverPackageJson('0.1.0', wrangler) as Record<string, any>

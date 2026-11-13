@@ -1,5 +1,5 @@
 import { sql, type Expression, type Kysely, type RawBuilder, type SqlBool } from 'kysely'
-import { appliedPrev, bind, jsonRows, recordJson, type EmbedSpec, type PhysicalTable, type QueryContext, type QueryLike } from '@vault/storage'
+import { appliedPrev, bind, jsonRows, recordJson, type EmbedSpec, type PhysicalTable, type QueryContext, type QueryLike } from '@vibase/storage'
 
 // ---- prepared units ([[CORE35]]) ----------------------------------------------------------------------
 

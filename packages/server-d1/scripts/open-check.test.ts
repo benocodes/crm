@@ -17,11 +17,11 @@ describe('open-check pure parts', () => {
   it('strips enterprise devDependencies', () => {
     // In the open-check copy the api manifest is already stripped, so the enterprise entries are added explicitly.
     const real = apiManifest()
-    const before: PackageJson = { ...real, devDependencies: { ...real.devDependencies, '@vault/db': 'workspace:*', '@vault/storage-postgres': 'workspace:*' } }
+    const before: PackageJson = { ...real, devDependencies: { ...real.devDependencies, '@vibase/db': 'workspace:*', '@vibase/storage-postgres': 'workspace:*' } }
     const after = openManifest(before)
-    expect(after.devDependencies).not.toHaveProperty('@vault/db')
-    expect(after.devDependencies).not.toHaveProperty('@vault/storage-postgres')
-    expect(after.devDependencies).toHaveProperty('@vault/storage-d1')
+    expect(after.devDependencies).not.toHaveProperty('@vibase/db')
+    expect(after.devDependencies).not.toHaveProperty('@vibase/storage-postgres')
+    expect(after.devDependencies).toHaveProperty('@vibase/storage-d1')
     expect(after.dependencies).toEqual(before.dependencies)
     expect(after.exports).toEqual(before.exports)
   })
@@ -31,10 +31,10 @@ describe('open-check pure parts', () => {
   it('the auth package ([[CORE243]] D21) has no enterprise dependency in any production field', () => {
     const auth: PackageJson = JSON.parse(readFileSync(new URL('../../auth/package.json', import.meta.url), 'utf-8'))
     expect(() => openManifest(auth)).not.toThrow()
-    expect(auth.name).toBe('@vault/auth')
+    expect(auth.name).toBe('@vibase/auth')
   })
   it('refuses a workspace enterprise package in dependencies', () => {
-    expect(() => openManifest({ name: 'x', dependencies: { '@vault/db': 'workspace:*' } })).toThrow('x depends on enterprise package @vault/db in dependencies')
+    expect(() => openManifest({ name: 'x', dependencies: { '@vibase/db': 'workspace:*' } })).toThrow('x depends on enterprise package @vibase/db in dependencies')
   })
   it('production tsconfig', () => {
     expect(productionTsconfig()).toEqual({ extends: './tsconfig.json', exclude: ['**/*.test.ts', '**/*.typecheck.ts', '**/test/**', 'vitest.config.ts'] })

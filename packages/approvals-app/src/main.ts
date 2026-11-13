@@ -93,7 +93,7 @@ class Page {
       return e.message
     }
     // A CORS or network failure is a TypeError with no detail.
-    return 'The vault could not be reached.'
+    return 'Vibase could not be reached.'
   }
 
   private async decide(r: ActionRequest, verb: 'approve' | 'reject', reason: string): Promise<void> {

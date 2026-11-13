@@ -2,7 +2,7 @@
 // (plain `fetch`, no SDK), the Frontend API and the issuer's metadata. Every row is evaluated and the whole checklist is printed (D26); a
 // dashboard-only row is checked where a read exists and otherwise `manual`, never claimed. Requests go only to the paths of the table
 // (D33): no Platform API, no dashboard endpoints. Nothing here prints a key, the PEM, an invitation link or a client secret.
-import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, createVaultRegistry, toProviderScope } from '@vault/api'
+import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, createVaultRegistry, toProviderScope } from '@vibase/api'
 import { parse } from 'jsonc-parser'
 import { pemFromJwk, type ClerkKeys } from './clerk-keys.js'
 import type { SetupDeps, SetupOptions, Status, StepResult } from './types.js'
@@ -144,7 +144,7 @@ export async function clerkStep(ctx: Ctx): Promise<StepResult> {
 
     // C2 (D32): read only.
     const orgs = await clerk.bapi('GET', '/v1/instance/organization_settings')
-    if (ok(orgs)) set('C2', 'ok', orgs.json?.enabled === true ? 'warning: Organizations are on; the vault ignores the `o` claim, but turn them off in the dashboard if nothing else uses them' : 'Organizations are off')
+    if (ok(orgs)) set('C2', 'ok', orgs.json?.enabled === true ? 'warning: Organizations are on; Vibase ignores the `o` claim, but turn them off in the dashboard if nothing else uses them' : 'Organizations are off')
     else if (orgs.status === 402 || orgs.status === 404) set('C2', 'ok', 'Organizations are off (not available on this instance)')
     else set('C2', 'manual', `could not read the Organizations setting (${refusal(orgs)})`)
 

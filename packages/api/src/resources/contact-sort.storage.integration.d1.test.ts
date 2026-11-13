@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { compileOperation } from '@vault/storage'
+import { compileOperation } from '@vibase/storage'
 import { sql } from 'kysely'
 import { z } from 'zod'
 import { ApiError } from '../errors.js'

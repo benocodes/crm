@@ -6,13 +6,13 @@ import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import type { D1Like } from '@vault/storage-d1'
+import type { D1Like } from '@vibase/storage-d1'
 import { runStatus, EXIT_REFUSED } from './status.js'
 import { runSetup } from './setup.js'
 import { runUpgrade } from './upgrade.js'
 import { InstanceRefusal, type InstanceDeps, type RunResult } from './types.js'
 
-export const INSTANCE_HELP = `vibase-server: manage the vault instance this server package deploys
+export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this server package deploys
 
   vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]
       Reads the settings and secrets files, verifies this package, asks the live instance

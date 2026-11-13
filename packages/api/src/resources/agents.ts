@@ -1,6 +1,6 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
-import { UnitDriftError, codecs, defineOperation, step, unit, type PreparedOperation } from '@vault/storage'
+import { UnitDriftError, codecs, defineOperation, step, unit, type PreparedOperation } from '@vibase/storage'
 import { SCOPE_POLICY, isAgentGrantable, type ScopePolicy } from '../auth/roles.js'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'

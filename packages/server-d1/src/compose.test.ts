@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { uuidv7 } from '@vault/storage'
-import { seedConversation } from '@vault/api/test/messaging'
-import { fakeR2Bucket } from '@vault/api/test/objects'
-import { messageBodyKey } from '@vault/api'
-import { mintClerkToken, orgClaim } from '@vault/api/test/clerk'
-import { MIGRATIONS } from '@vault/storage-d1'
+import { uuidv7 } from '@vibase/storage'
+import { seedConversation } from '@vibase/api/test/messaging'
+import { fakeR2Bucket } from '@vibase/api/test/objects'
+import { messageBodyKey } from '@vibase/api'
+import { mintClerkToken, orgClaim } from '@vibase/api/test/clerk'
+import { MIGRATIONS } from '@vibase/storage-d1'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { NOT_INITIALISED, composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { NOW, clerkKit, openWorkerD1, spyD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
@@ -58,8 +58,8 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
   })
 
   it.each([
-    ['/api/v1/openapi.json', 'Vault records API'],
-    ['/meta/v1/openapi.json', 'Vault meta API'],
+    ['/api/v1/openapi.json', 'Vibase records API'],
+    ['/meta/v1/openapi.json', 'Vibase meta API'],
   ])('GET %s is served before initialisation', async (path, title) => {
     const res = await get(composeD1Worker(noAuth()), path)
     expect(res.status).toBe(200)

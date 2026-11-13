@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { tasks } from '../resources/tasks.js'
 import { companies } from '../resources/companies.js'
 import { identities } from '../resources/identities.js'
@@ -15,8 +15,8 @@ import { openAuthKit } from '../test/auth-kit.js'
 import { clerkMembership, clerkOrganization } from '../test/clerk.js'
 import { provisionUser } from '../auth/first-sight.js'
 import { reconcileOrganization, repairMembership } from '../directory/sync.js'
-import { clearD1 } from '@vault/storage-d1/test'
-import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
+import { clearD1 } from '@vibase/storage-d1/test'
+import { seedDeployment, seedPrincipal } from '@vibase/storage-d1/test/seed'
 
 // Coordinated starts, no sleeps, no retries masking failures ([[CORE35]] D16). Assertions are on the final
 // state and a valid event chain, never on which contender won.

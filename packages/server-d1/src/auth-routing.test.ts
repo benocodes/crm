@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { BASE, SECRET, bundleWorker, startWorkerd, type Bundle, type Workerd } from '@vault/auth/test'
+import { BASE, SECRET, bundleWorker, startWorkerd, type Bundle, type Workerd } from '@vibase/auth/test'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { clerkKit } from './test/kit.js'
 

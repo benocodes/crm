@@ -49,11 +49,11 @@ export function serverOrigin(input: string): string {
   try {
     u = new URL(input)
   } catch {
-    throw usage(`"${input}" is not a URL: --server takes an origin such as https://vault.example.com`)
+    throw usage(`"${input}" is not a URL: --server takes an origin such as https://vibase.example.com`)
   }
   const loopback = u.hostname === 'localhost' || u.hostname === '127.0.0.1'
   if (u.protocol !== 'https:' && !(u.protocol === 'http:' && loopback)) throw usage(`--server must be an https origin (http is allowed only for localhost and 127.0.0.1), got ${u.protocol}//${u.host}`)
-  if (u.username || u.password || (u.pathname !== '/' && u.pathname !== '') || u.search || u.hash) throw usage('--server is an origin: no path, query or credentials (for example https://vault.example.com)')
+  if (u.username || u.password || (u.pathname !== '/' && u.pathname !== '') || u.search || u.hash) throw usage('--server is an origin: no path, query or credentials (for example https://vibase.example.com)')
   return u.origin
 }
 

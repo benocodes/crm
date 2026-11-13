@@ -1,5 +1,5 @@
 // Test-only. Shared by the direct-insert setup devices (Engine.insert, the contract sessions' insert).
-import { COLUMN_KINDS, uuidv7, type ColumnKind } from '@vault/storage'
+import { COLUMN_KINDS, uuidv7, type ColumnKind } from '@vibase/storage'
 
 export const SEED_AT = '2026-10-22T08:00:00.000Z'
 

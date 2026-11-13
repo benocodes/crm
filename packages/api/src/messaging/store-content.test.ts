@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { stringifyMarkdown } from '../channels/markdown.js'
 import { describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { AttachmentFetchError, type ChannelMessage, type ConnectionRef } from '../channels/port.js'
 import { bytesOf, FakeChannel, standardScripts, type FakeMessageScript } from '../test/channels.js'
 import { recordingObjectStore } from '../test/objects.js'

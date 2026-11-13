@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util'
-import { createDb } from '@vault/db'
-import { postgresBinding } from '@vault/storage-postgres'
-import { bootstrap } from '@vault/api'
+import { createDb } from '@vibase/db'
+import { postgresBinding } from '@vibase/storage-postgres'
+import { bootstrap } from '@vibase/api'
 
 function usage(message: string): never {
   console.error(`bootstrap: ${message}`)

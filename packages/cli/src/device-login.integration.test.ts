@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { composeD1Worker } from '@vault/server-d1/compose'
-import { bootstrapD1 } from '@vault/server-d1/bootstrap'
-import { clerkKit, clerkUser, mintOAuthToken, openWorkerD1, type ClerkKit, type WorkerD1 } from '@vault/server-d1/test'
+import { composeD1Worker } from '@vibase/server-d1/compose'
+import { bootstrapD1 } from '@vibase/server-d1/bootstrap'
+import { clerkKit, clerkUser, mintOAuthToken, openWorkerD1, type ClerkKit, type WorkerD1 } from '@vibase/server-d1/test'
 import { fakeIssuer, network } from './test/fake-issuer.js'
 import { rig } from './test/harness.js'
 

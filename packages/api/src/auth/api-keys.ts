@@ -7,7 +7,7 @@ import {
   unit,
   type PreparedOperation,
   type StorageBinding,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { ScopeSet } from '../scopes.js'
 import type { InternalEnv } from '../storage/internal.js'
 import type { Principal } from './types.js'

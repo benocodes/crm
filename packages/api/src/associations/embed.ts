@@ -1,6 +1,6 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
-import { codecs, defineOperation, readAll, readMaybe, unit, type PreparedOperation } from '@vault/storage'
+import { codecs, defineOperation, readAll, readMaybe, unit, type PreparedOperation } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { formatScope } from '../scopes.js'
 import { canonicalId } from '../storage/prepare.js'

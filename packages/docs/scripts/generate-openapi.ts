@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createApp, openApiPath, SURFACES } from '@vault/api';
+import { createApp, openApiPath, SURFACES } from '@vibase/api';
 
 // Use the production router's public documents. Generating a contract must never
 // query a database, read credentials, or contact a running instance.

@@ -1,7 +1,7 @@
 // The watch lifecycle ([[CHN5]] D89, D90, D91): register at connect (the callback), renew in the cron, stop on delete (`connections.delete`'s after stage).
 // `gmail_watches` is channel machinery (invariant 5, D22): nothing here emits an event except `invalid_grant`'s `reauth_required`, which is D16's own.
 import { sql } from 'kysely'
-import { defineOperation, execute, readSet, step, unit, type Step, type StorageBinding } from '@vault/storage'
+import { defineOperation, execute, readSet, step, unit, type Step, type StorageBinding } from '@vibase/storage'
 import type { GmailConfig } from '../../connections/config.js'
 import { GoogleRefreshError, refreshAccessToken, type GoogleEndpoints, GOOGLE_ENDPOINTS } from '../../connections/google.js'
 import { openToken } from '../../connections/credentials.js'

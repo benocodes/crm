@@ -7,18 +7,18 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
-import { execute,uuidv7 } from '@vault/storage'
-import { d1Binding,MIGRATIONS,type D1Like } from '@vault/storage-d1'
-import { MIGRATIONS_DIR,splitStatements,createMigrationTracker,recordMigrations } from '@vault/storage-d1/test'
-import { seedAgent } from '@vault/storage-d1/test/seed'
-import { ScopeSet,sealToken,hashApiKey } from '@vault/api'
+import { execute,uuidv7 } from '@vibase/storage'
+import { d1Binding,MIGRATIONS,type D1Like } from '@vibase/storage-d1'
+import { MIGRATIONS_DIR,splitStatements,createMigrationTracker,recordMigrations } from '@vibase/storage-d1/test'
+import { seedAgent } from '@vibase/storage-d1/test/seed'
+import { ScopeSet,sealToken,hashApiKey } from '@vibase/api'
 import { connectOperation } from '../../api/src/connections/connect.js'
-import { FakeGmail } from '@vault/api/test/gmail'
-import { gmailFixture } from '@vault/api/test/gmail-fixtures'
-import { API_URL,SECRET_KEY,clerkUser,fakeClerkFetch,mintClerkToken,testIssuer } from '@vault/api/test/clerk'
+import { FakeGmail } from '@vibase/api/test/gmail'
+import { gmailFixture } from '@vibase/api/test/gmail-fixtures'
+import { API_URL,SECRET_KEY,clerkUser,fakeClerkFetch,mintClerkToken,testIssuer } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
 
-const dir=mkdtempSync(join(tmpdir(),'vault-gmail-send-e2e-'))
+const dir=mkdtempSync(join(tmpdir(),'vb-gmail-send-e2e-'))
 const bundle=join(dir,'worker.mjs'),key=new Uint8Array(32).fill(11)
 const issuer=await testIssuer(),clerk=fakeClerkFetch(new Map([['user_send_owner',clerkUser({id:'user_send_owner',email:'owner@vault.test',role:'owner'})],['user_send_member',clerkUser({id:'user_send_member',email:'member@vault.test',role:'member'})]]))
 const mail=new FakeGmail([gmailFixture('plain')],{profile:{emailAddress:'owner@vault.test',historyId:'1000'}})

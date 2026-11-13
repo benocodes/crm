@@ -11,7 +11,7 @@ import {
   type PreparedOperation,
   type Read,
   type StorageBinding,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { ApiError, mapStorageError } from '../errors.js'
 import { normalizeIdentityValue } from '../identity/normalize.js'
 import type { InternalEnv } from '../storage/internal.js'

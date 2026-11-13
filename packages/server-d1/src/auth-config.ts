@@ -1,5 +1,5 @@
-import { isValidPushVar } from '@vault/api'
-import type { AuthRuntimeConfig } from '@vault/auth'
+import { isValidPushVar } from '@vibase/api'
+import type { AuthRuntimeConfig } from '@vibase/auth'
 
 /** `AUTH_SECRET` is at least this many characters ([[CORE243]] D6, P2): setup generates 32 random bytes as base64url, which is 43. */
 export const AUTH_SECRET_MIN_LENGTH = 32

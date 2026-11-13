@@ -29,7 +29,7 @@ export interface StageInput {
   migrations: readonly { name: string; sha256: string }[]
 }
 
-/** The wrangler version `@vault/server-d1` pins, read from its `package.json` so it is never typed twice ([[OPS210]] D6). */
+/** The wrangler version `@vibase/server-d1` pins, read from its `package.json` so it is never typed twice ([[OPS210]] D6). */
 export function readWranglerVersion(serverD1PackageJson: string): string {
   const v = (JSON.parse(readFileSync(serverD1PackageJson, 'utf8')) as { devDependencies?: Record<string, string> }).devDependencies?.wrangler
   if (v === undefined || !/^\d+\.\d+\.\d+$/.test(v)) throw new ReleaseRefusal(`${serverD1PackageJson} must pin wrangler to an exact version, found ${v === undefined ? 'none' : v}`)

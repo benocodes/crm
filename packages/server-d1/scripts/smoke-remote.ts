@@ -53,7 +53,7 @@ async function before(base: string, version: string): Promise<void> {
   check('health -> 200 ok, initialised false, version', h.status === 200 && h.json?.status === 'ok' && h.json?.initialised === false && h.json?.version === version, { status: h.status, initialised: h.json?.initialised, version: h.json?.version })
   const t = await call(base, 'GET', '/api/v1/tasks')
   check('GET /api/v1/tasks (no auth) -> 503 not_initialised', t.status === 503 && errCode(t.json) === 'not_initialised', { status: t.status, code: errCode(t.json) })
-  for (const [path, title] of [['/api/v1/openapi.json', 'Vault records API'], ['/meta/v1/openapi.json', 'Vault meta API']] as const) {
+  for (const [path, title] of [['/api/v1/openapi.json', 'Vibase records API'], ['/meta/v1/openapi.json', 'Vibase meta API']] as const) {
     const o = await call(base, 'GET', path)
     check(`GET ${path} -> 200, openapi 3.1.0, ${title}`, o.status === 200 && o.json?.openapi === '3.1.0' && (o.json?.info as Json | undefined)?.title === title, { status: o.status })
   }

@@ -1,6 +1,6 @@
 import { sql, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import { UnitDriftError, appliedPrev, bind, codecs, defineOperation, readAll, readMaybe, recordColumns, step, ts, unit, type PreparedOperation, type QueryContext } from '@vault/storage'
+import { UnitDriftError, appliedPrev, bind, codecs, defineOperation, readAll, readMaybe, recordColumns, step, ts, unit, type PreparedOperation, type QueryContext } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { feedVisibility } from '../events/operations.js'
 import { eventStatement } from '../outbox.js'
@@ -31,7 +31,7 @@ export const webhookRecord = z.object({
   agent_id: z.uuid().describe('The agent that owns the subscription: it receives only event types it could read itself.'),
   url: z.string().describe('Where events are POSTed: https, a public host.'),
   event_types: z.array(z.string()).describe('The exact event types delivered, for example task.created.'),
-  status: z.enum(['active', 'paused', 'disabled']).describe('paused by a caller; disabled by the vault after sustained failure.'),
+  status: z.enum(['active', 'paused', 'disabled']).describe('paused by a caller; disabled by Vibase after sustained failure.'),
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -72,7 +72,7 @@ const updateBody = z.strictObject({
     .max(20)
     .optional()
     .describe('Replaces the list; omitted leaves it as it is. Takes effect from the current position, with no rewind.'),
-  status: z.enum(['active', 'paused']).optional().describe('paused stops delivery and keeps the position; active resumes (and re-enables a subscription the vault disabled).'),
+  status: z.enum(['active', 'paused']).optional().describe('paused stops delivery and keeps the position; active resumes (and re-enables a subscription Vibase disabled).'),
 })
 const idParams = z.object({ id: z.uuid() })
 const listQuery = z.object({
@@ -549,7 +549,7 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       ...base,
       name: 'webhooks.update',
       summary: 'Change a webhook subscription: its URL, its event types, or pause and resume it',
-      description: 'Changes take effect at the next dispatch from the current position (nothing is replayed). status may be active or paused; the vault itself sets disabled. Changed event types are checked like create.',
+      description: 'Changes take effect at the next dispatch from the current position (nothing is replayed). status may be active or paused; Vibase itself sets disabled. Changed event types are checked like create.',
       method: 'patch',
       path: '/webhooks/{id}',
       scope: writeScope,

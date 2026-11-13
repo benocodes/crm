@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { build } from 'esbuild'
 import { Miniflare, type MiniflareOptions } from 'miniflare'
-import { applyMigrations } from '@vault/storage-d1/test'
-import type { D1Like } from '@vault/storage-d1'
+import { applyMigrations } from '@vibase/storage-d1/test'
+import type { D1Like } from '@vibase/storage-d1'
 
 export interface Bundle {
   dir: string
@@ -20,7 +20,7 @@ export interface Bundle {
 export const NODE_IMPORT = /(?:from\s*|import\s*\(\s*|import\s+|require\s*\(\s*)["'](node:[^"']+)["']/g
 
 export async function bundleWorker(entry: string): Promise<Bundle> {
-  const dir = mkdtempSync(join(tmpdir(), 'vault-auth-bundle-'))
+  const dir = mkdtempSync(join(tmpdir(), 'vb-auth-bundle-'))
   const path = join(dir, 'worker.mjs')
   await build({
     entryPoints: [entry],

@@ -1,6 +1,6 @@
 import { sql, type SqlBool } from 'kysely'
-import { assertStep, defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vault/storage'
-import type { D1Like, D1PreparedLike } from '@vault/storage-d1'
+import { assertStep, defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vibase/storage'
+import type { D1Like, D1PreparedLike } from '@vibase/storage-d1'
 
 /** The deployment marker ([[CORE35]] D18, D1 migration 0001): the one organisation this database serves and its auth link. */
 export type DeploymentLink = { organizationId: string; authProvider: string; authOrgId: string }

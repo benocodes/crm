@@ -1,6 +1,6 @@
 import { sql, type Expression } from 'kysely'
 import { z } from 'zod'
-import type { QueryContext } from '@vault/storage'
+import type { QueryContext } from '@vibase/storage'
 import { definePreparedResource, type DerivedDecl } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { withColumnFilters } from '../storage/column-filters.js'

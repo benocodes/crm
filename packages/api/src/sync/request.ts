@@ -1,7 +1,7 @@
 // Requesting a sync ([[CHN5]] D11, D74): `sync_requested_at` in its own unit, then one Workflow instance. The row is committed before the instance
 // exists, so a run that finishes sees a request that arrived while it ran; an instance that cannot be created leaves the request for the cron.
 import { sql } from 'kysely'
-import { defineOperation, execute, readSet, step, unit, type StorageBinding } from '@vault/storage'
+import { defineOperation, execute, readSet, step, unit, type StorageBinding } from '@vibase/storage'
 
 export interface MailSyncParams {
   connection_id: string

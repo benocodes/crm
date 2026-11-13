@@ -42,7 +42,7 @@ describe('requireConfirm (C3)', () => {
 
 describe('resolveTarget (C4)', () => {
   it('refuses the top level (an unknown env)', () => {
-    refusal(() => resolveTarget({ name: 'vault', d1_databases: [{ binding: 'DB', database_id: PLACEHOLDER_DATABASE_ID }] }, 'nope'), 'unknown env nope')
+    refusal(() => resolveTarget({ name: 'vb', d1_databases: [{ binding: 'DB', database_id: PLACEHOLDER_DATABASE_ID }] }, 'nope'), 'unknown env nope')
   })
   it('refuses an env with no DB binding', () => {
     refusal(() => resolveTarget({ name: 'vault-x', d1_databases: [] }, 'x'), 'env x has no DB binding')

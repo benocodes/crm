@@ -48,7 +48,7 @@ describe('D11 generated config', () => {
     const c = generateConfig(base(), settings(), paths)
     c.d1_databases[0].remote = false
     expect(() => resolveTarget(c, 'demo')).toThrow(/remote: true/)
-    expect(() => resolveTarget(generateConfig(base(), settings({ worker: 'vault' }), paths), 'demo')).toThrow(/unknown env/)
+    expect(() => resolveTarget(generateConfig(base(), settings({ worker: 'vb' }), paths), 'demo')).toThrow(/unknown env/)
   })
   it('contains no secret value', () => {
     const text = JSON.stringify(generateConfig(base(), settings(), paths))
@@ -76,6 +76,13 @@ describe('D11 temp directory', () => {
     expect(c.d1_databases[0].migrations_dir).toBe(join(pkg.dir, 'migrations'))
     expect(c.d1_databases[0].remote).toBe(true)
     expect(existsSync(dir)).toBe(false)
+    expect(readdirSync(root)).toEqual([])
+  })
+  it('the resources-only config of `setup` also refuses the local top-level worker name (OPS262 D3), and a real name passes', () => {
+    const root = mkTmp()
+    const run = (worker: string) => withGeneratedConfig({ packageDir: stagedPackage().dir, settings: settings({ worker }), tmpRoot: root, resourcesOnly: true }, () => 'ran')
+    expect(() => run('vb')).toThrow(/unknown env demo/)
+    expect(run('vb-demo')).toBe('ran')
     expect(readdirSync(root)).toEqual([])
   })
   it('deletes it when the callback throws', () => {

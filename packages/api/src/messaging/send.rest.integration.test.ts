@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest'
-import { execute, uuidv7 } from '@vault/storage'
+import { execute, uuidv7 } from '@vibase/storage'
 import { openActionKit, type ActionKit, type Actor } from '../test/action-kit.js'
 import { connectOperation } from '../connections/connect.js'
 import { memoryObjectStore, type ObjectStore } from '../objects/store.js'

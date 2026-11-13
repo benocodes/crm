@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SetLimitExceeded, compileOperation, type Dialect } from '@vault/storage'
+import { SetLimitExceeded, compileOperation, type Dialect } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { ScopeSet } from '../scopes.js'
 import type { PreparedEnv } from '../storage/definition.js'

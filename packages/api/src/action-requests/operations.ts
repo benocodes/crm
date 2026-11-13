@@ -14,7 +14,7 @@ import {
   type QueryContext,
   type Row,
   type Step,
-} from '@vault/storage'
+} from '@vibase/storage'
 import { systemPrincipalRead, systemPrincipalSteps, SYSTEM_PRINCIPAL_READ } from '../directory/system-principal.js'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'

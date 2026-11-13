@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { COLUMN_KINDS } from '@vault/storage'
+import { COLUMN_KINDS } from '@vibase/storage'
 import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 

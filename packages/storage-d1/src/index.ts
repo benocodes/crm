@@ -17,7 +17,7 @@ import {
   type Row,
   type Runtime,
   type StorageIdentity,
-} from '@vault/storage'
+} from '@vibase/storage'
 import type { D1Like, D1PreparedLike, D1ResultLike } from './binding.js'
 
 export type { D1Like, D1PreparedLike, D1ResultLike } from './binding.js'

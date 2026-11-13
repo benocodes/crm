@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { openEngines, type Engine, type EngineName } from '../test/engines.js'
 import { openAuthKit, type AuthKit } from '../test/auth-kit.js'

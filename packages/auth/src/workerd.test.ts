@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { seedDeployment, seedPrincipal } from '@vault/storage-d1/test/seed'
+import { seedDeployment, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { hashPassword } from './index.js'
 import { bundleWorker, startWorkerd, type Bundle, type Workerd } from './test/index.js'

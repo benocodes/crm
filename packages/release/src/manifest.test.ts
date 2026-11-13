@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync, mkdirSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { MIGRATIONS } from '@vault/storage-d1'
+import { MIGRATIONS } from '@vibase/storage-d1'
 import { sources } from './fixtures.js'
 import { assertRelease, listFiles, sha256, verifyRelease } from './manifest.js'
 import { stageServer } from './stage.js'

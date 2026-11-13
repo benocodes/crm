@@ -1,4 +1,4 @@
-import { codecs, defineOperation, execute, readMaybe, step, unit, uuidv7, type PreparedOperation, type Read, type Step, type StorageBinding } from '@vault/storage'
+import { codecs, defineOperation, execute, readMaybe, step, unit, uuidv7, type PreparedOperation, type Read, type Step, type StorageBinding } from '@vibase/storage'
 import { generateApiKey } from './auth/api-keys.js'
 import { assertAgentGrantable, grantableScopes } from './auth/roles.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from './directory/system-principal.js'

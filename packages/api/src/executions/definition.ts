@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineOperation, memberOf, readMaybe, unit, type PreparedOperation, type Read } from '@vault/storage'
+import { defineOperation, memberOf, readMaybe, unit, type PreparedOperation, type Read } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import type { Registry, TenantOperation } from '../registry.js'
 import { listOperation, selectRecord, toRecord, type ListResult } from '../storage/crud.js'
@@ -29,7 +29,7 @@ const record = z.object({
   idempotency_key: z.string().nullable().describe('The caller\'s key of a direct call; null for an approved request.'),
   result: z.unknown().describe('What the operation produced; null until done.'),
   error_code: z.string().nullable().describe('Why it failed: reauth_required, permission_missing, anchor_missing, provider_rejected, outcome_unknown, attempts_exhausted or deadline_passed.'),
-  error_message: z.string().nullable().describe('The vault\'s sentence for the failure; never a provider\'s own text.'),
+  error_message: z.string().nullable().describe('Vibase\'s sentence for the failure; never a provider\'s own text.'),
   deadline_at: z.string().describe('When a never-attempted execution stops being attempted.'),
   done_at: z.string().nullable().describe('When it was executed: when it finished, done or failed; null while queued or claimed.'),
   created_at: z.string().describe('When it was queued: the moment it was authorised. For an approved action request that is the approval, equal to the request\'s decided_at; for a direct call, the call.'),

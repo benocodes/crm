@@ -2,7 +2,7 @@
 // own (never loaded into `process.env`, never read from it), with the kind and issuer derived from the key shapes. Nothing here prints a value.
 import { createPublicKey } from 'node:crypto'
 import { parseEnv } from 'node:util'
-import { publishableKeyHost } from '@vault/api'
+import { publishableKeyHost } from '@vibase/api'
 import { RemoteRefusal } from '../remote.js'
 import type { EnvFileProbe, SetupDeps, SetupOptions } from './types.js'
 

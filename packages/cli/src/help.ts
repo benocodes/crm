@@ -22,7 +22,7 @@ const group = (commands: Command[]) => {
 }
 
 export function topHelp(commands: Command[] | undefined, server?: string): string {
-  const lines = ['vibase: the vault on the command line', '', 'Usage: vibase <resource> <action> [ids] [--flags] [--data <json>]', '']
+  const lines = ['vibase: Vibase on the command line', '', 'Usage: vibase <resource> <action> [ids] [--flags] [--data <json>]', '']
   if (commands) {
     lines.push(`Resources of ${server}:`)
     for (const [resource, cmds] of [...group(commands)].sort(([a], [b]) => a.localeCompare(b))) lines.push(`  ${resource.padEnd(22)}${(resource === 'events' ? [...cmds.map((c) => c.action), 'tail'] : cmds.map((c) => c.action)).join(', ')}`)

@@ -63,7 +63,7 @@ async function readHealth(url: string, deps: InstanceDeps): Promise<{ version: s
     body = undefined
   }
   const version = (body as { version?: unknown } | null | undefined)?.version
-  if (typeof version !== 'string') throw new InstanceRefusal(`${url} answered 200 but not with a vault health body (no version string): is this the instance's api_host?`)
+  if (typeof version !== 'string') throw new InstanceRefusal(`${url} answered 200 but not with a Vibase health body (no version string): is this the instance's api_host?`)
   const commit = (body as { commit?: unknown }).commit
   return { version, commit: typeof commit === 'string' ? commit : null }
 }

@@ -1,7 +1,7 @@
 // Test support for the D1 Worker package (a `test/` directory: the boundary checker treats it as tests).
-import { type D1Like, type D1PreparedLike } from '@vault/storage-d1'
-import { clearD1, openLocalD1, type LocalD1 } from '@vault/storage-d1/test'
-import { mintOAuthToken, SECRET_KEY, WEBHOOK_SECRET, API_URL, clerkOrganization, clerkMembership, clerkUser, fakeClerkFetch, testIssuer, type ClerkMembershipJson, type ClerkOrganizationJson, type ClerkUserJson, type FakeFetch, type TestIssuer } from '@vault/api/test/clerk'
+import { type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
+import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
+import { mintOAuthToken, SECRET_KEY, WEBHOOK_SECRET, API_URL, clerkOrganization, clerkMembership, clerkUser, fakeClerkFetch, testIssuer, type ClerkMembershipJson, type ClerkOrganizationJson, type ClerkUserJson, type FakeFetch, type TestIssuer } from '@vibase/api/test/clerk'
 import type { D1WorkerEnv } from '../compose.js'
 
 export { clerkOrganization, clerkMembership, clerkUser, mintOAuthToken }

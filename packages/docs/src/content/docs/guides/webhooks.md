@@ -3,7 +3,7 @@ title: Webhooks
 description: Have your instance call your workflow engine when something happens, and write a receiver that is safe against retries.
 ---
 
-A webhook is how your instance tells your own workflow engine that something happened. The vault does not run automations: it delivers a signed event to a URL you choose, and your engine (a Cloudflare Workflow, n8n, Windmill, or any HTTP endpoint) does the work with its own agent credentials.
+A webhook is how your instance tells your own workflow engine that something happened. Vibase does not run automations: it delivers a signed event to a URL you choose, and your engine (a Cloudflare Workflow, n8n, Windmill, or any HTTP endpoint) does the work with its own agent credentials.
 
 A complete, copyable receiver for Cloudflare Workers lives in the repository at `packages/webhook-receiver-example`. It verifies the request, starts a Workflow, answers at once, and the Workflow reads the new email and proposes a reply for approval.
 
@@ -56,11 +56,11 @@ In a Worker you can do the same with Web Crypto and no dependency: `packages/web
 
 ## Answer fast, then work
 
-Do nothing in the request except verify and hand off. The vault waits 10 seconds for an answer and counts a slower one as a failure.
+Do nothing in the request except verify and hand off. Vibase waits 10 seconds for an answer and counts a slower one as a failure.
 
 - Any `2xx` is success. Everything else is a failure and is retried: a `4xx` or `5xx` status, a timeout, a connection error, and a redirect (`3xx`; redirects are not followed).
 - At this release `410 Gone`, `429` and a `Retry-After` header are ordinary failures like the rest: they are retried on the schedule below and change nothing else.
-- Return `5xx` when you could not start the work, so the vault retries. Return `2xx` when the work is already started or not wanted.
+- Return `5xx` when you could not start the work, so Vibase retries. Return `2xx` when the work is already started or not wanted.
 
 Delivery is **at least once and unordered**. The same event can arrive twice, and two events can arrive in either order. Use `webhook-id` as the idempotency key. In Cloudflare Workflows that is free: start the instance with `id` set to the `webhook-id`, treat "instance already exists" as success, and a re-delivery cannot run the work twice.
 
@@ -77,7 +77,7 @@ When order matters, read the feed in order instead of trusting arrival order.
 
 ## Retries and failed deliveries
 
-The vault sends from its per-minute schedule. A failed attempt is retried after 30 seconds, 5 minutes, 30 minutes, 2 hours, 6 hours, 12 hours, 24 hours (give or take 20 percent; a delay shorter than a minute waits for the next one). That is 8 attempts over about 45 hours. A delivery that fails every attempt is marked `dead`.
+Vibase sends from its per-minute schedule. A failed attempt is retried after 30 seconds, 5 minutes, 30 minutes, 2 hours, 6 hours, 12 hours, 24 hours (give or take 20 percent; a delay shorter than a minute waits for the next one). That is 8 attempts over about 45 hours. A delivery that fails every attempt is marked `dead`.
 
 `GET /meta/v1/webhooks/{id}/deliveries` lists deliveries with `status` (`pending`, `delivered`, `dead` or `cancelled`), `attempts`, `last_status_code` and `last_error`. The error codes are:
 
@@ -85,11 +85,11 @@ The vault sends from its per-minute schedule. A failed attempt is retried after 
 - `connection_failed`: the connection failed or was refused.
 - `http_status`: the answer was not a `2xx`; see `last_status_code`.
 - `redirect`: the answer was a `3xx`.
-- `sender_failed`: the vault could not sign or send, or the delivery used up its attempts.
+- `sender_failed`: Vibase could not sign or send, or the delivery used up its attempts.
 - `cancelled_subscription`: the subscription was deleted before the delivery was sent.
 - `cancelled_scope`: the subscribing agent lost `events:read` or the right to see that event, or was disabled.
 
-Response bodies are never stored. At this release the vault does not disable a subscription or delete old deliveries on its own, whatever the receiver answers.
+Response bodies are never stored. At this release Vibase does not disable a subscription or delete old deliveries on its own, whatever the receiver answers.
 
 ## Catch up after downtime
 

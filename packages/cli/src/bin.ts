@@ -1,6 +1,6 @@
 import { homedir } from 'node:os'
 import { run } from './cli.js'
-// Injected by `scripts/build.ts` from `@vault/release`'s package.json ([[OPS210]] D1); an unbuilt run (tsx) is `dev`.
+// Injected by `scripts/build.ts` from `@vibase/release`'s package.json ([[OPS210]] D1); an unbuilt run (tsx) is `dev`.
 declare const __VIBASE_VERSION__: string | undefined
 
 const readStdin = async () => {

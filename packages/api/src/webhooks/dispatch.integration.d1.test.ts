@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { captureMessage, runCapture } from '../test/capture-kit.js'
 import { NOW, openWebhookKit, type WebhookKit } from '../test/webhook-kit.js'
 import { applyPage, dispatchWebhooks, eligibleSubscriptions, readPage } from './dispatch.js'

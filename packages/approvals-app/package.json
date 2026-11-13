@@ -1,8 +1,8 @@
 {
-  "name": "@vault/approvals-app",
+  "name": "@vibase/approvals-app",
   "version": "0.1.0",
   "private": true,
-  "description": "The approvals mini-app: a static page (Cloudflare Workers Static Assets, no server code) that lists pending action requests of one vault and approves or rejects them. Signs in with Clerk, calls the vault's REST API from the browser.",
+  "description": "The approvals mini-app: a static page (Cloudflare Workers Static Assets, no server code) that lists pending action requests of one Vibase and approves or rejects them. Signs in with Clerk, calls Vibase's REST API from the browser.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {

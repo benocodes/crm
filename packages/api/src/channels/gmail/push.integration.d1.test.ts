@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { SignJWT } from 'jose'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { parseGmailConfig, parsePushConfig } from '../../connections/config.js'
 import { createApp } from '../../rest/app.js'
 import { dueConnections, type MailSyncInstances, type MailSyncParams } from '../../sync/request.js'
@@ -69,7 +69,7 @@ describe('the verifier (D87): every refusal is 401 with no write and no instance
   const cases: Array<[string, () => Promise<string>]> = [
     ['a wrong aud', () => signPushToken(key, now, { aud: 'https://vault.test/gmail/push/' })],
     ['an aud of another origin', () => signPushToken(key, now, { aud: 'https://other.test/gmail/push' })],
-    ['a wrong email', () => signPushToken(key, now, { email: 'someone-else@vault-p.iam.gserviceaccount.com' })],
+    ['a wrong email', () => signPushToken(key, now, { email: 'someone-else@vb-p.iam.gserviceaccount.com' })],
     ['an absent email', () => signPushToken(key, now, { email: null })],
     ['email_verified false', () => signPushToken(key, now, { email_verified: false })],
     ['email_verified absent', () => signPushToken(key, now, { email_verified: null })],
@@ -89,7 +89,7 @@ describe('the verifier (D87): every refusal is 401 with no write and no instance
   })
   it('a body for another subscription is 401, after the token passed', async () => {
     const before = await snapshot()
-    const res = await post(app(), { body: pushBody({ subscription: 'projects/vault-p/subscriptions/other' }) })
+    const res = await post(app(), { body: pushBody({ subscription: 'projects/vb-p/subscriptions/other' }) })
     expect(res.status).toBe(401)
     expect(await snapshot()).toBe(before)
     expect(created).toEqual([])

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vault/storage'
+import { uuidv7 } from '@vibase/storage'
 import { coldStorage } from '../test/storage.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 import { createApp } from './app.js'

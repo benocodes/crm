@@ -2,7 +2,7 @@
 // suites and by the contract fixtures of the six messaging resources (which seed through the program under construction
 // of the unit they read, replacing the direct-insert seeding of cycle 1, P15).
 import { sql } from 'kysely'
-import { defineOperation, execute, step, unit, uuidv7, type PreparedOperation, type StorageBinding } from '@vault/storage'
+import { defineOperation, execute, step, unit, uuidv7, type PreparedOperation, type StorageBinding } from '@vibase/storage'
 import { fileObjectPrefix } from '../messaging/r2-keys.js'
 import { recordMessagesOperation, type CaptureAttachment, type CaptureInput, type CaptureMessage, type CaptureResult } from '../messaging/capture.js'
 import { ScopeSet } from '../scopes.js'

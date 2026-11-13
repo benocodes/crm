@@ -2,7 +2,7 @@
 // as the same batch left it, so "did I get it" is a database fact (D1 runs the batch atomically) and no drift handling is needed. The lease is
 // machinery, not a resource: no event (invariant 5, [[CHN5]] D22).
 import { sql, type SqlBool } from 'kysely'
-import { defineOperation, execute, step, unit, type StorageBinding } from '@vault/storage'
+import { defineOperation, execute, step, unit, type StorageBinding } from '@vibase/storage'
 
 export interface LeaseDeps {
   binding: StorageBinding

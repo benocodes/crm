@@ -1,5 +1,5 @@
 import { sql } from 'kysely'
-import { codecs, defineOperation, execute, readAll, step, unit, type PreparedOperation, type Step, type StorageBinding } from '@vault/storage'
+import { codecs, defineOperation, execute, readAll, step, unit, type PreparedOperation, type Step, type StorageBinding } from '@vibase/storage'
 import { decodeBase64 } from '../connections/config.js'
 import { openToken } from '../connections/credentials.js'
 import { record as eventRecord } from '../events/operations.js'

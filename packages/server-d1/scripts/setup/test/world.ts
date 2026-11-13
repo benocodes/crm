@@ -3,7 +3,7 @@
 // wrangler.jsonc, and the in-memory D1 behind the marker. Writes by a run change the state the next run reads.
 import { readFileSync } from 'node:fs'
 import { parse } from 'jsonc-parser'
-import { MIGRATIONS, type D1Like } from '@vault/storage-d1'
+import { MIGRATIONS, type D1Like } from '@vibase/storage-d1'
 import type { Credentials, EnvFileProbe, ExecResult, SetupCmd, SetupDeps } from '../types.js'
 import { PK_TEST, SK_TEST, type FakeClerk } from './clerk-world.js'
 

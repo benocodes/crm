@@ -1,7 +1,7 @@
 // Test-only (spec CORE38 D10, CORE47 P3-P5): reads the physical constraint shape of both engines and diffs them.
-// Only the enterprise side may import both engines (invariant 10), so this lives in @vault/storage-postgres.
+// Only the enterprise side may import both engines (invariant 10), so this lives in @vibase/storage-postgres.
 import { sql, type Kysely } from 'kysely'
-import type { D1Like } from '@vault/storage-d1'
+import type { D1Like } from '@vibase/storage-d1'
 
 export type Aspect = 'table' | 'primaryKey' | 'foreignKey' | 'uniqueKey' | 'index' | 'namedCheck'
 export interface TableShape { primaryKey: string[]; foreignKeys: string[]; uniqueKeys: string[]; indexes: string[]; namedChecks: string[] }

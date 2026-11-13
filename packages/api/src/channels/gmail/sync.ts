@@ -1,6 +1,6 @@
 // Capture pages ([[CHN5]] cycle 3, [[CHN149]]): what one Workflow step will do. Plain async functions, Node-safe, returning plain data.
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, assertStep, boundIds, defineOperation, execute, memberOf, readMaybe, readSet, step, ts, unit, type EventReceipt, type Row, type StorageBinding, type StorageIdentity } from '@vault/storage'
+import { UnitDriftError, assertStep, boundIds, defineOperation, execute, memberOf, readMaybe, readSet, step, ts, unit, type EventReceipt, type Row, type StorageBinding, type StorageIdentity } from '@vibase/storage'
 import type { GmailConfig } from '../../connections/config.js'
 import type { GoogleEndpoints } from '../../connections/google.js'
 import type { ObjectStore } from '../../objects/store.js'

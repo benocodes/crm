@@ -53,7 +53,7 @@ function agentItem(a: AgentRowView, handlers: Handlers): HTMLElement {
 }
 
 export function render(root: HTMLElement, vm: ViewModel, handlers: Handlers): void {
-  const parts: Node[] = [text('h1', 'Connect to this vault')]
+  const parts: Node[] = [text('h1', 'Connect to this Vibase')]
   if (vm.message) parts.push(text('p', vm.message, 'message'))
   if (vm.showSignIn) parts.push(button('Sign in', 'sign-in', () => handlers.signIn()))
   if (vm.error) parts.push(text('p', vm.error, 'error'))

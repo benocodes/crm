@@ -22,7 +22,7 @@ const common = {
 
 export const engineNeutralProject: TestProjectInlineConfiguration = {
   // OPS223 D3: the default projects allow files side by side (each opens a private in-memory D1); the worker count stays the root's
-  // `maxWorkers: 1` unless a package's `test` script raises it (`@vault/api`, D4).
+  // `maxWorkers: 1` unless a package's `test` script raises it (`@vibase/api`, D4).
   test: { ...common, fileParallelism: true, name: 'engine-neutral', include: [TESTS], exclude: [...EXCLUDE, '**/*.d1.test.ts', '**/*.postgres.test.ts'] },
 }
 export const d1Project: TestProjectInlineConfiguration = {

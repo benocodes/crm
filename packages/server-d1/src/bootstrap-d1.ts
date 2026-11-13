@@ -1,6 +1,6 @@
-import { bootstrap, bootstrapWorkspace } from '@vault/api'
-import { execute, uuidv7 } from '@vault/storage'
-import { d1Binding, type D1Like } from '@vault/storage-d1'
+import { bootstrap, bootstrapWorkspace } from '@vibase/api'
+import { execute, uuidv7 } from '@vibase/storage'
+import { d1Binding, type D1Like } from '@vibase/storage-d1'
 import { initDeploymentOperation, markerInsert, readDeployment, type DeploymentLink } from './init-deployment.js'
 
 export interface BootstrapD1Options {

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineOperation, unit, type PreparedOperation } from '@vault/storage'
+import { defineOperation, unit, type PreparedOperation } from '@vibase/storage'
 import { endpointTypesOf } from '../associations/definition.js'
 import { ApiError } from '../errors.js'
 import { parseInput } from '../resources/define.js'
