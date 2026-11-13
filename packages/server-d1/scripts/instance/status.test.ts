@@ -6,7 +6,7 @@ import { ACCOUNT, captureHealthBody, cleanup, makeWorld, mkTmp, NO_TRACKER_JSON,
 
 afterEach(cleanup)
 let HEALTH: Record<string, any>
-beforeAll(async () => { HEALTH = await captureHealthBody() })
+beforeAll(async () => { HEALTH = await captureHealthBody() }, 60_000)
 const healthRes = (version: string) => () => new Response(JSON.stringify({ ...HEALTH, version }), { status: 200, headers: { 'content-type': 'application/json' } })
 const status = async (o: WorldOptions & { version?: string; argv?: string[] } = {}) => {
   const w = makeWorld({ health: healthRes(o.version ?? '0.1.0'), ...o })

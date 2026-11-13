@@ -13,6 +13,8 @@ export interface GateOptions {
   envName: string
   settingsPath?: string
   secretsPath?: string
+  /** `upgrade --rollback` ([[OPS234]] P3): (d) and (e) are replaced by package migrations ⊆ applied and a live version newer than the package's. */
+  rollback?: boolean
 }
 export interface GateOutcome {
   manifest: ReleaseManifest
@@ -24,6 +26,7 @@ export interface GateOutcome {
   /** Names in the package not applied yet, in release order. */
   pending: string[]
   notes: string[]
+  secrets: Secrets
 }
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
@@ -66,7 +69,7 @@ async function readHealth(url: string, deps: InstanceDeps): Promise<{ version: s
 }
 
 /** The whole child environment of a wrangler run: no other variable of the process, and the two Cloudflare values from the secrets. */
-function childEnv(deps: InstanceDeps, s: Secrets): Record<string, string> {
+export function childEnv(deps: InstanceDeps, s: Secrets): Record<string, string> {
   const env: Record<string, string> = { CI: '1', WRANGLER_SEND_METRICS: 'false', CLOUDFLARE_ACCOUNT_ID: s.CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN: s.CLOUDFLARE_API_TOKEN }
   if (deps.env.PATH) env.PATH = deps.env.PATH
   if (deps.env.HOME) env.HOME = deps.env.HOME
@@ -74,17 +77,16 @@ function childEnv(deps: InstanceDeps, s: Secrets): Record<string, string> {
 }
 
 /** wrangler's tracker table on the live database, read through the generated config. `null`: no tracker table. */
-function readTracker(settings: InstanceSettings, secrets: Secrets, deps: InstanceDeps): string[] | null {
-  return withGeneratedConfig({ packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot }, (configPath) => {
-    const r = deps.runWrangler(['d1', 'execute', 'DB', '--remote', '--json', '--command', 'select name from d1_migrations', '-c', configPath], { cwd: join(configPath, '..'), env: childEnv(deps, secrets) })
-    try {
-      return parseTrackerOutput(r.stdout)
-    } catch (e) {
-      const detail = (r.stderr.trim() || (e instanceof Error ? e.message : '')).slice(-400)
-      throw new InstanceRefusal(`wrangler d1 execute failed (exit ${r.status ?? 'none'}): ${secrets.redact(detail)}`)
-    }
-  })
+export function readTrackerAt(configPath: string, secrets: Secrets, deps: InstanceDeps): string[] | null {
+  const r = deps.runWrangler(['d1', 'execute', 'DB', '--remote', '--json', '--command', 'select name from d1_migrations', '-c', configPath], { cwd: join(configPath, '..'), env: childEnv(deps, secrets) })
+  try {
+    return parseTrackerOutput(r.stdout)
+  } catch (e) {
+    const detail = (r.stderr.trim() || (e instanceof Error ? e.message : '')).slice(-400)
+    throw new InstanceRefusal(`wrangler d1 execute failed (exit ${r.status ?? 'none'}): ${secrets.redact(detail)}`)
+  }
 }
+const readTracker = (settings: InstanceSettings, secrets: Secrets, deps: InstanceDeps): string[] | null => withGeneratedConfig({ packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot }, (configPath) => readTrackerAt(configPath, secrets, deps))
 
 export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateOutcome> {
   // (a) the installed package is the release, before any network call or child process.
@@ -100,18 +102,28 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
   // (c) the live instance answers.
   const live = await readHealth(`https://${settings.api_host}/health`, deps)
 
-  // (d) the database's applied migrations are all known to this release.
   const applied = readTracker(settings, secrets, deps)
   const known = manifest.migrations.map((m) => m.name)
-  const unknown = (applied ?? []).filter((n) => !known.includes(n))
-  if (unknown.length > 0) throw new InstanceRefusal(`the database has migrations this release does not know: install a newer release (${unknown.join(', ')})`)
-
-  // (e) a newer semver live version refuses; (f) a non-semver one proceeds with a note.
   const notes: string[] = []
-  if (parseSemver(live.version) === null) notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
-  else if (parseSemver(manifest.version) !== null && compareSemver(live.version, manifest.version) > 0) {
-    throw new InstanceRefusal(`the instance runs ${live.version} and this package is ${manifest.version}: the instance is newer, install a newer release`)
+  if (o.rollback) {
+    // [[OPS234]] P3: a rollback deploys an older Worker on a newer schema; it may not need a migration the database lacks, and the instance must be newer.
+    const have = new Set(applied ?? [])
+    const missing = known.filter((n) => !have.has(n))
+    if (missing.length > 0) throw new InstanceRefusal(`a rollback cannot add migrations: the database lacks ${missing.join(', ')} that this release has; run upgrade without --rollback`)
+    if (parseSemver(live.version) === null) notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
+    else if (parseSemver(manifest.version) !== null && compareSemver(live.version, manifest.version) <= 0) {
+      throw new InstanceRefusal(`the instance runs ${live.version} and this package is ${manifest.version}: --rollback needs a newer instance; use upgrade without --rollback`)
+    }
+  } else {
+    // (d) the database's applied migrations are all known to this release.
+    const unknown = (applied ?? []).filter((n) => !known.includes(n))
+    if (unknown.length > 0) throw new InstanceRefusal(`the database has migrations this release does not know: install a newer release (${unknown.join(', ')})`)
+    // (e) a newer semver live version refuses; (f) a non-semver one proceeds with a note.
+    if (parseSemver(live.version) === null) notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
+    else if (parseSemver(manifest.version) !== null && compareSemver(live.version, manifest.version) > 0) {
+      throw new InstanceRefusal(`the instance runs ${live.version} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package with --rollback)`)
+    }
   }
   const have = new Set(applied ?? [])
-  return { manifest, settings, settingsPath, live, applied, pending: known.filter((n) => !have.has(n)), notes }
+  return { manifest, settings, settingsPath, live, applied, pending: known.filter((n) => !have.has(n)), notes, secrets }
 }

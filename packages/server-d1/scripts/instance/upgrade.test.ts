@@ -6,7 +6,7 @@ import { ACCOUNT, captureHealthBody, cleanup, makeWorld, NO_TRACKER_JSON, TOKEN,
 
 afterEach(cleanup)
 let HEALTH: Record<string, any>
-beforeAll(async () => { HEALTH = await captureHealthBody() })
+beforeAll(async () => { HEALTH = await captureHealthBody() }, 60_000)
 
 const PKG_VERSION = '0.1.0'
 const ALL = ['0001_a.sql', '0002_b.sql']

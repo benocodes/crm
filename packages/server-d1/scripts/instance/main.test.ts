@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -44,11 +44,17 @@ describe('instance entry', () => {
   it('a package whose wrangler cannot be resolved refuses (exit 2) naming the package, never an internal error', async () => {
     for (const command of ['status', 'upgrade']) {
       const w = makeWorld({ health: () => new Response(JSON.stringify({ version: '0.1.0', status: 'ok' }), { status: 200 }) })
+      // The nearest `wrangler` the package sees has no bin: it cannot be run, and nothing is ever spawned.
+      const outer = mkTmp('ops234-outer-')
+      const pkgDir = join(outer, 'node_modules', 'vibase')
+      cpSync(w.pkg.dir, pkgDir, { recursive: true })
+      mkdirSync(join(outer, 'node_modules', 'wrangler'), { recursive: true })
+      writeFileSync(join(outer, 'node_modules', 'wrangler', 'package.json'), JSON.stringify({ name: 'wrangler', version: '0.0.0' }))
       const r = io({ XDG_CONFIG_HOME: w.config, PATH: process.env.PATH, HOME: w.deps.homedir, CONFIRM_REMOTE: '1' })
-      const code = await runInstance([command, '--env', 'demo'], r.io, w.pkg.dir, { fetch: w.deps.fetch })
+      const code = await runInstance([command, '--env', 'demo'], r.io, pkgDir, { fetch: w.deps.fetch })
       expect(code).toBe(2)
       expect(r.err.join('')).toContain(`vibase instance ${command}: `)
-      expect(r.err.join('')).toContain(w.pkg.dir)
+      expect(r.err.join('')).toContain(pkgDir)
       expect(r.err.join('')).toMatch(/wrangler/)
     }
   })
