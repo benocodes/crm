@@ -71,12 +71,12 @@ describe('commands (C5, C6)', () => {
       { command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--remote', '--env', 'smoked1'] },
     ])
   })
-  it('deploy: build the page, typecheck, test, then deploy with the version', () => {
+  it('deploy: build the page, typecheck, test, then deploy with the version and the commit', () => {
     expect(deployCommands('smoked1', 'abc123')).toEqual([
       { command: 'pnpm', args: ['-C', 'packages/server-d1', 'build'] },
       { command: 'pnpm', args: ['-C', 'packages/server-d1', 'typecheck'] },
       { command: 'pnpm', args: ['-C', 'packages/server-d1', 'test'] },
-      { command: 'pnpm', args: ['exec', 'wrangler', 'deploy', '--env', 'smoked1', '--var', 'VERSION:abc123'] },
+      { command: 'pnpm', args: ['exec', 'wrangler', 'deploy', '--env', 'smoked1', '--var', 'VERSION:abc123', '--var', 'COMMIT:abc123'] },
     ])
   })
 })

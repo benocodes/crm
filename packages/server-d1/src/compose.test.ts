@@ -39,7 +39,7 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
   it('GET /health is 200 with initialised false', async () => {
     const res = await get(composeD1Worker(noAuth()), '/health')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'dev', migrations: UNKNOWN_MIGRATIONS })
+    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'dev', commit: 'dev', migrations: UNKNOWN_MIGRATIONS })
   })
 
   it.each([
@@ -102,7 +102,7 @@ describe('after bootstrap', () => {
 
   it('GET /health is 200 with initialised true', async () => {
     await boot()
-    expect(await (await get(composeD1Worker(noAuth()), '/health')).json()).toEqual({ status: 'ok', initialised: true, version: 'dev', migrations: UNKNOWN_MIGRATIONS })
+    expect(await (await get(composeD1Worker(noAuth()), '/health')).json()).toEqual({ status: 'ok', initialised: true, version: 'dev', commit: 'dev', migrations: UNKNOWN_MIGRATIONS })
   })
 
   it('GET /health is 503 unavailable when D1 cannot answer SELECT 1', async () => {
@@ -158,7 +158,17 @@ describe('a misconfigured auth provider (D12)', () => {
 describe('GET /health version (C1)', () => {
   it('reports VERSION', async () => {
     const res = await get(composeD1Worker(noAuth({ VERSION: 'abc123' })), '/health')
-    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'abc123', migrations: UNKNOWN_MIGRATIONS })
+    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'abc123', commit: 'dev', migrations: UNKNOWN_MIGRATIONS })
+  })
+
+  it('reports COMMIT beside an unchanged version (D7)', async () => {
+    const body = (await (await get(composeD1Worker(noAuth({ VERSION: '0.1.0', COMMIT: 'deadbee' })), '/health')).json()) as Record<string, unknown>
+    expect(body).toMatchObject({ status: 'ok', version: '0.1.0', commit: 'deadbee' })
+  })
+
+  it('commit is dev when COMMIT is absent or empty (D7)', async () => {
+    expect(((await (await get(composeD1Worker(noAuth({ VERSION: 'abc123' })), '/health')).json()) as { commit: string }).commit).toBe('dev')
+    expect(((await (await get(composeD1Worker(noAuth({ COMMIT: '' })), '/health')).json()) as { commit: string }).commit).toBe('dev')
   })
 
   it('an empty VERSION is dev', async () => {
