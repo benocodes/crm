@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@vault/api": "workspace:*",
+    "@vault/auth": "workspace:*",
     "@vault/storage": "workspace:*",
     "@vault/storage-d1": "workspace:*",
     "kysely": "0.29.6"
