@@ -48,6 +48,18 @@ describe('schema.get on the migrated D1 (D9)', () => {
     expect(names.filter((n) => n.startsWith('_cf_') || n.startsWith('sqlite_') || n === 'd1_migrations')).toEqual([])
     for (const p of PRESENT) expect(names, p).toContain(p)
   })
+  it('OPS260 D13: the CRM database has no auth_ table after its migrations, so the exclusion is proven with one created here: a real auth_* table is never listed', async () => {
+    expect((await realTables()).filter((n) => n.startsWith('auth_'))).toEqual([])
+    await d1.d1!.prepare('create table auth_probe (id text primary key, secret text)').run()
+    try {
+      expect(await realTables()).toContain('auth_probe')
+      const text = JSON.stringify(await getDoc())
+      expect(table(await getDoc(), 'auth_probe')).toBeUndefined()
+      expect(text).not.toContain('auth_probe')
+    } finally {
+      await d1.d1!.prepare('drop table auth_probe').run()
+    }
+  })
   it('the hidden-list constant names tables that exist and equals the written-out list', async () => {
     expect([...HIDDEN_TABLES].sort()).toEqual([...HIDDEN].sort())
     const real = await realTables()

@@ -10,7 +10,7 @@ import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker } from './compose.js'
 import { NOW, openWorkerD1, type WorkerD1 } from './test/kit.js'
 
-// [[CORE243]] D5: the auth tables are machinery. They exist in the database (migration 0018), and nothing the vault shows or does knows them.
+// [[CORE243]] D5: the auth tables are machinery. They live in the control-plane database (control 0001; the CRM copy of 0018 is dropped by 0019, [[OPS260]]), and nothing the vault shows or does knows them.
 let w: WorkerD1
 beforeAll(async () => {
   w = await openWorkerD1()
@@ -28,10 +28,11 @@ function* sources(dir: string): Generator<string> {
 }
 
 describe('the auth tables are machinery (D5)', () => {
-  it('they exist in the migrated database (so the checks below are not vacuous)', async () => {
-    const names = ((await w.d1.prepare("select name from sqlite_master where type = 'table' and name like 'auth\\_%' escape '\\'").all()).results as Array<{ name: string }>).map((r) => r.name)
+  it('they exist in the control database and not in the CRM database (so the checks below are not vacuous)', async () => {
+    const authIn = async (db: typeof w.d1) => ((await db.prepare("select name from sqlite_master where type = 'table' and name like 'auth\\_%' escape '\\'").all()).results as Array<{ name: string }>).map((r) => r.name)
     expect(AUTH_TABLES.length).toBeGreaterThanOrEqual(13)
-    expect(names.sort()).toEqual([...AUTH_TABLES].sort())
+    expect((await authIn(w.control)).sort()).toEqual([...AUTH_TABLES].sort())
+    expect(await authIn(w.d1)).toEqual([])
   })
 
   it('GET /meta/v1/schema lists no auth_ table, and mentions none anywhere in the document', async () => {

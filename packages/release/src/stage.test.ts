@@ -20,7 +20,7 @@ describe('D3 layout', () => {
     stageServer({ ...s, outDir })
     expect(listFiles(outDir)).toEqual([
       'LICENSE', 'README.md', 'assets/connect/connect.js', 'assets/connect/index.html', 'cli/server.js',
-      'migrations/0001_a.sql', 'migrations/0002_b.sql', 'package.json', 'release.json', 'worker/worker.js', 'wrangler.base.jsonc',
+      'control-migrations/0001_c.sql', 'control-migrations/0002_d.sql', 'migrations/0001_a.sql', 'migrations/0002_b.sql', 'package.json', 'release.json', 'worker/worker.js', 'wrangler.base.jsonc',
     ])
   })
 })
@@ -76,13 +76,14 @@ describe('D3/D6 published package.json', () => {
     expect(Object.keys(pkg.bin)).toEqual(['vibase'])
     for (const k of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'bundledDependencies', 'scripts', 'exports']) expect(pkg[k], k).toBeUndefined()
   })
-  it('OPS240 D23 (a): the server exports are exactly the six stable paths', () => {
+  it('OPS240 D23 (a): the server exports are exactly the seven stable paths (OPS260: control-migrations/* is additive)', () => {
     const pkg = serverPackageJson('0.1.0', '4.149.0') as Record<string, any>
     expect(pkg.exports).toEqual({
       './worker': './worker/worker.js',
       './wrangler.base.jsonc': './wrangler.base.jsonc',
       './release.json': './release.json',
       './migrations/*': './migrations/*',
+      './control-migrations/*': './control-migrations/*',
       './assets/*': './assets/*',
       './package.json': './package.json',
     })
@@ -121,13 +122,14 @@ describe('D3/D6 published package.json', () => {
 })
 
 describe('D5 wrangler.base.jsonc', () => {
-  const paths = { main: 'worker/worker.js', assetsDirectory: 'assets', migrationsDir: 'migrations' }
+  const paths = { main: 'worker/worker.js', assetsDirectory: 'assets', migrationsDir: 'migrations', controlMigrationsDir: 'control-migrations' }
   it('is the top level of the source config: no env, no real ids, placeholder database_id, package-relative paths', () => {
     const base = deriveBaseConfig(readFileSync(WRANGLER_JSONC, 'utf8'), paths) as Record<string, any>
     expect(base.env).toBeUndefined()
     expect(base.main).toBe('worker/worker.js')
     expect(base.assets.directory).toBe('assets')
     expect(base.d1_databases[0].migrations_dir).toBe('migrations')
+    expect(base.d1_databases[1]).toMatchObject({ binding: 'CONTROL_DB', migrations_dir: 'control-migrations' })
     expect(base.d1_databases[0].database_id).toBe('00000000-0000-0000-0000-000000000000')
     const source = parse(readFileSync(WRANGLER_JSONC, 'utf8'))
     expect(Object.keys(base).sort()).toEqual(Object.keys(source).filter((k) => k !== 'env').sort())
