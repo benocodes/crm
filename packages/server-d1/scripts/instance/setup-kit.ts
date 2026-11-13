@@ -1,4 +1,4 @@
-// Test support for `vibase instance setup` ([[OPS232]]): a simulated Cloudflare account behind the instance kit's fake wrangler runner and fake
+// Test support for `vibase-server setup` ([[OPS232]]): a simulated Cloudflare account behind the instance kit's fake wrangler runner and fake
 // fetch, and a real local D1 behind the bootstrap step. The runner records every call (the kit does); here it also answers the way wrangler's
 // output looks, and a write changes the state the next read sees. Nothing reaches a network, an account or the repo's wrangler.
 import { existsSync, readFileSync } from 'node:fs'

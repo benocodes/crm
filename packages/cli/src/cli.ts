@@ -48,18 +48,10 @@ function globals(argv: string[]) {
   return { server: s(values.server), profile: s(values.profile), refresh: values.refresh === true, help: values.help === true, version: values.version === true }
 }
 
-/** `vibase instance …` ([[OPS231]] D12): the sibling `instance.js` of a release package, or a message that says where the commands live. */
-async function instanceCommand(argv: string[], deps: Deps): Promise<number> {
-  const instance = await deps.loadInstance?.()
-  if (!instance) {
-    await deps.stderr.write('vibase: instance commands are only available from a release package (npm install the vibase package, then run its vibase)\n')
-    return 1
-  }
-  return instance(argv, {
-    stdout: (text) => void deps.stdout.write(text),
-    stderr: (text) => void deps.stderr.write(text),
-    env: deps.env,
-  })
+/** `vibase instance …` ([[OPS240]] D12): the instance commands live in `@vibase/server-d1` (`vibase-server`); the client only says where. Touches nothing. */
+async function instanceMoved(deps: Deps): Promise<number> {
+  await deps.stderr.write(`instance commands moved to the server package: npx @vibase/server-d1@${deps.version} <command> …\n`)
+  return 2
 }
 
 /** Runs one command line and returns the exit code. Never throws, never exits the process. */
@@ -92,7 +84,7 @@ async function main(argv: string[], deps: Deps): Promise<number> {
     case 'config':
       return configCommand(words[1], rest, deps)
     case 'instance':
-      return instanceCommand(others, deps)
+      return instanceMoved(deps)
   }
 
   const cfg = loadConfig(configPath(deps))

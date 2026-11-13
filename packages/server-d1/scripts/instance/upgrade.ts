@@ -1,4 +1,4 @@
-// `vibase instance upgrade [--dry-run] [--rollback] --env <name>` ([[OPS210]] D13, D15, D16, [[OPS234]]): from the installed release package, migrate, deploy the
+// `vibase-server upgrade [--dry-run] [--rollback] --env <name>` ([[OPS210]] D13, D15, D16, [[OPS234]]): from the installed release package, migrate, deploy the
 // package's own prebuilt Worker with `--no-bundle`, verify `/health` and run the key-less smoke. `--rollback` deploys an older package's Worker without any migration.
 // Every wrangler call is the package's own wrangler on the generated config (never `--env`, never `pnpm exec`); the instance is only ever told what is in the package.
 import { parseArgs } from 'node:util'
@@ -17,7 +17,7 @@ export const EXIT_FAILED = 3
 export const VERIFY_BOUND_MS = 300_000
 export const VERIFY_INTERVAL_MS = 10_000
 
-const USAGE = 'usage: vibase instance upgrade --env <name> [--dry-run] [--rollback] [--settings <path>] [--secrets-file <path>]'
+const USAGE = 'usage: vibase-server upgrade --env <name> [--dry-run] [--rollback] [--settings <path>] [--secrets-file <path>]'
 
 /** The exact argument list of the deploy: the release's own version and commit stamped as vars, no bundling. `check.ts` hands the same list to the installed wrangler. */
 export const deployArgs = (version: string, commit: string, configPath: string): string[] => ['deploy', '--no-bundle', '--var', `VERSION:${version}`, '--var', `COMMIT:${commit}`, '-c', configPath]
@@ -51,7 +51,7 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
     const expected = manifest.migrations.map((m) => m.name)
     const url = `https://${settings.api_host}`
 
-    deps.out(`package: vibase ${manifest.version} @ ${manifest.commit} (${Object.keys(manifest.files).length} files verified)`)
+    deps.out(`package: vibase-server/${manifest.version} (${manifest.commit}), ${Object.keys(manifest.files).length} files verified`)
     deps.out(`instance: ${settings.env} at ${url} (worker ${settings.worker}, settings ${g.settingsPath})`)
     deps.out(`live: version ${g.live.version}${g.live.commit ? `, commit ${g.live.commit}` : ''}`)
     for (const n of g.notes) deps.out(`note: ${n}`)
@@ -118,11 +118,11 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
   } catch (e) {
     if (!began) {
       if (!isRefusal(e)) throw e
-      deps.err(`vibase instance upgrade: ${e.message}`)
+      deps.err(`vibase-server upgrade: ${e.message}`)
       return EXIT_REFUSED
     }
     const detail = e instanceof StepFailure ? e.message : e instanceof Error ? redact(e.message) : 'failed'
-    deps.err(`vibase instance upgrade: ${e instanceof StepFailure ? e.step : step} failed: ${detail} (the instance may be partly upgraded: run \`vibase instance status\` to see where it is, then run upgrade again)`)
+    deps.err(`vibase-server upgrade: ${e instanceof StepFailure ? e.step : step} failed: ${detail} (the instance may be partly upgraded: run \`vibase-server status\` to see where it is, then run upgrade again)`)
     return EXIT_FAILED
   }
 }

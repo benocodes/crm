@@ -1,7 +1,7 @@
-// Shared types of the `vibase instance` commands ([[OPS231]]). Everything that touches the world comes in through `InstanceDeps`, so a test passes fakes.
+// Shared types of the `vibase-server` commands ([[OPS231]]). Everything that touches the world comes in through `InstanceDeps`, so a test passes fakes.
 import type { D1Like } from '@vault/storage-d1'
 
-/** A refusal: printed as `vibase instance <command>: <message>` and exit 2. A message names a key or a path, never a secret value. */
+/** A refusal: printed as `vibase-server <command>: <message>` and exit 2. A message names a key or a path, never a secret value. */
 export class InstanceRefusal extends Error {}
 
 export interface InstanceSettings {
@@ -31,7 +31,7 @@ export interface OpenD1Options {
 }
 
 export interface InstanceDeps {
-  /** The installed package directory (`<package>/cli/instance.js` lives in `<package>/cli`). */
+  /** The installed package directory (`<package>/cli/server.js` lives in `<package>/cli`). */
   packageDir: string
   fetch: typeof fetch
   /** Runs the package's own wrangler with `args` (never a global, never `pnpm exec`). `env` is the whole child environment; `input` goes on stdin (`secret bulk`), never argv. */

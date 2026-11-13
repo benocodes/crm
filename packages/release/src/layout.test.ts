@@ -142,7 +142,7 @@ describe('D8 (9): every exports entry resolves from a consumer directory', () =>
     const { root } = consumer()
     const got = assertExportsResolve(root)
     expect(got.map((g) => g.entry)).toEqual(['./worker', './wrangler.base.jsonc', './release.json', './migrations/*', './assets/*', './package.json'])
-    for (const g of got) expect(g.resolved).toContain(join(root, 'node_modules', '@vibase', 'server-d1'))
+    for (const g of got) expect(g.resolved).toContain(join('node_modules', '@vibase', 'server-d1'))
   })
   it('refuses an entry whose target is not shipped (Node says so)', () => {
     const { root } = consumer((o) => { o.exports['./worker'] = './worker/missing.js' })

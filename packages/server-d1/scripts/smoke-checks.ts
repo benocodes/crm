@@ -1,5 +1,5 @@
 // The key-less, write-free checks of a deployed instance ([[OPS4]] C9's after-phase, [[OPS234]] P1), shared by `smoke:remote` (which prints them) and
-// `vibase instance upgrade` (which runs `keylessChecks` after its verify). Everything here is a plain GET; nothing sends an operator key.
+// `vibase-server upgrade` (which runs `keylessChecks` after its verify). Everything here is a plain GET; nothing sends an operator key.
 type Json = Record<string, unknown>
 
 /** The `after` health check: initialised, the expected version, and every core migration applied ([[CORE61]] D7). `accept` widens the status for a rollback (`ahead`). */

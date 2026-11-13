@@ -27,7 +27,7 @@ type Extra = Record<string, { type: 'string' | 'boolean' }>
 
 /**
  * The flags both setup commands share. `extra` adds the ones that differ: `--clerk-env-file` for `setup:remote`, `--settings` and
- * `--secrets-file` for `vibase instance setup` ([[OPS232]] P1). An unknown flag is a refusal.
+ * `--secrets-file` for `vibase-server setup` ([[OPS232]] P1). An unknown flag is a refusal.
  */
 export function parseSetupFlags(argv: string[], extra: Extra): FlagValues {
   try {
@@ -66,7 +66,7 @@ export function parseSetupArgs(argv: string[]): SetupOptions {
   return buildSetupOptions(parseSetupFlags(argv, { 'clerk-env-file': { type: 'string' } }))
 }
 
-/** The validation and defaults of the parsed flags; shared with `vibase instance setup`. */
+/** The validation and defaults of the parsed flags; shared with `vibase-server setup`. */
 export function buildSetupOptions(values: FlagValues): SetupOptions {
   const str = (k: string) => values[k] as string | undefined
 

@@ -20,6 +20,8 @@ export interface Problem {
   kind: 'mismatch' | 'missing' | 'extra'
 }
 export interface ManifestInput {
+  /** The published package name, `@vibase/server-d1` ([[OPS240]] D4). */
+  name: string
   dir: string
   version: string
   commit: string
@@ -53,7 +55,7 @@ export function buildReleaseManifest(i: ManifestInput): ReleaseManifest {
   const files: Record<string, string> = {}
   for (const f of listFiles(i.dir)) if (!UNHASHED.has(f)) files[f] = sha256(readFileSync(join(i.dir, f)))
   return {
-    name: 'vibase',
+    name: i.name,
     version: i.version,
     commit: i.commit,
     built_at: i.builtAt,

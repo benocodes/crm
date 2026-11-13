@@ -11,7 +11,7 @@ const BAPI = 'https://api.clerk.com'
 export const CLI_APP_NAME = 'Vibase CLI'
 const ROLE = 'vibase_role'
 
-/** What the Clerk rows read of a run: shared by `setup:remote` and `vibase instance setup` ([[OPS232]]), which differ in where the config text comes from. */
+/** What the Clerk rows read of a run: shared by `setup:remote` and `vibase-server setup` ([[OPS232]]), which differ in where the config text comes from. */
 export interface ClerkCtx {
   opts: SetupOptions
   deps: Pick<SetupDeps, 'fetch' | 'readConfigText'>

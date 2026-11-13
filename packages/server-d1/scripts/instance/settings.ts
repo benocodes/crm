@@ -64,7 +64,7 @@ export function loadSettings(path: string, envName: string): InstanceSettings {
   try {
     text = readFileSync(path, 'utf8')
   } catch {
-    throw new InstanceRefusal(`no settings file at ${path}: create it (vibase instance setup, or by hand) or pass --settings <path>`)
+    throw new InstanceRefusal(`no settings file at ${path}: create it (vibase-server setup, or by hand) or pass --settings <path>`)
   }
   return parseSettings(text, envName, path)
 }

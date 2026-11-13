@@ -96,7 +96,7 @@ async function readFacts(ctx: Ctx, fresh = false): Promise<NonNullable<Ctx['fact
 
 const cfGet = (ctx: PreflightCtx, path: string) => ctx.deps.fetch(`${CF}${path}`, { headers: { authorization: `Bearer ${ctx.creds.apiToken}` } })
 
-/** What `preflight` reads: shared with `vibase instance setup` ([[OPS232]]). */
+/** What `preflight` reads: shared with `vibase-server setup` ([[OPS232]]). */
 export interface PreflightCtx {
   creds: Credentials
   opts: Pick<SetupOptions, 'apiHost'>

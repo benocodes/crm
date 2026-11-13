@@ -32,7 +32,7 @@ describe('the build output, per package (the matrix: client x server)', () => {
     const { s, clientDir, serverDir, dist } = built()
     writeFileSync(join(dist, `vibase-${s.version}.tgz`), 'stale single tarball')
     const out = packRelease({ clientDir, serverDir, dist, version: s.version })
-    expect(readdirSync(dist).sort()).toEqual([`vibase-cli-${s.version}.tgz`, `vibase-server-d1-${s.version}.tgz`, 'SHA256SUMS'])
+    expect(readdirSync(dist).sort()).toEqual([`vibase-cli-${s.version}.tgz`, `vibase-server-d1-${s.version}.tgz`, 'SHA256SUMS'].sort())
     expect(out).toEqual({ client: join(dist, `vibase-cli-${s.version}.tgz`), server: join(dist, `vibase-server-d1-${s.version}.tgz`), sums: join(dist, 'SHA256SUMS') })
   })
   it('each tarball holds D3\'s list and nothing else', () => {
