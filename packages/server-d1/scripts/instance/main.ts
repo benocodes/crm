@@ -30,7 +30,7 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
 
   vibase-server setup --env <name> --api-host <host> [--auth clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
                         [--dry-run] [--only <steps>] [--settings <path>] [--secrets-file <path>] [more flags: --web-origin, --extra-origin, --org,
-                        --worker-name, --d1-name, --r2-name, --clerk-publishable-key, --clerk-production, --no-dcr, --rotate-secrets]
+                        --worker-name, --d1-name, --control-d1-name, --r2-name, --clerk-publishable-key, --clerk-production, --no-dcr, --rotate-secrets]
       From nothing, or from an instance deployed from source, to a migrated, bootstrapped, deployed, verified instance, with no checkout:
       preflight, config:resources (adopts existing D1 and R2 by name), clerk, config:write (writes the settings file and goes on), migrate,
       bootstrap, deploy, secrets, verify. Clerk keys, Gmail values and the Cloudflare credentials come from the secrets file; an operator key
