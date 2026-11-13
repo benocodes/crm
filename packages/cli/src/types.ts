@@ -19,7 +19,15 @@ export interface Deps {
   version: string
   /** Ends a `--follow` loop cleanly (tests; the real process stops on SIGTERM, which is safe because files are replaced by rename). */
   signal?: AbortSignal
+  /**
+   * Loads the sibling `instance.js` of a release package ([[OPS231]] D12); `undefined` where there is none (a checkout, an unbuilt CLI).
+   * The client core knows only this shape: the instance code, wrangler and the release tooling never enter it.
+   */
+  loadInstance?: () => Promise<InstanceMain | undefined>
 }
+
+/** The entry of `instance.js`: the words after `instance`, the client's output and environment; returns the exit code. */
+export type InstanceMain = (argv: string[], io: { stdout(text: string): void; stderr(text: string): void; env: Record<string, string | undefined> }) => Promise<number>
 
 export type JsonSchema = { [key: string]: unknown }
 

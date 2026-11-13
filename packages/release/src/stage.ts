@@ -15,6 +15,8 @@ export interface StageInput {
   node: string
   /** The bundled client CLI. */
   cliJs: string
+  /** The bundled `vibase instance` commands, shipped beside the client as `cli/instance.js` ([[OPS231]] D12). */
+  instanceJs: string
   /** The built Worker entry, copied to `worker/worker.js` (the source map and README of wrangler's outdir are not shipped). */
   workerEntry: string
   /** The built `connect/` directory, copied to `assets/connect/`. */

@@ -43,7 +43,7 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
   const configFile = join(dir, 'vibase', 'config.json')
   const cacheDir = join(dir, 'vibase')
   let clock = 1_800_000_000_000
-  const go = async (argv: string[], over: { env?: Record<string, string | undefined>; stdin?: string; tty?: boolean; stdinTTY?: boolean; sleep?: (ms: number) => Promise<void>; signal?: AbortSignal } = {}): Promise<Result> => {
+  const go = async (argv: string[], over: { env?: Record<string, string | undefined>; stdin?: string; tty?: boolean; stdinTTY?: boolean; sleep?: (ms: number) => Promise<void>; signal?: AbortSignal; loadInstance?: Deps['loadInstance'] } = {}): Promise<Result> => {
     let stdinRead = 0
     const out: (string | Uint8Array)[] = []
     const err: string[] = []
@@ -68,6 +68,7 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
       homedir: dir,
       version: '0.0.0-test',
       signal: over.signal,
+      loadInstance: over.loadInstance,
     }
     const code = await run(argv, deps)
     const bytes = Buffer.concat(out.map((c) => (typeof c === 'string' ? Buffer.from(c) : Buffer.from(c))))

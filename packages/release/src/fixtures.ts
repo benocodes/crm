@@ -22,6 +22,7 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
   mkdirSync(join(root, 'assets'), { recursive: true })
   mkdirSync(join(root, 'migrations'), { recursive: true })
   writeFileSync(join(root, 'vibase.js'), '#!/usr/bin/env node\nconsole.log(1)\n')
+  writeFileSync(join(root, 'instance.js'), 'export const runInstance = () => 0\n')
   writeFileSync(join(root, 'worker.js'), 'export default {}\n')
   writeFileSync(join(root, 'assets', 'index.html'), '<html></html>')
   writeFileSync(join(root, 'assets', 'connect.js'), 'x')
@@ -39,6 +40,7 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
     compatibilityDate: '2026-07-30',
     node: '>=22',
     cliJs: join(root, 'vibase.js'),
+    instanceJs: join(root, 'instance.js'),
     workerEntry: join(root, 'worker.js'),
     assetsConnectDir: join(root, 'assets'),
     migrationsDir: join(root, 'migrations'),
