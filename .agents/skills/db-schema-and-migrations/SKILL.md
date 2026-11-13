@@ -384,6 +384,14 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   Worker's runtime control gate refuses it as `unknown`; the CRM no-tracker case is `unknown` in both.
 - **Check a generated wrangler config with wrangler's own reader** (`unstable_readConfig` from `wrangler` on the written
   file, `packages/server-d1/scripts/instance/config.test.ts`), not only the object the generator returned ([[OPS275]]).
+  A copy of the repo's `wrangler.jsonc` that an editor rewrote must sit **next to the original** (a unique name in
+  `packages/server-d1`, removed in `finally`): wrangler resolves `migrations_dir` relative to the config file, so a copy
+  in a temp directory cannot show that `CONTROL_DB` points at the shipped `control-migrations/`
+  (`packages/server-d1/scripts/setup-control-config.test.ts`, [[OPS279]]).
+- **Setup gives every instance its control database** ([[OPS279]], [[CORE259]] P4): both front-ends derive
+  `vb-control-<env>` (or take the record / `--control-d1-name`), adopt a D1 of that name, migrate control before CRM
+  inside the one `migrate` step, and write the control marker after the CRM `deployment` row, also on an instance
+  bootstrapped before the control plane existed. `bootstrap --remote` writes it when the env binds `CONTROL_DB`.
 - **Dropping or moving a table: grep every package for its name** (sources, tests, fixtures), not only the package
   that owns the migration. CRM `0019` (drop `auth_*`) broke `packages/server-d1/src/auth-routing.test.ts`, which the
   charter's watch list missed and only the full gate found ([[OPS260]]).

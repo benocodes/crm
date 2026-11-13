@@ -3,12 +3,13 @@
 // wrangler.jsonc, and the in-memory D1 behind the marker. Writes by a run change the state the next run reads.
 import { readFileSync } from 'node:fs'
 import { parse } from 'jsonc-parser'
-import { MIGRATIONS, type D1Like } from '@vibase/storage-d1'
+import { CONTROL_MIGRATIONS, MIGRATIONS, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
 import type { Credentials, EnvFileProbe, ExecResult, SetupCmd, SetupDeps } from '../types.js'
 import { PK_TEST, SK_TEST, type FakeClerk } from './clerk-world.js'
 
 export const FIXTURE_CONFIG_PATH = new URL('./wrangler.fixture.jsonc', import.meta.url)
 export const EXPECTED_MIGRATIONS = MIGRATIONS.map((m) => m.name)
+export const CONTROL_EXPECTED = CONTROL_MIGRATIONS.map((m) => m.name)
 export const SHA = 'a'.repeat(40)
 export const OLD_SHA = 'b'.repeat(40)
 /** Canary values: they stand for `.env` contents and must never reach an argv, a log line or the config. */
@@ -28,9 +29,37 @@ export function isWriteCommand(argv: readonly string[]): boolean {
   return WRITE_VERBS.some((v) => joined.includes(` ${v.join(' ')} `)) && !joined.includes(' git ')
 }
 
+/**
+ * A control database that holds only the marker (OPS279): enough for `control-store`'s two statements. `onInsert` runs before the row is stored,
+ * so a test can look at the CRM database at the moment the control marker is written.
+ */
+export function memoryControl(onInsert?: (organizationId: string) => Promise<void>, initial: string | null = null): D1Like & { inserts: string[]; marker(): string | null } {
+  let org: string | null = initial
+  const inserts: string[] = []
+  const prep = (q: string, args: unknown[] = []): D1PreparedLike => ({
+    bind: (...v: unknown[]) => prep(q, v),
+    run: async () => {
+      if (/insert into control_deployment/.test(q)) {
+        await onInsert?.(args[0] as string)
+        inserts.push(args[0] as string)
+        org ??= args[0] as string
+      }
+      return { success: true }
+    },
+    all: async () => ({ success: true, results: org ? [{ organization_id: org }] : [] }),
+    first: async () => (org ? { organization_id: org } : null),
+  })
+  return { prepare: (q: string) => prep(q), batch: async (s: D1PreparedLike[]) => Promise.all(s.map((x) => x.run())), inserts, marker: () => org }
+}
+
 export interface WorldOptions {
   configText?: string
   d1: D1Like
+  /** The control database behind `CONTROL_DB` (OPS279); default: a marker-only memory database. */
+  control?: D1Like
+  /** The control database's applied migrations; `null`: no tracker table. */
+  appliedControl?: string[] | null
+  failControlApply?: boolean
   d1s?: { uuid: string; name: string }[]
   r2s?: string[]
   /** `null`: no d1_migrations table. */
@@ -64,8 +93,10 @@ export interface World {
   probes: { arg: string | undefined; envName: string }[]
   fetched: string[]
   logs: string[]
-  state: { configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; deployedSha: string | null; sleeps: number[]; secrets: Record<string, string> }
+  state: { configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; appliedControl: string[] | null; deployedSha: string | null; sleeps: number[]; secrets: Record<string, string> }
   writes(): string[][]
+  /** The control database behind `CONTROL_DB`. */
+  control: D1Like
   /** Every string that reached argv, stdin or a log line (fetched URLs carry the account id as an API path and are checked apart). */
   surface(): string
 }
@@ -78,6 +109,7 @@ export function makeWorld(o: WorldOptions): World {
     d1s: [...(o.d1s ?? [])],
     r2s: [...(o.r2s ?? [])],
     applied: o.applied === undefined ? null : o.applied,
+    appliedControl: o.appliedControl === undefined ? null : o.appliedControl,
     deployedSha: o.deployedSha === undefined ? null : o.deployedSha,
     sleeps: [] as number[],
     secrets: Object.fromEntries((o.secrets ?? []).map((n) => [n, 'present'])) as Record<string, string>,
@@ -90,6 +122,7 @@ export function makeWorld(o: WorldOptions): World {
   const logs: string[] = []
   let clock = 1_000_000
   const head = o.headSha ?? SHA
+  const control = o.control ?? memoryControl()
 
   const json = (v: unknown): ExecResult => ({ status: 0, stdout: JSON.stringify(v), stderr: '' })
   const text = (s: string): ExecResult => ({ status: 0, stdout: s, stderr: '' })
@@ -121,6 +154,17 @@ export function makeWorld(o: WorldOptions): World {
     }
     if (has('d1', 'execute')) {
       const sql = a[a.indexOf('--command') + 1] ?? ''
+      if (a[a.indexOf('execute') + 1] === 'CONTROL_DB') {
+        if (/d1_migrations/.test(sql)) {
+          if (state.appliedControl === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: d1_migrations' } }), stderr: '' }
+          return json([{ results: state.appliedControl.map((name) => ({ name })), success: true }])
+        }
+        if (/from control_deployment/.test(sql)) {
+          if (state.appliedControl === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: control_deployment' } }), stderr: '' }
+          const row = await control.prepare(sql).first()
+          return json([{ results: row ? [row] : [], success: true }])
+        }
+      }
       if (/d1_migrations/.test(sql)) {
         if (state.applied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: d1_migrations' } }), stderr: '' }
         return json([{ results: state.applied.map((name) => ({ name })), success: true }])
@@ -133,6 +177,11 @@ export function makeWorld(o: WorldOptions): World {
     }
     if (has('d1', 'migrations', 'list')) return text('migrations list\n')
     if (has('d1', 'migrations', 'apply')) {
+      if (a[a.indexOf('apply') + 1] === 'CONTROL_DB') {
+        if (o.failControlApply) return { status: 1, stdout: '', stderr: 'control apply blew up' }
+        state.appliedControl = [...CONTROL_EXPECTED]
+        return text('applied\n')
+      }
       state.applied = [...EXPECTED_MIGRATIONS]
       return text('applied\n')
     }
@@ -181,7 +230,7 @@ export function makeWorld(o: WorldOptions): World {
       state.configText = t
       state.configWrites++
     },
-    openD1: async () => ({ d1: o.d1, dispose: async () => {} }),
+    openD1: async () => ({ d1: o.d1, control, dispose: async () => {} }),
     probeEnvFile: (arg, envName): EnvFileProbe => {
       probes.push({ arg, envName })
       const display = arg ?? `.env.${envName}`
@@ -212,6 +261,7 @@ export function makeWorld(o: WorldOptions): World {
     logs,
     state,
     writes: () => argv.filter((c) => isWriteCommand(c)),
+    control,
     surface: () => [...argv.map((c) => c.join(' ')), ...inputs, ...logs].join('\n'),
   }
 }

@@ -33,8 +33,8 @@ export const realSetupDeps: SetupDeps = {
   writeConfigText: (text) => writeFileSync(CONFIG_PATH, text),
   openD1: async (envName) => {
     const { getPlatformProxy } = await import('wrangler')
-    const proxy = await getPlatformProxy<{ DB: D1Like }>(remoteProxyOptions(envName))
-    return { d1: proxy.env.DB, dispose: () => proxy.dispose() }
+    const proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB?: D1Like }>(remoteProxyOptions(envName))
+    return { d1: proxy.env.DB, control: proxy.env.CONTROL_DB, dispose: () => proxy.dispose() }
   },
   probeEnvFile: (arg, envName) => probeEnvFile(arg, envName, REPO_ROOT, ROOT_ENV_PATH),
   readEnvText: () => {

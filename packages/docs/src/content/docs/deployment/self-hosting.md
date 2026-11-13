@@ -143,7 +143,7 @@ CONFIRM_REMOTE=1 npx --package ./vibase-server-d1-<version>.tgz vibase-server se
 
 Setup creates or adopts the Cloudflare resources, configures Clerk, writes the settings file, migrates the database, bootstraps the owner, deploys the Worker, sets its secrets and verifies it. It stops at the first failed step and names it; rerun the same command after correcting the problem. Existing matching configuration is retained.
 
-A new instance's resources are named `vb-<env>` (Worker), `vb-crm-<env>` (D1) and `vb-bodies-<env>` (R2). A rerun takes the names recorded in the settings file and refuses a name flag that differs from them. To adopt resources created under other names, such as an older `vault-<env>` instance with no settings file, pass `--worker-name`, `--d1-name` and `--r2-name` on the first run.
+A new instance's resources are named `vb-<env>` (Worker), `vb-crm-<env>` (D1), `vb-control-<env>` (the control-plane D1 database) and `vb-bodies-<env>` (R2). Setup creates the control database for every instance, migrates it before the CRM database, and pairs the two with a marker written after the CRM deployment row. A rerun takes the names recorded in the settings file and refuses a name flag that differs from them; an instance recorded without a control database gets one added on its next run. To adopt resources created under other names, such as an older `vault-<env>` instance with no settings file, pass `--worker-name`, `--d1-name`, `--control-d1-name` and `--r2-name` on the first run.
 
 Check the deployment:
 

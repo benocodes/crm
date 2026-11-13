@@ -70,7 +70,7 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
   return { exitCode: failed ? 1 : 0, results, stoppedAfterConfigWrite: ctx.stop === true }
 }
 
-/** The names `env.<env>` in wrangler.jsonc records: the Worker `name`, the `DB` database and the `BODIES` bucket; absent kinds are not recorded. */
+/** The names `env.<env>` in wrangler.jsonc records: the Worker `name`, the `DB` and `CONTROL_DB` databases and the `BODIES` bucket; absent kinds are not recorded. */
 export function recordedNames(configText: string, env: string): RecordedNames {
   const root = parse(configText, [], { allowTrailingComma: true }) as { env?: Record<string, any> } | undefined
   const block = root?.env?.[env]
@@ -82,6 +82,9 @@ export function recordedNames(configText: string, env: string): RecordedNames {
   return {
     workerName: typeof block.name === 'string' ? block.name : undefined,
     d1Name: named(block.d1_databases, 'binding', 'DB', 'database_name'),
+    controlD1Name: named(block.d1_databases, 'binding', 'CONTROL_DB', 'database_name'),
+    d1Id: named(block.d1_databases, 'binding', 'DB', 'database_id'),
+    controlD1Id: named(block.d1_databases, 'binding', 'CONTROL_DB', 'database_id'),
     r2Name: named(block.r2_buckets, 'binding', 'BODIES', 'bucket_name'),
   }
 }

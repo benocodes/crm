@@ -1,19 +1,25 @@
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { execute } from '@vibase/storage'
-import { d1Binding } from '@vibase/storage-d1'
-import { parse } from 'jsonc-parser'
+import { d1Binding, openControlDb, writeControlMarker } from '@vibase/storage-d1'
+import { applyEdits, modify, parse } from 'jsonc-parser'
 import { initDeploymentOperation, readDeployment } from '../../src/init-deployment.js'
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { PLACEHOLDER_DATABASE_ID } from '../remote.js'
 import { runSetup, type SetupOutcome } from './run.js'
-import { CREDS, EXPECTED_MIGRATIONS, OLD_SHA, FIXTURE_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
+import { CONTROL_EXPECTED, CREDS, EXPECTED_MIGRATIONS, OLD_SHA, FIXTURE_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const ACME = ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai']
 const SMOKED1 = ['--env', 'smoked1', '--auth', 'none', '--api-host', 'api.smoked1.vibase.ai']
 const SMOKED1_ID = '13f7fb64-d909-44e7-9ce7-cc3c753bb3bc'
 const realConfig = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
+// OPS279 (P4): setup gives every instance a control database, so "smoked1 as recorded" now includes one.
+const SMOKED1_CTL_ID = '2b3c4d5e-6f70-4a81-9b92-a0b1c2d3e4f5'
+const withControl = (text: string): string =>
+  applyEdits(text, modify(text, ['env', 'smoked1', 'd1_databases', 1], { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: SMOKED1_CTL_ID, migrations_dir: '../storage-d1/control-migrations', remote: true }, { isArrayInsertion: true }))
+const smoked1Config = withControl(realConfig)
+const pair = (w: World) => writeControlMarker(openControlDb(w.control), '0192f0a0-0000-7000-8000-000000000001')
 const states = (o: SetupOutcome) => o.results.map((r) => `${r.step}:${r.status}`)
 
 let db: WorkerD1
@@ -28,7 +34,7 @@ beforeEach(async () => {
 })
 
 const world = (o: Partial<WorldOptions> = {}): World => makeWorld({ d1: db.d1, ...o })
-const smoked1World = (o: Partial<WorldOptions> = {}): World => world({ d1s: [{ uuid: SMOKED1_ID, name: 'vault-smoked1' }], r2s: ['vault-smoked1-bodies'], applied: [...EXPECTED_MIGRATIONS], deployedSha: SHA, ...o })
+const smoked1World = (o: Partial<WorldOptions> = {}): World => world({ configText: smoked1Config, d1s: [{ uuid: SMOKED1_ID, name: 'vault-smoked1' }, { uuid: SMOKED1_CTL_ID, name: 'vb-control-smoked1' }], r2s: ['vault-smoked1-bodies'], applied: [...EXPECTED_MIGRATIONS], appliedControl: [...CONTROL_EXPECTED], deployedSha: SHA, ...o })
 const seedMarker = (authProvider: string, authOrgId: string) =>
   execute(d1Binding(db.d1, { organizationId: '0192f0a0-0000-7000-8000-000000000001', authProvider, authOrgId }), { kind: 'internal', organizationId: '0192f0a0-0000-7000-8000-000000000001' }, initDeploymentOperation({ organizationId: '0192f0a0-0000-7000-8000-000000000001', authProvider, authOrgId }))
 
@@ -70,7 +76,7 @@ describe('empty state: the first real run (rule 3, D10)', () => {
     expect(o.exitCode).toBe(0)
     expect(o.stoppedAfterConfigWrite).toBe(true)
     expect(states(o)).toEqual(['preflight:ok', 'config:resources:create', 'config:write:update'])
-    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create vb-crm-acme', 'bucket create vb-bodies-acme'])
+    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create vb-crm-acme', 'd1 create vb-control-acme', 'bucket create vb-bodies-acme'])
     const created = w.state.d1s.find((d) => d.name === 'vb-crm-acme')!
     const cfg = parse(w.state.configText) as { env: Record<string, { d1_databases: { database_id: string }[] }> }
     expect(cfg.env.acme!.d1_databases[0]!.database_id).toBe(created.uuid)
@@ -105,20 +111,21 @@ describe('smoked1 plans no change (--auth none)', () => {
   it('the repo wrangler.jsonc with state matching it: every step ok, file untouched, no write command', async () => {
     await seedMarker('none', 'smoked1')
     const w = smoked1World()
+    await pair(w)
     const o = await runSetup([...SMOKED1, '--dry-run'], {}, w.deps)
     expect(o.exitCode).toBe(0)
     expect(states(o)).toEqual(['preflight:ok', 'config:resources:ok', 'config:write:ok', 'migrate:ok', 'bootstrap:ok', 'deploy:ok', 'verify:ok'])
-    expect(w.state.configText).toBe(realConfig)
+    expect(w.state.configText).toBe(smoked1Config)
     expect(w.writes()).toEqual([])
   })
 })
 
 describe('D9 refusal: a differing present value fails naming the key and stops the run', () => {
   const cases: [string, string, string[], RegExp][] = [
-    ['resource id', realConfig.replace(SMOKED1_ID, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'), SMOKED1, /database_id/],
+    ['resource id', smoked1Config.replace(SMOKED1_ID, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'), SMOKED1, /database_id/],
     // The Worker, D1 and R2 names are the record itself now ([[OPS276]]): drift is shown on another key.
-    ['workers_dev', realConfig.replace('"workers_dev": false', '"workers_dev": true'), SMOKED1, /smoked1\.workers_dev/],
-    ['var', realConfig, [...SMOKED1, '--web-origin', 'https://app.example.com'], /CORS_ALLOWED_ORIGINS/],
+    ['workers_dev', smoked1Config.replace('"workers_dev": false', '"workers_dev": true'), SMOKED1, /smoked1\.workers_dev/],
+    ['var', smoked1Config, [...SMOKED1, '--web-origin', 'https://app.example.com'], /CORS_ALLOWED_ORIGINS/],
   ]
   it.each(cases)('%s', async (_n, configText, args, key) => {
     const w = smoked1World({ configText })
@@ -240,12 +247,14 @@ describe('D18 bootstrap marker', () => {
   it('the same marker is ok and writes nothing', async () => {
     await seedMarker('none', 'smoked1')
     const w = smoked1World()
+    await pair(w)
     expect(states(await runSetup(only, CONFIRM, w.deps))).toEqual(['bootstrap:ok'])
     expect(await readDeployment(db.d1)).toMatchObject({ authProvider: 'none', authOrgId: 'smoked1' })
   })
   it('a matching marker with operator flags: ok, says the flags were not applied, .env unchanged, no log line claims the key', async () => {
     await seedMarker('none', 'smoked1')
     const w = smoked1World()
+    await pair(w)
     const o = await runSetup([...SMOKED1, '--only', 'bootstrap,verify', '--operator-agent', 'operator', '--key-env', 'SMOKED1_KEY', '--owner-email', 'owner@example.com'], CONFIRM, w.deps)
     expect(states(o)).toEqual(['bootstrap:ok', 'verify:ok'])
     expect(o.results[0]!.detail).toMatch(/not applied/)

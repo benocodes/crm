@@ -49,6 +49,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   **A safe backstop can hide the guard you mutate:** AGT166's first M13 removed the pending-transition guard and stayed
   green, because the unique request index also refused the duplicate and the test accepted any `409`. Assert the
   specific code (`action_request_not_pending`) and the winner's attribution, so only the guarded path passes.
+  **When the backstop is a real guard on the same path, the mutated code is the duplicate: delete it.** [[OPS279]]'s
+  M7 removed `bootstrap.ts`'s control-marker pre-check and stayed green, because `bootstrapD1` already refused a
+  foreign marker before either database was written; no test could tell them apart, so the pre-check was dropped
+  (RESULT D-f) rather than kept as untested defence.
   **An atomicity test names its failure the same way:** a bare `rejects.toThrow()` also passes when the unit fails at
   plan or build time, before any batch runs, so "nothing was written" proves no rollback. Assert the in-batch error
   (`rolled back (not_null)`, `packages/api/src/events/feed.integration.d1.test.ts`, [[API105]]).

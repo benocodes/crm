@@ -58,7 +58,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     const settingsPath = parsed.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, derived.env)
     const existing = existsSync(settingsPath) ? loadSettings(settingsPath, derived.env) : null
     // [[OPS276]]: the names the settings file records win over the derivation; a name flag that differs is refused before any step.
-    const opts = existing ? applyRecordedNames(derived, { workerName: existing.worker, d1Name: existing.d1.name, r2Name: existing.r2_bucket }, settingsPath) : derived
+    const opts = existing ? applyRecordedNames(derived, { workerName: existing.worker, d1Name: existing.d1.name, controlD1Name: existing.control_d1?.name, d1Id: existing.d1.id, controlD1Id: existing.control_d1?.id, r2Name: existing.r2_bucket }, settingsPath) : derived
     // The target guard of every remote command ([[OPS4]] C4): a Worker named `vault` is the local-only top level.
     resolveTarget({ name: opts.workerName, d1_databases: [{ binding: 'DB', database_id: existing?.d1.id ?? '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', remote: true }] }, opts.env)
 

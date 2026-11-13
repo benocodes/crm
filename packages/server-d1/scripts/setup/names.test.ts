@@ -3,13 +3,13 @@
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { execute } from '@vibase/storage'
-import { d1Binding } from '@vibase/storage-d1'
-import { parse } from 'jsonc-parser'
+import { d1Binding, openControlDb, writeControlMarker } from '@vibase/storage-d1'
+import { applyEdits, modify, parse } from 'jsonc-parser'
 import { initDeploymentOperation } from '../../src/init-deployment.js'
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { parseSetupArgs } from './args.js'
 import { runSetup } from './run.js'
-import { EXPECTED_MIGRATIONS, FIXTURE_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
+import { CONTROL_EXPECTED, EXPECTED_MIGRATIONS, FIXTURE_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const ACME = ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai']
@@ -17,6 +17,7 @@ const SMOKED1 = ['--env', 'smoked1', '--auth', 'none', '--api-host', 'api.smoked
 const SMOKED1_ID = '13f7fb64-d909-44e7-9ce7-cc3c753bb3bc'
 const fixture = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const ORG = '0192f0a0-0000-7000-8000-000000000001'
+const CTL_ID = '2b3c4d5e-6f70-4a81-9b92-a0b1c2d3e4f5'
 
 let db: WorkerD1
 beforeAll(async () => { db = await openWorkerD1() })
@@ -29,7 +30,7 @@ describe('a new instance derives vb- names', () => {
   it('creates vb-crm-<env> and vb-bodies-<env> and writes the block with vb-<env>', async () => {
     const w = world()
     expect((await runSetup(ACME, CONFIRM, w.deps)).exitCode).toBe(0)
-    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create vb-crm-acme', 'bucket create vb-bodies-acme'])
+    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create vb-crm-acme', 'd1 create vb-control-acme', 'bucket create vb-bodies-acme'])
     const cfg = parse(w.state.configText) as { env: Record<string, any> }
     expect(cfg.env.acme.name).toBe('vb-acme')
     expect(cfg.env.acme.d1_databases[0].database_name).toBe('vb-crm-acme')
@@ -38,7 +39,7 @@ describe('a new instance derives vb- names', () => {
   it('each override flag still wins', async () => {
     const w = world()
     expect((await runSetup([...ACME, '--worker-name', 'w1', '--d1-name', 'd1x', '--r2-name', 'r1'], CONFIRM, w.deps)).exitCode).toBe(0)
-    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create d1x', 'bucket create r1'])
+    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create d1x', 'd1 create vb-control-acme', 'bucket create r1'])
     expect((parse(w.state.configText) as any).env.acme.name).toBe('w1')
   })
   it('parses the vb- defaults', () => {
@@ -63,20 +64,23 @@ describe('recorded names win (matrix: resource kind)', () => {
   const recorded = (kind: 'worker' | 'd1' | 'r2') => {
     const names = { worker: kind === 'worker' ? 'vault-smoked1' : 'vb-smoked1', d1: kind === 'd1' ? 'vault-smoked1' : 'vb-crm-smoked1', r2: kind === 'r2' ? 'vault-smoked1-bodies' : 'vb-bodies-smoked1' }
     const text = fixture.replace('"name": "vault-smoked1"', `"name": "${names.worker}"`).replace('"database_name": "vault-smoked1"', `"database_name": "${names.d1}"`).replace('"bucket_name": "vault-smoked1-bodies"', `"bucket_name": "${names.r2}"`)
-    return { names, text }
+    // The record also holds its control database (OPS279): an instance recorded without one is P4's case, tested in control-database.test.ts.
+    const withControl = applyEdits(text, modify(text, ['env', 'smoked1', 'd1_databases', 1], { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CTL_ID, migrations_dir: '../storage-d1/control-migrations', remote: true }, { isArrayInsertion: true }))
+    return { names, text: withControl }
   }
   const cases = (['worker', 'd1', 'r2'] as const).flatMap((k) => [[k, true] as const, [k, false] as const])
   it.each(cases)('%s (dry run %s): no name flags, nothing created or written, the record unchanged', async (kind, dry) => {
     await seedMarker()
     const { names, text } = recorded(kind)
-    const w = world({ configText: text, d1s: [{ uuid: SMOKED1_ID, name: names.d1 }], r2s: [names.r2], applied: [...EXPECTED_MIGRATIONS], deployedSha: SHA })
+    const w = world({ configText: text, d1s: [{ uuid: SMOKED1_ID, name: names.d1 }, { uuid: CTL_ID, name: 'vb-control-smoked1' }], r2s: [names.r2], applied: [...EXPECTED_MIGRATIONS], appliedControl: [...CONTROL_EXPECTED], deployedSha: SHA })
+    await writeControlMarker(openControlDb(w.control), ORG)
     const o = await runSetup([...SMOKED1, ...(dry ? ['--dry-run'] : [])], dry ? {} : CONFIRM, w.deps)
     expect(o.exitCode).toBe(0)
     expect(o.results.map((r) => `${r.step}:${r.status}`)).toEqual(['preflight:ok', 'config:resources:ok', 'config:write:ok', 'migrate:ok', 'bootstrap:ok', 'deploy:ok', 'verify:ok'])
     expect(w.argv.filter(isWriteCommand)).toEqual([])
     expect(w.state.configText).toBe(text)
     expect(w.state.configWrites).toBe(0)
-    expect(w.state.d1s).toEqual([{ uuid: SMOKED1_ID, name: names.d1 }])
+    expect(w.state.d1s).toEqual([{ uuid: SMOKED1_ID, name: names.d1 }, { uuid: CTL_ID, name: 'vb-control-smoked1' }])
     expect(w.state.r2s).toEqual([names.r2])
   })
 })

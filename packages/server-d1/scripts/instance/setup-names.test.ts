@@ -4,7 +4,7 @@ import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { parseInstanceSetupArgs } from './setup-args.js'
 import { ALL_MIGRATIONS, API_HOST, NONE_ARGS, setupWorld, type SetupWorld, type SetupWorldOptions } from './setup-kit.js'
 import { runSetup } from './setup.js'
-import { cleanup, UUID, validSettings } from './test-kit.js'
+import { CONTROL_ALL, CONTROL_UUID, cleanup, UUID, validSettings } from './test-kit.js'
 
 let d1: WorkerD1
 beforeAll(async () => { d1 = await openWorkerD1() }, 60_000)
@@ -20,7 +20,7 @@ describe('a new instance derives vb- names', () => {
   it('creates vb-crm-<env> and vb-bodies-<env>, and records worker vb-<env> and workflow vb-mail-sync-<env>', async () => {
     const s = world({})
     expect(await run(s)).toBe(0)
-    expect(s.writes().slice(0, 2).map((a) => a.slice(0, 4).join(' '))).toEqual(['d1 create vb-crm-demo', 'r2 bucket create vb-bodies-demo'])
+    expect(s.writes().slice(0, 3).map((a) => a.slice(0, 4).join(' '))).toEqual(['d1 create vb-crm-demo', 'd1 create vb-control-demo', 'r2 bucket create vb-bodies-demo'])
     const saved = JSON.parse(s.settings()!)
     expect(saved).toMatchObject({ worker: 'vb-demo', d1: { name: 'vb-crm-demo' }, r2_bucket: 'vb-bodies-demo', workflow: { name: 'vb-mail-sync-demo' } })
     for (const c of configsOf(s)) expect(JSON.stringify(c)).not.toContain('vault')
@@ -28,7 +28,7 @@ describe('a new instance derives vb- names', () => {
   it('--worker-name, --d1-name and --r2-name still win on a new instance', async () => {
     const s = world({})
     expect(await run(s, [...NONE_ARGS, '--worker-name', 'w1', '--d1-name', 'd1x', '--r2-name', 'r1'])).toBe(0)
-    expect(s.writes().slice(0, 2).map((a) => a.slice(0, 4).join(' '))).toEqual(['d1 create d1x', 'r2 bucket create r1'])
+    expect(s.writes().slice(0, 3).map((a) => a.slice(0, 4).join(' '))).toEqual(['d1 create d1x', 'd1 create vb-control-demo', 'r2 bucket create r1'])
     expect(JSON.parse(s.settings()!)).toMatchObject({ worker: 'w1', d1: { name: 'd1x' }, r2_bucket: 'r1' })
   })
   it('parses the vb- defaults', () => {
@@ -61,8 +61,8 @@ describe('recorded names win (matrix: resource kind)', () => {
     return [kind, n] as const
   })
   it.each(cases)('%s: a re-run with no name flags creates nothing, keeps the record and targets the recorded names', async (kind, n) => {
-    const settings = validSettings({ worker: n.worker, d1: { name: n.d1, id: UUID }, r2_bucket: n.r2, workflow: { name: n.workflow }, vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' } })
-    const s = world({ settings, sim: { d1s: [{ uuid: UUID, name: n.d1 }], r2s: [n.r2], applied: [...ALL_MIGRATIONS], marker: MARKER, deployed: { version: 'a'.repeat(40), commit: null } } })
+    const settings = validSettings({ worker: n.worker, d1: { name: n.d1, id: UUID }, r2_bucket: n.r2, workflow: { name: n.workflow }, vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' }, control_d1: { name: 'vb-control-demo', id: CONTROL_UUID } })
+    const s = world({ controlMarker: 'org-1', settings, sim: { d1s: [{ uuid: UUID, name: n.d1 }, { uuid: CONTROL_UUID, name: 'vb-control-demo' }], r2s: [n.r2], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], marker: MARKER, deployed: { version: 'a'.repeat(40), commit: null } } })
     const before = s.settings()
     expect(await run(s)).toBe(0)
     expect(s.w.err).toEqual([])
