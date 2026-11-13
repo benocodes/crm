@@ -128,7 +128,7 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
 }
 
 /** Polls `/health` until the package's version shows with an accepted migrations status; bounded, on the injected clock. `null` when it did, else what was last seen. */
-async function verify(url: string, version: string, accept: readonly string[], deps: InstanceDeps): Promise<string | null> {
+export async function verify(url: string, version: string, accept: readonly string[], deps: InstanceDeps): Promise<string | null> {
   const read = async (): Promise<{ version?: string; migrations?: string } | null> => {
     try {
       const res = await deps.fetch(`${url}/health`, { method: 'GET', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) })

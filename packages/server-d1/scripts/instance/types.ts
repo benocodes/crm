@@ -1,4 +1,5 @@
 // Shared types of the `vibase instance` commands ([[OPS231]]). Everything that touches the world comes in through `InstanceDeps`, so a test passes fakes.
+import type { D1Like } from '@vault/storage-d1'
 
 /** A refusal: printed as `vibase instance <command>: <message>` and exit 2. A message names a key or a path, never a secret value. */
 export class InstanceRefusal extends Error {}
@@ -22,12 +23,21 @@ export interface RunResult {
   stderr: string
 }
 
+export interface OpenD1Options {
+  configPath: string
+  remoteBindings: true
+  persist: false
+  env: Record<string, string>
+}
+
 export interface InstanceDeps {
   /** The installed package directory (`<package>/cli/instance.js` lives in `<package>/cli`). */
   packageDir: string
   fetch: typeof fetch
-  /** Runs the package's own wrangler with `args` (never a global, never `pnpm exec`). `env` is the whole child environment. */
-  runWrangler(args: string[], opts: { cwd: string; env: Record<string, string> }): RunResult
+  /** Runs the package's own wrangler with `args` (never a global, never `pnpm exec`). `env` is the whole child environment; `input` goes on stdin (`secret bulk`), never argv. */
+  runWrangler(args: string[], opts: { cwd: string; env: Record<string, string>; input?: string }): RunResult
+  /** `setup`'s bootstrap ([[OPS232]] P3): the instance's remote D1 through the installed package's own wrangler `getPlatformProxy`, on the generated config. `env` carries the two Cloudflare values. */
+  openD1(o: OpenD1Options): Promise<{ d1: D1Like; dispose(): Promise<void> }>
   /** The process environment (XDG_CONFIG_HOME, CLOUDFLARE_*, PATH, HOME). */
   env: Record<string, string | undefined>
   homedir: string

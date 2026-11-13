@@ -94,9 +94,15 @@ async function readFacts(ctx: Ctx, fresh = false): Promise<NonNullable<Ctx['fact
   return ctx.facts
 }
 
-const cfGet = (ctx: Ctx, path: string) => ctx.deps.fetch(`${CF}${path}`, { headers: { authorization: `Bearer ${ctx.creds.apiToken}` } })
+const cfGet = (ctx: PreflightCtx, path: string) => ctx.deps.fetch(`${CF}${path}`, { headers: { authorization: `Bearer ${ctx.creds.apiToken}` } })
 
-const preflight: Step = async (ctx) => {
+/** What `preflight` reads: shared with `vibase instance setup` ([[OPS232]]). */
+export interface PreflightCtx {
+  creds: Credentials
+  opts: Pick<SetupOptions, 'apiHost'>
+  deps: Pick<SetupDeps, 'fetch'>
+}
+export const preflight = async (ctx: PreflightCtx): Promise<StepResult> => {
   const { accountId } = ctx.creds
   const probes: [string, string][] = [
     [`accounts/${accountId}/d1/database?per_page=1`, 'Account / D1 / Edit'],

@@ -8,7 +8,7 @@ import { sources } from '../../../release/src/fixtures.js'
 import { stageRelease } from '../../../release/src/stage.js'
 import { composeD1Worker } from '../../src/compose.js'
 import { openWorkerD1 } from '../../src/test/kit.js'
-import type { InstanceDeps, RunResult } from './types.js'
+import type { InstanceDeps, OpenD1Options, RunResult } from './types.js'
 
 export const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
 export const TOKEN = 'e2e-token-SECRET-0000'
@@ -64,6 +64,8 @@ export interface WranglerCall {
   args: string[]
   env: Record<string, string>
   cwd: string
+  /** Stdin (`secret bulk`). */
+  input?: string
   /** The generated config as it was on disk during the call. */
   configText: string | null
   configPath: string | null
@@ -80,6 +82,8 @@ export interface World {
   /** Milliseconds the fake clock advanced (the verify loop's sleeps). */
   clock: { t: number }
   wrangler: WranglerCall[]
+  /** Every `openD1` call. */
+  openD1Calls: OpenD1Options[]
   out: string[]
   err: string[]
   all(): string
@@ -94,7 +98,9 @@ export interface WorldOptions {
   /** Answers every request instead (a router by URL); `health` is ignored when set. */
   fetch?: (url: string, init?: RequestInit) => Response | Promise<Response>
   /** What the fake wrangler answers. */
-  runner?: (args: string[], env: Record<string, string>) => RunResult
+  runner?: (args: string[], env: Record<string, string>, input?: string) => RunResult
+  /** `setup`'s bootstrap D1 (default: any call is a test error). */
+  openD1?: InstanceDeps['openD1']
 }
 export const SECRETS_TEXT = `CLOUDFLARE_ACCOUNT_ID=${ACCOUNT}\nCLOUDFLARE_API_TOKEN=${TOKEN}\n`
 
@@ -118,6 +124,7 @@ export function makeWorld(o: WorldOptions = {}): World {
   const fetchCalls: { url: string; init?: RequestInit }[] = []
   const clock = { t: 0 }
   const wrangler: WranglerCall[] = []
+  const openD1Calls: OpenD1Options[] = []
   const deps: InstanceDeps = {
     packageDir: pkg.dir,
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -129,8 +136,13 @@ export function makeWorld(o: WorldOptions = {}): World {
     runWrangler: (args, opts) => {
       const c = args.indexOf('-c')
       const configPath = c >= 0 ? args[c + 1]! : null
-      wrangler.push({ args, env: opts.env, cwd: opts.cwd, configPath, configText: configPath && existsSync(configPath) ? readFileSync(configPath, 'utf8') : null })
-      return (o.runner ?? (() => ({ status: 0, stdout: trackerJson(pkg.migrations), stderr: '' })))(args, opts.env)
+      wrangler.push({ args, env: opts.env, cwd: opts.cwd, input: opts.input, configPath, configText: configPath && existsSync(configPath) ? readFileSync(configPath, 'utf8') : null })
+      return (o.runner ?? (() => ({ status: 0, stdout: trackerJson(pkg.migrations), stderr: '' })))(args, opts.env, opts.input)
+    },
+    openD1: async (opts) => {
+      openD1Calls.push(opts)
+      if (!o.openD1) throw new Error('unexpected openD1 call in a test that gave none')
+      return o.openD1(opts)
     },
     env: { XDG_CONFIG_HOME: config, PATH: '/usr/bin', HOME: home, ...o.processEnv },
     homedir: home,
@@ -140,5 +152,5 @@ export function makeWorld(o: WorldOptions = {}): World {
     now: () => clock.t,
     sleep: async (ms) => void (clock.t += ms),
   }
-  return { deps, pkg, config, settingsPath, secretsPath, tmpRoot, fetchUrls, fetchCalls, clock, wrangler, out, err, all: () => [...out, ...err].join('\n') }
+  return { deps, pkg, config, settingsPath, secretsPath, tmpRoot, fetchUrls, fetchCalls, clock, wrangler, openD1Calls, out, err, all: () => [...out, ...err].join('\n') }
 }

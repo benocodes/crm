@@ -212,6 +212,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   KEY-----"`; the rule became "header followed by a key body" with a test for the bare header ([[OPS210]],
   `packages/release/src/forbidden.ts`). Match the secret's shape (header plus body, prefix plus value), and keep
   the clean-pass case on the real output in the charter's run.
+  The scan covers **source too, once a module is bundled**: when `vibase instance setup` pulled
+  `scripts/setup/clerk-keys.ts` into `cli/instance.js`, its error message `neither sk_test_… nor sk_live_…`
+  failed `release:build`. The prose now assembles the prefixes at run time (`sk_${'test'}_`), with a comment
+  naming the scan. A cycle that adds an import to a shipped bundle runs `release:build` in its gate ([[OPS232]]).
 - **A bundle loaded at run time is proven by running the installed artifact.** Unit tests import the
   TypeScript source, so they cannot see a broken bundle. `cli/instance.js` passed every suite. It then failed when installed,
   with "Dynamic require of ./impl/format": esbuild took `jsonc-parser`'s UMD `main` into an ESM bundle. The fix is

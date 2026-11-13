@@ -17,8 +17,8 @@ export const gitStatus = (): SetupCmd => ({ command: 'git', args: ['status', '--
 export const deployStepCommands = (env: string, sha: string): SetupCmd[] =>
   deployCommands(env, sha).map((c: Cmd) => ({ ...c, cwd: c.args.includes('deploy') ? ('package' as const) : ('root' as const), inherit: true }))
 /** The marker row and whether an organisation exists (D39), in one read. */
-export const markerCommand = (env: string): SetupCmd =>
-  wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', 'select organization_id, auth_provider, auth_org_id, (select count(*) from organizations) as organizations from deployment where singleton = 1'])
+export const MARKER_SQL = 'select organization_id, auth_provider, auth_org_id, (select count(*) from organizations) as organizations from deployment where singleton = 1'
+export const markerCommand = (env: string): SetupCmd => wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', MARKER_SQL])
 /** `wrangler secret list --format json`: `[{name, type}]`, the names only are read. */
 export const secretListCommand = (env: string): SetupCmd => wrangler(['secret', 'list', '--env', env, '--format', 'json'])
 /** `wrangler secret bulk --env <name>`: the JSON object `{NAME: value}` goes on stdin, never argv (D12). */

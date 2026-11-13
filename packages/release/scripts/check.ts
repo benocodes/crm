@@ -5,7 +5,7 @@
 // local D1 with the installed wrangler, and runs the installed Worker and assets in workerd (Miniflare 4, the repo's test harness).
 // Nothing is published; no Cloudflare call or credential is involved (the child processes get a minimal environment).
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { Miniflare } from 'miniflare'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
@@ -90,6 +90,23 @@ export async function checkRelease(tarballArg: string, log: (line: string) => vo
     const dryRun = withGeneratedConfig({ packageDir: installed, settings: sample, tmpRoot: root }, (configPath) => sh(wranglerBin, [...deployArgs(manifest.version, manifest.commit, configPath), '--dry-run'], root, wranglerEnv()))
     for (const needle of [`VERSION`, `COMMIT`, `SAMPLE_SETTING`, `Total Upload`]) if (!dryRun.includes(needle)) throw new ReleaseRefusal(`the installed wrangler's deploy --dry-run of the upgrade argument list did not report ${needle}: ${dryRun.trim()}`)
     log('vibase instance upgrade: help lists it; refuses at the missing settings file (exit 2); the installed wrangler accepts the deploy argument list (--dry-run) with the settings vars and the VERSION and COMMIT vars')
+
+    // [[OPS232]]: `setup` is in the installed bundle, refuses at the missing secrets file (an empty config home, no Cloudflare values), and the bundle carries the bootstrap
+    // program in the one file: no lazy chunk, no root `.env` loader, and the client `cli/vibase.js` carries none of the instance code.
+    if (!/vibase instance setup --env <name> --api-host <host>/.test(instanceHelp)) throw new ReleaseRefusal('the installed `vibase instance help` does not list `setup --env <name> --api-host <host>`')
+    const noSecretsSetup = spawnSync(vibaseBin, ['instance', 'setup', '--env', 'check', '--api-host', 'api.check.invalid', '--auth', 'none'], { cwd: install, env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig }, encoding: 'utf8' })
+    const expectedSecrets = join(emptyConfig, 'vibase', 'instances', 'check.env')
+    if (noSecretsSetup.status !== 2 || !noSecretsSetup.stderr.includes(expectedSecrets)) throw new ReleaseRefusal(`the installed \`vibase instance setup\` did not refuse at the missing secrets file (exit ${noSecretsSetup.status}): ${noSecretsSetup.stderr.trim()}`)
+    const cliDir = join(installed, 'cli')
+    const cliFiles = readdirSync(cliDir).sort()
+    if (cliFiles.join() !== 'instance.js,vibase.js') throw new ReleaseRefusal(`the installed cli/ holds ${cliFiles.join(', ')}, expected only instance.js and vibase.js (a lazy chunk?)`)
+    const instanceText = readFileSync(join(cliDir, 'instance.js'), 'utf8')
+    if (!instanceText.includes('ops.init_deployment')) throw new ReleaseRefusal('the installed cli/instance.js does not carry the bootstrap program')
+    if (/\bfrom\s*["']\.{1,2}\//.test(instanceText) || /\bimport\(\s*["']\.{1,2}\//.test(instanceText)) throw new ReleaseRefusal('the installed cli/instance.js imports a file beside it (a lazy chunk)')
+    if (/loadEnvFile/.test(instanceText)) throw new ReleaseRefusal('the installed cli/instance.js carries the root .env loader')
+    const clientText = readFileSync(join(cliDir, 'vibase.js'), 'utf8')
+    for (const needle of ['ops.init_deployment', 'getPlatformProxy', 'wrangler.base.jsonc']) if (clientText.includes(needle)) throw new ReleaseRefusal(`the installed cli/vibase.js carries instance code (${needle})`)
+    log(`vibase instance setup: help lists it; refuses at ${expectedSecrets} (exit 2); cli/ is instance.js (${instanceText.length} bytes, bootstrap bundled, no chunk, no .env loader) and vibase.js (${clientText.length} bytes, no instance code)`)
 
     // 4. the installed migrations on a fresh local D1, applied by the installed wrangler.
     const base = parse(readFileSync(join(installed, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>

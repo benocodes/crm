@@ -22,11 +22,16 @@ export function validateOrigin(flag: string, value: string): string {
   return value
 }
 
-/** Parses and validates the flags ([[OPS65]] D6, D18, D19, D20) before anything touches a network; throws `RemoteRefusal`. */
-export function parseSetupArgs(argv: string[]): SetupOptions {
-  let values: ReturnType<typeof parseArgs>['values']
+type FlagValues = ReturnType<typeof parseArgs>['values']
+type Extra = Record<string, { type: 'string' | 'boolean' }>
+
+/**
+ * The flags both setup commands share. `extra` adds the ones that differ: `--clerk-env-file` for `setup:remote`, `--settings` and
+ * `--secrets-file` for `vibase instance setup` ([[OPS232]] P1). An unknown flag is a refusal.
+ */
+export function parseSetupFlags(argv: string[], extra: Extra): FlagValues {
   try {
-    ;({ values } = parseArgs({
+    return parseArgs({
       args: argv.filter((a) => a !== '--'),
       options: {
         env: { type: 'string' },
@@ -43,17 +48,26 @@ export function parseSetupArgs(argv: string[]): SetupOptions {
         'r2-name': { type: 'string' },
         only: { type: 'string' },
         'dry-run': { type: 'boolean' },
-        'clerk-env-file': { type: 'string' },
         'clerk-publishable-key': { type: 'string' },
         'clerk-production': { type: 'boolean' },
         'no-dcr': { type: 'boolean' },
         'rotate-secrets': { type: 'boolean' },
+        ...extra,
       },
       strict: true,
-    }))
+    }).values
   } catch (err) {
     throw new RemoteRefusal(err instanceof Error ? err.message : 'bad arguments')
   }
+}
+
+/** Parses and validates the flags ([[OPS65]] D6, D18, D19, D20) before anything touches a network; throws `RemoteRefusal`. */
+export function parseSetupArgs(argv: string[]): SetupOptions {
+  return buildSetupOptions(parseSetupFlags(argv, { 'clerk-env-file': { type: 'string' } }))
+}
+
+/** The validation and defaults of the parsed flags; shared with `vibase instance setup`. */
+export function buildSetupOptions(values: FlagValues): SetupOptions {
   const str = (k: string) => values[k] as string | undefined
 
   const env = str('env')
