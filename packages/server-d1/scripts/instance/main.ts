@@ -28,6 +28,15 @@ export const INSTANCE_HELP = `vibase instance: manage the vault instance this re
       the database stays at its newer schema. The fast path for a bad deploy is Cloudflare's own
       \`wrangler rollback\` (previous Worker version), with the same warning: it never reverses a migration.
 
+  vibase instance setup --env <name> --api-host <host> [--auth clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
+                        [--dry-run] [--only <steps>] [--settings <path>] [--secrets-file <path>] [more flags: --web-origin, --extra-origin, --org,
+                        --worker-name, --d1-name, --r2-name, --clerk-publishable-key, --clerk-production, --no-dcr, --rotate-secrets]
+      From nothing, or from an instance deployed from source, to a migrated, bootstrapped, deployed, verified instance, with no checkout:
+      preflight, config:resources (adopts existing D1 and R2 by name), clerk, config:write (writes the settings file and goes on), migrate,
+      bootstrap, deploy, secrets, verify. Clerk keys, Gmail values and the Cloudflare credentials come from the secrets file; an operator key
+      is appended to it as --key-env. Needs CONFIRM_REMOTE=1 (not for --dry-run, which reads only). Refuses a live instance that is newer than
+      this package. Exit 0: done, or the dry run is complete; 2: refused before the first step; 3: a step failed (it is named; no later step ran).
+
 Settings: $XDG_CONFIG_HOME/vibase/instances/<env>.json (~/.config when unset)
 Secrets:  <env>.env beside it, mode 600, with CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN
 `

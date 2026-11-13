@@ -57,7 +57,7 @@ describe('fresh install, release mode', () => {
       expect(c.args.join(' ')).not.toMatch(/\b(pnpm|git)\b/)
     }
     expect(readdirSync(s.w.tmpRoot)).toEqual([])
-    expect(s.writes().map((a) => a.slice(0, 3).join(' '))).toEqual(['d1 create vault-demo', 'r2 bucket create vault-demo-bodies', 'd1 migrations apply', 'deploy --no-bundle --var'])
+    expect(s.writes().map((a) => a.slice(0, 3).join(' '))).toEqual(['d1 create vault-demo', 'r2 bucket create', 'd1 migrations apply', 'deploy --no-bundle --var'])
     const deploy = s.w.wrangler.find((c) => c.args[0] === 'deploy')!
     expect(deploy.args).toEqual(deployArgs('0.1.0', 'abc1234', deploy.configPath!))
     expect(s.sim.d1s).toHaveLength(1)
@@ -313,7 +313,7 @@ describe('secrets and side effects', () => {
   it('reads no root .env: the setup modules name no repo path and no process environment', () => {
     for (const f of ['setup.ts', 'setup-args.ts', 'setup-steps.ts']) {
       const text = readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
-      expect(text, f).not.toMatch(/ROOT_ENV_PATH|loadRootEnv|probeEnvFile|readEnvText|loadEnvFile|process\.env|REPO_ROOT|CONFIG_PATH/)
+      expect(text, f).not.toMatch(/ROOT_ENV_PATH|loadRootEnv|env-file\.js|readEnvText|loadEnvFile|process\.env|REPO_ROOT|CONFIG_PATH/)
     }
   })
 })

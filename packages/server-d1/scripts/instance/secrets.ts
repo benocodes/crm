@@ -8,6 +8,8 @@ import { InstanceRefusal } from './types.js'
 export interface Secrets {
   CLOUDFLARE_ACCOUNT_ID: string
   CLOUDFLARE_API_TOKEN: string
+  /** The file's own text (`''` when there is none): `setup` reads its Clerk and Gmail values from it ([[OPS232]] P1). Never printed. */
+  text: string
   /** Replaces every secret value in `text` (a wrangler failure's output) before it is printed. */
   redact(text: string): string
 }
@@ -35,6 +37,7 @@ const MIN_MASKED = 4
 export function loadSecrets(path: string, env: Record<string, string | undefined>): Secrets {
   const fromEnv = (n: (typeof NAMES)[number]) => (env[n] ? env[n] : undefined)
   let file: Record<string, string> = {}
+  let text = ''
   let stat: ReturnType<typeof statSync> | undefined
   try {
     stat = statSync(path)
@@ -46,7 +49,8 @@ export function loadSecrets(path: string, env: Record<string, string | undefined
     if (!NAMES.every((n) => fromEnv(n))) throw new InstanceRefusal(`no secrets file at ${path}: create it (mode 600) with ${NAMES.join(' and ')}, or pass --secrets-file <path>`)
   } else {
     if ((stat.mode & 0o077) !== 0) throw new InstanceRefusal(`${path} is accessible by group or others (mode ${(stat.mode & 0o777).toString(8)}): run chmod 600 on it`)
-    file = parseDotenv(readFileSync(path, 'utf8'))
+    text = readFileSync(path, 'utf8')
+    file = parseDotenv(text)
   }
   const value = (n: (typeof NAMES)[number]): string => {
     const v = fromEnv(n) ?? (file[n] ? file[n] : undefined)
@@ -56,5 +60,5 @@ export function loadSecrets(path: string, env: Record<string, string | undefined
   const CLOUDFLARE_ACCOUNT_ID = value('CLOUDFLARE_ACCOUNT_ID')
   const CLOUDFLARE_API_TOKEN = value('CLOUDFLARE_API_TOKEN')
   const masked = [...new Set([CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, ...Object.values(file), ...NAMES.map((n) => fromEnv(n) ?? '')].filter((v) => v.length >= MIN_MASKED))].sort((a, b) => b.length - a.length)
-  return { CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, redact: (text) => masked.reduce((t, v) => t.split(v).join('***'), text) }
+  return { CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, text, redact: (text) => masked.reduce((t, v) => t.split(v).join('***'), text) }
 }

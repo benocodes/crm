@@ -3,7 +3,7 @@
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'jsonc-parser'
-import { resolveTarget } from '../remote.js'
+import { RemoteRefusal, resolveTarget } from '../remote.js'
 import type { InstanceSettings } from './types.js'
 
 export interface InstalledPaths {
@@ -31,16 +31,41 @@ export function generateConfig(base: Record<string, any>, settings: InstanceSett
   }
 }
 
-/** Writes the generated config into a fresh temp directory, runs `fn` with its path, and deletes the directory afterwards, on success and on failure. */
-export function withGeneratedConfig<T>(o: { packageDir: string; settings: InstanceSettings; tmpRoot: string }, fn: (configPath: string) => T): T {
+interface ConfigOptions {
+  packageDir: string
+  settings: InstanceSettings
+  tmpRoot: string
+  /** `setup` ([[OPS232]]): the config of the calls that exist before the database does (`d1 list`, `d1 create`, `r2 bucket ...`) may carry the placeholder id; the worker name is still checked. */
+  resourcesOnly?: boolean
+}
+
+function writeConfig(o: ConfigOptions): { dir: string; path: string } {
   const base = parse(readFileSync(join(o.packageDir, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>
   const config = generateConfig(base, o.settings, { worker: join(o.packageDir, 'worker', 'worker.js'), assets: join(o.packageDir, 'assets'), migrations: join(o.packageDir, 'migrations') })
-  resolveTarget(config, o.settings.env)
+  if (o.resourcesOnly) {
+    if (config.name === 'vault') throw new RemoteRefusal(`unknown env ${o.settings.env}`)
+  } else resolveTarget(config, o.settings.env)
   const dir = mkdtempSync(join(o.tmpRoot, 'vibase-instance-'))
+  const path = join(dir, 'wrangler.jsonc')
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
+  return { dir, path }
+}
+
+/** Writes the generated config into a fresh temp directory, runs `fn` with its path, and deletes the directory afterwards, on success and on failure. */
+export function withGeneratedConfig<T>(o: ConfigOptions, fn: (configPath: string) => T): T {
+  const { dir, path } = writeConfig(o)
   try {
-    const path = join(dir, 'wrangler.jsonc')
-    writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
     return fn(path)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+/** The same for a callback that lives across awaits (`setup`'s bootstrap holds the config while the remote D1 proxy is open). */
+export async function withGeneratedConfigAsync<T>(o: ConfigOptions, fn: (configPath: string) => Promise<T>): Promise<T> {
+  const { dir, path } = writeConfig(o)
+  try {
+    return await fn(path)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

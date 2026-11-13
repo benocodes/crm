@@ -5,12 +5,22 @@
 import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, createVaultRegistry, toProviderScope } from '@vault/api'
 import { parse } from 'jsonc-parser'
 import { pemFromJwk, type ClerkKeys } from './clerk-keys.js'
-import type { Ctx } from './steps.js'
-import type { Status, StepResult } from './types.js'
+import type { SetupDeps, SetupOptions, Status, StepResult } from './types.js'
 
 const BAPI = 'https://api.clerk.com'
 export const CLI_APP_NAME = 'Vibase CLI'
 const ROLE = 'vibase_role'
+
+/** What the Clerk rows read of a run: shared by `setup:remote` and `vibase instance setup` ([[OPS232]]), which differ in where the config text comes from. */
+export interface ClerkCtx {
+  opts: SetupOptions
+  deps: Pick<SetupDeps, 'fetch' | 'readConfigText'>
+  keys?: ClerkKeys
+  cliClientId?: string
+  jwtPem?: string
+  manualRows?: string[]
+}
+type Ctx = ClerkCtx
 
 type RowStatus = Exclude<Status, 'blocked'>
 interface Row {
