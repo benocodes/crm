@@ -57,7 +57,9 @@ with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never
   ([[API105]]: two `order by id`/`rowid` event readers in `packages/server-d1/e2e` and `scripts/smoke-worker.ts`
   were found at review).
 - **A deletion's blast-radius grep is a floor.** Grep the deleted file's basename, its exports, and
-  operation names as string literals; treat every surprise as a decision to make and record.
+  operation names as string literals; treat every surprise as a decision to make and record. A move or rename
+  of an entry point is a deletion too: grep for importers of each export the old module had, since a default
+  export nothing imports survives every suite ([[OPS240]] review).
 - **A migration's number can go stale.** Check `ls packages/db/migrations | tail -3` (and the D1
   migrations folder) right before creating one.
 - **Third-party APIs:** fetch the current docs before writing code that calls them. Invented endpoints,
