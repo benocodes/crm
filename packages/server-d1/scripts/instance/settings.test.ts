@@ -86,6 +86,6 @@ describe('OPS275 control_d1 (P1, P2, D16)', () => {
     refuses(controlSettings({ control_d1: 'x' }), /control_d1 must be an object/)
   })
   it('P2: AUTH_PROVIDER=better-auth without control_d1 is refused', () => {
-    refuses(validSettings({ vars: { AUTH_PROVIDER: 'better-auth' } }), /control_d1.*better-auth/)
+    refuses(validSettings({ vars: { AUTH_PROVIDER: 'better-auth' } }), /better-auth.*control_d1/)
   })
 })

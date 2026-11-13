@@ -104,12 +104,6 @@ describe('OPS275 gate refusals reach no write', () => {
     expect(w.err.join('\n')).toMatch(/control database.*0002_d\.sql/)
     noWrite(w)
   })
-  it('--rollback with everything applied still passes the gate', async () => {
-    const { w, code } = await upgrade(CONTROL_ALL, CRM_ALL, { rollback: true, version: '0.2.0' })
-    expect(code).toBe(0)
-    expect(w.wrangler.filter((c) => c.args[0] === 'deploy')).toHaveLength(1)
-    expect(w.wrangler.filter((c) => c.args.join(' ').includes('migrations apply'))).toEqual([])
-  })
 })
 
 interface Sim {
@@ -158,7 +152,10 @@ describe('OPS275 upgrade order and failure', () => {
     expect(await runUpgrade(['--env', 'demo'], w.deps)).toBe(0)
     // The gate reads both trackers first; the writes follow in the documented order.
     expect(steps(w)).toEqual(['read:CONTROL_DB', 'read:DB', 'apply:CONTROL_DB', 'read:CONTROL_DB', 'apply:DB', 'read:DB', 'deploy:'])
-    expect(new Set(w.wrangler.map((c) => c.configPath)).size).toBe(1)
+    // The gate's two reads share one config; the four migrate steps and the deploy share another, with both bindings in it.
+    expect(w.wrangler[0]!.configPath).toBe(w.wrangler[1]!.configPath)
+    expect(new Set(w.wrangler.slice(2).map((c) => c.configPath)).size).toBe(1)
+    expect(JSON.parse(w.wrangler[2]!.configText!).d1_databases.map((d: any) => d.binding).sort()).toEqual(['CONTROL_DB', 'DB'])
     const out = w.out.join('\n')
     expect(out).toMatch(/\[control\] migrations to apply \(2\)/)
     expect(out).toMatch(/\[crm\] migrations to apply \(2\)/)

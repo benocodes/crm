@@ -10,7 +10,7 @@ import { ACCOUNT, CONTROL_D1, cleanup, controlSettings, mkTmp, stagedPackage, TO
 
 afterEach(cleanup)
 const settings = (over: Record<string, unknown> = {}) => parseSettings(JSON.stringify(validSettings(over)), 'demo', '/s.json')
-const paths = { worker: '/pkg/worker/worker.js', assets: '/pkg/assets', migrations: '/pkg/migrations' }
+const paths = { worker: '/pkg/worker/worker.js', assets: '/pkg/assets', migrations: '/pkg/migrations', controlMigrations: '/pkg/control-migrations' }
 const base = () => parse(readFileSync(join(stagedPackage().dir, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>
 
 describe('D11 generated config', () => {
@@ -107,7 +107,7 @@ describe('D11 temp directory', () => {
 })
 
 describe('OPS275 CONTROL_DB in the generated config', () => {
-  const cpaths = { ...paths, controlMigrations: '/pkg/control-migrations' }
+  const cpaths = paths
   it('with control_d1: two entries by binding, the recorded name and id, each its own directory; resolveTarget carries it', () => {
     const c = generateConfig(base(), settings(controlSettings()), cpaths)
     const by = (b: string) => c.d1_databases.find((d: any) => d.binding === b)
@@ -124,8 +124,9 @@ describe('OPS275 CONTROL_DB in the generated config', () => {
     const pkg = stagedPackage()
     withGeneratedConfig({ packageDir: pkg.dir, settings: settings(controlSettings()), tmpRoot: mkTmp() }, (p) => {
       const c = unstable_readConfig({ config: p })
-      const by = (b: string) => c.d1_databases.find((d) => d.binding === b)!
-      expect(c.d1_databases.map((d) => d.binding).sort()).toEqual(['CONTROL_DB', 'DB'])
+      const dbs = c.d1_databases as Array<{ binding: string; database_id?: string; database_name?: string; migrations_dir?: string }>
+      const by = (b: string) => dbs.find((d) => d.binding === b)!
+      expect(dbs.map((d) => d.binding).sort()).toEqual(['CONTROL_DB', 'DB'])
       expect(by('DB').database_id).toBe(UUID)
       expect(by('CONTROL_DB').database_id).toBe(CONTROL_D1.id)
       expect(by('CONTROL_DB').database_name).toBe(CONTROL_D1.name)

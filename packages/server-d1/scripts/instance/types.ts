@@ -10,6 +10,8 @@ export interface InstanceSettings {
   worker: string
   api_host: string
   d1: { name: string; id: string }
+  /** The control-plane database ([[OPS275]] P1): optional until [[CORE261]]; recorded by name and id, never derived from the env (D16). */
+  control_d1?: { name: string; id: string }
   r2_bucket: string
   /** The Gmail sync Workflow's instance name; binding `MAIL_SYNC` and class `MailSyncWorkflow` come from the release's base config. */
   workflow: { name: string }
