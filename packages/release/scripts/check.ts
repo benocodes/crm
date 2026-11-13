@@ -211,6 +211,10 @@ export async function checkRelease(tarballs: { client: string; server: string },
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const version = (JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8')) as { version: string }).version
   const args = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+  if (args.length !== 0 && args.length !== 2) {
+    console.error('usage: release:check [<cli tarball> <server tarball>]')
+    process.exit(2)
+  }
   const [client, server] = args.length === 2 ? args : [join(PKG, 'dist', `vibase-cli-${version}.tgz`), join(PKG, 'dist', `vibase-server-d1-${version}.tgz`)]
   try {
     await checkRelease({ client: client!, server: server! })

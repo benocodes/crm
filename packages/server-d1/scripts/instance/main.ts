@@ -129,5 +129,3 @@ export async function runInstance(argv: string[], io: { stdout(t: string): void;
   io.stderr(`vibase-server: unknown command "${command}"\n${INSTANCE_HELP}`)
   return EXIT_REFUSED
 }
-
-export default runInstance
