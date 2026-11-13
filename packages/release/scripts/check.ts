@@ -174,10 +174,12 @@ export async function checkRelease(tarballs: { client: string; server: string },
     const workerDir = join(installed, 'worker')
     const mf = new Miniflare({
       port: 0,
-      modules: true,
-      scriptPath: join(workerDir, 'worker.js'),
+      // Explicit module list: Better Auth's `import(variable)` defeats Miniflare's own module scan (workerd and wrangler accept it).
+      modules: [{ type: 'ESModule', path: join(workerDir, 'worker.js'), contents: readFileSync(join(workerDir, 'worker.js'), 'utf8') }],
       modulesRoot: workerDir,
       compatibilityDate: manifest.compatibility_date,
+      // The flags the installed base config carries, as a deploy would apply them ([[CORE243]] D2): a base config without nodejs_compat fails here, as it would remotely.
+      compatibilityFlags: (base.compatibility_flags as string[] | undefined) ?? [],
       d1Databases: { DB: dbId },
       d1Persist: join(persist, 'v3', 'd1'),
       r2Persist: false,

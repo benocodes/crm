@@ -9,8 +9,10 @@
 {
   "name": "vault",
   "main": "src/worker.ts",
-  // No nodejs_compat: the app uses Web Crypto only. Keep this date at or below the workerd that Miniflare and wrangler bundle.
+  // nodejs_compat: the built-in auth provider's bundle (Better Auth, [[CORE243]] D2) imports `node:*`. Set here, inherited by every env, and carried into the release package's base config;
+  // `smoke:worker` lists the `node:` modules the bundle may import. Keep the date at or below the workerd that Miniflare and wrangler bundle.
   "compatibility_date": "2026-07-30",
+  "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
     {
       "binding": "DB",

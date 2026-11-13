@@ -30,7 +30,7 @@ describe('reconcileEnvBlock (D9)', () => {
     expect(r.mismatches).toEqual([])
     expect(r.changed.length).toBeGreaterThan(0)
     expect(onlyAdditions(real, r.text)).toBe(true)
-    for (const keep of ['// There is deliberately no account_id', '// vars, d1_databases, r2_buckets and routes are not inherited', '// Local R2 (no account needed)', '// No nodejs_compat']) expect(r.text).toContain(keep)
+    for (const keep of ['// There is deliberately no account_id', '// vars, d1_databases, r2_buckets and routes are not inherited', '// Local R2 (no account needed)', '// nodejs_compat:']) expect(r.text).toContain(keep)
     const cfg = parse(r.text) as { env: Record<string, Record<string, unknown>> }
     expect(cfg.env.smoked1).toEqual((parse(real) as typeof cfg).env.smoked1)
     expect(cfg.env.acme).toEqual({

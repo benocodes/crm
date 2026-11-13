@@ -37,7 +37,7 @@ const options=()=>({
   d1Persist:join(dir,'d1'),r2Persist:join(dir,'r2'),workflowsPersist:join(dir,'workflows'),
   workers:[
     {
-      name:'vault',modules:true,scriptPath:vaultBundle,modulesRoot:dir,compatibilityDate:'2026-07-30',
+      name:'vault',modules:[{type:'ESModule',path:vaultBundle,contents:readFileSync(vaultBundle,'utf8')}],modulesRoot:dir,compatibilityDate:'2026-07-30',compatibilityFlags:['nodejs_compat'],
       d1Databases:{DB:'webhook-example-e2e'},r2Buckets:['BODIES'],
       workflows:{MAIL_SYNC:{name:'webhook-example-e2e-sync',className:'MailSyncWorkflow'}},
       bindings:{AUTH_PROVIDER:'clerk',CLERK_JWT_KEY:issuer.pem,CLERK_ISSUER:issuer.issuer,CLERK_AUTHORIZED_PARTIES:issuer.party,CLERK_SECRET_KEY:SECRET_KEY,CLERK_API_URL:API_URL,CORS_ALLOWED_ORIGINS:'',GOOGLE_CLIENT_ID:'hook-e2e-client',GOOGLE_CLIENT_SECRET:'hook-e2e-secret',OAUTH_STATE_SECRET:'hook-e2e-state',CREDENTIALS_KEY:KEY_B64,WEBHOOK_ALLOW_INSECURE_URLS:'true'},
@@ -55,7 +55,7 @@ const options=()=>({
       },
     },
     {
-      name:'receiver',modules:true,scriptPath:receiverBundle,modulesRoot:dir,compatibilityDate:'2026-07-30',
+      name:'receiver',modules:true,scriptPath:receiverBundle,modulesRoot:dir,compatibilityDate:'2026-07-30',compatibilityFlags:['nodejs_compat'],
       workflows:{REPLY_WORKFLOW:{name:'webhook-example-e2e-reply',className:'ReplyWorkflow'}},
       bindings:{WEBHOOK_SECRET:secret,VIBASE_URL:'http://vault.test',VIBASE_API_KEY:agentKey},
       outboundService:async(req:Request)=>{
@@ -67,7 +67,7 @@ const options=()=>({
   ],
 })
 try{
-  const bundle=(entry:string,outfile:string)=>build({entryPoints:[entry],bundle:true,format:'esm',platform:'browser',conditions:['workerd','worker','browser'],target:'es2022',outfile,external:['cloudflare:workers','cloudflare:workflows'],logLevel:'warning'})
+  const bundle=(entry:string,outfile:string)=>build({entryPoints:[entry],bundle:true,format:'esm',platform:'browser',conditions:['workerd','worker','browser'],target:'es2022',outfile,external:['cloudflare:workers','cloudflare:workflows','node:*'],logLevel:'warning'})
   await bundle(fileURLToPath(new URL('../src/worker.ts',import.meta.url)),vaultBundle)
   await bundle(fileURLToPath(new URL('../../webhook-receiver-example/src/index.ts',import.meta.url)),receiverBundle)
   console.log(`bundles: vault ${statSync(vaultBundle).size} bytes, receiver ${statSync(receiverBundle).size} bytes`)

@@ -11,7 +11,7 @@ import { join, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-export const OPEN_PACKAGES = ['storage', 'storage-d1', 'api', 'server-d1'] as const
+export const OPEN_PACKAGES = ['auth', 'storage', 'storage-d1', 'api', 'server-d1'] as const
 export const ENTERPRISE_PACKAGES = ['db', 'storage-postgres', 'server-postgres'] as const
 export const ENTERPRISE_SPECIFIERS = ['pg', '@vault/db', '@vault/storage-postgres', '@vault/server-postgres'] as const
 

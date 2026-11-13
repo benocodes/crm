@@ -199,7 +199,7 @@ describe('the test kit never reaches the Worker bundle (D52)', () => {
       platform: 'browser',
       conditions: ['workerd', 'worker', 'browser'],
       target: 'es2022',
-      external: ['cloudflare:workers'],
+      external: ['cloudflare:workers', 'node:*'],
       logLevel: 'silent',
     })
     const text = out.outputFiles.map((f) => f.text).join('\n')

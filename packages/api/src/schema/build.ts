@@ -7,7 +7,7 @@ import { STATED_SORT_COSTS } from '../storage/sort-costs.js'
 import { describeColumnFilter, operatorsFor } from '../storage/column-filters.js'
 import { STATED_FILTER_COSTS } from '../storage/filter-costs.js'
 import { crudActions, resourcePath, scopeResourceOf } from '../resources/define.js'
-import { CATALOG, HIDDEN_TABLES, defaultLabel, type Catalog } from './catalog.js'
+import { AUTH_TABLE_PREFIX, CATALOG, HIDDEN_TABLES, defaultLabel, type Catalog } from './catalog.js'
 import type { SchemaDocument } from './document.js'
 
 // API63 D10-D14: a pure builder. The rows are what `pragma_table_info` / `pragma_foreign_key_list` return for each table;
@@ -146,7 +146,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
     [...(columnsOf.get(table) ?? [])].filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name)
 
   const tables = [...columnsOf.keys()]
-    .filter((name) => !hidden.has(name))
+    .filter((name) => !hidden.has(name) && !name.startsWith(AUTH_TABLE_PREFIX))
     .sort()
     .map((name) => {
       const rows = [...columnsOf.get(name)!].sort((a, b) => a.cid - b.cid)

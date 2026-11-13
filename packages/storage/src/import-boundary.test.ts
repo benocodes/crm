@@ -37,6 +37,9 @@ describe('import boundary (D14, D15)', () => {
     ['the D1 server importing the Postgres runtime', { 'server-d1/src/a.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
     ['a D1 server script importing @vault/db', { 'server-d1/scripts/x.ts': "import { createDb } from '@vault/db'" }, '@vault/db'],
     ['the D1 runtime importing the server package', { 'storage-d1/src/a.ts': "import '@vault/server-postgres'" }, '@vault/server-postgres'],
+    ['the auth package importing pg ([[CORE243]] D21)', { 'auth/src/a.ts': "import pg from 'pg'" }, 'pg'],
+    ['the auth package importing the Postgres runtime', { 'auth/src/a.ts': "import { postgresBinding } from '@vault/storage-postgres'" }, '@vault/storage-postgres'],
+    ['an auth script importing @vault/db', { 'auth/scripts/x.ts': "import { createDb } from '@vault/db'" }, '@vault/db'],
   ])('fails on %s', (_name, files, specifier) => {
     expect(checkBoundary(sandbox(files)).map((v) => v.specifier)).toEqual([specifier])
   })

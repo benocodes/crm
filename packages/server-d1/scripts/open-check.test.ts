@@ -2,13 +2,13 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { classifyPackages, openManifest, productionTsconfig, type PackageJson } from './open-check.js'
 
-const REPO = ['api', 'db', 'server-d1', 'server-postgres', 'storage', 'storage-d1', 'storage-postgres']
+const REPO = ['api', 'auth', 'db', 'server-d1', 'server-postgres', 'storage', 'storage-d1', 'storage-postgres']
 const apiManifest = (): PackageJson => JSON.parse(readFileSync(new URL('../../api/package.json', import.meta.url), 'utf-8'))
 
 describe('open-check pure parts', () => {
   it("classifies the repo's packages", () => {
     const { open, enterprise } = classifyPackages(REPO)
-    expect([...open].sort()).toEqual(['api', 'server-d1', 'storage', 'storage-d1'])
+    expect([...open].sort()).toEqual(['api', 'auth', 'server-d1', 'storage', 'storage-d1'])
     expect([...enterprise].sort()).toEqual(['db', 'server-postgres', 'storage-postgres'])
   })
   it('refuses an unclassified package', () => {
@@ -27,6 +27,11 @@ describe('open-check pure parts', () => {
   })
   it('refuses an enterprise production dependency', () => {
     expect(() => openManifest({ name: 'x', dependencies: { pg: '8.23.1' } })).toThrow('x depends on enterprise package pg in dependencies')
+  })
+  it('the auth package ([[CORE243]] D21) has no enterprise dependency in any production field', () => {
+    const auth: PackageJson = JSON.parse(readFileSync(new URL('../../auth/package.json', import.meta.url), 'utf-8'))
+    expect(() => openManifest(auth)).not.toThrow()
+    expect(auth.name).toBe('@vault/auth')
   })
   it('refuses a workspace enterprise package in dependencies', () => {
     expect(() => openManifest({ name: 'x', dependencies: { '@vault/db': 'workspace:*' } })).toThrow('x depends on enterprise package @vault/db in dependencies')

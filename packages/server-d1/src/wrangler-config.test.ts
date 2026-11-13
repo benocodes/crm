@@ -83,3 +83,19 @@ describe('mail sync Workflow and crons (CHN141 D34, D76; AGT8 D54)', () => {
     expect(readFileSync(fileURLToPath(new URL('./worker.ts', import.meta.url)), 'utf8')).toMatch(/export \{[^}]*MailSyncWorkflow[^}]*\}/)
   })
 })
+
+// [[CORE243]] D2: Better Auth's bundle imports `node:*`, so the Worker runs with `nodejs_compat`. It is set at the top level and inherited by every env (`compatibility_flags` is
+// an inheritable key), never dropped by an env of its own: a deploy whose bundle has `node:` imports and no flag fails only remotely.
+describe('nodejs_compat (CORE243 D2)', () => {
+  const declaredEnvs = Object.keys((parse(readFileSync(CONFIG, 'utf8')) as { env?: object }).env ?? {})
+  it.each([undefined, ...declaredEnvs])('env %s runs with nodejs_compat', (env) => {
+    expect(unstable_readConfig({ config: CONFIG, env }).compatibility_flags).toContain('nodejs_compat')
+  })
+  it('no env states a compatibility_flags list of its own (so none can leave the flag out)', () => {
+    const envs = (parse(readFileSync(CONFIG, 'utf8')) as { env?: Record<string, Record<string, unknown>> }).env ?? {}
+    for (const [name, block] of Object.entries(envs)) expect(block.compatibility_flags, name).toBeUndefined()
+  })
+  it('the comment no longer says there is no nodejs_compat', () => {
+    expect(readFileSync(CONFIG, 'utf8')).not.toContain('No nodejs_compat')
+  })
+})

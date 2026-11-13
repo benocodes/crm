@@ -5,10 +5,14 @@ import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { gmailTransport } from '@vault/api'
+import { createAuthHandler, type AuthRuntimeConfig } from '@vault/auth'
+import { parseBuiltInAuthConfig } from './auth-config.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
   AUTH_PROVIDER?: string
+  /** `AUTH_PROVIDER=better-auth` only ([[CORE243]] D6): a Worker secret, at least 32 characters; Better Auth signs cookies and encrypts its signing key with it. */
+  AUTH_SECRET?: string
   CLERK_ISSUER?: string
   CLERK_AUTHORIZED_PARTIES?: string
   CLERK_SECRET_KEY?: string
@@ -83,6 +87,7 @@ export const MIGRATIONS_PENDING = { error: { code: 'migrations_pending', message
 export const MIGRATION_REREAD_MS = 5_000
 const EXPECTED = MIGRATIONS.map((m) => m.name)
 const INTERNAL = { error: { code: 'internal', message: 'internal error' } }
+const NO_SUCH_ROUTE = { error: { code: 'not_found', message: 'no such route' } }
 
 /** The binding of the pre-initialisation app: it serves the OpenAPI document only, and a unit reaching it is a defect. */
 const NO_UNITS: D1Binding = {
@@ -95,7 +100,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'COMMIT', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS', 'CRON_TICK_BUDGET'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'AUTH_SECRET', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'COMMIT', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS', 'CRON_TICK_BUDGET'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -117,7 +122,12 @@ export function composeD1Worker(
   let cliClientId: string | undefined
   let publishableKey: string | undefined
   let configError = false
+  // [[CORE243]] D1: Better Auth is mounted at /auth only for this provider; its configuration is read for no other.
+  const builtIn = vars.AUTH_PROVIDER?.trim() === 'better-auth'
+  let builtInConfig: AuthRuntimeConfig | undefined
+  let builtInHandler: ((req: Request) => Promise<Response>) | undefined
   try {
+    if (builtIn) builtInConfig = parseBuiltInAuthConfig(vars)
     authAdapter = createWorkspaceAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
     cliClientId = parseCliClientId(vars)
     // Only with a provider: without one the key is ignored and discovery has no auth to put it in.
@@ -379,6 +389,15 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
+        // [[CORE243]] D1: `/auth/*` exists only for the built-in provider; for clerk and unset it is no route at all, before every gate. For better-auth it passes the migration gate
+        // (the auth tables come with 0018) and the configuration gate, and needs no deployment marker: it touches no vault table (D5).
+        if (url.pathname === '/auth' || url.pathname.startsWith('/auth/')) {
+          if (!builtIn) return json(NO_SUCH_ROUTE, 404)
+          if (configError || !builtInConfig) return json(INTERNAL, 500)
+          if ((await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
+          builtInHandler ??= createAuthHandler(env.DB, builtInConfig)
+          return await builtInHandler(req)
+        }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
         const page = await serveConnect(req, { assets: env.ASSETS, issuer: discovery.provider?.issuer })
         if (page) return page

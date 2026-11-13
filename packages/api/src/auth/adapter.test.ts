@@ -45,6 +45,8 @@ describe('createAuthAdapter', () => {
 
   it('unknown provider', () => {
     expect(() => createAuthAdapter({ AUTH_PROVIDER: 'auth0' })).toThrow('unknown AUTH_PROVIDER "auth0"')
+    // [[CORE243]] D1: the built-in provider is known (no token adapter yet), so it is not a configuration error.
+    expect(createWorkspaceAuthAdapter({ AUTH_PROVIDER: 'better-auth' })).toBeUndefined()
   })
 
   it('CLERK_API_URL is honoured', async () => {
