@@ -133,6 +133,10 @@ describe('D5 wrangler.base.jsonc', () => {
     expect(Object.keys(base).sort()).toEqual(Object.keys(source).filter((k) => k !== 'env').sort())
     expect(base.triggers).toEqual(source.triggers)
   })
+  it('carries the nodejs_compat flag of the source config (CORE243 D2), so a deploy of the shipped Worker has it', () => {
+    const base = deriveBaseConfig(readFileSync(WRANGLER_JSONC, 'utf8'), paths) as Record<string, any>
+    expect(base.compatibility_flags).toContain('nodejs_compat')
+  })
   it('the staged wrangler.base.jsonc parses and holds no env key', () => {
     const s = sources()
     const outDir = mkdtempSync(join(tmpdir(), 'ops210-out-'))

@@ -26,6 +26,10 @@ describe('D11 generated config', () => {
     expect(c.triggers).toEqual(base().triggers)
     expect(c.env).toBeUndefined()
   })
+  it('keeps the base config\'s nodejs_compat flag: the config a deploy uses has it (CORE243 D2)', () => {
+    expect(base().compatibility_flags).toContain('nodejs_compat')
+    expect(generateConfig(base(), settings(), paths).compatibility_flags).toContain('nodejs_compat')
+  })
   it('settings crons replace the base crons; api_host becomes the custom-domain route', () => {
     const c = generateConfig(base(), settings({ crons: ['* * * * *'] }), paths)
     expect(c.triggers).toEqual({ crons: ['* * * * *'] })
