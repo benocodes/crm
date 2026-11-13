@@ -10,6 +10,7 @@ export interface InstalledPaths {
   worker: string
   assets: string
   migrations: string
+  controlMigrations: string
 }
 
 export function generateConfig(base: Record<string, any>, settings: InstanceSettings, paths: InstalledPaths): Record<string, any> {
@@ -23,7 +24,11 @@ export function generateConfig(base: Record<string, any>, settings: InstanceSett
     workers_dev: false,
     preview_urls: false,
     routes: [{ pattern: settings.api_host, custom_domain: true }],
-    d1_databases: [{ binding: 'DB', database_name: settings.d1.name, database_id: settings.d1.id, migrations_dir: paths.migrations, remote: true }],
+    // By binding, from the recorded values only ([[OPS275]] D16): the control entry is present exactly when the settings record one.
+    d1_databases: [
+      { binding: 'DB', database_name: settings.d1.name, database_id: settings.d1.id, migrations_dir: paths.migrations, remote: true },
+      ...(settings.control_d1 ? [{ binding: 'CONTROL_DB', database_name: settings.control_d1.name, database_id: settings.control_d1.id, migrations_dir: paths.controlMigrations, remote: true }] : []),
+    ],
     r2_buckets: [{ binding: 'BODIES', bucket_name: settings.r2_bucket }],
     workflows: [{ binding: workflow.binding, name: settings.workflow.name, class_name: workflow.class_name }],
     triggers: { crons: settings.crons ?? top.triggers?.crons ?? [] },
@@ -41,7 +46,7 @@ interface ConfigOptions {
 
 function writeConfig(o: ConfigOptions): { dir: string; path: string } {
   const base = parse(readFileSync(join(o.packageDir, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>
-  const config = generateConfig(base, o.settings, { worker: join(o.packageDir, 'worker', 'worker.js'), assets: join(o.packageDir, 'assets'), migrations: join(o.packageDir, 'migrations') })
+  const config = generateConfig(base, o.settings, { worker: join(o.packageDir, 'worker', 'worker.js'), assets: join(o.packageDir, 'assets'), migrations: join(o.packageDir, 'migrations'), controlMigrations: join(o.packageDir, 'control-migrations') })
   if (o.resourcesOnly) {
     if (config.name === 'vb') throw new RemoteRefusal(`unknown env ${o.settings.env}`)
   } else resolveTarget(config, o.settings.env)

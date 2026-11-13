@@ -11,6 +11,11 @@ import { openWorkerD1 } from '../../src/test/kit.js'
 import type { InstanceDeps, OpenD1Options, RunResult } from './types.js'
 
 export const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
+export const CONTROL_UUID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+/** A recorded control database whose name is not what any env derivation would give (the tooling reads it, never computes it, OPS275 D16). */
+export const CONTROL_D1 = { name: 'ctl-recorded-name', id: CONTROL_UUID }
+/** The control migrations of the staged package (`release/src/fixtures.ts`). */
+export const CONTROL_ALL = ['0001_c.sql', '0002_d.sql']
 export const TOKEN = 'e2e-token-SECRET-0000'
 export const ACCOUNT = 'e2e-acct-0000'
 export const WRANGLER_BASE = readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8')
@@ -65,6 +70,10 @@ export const validSettings = (over: Record<string, unknown> = {}): Record<string
   vars: { AUTH_PROVIDER: '' },
   ...over,
 })
+
+export const controlSettings = (over: Record<string, unknown> = {}): Record<string, unknown> => validSettings({ control_d1: CONTROL_D1, ...over })
+/** The binding a fake wrangler call addresses: `d1 execute <B>` or `d1 migrations apply <B>`; null for any other call. */
+export const bindingOf = (args: string[]): string | null => (args[0] === 'd1' && args[1] === 'execute' ? args[2]! : args[0] === 'd1' && args[1] === 'migrations' && args[2] === 'apply' ? args[3]! : null)
 
 export interface WranglerCall {
   args: string[]

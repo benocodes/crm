@@ -376,6 +376,14 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   (`packages/release/src/check-config.ts`). `db:migrate:remote` applies control first and stops on its failure;
   control is "current" only when applied = shipped exactly (unknown and ahead are not). Until [[CORE261]], an env
   whose config has no `CONTROL_DB` entry is CRM only, with a printed not-configured line ([[CORE259]] P1).
+  The instance commands (`vibase-server status`/`upgrade`, `packages/server-d1/scripts/instance/`) take the control
+  database's name and id only from the settings' optional `control_d1`, never derived from the env ([[OPS275]]); settings
+  with `AUTH_PROVIDER=better-auth` and no `control_d1` are refused (P2).
+- **"No tracker" differs by database and by reader** ([[OPS275]] D-b): for status and upgrade, a control database with no
+  `d1_migrations` table is `behind` with every control migration pending (a new instance before its first migrate); the
+  Worker's runtime control gate refuses it as `unknown`; the CRM no-tracker case is `unknown` in both.
+- **Check a generated wrangler config with wrangler's own reader** (`unstable_readConfig` from `wrangler` on the written
+  file, `packages/server-d1/scripts/instance/config.test.ts`), not only the object the generator returned ([[OPS275]]).
 - **Dropping or moving a table: grep every package for its name** (sources, tests, fixtures), not only the package
   that owns the migration. CRM `0019` (drop `auth_*`) broke `packages/server-d1/src/auth-routing.test.ts`, which the
   charter's watch list missed and only the full gate found ([[OPS260]]).
