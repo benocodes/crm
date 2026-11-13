@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
 import { ApiError } from '../errors.js'
 import { openEngines, type Engine } from '../test/engines.js'
 
 // schema.get on the Postgres engine only has to answer 501 (API63 D15); the D1 oracle's cases are in schema.storage.integration.d1.test.ts.
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 let engines: Engine[]
 let pg: Engine
 beforeAll(async () => {

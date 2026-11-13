@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, isAgentGrantable } from '../auth/roles.js'
 import type { ContractSession, ContractTenant } from '../test/contract.js'
 import { d1Backend } from '../test/d1-backend.js'
@@ -9,7 +9,7 @@ const FULL = ['deals:read', 'deals:write', 'pipelines:read', 'pipelines:write']
 let s: ContractSession
 let t: ContractTenant
 beforeAll(async () => {
-  s = await d1Backend().open(createVaultRegistry())
+  s = await d1Backend().open(createVibaseRegistry())
 })
 afterAll(async () => {
   await s.close()
@@ -158,7 +158,7 @@ describe('scopes (D16)', () => {
   })
 
   it('the four scopes are declared, member- and agent-grantable, and described', () => {
-    const declared = createVaultRegistry().declaredScopes()
+    const declared = createVibaseRegistry().declaredScopes()
     for (const scope of FULL) {
       expect(declared, scope).toContain(scope)
       expect(SCOPE_POLICY[scope], scope).toEqual({ member: true, agentGrantable: true })

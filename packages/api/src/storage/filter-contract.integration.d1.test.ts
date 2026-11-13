@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { compileOperation, type PreparedOperation } from '@vibase/storage'
 import type { TenantOperation } from '../registry.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { ScopeSet } from '../scopes.js'
 import { crudActions } from '../resources/define.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
@@ -43,7 +43,7 @@ async function nocaseColumns(): Promise<Set<string>> {
 
 beforeAll(async () => {
   e = await openD1Engine()
-  const registry = createVaultRegistry()
+  const registry = createVibaseRegistry()
   const env = e.env({ scopes: ScopeSet.parse(registry.declaredScopes()) })
   const defs = registry.resources()
   const lists: FilterContractList[] = registry.operations().filter((o) => o.kind === 'tenant' && o.name.endsWith('.list')).map((o) => {

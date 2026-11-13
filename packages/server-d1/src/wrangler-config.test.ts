@@ -17,7 +17,7 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
     expect(c.d1_databases[0]!.database_name).toBe('vb-crm')
     expect(c.d1_databases[0]!.database_id).toBe(PLACEHOLDER)
     expect(c.routes ?? []).toEqual([])
-    expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vault-bodies' }])
+    expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vb-bodies' }])
     expect(c.account_id).toBeUndefined()
   })
 
@@ -71,7 +71,7 @@ describe('assets (UI30 D2)', () => {
 describe('mail sync Workflow and crons (CHN141 D34, D76; AGT8 D54)', () => {
   const CRONS = ['*/15 * * * *', '* * * * *']
   it.each([
-    [undefined, 'vault-mail-sync', CRONS],
+    [undefined, 'vb-mail-sync', CRONS],
     ['smoked1', 'vault-smoked1-mail-sync', CRONS],
     ['hq', 'vault-hq-mail-sync', CRONS],
   ] as const)('env %s binds MAIL_SYNC to %s with crons %j', (env, name, crons) => {

@@ -241,7 +241,7 @@ export class FakeGmail implements GmailClient {
 
   constructor(messages: Iterable<BuiltGmailMessage> = [], opts: { chunk?: number | ((index: number) => number); profile?: GmailProfile; sendAs?: GmailSendAs[] } = {}) {
     this.chunk = opts.chunk ?? 4096
-    this.profile = opts.profile ?? { emailAddress: 'owner@vault.test', historyId: '1' }
+    this.profile = opts.profile ?? { emailAddress: 'owner@vibase.test', historyId: '1' }
     this.sendAs = opts.sendAs ?? [{ sendAsEmail: this.profile.emailAddress, isPrimary: true }]
     for (const m of messages) this.add(m)
   }

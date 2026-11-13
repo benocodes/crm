@@ -22,9 +22,9 @@ const ENV = {
   GOOGLE_CLIENT_SECRET: 'fake-client-secret',
   OAUTH_STATE_SECRET: 'state-secret-for-tests',
   CREDENTIALS_KEY: Buffer.from(KEY_BYTES).toString('base64'),
-  PUBLIC_BASE_URL: 'https://vault.test',
+  PUBLIC_BASE_URL: 'https://vibase.test',
 }
-const BASE = 'https://vault.test'
+const BASE = 'https://vibase.test'
 const SCOPES_ALL = ['openid', 'email', GMAIL_READONLY, GMAIL_SEND]
 const ANN: FakeAccount = { sub: 'sub-ann', email: 'ann@example.test', historyId: '555', sendAs: [{ sendAsEmail: 'ann@example.test', isPrimary: true }, { sendAsEmail: 'Sales@Example.test', verificationStatus: 'accepted' }, { sendAsEmail: 'pending@example.test', verificationStatus: 'pending' }] }
 const CONNECTION_TABLES = ['channel_connections', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'identities', 'contacts', 'events'] as const
@@ -150,7 +150,7 @@ describe('connect, happy path (one unit, acting as the user)', () => {
 
   it('the authorize URL carries the redirect URI of PUBLIC_BASE_URL, or the request origin when it is unset', async () => {
     const { authorize_url, expires_at } = await authorize()
-    expect(new URL(authorize_url).searchParams.get('redirect_uri')).toBe('https://vault.test/oauth/google/callback')
+    expect(new URL(authorize_url).searchParams.get('redirect_uri')).toBe('https://vibase.test/oauth/google/callback')
     expect(expires_at).toBe(new Date(now.getTime() + 10 * 60_000).toISOString())
     const local = buildApp({ ...ENV, PUBLIC_BASE_URL: undefined })
     const res = await local.request('http://localhost:8787/meta/v1/connections/authorize', {

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { sql, type Kysely } from 'kysely'
 import { withServiceRole, type Database } from '@vibase/db'
 import { createOwnerTestDb, createTestDb, seedMembership, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { Registry } from '../registry.js'
 import { tasks } from '../resources/tasks.js'
 import { createApp } from '../rest/app.js'
@@ -18,7 +18,7 @@ let profiles: Map<string, ClerkUserJson>
 let adapterKit: Awaited<ReturnType<typeof testClerkAdapter>>
 let app: ReturnType<typeof createApp>
 
-const declared = createVaultRegistry().declaredScopes()
+const declared = createVibaseRegistry().declaredScopes()
 
 beforeAll(() => {
   db = createTestDb({ max: 4 })

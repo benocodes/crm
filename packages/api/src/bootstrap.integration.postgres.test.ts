@@ -7,7 +7,7 @@ import { hashApiKey } from './auth/api-keys.js'
 import { assertAgentGrantable, grantableScopes, type ScopePolicy } from './auth/roles.js'
 import { bootstrap } from './bootstrap.js'
 import { clerkUser, mintClerkToken, testClerkAdapter } from './test/clerk.js'
-import { createVaultRegistry } from './operations.js'
+import { createVibaseRegistry } from './operations.js'
 import { createApp } from './rest/app.js'
 
 let db: Kysely<Database>
@@ -40,7 +40,7 @@ describe('bootstrap', () => {
     const m = await owner.selectFrom('memberships').selectAll().where('user_id', '=', r.userId).execute()
     expect(m).toMatchObject([{ organization_id: r.organizationId, role: 'owner' }])
     const agent = await owner.selectFrom('agents').selectAll().where('id', '=', r.agentId).executeTakeFirstOrThrow()
-    expect(agent.scopes).toEqual(grantableScopes(createVaultRegistry().declaredScopes()))
+    expect(agent.scopes).toEqual(grantableScopes(createVibaseRegistry().declaredScopes()))
     expect(agent.created_by).toBe(r.userId)
   })
   it('stores the key hashed', async () => {
@@ -106,7 +106,7 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
   })
 
   it('default agent scopes are the grantable ones', async () => {
-    const declared = createVaultRegistry().declaredScopes()
+    const declared = createVibaseRegistry().declaredScopes()
     const r = await bootstrap(storage, base)
     const agent = await owner.selectFrom('agents').selectAll().where('id', '=', r.agentId).executeTakeFirstOrThrow()
     expect(agent.scopes).toEqual(grantableScopes(declared))

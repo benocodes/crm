@@ -201,7 +201,7 @@ curl https://api.smoked1.vibase.ai/health                                    # s
 # The first organisation, owner and agent. The key is written to the root .env as the variable named by --key-env
 # and is never printed; a re-run is refused while that variable is set.
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env smoked1 --org smoked1 --email "$ADMIN_EMAIL" \
-  --agent operator --auth-provider none --auth-org-id smoked1 --key-env VAULT_SMOKED1_OPERATOR_KEY
+  --agent operator --auth-provider none --auth-org-id smoked1 --key-env VIBASE_SMOKED1_OPERATOR_KEY
 
 # Smoke
 pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai --phase before --expect-version <sha>

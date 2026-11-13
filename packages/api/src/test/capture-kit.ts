@@ -34,7 +34,7 @@ export function storedAttachment(organizationId: string, position: number, opts:
 
 export type CaptureOverrides = Omit<Partial<CaptureMessage>, 'attachments'> & { attachments?: number | readonly CaptureAttachment[] }
 
-/** A valid message: unique `external_id`, from `jane@acme.test` to `owner@vault.test`, a fixed instant. `attachments: n` means n stored attachments. */
+/** A valid message: unique `external_id`, from `jane@acme.test` to `owner@vibase.test`, a fixed instant. `attachments: n` means n stored attachments. */
 export function captureMessage(organizationId: string, over: CaptureOverrides = {}): CaptureMessage {
   const n = ++counter
   const { attachments, ...rest } = over
@@ -55,7 +55,7 @@ export function captureMessage(organizationId: string, over: CaptureOverrides = 
     sent_by_connection: false,
     participants: [
       { kind: 'email', value: 'jane@acme.test', role: 'from' },
-      { kind: 'email', value: 'owner@vault.test', role: 'to' },
+      { kind: 'email', value: 'owner@vibase.test', role: 'to' },
     ],
     attachments: typeof attachments === 'number' ? Array.from({ length: attachments }, (_, i) => storedAttachment(organizationId, i)) : (attachments ?? []),
     ...rest,

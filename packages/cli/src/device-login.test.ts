@@ -7,7 +7,7 @@ import { fakeInstance, json, KEY, rig } from './test/harness.js'
 // [[API104]] ([[API6]] D11, D18-D21): device login, refresh, the lock and logout against a fake authorization server
 // (RFC 8414, 8628, 6749 refresh with rotating refresh tokens, 7009) and a fake instance. The D1 app is device-login.integration.test.ts.
 
-const SERVER = 'https://vault.test'
+const SERVER = 'https://vibase.test'
 const SCOPES = ['contacts:read', 'contacts:write', 'tasks:read']
 const ME = { principal: { id: 'p1', kind: 'user' }, user: { id: 'p1' }, active_organization: { id: 'o1', role: 'owner', scopes: ['contacts:read'] } }
 

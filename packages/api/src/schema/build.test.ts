@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { Catalog } from './catalog.js'
 import { buildSchemaDocument, resourcesByTable, type ColumnRow, type ForeignKeyRow } from './build.js'
 import { schemaOperations } from './operations.js'
 
 // API63 D10-D14: the pure builder, fed fixed pragma rows (no database). The expected values are written out, never derived from the input.
-const defs = createVaultRegistry().resources()
+const defs = createVibaseRegistry().resources()
 
 const col = (table: string, cid: number, name: string, type = 'TEXT', o: { notnull?: boolean; dflt?: string; pk?: boolean } = {}): ColumnRow => ({
   table_name: table,

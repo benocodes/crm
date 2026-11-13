@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
@@ -9,7 +9,7 @@ import { schemaDocument } from '../schema/document.js'
 // MCP, and through them the CLI's help) and the catalog text `schema.get` serves. Every other list's sort text stays as it was.
 let e: Engine
 let app: ReturnType<typeof createApp>
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const ALL = registry.declaredScopes()
 beforeAll(async () => {
   e = await openD1Engine()

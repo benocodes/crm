@@ -1,4 +1,4 @@
-import type { VaultMessage } from '../channels/port.js'
+import type { VibaseMessage } from '../channels/port.js'
 import { toPlainText } from '../channels/markdown.js'
 
 const PREVIEW_CODE_POINTS = 200
@@ -8,7 +8,7 @@ const PREVIEW_CODE_POINTS = 200
  * trimmed, then the first 200 code points (a surrogate pair is never split: `messages_preview_length` counts characters).
  * A reaction's preview is its `text` (the emoji) under the same rule.
  */
-export function messagePreview(message: Pick<VaultMessage, 'formatted' | 'text'>, kind: 'message' | 'reaction'): string {
+export function messagePreview(message: Pick<VibaseMessage, 'formatted' | 'text'>, kind: 'message' | 'reaction'): string {
   const plain = kind === 'reaction' ? message.text : toPlainText(message.formatted)
   const collapsed = plain.replace(/\s+/gu, ' ').trim()
   const out: string[] = []

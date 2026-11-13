@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { useAdminKit } from '../test/admin-kit.js'
 import { clerkMembership, clerkWebhook } from '../test/clerk.js'
 
@@ -207,7 +207,7 @@ describe('documentation', () => {
       'api_keys.list', 'api_keys.get', 'api_keys.create', 'api_keys.revoke',
     ]) {
       expect(ids, name).toContain(name)
-      expect(createVaultRegistry().get(name), name).toBeDefined()
+      expect(createVibaseRegistry().get(name), name).toBeDefined()
     }
     for (const gone of ['invitations.list', 'invitations.create', 'invitations.accept', 'memberships.update', 'memberships.delete', 'organizations.create']) {
       expect(ids, gone).not.toContain(gone)

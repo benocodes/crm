@@ -18,7 +18,7 @@
       "body": {
         "sendAs": [
           {
-            "sendAsEmail": "xxxxx@xxxxx.xxxx",
+            "sendAsEmail": "xxxxx@xxxxxx.xxxx",
             "displayName": "Xxxxx",
             "replyToAddress": "",
             "signature": "",
@@ -27,14 +27,14 @@
             "treatAsAlias": false
           },
           {
-            "sendAsEmail": "xxxxxxx@xxxxx.xxxx",
+            "sendAsEmail": "xxxxxxx@xxxxxx.xxxx",
             "displayName": "Xxxxxxx",
             "isDefault": false,
             "treatAsAlias": true,
             "verificationStatus": "accepted"
           },
           {
-            "sendAsEmail": "xxx@xxxxx.xxxx",
+            "sendAsEmail": "xxx@xxxxxx.xxxx",
             "verificationStatus": "pending"
           }
         ]

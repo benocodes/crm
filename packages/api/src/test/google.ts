@@ -230,7 +230,7 @@ export class FakeGoogle {
     // As the real run's refresh answered ([[CHN5]] D82 f): `scope` (its order varies between calls), `expires_in`, `token_type`, an `id_token`, and no `refresh_token` unless rotating.
     const scopes = ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly']
     const now = Math.floor(this.clock() / 1000)
-    const idToken = await new SignJWT({ azp: this.clientId, hd: 'vault.test', email: 'owner@vault.test', email_verified: true, at_hash: 'fake-at-hash', name: 'Fake Owner', given_name: 'Fake', family_name: 'Owner' })
+    const idToken = await new SignJWT({ azp: this.clientId, hd: 'vibase.test', email: 'owner@vibase.test', email_verified: true, at_hash: 'fake-at-hash', name: 'Fake Owner', given_name: 'Fake', family_name: 'Owner' })
       .setProtectedHeader({ alg: 'RS256', kid: 'fake-google-1' })
       .setIssuer('https://accounts.google.com')
       .setAudience(this.clientId)

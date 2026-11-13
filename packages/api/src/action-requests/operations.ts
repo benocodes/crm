@@ -605,7 +605,7 @@ const needCtx = (ctx: PrepareContext | undefined): PrepareContext => {
 export function actionRequestOperations(registry: Registry): TenantOperation[] {
   const names = proposableOperations(registry).map((o) => o.name)
   const createBody = z.strictObject({
-    operation: z.enum(names as [string, ...string[]]).describe('The proposal-eligible operation to run on approval, for example tasks.update. Each operation\'s metadata (x-vault-proposal in OpenAPI) says what proposing it needs.'),
+    operation: z.enum(names as [string, ...string[]]).describe('The proposal-eligible operation to run on approval, for example tasks.update. Each operation\'s metadata (x-vibase-proposal in OpenAPI) says what proposing it needs.'),
     arguments: z.record(z.string(), z.unknown()).describe('The operation\'s flat arguments: its path, query and body fields in one object, exactly as its MCP tool takes them.'),
     reason: z.string().trim().min(1).max(2000).describe('Why this change is proposed, plain text, for the reviewer.'),
     evidence: z.array(evidenceItem).max(20).optional().describe('Messages and interactions the proposal rests on.'),

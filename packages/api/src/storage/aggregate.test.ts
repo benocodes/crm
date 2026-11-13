@@ -3,7 +3,7 @@ import { ApiError } from '../errors.js'
 import { deals } from '../resources/deals.js'
 import { contacts } from '../resources/contacts.js'
 import { tagNameFilter } from '../resources/tag-filter.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { withAggregate, parseAggregateTerms } from './aggregate.js'
 
 // [[CORE202]] D13, D14, D19: the aggregate declaration, its load errors and the parse of the four function parameters. Pure: no query.
@@ -23,7 +23,7 @@ describe('deals declares its aggregate fields from the kind table (D14, D19)', (
     expect(spec.money).toEqual({ amount_minor: 'currency' })
   })
   it('only deals opts in: no other registered resource has an aggregate declaration', () => {
-    const others = createVaultRegistry().resources().filter((d) => (d as { aggregate?: unknown }).aggregate !== undefined).map((d) => d.name)
+    const others = createVibaseRegistry().resources().filter((d) => (d as { aggregate?: unknown }).aggregate !== undefined).map((d) => d.name)
     expect(others).toEqual(['deals'])
     expect((contacts as { aggregate?: unknown }).aggregate).toBeUndefined()
   })

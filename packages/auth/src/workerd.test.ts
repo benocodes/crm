@@ -24,19 +24,19 @@ afterAll(async () => {
   bundle?.dispose()
 })
 
-const vaultRows = (w: Workerd) => Promise.all(['events', 'users', 'principals', 'memberships'].map((t) => w.rows(`select * from ${t} order by 1`)))
+const vibaseRows = (w: Workerd) => Promise.all(['events', 'users', 'principals', 'memberships'].map((t) => w.rows(`select * from ${t} order by 1`)))
 const idsOf = async (w: Workerd, table: string) => (await w.rows<{ id: string }>(`select id from ${table}`)).map((r) => r.id)
 
 // [[CORE243]] D4, D5, P1, P3 in workerd: Better Auth writes into the migrated auth_* tables through the test composition (the only one that admits sign-up and
 // client registration), the hasher round-trips, and a vault with data in it is untouched.
 describe('Better Auth in workerd on migration 0018 (test admission)', () => {
   let cookie: string
-  let vaultBefore: unknown[]
+  let vibaseBefore: unknown[]
 
   it('sign-up, session and sign-in write auth_users, auth_accounts and auth_sessions with UUIDv7 ids and the vault hasher', async () => {
     await seedDeployment(open.d1, { organizationId: ORG, provider: 'better-auth', externalId: 'org_auth' })
-    await seedPrincipal(open.d1, { id: OWNER, kind: 'user', email: 'owner@vault.test' })
-    vaultBefore = await vaultRows(open)
+    await seedPrincipal(open.d1, { id: OWNER, kind: 'user', email: 'owner@vibase.test' })
+    vibaseBefore = await vibaseRows(open)
     const up = await open.call('/auth/sign-up/email', { body: { name: 'Owner', email: 'owner@auth.test', password: PASSWORD } })
     expect(up.status, await up.clone().text()).toBe(200)
     cookie = up.headers.get('set-cookie')!.split(';')[0]!
@@ -109,7 +109,7 @@ describe('Better Auth in workerd on migration 0018 (test admission)', () => {
   })
 
   it('D5: none of it touched a vault table: events, users, principals and memberships are as they were', async () => {
-    expect(await vaultRows(open)).toEqual(vaultBefore)
+    expect(await vibaseRows(open)).toEqual(vibaseBefore)
   })
 })
 

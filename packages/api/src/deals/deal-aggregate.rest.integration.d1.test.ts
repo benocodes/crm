@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { ContractSession, ContractTenant } from '../test/contract.js'
 import { d1Backend } from '../test/d1-backend.js'
 
@@ -9,7 +9,7 @@ const MAX = 9007199254740991
 let s: ContractSession
 let t: ContractTenant
 beforeAll(async () => {
-  s = await d1Backend().open(createVaultRegistry())
+  s = await d1Backend().open(createVibaseRegistry())
 })
 afterAll(async () => {
   await s.close()
@@ -123,7 +123,7 @@ describe('operation contract (D13)', () => {
     expect([await s.countEvents(), await s.countRows('deals')]).toEqual([events, rows])
   })
   it('a list that has not opted in has no aggregate operation or route', async () => {
-    const registry = createVaultRegistry()
+    const registry = createVibaseRegistry()
     expect(registry.get('deals.aggregate')).toBeDefined()
     expect(registry.operations().filter((o) => o.name.endsWith('.aggregate')).map((o) => o.name)).toEqual(['deals.aggregate'])
     const doc = (await (await s.call(t, 'agent', FULL, 'GET', '/api/v1/openapi.json')).json()) as any

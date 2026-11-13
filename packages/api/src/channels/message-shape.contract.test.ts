@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { messagePreview } from '../messaging/preview.js'
 import { FakeChannel, standardScripts } from '../test/channels.js'
-import type { ChannelMessage, VaultMessage } from './port.js'
+import type { ChannelMessage, VibaseMessage } from './port.js'
 import { allGmailFixtures, FIXTURE_NAMES, MAILBOX, type FixtureName } from '../test/gmail-fixtures.js'
 import { mapGmailMessage } from './gmail/mapper.js'
 
@@ -14,9 +14,9 @@ import { mapGmailMessage } from './gmail/mapper.js'
 // recorded fixtures to the same table.
 
 // ---- half one: the type-level contract ------------------------------------------------------------------------------------
-// A mapper's output must be assignable to `VaultMessage`. This fixture mapper stands for every channel's; change the type of
+// A mapper's output must be assignable to `VibaseMessage`. This fixture mapper stands for every channel's; change the type of
 // one picked field in it (or in `chat`) and `tsc` stops here.
-function fixtureMapper(): VaultMessage {
+function fixtureMapper(): VibaseMessage {
   return {
     id: 'gmail:abc:1',
     threadId: 'gmail:abc:t1',
@@ -27,9 +27,9 @@ function fixtureMapper(): VaultMessage {
     attachments: [{ type: 'file', name: 'a.pdf', mimeType: 'application/pdf', size: 3, fetchMetadata: { id: '1' } }],
   }
 }
-it('a mapper output is assignable to VaultMessage, and the port carries it unchanged', () => {
-  expectTypeOf(fixtureMapper()).toExtend<VaultMessage>()
-  expectTypeOf<ChannelMessage['message']>().toEqualTypeOf<VaultMessage>()
+it('a mapper output is assignable to VibaseMessage, and the port carries it unchanged', () => {
+  expectTypeOf(fixtureMapper()).toExtend<VibaseMessage>()
+  expectTypeOf<ChannelMessage['message']>().toEqualTypeOf<VibaseMessage>()
   expect(fixtureMapper().id).toBe('gmail:abc:1')
 })
 

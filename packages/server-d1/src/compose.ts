@@ -1,4 +1,4 @@
-import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVaultRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
+import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
 import { MIGRATIONS, d1Binding, readMigrationState, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
@@ -168,7 +168,7 @@ export function composeD1Worker(
     provider: authAdapter ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() } : undefined,
     cliClientId,
     publishableKey,
-    declaredScopes: createVaultRegistry().declaredScopes(),
+    declaredScopes: createVibaseRegistry().declaredScopes(),
   }
 
   const nowMs = deps.nowMs ?? (() => Date.now())
@@ -282,7 +282,7 @@ export function composeD1Worker(
       console.log(`[cron] ${controller.cron}: skipped, ${found.why}`)
       return
     }
-    railRegistry ??= createVaultRegistry(deps.operations ? { operations: deps.operations } : {})
+    railRegistry ??= createVibaseRegistry(deps.operations ? { operations: deps.operations } : {})
     let failure: unknown
     try {
       const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding, { fetch: outbound, bodies: countCalls(env.BODIES ?? ({} as R2BucketLike), ['get', 'put', 'delete', 'createMultipartUpload'], budget), instances: env.MAIL_SYNC ? countCalls(env.MAIL_SYNC, ['create'], budget) : undefined }), clock, newId,...(deps.transports?{}:{dueLimit:2}) })

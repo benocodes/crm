@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
 import { ApiError } from '../errors.js'
 import { openEngines, type Engine } from '../test/engines.js'
@@ -7,7 +7,7 @@ import { CATALOG, HIDDEN_TABLES } from './catalog.js'
 
 // API63 on the migrated local D1 (the oracle): which tables appear, the D13 facts, catalog completeness (D16), no event written.
 // The Postgres engine only has to answer 501 (D15): schema.storage.integration.postgres.test.ts.
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 let engines: Engine[]
 let d1: Engine
 beforeAll(async () => {

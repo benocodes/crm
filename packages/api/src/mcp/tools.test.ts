@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { Registry, toolName, type TenantOperation } from '../registry.js'
 import { ApiError } from '../errors.js'
 import { INSTRUCTIONS } from './instructions.js'
@@ -8,7 +8,7 @@ import { deriveTools, splitArguments } from './tools.js'
 
 // [[API106]] cycle 1: tools derive from the registry (D7-D11) and the instructions name only real tools (D18).
 
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const tools = deriveTools(registry)
 const byName = (name: string) => tools.find((t) => t.tool.name === name)!
 const nonBinary = registry.operations().filter((o) => o.output !== 'binary')
@@ -58,7 +58,7 @@ describe('tools derive from the registry', () => {
   })
 
   it('no flat name collides across params, query and body anywhere in the registry', () => {
-    expect(() => deriveTools(createVaultRegistry())).not.toThrow()
+    expect(() => deriveTools(createVibaseRegistry())).not.toThrow()
   })
 
   it('a collision is an error at derivation', () => {

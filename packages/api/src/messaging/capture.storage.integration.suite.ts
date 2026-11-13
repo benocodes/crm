@@ -89,7 +89,7 @@ export function engineSuite(engineName: EngineName): void {
         expect(interaction).toMatchObject({ kind: 'message', channel: 'email', direction: 'inbound', thread_id: thread!.id, message_id: message!.id, occurred_at: m.occurred_at, created_at: NOW })
 
         const jane = await identity('jane@acme.test')
-        const owner = await identity('owner@vault.test')
+        const owner = await identity('owner@vibase.test')
         expect(jane).toMatchObject({ own: false, created_at: NOW })
         const participants = await e.rows('interaction_participants')
         expect(participants.map((p) => [p.role, p.identity_id, p.interaction_id])).toEqual([
@@ -187,9 +187,9 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('derives direction from the connection, then from an own sender', async () => {
-        await e.insert('identities', { kind: 'email', value: 'me@vault.test', contact_id: null, own: true })
+        await e.insert('identities', { kind: 'email', value: 'me@vibase.test', contact_id: null, own: true })
         const sent = msg({ sent_by_connection: true, occurred_at: '2026-10-22T09:00:00.000Z' })
-        const fromOwn = msg({ participants: [{ kind: 'email', value: 'me@vault.test', role: 'from' }], occurred_at: '2026-10-22T09:01:00.000Z' })
+        const fromOwn = msg({ participants: [{ kind: 'email', value: 'me@vibase.test', role: 'from' }], occurred_at: '2026-10-22T09:01:00.000Z' })
         const inbound = msg({ occurred_at: '2026-10-22T09:02:00.000Z' })
         const { value } = await cap([inbound, fromOwn, sent])
         const interactions = await e.rows('interactions')

@@ -56,7 +56,7 @@ const buildApp = (env: Record<string, string | undefined> = { ...ENV, ...PUSH_EN
 }
 const token = (scopes: string[]) => mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes, kind: 'user' })
 async function connect(app: ReturnType<typeof buildApp>, account: FakeAccount = ANN): Promise<Response> {
-  const res = await app.request('https://vault.test/meta/v1/connections/authorize', { method: 'POST', headers: { authorization: `Bearer ${token(['connections:write'])}`, 'content-type': 'application/json' }, body: JSON.stringify({ provider: 'google' }) })
+  const res = await app.request('https://vibase.test/meta/v1/connections/authorize', { method: 'POST', headers: { authorization: `Bearer ${token(['connections:write'])}`, 'content-type': 'application/json' }, body: JSON.stringify({ provider: 'google' }) })
   const { authorize_url } = (await res.json()) as { authorize_url: string }
   return app.request(await google.consent(authorize_url, account))
 }
@@ -119,8 +119,8 @@ describe('renewal (D89, D90)', () => {
   const seed = async (opts: { expiresIn?: number | null; status?: string } = {}) => {
     n++
     const rt = google.issueRefreshToken()
-    const id = await seedGmailConnection(e, { key: KEY, refreshToken: rt, sub: `sub-r${n}`, mailbox: `Box${n}@Vault.test`, lastSyncedAt: null })
-    if (opts.expiresIn !== null) await e.insert('gmail_watches', { connection_id: id, mailbox: `box${n}@vault.test`, expires_at: new Date(now.getTime() + (opts.expiresIn ?? 7 * DAY)).toISOString() })
+    const id = await seedGmailConnection(e, { key: KEY, refreshToken: rt, sub: `sub-r${n}`, mailbox: `Box${n}@Vibase.test`, lastSyncedAt: null })
+    if (opts.expiresIn !== null) await e.insert('gmail_watches', { connection_id: id, mailbox: `box${n}@vibase.test`, expires_at: new Date(now.getTime() + (opts.expiresIn ?? 7 * DAY)).toISOString() })
     if (opts.status) await e.d1!.prepare('update channel_connections set status = ? where id = ?').bind(opts.status, id).run()
     return { id, rt }
   }
@@ -138,13 +138,13 @@ describe('renewal (D89, D90)', () => {
     ...over,
   })
   const watchRow = async (id: string) => (await e.rows('gmail_watches')).find((r) => r.connection_id === id)
-  beforeEach(() => google.signedInAs({ sub: 'x', email: 'x@vault.test', historyId: '900' }))
+  beforeEach(() => google.signedInAs({ sub: 'x', email: 'x@vibase.test', historyId: '900' }))
 
   it('a connection with no row gets a watch, with the mailbox from its own identity, lowercase', async () => {
     const a = await seed({ expiresIn: null })
     const out = await renewWatches(deps())
     expect(out).toMatchObject({ attempted: 1, registered: 1 })
-    expect(await watchRow(a.id)).toMatchObject({ mailbox: 'box1@vault.test', expires_at: new Date(now.getTime() + 7 * DAY).toISOString(), created_by: e.userId })
+    expect(await watchRow(a.id)).toMatchObject({ mailbox: 'box1@vibase.test', expires_at: new Date(now.getTime() + 7 * DAY).toISOString(), created_by: e.userId })
     expect(google.watchRequests).toHaveLength(1)
   })
   it('6 days and a minute left: no call. 6 days less a minute: renewed with expires_at updated', async () => {
@@ -192,7 +192,7 @@ describe('renewal (D89, D90)', () => {
     const logged = warn.find((l) => l.includes(bad.id))!
     expect(logged).toContain(klass)
     expect(logged).toContain(String(failure.status))
-    for (const secret of [PUSH.topicName, 'box1@vault.test', ...google.accessTokens, bad.rt]) expect(warn.join('\n')).not.toContain(secret)
+    for (const secret of [PUSH.topicName, 'box1@vibase.test', ...google.accessTokens, bad.rt]) expect(warn.join('\n')).not.toContain(secret)
     expect(await eventTypes()).not.toContain('connection.updated')
   })
   it('a failing connection keeps the row it had', async () => {
@@ -226,7 +226,7 @@ describe('renewal (D89, D90)', () => {
     const racing = {
       ...fake,
       watch: async (p: { topicName: string }) => {
-        await e.insert('gmail_watches', { connection_id: a.id, mailbox: 'box1@vault.test', expires_at: '2026-11-06T00:00:00.000Z' })
+        await e.insert('gmail_watches', { connection_id: a.id, mailbox: 'box1@vibase.test', expires_at: '2026-11-06T00:00:00.000Z' })
         return fake.watch(p)
       },
     }
@@ -252,7 +252,7 @@ describe('renewal (D89, D90)', () => {
 })
 
 describe('stop on delete (D91)', () => {
-  const del = (app: ReturnType<typeof buildApp>, id: string) => app.request(`https://vault.test/meta/v1/connections/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token(['connections:write'])}` } })
+  const del = (app: ReturnType<typeof buildApp>, id: string) => app.request(`https://vibase.test/meta/v1/connections/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token(['connections:write'])}` } })
   const connectedId = async (app: ReturnType<typeof buildApp>) => {
     expect((await connect(app)).status).toBe(200)
     return String((await e.rows('channel_connections'))[0]!.id)

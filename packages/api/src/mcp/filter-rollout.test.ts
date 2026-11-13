@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { parseListQuery } from '../resources/define.js'
 import { tasks } from '../resources/tasks.js'
 import { deriveTools, splitArguments } from './tools.js'
 
 // [[CORE201]] D9/D10: a list other than deals takes the grammar through its MCP tool.
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const entry = deriveTools(registry).find((t) => t.tool.name === 'tasks_list')!
 const props = (entry.tool.inputSchema as { properties: Record<string, { type?: string; format?: string; description?: string }> }).properties
 

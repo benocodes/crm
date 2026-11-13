@@ -2,7 +2,7 @@
 // adapter runs after its scope check) on a D1 engine, with a ticking injected clock, and creates the records edges join.
 import { expect } from 'vitest'
 import { ApiError, mapStorageError } from '../errors.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
 import { tasks } from '../resources/tasks.js'
 import { createOperation } from '../storage/crud.js'
@@ -18,7 +18,7 @@ export const ALL_READ = ['notes:read', 'tags:read', 'contacts:read', 'companies:
 export const NO_MESSAGES = ALL_READ.filter((s) => s !== 'messages:read')
 
 export function assocKit(e: Engine) {
-  const registry = createVaultRegistry()
+  const registry = createVibaseRegistry()
   const k = identityKit(e)
   let tick = 0
   const op = (name: string): TenantOperation => {

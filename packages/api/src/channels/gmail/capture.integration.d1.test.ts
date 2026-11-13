@@ -17,7 +17,7 @@ import type { MessageSpec } from '../../test/gmail.js'
 // [[CHN5]] cycle 1: the Gmail channel through [[CORE69]]'s pipeline on local D1, over FakeGmail's wire form and a memory object store.
 const NOW = '2026-10-22T10:00:00.000Z'
 const C1 = { id: '0190b2c4-0000-7000-8000-0000000000c1', mailbox: MAILBOX }
-const C2 = { id: '0190b2c4-0000-7000-8000-0000000000c2', mailbox: 'second@vault.test' }
+const C2 = { id: '0190b2c4-0000-7000-8000-0000000000c2', mailbox: 'second@vibase.test' }
 const sha = (b: Uint8Array): string => createHash('sha256').update(b).digest('hex')
 const same = (a: Uint8Array, b: Uint8Array): boolean => Buffer.from(a).equals(Buffer.from(b))
 const readAll = async (s: ReadableStream<Uint8Array>): Promise<Uint8Array> => new Uint8Array(await new Response(s).arrayBuffer())

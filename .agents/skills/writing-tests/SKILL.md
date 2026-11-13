@@ -387,6 +387,12 @@ One program, two engines: the same assertions run on Postgres and D1.
   it by setting the real value to something else and rerunning (`knowledge/specs/014-OPS237-release-ci-docs/RETRO.md`).
   The same goes for a third-party name that drifts by major version: `changesets/action` v2 calls its publish input
   `publish-script`, so the shape test matches `/publish/i` rather than one exact key.
+  The same holds for a scratch copy of a repo directory: copy only the inputs the test means to exercise. The scratch
+  `changeset version` test copies all of `.changeset/`, so a branch's own changeset changed its outcome in [[OPS265]]
+  (fix: copy `config.json` only, #271).
+- **Synthetic Google recordings redact by length** (`xxxxx@xxxxx.xxxx`). Renaming a test host or address changes the
+  recorded fixtures: rerun `recordings:generate` and update the expected redacted strings; the diff should be
+  email-shaped hunks only (`knowledge/specs/015-OPS265-remaining-vibase-names/RETRO.md`).
 - **A boundary comment needs a boundary fixture.** A test that says "exactly the limit is allowed" must seed values that
   reach the limit exactly; [[CORE202]]'s summed a single `0` (#208). And a guard against a numeric limit computed in the
   engine runs after the engine's own arithmetic: `abs(sum(x)) > 2^53−1` never sees an int64 overflow, because `sum()`
@@ -483,7 +489,7 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   RLS has nothing to separate and the assertion passes for the wrong reason.
 - **The contract suite runs over every resource definition automatically**
   (`src/contract.integration.d1.test.ts` and `src/contract.integration.postgres.test.ts`, which call `runContractSuite`
-  from `src/test/contract.ts`). There are **two runs**: Postgres over `createVaultRegistry()`, and D1 over a
+  from `src/test/contract.ts`). There are **two runs**: Postgres over `createVibaseRegistry()`, and D1 over a
   hand-built registry and fixture map. A resource missing from the D1 run's registry is contract-tested only on
   Postgres, which is off by default (`pnpm test:postgres`): the default run exercises only the D1 registry, so a
   resource missing from it has no contract coverage at all ([[CORE68]]: the messaging fixtures went to `kit.capture`
@@ -497,7 +503,7 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   - routes that should not be generated;
   - the OpenAPI document.
 
-  To add a resource, register its definition in `createVaultRegistry` and add one entry in
+  To add a resource, register its definition in `createVibaseRegistry` and add one entry in
   `src/test/fixtures.ts`:
   - `input` and `patch` builders, each producing unique values per call;
   - `make` for read-only definitions.

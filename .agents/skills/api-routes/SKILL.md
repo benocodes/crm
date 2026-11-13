@@ -44,7 +44,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `parseListQuery`); `src/storage/{definition,prepare,crud}.ts` (the prepared core); `src/resources/*.ts` (definitions).
 - **Registry and HTTP** ([[CORE15]]):
   - `src/registry.ts` (`Registry`, `resourceOperations`, `toolName`);
-  - `src/operations.ts` (`createVaultRegistry`, where new resources and operations are added);
+  - `src/operations.ts` (`createVibaseRegistry`, where new resources and operations are added);
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
   - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events).
@@ -629,7 +629,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   **Per-type neighbour rules** ([[CORE129]] D8a): a definition may list `neighbours` (the associable types it may link to;
   `tags` lists companies, contacts, tasks, notes). The list is carried onto `EndpointType`, and `mayLink` checks it symmetrically, so
   both argument orders behave the same, before the scope checks: a refused pair is `400 validation_error` naming the allowed types,
-  whatever the caller holds. `createVaultRegistry` validates that every listed neighbour is associable (`assertNeighbours`). This
+  whatever the caller holds. `createVibaseRegistry` validates that every listed neighbour is associable (`assertNeighbours`). This
   is not done in `endpointTypesOf`, so partial test registries still build. `tags` ([[CORE129]], `src/resources/tags.ts`) is the
   second plain associable resource after notes; its members are association edges, not a join table.
   `notes` ([[CORE74]], `src/resources/notes.ts`) is a plain associable resource on generic CRUD whose `override.delete` is
@@ -643,7 +643,7 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   parity and audit failures). That is accepted drift under AGENTS.md *Engines*: list the failing groups in the
   cycle's RESULT, keep Postgres compiling, never bend D1. The future Postgres adapter needs each such table with RLS.
 - **Content operations** ([[CORE58]]): `src/messaging/content-operations.ts` holds `messages.content` (JSON, `messages:read`) and
-  `files.content` (binary, `files:read`), registered in `createVaultRegistry`. `SecretColumns` (`@vibase/storage`) now holds
+  `files.content` (binary, `files:read`), registered in `createVibaseRegistry`. `SecretColumns` (`@vibase/storage`) now holds
   `messages.content_key` and `files.storage_key`: a record naming either is a compile error, and the operations read them with
   `selectColumns`, never `publicSelect`.
 

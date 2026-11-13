@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { fullPath, type Surface } from '../surfaces.js'
 import { ensureConnection } from '../test/capture-kit.js'
@@ -50,7 +50,7 @@ const DERIVED = new Set(['last_contacted_at', 'last_interacted_at'])
 
 let e: Engine
 let app: ReturnType<typeof createApp>
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const ALL = registry.declaredScopes()
 beforeAll(async () => {
   e = await openD1Engine()

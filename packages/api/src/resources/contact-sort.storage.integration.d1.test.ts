@@ -13,7 +13,7 @@ import { contacts } from './contacts.js'
 // [[CORE133]] D8, D9 on the D1 oracle: the keyset order over derived values with nulls in both directions, ties on the same value,
 // page breaks inside the nulls and inside a tie, the scope gate and the query plan. Interaction rows come only from the capture unit.
 const C1 = '0190b2c4-0000-7000-8000-0000000000c1'
-const OWNER = 'owner@vault.test'
+const OWNER = 'owner@vibase.test'
 const READ = ['contacts:read', 'contacts:write', 'interactions:read']
 const T1 = '2026-10-01T08:00:00.000Z'
 const T2 = '2026-10-10T08:00:00.000Z'

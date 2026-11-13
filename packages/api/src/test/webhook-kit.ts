@@ -1,7 +1,7 @@
 // Test-only: never import from non-test code. The webhook suites' harness ([[API7]]): the D1 engine, a registry with the webhook configuration injected, the app with
 // an injected clock, a caller that is the owner (a user) or an agent with explicit token scopes, and raw readers of the three webhook tables.
 import { uuidv7 } from '@vibase/storage'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { dispatchWebhooks, type DispatchDeps, type DispatchSummary } from '../webhooks/dispatch.js'
 import { createApp } from '../rest/app.js'
 import type { WebhooksRuntime } from '../webhooks/config.js'
@@ -33,7 +33,7 @@ export interface WebhookKit {
   /** The runtime the registry was built with. */
   runtime: WebhooksRuntime
   app: ReturnType<typeof createApp>
-  registry: ReturnType<typeof createVaultRegistry>
+  registry: ReturnType<typeof createVibaseRegistry>
   call(who: Who, method: string, path: string, body?: unknown): Promise<Res>
   /** An owner call (the seeded user, every webhook scope). */
   owner(method: string, path: string, body?: unknown): Promise<Res>
@@ -65,7 +65,7 @@ export interface WebhookKit {
 export async function openWebhookKit(opts: { key?: Uint8Array | null; version?: number; allowInsecureUrls?: boolean; clock?: () => Date } = {}): Promise<WebhookKit> {
   const e = await openD1Engine()
   const runtime: WebhooksRuntime = { key: opts.key === null ? null : { bytes: opts.key ?? KEY_BYTES, version: opts.version ?? 3 }, allowInsecureUrls: opts.allowInsecureUrls ?? false }
-  const registry = createVaultRegistry({ webhooks: runtime })
+  const registry = createVibaseRegistry({ webhooks: runtime })
   const clock = opts.clock ?? (() => NOW)
   const kit = {} as WebhookKit
   const build = () => createApp({ registry, storage: () => e.binding, userAuthenticator: fakeUserAuthenticator(), clock, newId: () => uuidv7(clock()) })

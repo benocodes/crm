@@ -3,7 +3,7 @@
 /** The scopes the Workflow's agent needs; the guide and the setup instructions list the same ones. */
 export const REQUIRED_SCOPES = ['interactions:read', 'messages:read', 'connections:read', 'action_requests:read', 'messages:request_approval']
 
-export interface VaultDeps {
+export interface VibaseDeps {
   /** The vault's origin, for example `https://api.example.com`. */
   baseUrl: string
   /** An agent API key (`vk_...`). */
@@ -12,7 +12,7 @@ export interface VaultDeps {
   /** Builds the error that ends a Workflow step without retries (Cloudflare's `NonRetryableError`); a function so this file stays testable outside workerd. */
   nonRetryable: (message: string) => Error
 }
-export interface Vault {
+export interface Vibase {
   get<T>(path: string): Promise<T>
   post<T>(path: string, body: unknown): Promise<T>
 }
@@ -20,7 +20,7 @@ export interface Vault {
 /** A 4xx answer will not change on retry, except these: the request was early (408, 425), the record moved (409) or the vault is shedding load (429). */
 const RETRYABLE_CLIENT_ERRORS = new Set([408, 409, 425, 429])
 
-export function createVault(deps: VaultDeps): Vault {
+export function createVibase(deps: VibaseDeps): Vibase {
   const call = async <T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> => {
     const res = await deps.fetch(new URL(path, deps.baseUrl).href, {
       method,

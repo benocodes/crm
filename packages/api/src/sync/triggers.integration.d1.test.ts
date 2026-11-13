@@ -12,8 +12,8 @@ import { requestSync, type MailSyncInstances, type MailSyncParams } from './requ
 
 // [[CHN141]]: the non-push triggers on local D1: `requestSync`, `connections.sync`, the connect flow's request and the cron's selection.
 const KEY = new Uint8Array(32).fill(3)
-const ENV = { GOOGLE_CLIENT_ID: 'fake-client-id.apps.test', GOOGLE_CLIENT_SECRET: 'fake-client-secret', OAUTH_STATE_SECRET: 'state-secret-for-tests', CREDENTIALS_KEY: Buffer.from(KEY).toString('base64'), PUBLIC_BASE_URL: 'https://vault.test' }
-const BASE = 'https://vault.test'
+const ENV = { GOOGLE_CLIENT_ID: 'fake-client-id.apps.test', GOOGLE_CLIENT_SECRET: 'fake-client-secret', OAUTH_STATE_SECRET: 'state-secret-for-tests', CREDENTIALS_KEY: Buffer.from(KEY).toString('base64'), PUBLIC_BASE_URL: 'https://vibase.test' }
+const BASE = 'https://vibase.test'
 const MIN = 60_000
 
 let e: Engine
@@ -42,7 +42,7 @@ const deps = (over: Partial<Parameters<typeof requestSync>[0]> = {}) => ({ bindi
 let n = 0
 const seed = (over: { lastSyncedAt?: string | null } = {}) => {
   n++
-  return seedGmailConnection(e, { key: KEY, refreshToken: google.issueRefreshToken(), sub: `sub-${n}`, mailbox: `box${n}@vault.test`, lastSyncedAt: over.lastSyncedAt ?? null })
+  return seedGmailConnection(e, { key: KEY, refreshToken: google.issueRefreshToken(), sub: `sub-${n}`, mailbox: `box${n}@vibase.test`, lastSyncedAt: over.lastSyncedAt ?? null })
 }
 const stateOf = async (id: string) => (await e.rows('mail_sync_state')).find((r) => r.connection_id === id)!
 

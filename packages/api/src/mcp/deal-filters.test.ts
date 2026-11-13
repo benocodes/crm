@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { parseListQuery } from '../resources/define.js'
 import { deals } from '../resources/deals.js'
 import { operatorsFor } from '../storage/column-filters.js'
 import { deriveTools, splitArguments } from './tools.js'
 
 // [[CORE200]] D9: the deals list tool takes the grammar as string arguments, and a number argument is an eq.
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const entry = deriveTools(registry).find((t) => t.tool.name === 'deals_list')!
 const props = (entry.tool.inputSchema as { properties: Record<string, { type?: string; format?: string; description?: string }> }).properties
 

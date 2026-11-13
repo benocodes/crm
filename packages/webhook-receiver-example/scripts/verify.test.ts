@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Webhook } from 'standardwebhooks'
-import { signatureHeader, WEBHOOK_HEADERS as VAULT_HEADERS } from '@vibase/api'
+import { signatureHeader, WEBHOOK_HEADERS as VIBASE_HEADERS } from '@vibase/api'
 import { TOLERANCE_SECONDS, WEBHOOK_HEADERS, verifyWebhook } from '../src/verify.js'
 import { EVENT_ID, NOW_MS, OTHER_SECRET, SECRET, eventRecord, signedRequest } from './helpers.js'
 
@@ -12,7 +12,7 @@ const goodHeaders = async (secrets = [SECRET]) => ({ 'webhook-id': EVENT_ID, 'we
 
 describe('verifyWebhook (D7, D21)', () => {
   it('reads the header names the vault sends', () => {
-    expect(WEBHOOK_HEADERS).toEqual(VAULT_HEADERS)
+    expect(WEBHOOK_HEADERS).toEqual(VIBASE_HEADERS)
   })
   it('accepts a request signed by the vault\'s own signer', async () => {
     expect(await check({ headers: await goodHeaders() })).toEqual({ ok: true })

@@ -5,7 +5,7 @@ import { seedAgent, seedOrganization, seedUser } from '@vibase/db/test'
 import { generateApiKey, hashApiKey } from '../auth/api-keys.js'
 import { openAuthKit } from '../test/auth-kit.js'
 import { ApiError, mapStorageError } from '../errors.js'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
 import { seedApiKey } from '../test/keys.js'
 import { seedPrincipal } from '@vibase/storage-d1/test/seed'
@@ -14,7 +14,7 @@ import { BASE } from '../test/identity-kit.js'
 
 // Administration on both engines (CORE40 Step 2.4): agents, memberships, api keys and users through the real
 // registry operations (async prepare included), against Postgres and D1 with the same assertions.
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const at = (n: number) => new Date(BASE + n * 60_000)
 const iso = (n: number) => at(n).toISOString()
 const TABLES = ['principals', 'agents', 'api_keys', 'events'] as const

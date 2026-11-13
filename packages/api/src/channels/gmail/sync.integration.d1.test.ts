@@ -214,7 +214,7 @@ describe('source check', () => {
   it('the same mail in two connections is one message and two sources', async () => {
     const m = [mk('shared')]
     const a = await setup({ messages: m })
-    const b = await setup({ messages: m, mailbox: 'second@vault.test', sub: 'sub-second' })
+    const b = await setup({ messages: m, mailbox: 'second@vibase.test', sub: 'sub-second' })
     for (const s of [a, b]) {
       addHistory(s.gmail, '1001', ['shared'])
       s.gmail.profile.historyId = '1002'

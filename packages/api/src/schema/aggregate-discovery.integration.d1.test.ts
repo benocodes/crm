@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
@@ -11,7 +11,7 @@ import { schemaDocument } from './document.js'
 // carry the operation, and the operation's description states its cost. Expected values are literals from D14's table, not read from the definition.
 let e: Engine
 let app: ReturnType<typeof createApp>
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 beforeAll(async () => {
   e = await openD1Engine()
   app = createApp({ registry, storage: () => e.binding, userAuthenticator: fakeUserAuthenticator() })

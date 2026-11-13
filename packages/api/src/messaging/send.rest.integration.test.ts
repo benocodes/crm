@@ -270,7 +270,7 @@ it('OpenAPI send request and 202 receipt publish the same strict schema as the g
   const doc=(await k.call(writer,'GET','/api/v1/openapi.json')).body
   const op=doc.paths['/api/v1/messages/send'].post
   expect(op.operationId).toBe('messages.send');expect(Object.keys(op.responses)).toEqual(['202'])
-  expect(op['x-vault-proposal']).toMatchObject({eligible:true,request_scope:'messages:request_approval'})
+  expect(op['x-vibase-proposal']).toMatchObject({eligible:true,request_scope:'messages:request_approval'})
   const schema=op.requestBody.content['application/json'].schema
   expect(Object.keys(schema.properties).sort()).toEqual(['connection_id','mode','thread_id','subject','to','cc','bcc','body','idempotency_key'].sort())
   expect(schema.additionalProperties).toBe(false)

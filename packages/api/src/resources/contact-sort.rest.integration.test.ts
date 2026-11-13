@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { captureMessage } from '../test/capture-kit.js'
 import type { ContractSession, ContractTenant } from '../test/contract.js'
 import { d1Backend } from '../test/d1-backend.js'
@@ -7,7 +7,7 @@ import { d1Backend } from '../test/d1-backend.js'
 // [[CORE133]] over REST on the D1 app: sort and order (D8), the opaque cursor and its refusals (D9), the scope gate (D5),
 // unsorted lists unchanged, and the OpenAPI document (per-list cursor typing, the stability caveat).
 const C1 = '0190b2c4-0000-7000-8000-0000000000c1'
-const OWNER = 'owner@vault.test'
+const OWNER = 'owner@vibase.test'
 const BASE = ['contacts:read', 'contacts:write']
 const WITH = [...BASE, 'interactions:read']
 const FULL = WITH
@@ -16,7 +16,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 let s: ContractSession
 let t: ContractTenant
 beforeAll(async () => {
-  s = await d1Backend().open(createVaultRegistry())
+  s = await d1Backend().open(createVibaseRegistry())
 })
 afterAll(async () => {
   await s.close()

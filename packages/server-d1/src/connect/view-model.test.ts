@@ -42,7 +42,7 @@ describe('states without a session', () => {
     expect(v.message).toMatch(/API keys/)
     expect(v.showSignIn).toBe(false)
     expect(v.connect?.cli).toBeNull()
-    expect(v.connect?.apiKey.command).toBe(`printf %s "$VAULT_API_KEY" | vibase login --api-key --server ${ORIGIN}`)
+    expect(v.connect?.apiKey.command).toBe(`printf %s "$VIBASE_API_KEY" | vibase login --api-key --server ${ORIGIN}`)
     expect(v.who).toBeNull()
     expect(v.agents).toBeNull()
   })

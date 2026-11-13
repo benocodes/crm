@@ -64,6 +64,12 @@ describe('direct enqueue and idempotency (D51)', () => {
     expect(k.starts).toBe(1)
   })
 
+  it('OPS265 D13: an execution authorised with no clientRefDomain stores the default {execution_id}@vibase.invalid', async () => {
+    const r = await k.enqueue(writer, { text: 'x', no_domain: true, idempotency_key: 'k-default' })
+    expect(r.status).toBe(202)
+    expect((await k.exec(r.body.id)).client_ref).toBe(`${r.body.id}@vibase.invalid`)
+  })
+
   it('the same key and the same input answer the same execution and write nothing (key order does not matter)', async () => {
     const first = await k.enqueue(writer, { text: 'x', anchor: 'a', idempotency_key: 'k1' })
     const eventsBefore = (await k.events()).length
@@ -261,7 +267,7 @@ describe('discovery (D40, D51, D57)', () => {
     const body = op.requestBody.content['application/json'].schema
     expect(body.required).toContain('idempotency_key')
     expect(body.properties.idempotency_key).toMatchObject({ type: 'string', minLength: 1, maxLength: 200 })
-    expect(op['x-vault-proposal']).toMatchObject({ eligible: true, request_scope: 'tasks:request_approval' })
+    expect(op['x-vibase-proposal']).toMatchObject({ eligible: true, request_scope: 'tasks:request_approval' })
     const enumValues = (doc.paths['/api/v1/action-requests'].post.requestBody.content['application/json'].schema.properties.operation.enum as string[]) ?? []
     expect(enumValues).toContain(TEST_OPS.reconcile)
   })

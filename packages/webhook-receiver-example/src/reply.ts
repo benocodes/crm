@@ -1,6 +1,6 @@
 // The Workflow's body: read the inbound message with the example's own agent, draft a reply, propose it through the action-request rail. Node-safe (the Workflow class in
 // `workflow.ts` passes Cloudflare's `step`), so the tests run it against a fake vault. Every step returns plain data ([[API7]] D21, the workerd structured-clone rule).
-import { createVault, type VaultDeps } from './vault.js'
+import { createVibase, type VibaseDeps } from './vibase.js'
 
 export interface StepConfigLike {
   retries?: { limit: number; delay: string | number; backoff?: 'constant' | 'linear' | 'exponential' }
@@ -13,7 +13,7 @@ export interface StepLike {
 export type ReplyOutcome = { outcome: 'proposed'; request_id: string; created: boolean } | { outcome: 'skipped'; reason: string }
 
 /** Each step talks to the vault, so each retries on a transport or 5xx error (the vault client ends the step at once on a refusal that cannot change). */
-const VAULT_STEP: StepConfigLike = { retries: { limit: 4, delay: '10 seconds', backoff: 'exponential' }, timeout: '1 minute' }
+const VIBASE_STEP: StepConfigLike = { retries: { limit: 4, delay: '10 seconds', backoff: 'exponential' }, timeout: '1 minute' }
 /** The message content is capped so a step's result stays far below the platform's limit. */
 const MAX_CONTENT_CHARS = 20_000
 
@@ -47,15 +47,15 @@ export function draftReply(message: { from: string; content: string }): string {
   return `Hello,\n\nThanks for your message ("${asked}"). We have received it and will reply in full shortly.\n\nBest regards`
 }
 
-export async function runReply(event: { payload: unknown }, step: StepLike, deps: VaultDeps): Promise<ReplyOutcome> {
-  const vault = createVault(deps)
+export async function runReply(event: { payload: unknown }, step: StepLike, deps: VibaseDeps): Promise<ReplyOutcome> {
+  const vibase = createVibase(deps)
   const interactionId = (event.payload as { resource_id: string }).resource_id
 
-  const read = await step.do('read-message', VAULT_STEP, async (): Promise<Read> => {
-    const interaction = await vault.get<InteractionRecord>(`/api/v1/interactions/${interactionId}`)
+  const read = await step.do('read-message', VIBASE_STEP, async (): Promise<Read> => {
+    const interaction = await vibase.get<InteractionRecord>(`/api/v1/interactions/${interactionId}`)
     if (interaction.kind !== 'message' || interaction.direction !== 'inbound' || !interaction.message_id || !interaction.thread_id) return { skip: 'not_inbound_email' }
-    const message = await vault.get<MessageRecord>(`/api/v1/messages/${interaction.message_id}`)
-    const content = await vault.get<{ content: string }>(`/api/v1/messages/${interaction.message_id}/content`)
+    const message = await vibase.get<MessageRecord>(`/api/v1/messages/${interaction.message_id}`)
+    const content = await vibase.get<{ content: string }>(`/api/v1/messages/${interaction.message_id}/content`)
     return {
       skip: null,
       thread_id: interaction.thread_id,
@@ -67,8 +67,8 @@ export async function runReply(event: { payload: unknown }, step: StepLike, deps
   if (read.skip !== null) return { outcome: 'skipped', reason: read.skip }
 
   // The mailbox that received the message is the one to answer from. If none matches (a forwarded or aliased mailbox), the only active connection is used; with several, the example does not guess.
-  const connectionId = await step.do('find-connection', VAULT_STEP, async (): Promise<string | null> => {
-    const active = (await vault.get<Page<ConnectionRecord>>('/meta/v1/connections?limit=200')).data.filter((c) => c.status === 'active')
+  const connectionId = await step.do('find-connection', VIBASE_STEP, async (): Promise<string | null> => {
+    const active = (await vibase.get<Page<ConnectionRecord>>('/meta/v1/connections?limit=200')).data.filter((c) => c.status === 'active')
     const received = active.filter((c) => read.recipient_identities.includes(c.identity_id))
     if (received.length >= 1) return received[0]!.id
     return active.length === 1 ? active[0]!.id : null
@@ -77,11 +77,11 @@ export async function runReply(event: { payload: unknown }, step: StepLike, deps
 
   const body = await step.do('draft-reply', async () => draftReply({ from: read.sender, content: read.content }))
 
-  return step.do('propose-reply', VAULT_STEP, async (): Promise<ReplyOutcome> => {
+  return step.do('propose-reply', VIBASE_STEP, async (): Promise<ReplyOutcome> => {
     // A retried step (or a replayed event) must not propose twice: ask first, for any request about this interaction.
-    const existing = (await vault.get<Page<{ id: string }>>(`/api/v1/action-requests?interaction_id=${interactionId}&operation=messages.send&limit=1`)).data[0]
+    const existing = (await vibase.get<Page<{ id: string }>>(`/api/v1/action-requests?interaction_id=${interactionId}&operation=messages.send&limit=1`)).data[0]
     if (existing) return { outcome: 'proposed', request_id: existing.id, created: false }
-    const created = await vault.post<{ id: string }>('/api/v1/action-requests', {
+    const created = await vibase.post<{ id: string }>('/api/v1/action-requests', {
       operation: 'messages.send',
       arguments: { connection_id: connectionId, mode: 'reply', thread_id: read.thread_id, to: [read.sender], body },
       reason: 'Draft reply to an inbound email, proposed by the webhook example.',

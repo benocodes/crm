@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { uuidv7 } from '@vibase/storage'
-import { createVaultRegistry } from './operations.js'
+import { createVibaseRegistry } from './operations.js'
 import { Registry, type Operation } from './registry.js'
 import { createApp } from './rest/app.js'
 import { definePreparedResource } from './storage/definition.js'
@@ -49,7 +49,7 @@ const NOT_GENERATED = [
 ]
 for (const name of NOT_GENERATED) delete PLACEMENT[name]
 
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const ops = registry.operations()
 
 describe('placement (D6)', () => {

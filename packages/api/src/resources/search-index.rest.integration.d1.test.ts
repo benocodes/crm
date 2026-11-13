@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createVaultRegistry } from '../operations.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
@@ -8,7 +8,7 @@ import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 // event of their own, and are invisible to schema.get (the virtual tables and every FTS5 shadow table).
 let e: Engine
 let app: ReturnType<typeof createApp>
-const registry = createVaultRegistry()
+const registry = createVibaseRegistry()
 const ALL = registry.declaredScopes()
 beforeAll(async () => {
   e = await openD1Engine()

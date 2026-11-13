@@ -15,7 +15,7 @@ Vibase ──POST (signed)──> Worker ──create({ id: webhook-id })──>
   Other event types are acknowledged and ignored.
 - `src/reply.ts`: the Workflow body. Four steps (`read-message`, `find-connection`, `draft-reply`, `propose-reply`), each returning plain data.
   It only reads inbound email and only proposes: the reply waits for a person or agent with `messages:write` to approve it.
-- `src/vault.ts`: a small REST client. A `4xx` ends the step at once (`NonRetryableError`) except `408`, `409`, `425` and `429`; `5xx` and network errors retry.
+- `src/vibase.ts`: a small REST client. A `4xx` ends the step at once (`NonRetryableError`) except `408`, `409`, `425` and `429`; `5xx` and network errors retry.
 - `draftReply` in `src/reply.ts` is a pure function. Put your model call (the Vercel AI SDK, for example) there.
 
 To copy it: take `src/`, `wrangler.jsonc` and `.dev.vars.example`. Nothing under `src/` imports this repo.

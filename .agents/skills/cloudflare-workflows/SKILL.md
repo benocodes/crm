@@ -211,7 +211,7 @@ Gmail sync ([[CHN141]], CHN5 cycle 4) is the first Workflow. Paths are real:
 - `packages/server-d1/src/mail-sync-workflow.ts`: the workerd class (`MailSyncWorkflow`, imports `cloudflare:workers`, typed by
   `src/cloudflare-workers.d.ts`); `src/instance.ts` is the one per-isolate composition that `fetch`, `scheduled` and the Workflow share;
   `compose.ts` returns `{ fetch, scheduled, runMailSync }`. `src/worker.ts` must **export the class by name**: the binding names it.
-- `packages/server-d1/wrangler.jsonc`: `workflows` and `triggers.crons` are **not inherited by an env**; each env states its own (`vault-mail-sync`,
+- `packages/server-d1/wrangler.jsonc`: `workflows` and `triggers.crons` are **not inherited by an env**; each env states its own (`vb-mail-sync`,
   `vault-smoked1-mail-sync`, `vault-hq-mail-sync`; `hq` has `"triggers": { "crons": [] }` on purpose). Config test: `src/wrangler-config.test.ts`.
 - `packages/api/src/test/workerd-boundary.ts` (`makeWorkerdStepShim`): the step shim. It walks returns with workerd's accept-list (constructor name and
   path), clones them, turns thrown errors into bare `Error`s, records `sleep`s and `returns`, and has `retries`, `beforeStep` (kill the instance at a

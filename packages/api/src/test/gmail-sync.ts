@@ -22,7 +22,7 @@ export interface SeedGmailConnection {
 }
 /** Connects a mailbox on a D1 engine as the engine's user (the owner). Returns the connection id. */
 export async function seedGmailConnection(e: SeedTarget, p: SeedGmailConnection): Promise<string> {
-  const mailbox = p.mailbox ?? 'owner@vault.test'
+  const mailbox = p.mailbox ?? 'owner@vibase.test'
   const op = connectOperation(e.env(), {
     google_sub: p.sub ?? `sub-${mailbox}`,
     mailbox,

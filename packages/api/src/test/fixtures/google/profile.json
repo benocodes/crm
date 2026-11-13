@@ -16,7 +16,7 @@
         "content-type": "application/json; charset=UTF-8"
       },
       "body": {
-        "emailAddress": "xxxxx@xxxxx.xxxx",
+        "emailAddress": "xxxxx@xxxxxx.xxxx",
         "messagesTotal": 4821,
         "threadsTotal": 3102,
         "historyId": "6950382"
@@ -25,7 +25,7 @@
   },
   "expect": {
     "result": {
-      "emailAddress": "xxxxx@xxxxx.xxxx",
+      "emailAddress": "xxxxx@xxxxxx.xxxx",
       "historyId": "$string",
       "messagesTotal": 4821,
       "threadsTotal": 3102

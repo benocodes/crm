@@ -36,8 +36,8 @@ beforeEach(async () => {
   created = []
   instances = { create: async (o) => void created.push(o) }
   jwks = jwksFetch([key])
-  connId = await seedGmailConnection(e, { key: KEY, refreshToken: 'rt-1', mailbox: 'owner@vault.test', lastSyncedAt: '2026-11-05T09:59:00.000Z' })
-  await e.insert('gmail_watches', { connection_id: connId, mailbox: 'owner@vault.test', expires_at: '2026-11-12T10:00:00.000Z' })
+  connId = await seedGmailConnection(e, { key: KEY, refreshToken: 'rt-1', mailbox: 'owner@vibase.test', lastSyncedAt: '2026-11-05T09:59:00.000Z' })
+  await e.insert('gmail_watches', { connection_id: connId, mailbox: 'owner@vibase.test', expires_at: '2026-11-12T10:00:00.000Z' })
 })
 
 const app = (over: { env?: Record<string, string | undefined>; instances?: MailSyncInstances | null; binding?: Engine['binding'] } = {}) => {
@@ -67,7 +67,7 @@ const raw = (sql: string, ...binds: unknown[]) => e.d1!.prepare(sql).bind(...bin
 describe('the verifier (D87): every refusal is 401 with no write and no instance', () => {
   const hs256 = async (): Promise<string> => await new SignJWT({ email: PUSH.serviceAccount, email_verified: true }).setProtectedHeader({ alg: 'HS256' }).setIssuer('https://accounts.google.com').setAudience(PUSH.audience).setExpirationTime('1h').sign(new TextEncoder().encode('0123456789abcdef0123456789abcdef'))
   const cases: Array<[string, () => Promise<string>]> = [
-    ['a wrong aud', () => signPushToken(key, now, { aud: 'https://vault.test/gmail/push/' })],
+    ['a wrong aud', () => signPushToken(key, now, { aud: 'https://vibase.test/gmail/push/' })],
     ['an aud of another origin', () => signPushToken(key, now, { aud: 'https://other.test/gmail/push' })],
     ['a wrong email', () => signPushToken(key, now, { email: 'someone-else@vb-p.iam.gserviceaccount.com' })],
     ['an absent email', () => signPushToken(key, now, { email: null })],
@@ -141,7 +141,7 @@ describe('the JWKS is fetched only for a well-formed bearer (D87)', () => {
 describe('push to sync (D88)', () => {
   it('a verified push for the watched mailbox (mixed case) is 204, sets sync_requested_at and creates one instance; no event', async () => {
     const eventsBefore = (await e.rows('events')).length
-    const res = await post(app(), { body: pushBody({ emailAddress: 'Owner@Vault.TEST' }) })
+    const res = await post(app(), { body: pushBody({ emailAddress: 'Owner@Vibase.TEST' }) })
     expect(res.status).toBe(204)
     expect((await state()).sync_requested_at).toBe(now.toISOString())
     expect(created).toHaveLength(1)
@@ -150,12 +150,12 @@ describe('push to sync (D88)', () => {
     expect((await e.rows('events')).length).toBe(eventsBefore)
   })
   it('the notification data may be standard or url base64', async () => {
-    const data = btoa(JSON.stringify({ emailAddress: 'owner@vault.test', historyId: '1' }))
+    const data = btoa(JSON.stringify({ emailAddress: 'owner@vibase.test', historyId: '1' }))
     expect((await post(app(), { body: pushBody({ data }) })).status).toBe(204)
     expect(created).toHaveLength(1)
   })
   const cases: Array<[string, () => Promise<void>, string?]> = [
-    ['an unknown mailbox', async () => {}, 'nobody@vault.test'],
+    ['an unknown mailbox', async () => {}, 'nobody@vibase.test'],
     ['a soft-deleted connection', async () => void (await raw('update channel_connections set deleted_at = ? where id = ?', '2026-11-05T09:00:00.000Z', connId))],
     ['a reauth_required connection', async () => void (await raw("update channel_connections set status = 'reauth_required' where id = ?", connId))],
     ['a suspended connection', async () => void (await raw("update channel_connections set status = 'suspended' where id = ?", connId))],
@@ -164,7 +164,7 @@ describe('push to sync (D88)', () => {
   it.each(cases)('%s: 204, no instance, no write', async (_n, arrange, mailbox) => {
     await arrange()
     const before = await snapshot()
-    const res = await post(app(), { body: pushBody({ emailAddress: mailbox ?? 'owner@vault.test' }) })
+    const res = await post(app(), { body: pushBody({ emailAddress: mailbox ?? 'owner@vibase.test' }) })
     expect(res.status).toBe(204)
     expect(created).toEqual([])
     expect(await snapshot()).toBe(before)
@@ -183,7 +183,7 @@ describe('push to sync (D88)', () => {
     }
     expect(created).toEqual([])
     expect(warn.length).toBeGreaterThan(0)
-    expect(warn.join('\n')).not.toContain('owner@vault.test')
+    expect(warn.join('\n')).not.toContain('owner@vibase.test')
   })
   it('an oversized body (over 64 KiB) after a good token is 204 and nothing is written', async () => {
     const before = await snapshot()
