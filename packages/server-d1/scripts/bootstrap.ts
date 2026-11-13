@@ -13,9 +13,8 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { uuidv7 } from '@vibase/storage'
-import { openControlDb, readControlMarker, type ControlDb, type D1Like } from '@vibase/storage-d1'
+import { openControlDb, type ControlDb, type D1Like } from '@vibase/storage-d1'
 import { bootstrapD1, probeBatchAtomicity, type BootstrapD1Result } from '../src/bootstrap-d1.js'
-import { readDeployment } from '../src/init-deployment.js'
 import { CONFIG_PATH, ROOT_ENV_PATH, RemoteRefusal, controlNotConfigured, loadRootEnv, requireConfirm, resolveTarget, type ConfigLike, type Target } from './remote.js'
 
 type Values = Record<string, string | undefined>
@@ -120,7 +119,7 @@ export interface BootstrapIo {
 }
 /**
  * OPS279: the body of `main` once the proxy is open, as a function a test can call; returns the exit code. A remote env whose config binds `CONTROL_DB` pairs the control
- * database ([[CORE259]] D7): the marker follows the CRM row, and a marker for another organisation is refused before anything is written (even the atomicity probe). An env
+ * database ([[CORE259]] D7): the marker follows the CRM row, and `bootstrapD1` refuses a marker for another organisation before either database is written (the atomicity probe leaves nothing when it passes). An env
  * that binds none stays CRM only and says so ([[CORE259]] P1). Locally the control database is paired when the local env binds one, as before.
  */
 export async function runBootstrap(run: BootstrapRun, proxy: { env: { DB: D1Like; CONTROL_DB?: D1Like } }, io: BootstrapIo): Promise<number> {
@@ -137,14 +136,6 @@ export async function runBootstrap(run: BootstrapRun, proxy: { env: { DB: D1Like
   } else if (proxy.env.CONTROL_DB) control = openControlDb(proxy.env.CONTROL_DB)
   try {
     let organizationId = values['organization-id']
-    if (control) {
-      const paired = await readControlMarker(control).catch((err: unknown) => {
-        if (/no such table/i.test(err instanceof Error ? err.message : '')) throw new Error('the control database has no control_deployment table: apply its migrations first')
-        throw err
-      })
-      const expected = (await readDeployment(proxy.env.DB))?.organizationId ?? organizationId
-      if (paired && paired.organizationId !== expected) throw new Error(`the control database is already paired with organization ${paired.organizationId}`)
-    }
     if (run.mode === 'remote') {
       const link = { organizationId: values['organization-id'] ?? uuidv7(), authProvider: authProvider ?? 'clerk', authOrgId }
       const probe = await probeBatchAtomicity(proxy.env.DB, link)
