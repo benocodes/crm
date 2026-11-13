@@ -55,7 +55,7 @@ async function envFor(provider: Provider, control: Control): Promise<D1WorkerEnv
 }
 
 const call = (worker: { fetch(r: Request): Promise<Response> }, path: string) => worker.fetch(new Request(BASE + path))
-const logged = () => errors.mock.calls.map((c) => c.map(String).join(' ')).join('\n')
+const logged = () => errors.mock.calls.map((c: unknown[]) => c.map(String).join(' ')).join('\n')
 
 describe('the control gate matrix (D6, D7)', () => {
   const refusal: Record<Exclude<Control, 'paired'>, { status: number; body: unknown; log: RegExp }> = {

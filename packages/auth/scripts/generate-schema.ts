@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { CONTROL_DEPLOYMENT_DDL, generateAuthDdl } from '../src/test/schema-gen.js'
 
-const HEADER = `-- Control 0001 (CORE259 D4, D7, D13; the auth tables are CORE243 D4, D5). The control-plane database's first compiled migration, applied to the control database with its own d1_migrations tracker.
+const HEADER = `-- Control 0001 (CORE259 D4, D7, D13, the auth tables are CORE243 D4, D5). The control-plane database's first compiled migration, applied to the control database with its own d1_migrations tracker.
 -- The auth tables are generated offline by \`pnpm -C packages/auth schema:generate --write\` from Better Auth's own schema planner (against an empty SQLite: its planner cannot
 -- introspect D1), then reviewed. Machinery, not resources: deployment-scoped (no organization_id), written only by Better Auth, never by an operation. Names are the vault's: auth_
 -- prefixed, snake_case columns, ids from the vault's UUIDv7 generator. Timestamps are the ISO-8601 text Better Auth writes. control_deployment is the control marker: it names the

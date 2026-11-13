@@ -16,6 +16,15 @@
       "database_name": "vb-crm",
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "../storage-d1/migrations"
+    },
+    // The control-plane database ([[CORE259]] D1): Better Auth's tables and the control marker, with its own compiled migrations and its own d1_migrations tracker. Local only for now: the smoked1 and hq
+    // env blocks bind none (the instance tooling creates and binds theirs, [[OPS260]]); a Worker on AUTH_PROVIDER=better-auth refuses without it, every other mode never reads it. The same placeholder
+    // database_id as above; every remote script refuses it.
+    {
+      "binding": "CONTROL_DB",
+      "database_name": "vb-control",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../storage-d1/control-migrations"
     }
   ],
   // The connect page ([[UI30]] D2): built by `pnpm build` into dist/assets/connect/. The Worker goes first for /connect* only and serves

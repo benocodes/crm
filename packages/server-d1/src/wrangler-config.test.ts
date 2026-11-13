@@ -50,7 +50,7 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
   it('no deployed env binds CONTROL_DB yet (its database comes with OPS260), and each env keeps exactly its DB binding', () => {
     for (const env of ['smoked1', 'hq']) {
       const c = unstable_readConfig({ config: CONFIG, env })
-      expect(c.d1_databases.map((d) => d.binding), env).toEqual(['DB'])
+      expect(c.d1_databases.map((d: { binding: string }) => d.binding), env).toEqual(['DB'])
     }
   })
 
