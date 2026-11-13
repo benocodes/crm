@@ -387,6 +387,12 @@ One program, two engines: the same assertions run on Postgres and D1.
   it by setting the real value to something else and rerunning (`knowledge/specs/014-OPS237-release-ci-docs/RETRO.md`).
   The same goes for a third-party name that drifts by major version: `changesets/action` v2 calls its publish input
   `publish-script`, so the shape test matches `/publish/i` rather than one exact key.
+  The same holds for a scratch copy of a repo directory: copy only the inputs the test means to exercise. The scratch
+  `changeset version` test copies all of `.changeset/`, so a branch's own changeset changed its outcome in [[OPS265]]
+  (fix: copy `config.json` only, #271).
+- **Synthetic Google recordings redact by length** (`xxxxx@xxxxx.xxxx`). Renaming a test host or address changes the
+  recorded fixtures: rerun `recordings:generate` and update the expected redacted strings; the diff should be
+  email-shaped hunks only (`knowledge/specs/015-OPS265-remaining-vibase-names/RETRO.md`).
 - **A boundary comment needs a boundary fixture.** A test that says "exactly the limit is allowed" must seed values that
   reach the limit exactly; [[CORE202]]'s summed a single `0` (#208). And a guard against a numeric limit computed in the
   engine runs after the engine's own arithmetic: `abs(sum(x)) > 2^53−1` never sees an int64 overflow, because `sum()`
