@@ -16,6 +16,7 @@ import { envDatabaseIds, assertNoForbidden } from '../src/forbidden.js'
 import { releaseCommit } from '../src/git.js'
 import { assertClientLayout, assertCommit, assertServerLayout } from '../src/layout.js'
 import { assertRelease } from '../src/manifest.js'
+import { readReleaseVersion } from '../src/version.js'
 import { packRelease } from '../src/pack.js'
 import { deriveBaseConfig, readWranglerVersion, stageClient, stageServer } from '../src/stage.js'
 
@@ -28,14 +29,14 @@ export const DIST = join(PKG, 'dist')
 export const wranglerEnv = (): NodeJS.ProcessEnv => ({ PATH: process.env.PATH, HOME: process.env.HOME, CI: '1', WRANGLER_SEND_METRICS: 'false' })
 
 export async function buildRelease(opts: { allowDirty?: boolean } = {}): Promise<{ client: string; server: string; sums: string; version: string; commit: string }> {
-  const version = (JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8')) as { version: string }).version
+  const version = readReleaseVersion(REPO)
   const commit = releaseCommit({ cwd: REPO, allowDirty: opts.allowDirty })
   const wranglerVersion = readWranglerVersion(join(SERVER_D1, 'package.json'))
   const sourceConfig = readFileSync(join(SERVER_D1, 'wrangler.jsonc'), 'utf8')
   const work = mkdtempSync(join(tmpdir(), 'vibase-release-'))
   try {
     const cliJs = join(work, 'cli', 'vibase.js')
-    await buildCli({ outfile: cliJs })
+    await buildCli({ outfile: cliJs, version })
     const serverJs = join(work, 'cli', 'server.js')
     await buildInstance({ outfile: serverJs })
     const assets = join(work, 'assets')

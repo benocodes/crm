@@ -15,6 +15,7 @@ import { assertNoForbidden, envDatabaseIds } from '../src/forbidden.js'
 import { assertClientLayout, assertCommit, assertExportsResolve, assertServerLayout, CLIENT_MARKERS } from '../src/layout.js'
 import { assertRelease, type ReleaseManifest } from '../src/manifest.js'
 import { verifySums } from '../src/pack.js'
+import { readReleaseVersion } from '../src/version.js'
 import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
 import { deployArgs } from '../../server-d1/scripts/instance/upgrade.js'
 import { wranglerEnv } from './build.js'
@@ -52,7 +53,7 @@ export async function checkRelease(tarballs: { client: string; server: string },
   if (!inRepo.startsWith('..') && !isAbsolute(inRepo)) throw new ReleaseRefusal(`the check directory ${root} is inside the repo`)
   try {
     const databaseIds = envDatabaseIds(readFileSync(join(REPO, 'packages', 'server-d1', 'wrangler.jsonc'), 'utf8'))
-    const version = (JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8')) as { version: string }).version
+    const version = readReleaseVersion(REPO)
 
     // 0. SHA256SUMS, when the tarballs sit beside it (a hand-repacked copy does not).
     if (dirname(clientTarball) === dirname(serverTarball) && existsSync(join(dirname(clientTarball), 'SHA256SUMS'))) {
@@ -211,7 +212,7 @@ export async function checkRelease(tarballs: { client: string; server: string },
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const version = (JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8')) as { version: string }).version
+  const version = readReleaseVersion(REPO)
   const args = process.argv.slice(2).filter((a) => !a.startsWith('--'))
   if (args.length !== 0 && args.length !== 2) {
     console.error('usage: release:check [<cli tarball> <server tarball>]')

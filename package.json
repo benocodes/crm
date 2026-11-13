@@ -8,9 +8,11 @@
     "node": ">=22"
   },
   "scripts": {
+    "changeset": "changeset",
     "vibase": "node scripts/vibase.mjs",
     "release:build": "pnpm -C packages/release release:build",
     "release:check": "pnpm -C packages/release release:check",
+    "release:ci": "pnpm -C packages/release release:ci",
     "test": "vitest run",
     "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "typecheck": "pnpm -r typecheck",
@@ -26,6 +28,7 @@
     "@neon/env": "^1.6.3"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "vitest": "5.0.3"
   }
 }

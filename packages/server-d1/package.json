@@ -1,5 +1,6 @@
 {
   "name": "@vibase/server-d1",
+  "version": "0.1.0",
   "private": true,
   "description": "Open tier (spec CORE38): Vibase as a Cloudflare module Worker on one D1 database. The Worker entry, its composition, the local D1 bootstrap CLI and wrangler.jsonc.",
   "license": "AGPL-3.0-only",

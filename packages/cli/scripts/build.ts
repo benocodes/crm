@@ -1,16 +1,17 @@
-// The CLI build ([[OPS210]] D1): one esbuild bundle whose `--version` is the release package's version, the only version source.
+// The CLI build ([[OPS210]] D1): one esbuild bundle whose `--version` is the product version: the `version` the caller passes (`release:build`, from the fixed group of [[OPS237]] D25), else this package's own.
 //   pnpm -C packages/cli build
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
-const RELEASE_PACKAGE_JSON = fileURLToPath(new URL('../../release/package.json', import.meta.url))
+const PACKAGE_JSON = fileURLToPath(new URL('../package.json', import.meta.url))
 const ENTRY = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 const OUTFILE = fileURLToPath(new URL('../dist/vibase.js', import.meta.url))
 
-export async function buildCli(opts: { outfile?: string; releasePackageJson?: string } = {}): Promise<void> {
-  const version = (JSON.parse(readFileSync(opts.releasePackageJson ?? RELEASE_PACKAGE_JSON, 'utf8')) as { version?: unknown }).version
-  if (typeof version !== 'string' || version === '') throw new Error(`${opts.releasePackageJson ?? RELEASE_PACKAGE_JSON} has no version`)
+export async function buildCli(opts: { outfile?: string; version?: string; packageJson?: string } = {}): Promise<void> {
+  const file = opts.packageJson ?? PACKAGE_JSON
+  const version = opts.version ?? (JSON.parse(readFileSync(file, 'utf8')) as { version?: unknown }).version
+  if (typeof version !== 'string' || version === '') throw new Error(`${file} has no version`)
   await build({
     entryPoints: [ENTRY],
     bundle: true,

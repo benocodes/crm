@@ -1,0 +1,24 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [["@vibase/cli", "@vibase/server-d1"]],
+  "linked": [],
+  "access": "restricted",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@vibase/api",
+    "@vibase/approvals-app",
+    "@vibase/auth",
+    "@vibase/db",
+    "@vibase/docs",
+    "@vibase/release",
+    "@vibase/server-postgres",
+    "@vibase/storage",
+    "@vibase/storage-d1",
+    "@vibase/storage-postgres",
+    "@vibase/webhook-receiver-example"
+  ],
+  "privatePackages": { "version": true, "tag": false }
+}
