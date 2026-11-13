@@ -1,0 +1,33 @@
+{
+  "name": "@vault/auth",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Open tier (spec CORE243): the built-in auth provider, Better Auth composed for the D1 Worker.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./test": "./src/test/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "schema:generate": "tsx scripts/generate-schema.ts",
+    "hasher:measure": "tsx scripts/measure-hasher.ts"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "1.7.22",
+    "better-auth": "1.7.22",
+    "kysely-d1": "0.4.0",
+    "@vault/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261113.1",
+    "@types/node": "^22",
+    "esbuild": "0.28.2",
+    "miniflare": "4.20260730.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3",
+    "@vault/storage-d1": "workspace:*"
+  }
+}

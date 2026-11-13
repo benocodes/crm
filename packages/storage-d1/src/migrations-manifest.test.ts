@@ -39,7 +39,7 @@ afterEach(() => {
 describe('migrations manifest (D5)', () => {
   it('matches the real migrations/ directory', () => {
     expect(manifestProblems(MIGRATIONS, MIGRATIONS_DIR)).toEqual([])
-    expect(MIGRATIONS.map((e) => e.name)).toEqual(['0001_typed_storage_core.sql', '0002_identity_model.sql', '0003_administration.sql', '0004_messaging_model.sql', '0005_associations.sql', '0006_notes.sql', '0007_agent_principals.sql', '0008_tags.sql', '0009_deals.sql', '0010_gmail_capture.sql', '0011_action_requests.sql', '0012_action_executions.sql', '0013_send_connection.sql', '0014_search_indexes.sql', '0015_event_sequence.sql', '0016_webhooks.sql', '0017_webhook_deliveries.sql'])
+    expect(MIGRATIONS.map((e) => e.name)).toEqual(['0001_typed_storage_core.sql', '0002_identity_model.sql', '0003_administration.sql', '0004_messaging_model.sql', '0005_associations.sql', '0006_notes.sql', '0007_agent_principals.sql', '0008_tags.sql', '0009_deals.sql', '0010_gmail_capture.sql', '0011_action_requests.sql', '0012_action_executions.sql', '0013_send_connection.sql', '0014_search_indexes.sql', '0015_event_sequence.sql', '0016_webhooks.sql', '0017_webhook_deliveries.sql', '0018_auth_tables.sql'])
   })
   it('catches one edited byte', () => {
     const dir = copyOfTree()

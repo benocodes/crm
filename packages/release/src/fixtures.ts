@@ -10,6 +10,7 @@ export const BASE_SOURCE = `{
   "name": "vault",
   "main": "src/worker.ts",
   "compatibility_date": "2026-07-30",
+  "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [{ "binding": "DB", "database_name": "vault", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../storage-d1/migrations" }],
   "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*"] },
   "triggers": { "crons": ["*/15 * * * *"] },

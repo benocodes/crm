@@ -51,6 +51,9 @@
       },
       {
         "name": "0017_webhook_deliveries.sql"
+      },
+      {
+        "name": "0018_auth_tables.sql"
       }
     ],
     "success": true,

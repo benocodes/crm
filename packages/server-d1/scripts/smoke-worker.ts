@@ -30,6 +30,7 @@ import {
 } from '@vault/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
 import { buildConnect } from './build-connect.js'
+import { ALLOWED_NODE_MODULES, BUNDLE_SIZE_CEILING, nodeImportProblems, nodeImportsOf } from './node-imports.js'
 
 let failures = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -100,18 +101,24 @@ try {
     conditions: ['workerd', 'worker', 'browser'],
     target: 'es2022',
     outfile: bundle,
-    external: ['cloudflare:workers'],
+    // `nodejs_compat` ([[CORE243]] D2): `node:` imports stay external for workerd to resolve, as wrangler does.
+    external: ['cloudflare:workers', 'node:*'],
     logLevel: 'warning',
   })
-  console.log(`bundle ${statSync(bundle).size} bytes (${bundle})`)
+  const bundleBytes = statSync(bundle).size
+  console.log(`bundle ${bundleBytes} bytes (${bundle})`)
+  // [[CORE243]] D2: the bundle's `node:` imports are an explicit list and its size has a ceiling.
+  const nodeProblems = nodeImportProblems(readFileSync(bundle, 'utf8'), bundleBytes)
+  check(`0 the bundle imports only the allowed node: modules (${nodeImportsOf(readFileSync(bundle, 'utf8')).join(', ') || 'none'}; allowed ${ALLOWED_NODE_MODULES.join(', ')}) and is under ${BUNDLE_SIZE_CEILING} bytes (${bundleBytes})`, nodeProblems.length === 0, nodeProblems)
   // [[UI30]] D2, D3: a fresh build of the connect page, mounted as Workers Static Assets the way wrangler maps run_worker_first.
   await buildConnect(assetsDir)
 
   mf = new Miniflare({
-    modules: true,
-    scriptPath: bundle,
+    // Explicit module list: Better Auth's `import(variable)` defeats Miniflare's own module scan (wrangler and workerd accept it).
+    modules: [{ type: 'ESModule', path: bundle, contents: readFileSync(bundle, 'utf8') }],
     modulesRoot: workerDir,
     compatibilityDate: '2026-07-30',
+    compatibilityFlags: ['nodejs_compat'],
     d1Databases: { DB: `smoke-${crypto.randomUUID()}` },
     d1Persist: false,
     r2Buckets: ['BODIES'],
@@ -574,7 +581,12 @@ try {
   body = await json(res)
   check('25 GET /.well-known/vibase -> auth.publishable_key is null (no key configured)', res.status === 200 && body.auth?.publishable_key === null, body.auth)
 
-  // 26-29: the MCP endpoint ([[API106]] D4): hand-written JSON-RPC in the bundle, no SDK, no nodejs_compat (this Miniflare sets none).
+  // [[CORE243]] D1: with AUTH_PROVIDER=clerk the built-in provider's /auth is no route, in the real bundle under nodejs_compat.
+  res = await call('GET', '/auth/ok')
+  body = await json(res)
+  check('25a GET /auth/ok with AUTH_PROVIDER=clerk -> 404 not_found in the app envelope', res.status === 404 && body.error?.code === 'not_found', { status: res.status, body })
+
+  // 26-29: the MCP endpoint ([[API106]] D4): hand-written JSON-RPC in the bundle, no SDK.
   const mcp = async (method: string, params?: unknown, id = 1) => {
     const r = await call('POST', '/mcp', { token: key, headers: { 'content-type': 'application/json' }, body: { jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) } })
     return { status: r.status, body: await json(r) }
@@ -620,6 +632,7 @@ try {
     scriptPath: pipelineBundle,
     modulesRoot: workerDir,
     compatibilityDate: '2026-07-30',
+    compatibilityFlags: ['nodejs_compat'],
     d1Databases: { DB: `pipeline-${crypto.randomUUID()}` },
     d1Persist: false,
     r2Buckets: ['BODIES'],

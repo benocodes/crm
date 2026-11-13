@@ -1,5 +1,5 @@
 // Markdown for message content ([[CORE69]] D25). Vendored from `chat@4.43.0` because that package's single root entry imports
-// `crypto` and `async_hooks` at top level, which the Worker (no `nodejs_compat`, [[CORE38]]) cannot resolve. `chat` stays a
+// `crypto` and `async_hooks` at top level, which the Worker could not resolve before `nodejs_compat` ([[CORE243]] D2); vendoring also keeps chat's runtime out of the bundle. `chat` stays a
 // type-only devDependency; the contract test (`message-shape.contract.test.ts`) compares these functions with chat's own.
 import type { Nodes, Root } from 'mdast'
 import remarkGfm from 'remark-gfm'

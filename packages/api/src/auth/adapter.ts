@@ -97,6 +97,8 @@ export function parseCliClientId(env: AuthEnv): string | undefined {
 function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, workspace: boolean): AuthAdapter | undefined {
   const provider = env.AUTH_PROVIDER?.trim()
   if (!provider) return undefined
+  // [[CORE243]] D1: the built-in provider has no token adapter yet (cycle 3, CORE244); the composition mounts its `/auth` handler and the API stays API-key only meanwhile.
+  if (provider === 'better-auth') return undefined
   if (provider !== 'clerk') throw new Error(`unknown AUTH_PROVIDER "${provider}"`)
   const need = (name: string): string => {
     const v = env[name]

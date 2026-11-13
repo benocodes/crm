@@ -3,6 +3,7 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, sep } from 'node:path'
+import { parse as parseJsonc } from 'jsonc-parser'
 import { ReleaseRefusal } from './errors.js'
 import { listFiles, type ReleaseManifest } from './manifest.js'
 import { SERVER_EXPORTS } from './stage.js'
@@ -84,6 +85,14 @@ export function serverProblems(dir: string, version: string): string[] {
       if (!ok) out.push(`package.json exports ${k} names ${v}, which the package does not ship`)
     }
   } else out.push('package.json is missing or unreadable')
+  // [[CORE243]] D2: the Worker bundle imports `node:*`, so the base config every deploy is generated from must carry `nodejs_compat`. A deploy without it fails only remotely.
+  try {
+    const base = parseJsonc(readFileSync(join(dir, 'wrangler.base.jsonc'), 'utf8')) as { compatibility_flags?: unknown } | undefined
+    const flags = Array.isArray(base?.compatibility_flags) ? base.compatibility_flags : []
+    if (!flags.includes('nodejs_compat')) out.push('wrangler.base.jsonc compatibility_flags must include nodejs_compat (the Worker bundle imports node: modules)')
+  } catch {
+    /* a missing base config is already reported by the file list */
+  }
   return out
 }
 

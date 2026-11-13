@@ -25,6 +25,8 @@ export interface Catalog {
  * D9: tables that are engine or channel mechanism, never listed: the D1 tenancy marker, the runtime's assertion table, and
  * the channel provider-id maps ([[CORE25]] D17). `_cf_*`, `sqlite_*` and `d1_migrations` are excluded in SQL, by prefix.
  */
+/** [[CORE243]] D5: the reserved prefix of the built-in auth provider's tables (Better Auth's own, written only by it). Hidden whatever the table's name ends in. */
+export const AUTH_TABLE_PREFIX = 'auth_'
 export const HIDDEN_TABLES: readonly string[] = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'webhook_secrets', 'webhook_dispatch_state']
 
 /** D6: a column's default label is its name with `_` as spaces and the first letter capitalised (`due_at` -> "Due at"). */

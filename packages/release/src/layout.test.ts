@@ -4,6 +4,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, write
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { parse } from 'jsonc-parser'
 import { sources } from './fixtures.js'
 import { CLIENT_MARKERS, assertClientLayout, assertCommit, assertExportsResolve, assertServerLayout, clientProblems, serverProblems } from './layout.js'
 import { stageClient, stageServer } from './stage.js'
@@ -89,6 +90,17 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
       const { dir, s } = server()
       put(dir, f, 'x')
       expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(f.replace(/[.]/g, '\\.')))
+    }
+  })
+  it('a base config without the nodejs_compat flag is refused by name (CORE243 D2: a deploy with node: imports and no flag fails only remotely)', () => {
+    for (const flags of [undefined, [], ['some_other_flag']]) {
+      const { dir, s } = server()
+      const base = parse(readFileSync(join(dir, 'wrangler.base.jsonc'), 'utf8')) as Record<string, unknown>
+      expect(base.compatibility_flags).toEqual(['nodejs_compat'])
+      if (flags === undefined) delete base.compatibility_flags
+      else base.compatibility_flags = flags
+      writeFileSync(join(dir, 'wrangler.base.jsonc'), JSON.stringify(base))
+      expect(() => assertServerLayout(dir, s.version), JSON.stringify(flags)).toThrow(/nodejs_compat/)
     }
   })
   it('a missing worker, base config or release.json is refused by name', () => {

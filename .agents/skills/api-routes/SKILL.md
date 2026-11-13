@@ -85,9 +85,18 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     4.149.0 depends on a Miniflare 5.x alpha with a different constructor. `release:check` ([[OPS210]]) runs the
     *installed* package's `worker/`, `assets/` and migrations in that Miniflare 4; the installed wrangler applies the
     migrations (`d1 migrations apply --local --persist-to <dir>`) and Miniflare reads `<dir>/v3/d1`.
-  - The bundle needs **no `nodejs_compat`** (Web Crypto only). Keep Node built-ins out of `@vault/api` production
-    code; the smoke is the check. A package whose entry imports Node built-ins at top level (`chat@4.43.0`) is
-    a devDependency imported type-only; `production-boundary.test.ts` enforces that for `chat` ([[CORE69]] D25).
+  - The Worker runs with **`nodejs_compat`** for the built-in auth provider only ([[CORE243]] D2: Better Auth imports
+    `node:crypto`). Keep Node built-ins out of `@vault/api` production code anyway (Web Crypto only). `smoke:worker`
+    fails on any `node:` import outside `ALLOWED_NODE_MODULES` and on a bundle over `BUNDLE_SIZE_CEILING`
+    (`packages/server-d1/scripts/node-imports.ts`); widening either is a reviewed decision, not a fix to make the smoke
+    pass. The flag lives in `wrangler.jsonc`'s top level and in the release base config (`serverProblems` refuses one
+    without it); every Miniflare that runs the real Worker sets `compatibilityFlags: ['nodejs_compat']`. A package
+    whose entry imports Node built-ins at top level (`chat@4.43.0`) is a devDependency imported type-only;
+    `production-boundary.test.ts` enforces that for `chat` ([[CORE69]] D25).
+  - **Load the real Worker into Miniflare with an explicit module list** (`modules: [{ type: 'ESModule', path, contents }]`
+    plus `modulesRoot`), not `modules: true` + `scriptPath`: Better Auth's Kysely adapter has an `import(variable)`
+    that Miniflare's own module scan refuses (`ERR_MODULE_DYNAMIC_SPEC`), while wrangler and workerd accept it
+    ([[CORE243]] D-j; `smoke-worker.ts`, `packages/release/scripts/check.ts`, `@vault/auth/test`'s `startWorkerd`).
   - **workerd streams** ([[CORE69]]): R2's `put` refuses a `ReadableStream` of unknown length (`TypeError`), so pipe a
     known-size stream through `FixedLengthStream(size)` and send an unknown-size one through `ObjectStore.putStream`
     (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vault/api` only as
