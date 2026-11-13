@@ -43,17 +43,19 @@ export function realDeps(io: { stdout(t: string): void; stderr(t: string): void;
     tmpRoot: tmpdir(),
     out: (l) => io.stdout(`${l}\n`),
     err: (l) => io.stderr(`${l}\n`),
+    now: () => Date.now(),
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   }
 }
 
 /** The words after `instance`; returns the exit code. */
-export async function runInstance(argv: string[], io: { stdout(t: string): void; stderr(t: string): void; env: Record<string, string | undefined> }, packageDir = fileURLToPath(new URL('..', import.meta.url))): Promise<number> {
+export async function runInstance(argv: string[], io: { stdout(t: string): void; stderr(t: string): void; env: Record<string, string | undefined> }, packageDir = fileURLToPath(new URL('..', import.meta.url)), overrides: Partial<InstanceDeps> = {}): Promise<number> {
   const [command, ...rest] = argv
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
     io.stdout(INSTANCE_HELP)
     return 0
   }
-  if (command === 'status') return runStatus(rest, realDeps(io, packageDir))
+  if (command === 'status') return runStatus(rest, { ...realDeps(io, packageDir), ...overrides })
   io.stderr(`vibase instance: unknown command "${command}"\n${INSTANCE_HELP}`)
   return EXIT_REFUSED
 }
