@@ -9,6 +9,8 @@
   },
   "scripts": {
     "vibase": "node scripts/vibase.mjs",
+    "release:build": "pnpm -C packages/release release:build",
+    "release:check": "pnpm -C packages/release release:check",
     "test": "vitest run",
     "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "typecheck": "pnpm -r typecheck",

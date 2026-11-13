@@ -1,0 +1,26 @@
+{
+  "name": "@vault/release",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The product release ([[OPS210]]): the one product version (D1), the build of the release package vibase-<version>.tgz (D3-D6) and the check that proves it runs outside the repo (D8).",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "release:build": "tsx scripts/build.ts",
+    "release:check": "tsx scripts/check.ts",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vault/storage-d1": "workspace:*",
+    "jsonc-parser": "3.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "esbuild": "0.28.2",
+    "miniflare": "4.20260730.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

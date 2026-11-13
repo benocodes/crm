@@ -99,7 +99,7 @@ export function deployCommands(envName: string, sha: string): Cmd[] {
     { command: 'pnpm', args: ['-C', 'packages/server-d1', 'build'] },
     { command: 'pnpm', args: ['-C', 'packages/server-d1', 'typecheck'] },
     { command: 'pnpm', args: ['-C', 'packages/server-d1', 'test'] },
-    { command: 'pnpm', args: ['exec', 'wrangler', 'deploy', '--env', envName, '--var', `VERSION:${sha}`] },
+    { command: 'pnpm', args: ['exec', 'wrangler', 'deploy', '--env', envName, '--var', `VERSION:${sha}`, '--var', `COMMIT:${sha}`] },
   ]
 }
 

@@ -140,7 +140,7 @@ describe('a database with no marker table and no tracker (edge)', () => {
   it('/health is 200 initialised false and unknown', async () => {
     const { status, body } = await health(composeD1Worker({ DB: d1, AUTH_PROVIDER: '' }))
     expect(status).toBe(200)
-    expect(body).toEqual({ status: 'ok', initialised: false, version: 'dev', migrations: { status: 'unknown', applied: 0, expected: NAMES.length, latest_applied: null, latest_expected: LAST } })
+    expect(body).toEqual({ status: 'ok', initialised: false, version: 'dev', commit: 'dev', migrations: { status: 'unknown', applied: 0, expected: NAMES.length, latest_applied: null, latest_expected: LAST } })
   })
   it('other routes are 503 not_initialised, openapi still served', async () => {
     const worker = composeD1Worker({ DB: d1, AUTH_PROVIDER: '' })
