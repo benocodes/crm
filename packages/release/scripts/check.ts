@@ -4,7 +4,7 @@
 // `--prefer-offline`, never the repo's node_modules), runs the installed `vibase --version`, applies the installed migrations to a fresh
 // local D1 with the installed wrangler, and runs the installed Worker and assets in workerd (Miniflare 4, the repo's test harness).
 // Nothing is published; no Cloudflare call or credential is involved (the child processes get a minimal environment).
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { Miniflare } from 'miniflare'
 import { tmpdir } from 'node:os'
@@ -67,6 +67,18 @@ export async function checkRelease(tarballArg: string, log: (line: string) => vo
     const wranglerVersion = sh(wranglerBin, ['--version'], install, wranglerEnv()).trim().split('\n').at(-1)!.replace(/^.*?(\d+\.\d+\.\d+).*$/, '$1')
     if (wranglerVersion !== manifest.wrangler) throw new ReleaseRefusal(`the installed wrangler is ${wranglerVersion}, release.json names ${manifest.wrangler}`)
     log(`${cliVersion}; wrangler ${wranglerVersion}`)
+
+    // 3b. the installed `vibase instance` ([[OPS231]] D12): the dynamic import of the sibling cli/instance.js works from the installed package.
+    // `help` proves the import; `status` with an empty config home proves the command runs and refuses at the settings file, before any network call.
+    const vibaseBin = join(install, 'node_modules', '.bin', 'vibase')
+    const instanceHelp = sh(vibaseBin, ['instance', 'help'], install)
+    if (!/vibase instance status --env/.test(instanceHelp)) throw new ReleaseRefusal('the installed `vibase instance help` does not print the instance commands')
+    const emptyConfig = join(root, 'empty-config')
+    mkdirSync(emptyConfig)
+    const noSettings = spawnSync(vibaseBin, ['instance', 'status', '--env', 'check'], { cwd: install, env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig }, encoding: 'utf8' })
+    const expectedPath = join(emptyConfig, 'vibase', 'instances', 'check.json')
+    if (noSettings.status !== 2 || !noSettings.stderr.includes(expectedPath)) throw new ReleaseRefusal(`the installed \`vibase instance status\` did not refuse at the missing settings file (exit ${noSettings.status}): ${noSettings.stderr.trim()}`)
+    log(`vibase instance: help ok; status refuses at ${expectedPath} (exit 2)`)
 
     // 4. the installed migrations on a fresh local D1, applied by the installed wrangler.
     const base = parse(readFileSync(join(installed, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>

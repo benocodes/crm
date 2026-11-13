@@ -67,6 +67,7 @@ const copyInto = (dest: string, src: string) => {
 export function stageRelease(i: StageInput): ReleaseManifest {
   const out = i.outDir
   copyInto(join(out, 'cli', 'vibase.js'), i.cliJs)
+  copyInto(join(out, 'cli', 'instance.js'), i.instanceJs)
   copyInto(join(out, 'worker', 'worker.js'), i.workerEntry)
   for (const f of readdirSync(i.assetsConnectDir)) copyInto(join(out, 'assets', 'connect', f), join(i.assetsConnectDir, f))
   for (const f of readdirSync(i.migrationsDir).filter((n) => n.endsWith('.sql'))) copyInto(join(out, 'migrations', f), join(i.migrationsDir, f))
