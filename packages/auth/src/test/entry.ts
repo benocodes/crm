@@ -4,7 +4,7 @@ import { hashPassword as scryptHash } from 'better-auth/crypto'
 import { createAuthHandler, hashPassword, verifyPassword } from '../index.js'
 
 interface Env {
-  DB: never
+  CONTROL_DB: never
   AUTH_SECRET: string
   PUBLIC_BASE_URL: string
   OPEN_ADMISSION?: string
@@ -31,7 +31,7 @@ export default {
       return Response.json({ ok: await verifyPassword({ hash, password: url.searchParams.get('password') ?? '' }) })
     }
     if (url.pathname.startsWith('/auth/')) {
-      const handler = createAuthHandler(env.DB, { secret: env.AUTH_SECRET, baseURL: env.PUBLIC_BASE_URL }, { unsafeOpenAdmissionForTests: env.OPEN_ADMISSION === '1' })
+      const handler = createAuthHandler(env.CONTROL_DB, { secret: env.AUTH_SECRET, baseURL: env.PUBLIC_BASE_URL }, { unsafeOpenAdmissionForTests: env.OPEN_ADMISSION === '1' })
       return handler(req)
     }
     return new Response('not found', { status: 404 })

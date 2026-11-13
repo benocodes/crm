@@ -7,6 +7,8 @@ import { Miniflare } from 'miniflare'
 import type { D1Like } from '../binding.js'
 
 export const MIGRATIONS_DIR = fileURLToPath(new URL('../../migrations', import.meta.url))
+/** The control-plane database's own compiled migrations ([[CORE259]] D4): a separate directory and a separate `d1_migrations` tracker. */
+export const CONTROL_MIGRATIONS_DIR = fileURLToPath(new URL('../../control-migrations', import.meta.url))
 
 /**
  * Splits a migration file into statements: a `;` at a line end is a boundary, except inside a `CREATE TRIGGER ... BEGIN ...
@@ -41,6 +43,14 @@ export async function applyMigrations(d1: D1Like, dir = MIGRATIONS_DIR): Promise
   return files
 }
 
+/** Applies the control-plane directory the way `wrangler d1 migrations apply` would, tracker included (the Worker gates a control database on its tracker). */
+export async function applyControlMigrations(d1: D1Like): Promise<string[]> {
+  const files = await applyMigrations(d1, CONTROL_MIGRATIONS_DIR)
+  await createMigrationTracker(d1)
+  await recordMigrations(d1, files)
+  return files
+}
+
 export interface LocalD1 {
   /** One binding per name; each is its own database (never two tenants in one D1). */
   readonly bindings: Readonly<Record<string, D1Like>>
@@ -48,7 +58,7 @@ export interface LocalD1 {
 }
 
 /** Starts local D1 databases `names`, migrated, and hands them to `fn`; always disposed. */
-export async function withLocalD1<T>(names: readonly string[], fn: (local: LocalD1) => Promise<T>, opts: { migrate?: boolean } = {}): Promise<T> {
+export async function withLocalD1<T>(names: readonly string[], fn: (local: LocalD1) => Promise<T>, opts: { migrate?: boolean; control?: readonly string[] } = {}): Promise<T> {
   const local = await openLocalD1(names, opts)
   try {
     return await fn(local)
@@ -58,7 +68,7 @@ export async function withLocalD1<T>(names: readonly string[], fn: (local: Local
 }
 
 /** Like `withLocalD1` for a suite that keeps the bindings across tests: the caller must `dispose()`. */
-export async function openLocalD1(names: readonly string[], opts: { migrate?: boolean } = {}): Promise<LocalD1> {
+export async function openLocalD1(names: readonly string[], opts: { migrate?: boolean; /** Names that are control-plane databases ([[CORE259]]): migrated from `control-migrations/` and tracked in their own `d1_migrations`. */ control?: readonly string[] } = {}): Promise<LocalD1> {
   const mf = new Miniflare({
     // OPS223 D6: an OS-assigned port, stated so a Miniflare upgrade that changes its default cannot reintroduce a fixed one (files run in parallel).
     port: 0,
@@ -70,7 +80,10 @@ export async function openLocalD1(names: readonly string[], opts: { migrate?: bo
     const bindings: Record<string, D1Like> = {}
     for (const name of names) {
       const d1 = (await mf.getD1Database(name)) as unknown as D1Like
-      if (opts.migrate !== false) await applyMigrations(d1)
+      if (opts.migrate !== false) {
+        if (opts.control?.includes(name)) await applyControlMigrations(d1)
+        else await applyMigrations(d1)
+      }
       bindings[name] = d1
     }
     return { bindings, dispose: () => mf.dispose() }

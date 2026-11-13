@@ -142,3 +142,5 @@ export function d1Binding(d1: D1Like, options: D1RuntimeOptions): D1Binding {
 }
 export { MIGRATIONS } from './migrations-manifest.js'
 export { compareMigrations, readMigrationState, type MigrationDiff, type MigrationState, type MigrationStatus } from './migration-state.js'
+export { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
+export { controlAuthDatabase, openControlDb, readControlMarker, readControlMigrations, writeControlMarker, type ControlDb } from './control-store.js'

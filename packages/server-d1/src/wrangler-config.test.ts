@@ -13,9 +13,16 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
   it('the top level is unchanged and local-only', () => {
     const c = unstable_readConfig({ config: CONFIG })
     expect(c.name).toBe('vb')
-    expect(c.d1_databases).toHaveLength(1)
+    // [[CORE259]] D1: the control-plane database beside the CRM one, each with its own migrations directory.
+    expect(c.d1_databases).toHaveLength(2)
+    expect(c.d1_databases[0]!.binding).toBe('DB')
     expect(c.d1_databases[0]!.database_name).toBe('vb-crm')
     expect(c.d1_databases[0]!.database_id).toBe(PLACEHOLDER)
+    expect(c.d1_databases[0]!.migrations_dir).toMatch(/storage-d1\/migrations$/)
+    expect(c.d1_databases[1]!.binding).toBe('CONTROL_DB')
+    expect(c.d1_databases[1]!.database_name).toBe('vb-control')
+    expect(c.d1_databases[1]!.database_id).toBe(PLACEHOLDER)
+    expect(c.d1_databases[1]!.migrations_dir).toMatch(/storage-d1\/control-migrations$/)
     expect(c.routes ?? []).toEqual([])
     expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vb-bodies' }])
     expect(c.account_id).toBeUndefined()
@@ -38,6 +45,13 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
     expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vault-smoked1-bodies' }])
     expect(c.vars).toEqual({ AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' })
     expect(c.account_id).toBeUndefined()
+  })
+
+  it('no deployed env binds CONTROL_DB yet (its database comes with OPS260), and each env keeps exactly its DB binding', () => {
+    for (const env of ['smoked1', 'hq']) {
+      const c = unstable_readConfig({ config: CONFIG, env })
+      expect(c.d1_databases.map((d) => d.binding), env).toEqual(['DB'])
+    }
   })
 
   it('names no reserved production hostname or environment (D23)', () => {

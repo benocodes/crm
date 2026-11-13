@@ -20,6 +20,19 @@ export async function openWorkerD1(): Promise<WorkerD1> {
   return { d1, reset: () => clearD1(d1), dispose: () => local.dispose() }
 }
 
+export interface WorkerPair extends WorkerD1 {
+  /** The control-plane database (`CONTROL_DB`, [[CORE259]]), migrated from `control-migrations/` with its own `d1_migrations` tracker. */
+  readonly control: D1Like
+}
+
+/** Two migrated in-memory Miniflare D1s for a test file: the CRM database and the control-plane database, each from its own directory. `reset()` empties both (trackers kept). */
+export async function openWorkerPair(): Promise<WorkerPair> {
+  const local: LocalD1 = await openLocalD1(['W', 'C'], { control: ['C'] })
+  const d1 = local.bindings.W!
+  const control = local.bindings.C!
+  return { d1, control, reset: async () => (await clearD1(d1), await clearD1(control)), dispose: () => local.dispose() }
+}
+
 export interface SqlLog {
   readonly statements: string[]
   clear(): void
