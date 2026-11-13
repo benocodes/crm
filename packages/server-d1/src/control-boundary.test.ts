@@ -9,7 +9,7 @@ import type { D1Binding } from '@vibase/storage'
 // [[CORE259]] D5: CONTROL_DB (and the control store) is reachable from composition and the control store only. The operation storage binding wraps DB only.
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url))
 
-/** Where the identifier may appear: the release tooling ([[OPS260]]: it names the CONTROL_DB binding to map it to control-migrations/, never opens it), the composition (Worker, bootstrap, their scripts) and the control store itself (and its package index, which re-exports it). */
+/** Where the identifier may appear: release tooling ([[OPS260]]: maps the CONTROL_DB binding to control-migrations/ and, in the local release:check only, reads its migration tracker; it is never composed into a Worker or reached by an operation), the composition (Worker, bootstrap, their scripts) and the control store itself (and its package index, which re-exports it). */
 export const ALLOWED = [/^server-d1\/src\/compose\.ts$/, /^server-d1\/src\/bootstrap-d1\.ts$/, /^server-d1\/scripts\//, /^storage-d1\/src\/control-store\.ts$/, /^storage-d1\/src\/index\.ts$/, /^release\/(src|scripts)\//]
 const REACH = /\bCONTROL_DB\b|\bopenControlDb\b|\bControlDb\b|\bcontrolAuthDatabase\b|control-store/
 
