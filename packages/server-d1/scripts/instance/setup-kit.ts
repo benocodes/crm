@@ -3,8 +3,9 @@
 // output looks, and a write changes the state the next read sees. Nothing reaches a network, an account or the repo's wrangler.
 import { existsSync, readFileSync } from 'node:fs'
 import type { WorkerD1 } from '../../src/test/kit.js'
+import { memoryControl } from '../setup/test/world.js'
 import { ISSUER, PK_TEST, SK_TEST, type FakeClerk } from '../setup/test/clerk-world.js'
-import { makeWorld, NO_TRACKER_JSON, SECRETS_TEXT, trackerJson, type World, type WorldOptions } from './test-kit.js'
+import { CONTROL_ALL, makeWorld, NO_TRACKER_JSON, SECRETS_TEXT, trackerJson, type World, type WorldOptions } from './test-kit.js'
 import type { OpenD1Options, RunResult } from './types.js'
 
 export const ALL_MIGRATIONS = ['0001_a.sql', '0002_b.sql']
@@ -29,6 +30,9 @@ export interface Sim {
   r2s: string[]
   /** `null`: no d1_migrations table. */
   applied: string[] | null
+  /** The control database's tracker (OPS279); `null`: no table. */
+  controlApplied: string[] | null
+  failControlApply?: boolean
   /** What `/health` shows; `null`: it does not answer. */
   deployed: { version: string; commit: string | null } | null
   marker: Marker | null
@@ -51,6 +55,8 @@ export interface SetupWorld {
   w: World
   sim: Sim
   d1: WorkerD1
+  /** The marker-only control database behind `CONTROL_DB`. */
+  control: ReturnType<typeof memoryControl>
   /** The settings file's text, or `null`. */
   settings(): string | null
   /** The commands that change something remote, by their wrangler argv. */
@@ -77,6 +83,8 @@ export async function readMarker(d1: WorkerD1['d1']): Promise<Marker | null> {
 export interface SetupWorldOptions extends Omit<WorldOptions, 'runner' | 'fetch' | 'openD1'> {
   sim?: Partial<Sim>
   d1: WorkerD1
+  /** Runs before the control marker is stored (OPS279), to look at the CRM database at that moment. */
+  onControlInsert?: (organizationId: string) => Promise<void>
   /** Overrides the runner for some calls: return a result to answer, `undefined` to fall through to the simulation. */
   intercept?: (args: string[], env: Record<string, string>, input?: string) => RunResult | undefined
   /** Overrides a fetch answer; `undefined` falls through. */
@@ -84,8 +92,9 @@ export interface SetupWorldOptions extends Omit<WorldOptions, 'runner' | 'fetch'
 }
 
 export function setupWorld(o: SetupWorldOptions): SetupWorld {
-  const sim: Sim = { d1s: [], r2s: [], applied: null, deployed: null, marker: null, secrets: [], bulk: [], zones: ['demo.invalid'], opened: [], ...o.sim }
+  const sim: Sim = { d1s: [], r2s: [], applied: null, controlApplied: null, deployed: null, marker: null, secrets: [], bulk: [], zones: ['demo.invalid'], opened: [], ...o.sim }
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+  const control = memoryControl(o.onControlInsert)
   const ok = (stdout: string): RunResult => ({ status: 0, stdout, stderr: '' })
   const health = (): Response => {
     if (sim.deployed === null) return new Response('', { status: 522 })
@@ -128,11 +137,24 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
       }
       if (has('d1', 'execute')) {
         const sql = a[a.indexOf('--command') + 1] ?? ''
+        if (a[a.indexOf('execute') + 1] === 'CONTROL_DB') {
+          if (/d1_migrations/.test(sql)) return sim.controlApplied === null ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' } : ok(trackerJson(sim.controlApplied))
+          if (/from control_deployment/.test(sql)) {
+            if (sim.controlApplied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: control_deployment' } }), stderr: '' }
+            const org = control.marker()
+            return ok(JSON.stringify([{ results: org ? [{ organization_id: org }] : [], success: true }]))
+          }
+        }
         if (/d1_migrations/.test(sql)) return sim.applied === null ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' } : ok(trackerJson(sim.applied))
         if (/from deployment/.test(sql)) {
           if (sim.applied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: deployment' } }), stderr: '' }
           return ok(JSON.stringify([{ results: sim.marker ? [sim.marker] : [], success: true }]))
         }
+      }
+      if (has('d1', 'migrations', 'apply') && a[a.indexOf('apply') + 1] === 'CONTROL_DB') {
+        if (sim.failControlApply) return { status: 1, stdout: '', stderr: 'control apply blew up' }
+        sim.controlApplied = [...CONTROL_ALL]
+        return ok('applied\n')
       }
       if (has('d1', 'migrations', 'apply')) {
         if (sim.failApply) return { status: 1, stdout: '', stderr: 'apply blew up' }
@@ -157,7 +179,7 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
     },
     openD1: async (opts: OpenD1Options) => {
       sim.opened.push({ opts, configText: existsSync(opts.configPath) ? readFileSync(opts.configPath, 'utf8') : null })
-      return { d1: o.d1.d1, dispose: async () => void (sim.marker = await readMarker(o.d1.d1)) }
+      return { d1: o.d1.d1, control, dispose: async () => void (sim.marker = await readMarker(o.d1.d1)) }
     },
   })
   const rows = () =>
@@ -169,6 +191,7 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
     w: world,
     sim,
     d1: o.d1,
+    control,
     settings: () => {
       try {
         return readFileSync(world.settingsPath, 'utf8')

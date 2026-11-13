@@ -103,6 +103,25 @@ export async function runRemoteGuards(
   return { target, proxy }
 }
 
+export interface BootstrapRun {
+  mode: 'local' | 'remote'
+  keyEnv?: string
+  values: Values
+  authOrgId: string
+  /** The remote target (`runRemoteGuards`); absent locally. */
+  target?: Target
+}
+export interface BootstrapIo {
+  log(line: string): void
+  error(line: string): void
+  readEnvText(): string
+  writeEnvText(text: string): void
+}
+/** OPS279: the body of `main` once the proxy is open, as a function a test can call. Returns the exit code. */
+export async function runBootstrap(_run: BootstrapRun, _proxy: { env: { DB: D1Like; CONTROL_DB?: D1Like } }, _io: BootstrapIo): Promise<number> {
+  throw new Error('not implemented')
+}
+
 function usage(message: string): never {
   console.error(`bootstrap: ${message}`)
   console.error(USAGE)
