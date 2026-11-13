@@ -5,7 +5,8 @@ import { parse } from 'jsonc-parser'
 import { PLACEHOLDER_DATABASE_ID, RemoteRefusal, resolveTarget } from '../remote.js'
 import { generateConfig, withGeneratedConfig } from './config.js'
 import { parseSettings } from './settings.js'
-import { ACCOUNT, cleanup, mkTmp, stagedPackage, TOKEN, UUID, validSettings } from './test-kit.js'
+import { unstable_readConfig } from 'wrangler'
+import { ACCOUNT, CONTROL_D1, cleanup, controlSettings, mkTmp, stagedPackage, TOKEN, UUID, validSettings } from './test-kit.js'
 
 afterEach(cleanup)
 const settings = (over: Record<string, unknown> = {}) => parseSettings(JSON.stringify(validSettings(over)), 'demo', '/s.json')
@@ -102,5 +103,34 @@ describe('D11 temp directory', () => {
     s.d1.id = PLACEHOLDER_DATABASE_ID
     expect(() => withGeneratedConfig({ packageDir: stagedPackage().dir, settings: s, tmpRoot: root }, () => 0)).toThrow(RemoteRefusal)
     expect(readdirSync(root)).toEqual([])
+  })
+})
+
+describe('OPS275 CONTROL_DB in the generated config', () => {
+  const cpaths = { ...paths, controlMigrations: '/pkg/control-migrations' }
+  it('with control_d1: two entries by binding, the recorded name and id, each its own directory; resolveTarget carries it', () => {
+    const c = generateConfig(base(), settings(controlSettings()), cpaths)
+    const by = (b: string) => c.d1_databases.find((d: any) => d.binding === b)
+    expect(c.d1_databases).toHaveLength(2)
+    expect(by('DB')).toEqual({ binding: 'DB', database_name: 'vault-demo', database_id: UUID, migrations_dir: '/pkg/migrations', remote: true })
+    expect(by('CONTROL_DB')).toEqual({ binding: 'CONTROL_DB', database_name: CONTROL_D1.name, database_id: CONTROL_D1.id, migrations_dir: '/pkg/control-migrations', remote: true })
+    expect(by('CONTROL_DB').database_name).not.toBe('vb-control-demo')
+    expect(resolveTarget(c, 'demo').control).toEqual({ databaseName: CONTROL_D1.name, databaseId: CONTROL_D1.id })
+  })
+  it('without control_d1: exactly today\'s single entry', () => {
+    expect(generateConfig(base(), settings(), cpaths).d1_databases).toEqual([{ binding: 'DB', database_name: 'vault-demo', database_id: UUID, migrations_dir: '/pkg/migrations', remote: true }])
+  })
+  it('the written config is read back by wrangler\'s own reader with both bindings and their installed directories', () => {
+    const pkg = stagedPackage()
+    withGeneratedConfig({ packageDir: pkg.dir, settings: settings(controlSettings()), tmpRoot: mkTmp() }, (p) => {
+      const c = unstable_readConfig({ config: p })
+      const by = (b: string) => c.d1_databases.find((d) => d.binding === b)!
+      expect(c.d1_databases.map((d) => d.binding).sort()).toEqual(['CONTROL_DB', 'DB'])
+      expect(by('DB').database_id).toBe(UUID)
+      expect(by('CONTROL_DB').database_id).toBe(CONTROL_D1.id)
+      expect(by('CONTROL_DB').database_name).toBe(CONTROL_D1.name)
+      expect(by('DB').migrations_dir).toBe(join(pkg.dir, 'migrations'))
+      expect(by('CONTROL_DB').migrations_dir).toBe(join(pkg.dir, 'control-migrations'))
+    })
   })
 })
