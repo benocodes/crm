@@ -1,7 +1,7 @@
 // `pnpm release:check [<cli tarball> <server tarball>]` ([[OPS210]] D8, [[OPS240]]): proves the two built packages, not the source. The tarballs default to
 // `packages/release/dist/vibase-cli-<v>.tgz` and `vibase-server-d1-<v>.tgz`. It extracts, scans, lays out and verifies each tarball, installs each into its OWN empty temp directory
 // outside the repo with `npm install` (the only network read: the public npm registry, for the server's wrangler; `--prefer-offline`, never the repo's node_modules), runs the
-// installed `vibase` and `vibase-server`, runs `npm exec --package <server tarball>`, resolves every `exports` entry, applies the installed migrations to a fresh local D1 with the installed
+// installed `vibase` and `vibase-server`, runs `npm exec --package <server tarball>`, resolves every `exports` entry, applies the installed migrations (CRM and control plane, each to its own local D1) with the installed
 // wrangler, and runs the installed Worker and assets in workerd (Miniflare 4, the repo's test harness). Nothing is published; no Cloudflare call or credential is involved.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
@@ -13,7 +13,9 @@ import { parse } from 'jsonc-parser'
 import { ReleaseRefusal } from '../src/errors.js'
 import { assertNoForbidden, envDatabaseIds } from '../src/forbidden.js'
 import { assertClientLayout, assertCommit, assertExportsResolve, assertServerLayout, CLIENT_MARKERS } from '../src/layout.js'
+import { checkConfig } from '../src/check-config.js'
 import { assertRelease, type ReleaseManifest } from '../src/manifest.js'
+import { readMigrationState, type D1Like } from '@vibase/storage-d1'
 import { verifySums } from '../src/pack.js'
 import { readReleaseVersion } from '../src/version.js'
 import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
@@ -161,15 +163,16 @@ export async function checkRelease(tarballs: { client: string; server: string },
 
     // 7. the installed migrations on a fresh local D1, applied by the installed wrangler.
     const base = parse(readFileSync(join(installed, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>
-    const dbId = base.d1_databases[0].database_id as string
+    const d1Entries = base.d1_databases as Array<{ binding: string; database_id: string }>
+    const dbId = d1Entries.find((d) => d.binding === 'DB')!.database_id
+    const controlId = d1Entries.find((d) => d.binding === 'CONTROL_DB')?.database_id as string
     const config = join(root, 'check.wrangler.jsonc')
-    writeFileSync(
-      config,
-      JSON.stringify({ ...base, main: join(installed, 'worker', 'worker.js'), assets: { ...base.assets, directory: join(installed, 'assets') }, d1_databases: base.d1_databases.map((d: object) => ({ ...d, migrations_dir: join(installed, 'migrations') })) }),
-    )
+    writeFileSync(config, JSON.stringify(checkConfig(base, installed)))
     const persist = join(root, 'state')
+    // The control database first, as `db:migrate:remote` does ([[OPS260]] D14), each from its own directory by binding.
+    sh(wranglerBin, ['d1', 'migrations', 'apply', 'CONTROL_DB', '--local', '--persist-to', persist, '-c', config], root, wranglerEnv())
     sh(wranglerBin, ['d1', 'migrations', 'apply', 'DB', '--local', '--persist-to', persist, '-c', config], root, wranglerEnv())
-    log(`applied ${manifest.migrations.length} migrations from the installed package to a fresh local D1`)
+    log(`applied ${manifest.control_migrations.length} control migrations to CONTROL_DB (vb-control) and ${manifest.migrations.length} migrations to DB (vb-crm) from the installed package, each from its own directory, to two fresh local D1s`)
 
     // 8. the installed Worker and assets in workerd (the repo's Miniflare 4, as smoke:worker uses: wrangler 4.149.0's own Miniflare is a 5.x alpha with another API), VERSION and COMMIT from release.json.
     const workerDir = join(installed, 'worker')
@@ -181,7 +184,7 @@ export async function checkRelease(tarballs: { client: string; server: string },
       compatibilityDate: manifest.compatibility_date,
       // The flags the installed base config carries, as a deploy would apply them ([[CORE243]] D2): a base config without nodejs_compat fails here, as it would remotely.
       compatibilityFlags: (base.compatibility_flags as string[] | undefined) ?? [],
-      d1Databases: { DB: dbId },
+      d1Databases: { DB: dbId, CONTROL_DB: controlId },
       d1Persist: join(persist, 'v3', 'd1'),
       r2Persist: false,
       r2Buckets: ['BODIES'],
@@ -198,6 +201,12 @@ export async function checkRelease(tarballs: { client: string; server: string },
       const ok = res.status === 200 && health.status === 'ok' && health.version === manifest.version && health.commit === manifest.commit && health.migrations?.status === 'current'
       if (!ok) throw new ReleaseRefusal(`/health from the installed Worker is wrong (${res.status}): ${JSON.stringify(health)}`)
       log(`/health ${JSON.stringify(health)}`)
+      // Both databases, read through the workerd bindings the Worker gets, each against its own list in release.json: applied equals shipped, exactly.
+      for (const [binding, shipped] of [['DB', manifest.migrations], ['CONTROL_DB', manifest.control_migrations]] as const) {
+        const state = await readMigrationState((await mf.getD1Database(binding)) as unknown as D1Like, shipped.map((m) => m.name))
+        if (state.status !== 'current') throw new ReleaseRefusal(`the ${binding} tracker the installed Worker sees is ${state.status}, expected current (${shipped.length} migrations)`)
+        log(`${binding} tracker: current (${state.applied.length} applied = ${shipped.length} shipped)`)
+      }
       const connect = await fetch(new URL('/connect', url), { redirect: 'manual' })
       const connectJs = await fetch(new URL('/connect/connect.js', url))
       if (connect.status !== 200 || connectJs.status !== 200) throw new ReleaseRefusal(`/connect is not served: /connect ${connect.status}, /connect/connect.js ${connectJs.status}`)

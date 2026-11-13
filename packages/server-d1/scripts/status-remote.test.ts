@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { MIGRATIONS } from '@vibase/storage-d1'
+import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
 import { RemoteRefusal, formatMigrationDiff, parseTrackerOutput, statusExitCode, statusOf, trackerReadCommand } from './remote.js'
 import { EXPECTED, runStatus, type StatusDeps } from './status-remote.js'
 
@@ -92,5 +92,61 @@ describe('the diff and the exit code (D7, D9)', () => {
   it('statusExitCode and formatMigrationDiff agree with statusOf', () => {
     expect(statusExitCode(statusOf(EXPECTED, EXPECTED))).toBe(0)
     expect(formatMigrationDiff(null, EXPECTED)).toHaveLength(1)
+  })
+})
+
+// [[OPS260]] D4, D14: the control database beside the CRM one. Control tracker state x CRM state; exit 0 only for (no entry | current) x current; every refusal names its database.
+describe('db:status:remote per database (OPS260 matrix)', () => {
+  const CONTROL_UUID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+  const rows = (names: string[]) => JSON.stringify([{ results: names.map((name) => ({ name })), success: true }])
+  const CONTROL = CONTROL_MIGRATIONS.map((m) => m.name)
+  const controlOutput = {
+    none: null,
+    unknown: fixture('d1-execute-missing-table.json'),
+    behind: rows([]),
+    current: rows(CONTROL),
+    ahead: rows([...CONTROL, '0099_from_the_future.sql']),
+  } as const
+  const crmOutput = { current: rows(EXPECTED), behind: rows(EXPECTED.slice(0, -1)) } as const
+  const run = (control: keyof typeof controlOutput, crm: keyof typeof crmOutput) => {
+    const calls: string[] = []
+    const out: string[] = []
+    const withControl = { ...config, d1_databases: [...config.d1_databases, { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true }] }
+    const d: StatusDeps = {
+      loadEnv: () => {},
+      readConfig: () => (control === 'none' ? config : withControl),
+      exec: (cmd) => {
+        calls.push(cmd.args.join(' '))
+        return { status: 0, stdout: cmd.args.includes('CONTROL_DB') ? controlOutput[control]! : crmOutput[crm] }
+      },
+      log: (l) => void out.push(l),
+    }
+    const code = runStatus(['--env', 'smoked1'], { CONFIRM_REMOTE: '1' }, d)
+    return { code, out: out.join('\n'), calls }
+  }
+  const cases = (['none', 'unknown', 'behind', 'current', 'ahead'] as const).flatMap((c) => (['current', 'behind'] as const).map((m) => [c, m] as const))
+  it.each(cases)('control %s x crm %s', (control, crm) => {
+    const r = run(control, crm)
+    const ok = (control === 'none' || control === 'current') && crm === 'current'
+    expect(r.code).toBe(ok ? 0 : 1)
+    if (crm === 'behind') expect(r.out).toMatch(/\[crm\] migrations: behind/)
+    if (crm === 'current') expect(r.out).toMatch(/\[crm\] migrations: current/)
+    if (control === 'none') {
+      expect(r.out).toContain('control plane: not configured for env smoked1')
+      expect(r.calls.some((c) => c.includes('CONTROL_DB'))).toBe(false)
+    } else {
+      expect(r.out).toContain(`[control] migrations: ${control}`)
+      expect(r.calls.some((c) => c.includes('CONTROL_DB') && c.includes('--remote') && c.includes('--env smoked1'))).toBe(true)
+    }
+  })
+  it('the control database with no d1_migrations table is unknown, not current (the empty state)', () => {
+    const r = run('unknown', 'current')
+    expect(r.code).toBe(1)
+    expect(r.out).toContain('[control] migrations: unknown (no d1_migrations table;')
+  })
+  it('control ahead names the extra file and is not current', () => {
+    const r = run('ahead', 'current')
+    expect(r.code).toBe(1)
+    expect(r.out).toContain('extra    0099_from_the_future.sql')
   })
 })

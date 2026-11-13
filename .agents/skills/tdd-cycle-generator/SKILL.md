@@ -143,6 +143,11 @@ gate; the budget holds. The calls went to harness rewrites in three packages for
 binding or a database, (1) list every harness and test that composes the Worker in Watch out, and (2) add an obligation against
 the **real** `wrangler.jsonc` (`getPlatformProxy`), not only the test kit's own Miniflare: the shared placeholder
 `database_id` that made the two databases one locally passed every kit-based test and was caught only at review.
+**OPS260** (`knowledge/specs/015-OPS260-two-database-tooling/RETRO.md`): 5 groups (1 matrix), 5 decisions, 1 migration, no E2E,
+cost ~374k tokens / 75 calls over three runs (the first ran out of context at 204k after 47 calls, before a green gate). Few
+calls, many tokens: a real `release:build` + `release:check` run and full-suite output fill the context. The budget holds; when a
+charter asks for such a run, say "capture the output to a file, quote the decisive lines", and for a migration that drops or
+moves tables, Watch out says "grep every package for the names" rather than listing the files the planner found.
 
 ### Step 3: Resolve identities
 

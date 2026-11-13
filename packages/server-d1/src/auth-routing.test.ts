@@ -81,7 +81,6 @@ describe('the shipped composition admits nobody (P1)', () => {
     expect(reg.status).toBeLessThan(500)
     for (const t of ['auth_users', 'auth_accounts', 'auth_sessions', 'auth_oauth_clients']) {
       expect(await w.controlRows(`select * from ${t}`), t).toEqual([])
-      expect(await w.rows(`select * from ${t}`), t).toEqual([])
     }
   })
 })
@@ -97,7 +96,9 @@ describe('Better Auth uses the control database, never the CRM one (D3)', () => 
     expect(res.status).toBe(200)
     expect(((await res.json()) as { keys: unknown[] }).keys.length).toBeGreaterThan(0)
     expect((await w.controlRows<{ id: string }>('select id from auth_jwks')).length).toBeGreaterThan(0)
-    for (const t of AUTH_TABLES_IN_CRM) expect(await w.rows(`select * from ${t}`), `CRM ${t}`).toEqual([])
+    // [[OPS260]] 0019 dropped the dormant CRM copies: the tables are gone, so nothing can gain a row.
+    const present = await w.rows<{ name: string }>(`select name from sqlite_master where type = 'table' and name like 'auth\\_%' escape '\\'`)
+    expect(present.filter((r) => AUTH_TABLES_IN_CRM.includes(r.name)), 'CRM auth_* tables').toEqual([])
   })
 
   it('the Worker with no CONTROL_DB binding refuses (500, the log names CONTROL_DB) and /health stays 200', async () => {
