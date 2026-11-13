@@ -85,19 +85,24 @@ describe('scopes (D30)', () => {
 })
 
 describe('discovery (D40): OpenAPI, the tool list and the manifest carry the same names', () => {
-  it('every tenant operation in OpenAPI carries x-vault-proposal, and the operation enum lists the eligible names', async () => {
+  it('every tenant operation in OpenAPI carries x-vibase-proposal (and the document names no x-vault-proposal), and the operation enum lists the eligible names', async () => {
     const app = createApp({ storage: coldStorage(), registry })
+    let tenantSeen = 0
     for (const surface of ['api', 'meta']) {
-      const doc = (await (await app.request(`/${surface}/v1/openapi.json`)).json()) as any
+      const text = await (await app.request(`/${surface}/v1/openapi.json`)).text()
+      expect(text, `${surface} document`).not.toContain('x-vault-proposal')
+      const doc = JSON.parse(text) as any
       for (const [path, item] of Object.entries<any>(doc.paths)) {
         for (const method of ['get', 'post', 'patch', 'delete']) {
           const op = item[method]
           if (!op) continue
           const real = registry.get(op.operationId)!
-          expect(op['x-vault-proposal'], `${method} ${path}`).toEqual(real.kind === 'tenant' ? proposalMeta(real) : undefined)
+          if (real.kind === 'tenant') tenantSeen++
+          expect(op['x-vibase-proposal'], `${method} ${path}`).toEqual(real.kind === 'tenant' ? proposalMeta(real) : undefined)
         }
       }
     }
+    expect(tenantSeen).toBeGreaterThan(50)
     const api = (await (await app.request('/api/v1/openapi.json')).json()) as any
     const enumOf = (schema: any): string[] => schema.properties.operation.enum
     const body = api.paths['/api/v1/action-requests'].post.requestBody.content['application/json'].schema

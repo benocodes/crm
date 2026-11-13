@@ -120,6 +120,8 @@ const input = z.strictObject({
   guard_task: z.uuid().optional(),
   /** A token whose authorise refuses from its second use on (a retracted anchor after the send). */
   once: z.string().max(50).optional(),
+  /** Authorise without a `clientRefDomain`: the default domain applies ([[OPS265]] D13). */
+  no_domain: z.boolean().optional(),
 })
 
 /** The three enqueued test operations, registered before the queue's so `action_requests.create` lists them. */
@@ -139,7 +141,7 @@ export function registerTestOperations(registry: Registry): void {
       const guardTask = args.guard_task as string | undefined
       return {
         resolution: { anchor: (args.anchor as string | undefined) ?? 'anchor-1' },
-        clientRefDomain: 'test.invalid',
+        ...(args.no_domain === true ? {} : { clientRefDomain: 'test.invalid' }),
         ...(guardTask ? { guards: () => [sql<boolean>`exists (select 1 from "tasks" where "tasks"."id" = ${guardTask} and "tasks"."deleted_at" is null)` as never] } : {}),
       }
     },

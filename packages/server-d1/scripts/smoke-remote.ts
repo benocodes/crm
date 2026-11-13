@@ -114,13 +114,19 @@ async function after(base: string, version: string, key: string): Promise<void> 
   console.log(`load: p50=${percentile(times, 50).toFixed(0)}ms p95=${percentile(times, 95).toFixed(0)}ms max=${times[times.length - 1]!.toFixed(0)}ms`)
 }
 
+/** The operator key of the smoked1 instance, from the environment ([[OPS265]] D15). */
+export function operatorKeyOf(env: NodeJS.ProcessEnv): string {
+  const key = env.VAULT_SMOKED1_OPERATOR_KEY
+  if (!key) throw new RemoteRefusal('VAULT_SMOKED1_OPERATOR_KEY must be set in .env for --phase after')
+  return key
+}
+
 async function main(): Promise<void> {
   const args = parseSmokeArgs(process.argv.slice(2))
   if (args.phase === 'before') await before(args.base, args.expectVersion)
   else {
     loadRootEnv()
-    const key = process.env.VAULT_SMOKED1_OPERATOR_KEY
-    if (!key) throw new RemoteRefusal('VAULT_SMOKED1_OPERATOR_KEY must be set in .env for --phase after')
+    const key = operatorKeyOf(process.env)
     await after(args.base, args.expectVersion, key)
   }
   if (failed > 0) {

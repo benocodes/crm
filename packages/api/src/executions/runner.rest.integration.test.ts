@@ -93,6 +93,20 @@ describe('the happy path and the machinery (D53, D56)', () => {
   })
 })
 
+describe('OPS265 D13: a stored client_ref is history, the runner uses it as stored', () => {
+  it('a queued execution whose row holds a @vault.invalid client_ref reaches the transport with that exact value on the first and a retried attempt', async () => {
+    const id = await enqueue('reconcile', { no_domain: true })
+    const stored = `${id}@vault.invalid`
+    await k.d1.prepare(`update action_executions set client_ref = ? where id = ?`).bind(stored, id).run()
+    k.transport.willDispatch({ kind: 'not_sent', code: 'retryable' }, { kind: 'sent' })
+    await k.run(id)
+    k.setNow(at(60))
+    expect(await k.run(id)).toMatchObject({ outcome: 'done' })
+    expect(k.transport.dispatches.map((d) => d.clientRef)).toEqual([stored, stored])
+    expect((await row(id)).client_ref).toBe(stored)
+  })
+})
+
 describe('lease and stale finisher (D28)', () => {
   it('two runs racing: one claims and dispatches, the other is skipped while the first is mid-dispatch', async () => {
     const id = await enqueue()

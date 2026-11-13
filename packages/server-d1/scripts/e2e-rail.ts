@@ -34,11 +34,17 @@ export function parseArgsOf(argv: string[]): { base: string; expectVersion: stri
   return { base: values.base.replace(/\/+$/, ''), expectVersion: values['expect-version'], waitSeconds: Number(values['wait-seconds'] ?? 240) }
 }
 
+/** The key of the smoked1 rail check: the rail agent's, else the operator's ([[OPS265]] D15). */
+export function railKeyOf(env: NodeJS.ProcessEnv): string {
+  const key = env.VAULT_SMOKED1_RAIL_KEY || env.VAULT_SMOKED1_OPERATOR_KEY
+  if (!key) throw new RemoteRefusal('VAULT_SMOKED1_RAIL_KEY or VAULT_SMOKED1_OPERATOR_KEY must be set in .env')
+  return key
+}
+
 async function main(): Promise<void> {
   const args = parseArgsOf(process.argv.slice(2))
   loadRootEnv()
-  const key = process.env.VAULT_SMOKED1_RAIL_KEY || process.env.VAULT_SMOKED1_OPERATOR_KEY
-  if (!key) throw new RemoteRefusal('VAULT_SMOKED1_RAIL_KEY or VAULT_SMOKED1_OPERATOR_KEY must be set in .env')
+  const key = railKeyOf(process.env)
   const { base } = args
 
   const health = await call(base, 'GET', '/health', null)

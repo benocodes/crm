@@ -64,6 +64,12 @@ describe('direct enqueue and idempotency (D51)', () => {
     expect(k.starts).toBe(1)
   })
 
+  it('OPS265 D13: an execution authorised with no clientRefDomain stores the default {execution_id}@vibase.invalid', async () => {
+    const r = await k.enqueue(writer, { text: 'x', no_domain: true, idempotency_key: 'k-default' })
+    expect(r.status).toBe(202)
+    expect((await k.exec(r.body.id)).client_ref).toBe(`${r.body.id}@vibase.invalid`)
+  })
+
   it('the same key and the same input answer the same execution and write nothing (key order does not matter)', async () => {
     const first = await k.enqueue(writer, { text: 'x', anchor: 'a', idempotency_key: 'k1' })
     const eventsBefore = (await k.events()).length
