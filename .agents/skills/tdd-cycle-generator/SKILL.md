@@ -354,3 +354,12 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    asked for an absence mutation of "`packages/release`'s forbidden list", which names no package (it scans for
    secrets); the coder had to find the real guards. When the grep finds nothing, name the property instead and let
    the coder find its guards (`knowledge/specs/015-OPS262-vibase-rename/RETRO.md`).
+9. **A charter revised mid-cycle names the stop point and what survives.** When a design decision changes while the
+   coder is working, the coder stops at a commit, and the planner revises the spec (changelog and Ledger) and the
+   charter in place, never in a second plan file. The revised charter opens with a **Revised** block. That block
+   names the sha the coder stopped at and sorts the work into **Stays as built** (with the red runs and mutations
+   that still count), **Reworked** (whose existing tests must be seen red again against the new source) and **New**.
+   Re-check the Size line, and split out whatever no longer fits. Expect the resumed run to cost about as much as a
+   fresh one: in [[OPS237]] the continuation took 210k tokens against the initial run's 140k. Give any fixture the
+   revision introduces the same "what moves it" check (`writing-tests` §4); OPS237's only review finding came from
+   one (`knowledge/specs/014-OPS237-release-ci-docs/RETRO.md`).

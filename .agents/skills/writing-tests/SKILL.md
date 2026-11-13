@@ -379,6 +379,14 @@ One program, two engines: the same assertions run on Postgres and D1.
   run a full package suite with `pnpm -C packages/<pkg> test` (the script passes `--config ../../vitest.config.ts`), never a
   bare `vitest run` in the package, which also collects `*.postgres.test.ts` and fails them (32 false failures in the
   [[CORE202]] review; `execute-cycle` §5).
+- **Don't assert on a repo value that a routine change moves.** [[OPS237]]'s scratch `changeset version` test read
+  the start version from the workspace `package.json`s and expected `0.1.0 → 0.1.1`. The first merged Version
+  Packages PR would have turned it red on `main`. Before asserting on anything read from the live tree (the product
+  version, a lockfile entry, the migration count, today's date), name the routine change that moves it. Then pin the
+  value in the fixture (write `START` into the scratch copy) or assert the relation (`bumped = start + patch`). Prove
+  it by setting the real value to something else and rerunning (`knowledge/specs/014-OPS237-release-ci-docs/RETRO.md`).
+  The same goes for a third-party name that drifts by major version: `changesets/action` v2 calls its publish input
+  `publish-script`, so the shape test matches `/publish/i` rather than one exact key.
 - **A boundary comment needs a boundary fixture.** A test that says "exactly the limit is allowed" must seed values that
   reach the limit exactly; [[CORE202]]'s summed a single `0` (#208). And a guard against a numeric limit computed in the
   engine runs after the engine's own arithmetic: `abs(sum(x)) > 2^53−1` never sees an int64 overflow, because `sum()`
