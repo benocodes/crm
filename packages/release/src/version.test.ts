@@ -71,6 +71,9 @@ export function configProblems(root: string): string[] {
   return out
 }
 
+const START = '0.1.0'
+const BUMPED = '0.1.1'
+
 /** Copies the workspace manifests and the changesets config to a scratch git repository, adds one fixture changeset for `@vibase/server-d1`, runs `changeset version`, returns each package.json's version afterwards and the files that changed. */
 export function scratchVersion(mutate: (c: Record<string, any>) => void = () => {}): { versions: Record<string, string | undefined>; changed: string[] } {
   const dir = tmp('ops237-scratch-')
@@ -79,6 +82,11 @@ export function scratchVersion(mutate: (c: Record<string, any>) => void = () => 
   for (const d of pkgDirs(REPO)) {
     mkdirSync(join(dir, 'packages', d), { recursive: true })
     cpSync(join(REPO, 'packages', d, 'package.json'), join(dir, 'packages', d, 'package.json'))
+  }
+  // The scratch copy starts from a pinned version, not the repository's: the tests prove the group's behaviour, so they must not depend on where the release is.
+  for (const d of ['cli', 'server-d1']) {
+    const f = join(dir, 'packages', d, 'package.json')
+    writeFileSync(f, JSON.stringify({ ...json(f), version: START }))
   }
   const cfg = json(join(dir, '.changeset', 'config.json'))
   mutate(cfg)
@@ -115,14 +123,14 @@ describe('the changesets configuration (D25)', () => {
 describe('changeset version in a scratch copy (D25)', () => {
   it('one changeset on @vibase/server-d1 bumps both packages together and touches no other package.json', () => {
     const { versions, changed } = scratchVersion()
-    expect(versions['@vibase/server-d1']).toBe('0.1.1')
-    expect(versions['@vibase/cli']).toBe('0.1.1')
+    expect(versions['@vibase/server-d1']).toBe(BUMPED)
+    expect(versions['@vibase/cli']).toBe(BUMPED)
     expect(changed.filter((f) => f.endsWith('package.json')).sort()).toEqual(['packages/cli/package.json', 'packages/server-d1/package.json'])
     expect(changed.filter((f) => !f.endsWith('package.json')).sort()).toEqual(['packages/cli/CHANGELOG.md', 'packages/server-d1/CHANGELOG.md'])
   })
   it('mutation: with @vibase/cli dropped from the fixed group the client is left behind (so the check above would be red)', () => {
     const { versions } = scratchVersion((c) => { c.fixed = [['@vibase/server-d1']] })
-    expect(versions['@vibase/server-d1']).toBe('0.1.1')
-    expect(versions['@vibase/cli']).toBe('0.1.0')
+    expect(versions['@vibase/server-d1']).toBe(BUMPED)
+    expect(versions['@vibase/cli']).toBe(START)
   })
 })
