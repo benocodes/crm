@@ -81,6 +81,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     in one Miniflare (`workers: [...]`), each with an `outboundService` that routes the other's host to
     `mf.getWorker(name).fetch`; forward the request body as text (a stream body needs `duplex: 'half'`). Rebinding a
     secret learned mid-run (the webhook secret) is `mf.setOptions`; persisted D1, R2 and Workflow state survive it.
+    Script code imports `miniflare` from its own pinned devDependency (4.x), never wrangler's transitive copy: wrangler
+    4.149.0 depends on a Miniflare 5.x alpha with a different constructor. `release:check` ([[OPS210]]) runs the
+    *installed* package's `worker/`, `assets/` and migrations in that Miniflare 4; the installed wrangler applies the
+    migrations (`d1 migrations apply --local --persist-to <dir>`) and Miniflare reads `<dir>/v3/d1`.
   - The bundle needs **no `nodejs_compat`** (Web Crypto only). Keep Node built-ins out of `@vault/api` production
     code; the smoke is the check. A package whose entry imports Node built-ins at top level (`chat@4.43.0`) is
     a devDependency imported type-only; `production-boundary.test.ts` enforces that for `chat` ([[CORE69]] D25).

@@ -193,6 +193,8 @@ pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need 
 pnpm -C packages/api golden:generate               # and golden:check; goldens generated on D1 (Miniflare), review the fixture diff
 pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the /connect page first
+pnpm release:build [--allow-dirty]                 # the release package packages/release/dist/vibase-<version>.tgz (OPS210); refuses a dirty tree unless --allow-dirty (commit <sha>-dirty); nothing published; not in the gate
+pnpm release:check [<tarball>]                     # verifies and scans the tarball, npm-installs it outside the repo (public registry read), runs the installed CLI, migrations and Worker in workerd; not in the gate
 pnpm -C packages/server-d1 build                   # the connect page (UI30) into dist/assets/connect/; `dev` runs it before `wrangler dev --local`
 pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
