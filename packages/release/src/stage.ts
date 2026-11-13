@@ -15,6 +15,8 @@ export interface StageInput {
   node: string
   /** The bundled client CLI. */
   cliJs: string
+  /** The bundled `vibase instance` commands, shipped beside the client as `cli/instance.js` ([[OPS231]] D12). */
+  instanceJs: string
   /** The built Worker entry, copied to `worker/worker.js` (the source map and README of wrangler's outdir are not shipped). */
   workerEntry: string
   /** The built `connect/` directory, copied to `assets/connect/`. */
@@ -65,6 +67,7 @@ const copyInto = (dest: string, src: string) => {
 export function stageRelease(i: StageInput): ReleaseManifest {
   const out = i.outDir
   copyInto(join(out, 'cli', 'vibase.js'), i.cliJs)
+  copyInto(join(out, 'cli', 'instance.js'), i.instanceJs)
   copyInto(join(out, 'worker', 'worker.js'), i.workerEntry)
   for (const f of readdirSync(i.assetsConnectDir)) copyInto(join(out, 'assets', 'connect', f), join(i.assetsConnectDir, f))
   for (const f of readdirSync(i.migrationsDir).filter((n) => n.endsWith('.sql'))) copyInto(join(out, 'migrations', f), join(i.migrationsDir, f))

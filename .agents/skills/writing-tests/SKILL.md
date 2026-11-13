@@ -212,6 +212,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   KEY-----"`; the rule became "header followed by a key body" with a test for the bare header ([[OPS210]],
   `packages/release/src/forbidden.ts`). Match the secret's shape (header plus body, prefix plus value), and keep
   the clean-pass case on the real output in the charter's run.
+- **A bundle loaded at run time is proven by running the installed artifact.** Unit tests import the
+  TypeScript source, so they cannot see a broken bundle. `cli/instance.js` passed every suite. It then failed when installed,
+  with "Dynamic require of ./impl/format": esbuild took `jsonc-parser`'s UMD `main` into an ESM bundle. The fix is
+  `mainFields: ['module', 'main']`. Only `release:check`'s step that runs the installed `vibase instance` caught it ([[OPS231]],
+  `packages/server-d1/scripts/instance/build.ts`). For every new bundle a release ships, run it from the install.
+- **"A secret is never printed" is tested with a fake child that fails and echoes its whole environment.**
+  Assert that no value appears in stdout, stderr, any refusal or the generated files. The mutation that
+  proves the test is one that writes a secret into the generated config ([[OPS231]],
+  `packages/server-d1/scripts/instance/status.test.ts`).
 - **A rule that compares against stored state gets a test for "no stored state"**: a guard that is silent
   when there is no row to compare is where it leaks ([[CORE29]]).
 - **A pinned behaviour is a spec decision.** Tests assert the contract the spec writes down (statuses,

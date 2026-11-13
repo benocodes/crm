@@ -195,6 +195,7 @@ pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--age
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the /connect page first
 pnpm release:build [--allow-dirty]                 # the release package packages/release/dist/vibase-<version>.tgz (OPS210); refuses a dirty tree unless --allow-dirty (commit <sha>-dirty); nothing published; not in the gate
 pnpm release:check [<tarball>]                     # verifies and scans the tarball, npm-installs it outside the repo (public registry read), runs the installed CLI, migrations and Worker in workerd; not in the gate
+vibase instance status --env <name> [--settings <p>] [--secrets-file <p>]  # from an installed release package only (OPS231): verify, settings ~/.config/vibase/instances/<env>.json + <env>.env (mode 600), /health and a read-only tracker select; exit 0 current, 1 behind, 2 refused; reads a remote env, so agents run it only where that env is theirs
 pnpm -C packages/server-d1 build                   # the connect page (UI30) into dist/assets/connect/; `dev` runs it before `wrangler dev --local`
 pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate

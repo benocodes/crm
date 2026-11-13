@@ -1,10 +1,10 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'jsonc-parser'
 import { sources } from './fixtures.js'
-import { listFiles } from './manifest.js'
+import { listFiles, verifyRelease } from './manifest.js'
 import { deriveBaseConfig, publishedPackageJson, readWranglerVersion, stageRelease } from './stage.js'
 
 const SERVER_D1_PKG = new URL('../../server-d1/package.json', import.meta.url).pathname
@@ -19,9 +19,24 @@ describe('D3 layout (cycle-1 subset)', () => {
     dirs.push(s.root, outDir)
     stageRelease({ ...s, outDir })
     expect(listFiles(outDir)).toEqual([
-      'LICENSE', 'README.md', 'assets/connect/connect.js', 'assets/connect/index.html', 'cli/vibase.js',
+      'LICENSE', 'README.md', 'assets/connect/connect.js', 'assets/connect/index.html', 'cli/instance.js', 'cli/vibase.js',
       'migrations/0001_a.sql', 'migrations/0002_b.sql', 'package.json', 'release.json', 'worker/worker.js', 'wrangler.base.jsonc',
     ])
+  })
+})
+
+describe('D12 cli/instance.js', () => {
+  it('is staged and covered by release.json files (so verify refuses a tampered or removed one)', () => {
+    const s = sources()
+    const outDir = mkdtempSync(join(tmpdir(), 'ops231-out-'))
+    dirs.push(s.root, outDir)
+    const manifest = stageRelease({ ...s, outDir })
+    expect(Object.keys(manifest.files)).toContain('cli/instance.js')
+    expect(verifyRelease(outDir)).toEqual([])
+    writeFileSync(join(outDir, 'cli', 'instance.js'), 'tampered')
+    expect(verifyRelease(outDir)).toEqual([{ path: 'cli/instance.js', kind: 'mismatch' }])
+    rmSync(join(outDir, 'cli', 'instance.js'))
+    expect(verifyRelease(outDir)).toEqual([{ path: 'cli/instance.js', kind: 'missing' }])
   })
 })
 

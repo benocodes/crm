@@ -10,6 +10,7 @@ import { parse } from 'jsonc-parser'
 import { MIGRATIONS } from '@vault/storage-d1'
 import { buildCli } from '../../cli/scripts/build.js'
 import { buildConnect } from '../../server-d1/scripts/build-connect.js'
+import { buildInstance } from '../../server-d1/scripts/instance/build.js'
 import { envDatabaseIds, assertNoForbidden } from '../src/forbidden.js'
 import { releaseCommit } from '../src/git.js'
 import { assertRelease } from '../src/manifest.js'
@@ -32,6 +33,8 @@ export async function buildRelease(opts: { allowDirty?: boolean } = {}): Promise
   try {
     const cliJs = join(work, 'cli', 'vibase.js')
     await buildCli({ outfile: cliJs })
+    const instanceJs = join(work, 'cli', 'instance.js')
+    await buildInstance({ outfile: instanceJs })
     const assets = join(work, 'assets')
     await buildConnect(assets)
     const migrationsDir = join(REPO, 'packages', 'storage-d1', 'migrations')
@@ -50,6 +53,7 @@ export async function buildRelease(opts: { allowDirty?: boolean } = {}): Promise
       compatibilityDate: (parse(sourceConfig) as { compatibility_date: string }).compatibility_date,
       node: '>=22',
       cliJs,
+      instanceJs,
       workerEntry: join(work, 'wout', 'worker.js'),
       assetsConnectDir: join(assets, 'connect'),
       migrationsDir,
