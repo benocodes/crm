@@ -5,8 +5,10 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import type { D1Like } from '@vault/storage-d1'
 import { runStatus, EXIT_REFUSED } from './status.js'
+import { runSetup } from './setup.js'
 import { runUpgrade } from './upgrade.js'
 import { InstanceRefusal, type InstanceDeps, type RunResult } from './types.js'
 
@@ -51,8 +53,30 @@ export function realDeps(io: { stdout(t: string): void; stderr(t: string): void;
       } catch (e) {
         throw new InstanceRefusal(`cannot resolve the wrangler of the installed package at ${packageDir}: ${e instanceof Error ? e.message : 'not found'}: reinstall it`)
       }
-      const r = spawnSync(process.execPath, [bin, ...args], { cwd: opts.cwd, env: opts.env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+      const r = spawnSync(process.execPath, [bin, ...args], { cwd: opts.cwd, env: opts.env, input: opts.input, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
       return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
+    },
+    openD1: async (o) => {
+      // The installed package's own wrangler, resolved like its bin (never the repo's, never a global); the module is loaded only here, so no other command pays for it.
+      let entry: string
+      try {
+        entry = createRequire(join(packageDir, 'package.json')).resolve('wrangler')
+      } catch (e) {
+        throw new InstanceRefusal(`cannot resolve the wrangler of the installed package at ${packageDir}: ${e instanceof Error ? e.message : 'not found'}: reinstall it`)
+      }
+      const { getPlatformProxy } = (await import(pathToFileURL(entry).href)) as { getPlatformProxy: (o: { configPath: string; persist: false; remoteBindings: true }) => Promise<{ env: { DB: D1Like }; dispose(): Promise<void> }> }
+      // The proxy reads the Cloudflare credentials from this process while it lives; they are put back when it is disposed, and never printed.
+      const names = ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'] as const
+      const before = names.map((n) => process.env[n])
+      const restore = () => names.forEach((n, i) => (before[i] === undefined ? delete process.env[n] : (process.env[n] = before[i])))
+      for (const n of names) process.env[n] = o.env[n]
+      try {
+        const proxy = await getPlatformProxy({ configPath: o.configPath, persist: o.persist, remoteBindings: o.remoteBindings })
+        return { d1: proxy.env.DB, dispose: async () => { try { await proxy.dispose() } finally { restore() } } }
+      } catch (e) {
+        restore()
+        throw e
+      }
     },
     env: io.env,
     homedir: homedir(),
@@ -73,6 +97,7 @@ export async function runInstance(argv: string[], io: { stdout(t: string): void;
   }
   if (command === 'status') return runStatus(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'upgrade') return runUpgrade(rest, { ...realDeps(io, packageDir), ...overrides })
+  if (command === 'setup') return runSetup(rest, { ...realDeps(io, packageDir), ...overrides })
   io.stderr(`vibase instance: unknown command "${command}"\n${INSTANCE_HELP}`)
   return EXIT_REFUSED
 }

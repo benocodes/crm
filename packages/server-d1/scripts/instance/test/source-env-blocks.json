@@ -1,0 +1,75 @@
+{
+  "_note": "The env.demo block that setup:remote (reconcileEnvBlock over scripts/setup/test/wrangler.fixture.jsonc) wrote on 2026-11-13, OPS232. Frozen: the release setup must produce the same name, routes, bindings and vars.",
+  "none": {
+    "name": "vault-demo",
+    "workers_dev": false,
+    "preview_urls": false,
+    "routes": [
+      {
+        "pattern": "api.demo.invalid",
+        "custom_domain": true
+      }
+    ],
+    "observability": {
+      "enabled": true
+    },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "vault-demo",
+        "database_id": "0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b",
+        "migrations_dir": "../storage-d1/migrations",
+        "remote": true
+      }
+    ],
+    "r2_buckets": [
+      {
+        "binding": "BODIES",
+        "bucket_name": "vault-demo-bodies"
+      }
+    ],
+    "vars": {
+      "AUTH_PROVIDER": "",
+      "CORS_ALLOWED_ORIGINS": "https://app.demo.invalid"
+    }
+  },
+  "clerk": {
+    "name": "vault-demo",
+    "workers_dev": false,
+    "preview_urls": false,
+    "routes": [
+      {
+        "pattern": "api.demo.invalid",
+        "custom_domain": true
+      }
+    ],
+    "observability": {
+      "enabled": true
+    },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "vault-demo",
+        "database_id": "0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b",
+        "migrations_dir": "../storage-d1/migrations",
+        "remote": true
+      }
+    ],
+    "r2_buckets": [
+      {
+        "binding": "BODIES",
+        "bucket_name": "vault-demo-bodies"
+      }
+    ],
+    "vars": {
+      "AUTH_PROVIDER": "clerk",
+      "CLERK_ISSUER": "https://acme-test-12.clerk.accounts.dev",
+      "CLERK_PUBLISHABLE_KEY": "pk_test_YWNtZS10ZXN0LTEyLmNsZXJrLmFjY291bnRzLmRldiQ=",
+      "CLERK_AUTHORIZED_PARTIES": "https://api.demo.invalid,https://app.demo.invalid",
+      "AUTH_CLI_CLIENT_ID": "client_new1",
+      "CORS_ALLOWED_ORIGINS": "https://app.demo.invalid",
+      "GOOGLE_CLIENT_ID": "gid-123.apps.googleusercontent.com",
+      "PUBLIC_BASE_URL": "https://api.demo.invalid"
+    }
+  }
+}
