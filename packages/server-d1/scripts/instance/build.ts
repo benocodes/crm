@@ -7,7 +7,11 @@ const ENTRY = fileURLToPath(new URL('./main.ts', import.meta.url))
 const OUTFILE = fileURLToPath(new URL('../../dist/instance.js', import.meta.url))
 
 export async function buildInstance(opts: { outfile?: string } = {}): Promise<void> {
-  await build({ entryPoints: [ENTRY], bundle: true, platform: 'node', format: 'esm', target: 'node22', outfile: opts.outfile ?? OUTFILE, logLevel: 'warning' })
+  await build({ entryPoints: [ENTRY], bundle: true, platform: 'node', format: 'esm', target: 'node22', outfile: opts.outfile ?? OUTFILE,
+    // jsonc-parser's default entry is UMD, whose bundled form calls a dynamic `require`: take its ESM entry.
+    mainFields: ['module', 'main'],
+    logLevel: 'warning',
+  })
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) await buildInstance()
