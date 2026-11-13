@@ -151,6 +151,12 @@ moves tables, Watch out says "grep every package for the names" rather than list
 **OPS275** (`knowledge/specs/015-OPS275-instance-tooling-two-databases/RETRO.md`): the same Size line (5 groups, 1 matrix, 5
 decisions), no migration, scripts-only, cost 143k / 41 calls in one run with review approved in round 1; without release runs
 and with the `@vibase/api` suite legitimately skipped (`execute-cycle` §5) the same counts cost ~40% of OPS260. The budget holds.
+**OPS276** (`knowledge/specs/015-OPS276-setup-vb-names/RETRO.md`): 4 groups (1 matrix), 4 decisions, no migration, scripts-only,
+cost 182k / 51 calls in one run, approved round 1. When an obligation spans several front-ends (two CLIs, REST and MCP), state a
+refusal as "refused before any call, with that front-end's refusal exit code", not one number: OPS276's charter said exit 2 for
+both setup front-ends, but `setup:remote` exits 1 for every refusal, and the coder had to amend it. And when a cycle changes a
+default name, ship the guard that keeps existing instances on their recorded names in the same cycle, and say where the record is
+read relative to the first step that creates a resource.
 
 ### Step 3: Resolve identities
 
