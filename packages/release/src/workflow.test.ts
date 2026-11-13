@@ -5,7 +5,9 @@ import { parse } from 'yaml'
 import { describe, expect, it } from 'vitest'
 
 const FILE = fileURLToPath(new URL('../../../.github/workflows/release.yml', import.meta.url))
+const VERSION_FILE = fileURLToPath(new URL('../../../.github/workflows/version.yml', import.meta.url))
 const text = () => readFileSync(FILE, 'utf8')
+const versionText = () => readFileSync(VERSION_FILE, 'utf8')
 
 type Step = { uses?: string; run?: string; with?: Record<string, unknown>; env?: Record<string, string>; if?: string }
 type Job = { permissions?: Record<string, string>; steps?: Step[]; needs?: string | string[]; if?: string }
@@ -44,6 +46,7 @@ export function workflowProblems(src: string): string[] {
   // No publish, no token, no secret but GITHUB_TOKEN.
   if (/npm\s+publish|pnpm\s+publish|NPM_TOKEN|NODE_AUTH_TOKEN|registry-url/.test(src)) out.push('the workflow publishes or carries an npm credential')
   for (const m of src.matchAll(/secrets\.([A-Za-z0-9_]+)/g)) if (m[1] !== 'GITHUB_TOKEN') out.push(`references secrets.${m[1]}`)
+  if (/changesets\/action|changeset publish|changeset tag/.test(src)) out.push('release.yml must not use changesets/action or run changeset publish or tag')
   if (/pull_request_target|--prerelease=false|--draft=false|--latest/.test(src)) out.push('a pull_request_target trigger or a flag that marks the release non-draft')
 
   // Build job: order.
@@ -86,9 +89,56 @@ export function workflowProblems(src: string): string[] {
     if (!/gh release create/.test(rel[0]!)) out.push('the release must be created with gh release create')
     if (!/--draft(\s|$)/.test(rel[0]!)) out.push('the release is not created as a draft')
     if (/gh release (edit|upload|delete)/.test(rel[0]!)) out.push('the workflow must never edit or replace a release')
+    if (!/CHANGELOG\.md/.test(rel[0]!)) out.push('the draft body must point to the two CHANGELOG.md files')
   }
   return out
 }
+
+/** Every way `version.yml` departs from D19/D25: push to main only, changesets/action SHA-pinned with no publish input, exactly two write permissions, no secret but GITHUB_TOKEN. */
+export function versionWorkflowProblems(src: string): string[] {
+  const out: string[] = []
+  const wf = parse(src) as { on?: Record<string, any>; permissions?: Record<string, string>; jobs?: Record<string, Job> }
+  const on = wf.on ?? {}
+  if (JSON.stringify(on) !== JSON.stringify({ push: { branches: ['main'] } })) out.push(`version.yml must trigger on push to main only, found ${JSON.stringify(on)}`)
+  const jobs = Object.values(wf.jobs ?? {})
+  if (jobs.length !== 1) out.push(`version.yml has ${jobs.length} jobs, expected 1`)
+  const perms = jobs[0]?.permissions ?? wf.permissions
+  if (JSON.stringify(Object.entries(perms ?? {}).sort()) !== JSON.stringify([['contents', 'write'], ['pull-requests', 'write']])) out.push(`permissions must be exactly contents: write and pull-requests: write, found ${JSON.stringify(perms)}`)
+  const steps = jobs.flatMap((j) => j.steps ?? [])
+  let cs = 0
+  for (const s of steps) {
+    if (!s.uses) continue
+    const m = /^([^@]+)@([0-9a-f]{40})(\s|$)/.exec(s.uses)
+    if (!m) out.push(`uses ${s.uses} is not pinned to a 40-hex commit SHA`)
+    else if (m[1] === 'changesets/action') {
+      cs++
+      if (s.with && 'publish' in s.with) out.push('changesets/action must have no publish input')
+    } else if (!(m[1]!.startsWith('actions/') || m[1] === 'pnpm/action-setup')) out.push(`uses ${m[1]} is not allowed`)
+  }
+  if (cs !== 1) out.push(`expected exactly one changesets/action step, found ${cs}`)
+  for (const line of src.split('\n')) if (/^\s*-?\s*uses:/.test(line) && !/#\s*v\d/.test(line)) out.push(`uses line has no tag comment: ${line.trim()}`)
+  if (!steps.some((s) => /pnpm install --frozen-lockfile/.test(s.run ?? ''))) out.push('no frozen install step')
+  if (/npm\s+publish|pnpm\s+publish|NPM_TOKEN|NODE_AUTH_TOKEN|registry-url|changeset publish|changeset tag|pull_request_target/.test(src)) out.push('version.yml publishes, tags, or carries an npm credential')
+  for (const m of src.matchAll(/secrets\.([A-Za-z0-9_]+)/g)) if (m[1] !== 'GITHUB_TOKEN') out.push(`references secrets.${m[1]}`)
+  return out
+}
+
+describe('version.yml (D19, D25, D24)', () => {
+  it('has the shape: push to main, changesets/action pinned with no publish, two write permissions, nothing published', () => {
+    expect(versionWorkflowProblems(versionText())).toEqual([])
+  })
+  const mutateV = (name: string, f: (t: string) => string, expected: RegExp) =>
+    it(`mutation: ${name} turns the check red`, () => {
+      const mutated = f(versionText())
+      expect(mutated).not.toEqual(versionText())
+      expect(versionWorkflowProblems(mutated).join('\n')).toMatch(expected)
+    })
+  mutateV('a publish input on the action', (t) => t.replace(/^( +)with:\n/m, '$1with:\n$1  publish: pnpm changeset publish\n'), /no publish input|publishes/)
+  mutateV('NPM_TOKEN in version.yml', (t) => t.replace(/secrets\.GITHUB_TOKEN/, 'secrets.NPM_TOKEN'), /NPM_TOKEN|publishes/)
+  mutateV('the action pinned to a tag', (t) => t.replace(/changesets\/action@[0-9a-f]{40}/, 'changesets/action@v1'), /not pinned/)
+  mutateV('a pull_request trigger', (t) => t.replace(/^on:\n/m, 'on:\n  pull_request:\n'), /push to main only/)
+  mutateV('an extra permission', (t) => t.replace(/pull-requests: write/, 'pull-requests: write\n      id-token: write'), /permissions must be exactly/)
+})
 
 describe('release.yml (D19, D24, P3)', () => {
   it('has the shape: two triggers, the step order, the artifact, a draft release, no publish, pinned actions, write only on the release job', () => {
@@ -110,5 +160,7 @@ describe('release.yml (D19, D24, P3)', () => {
   mutate('a secret other than GITHUB_TOKEN', (t) => t.replace(/secrets\.GITHUB_TOKEN/, 'secrets.NPM_TOKEN'), /secrets\.NPM_TOKEN/)
   mutate('release:build --allow-dirty', (t) => t.replace(/pnpm release:build/, 'pnpm release:build --allow-dirty'), /allow-dirty/)
   mutate('retention changed', (t) => t.replace(/retention-days: 7/, 'retention-days: 90'), /retention-days/)
+  mutate('changesets/action added to release.yml', (t) => t.replace(/^( +)- name: Build the release$/m, '$1- uses: changesets/action@0000000000000000000000000000000000000000 # v1\n$&'), /changesets\/action/)
+  mutate('the draft body without the CHANGELOG pointer', (t) => t.replace(/CHANGELOG\.md/g, 'notes'), /CHANGELOG/)
   mutate('the tag check dropped', (t) => t.replace(/release:ci tag/, 'echo skipped'), /no tag check/)
 })
