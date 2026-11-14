@@ -2,7 +2,9 @@
 // fetch, and a real local D1 behind the bootstrap step. The runner records every call (the kit does); here it also answers the way wrangler's
 // output looks, and a write changes the state the next read sees. Nothing reaches a network, an account or the repo's wrangler.
 import { existsSync, readFileSync } from 'node:fs'
+import type { D1Like } from '@vibase/storage-d1'
 import type { WorkerD1 } from '../../src/test/kit.js'
+import { OWNERS_SQL, OWNER_INVITATIONS_SQL } from '../setup/commands.js'
 import { memoryControl } from '../setup/test/world.js'
 import { ISSUER, PK_TEST, SK_TEST, type FakeClerk } from '../setup/test/clerk-world.js'
 import { CONTROL_ALL, makeWorld, NO_TRACKER_JSON, SECRETS_TEXT, trackerJson, type World, type WorldOptions } from './test-kit.js'
@@ -41,6 +43,14 @@ export interface Sim {
   bulk: Record<string, string>[]
   failDeploy?: boolean
   failApply?: boolean
+  /** `secret bulk` fails (exit 1) and puts nothing (OPS249 D3: the partial state after the secrets file was written). */
+  failBulk?: boolean
+  /** Mirrors of the real databases the synchronous fake wrangler answers owner-state reads from (refreshed by `sync()` and at the end of a bootstrap): live owner memberships, live owner invitations, the control marker. */
+  owners: number
+  ownerInvitations: { email: string; expires_at: string }[]
+  controlOrg: string | null
+  /** The secrets file's text at the moment of each `secret bulk` (OPS249 D3: the file is written before the put); `null` when it did not exist. */
+  bulkFile: (string | null)[]
   /** A deploy succeeds but `/health` keeps showing what it showed. */
   deployNoop?: boolean
   /** The runner's answer to `secret list` is a failure. */
@@ -55,12 +65,14 @@ export interface SetupWorld {
   w: World
   sim: Sim
   d1: WorkerD1
-  /** The marker-only control database behind `CONTROL_DB`. */
+  /** The control database behind `CONTROL_DB`: the marker-only memory one, or the real one given as `control`. */
   control: ReturnType<typeof memoryControl>
   /** The settings file's text, or `null`. */
   settings(): string | null
   /** The commands that change something remote, by their wrangler argv. */
   writes(): string[][]
+  /** Refreshes the owner-state mirrors from the real databases (after a test seeds a membership or an invitation). */
+  sync(): Promise<void>
   rows(): { status: string; step: string; detail: string }[]
 }
 
@@ -83,6 +95,8 @@ export async function readMarker(d1: WorkerD1['d1']): Promise<Marker | null> {
 export interface SetupWorldOptions extends Omit<WorldOptions, 'runner' | 'fetch' | 'openD1'> {
   sim?: Partial<Sim>
   d1: WorkerD1
+  /** A real, migrated control database (OPS249): bootstrap's `better-auth` path seeds the client and writes invitations in it. Default: a marker-only memory database. */
+  control?: D1Like
   /** Runs before the control marker is stored (OPS279), to look at the CRM database at that moment. */
   onControlInsert?: (organizationId: string) => Promise<void>
   /** The organisation the control marker already names (an instance paired before this run). */
@@ -94,9 +108,9 @@ export interface SetupWorldOptions extends Omit<WorldOptions, 'runner' | 'fetch'
 }
 
 export function setupWorld(o: SetupWorldOptions): SetupWorld {
-  const sim: Sim = { d1s: [], r2s: [], applied: null, controlApplied: null, deployed: null, marker: null, secrets: [], bulk: [], zones: ['demo.invalid'], opened: [], ...o.sim }
+  const sim: Sim = { d1s: [], r2s: [], applied: null, controlApplied: null, deployed: null, marker: null, secrets: [], bulk: [], zones: ['demo.invalid'], opened: [], bulkFile: [], owners: 0, ownerInvitations: [], controlOrg: null, ...o.sim }
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
-  const control = memoryControl(o.onControlInsert, o.controlMarker)
+  const control = (o.control ?? memoryControl(o.onControlInsert, o.controlMarker)) as ReturnType<typeof memoryControl>
   const ok = (stdout: string): RunResult => ({ status: 0, stdout, stderr: '' })
   const health = (): Response => {
     if (sim.deployed === null) return new Response('', { status: 522 })
@@ -143,10 +157,13 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
           if (/d1_migrations/.test(sql)) return sim.controlApplied === null ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' } : ok(trackerJson(sim.controlApplied))
           if (/from control_deployment/.test(sql)) {
             if (sim.controlApplied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: control_deployment' } }), stderr: '' }
-            const org = control.marker()
+            const org = o.control ? sim.controlOrg : control.marker()
             return ok(JSON.stringify([{ results: org ? [{ organization_id: org }] : [], success: true }]))
           }
+          // OPS249 D7: the owner state, as the last `sync()` (or the end of a bootstrap) saw it in the real databases.
+          if (/from invitations/.test(sql)) return ok(JSON.stringify([{ results: sim.ownerInvitations, success: true }]))
         }
+        if (/from memberships/.test(sql)) return ok(JSON.stringify([{ results: [{ owners: sim.owners }], success: true }]))
         if (/d1_migrations/.test(sql)) return sim.applied === null ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' } : ok(trackerJson(sim.applied))
         if (/from deployment/.test(sql)) {
           if (sim.applied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: deployment' } }), stderr: '' }
@@ -172,6 +189,8 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
       }
       if (has('secret', 'list')) return sim.deployed === null ? { status: 1, stdout: '', stderr: 'no such worker' } : ok(JSON.stringify(sim.secrets.map((name) => ({ name, type: 'secret_text' }))))
       if (has('secret', 'bulk')) {
+        sim.bulkFile.push(existsSync(world.secretsPath) ? readFileSync(world.secretsPath, 'utf8') : null)
+        if (sim.failBulk) return { status: 1, stdout: '', stderr: 'bulk blew up' }
         const values = JSON.parse(input ?? '{}') as Record<string, string>
         sim.bulk.push(values)
         for (const n of Object.keys(values)) if (!sim.secrets.includes(n)) sim.secrets.push(n)
@@ -181,9 +200,16 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
     },
     openD1: async (opts: OpenD1Options) => {
       sim.opened.push({ opts, configText: existsSync(opts.configPath) ? readFileSync(opts.configPath, 'utf8') : null })
-      return { d1: o.d1.d1, control, dispose: async () => void (sim.marker = await readMarker(o.d1.d1)) }
+      return { d1: o.d1.d1, control, dispose: async () => { sim.marker = await readMarker(o.d1.d1); if (o.control) await sync() } }
     },
   })
+  const sync = async (): Promise<void> => {
+    if (!o.control) return
+    const owners = (await o.d1.d1.prepare(OWNERS_SQL).first().catch(() => null)) as { owners: number } | null
+    sim.owners = owners?.owners ?? 0
+    sim.ownerInvitations = ((await o.control.prepare(OWNER_INVITATIONS_SQL).all()).results ?? []) as { email: string; expires_at: string }[]
+    sim.controlOrg = (((await o.control.prepare('select organization_id from control_deployment where singleton = 1').first().catch(() => null)) as { organization_id: string } | null)?.organization_id) ?? null
+  }
   const rows = () =>
     world.out.flatMap((l) => {
       const m = /^(ok|create|update|manual|fail|blocked)\s+(\S+)\s*(.*)$/.exec(l)
@@ -201,6 +227,7 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
         return null
       }
     },
+    sync,
     writes: () => world.wrangler.map((c) => stripConfig(c.args)).filter(isWrite),
     rows,
   }

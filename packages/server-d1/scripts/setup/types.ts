@@ -60,6 +60,8 @@ export interface SetupDeps {
   openD1(envName: string): Promise<{ d1: D1Like; /** `CONTROL_DB`, when the env binds one (OPS279). */ control?: D1Like; dispose(): Promise<void> }>
   /** The Clerk env file ([[OPS65]] D34): resolves the path (default `.env.<env>` at the repo root), compares real paths with the root `.env`, asks git whether it is ignored, reads it. Never touches `process.env`. */
   probeEnvFile(arg: string | undefined, envName: string): EnvFileProbe
+  /** Appends `NAME=value` to the instance's own env file (`.env.<env>`, or `--clerk-env-file`), creating it (mode 600) when it is missing; throws if the name is already there (OPS249 D3). */
+  appendEnvFileVar(arg: string | undefined, envName: string, name: string, value: string): void
   readEnvText(): string
   /** Appends `NAME=value` to the root `.env`; throws if it is already set. */
   appendEnvVar(name: string, value: string): void
