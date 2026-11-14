@@ -599,6 +599,20 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   fragment on load never sees the new value. Go through `about:blank` first (that spec's `visit()`).
 - **Use `getByLabel(text, { exact: true })`**: the default substring match also hits a section whose accessible
   name contains the label (`New password` matched "Set a new password").
+- **A scenario that runs the real `vibase login` runs the Worker over HTTPS.** The CLI refuses a non-https issuer
+  (`insecure_issuer`) and has no local override. Use:
+  - `wrangler dev --local --local-protocol https` and `PUBLIC_BASE_URL=https://localhost:<port>`;
+  - the CLI with `NODE_TLS_REJECT_UNAUTHORIZED=0` and private `HOME`/`XDG_*` directories (reuse them for a
+    follow-up `vibase me get`);
+  - `browser.newContext({ ignoreHTTPSErrors: true })`.
+  (`packages/server-d1/e2e/oauth-pages.e2e.ts`, [[UI247]].)
+- **Better Auth trusts only `PUBLIC_BASE_URL` as an origin.**
+  - Open the pages at exactly that origin.
+  - Give server-side `request` calls to `/auth/oauth2/register` and `/auth/oauth2/token` an `Origin` header.
+  - A live session makes `/auth/oauth2/authorize` skip `/sign-in`, so a signed-out leg signs out same-origin
+    first, never from the client's callback page.
+  - Mind its per-IP limits: 5 `GET /auth/device` per 30 minutes, and a short sign-in window. Count calls or use
+    a fresh Worker.
 - **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.

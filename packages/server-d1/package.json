@@ -32,7 +32,8 @@
     "db:status:remote": "tsx scripts/status-remote.ts",
     "smoke:remote": "tsx scripts/smoke-remote.ts",
     "recordings:pull": "tsx scripts/pull-recordings.ts",
-    "e2e:auth-pages": "playwright test --config playwright.auth-pages.config.ts auth-pages.e2e.ts"
+    "e2e:auth-pages": "playwright test --config playwright.auth-pages.config.ts auth-pages.e2e.ts",
+    "e2e:oauth-pages": "playwright test --config playwright.oauth-pages.config.ts oauth-pages.e2e.ts"
   },
   "dependencies": {
     "@vibase/api": "workspace:*",

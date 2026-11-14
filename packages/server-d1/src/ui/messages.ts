@@ -15,6 +15,23 @@ export const MESSAGES = {
   resetInvalidLink: 'This reset link is invalid, expired or already used. Ask an owner for a new link.',
   resetNoToken: 'This page needs the reset link you were sent. Open that link again, or ask an owner for a new one.',
   passwordMismatch: 'The two passwords do not match.',
+  // The device page ([[UI247]] D3).
+  deviceCodeLabel: 'Code from your terminal',
+  deviceCodeRequired: 'Enter the code your terminal shows.',
+  deviceUnrecognised: 'That code was not recognised. Check it against your terminal, or run the sign-in again to get a new one.',
+  deviceExpired: 'That code has expired. Run the sign-in again in your terminal to get a new one.',
+  deviceProcessed: 'That code has already been approved or denied. Run the sign-in again in your terminal if you need a new one.',
+  deviceCheckCode: 'Check that your terminal shows this code.',
+  deviceWarning: 'Approve only if you started this sign-in yourself, just now.',
+  deviceApproved: 'Approved. You can return to your terminal.',
+  deviceDenied: 'Denied. Nothing was shared with the app, and you can close this page.',
+  // The consent page ([[UI247]] D4).
+  consentNoRequest: 'This page must be opened by an app that is asking for access. There is nothing to approve here.',
+  consentInvalid: 'This request is no longer valid. It may have expired. Start again from the app.',
+  consentUnverified: 'This name is chosen by the app and not verified by Vibase',
+  // Shared by both.
+  useAnotherAccount: 'Use another account',
+  noDescription: 'No description',
   // Shared.
   rateLimited: 'Too many attempts. Wait a few seconds and try again.',
   passwordTooShort: 'Use at least 8 characters.',
@@ -31,3 +48,6 @@ export const genericFailure = (status: number): string => (status === 0 ? MESSAG
 
 export const PASSWORD_MIN = 8
 export const PASSWORD_MAX = 128
+
+/** The line under the app's name on the consent page: the host the person returns to once they allow ([[UI247]] D4). */
+export const consentReturnsTo = (host: string): string => `After you allow, you go back to ${host}`

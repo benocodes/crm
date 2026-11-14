@@ -1,12 +1,12 @@
-// [[UI246]] D1, D2: the auth pages (`/sign-in`, `/invite`, `/reset-password`) and the `/ui/` bundle on the API origin, from the Workers Static Assets binding, with the security headers on every
+// [[UI246]] D1, D2: the auth pages (`/sign-in`, `/invite`, `/reset-password`, `/consent`, `/device`) and the `/ui/` bundle on the API origin, from the Workers Static Assets binding, with the security headers on every
 // response. The pages exist only for `AUTH_PROVIDER=better-auth` (the caller decides; for any other provider these paths are no route at all). Static: the answer reads no storage and needs no
 // credential, so it runs before the migration, configuration and control gates (the pages' own API calls meet them).
 export interface AssetsLike {
   fetch(req: Request): Promise<Response>
 }
 
-/** The three exact page paths ([[UI246]] D1). A trailing slash or any longer path is not a page: it is the Worker's own `404 not_found`. */
-export const UI_PAGE_PATHS = ['/sign-in', '/invite', '/reset-password'] as const
+/** The five exact page paths ([[UI246]] D1, [[UI247]] D1 adds `/consent` and `/device`). A trailing slash or any longer path is not a page: it is the Worker's own `404 not_found`. */
+export const UI_PAGE_PATHS = ['/sign-in', '/invite', '/reset-password', '/consent', '/device'] as const
 /** Where the build puts the bundle, the stylesheet and the page's `index.html`: `/ui/<file>` is the asset path. */
 export const UI_PREFIX = '/ui'
 /** What `wrangler.jsonc`'s `assets.run_worker_first` lists for these pages, derived from the constants the Worker serves. */
@@ -25,7 +25,7 @@ export const UI_CSP = [
   "frame-ancestors 'none'",
 ].join('; ')
 
-/** The page is the assets directory's `ui/index.html`, which the binding serves at its directory path. It is reached only through the three page paths. */
+/** The page is the assets directory's `ui/index.html`, which the binding serves at its directory path. It is reached only through the page paths. */
 const INDEX_PATH = `${UI_PREFIX}/`
 
 function withHeaders(res: Response): Response {

@@ -48,6 +48,18 @@ describe('buildUi (the pages bundle)', () => {
     expect(Object.keys(metafile.inputs).some((i) => /(^|\/)ui\/src\//.test(i))).toBe(true)
   })
 
+  // [[UI247]] D5: the scope catalogue is embedded at build time from its dependency-free leaf; the bundle never holds `@vibase/api`'s index or any other of its modules.
+  it('the page bundle holds the scope catalogue leaf and no other @vibase/api module', () => {
+    const api = Object.keys(metafile.inputs).filter((i) => /(^|\/)api\/src\//.test(i))
+    expect(api.map((i) => i.replace(/^.*api\/src\//, ''))).toEqual(['auth/scope-descriptions.ts'])
+  })
+
+  it('the script embeds a catalogue sentence and an OIDC scope sentence', () => {
+    const js = readFileSync(join(out, 'ui/app.js'), 'utf8')
+    expect(js).toContain('View deals (also called opportunities)')
+    expect(js).toContain('Stay signed in: keep access until you sign out or the access is revoked')
+  })
+
   it('the script is a single browser bundle with no source map comment, eval or import', () => {
     const js = readFileSync(join(out, 'ui/app.js'), 'utf8')
     expect(js.length).toBeGreaterThan(5000)

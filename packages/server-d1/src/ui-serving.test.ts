@@ -12,7 +12,7 @@ import { clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test
 const NOT_FOUND = { error: { code: 'not_found', message: 'no such route' } }
 const EXACT_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 const HTML = '<!doctype html><title>auth</title>'
-const PAGES = ['/sign-in', '/invite', '/reset-password']
+const PAGES = ['/sign-in', '/invite', '/reset-password', '/consent', '/device']
 const ASSET_PATHS = ['/ui/app.js', '/ui/ui.css']
 // The fake serves the built files under /ui/ AND, deliberately, the same files (and the pages) at the root: a Worker that routed a path to the assets binding by mistake would answer 200.
 const FILES: Record<string, { type: string; body: string }> = {
@@ -24,6 +24,8 @@ const FILES: Record<string, { type: string; body: string }> = {
   '/sign-in': { type: 'text/html; charset=utf-8', body: HTML },
   '/invite': { type: 'text/html; charset=utf-8', body: HTML },
   '/reset-password': { type: 'text/html; charset=utf-8', body: HTML },
+  '/consent': { type: 'text/html; charset=utf-8', body: HTML },
+  '/device': { type: 'text/html; charset=utf-8', body: HTML },
 }
 const assetCalls: { method: string; path: string }[] = []
 const ASSETS = {
@@ -83,7 +85,7 @@ describe('the constants the Worker serves (D1, D2)', () => {
   it('the policy is the exact string of D2', () => {
     expect(UI_CSP).toBe(EXACT_CSP)
   })
-  it('the page paths are the three exact paths', () => {
+  it('the page paths are the five exact paths (UI247 D1 adds /consent and /device)', () => {
     expect([...UI_PAGE_PATHS]).toEqual(PAGES)
   })
 })
@@ -146,7 +148,7 @@ describe('serving matrix: path x provider (D1, D2)', () => {
 })
 
 describe('exact paths and methods (D1: a trailing slash is not a page, pinned here)', () => {
-  it.each(['/sign-in/', '/invite/', '/reset-password/', '/sign-in/x', '/sign-inx', '/invite.html', '/reset-password/abc'])('%s is not a page: the assets binding is not asked and nothing is served', async (path) => {
+  it.each(['/sign-in/', '/invite/', '/reset-password/', '/consent/', '/device/', '/devices', '/device/x', '/consent.html', '/sign-in/x', '/sign-inx', '/invite.html', '/reset-password/abc'])('%s is not a page: the assets binding is not asked and nothing is served', async (path) => {
     headerRules = false
     const res = await send(betterAuthWorker(), path)
     expect(assetCalls).toEqual([])
@@ -190,7 +192,7 @@ describe('with a paired, bootstrapped better-auth instance', () => {
     await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE, ownerEmail: 'owner@x.test' }, { control: openControlDb(w.control) })
   })
 
-  it.each(['/sign-in/', '/invite/', '/reset-password/'])('%s (trailing slash) is the Worker\'s 404 not_found, not a page', async (path) => {
+  it.each(['/sign-in/', '/invite/', '/reset-password/', '/consent/', '/device/'])('%s (trailing slash) is the Worker\'s 404 not_found, not a page', async (path) => {
     const res = await send(betterAuthWorker(), path)
     expect(res.status).toBe(404)
     expect(res.headers.get('content-type')).toMatch(/json/)

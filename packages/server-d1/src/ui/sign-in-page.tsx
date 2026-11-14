@@ -2,15 +2,24 @@ import { useEffect, useState } from 'react'
 import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
 import { getSession, signIn, signOut, type SessionUser } from './auth-api.js'
 import { MESSAGES, genericFailure } from './messages.js'
+import { returnTarget } from './continuation.js'
 import { emailError, goTo, type PageProps } from './page.js'
 
 /**
  * [[UI246]] D5. A session is the signed-in view (the email as text) with sign-out; no session is the form. No sign-up link (admission is the invitation), no "forgot password" flow without email (a line says
- * to ask an owner), and no continuation: an OAuth authorize redirect lands here, but forwarding its signed query is [[UI247]]'s.
+ * to ask an owner). [[UI247]] D6 adds the continuation: a signed OAuth query (`sig`) is forwarded as `oauth_query` and the form shows even with a session; otherwise a `return_to` of `/device` or
+ * `/connect` is where a finished sign-in goes (and a signed-in visitor gets a Continue link).
  */
-export function SignInPage(_props: PageProps) {
+export function SignInPage({ navigate = goTo }: PageProps) {
   const [session, setSession] = useState<SessionUser | null | undefined>(undefined)
+  const oauthQuery = new URLSearchParams(location.search).has('sig') ? location.search.slice(1) : undefined
+  const target = oauthQuery === undefined ? returnTarget(location.search) : null
   useEffect(() => {
+    // An OAuth flow sent the person here to sign in (even `prompt=login` with a live session): the form, without reading the session.
+    if (oauthQuery !== undefined) {
+      setSession(null)
+      return
+    }
     let live = true
     void getSession().then((r) => {
       if (live) setSession(r.ok && r.data ? r.data.user : null)
@@ -21,10 +30,21 @@ export function SignInPage(_props: PageProps) {
   }, [])
 
   if (session === undefined) return null
-  return session ? <SignedIn user={session} onSignedOut={() => setSession(null)} /> : <SignInForm onSignedIn={setSession} />
+  return session ? (
+    <SignedIn user={session} target={target} onSignedOut={() => setSession(null)} />
+  ) : (
+    <SignInForm
+      oauthQuery={oauthQuery}
+      onSignedIn={(user, redirect) => {
+        if (redirect !== undefined) return navigate(redirect)
+        if (target !== null) return navigate(target)
+        setSession(user)
+      }}
+    />
+  )
 }
 
-function SignedIn({ user, onSignedOut }: { user: SessionUser; onSignedOut: () => void }) {
+function SignedIn({ user, target, onSignedOut }: { user: SessionUser; target: string | null; onSignedOut: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const out = async () => {
@@ -45,11 +65,12 @@ function SignedIn({ user, onSignedOut }: { user: SessionUser; onSignedOut: () =>
     >
       {error ? <Alert variant="error">{error}</Alert> : null}
       <p>{`Signed in as ${user.email}`}</p>
+      {target !== null ? <a href={target}>Continue</a> : null}
     </Card>
   )
 }
 
-function SignInForm({ onSignedIn }: { onSignedIn: (user: SessionUser) => void }) {
+function SignInForm({ oauthQuery, onSignedIn }: { oauthQuery: string | undefined; onSignedIn: (user: SessionUser, redirect?: string) => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
@@ -64,10 +85,10 @@ function SignInForm({ onSignedIn }: { onSignedIn: (user: SessionUser) => void })
     setErrors(found)
     if (Object.keys(found).length > 0) return MESSAGES.fixFields
     setBusy(true)
-    const r = await signIn({ email: email.trim(), password })
+    const r = await signIn({ email: email.trim(), password, ...(oauthQuery === undefined ? {} : { oauthQuery }) })
     setBusy(false)
     if (r.ok) {
-      onSignedIn(r.data.user ?? { email: email.trim() })
+      onSignedIn(r.data.user ?? { email: email.trim() }, r.data.redirect)
       return undefined
     }
     if (r.code === 'invitation_acceptance_failed') return MESSAGES.signInAcceptanceFailed
