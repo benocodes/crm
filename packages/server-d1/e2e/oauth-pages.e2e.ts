@@ -1,4 +1,4 @@
-// [[UI247]] PLAN, E2E: the device and consent pages in a real browser, with the real `vibase login` and an MCP-style client, against a local Worker on `better-auth` (worktree-local D1s).
+// [[UI247]] PLAN, E2E (legs 1-2; leg 3, the connect page, is [[UI297]]'s, tests 6-8): the device and consent pages in a real browser, with the real `vibase login` and an MCP-style client, against a local Worker on `better-auth` (worktree-local D1s).
 // Prerequisite: fresh local state, both databases migrated, `.dev.vars` with AUTH_PROVIDER=better-auth, AUTH_SECRET (32+ characters) and PUBLIC_BASE_URL=https://localhost:8787,
 // `bootstrap --org E2E --auth-provider better-auth --public-base-url https://localhost:8787 --owner-email owner@e2e.test` (E2E_INVITE_URL = the URL it printed), `wrangler dev --local --local-protocol https --port 8787` running.
 // HTTPS (wrangler's self-signed certificate) and not http: the real `vibase login` refuses an issuer that is not https (`insecure_issuer`), and there is no local override. The CLI is run with
@@ -217,4 +217,48 @@ test('5. every new page carries the exact headers; /consent without a request ex
   await visit('/consent')
   await expect(page.getByText(/must be opened by an app/)).toBeVisible()
   await axeBoth('consent-no-request')
+})
+
+// [[UI297]] leg 3 of [[UI247]] D8: the connect page on `better-auth`, in the same browser context (the session of the legs above is live, and leg 3 left one delegated agent).
+const emailShown = (p: Page) => p.locator('[data-section="who"]').getByText('owner@e2e.test')
+
+test('6. /connect signed in: the person and the delegated agent agents.list returns, a self-only CSP, no request leaves the origin', async () => {
+  const outside: string[] = []
+  const listener = (r: { url(): string }) => {
+    if (!r.url().startsWith(BASE) && !r.url().startsWith('about:') && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) outside.push(r.url())
+  }
+  page.on('request', listener)
+  const response = await page.goto(`${BASE}/connect`)
+  await expect(emailShown(page)).toBeVisible()
+  page.off('request', listener)
+  const csp = response!.headers()['content-security-policy']!
+  expect(csp).toContain("default-src 'self'")
+  expect(csp).not.toMatch(/clerk|challenges\.cloudflare\.com/i)
+  expect(outside, 'no request leaves the origin').toEqual([])
+  // the name agents.list returns for the delegated agent (delegated_by is the person), read with the session token the page itself uses
+  const listed = await page.evaluate(async () => {
+    const { token } = (await (await fetch('/auth/token')).json()) as { token: string }
+    const res = await fetch('/meta/v1/agents?limit=200', { headers: { authorization: `Bearer ${token}` } })
+    return ((await res.json()) as { data: { name: string; delegated_by: string | null }[] }).data
+  })
+  const delegated = listed.filter((a) => a.delegated_by !== null)
+  expect(delegated.length, 'leg 3 left a delegated agent').toBeGreaterThan(0)
+  for (const a of delegated) await expect(page.locator('[data-section="agents"]').getByText(a.name, { exact: true }).first()).toBeVisible()
+  await axeBoth('connect-signed-in')
+})
+
+test('7. /connect: Sign out shows the signed-out view; get-session answers null', async () => {
+  await visit(`${BASE}/connect`)
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  expect(await page.evaluate(async () => (await (await fetch('/auth/get-session')).text()).trim())).toBe('null')
+  await axeBoth('connect-signed-out')
+})
+
+test('8. /connect: Sign in goes to /sign-in?return_to=/connect and comes back signed in as the same person', async () => {
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.waitForURL((u) => u.pathname === '/sign-in' && u.searchParams.get('return_to') === '/connect')
+  await signInHere()
+  await page.waitForURL((u) => u.pathname === '/connect')
+  await expect(emailShown(page)).toBeVisible()
 })

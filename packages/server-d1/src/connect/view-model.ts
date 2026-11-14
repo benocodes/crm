@@ -58,7 +58,7 @@ export function buildView(state: PageState, ctx: { origin: string; mcpUrl?: stri
         state: 'refused',
         message:
           state.status === 0
-            ? "Clerk's sign-in could not be loaded from this instance's Frontend API. Reload the page, or connect agents with API keys."
+            ? "Sign-in could not be loaded from this instance. Reload the page, or connect agents with API keys."
             : `This instance did not accept your session (${state.status}). Sign out, then sign in with an account that has access.`,
         account: { profileUrl: ctx.profileUrl ?? null },
       }
@@ -89,7 +89,7 @@ export function buildView(state: PageState, ctx: { origin: string; mcpUrl?: stri
                 rows: state.agents.map((a) => agentRow(a, me, canToggle)),
                 canToggle,
                 note: "An agent's access is its stored scopes, further bounded by what was approved on the consent screen and by the role of the person who delegated it.",
-                personalLoginNote: 'Your own `vibase login` is you, not an agent, so it is not listed here. `vibase logout`, or signing out of all sessions in Clerk, ends it.',
+                personalLoginNote: 'Your own `vibase login` is you, not an agent, so it is not listed here. `vibase logout`, or signing out of all your sessions, ends it.',
               },
         account: { profileUrl: ctx.profileUrl ?? null },
         error: state.error ?? null,
