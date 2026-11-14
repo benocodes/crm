@@ -38,6 +38,7 @@ describe('GET /.well-known/vibase (P3)', () => {
     cli_client_id: 'vibase-cli',
     resource: AUTH_BASE,
     protected_resource_metadata: `${AUTH_BASE}${PRM}`,
+    sign_in_methods: ['password'],
   }
   it('the exact auth shape: no publishable_key, the CLI client id defaults to vibase-cli', async () => {
     const res = await get('/.well-known/vibase')

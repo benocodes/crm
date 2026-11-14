@@ -21,8 +21,11 @@ export function fakeFetch(routes: Record<string, Handler>) {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, 'http://localhost:8787')
     const method = (init.method ?? 'GET').toUpperCase()
     const call: Call = { method, path: url.pathname, body: typeof init.body === 'string' ? JSON.parse(init.body) : undefined, init }
-    calls.push(call)
-    const h = routes[`${method} ${url.pathname}`]
+    const key = `${method} ${url.pathname}`
+    // [[CORE294]]: the sign-in and invite pages read discovery for the Google button. It answers password only unless a suite routes it, and is kept out of `calls` so the pages' own request lists stay what they were.
+    if (key === 'GET /.well-known/vibase' && !routes[key]) return new Response(JSON.stringify({ auth: { sign_in_methods: ['password'] } }), { status: 200, headers: { 'content-type': 'application/json' } })
+    if (key !== 'GET /.well-known/vibase') calls.push(call)
+    const h = routes[key]
     if (!h) throw new Error(`unexpected request ${method} ${url.pathname}`)
     const r = typeof h === 'function' ? await h(call) : h
     return new Response(r.text ?? (r.json === undefined ? null : JSON.stringify(r.json)), { status: r.status, headers: r.text === undefined && r.json !== undefined ? { 'content-type': 'application/json' } : {} })

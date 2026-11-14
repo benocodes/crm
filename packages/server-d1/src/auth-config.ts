@@ -19,3 +19,5 @@ export function parseBuiltInAuthConfig(env: Record<string, string | undefined>):
   if (!isValidPushVar('PUBLIC_BASE_URL', base)) throw new Error('PUBLIC_BASE_URL must be an origin without a path: https, or http://localhost for local development')
   return { secret, baseURL: new URL(base.trim()).origin }
 }
+// RED STUB ([[CORE294]]): lets the tests import; replaced by the implementation commit.
+export const resolveGoogleSignIn = (_env: Record<string, string | undefined>): { clientId: string; clientSecret: string } | undefined => undefined

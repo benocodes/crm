@@ -109,6 +109,6 @@ describe('discovery in workerd through the real Worker module (D12)', () => {
     expect(doc.registration_endpoint).toBe(`${BASE}/auth/oauth2/register`)
     expect(doc.device_authorization_endpoint).toBe(`${BASE}/auth/device/code`)
     const vibase = (await (await w.call('/.well-known/vibase')).json()) as { auth: Record<string, string> }
-    expect(vibase.auth).toEqual({ provider: 'better-auth', issuer: `${BASE}/auth`, cli_client_id: 'vibase-cli', resource: BASE, protected_resource_metadata: `${BASE}/.well-known/oauth-protected-resource` })
+    expect(vibase.auth).toEqual({ provider: 'better-auth', issuer: `${BASE}/auth`, cli_client_id: 'vibase-cli', resource: BASE, protected_resource_metadata: `${BASE}/.well-known/oauth-protected-resource`, sign_in_methods: ['password'] })
   })
 })
