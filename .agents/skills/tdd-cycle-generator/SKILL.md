@@ -173,6 +173,12 @@ from the charter. (1) A rule for a commit across two stores (CRM, then control) 
 a charter orders a write across stores, list every partial state and say what the next attempt does with each. (2) "Checked
 where every account creation passes" had no obligation of its own, so the second-layer hook shipped untested. Every place a
 requirement names as a check point gets a test that reaches it directly.
+**UI254** (`knowledge/specs/015-UI254-ui-foundation/RETRO.md`): 6 groups (1 matrix: component × runtime), 8 decisions, no
+migration, 1 local E2E part (the Playwright gallery), new package, cost ~198k / 53 calls in one run plus a 5k / 6-call gate-fix
+round, approved round 1 with no findings. The budget holds, and a matrix over two runtimes costs little once one suite body
+serves both. The gate-fix round came from a new workspace package: the release tests pin the package list and the changesets
+`ignore` list (`execute-cycle` §commit). A charter that adds a package says so in Watch out. A browser E2E part earns its
+place for UI: it found the one runtime bug (`spellCheck={false}` dropped by Preact) that both happy-dom projects missed.
 
 ### Step 3: Resolve identities
 
