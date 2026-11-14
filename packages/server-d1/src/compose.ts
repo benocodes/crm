@@ -20,6 +20,9 @@ export interface D1WorkerEnv {
   AUTH_PROVIDER?: string
   /** `AUTH_PROVIDER=better-auth` only ([[CORE243]] D6): a Worker secret, at least 32 characters; Better Auth signs cookies and encrypts its signing key with it. */
   AUTH_SECRET?: string
+  /** `AUTH_PROVIDER=better-auth` only ([[CORE294]] D7): a Google client for sign-in; both or neither (half is a configuration error). Absent, the Gmail pair (`GOOGLE_CLIENT_*`) is used when complete, else Google sign-in is off. */
+  AUTH_GOOGLE_CLIENT_ID?: string
+  AUTH_GOOGLE_CLIENT_SECRET?: string
   CLERK_ISSUER?: string
   CLERK_AUTHORIZED_PARTIES?: string
   CLERK_SECRET_KEY?: string
@@ -107,7 +110,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'AUTH_SECRET', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'COMMIT', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS', 'CRON_TICK_BUDGET'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'AUTH_SECRET', 'AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'COMMIT', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS', 'CRON_TICK_BUDGET'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -192,7 +195,7 @@ export function composeD1Worker(
   const discovery = {
     provider: builtIn
       ? builtInConfig && authAdapter
-        ? { name: 'better-auth' as const, issuer: `${builtInConfig.baseURL}/auth`, baseUrl: builtInConfig.baseURL }
+        ? { name: 'better-auth' as const, issuer: `${builtInConfig.baseURL}/auth`, baseUrl: builtInConfig.baseURL, signInMethods: builtInConfig.google ? (['password', 'google'] as const) : (['password'] as const) }
         : undefined
       : authAdapter
         ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() }

@@ -16,7 +16,7 @@ import type { InvitationRole } from './port.js'
 export const BUILT_IN_PROVIDER = 'better-auth'
 
 export type AcceptedAccount = { principalId: string }
-type Account = { subject: string; email: string; name: string }
+type Account = { subject: string; email: string; name: string; /** [[CORE294]] P5: the Better Auth user's `emailVerified`; absent (older callers) is false. */ emailVerified?: boolean }
 
 const INTERNAL = { kind: 'internal', organizationId: null } as const
 const MEMBERSHIP_COLUMNS = Object.keys(membershipRecord.shape)
@@ -42,7 +42,7 @@ export function acceptHumanOperation(a: Account & { role: 'owner' | 'member'; or
       const sys = systemPrincipalSteps(qc, found.maybe(SYSTEM_PRINCIPAL_READ), a.systemId, at)
       const user = qc.db
         .insertInto('users')
-        .values({ id: a.principalId, created_at: at, updated_at: at, email: a.email, name: a.name, auth_provider: BUILT_IN_PROVIDER, auth_subject: a.subject, email_verified: false })
+        .values({ id: a.principalId, created_at: at, updated_at: at, email: a.email, name: a.name, auth_provider: BUILT_IN_PROVIDER, auth_subject: a.subject, email_verified: a.emailVerified === true })
         .onConflict((oc) => oc.doNothing())
       const membership = qc.db
         .insertInto('memberships')

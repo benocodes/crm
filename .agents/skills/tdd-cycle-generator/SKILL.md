@@ -191,6 +191,13 @@ E2E part (one leg added to an existing script). It cost ~140k in one run plus a 
 split off a pages spec at plan time, and it cost about half the parent cycle, because the E2E harness and the HTTPS recipe
 already existed. The budget holds. The one finding came from a planner rule that gave only the success end state
 ("afterwards the page shows signed-out"). A rule for a new action names its end state on failure too.
+**CORE294** (`knowledge/specs/015-CORE294-google-sign-in/RETRO.md`): 5 groups (1 matrix), 3 decisions + 5 planner rules,
+no migration, 1 local E2E part (a leg added to an existing script). It cost ~266k / 99 calls in one run plus a 5k fix
+round (+178 / +648 lines): a follow-on cycle like UI297, but two new fakes (workerd outbound service, Node `fetch`) and a
+security matrix nearly doubled it. The budget holds. The fix round repeated UI297's gap: P1 named how a callback error is
+shown, not what happens to it when a later action fails. For any displayed error, name when it clears. A stop condition
+phrased as a premise to test ("prove `getOAuthState()` is readable in the hook before building on it") worked: the
+coder answered it with a test instead of improvising.
 
 ### Step 3: Resolve identities
 

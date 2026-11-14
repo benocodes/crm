@@ -78,6 +78,25 @@ export const signIn = async (b: { email: string; password: string; oauthQuery?: 
   const r = withUser(raw)
   return r.ok && raw.ok ? withRedirect(r, raw.data) : r
 }
+/**
+ * [[CORE294]] D7: how a person may sign in here, from `/.well-known/vibase`'s `better-auth` block. Anything unreadable (a failed call, another shape) is password only: the Google button is shown only on an
+ * explicit `google`.
+ */
+export async function getSignInMethods(): Promise<string[]> {
+  const r = await call('GET', '/.well-known/vibase')
+  const methods = r.ok ? (r.data as { auth?: { sign_in_methods?: unknown } } | null | undefined)?.auth?.sign_in_methods : undefined
+  return Array.isArray(methods) ? methods.filter((m): m is string => typeof m === 'string') : ['password']
+}
+/**
+ * [[CORE294]] D8: starts Google sign-in. The body is exactly the callback URLs (the vault's own `/sign-in`, success and failure) and, on `/invite`, the invitation token; the answer is the Google URL to follow
+ * (validated like every redirect: `http:` or `https:` only).
+ */
+export async function startGoogleSignIn(invitationToken?: string): Promise<ApiResult<{ redirect: string }>> {
+  const r = await call('POST', '/auth/sign-in/social', { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in', ...(invitationToken === undefined ? {} : { invitation_token: invitationToken }) })
+  if (!r.ok) return r
+  const target = redirectOf(r.data)
+  return typeof target === 'string' ? { ok: true, data: { redirect: target } } : { ok: false, status: 200, code: 'invalid_redirect' }
+}
 export const getSession = async (): Promise<ApiResult<{ user: SessionUser } | null>> => {
   const r = await call('GET', '/auth/get-session')
   if (!r.ok) return r

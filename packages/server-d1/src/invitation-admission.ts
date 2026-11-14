@@ -25,7 +25,7 @@ export function invitationAdmission(d: InvitationAdmissionDeps): InvitationAdmis
     async admits({ email, token }) {
       return d.store.hasLive({ tokenHash: await hashInvitationToken(token), email: email.trim().toLowerCase(), now: d.clock().toISOString() })
     },
-    async settle({ subject, email, name, accountCreatedAt }) {
+    async settle({ subject, email, name, emailVerified, accountCreatedAt }) {
       const storage = await d.crm()
       const linked = await linkedPrincipalId(storage, subject)
       const now = d.clock()
@@ -39,7 +39,7 @@ export function invitationAdmission(d: InvitationAdmissionDeps): InvitationAdmis
         return
       }
       // P3: the CRM program is the commit point; if it throws, nothing below runs and the invitation stays pending.
-      const { principalId } = await acceptInvitedAccount(storage, { now, newId: d.newId }, { role: invitation.role, subject, email: address, name })
+      const { principalId } = await acceptInvitedAccount(storage, { now, newId: d.newId }, { role: invitation.role, subject, email: address, name, emailVerified })
       // P4: marked accepted only after the commit, guarded on the invitation still being live. A revoke that landed in between leaves the membership ([[CORE288]] removes it).
       await d.store.accept({ id: invitation.id, auditId: d.newId(), actorId: principalId, now: now.toISOString() })
     },

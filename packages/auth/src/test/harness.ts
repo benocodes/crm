@@ -48,7 +48,7 @@ export interface Workerd {
   /** The control-plane database (`CONTROL_DB`, [[CORE259]]): where every `auth_*` row lives. Absent when started with `control: false`. */
   control: D1Like
   logs: string[]
-  call(path: string, init?: { method?: string; body?: unknown; form?: boolean; cookie?: string; headers?: Record<string, string> }): Promise<Response>
+  call(path: string, init?: { method?: string; body?: unknown; form?: boolean; cookie?: string; headers?: Record<string, string>; /** Do not follow a redirect: the test reads the `Location`. */ manual?: boolean }): Promise<Response>
   /** A query on the CRM database. */
   rows<T = Record<string, unknown>>(sqlText: string, ...binds: unknown[]): Promise<T[]>
   /** A query on the control-plane database. */
@@ -68,6 +68,8 @@ export async function startWorkerd(o: {
   control?: boolean
   /** `true`: write the CRM `deployment` row and the control marker for `PAIRED_ORG`, as bootstrap does. Default false (the test entry needs neither). */
   paired?: boolean
+  /** The outbound service ([[CORE294]] D9): what answers every request the Worker makes to the network (a fake Google). Default: any outbound request throws. */
+  outbound?: (req: Request) => Response | Promise<Response>
 }): Promise<Workerd> {
   const logs: string[] = []
   const capture = (stream: NodeJS.ReadableStream) => stream.on('data', (c: Buffer) => logs.push(...c.toString().split('\n').filter(Boolean)))
@@ -85,9 +87,11 @@ export async function startWorkerd(o: {
       capture(stdout)
       capture(stderr)
     },
-    outboundService: () => {
-      throw new Error('the auth tests make no outbound request')
-    },
+    outboundService:
+      o.outbound ??
+      (() => {
+        throw new Error('the auth tests make no outbound request')
+      }),
   }
   const mf = new Miniflare(options)
   try {
@@ -110,6 +114,7 @@ export async function startWorkerd(o: {
       call: (path, init = {}) =>
         mf.dispatchFetch(BASE + path, {
           method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
+          ...(init.manual ? { redirect: 'manual' as const } : {}),
           headers: { origin: BASE, 'cf-connecting-ip': '203.0.113.9', ...(init.body === undefined ? {} : { 'content-type': init.form ? 'application/x-www-form-urlencoded' : 'application/json' }), ...(init.cookie ? { cookie: init.cookie } : {}), ...init.headers },
           body: init.body === undefined ? undefined : init.form ? new URLSearchParams(init.body as Record<string, string>).toString() : JSON.stringify(init.body),
         }) as unknown as Promise<Response>,

@@ -1,5 +1,7 @@
 // [[UI246]] PLAN, E2E: the three auth pages in a real browser against a local Worker on `better-auth`, worktree-local D1s (CRM and control from the real wrangler.jsonc).
 // Prerequisite: fresh local state, both databases migrated, `.dev.vars` with AUTH_PROVIDER=better-auth, AUTH_SECRET (32+ characters) and PUBLIC_BASE_URL=http://localhost:8787,
+// [[CORE294]] adds the Google leg (steps 2b, 5b, 5c): the same `.dev.vars` also carries DUMMY `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET` (any non-empty strings, this Worker only; no request reaches Google: a Playwright route
+// answers `accounts.google.com` locally, and the callback is proven in workerd, not here). Every other step runs unchanged with Google configured.
 // `bootstrap --org E2E --auth-provider better-auth --public-base-url http://localhost:8787 --owner-email owner@e2e.test` (E2E_INVITE_URL = the URL it printed), `pnpm dev` running.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
@@ -13,6 +15,7 @@ const PKG = fileURLToPath(new URL('..', import.meta.url))
 const SHOTS = join(PKG, 'e2e-screenshots')
 mkdirSync(SHOTS, { recursive: true })
 const PASSWORD = 'a long enough password 123'
+const REDIRECT_URI = 'http://localhost:8787/auth/callback/google'
 const EXACT_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 
 const controlRows = (sql: string): Array<Record<string, unknown>> => {
@@ -80,6 +83,38 @@ test('2. the owner URL: the fragment leaves the address; another email is refuse
   expect(controlRows('select count(*) as n from auth_users')[0]!.n).toBe(0)
 })
 
+/** Answers the navigation to Google locally and returns the URLs it was asked for. */
+const fakeGoogleDoor = async () => {
+  const seen: string[] = []
+  await page.route('https://accounts.google.com/**', (route) => {
+    seen.push(route.request().url())
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>fake google</title><h1>fake google</h1>' })
+  })
+  return seen
+}
+const expectGoogleDoor = (seen: string[], token?: string) => {
+  expect(seen).toHaveLength(1)
+  const u = new URL(seen[0]!)
+  expect(`${u.origin}${u.pathname}`).toBe('https://accounts.google.com/o/oauth2/v2/auth')
+  expect(u.searchParams.get('redirect_uri')).toBe(REDIRECT_URI)
+  expect(u.searchParams.get('scope')).toBe('openid email profile')
+  if (token) expect(seen[0]).not.toContain(token)
+}
+
+test('2b. [CORE294] the invitation link shows the Google button; clicking it goes to Google with the D7 redirect URI and scope, and the token is in no part of the URL', async () => {
+  await visit(INVITE_URL!)
+  const button = page.getByRole('button', { name: 'Continue with Google' })
+  await expect(button).toBeVisible()
+  await axeBoth(page, 'invite-google')
+  const seen = await fakeGoogleDoor()
+  const token = new URLSearchParams(new URL(INVITE_URL!).hash.replace(/^#/, '')).get('token')!
+  await button.click()
+  await page.waitForURL('https://accounts.google.com/**')
+  expectGoogleDoor(seen, token)
+  await page.unroute('https://accounts.google.com/**')
+  expect(controlRows('select count(*) as n from auth_users')[0]!.n).toBe(0)
+})
+
 test('3. the invited address signs up (case-insensitive) and lands on the signed-in view', async () => {
   await visit(INVITE_URL!)
   await page.getByLabel('Name').fill('Owner Person')
@@ -111,6 +146,33 @@ test('5. sign out returns to the form and the session is gone', async () => {
   await expect(page.getByLabel('Email')).toBeVisible()
   expect(await page.evaluate(async () => (await fetch('/auth/get-session')).json())).toBeNull()
   await axeBoth(page, 'sign-in-form')
+})
+
+test('5b. [CORE294] /sign-in shows the Google button; clicking it goes to Google with the D7 redirect URI and scope', async () => {
+  await visit('/sign-in')
+  const button = page.getByRole('button', { name: 'Continue with Google' })
+  await expect(button).toBeVisible()
+  await axeBoth(page, 'sign-in-google')
+  const seen = await fakeGoogleDoor()
+  await button.click()
+  await page.waitForURL('https://accounts.google.com/**')
+  expectGoogleDoor(seen)
+  await page.unroute('https://accounts.google.com/**')
+})
+
+test('5c. [CORE294] a failed callback: invitation_required shows the refusal message; any other error one generic message, with nothing of the code or description on the page', async () => {
+  await visit('/sign-in?error=invitation_required')
+  await expect(page.getByRole('alert')).toContainText('This invitation cannot be used')
+  await expect(page.getByRole('alert')).toBeFocused()
+  await axeBoth(page, 'sign-in-google-refused')
+  await visit('/sign-in?error=x&error_description=' + encodeURIComponent('<b>pwned</b>'))
+  await expect(page.getByRole('alert')).toContainText('Google sign-in did not complete')
+  await expect(page.getByRole('alert')).toBeFocused()
+  const body = await page.locator('body').innerText()
+  expect(body).not.toContain('pwned')
+  expect(await page.locator('b').count()).toBe(0)
+  expect(body).not.toMatch(/\bx\b/)
+  await axeBoth(page, 'sign-in-google-failed')
 })
 
 test('6. a wrong password is the one message; the right one signs in', async () => {

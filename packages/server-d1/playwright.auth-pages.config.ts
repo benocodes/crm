@@ -12,6 +12,8 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   retries: 0,
+  // The steps include rate-limit waits and Chrome start-up: a generous per-test limit.
+  timeout: 180_000,
   reporter: [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8787',

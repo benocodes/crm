@@ -98,6 +98,13 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   (and their absence mutations) at the adapter on hand-signed Ed25519 tokens (`packages/api/src/auth/better-auth.test.ts`)
   and kept the composed workerd test for real tokens of each kind. A charter asking for such a mutation "in workerd"
   is asking for the impossible: ask for it at the unit, and for real-producer tokens at the composition.
+- **A fake external provider sits at the network edge, never in shipped configuration** ([[CORE294]], [[UI246]] D9).
+  In workerd, Miniflare's outbound service (`startWorkerd({ outbound })` in `packages/auth/src/test/harness.ts`)
+  answers every subrequest, so the test also proves nothing else was called; the default throws. In Node, Better
+  Auth's `betterFetch` reads the global `fetch` at call time: stub it for the one call and restore it after. Miniflare's
+  `dispatchFetch` follows redirects, so a test asserting a `302` and its `Location` passes `redirect: 'manual'`
+  (`Workerd.call(..., { manual: true })`). Read the provider library's source for every endpoint the flow calls
+  before writing the fake; Google's redirect flow needs only the token endpoint.
 - **A wiring choice is proven where it is wired.** A reader proven by a unit or route suite does not prove the
   composition picks it: [[CORE244]]'s `membershipRoleReader` was proven in the api callback suite, but nothing tested
   that `packages/server-d1/src/compose.ts` passes it as the mail-sync claim's `roleOf` on `better-auth` (a regression
@@ -618,6 +625,11 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
     first, never from the client's callback page.
   - Mind its per-IP limits: 5 `GET /auth/device` per 30 minutes, and a short sign-in window. Count calls or use
     a fresh Worker.
+- **Set the config's `timeout`.** Playwright's default is 30 s per test; a step that waits out a rate limit or
+  starts Chrome dies mid-run with a misleading failure (`playwright.auth-pages.config.ts`, [[CORE294]] review).
+- **A third-party sign-in leg stops at the provider's door.** Shipped configuration has no switch to point Google
+  elsewhere ([[UI246]] D9), so route `accounts.google.com` with `page.route`, assert the captured navigation
+  (`redirect_uri`, `scope`, no secret in any part), and prove the callback in workerd against a fake provider.
 - **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.

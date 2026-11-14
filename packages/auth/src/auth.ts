@@ -3,7 +3,7 @@
 // fail-closed admission policy while the vault has no invitations ([[CORE245]]) and no client-registration policy ([[CORE244]]).
 import { oauthDeviceAuthorization, oauthProvider, oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider'
 import { betterAuth, type BetterAuthOptions } from 'better-auth'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { APIError, addOAuthServerContext, createAuthMiddleware, getOAuthState } from 'better-auth/api'
 import { getAuthTables } from 'better-auth/db'
 import { jwt } from 'better-auth/plugins'
 import { D1Dialect } from 'kysely-d1'
@@ -20,7 +20,14 @@ export interface AuthRuntimeConfig {
   vaultScopes?: readonly string[]
   /** The subset of `vaultScopes` an agent may be granted ([[CORE243]] D11, P6): the only vault scopes a dynamically registered client may hold. Default none (OIDC scopes only). */
   grantableScopes?: readonly string[]
+  /** The Google client for sign-in ([[CORE294]] D7), already resolved by the Worker's composition (`AUTH_GOOGLE_*`, else the Gmail pair). Absent: Google sign-in is off and Better Auth registers no provider. */
+  google?: { clientId: string; clientSecret: string }
 }
+
+/** Google sign-in asks for these scopes and no others ([[CORE294]] D7). */
+export const GOOGLE_SCOPES = ['openid', 'email', 'profile'] as const
+/** The OAuth state's server-context key that carries the invitation token across Google's redirect ([[CORE294]] D8, P3). */
+const SERVER_CONTEXT_TOKEN = 'invitationToken'
 
 /** The resources the provider issues access tokens for ([[CORE283]] P1): the API origin and the MCP endpoint's canonical URI (RFC 8707). Both name this one Worker. */
 export const MCP_RESOURCE_PATH = '/mcp'
@@ -62,7 +69,7 @@ export interface InvitationAdmission {
    * Called on every session creation (sign-up and sign-in, [[CORE287]] P3, P5) with the Better Auth account behind it. Writes the vault's rows and marks the invitation accepted when the account has no
    * rows yet and a live invitation created no later than the account admitted it; otherwise writes nothing. Throws when the write fails: the session is then not created.
    */
-  settle(a: { subject: string; email: string; name: string; accountCreatedAt: Date }): Promise<void>
+  settle(a: { subject: string; email: string; name: string; /** The Better Auth user's `emailVerified` ([[CORE294]] P5): true for a Google-verified account, false for a password sign-up. */ emailVerified: boolean; accountCreatedAt: Date }): Promise<void>
 }
 
 export interface CreateAuthOptions {
@@ -200,12 +207,36 @@ async function requireInvitation(admission: InvitationAdmission | undefined, bod
 }
 
 /**
+ * The Google branch of the backstop ([[CORE294]] D8, P3, P4): a user creation on an OAuth callback is admitted only when the token in the state's SERVER context is live for the Google profile's email AND
+ * Google reports that email verified. The token is read from `serverContext` only, never from a top-level state key (client `additionalData`) and never from the callback's query.
+ */
+async function requireGoogleInvitation(admission: InvitationAdmission | undefined, user: { email?: unknown; emailVerified?: unknown } | null | undefined, state: { serverContext?: Record<string, unknown> }): Promise<void> {
+  const token = state.serverContext?.[SERVER_CONTEXT_TOKEN]
+  const email = typeof user?.email === 'string' ? user.email.trim().toLowerCase() : ''
+  if (!admission || email === '' || user?.emailVerified !== true || typeof token !== 'string' || token === '' || !(await admission.admits({ email, token }))) throw refusal()
+}
+
+/** The OAuth state of the current request, or null when there is none (an email sign-up, or a call outside a request). */
+async function oauthStateOrNull(): Promise<{ serverContext?: Record<string, unknown> } | null> {
+  try {
+    return ((await getOAuthState()) as { serverContext?: Record<string, unknown> } | null) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Before-hooks of every endpoint. [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the
  * library, so it is refused too. [[CORE287]]: email sign-up is gated before anything else runs, so an unadmitted request costs no password hash and cannot tell an existing account from an absent one.
  */
 const endpointGate = (admission: InvitationAdmission | undefined, open: boolean) =>
   createAuthMiddleware(async (ctx) => {
     if (ctx.path === '/sign-up/email' && !open) await requireInvitation(admission, ctx.body)
+    // [[CORE294]] D8, P3: the invitation token of a Google sign-up rides the OAuth state's SERVER context (never a URL), and only a non-empty string is copied.
+    if (ctx.path === '/sign-in/social') {
+      const token = (ctx.body as Record<string, unknown> | undefined)?.[INVITATION_TOKEN_FIELD]
+      if (typeof token === 'string' && token !== '') await addOAuthServerContext({ [SERVER_CONTEXT_TOKEN]: token })
+    }
     if (ctx.path !== '/oauth2/register') return
     const method = (ctx.body as { token_endpoint_auth_method?: unknown } | undefined)?.token_endpoint_auth_method
     if (method !== 'none') throw new APIError('BAD_REQUEST', { error: 'invalid_client_metadata', error_description: 'only public clients may register: token_endpoint_auth_method must be none' })
@@ -227,7 +258,10 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     emailAndPassword: { enabled: true, disableSignUp: !open && !admission, revokeSessionsOnPasswordReset: true, password: { hash: hashPassword, verify: verifyPassword } },
     user: schemaFor('user'),
     session: { ...schemaFor('session'), expiresIn: BROWSER_SESSION_SECONDS },
-    account: schemaFor('account'),
+    // [[CORE294]] D8: an existing account is linked to Google only by a Google-verified email equal to its own, with no trusted providers; the local email need not be verified (a password account never is: no verification mail).
+    account: { ...schemaFor('account'), accountLinking: { enabled: true, trustedProviders: [], requireLocalEmailVerified: false } },
+    // [[CORE294]] D7: Google is registered only when the composition hands in a complete client; scopes are exactly `openid email profile`, the redirect URI is Better Auth's `<base>/auth/callback/google`.
+    ...(config.google ? { socialProviders: { google: { clientId: config.google.clientId, clientSecret: config.google.clientSecret, disableDefaultScope: true, scope: [...GOOGLE_SCOPES] } } } : {}),
     verification: schemaFor('verification'),
     rateLimit: { enabled: true, storage: 'database', ...schemaFor('rateLimit') },
     advanced: {
@@ -241,17 +275,25 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     databaseHooks: {
       user: {
         // The backstop at the point EVERY account creation passes ([[CORE287]] P2): a path the endpoint hook does not name (a later Google sign-in) carries no token and is refused here.
-        create: { before: async (_user: unknown, ctx: { body?: unknown } | null | undefined) => void (open || (await requireInvitation(admission, ctx?.body))) },
+        // [[CORE294]] P4: a creation on the OAuth callback carries the provider's profile and the state; any other creation (email sign-up) is judged on the request body as before.
+        create: {
+          before: async (user: { email?: unknown; emailVerified?: unknown }, ctx: { body?: unknown } | null | undefined) => {
+            if (open) return
+            const state = await oauthStateOrNull()
+            if (state) await requireGoogleInvitation(admission, user, state)
+            else await requireInvitation(admission, ctx?.body)
+          },
+        },
       },
       session: {
         // Every successful sign-up and sign-in creates a session: the one place acceptance and repair ([[CORE287]] P3, P5) run, before the session exists, so a failure leaves no cookie.
         create: {
-          before: async (session: { userId: string }, ctx: { context?: { internalAdapter?: { findUserById(id: string): Promise<{ id: string; email: string; name: string; createdAt: Date | string | number } | null> }; logger?: { error(...a: unknown[]): void } } } | null | undefined) => {
+          before: async (session: { userId: string }, ctx: { context?: { internalAdapter?: { findUserById(id: string): Promise<{ id: string; email: string; name: string; emailVerified?: boolean; createdAt: Date | string | number } | null> }; logger?: { error(...a: unknown[]): void } } } | null | undefined) => {
             if (!admission) return
             const user = await ctx?.context?.internalAdapter?.findUserById(session.userId)
             if (!user) return
             try {
-              await admission.settle({ subject: user.id, email: user.email, name: user.name, accountCreatedAt: new Date(user.createdAt) })
+              await admission.settle({ subject: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified === true, accountCreatedAt: new Date(user.createdAt) })
             } catch (err) {
               ctx?.context?.logger?.error('invitation acceptance failed', err instanceof Error ? err.message : 'unknown error')
               throw new APIError('INTERNAL_SERVER_ERROR', { code: 'invitation_acceptance_failed', message: 'the account could not be settled; sign in again to retry' })
