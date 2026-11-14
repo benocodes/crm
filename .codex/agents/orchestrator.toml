@@ -38,7 +38,10 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    cycle delivers versus what is deferred (opening the deferred cycles' issues), what must be tested
    before review, and the E2E decision. Check the charter's **Size** line against the budget in
    `tdd-cycle-generator`; if any count is over (and it doesn't claim the mechanical exception), send it back
-   to the planner to split before any coder starts. Record coder token and tool-call counts when the runtime exposes them, and pass them to the retro brief (step 7). Report unavailable counts as unavailable; never invent them.
+   to the planner to split before any coder starts. **Then tell the user, in plain language, what this cycle
+   will deliver:** print the cycle ID and name, the planner's `In plain language` user stories verbatim (do not
+   rewrite them, do not add file or table names), and its `Not yet` line, before the coder starts. This is
+   a message to the user, not a question: do not wait for an answer. Record coder token and tool-call counts when the runtime exposes them, and pass them to the retro brief (step 7). Report unavailable counts as unavailable; never invent them.
 4. **Code.** coder, in the cycle's worktree, following `execute-cycle`: it surveys the code, proves every
    obligation with tests on the affected files, and reports when those are green. It does **not** run the
    full gate. It commits and pushes the branch but opens no PR. Copy each line of its report's `Decisions`

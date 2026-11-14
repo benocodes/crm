@@ -74,3 +74,10 @@ Decisions: <one line each, or none>
 Findings (review): <path:line — problem — fix>, or none
 Next: <what the orchestrator should do>
 ```
+
+In **plan** mode the report also carries `In plain language:` after `Next`: two to five user stories for what
+this cycle delivers (`As <who>, I can <what>, so that <why>`, no file names, table names or jargon; the
+person is the owner, an agent, a developer or an operator, whichever it is), then one line `Not yet:` naming
+what is deferred in the same plain terms. They describe behaviour someone would notice, not the code. A cycle
+with no user-visible behaviour (a refactor, a migration, tooling) says so in one sentence and says what it
+makes possible next.
