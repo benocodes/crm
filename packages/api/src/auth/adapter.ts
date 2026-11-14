@@ -47,6 +47,11 @@ export type WebhookResult = { ok: true; change: DirectoryChange } | { ok: false;
 export interface AuthAdapter {
   /** Stored in users.auth_provider. 'clerk' for the Clerk adapter. */
   readonly provider: string
+  /**
+   * Where a human's workspace role comes from ([[CORE244]] D7): `claim` (default, Clerk: the token's claim or the provider profile) or `membership` (the vault's own live `memberships`
+   * row, read on every request, the built-in provider).
+   */
+  readonly roleSource?: 'claim' | 'membership'
   /** Networkless. Never throws for a bad token; returns the reason. */
   verify(token: string): Promise<VerifyResult>
   /** Called once per new subject, outside any transaction. Throws on transport or HTTP failure. */
@@ -97,7 +102,7 @@ export function parseCliClientId(env: AuthEnv): string | undefined {
 function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, workspace: boolean): AuthAdapter | undefined {
   const provider = env.AUTH_PROVIDER?.trim()
   if (!provider) return undefined
-  // [[CORE243]] D1: the built-in provider has no token adapter yet (cycle 3, CORE244); the composition mounts its `/auth` handler and the API stays API-key only meanwhile.
+  // [[CORE243]] D1: the built-in provider's adapter needs the control-plane reads, so the composition builds it (`createBetterAuthAdapter`, [[CORE244]]); here it is no adapter.
   if (provider === 'better-auth') return undefined
   if (provider !== 'clerk') throw new Error(`unknown AUTH_PROVIDER "${provider}"`)
   const need = (name: string): string => {

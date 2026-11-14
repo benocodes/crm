@@ -104,6 +104,16 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     reader is a spec decision. Under `better-auth` the Worker fails closed without the binding (`500`, log names
     `CONTROL_DB`), refuses an untracked or behind control database (`503 migrations_pending`) and an unpaired control
     marker (`500`, log `control database not paired`); `clerk` and unset never open it.
+  - **Better Auth tokens on the API** ([[CORE243]] D8 as pinned by [[CORE244]]; `packages/api/src/auth/better-auth.ts`):
+    the adapter's `roleSource` is `'membership'` (role read live from `memberships` per request, in the principal
+    lookup's read-only unit; Clerk stays `'claim'`). Kinds: header `typ: at+jwt` (+ `client_id`) = OAuth access token;
+    claim `vibase_token: "session"` (from `jwt.definePayload` in `@vibase/auth`, no `client_id`/`azp`) = session JWT;
+    anything else (an OIDC ID token) is `401`. Better Auth 1.7.22 facts that bit: the `jwt` plugin's default `iss`/`aud`
+    are the bare origin (set `issuer` = `<PUBLIC_BASE_URL>/auth`, `audience` = `PUBLIC_BASE_URL`); the provider refuses
+    any scope it was not configured with, so the registry's declared scopes are passed in (`vaultScopes`); an access
+    token is a JWT only when the client sends `resource=<PUBLIC_BASE_URL>`, otherwise it is opaque and refused. Key,
+    profile and client-name reads go through the control store (`readAuthJwks`, `readAuthProfile`,
+    `readOAuthClientName`), the only code outside the provider that names `auth_*` tables.
   - **workerd streams** ([[CORE69]]): R2's `put` refuses a `ReadableStream` of unknown length (`TypeError`), so pipe a
     known-size stream through `FixedLengthStream(size)` and send an unknown-size one through `ObjectStore.putStream`
     (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vibase/api` only as

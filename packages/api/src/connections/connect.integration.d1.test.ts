@@ -4,6 +4,7 @@ import { step, uuidv7 } from '@vibase/storage'
 import { resolveOperation } from '../identity/resolve.js'
 import type { Role } from '../auth/roles.js'
 import { SCOPE_POLICY, type ScopePolicy } from '../auth/roles.js'
+import { membershipRoleReader } from '../auth/membership-role.js'
 import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { FAKE_ENDPOINTS, FAKE_GMAIL_BASE, FakeGoogle, type ConsentOptions, type FakeAccount } from '../test/google.js'
@@ -447,5 +448,24 @@ describe('config gate (D58)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     buildApp({})
     expect(warn).not.toHaveBeenCalled()
+  })
+})
+
+// CORE244 D7: on the built-in provider the callback's role re-check (CHN5 D33) is the live `memberships` row, read per request, not a provider profile.
+describe('the role re-check follows the live membership (CORE244 D7)', () => {
+  it('owner connects; the same user demoted to a role without connections:write, then removed, is refused; a new live membership admits again', async () => {
+    policy = { ...SCOPE_POLICY, 'connections:write': { member: false, agentGrantable: false } }
+    const membership = (await rows('memberships')).find((m) => m.user_id === e.userId)!
+    const viaMembership = () => buildApp(env, { roleOf: membershipRoleReader(e.binding, e.authProvider) })
+    app = viaMembership()
+    expect(await (await connect()).text()).not.toContain('not_a_member')
+    const before = await snapshot()
+    await e.update('memberships', membership.id as string, { role: 'member' })
+    expect(await (await connect()).text()).toContain('<code>not_a_member</code>')
+    await e.update('memberships', membership.id as string, { role: 'owner', deleted_at: now.toISOString() })
+    expect(await (await connect()).text()).toContain('<code>not_a_member</code>')
+    expect(await snapshot()).toEqual(before)
+    await e.insert('memberships', { user_id: e.userId, role: 'owner' })
+    expect(await (await connect()).text()).not.toContain('not_a_member')
   })
 })
