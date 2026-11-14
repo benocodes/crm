@@ -15,7 +15,7 @@ export const BASE_SOURCE = `{
     { "binding": "DB", "database_name": "vb-crm", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../storage-d1/migrations" },
     { "binding": "CONTROL_DB", "database_name": "vb-control", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "../storage-d1/control-migrations" }
   ],
-  "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*"] },
+  "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*", "/sign-in", "/invite", "/reset-password", "/ui/*"] },
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": { "AUTH_PROVIDER": "" },
   "env": { "prod": { "name": "vb-prod", "d1_databases": [{ "binding": "DB", "database_name": "p", "database_id": "11111111-2222-3333-4444-555555555555" }] } }
@@ -31,6 +31,11 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
   writeFileSync(join(root, 'worker.js'), 'export default {}\n')
   writeFileSync(join(root, 'assets', 'index.html'), '<html></html>')
   writeFileSync(join(root, 'assets', 'connect.js'), 'x')
+  // [[UI246]] D2: the auth pages' build output (`ui/` of the assets directory): index, bundle and stylesheet.
+  mkdirSync(join(root, 'ui-assets'), { recursive: true })
+  writeFileSync(join(root, 'ui-assets', 'index.html'), '<html></html>')
+  writeFileSync(join(root, 'ui-assets', 'app.js'), 'y')
+  writeFileSync(join(root, 'ui-assets', 'ui.css'), 'z')
   const mig = [
     ['0001_a.sql', 'create table a(id integer);\n'],
     ['0002_b.sql', 'create table b(id integer);\n'],
@@ -53,6 +58,7 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
     serverJs: join(root, 'server.js'),
     workerEntry: join(root, 'worker.js'),
     assetsConnectDir: join(root, 'assets'),
+    assetsUiDir: join(root, 'ui-assets'),
     migrationsDir: join(root, 'migrations'),
     controlMigrationsDir: join(root, 'control-migrations'),
     baseConfigText: BASE_SOURCE,

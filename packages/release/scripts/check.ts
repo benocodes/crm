@@ -18,6 +18,7 @@ import { assertRelease, type ReleaseManifest } from '../src/manifest.js'
 import { readMigrationState, type D1Like } from '@vibase/storage-d1'
 import { verifySums } from '../src/pack.js'
 import { readReleaseVersion } from '../src/version.js'
+import { UI_RUN_WORKER_FIRST } from '../../server-d1/src/ui-serving.js'
 import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
 import { deployArgs } from '../../server-d1/scripts/instance/upgrade.js'
 import { wranglerEnv } from './build.js'
@@ -190,7 +191,7 @@ export async function checkRelease(tarballs: { client: string; server: string },
       r2Buckets: ['BODIES'],
       workflows: { MAIL_SYNC: { name: 'vibase-check-mail-sync', className: 'MailSyncWorkflow' } },
       workflowsPersist: false,
-      assets: { directory: join(installed, 'assets'), binding: 'ASSETS', routerConfig: { has_user_worker: true, static_routing: { user_worker: ['/connect', '/connect/*'] } } },
+      assets: { directory: join(installed, 'assets'), binding: 'ASSETS', routerConfig: { has_user_worker: true, static_routing: { user_worker: ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST] } } },
       bindings: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '', VERSION: manifest.version, COMMIT: manifest.commit },
       outboundService: () => new Response('no network in the release check', { status: 502 }),
     })

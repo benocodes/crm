@@ -12,6 +12,16 @@ const WRANGLER_JSONC = new URL('../../server-d1/wrangler.jsonc', import.meta.url
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
 
+describe('UI246 D2: the auth pages ship in the server package', () => {
+  it('assets/ui/ holds the build output of the pages (index, bundle, stylesheet), beside assets/connect/', () => {
+    const s = sources()
+    const outDir = mkdtempSync(join(tmpdir(), 'ui246-out-'))
+    dirs.push(s.root, outDir)
+    stageServer({ ...s, outDir })
+    for (const f of ['index.html', 'app.js', 'ui.css']) expect(readFileSync(join(outDir, 'assets', 'ui', f), 'utf8')).toBe(readFileSync(join(s.assetsUiDir, f), 'utf8'))
+  })
+})
+
 describe('D3 layout', () => {
   it('the staged package holds exactly the cycle-1 files', () => {
     const s = sources()
@@ -19,7 +29,7 @@ describe('D3 layout', () => {
     dirs.push(s.root, outDir)
     stageServer({ ...s, outDir })
     expect(listFiles(outDir)).toEqual([
-      'LICENSE', 'README.md', 'assets/connect/connect.js', 'assets/connect/index.html', 'cli/server.js',
+      'LICENSE', 'README.md', 'assets/connect/connect.js', 'assets/connect/index.html', 'assets/ui/app.js', 'assets/ui/index.html', 'assets/ui/ui.css', 'cli/server.js',
       'control-migrations/0001_c.sql', 'control-migrations/0002_d.sql', 'migrations/0001_a.sql', 'migrations/0002_b.sql', 'package.json', 'release.json', 'worker/worker.js', 'wrangler.base.jsonc',
     ])
   })

@@ -180,6 +180,10 @@ catches script slips, which cost [[API115]] a full coder and tester round. Note 
 why) in RESULT.md. **Before writing a Playwright spec, read `writing-tests` §7** and copy the waits of an existing
 spec (`mcp-oauth.e2e.ts`): [[AGT8]] cycle 1's spec read `window.Clerk.session` right after sign-in, a race §7
 already names, and it cost a coder and tester round. A spec that only type-checks has not been run.
+**A harness outside the gate that fails** (`smoke:worker`, `release:check`): run it once on a clean `main` worktree
+(`git worktree add --detach <dir> main`, `pnpm install --frozen-lockfile`) before you report. If it fails there too,
+quote the failing line in RESULT.md so the reviewer or planner can open an issue; "not confirmed on `main`" leaves
+that check to them. [[UI246]]'s `smoke:worker` abort had been on `main` since #286 (#295).
 
 **Resuming an interrupted gate** (`knowledge/specs/012-CORE170-message-sort/RETRO.md`): inventory the saved
 per-package logs against the current source/test state before rerunning. Retain still-applicable passing checks,

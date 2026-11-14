@@ -92,6 +92,18 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
       expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(f.replace(/[.]/g, '\\.')))
     }
   })
+  it('UI246 D2: a server package without one of the page assets is refused by name; assets/ui/ files are allowed, other asset directories still are not', () => {
+    for (const f of ['assets/ui/index.html', 'assets/ui/app.js', 'assets/ui/ui.css']) {
+      const { dir, s } = server()
+      unlinkSync(join(dir, f))
+      expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(`${f.replace(/[.]/g, '\\.')}.*missing`))
+    }
+    const { dir, s } = server()
+    put(dir, 'assets/ui/extra.js', 'x')
+    expect(serverProblems(dir, s.version)).toEqual([])
+    put(dir, 'assets/uix/y.js', 'x')
+    expect(() => assertServerLayout(dir, s.version)).toThrow(/assets\/uix\/y\.js/)
+  })
   it('a base config without the nodejs_compat flag is refused by name (CORE243 D2: a deploy with node: imports and no flag fails only remotely)', () => {
     for (const flags of [undefined, [], ['some_other_flag']]) {
       const { dir, s } = server()

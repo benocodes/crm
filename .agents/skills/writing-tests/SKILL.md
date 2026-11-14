@@ -591,6 +591,14 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   (`page.waitForFunction(() => window.Clerk?.session)`) before `session.getToken()`.
 - **A hosted provider screen's labels are not ours** (Clerk's consent button): match tolerantly and treat the
   click as optional while waiting for the outcome you actually assert (the callback, a URL).
+- **A scenario that carries a session across steps shares one browser context.** Playwright gives each `test()` a
+  fresh context, which drops the cookie the previous step signed in with: create one `browser.newContext()` in
+  `beforeAll` and run the file serially (`test.describe.configure({ mode: 'serial' })`;
+  `packages/server-d1/e2e/auth-pages.e2e.ts`, [[UI246]]).
+- **`page.goto` to a URL that differs only in its `#fragment` does not reload the page**, so a page that reads the
+  fragment on load never sees the new value. Go through `about:blank` first (that spec's `visit()`).
+- **Use `getByLabel(text, { exact: true })`**: the default substring match also hits a section whose accessible
+  name contains the label (`New password` matched "Set a new password").
 - **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.

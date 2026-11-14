@@ -4,6 +4,7 @@ import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
+import { isUiPath, serveUi } from './ui-serving.js'
 import { gmailTransport } from '@vibase/api'
 import { AUTH_SERVER_METADATA_PATH, createAuthHandler, resourcesFor, type AuthRuntimeConfig } from '@vibase/auth'
 import { parseBuiltInAuthConfig } from './auth-config.js'
@@ -473,6 +474,8 @@ export function composeD1Worker(
         // [[CORE243]] D1: `/auth/*` exists only for the built-in provider; for clerk and unset it is no route at all, before every gate. For better-auth it passes the migration gate
         // and the configuration gate, then the control gate ([[CORE259]] D6, D7: the auth tables live in the control-plane database, which must be migrated and paired with this
         // CRM database). It still touches no vault table (CORE243 D5).
+        // [[UI246]] D1, D2: the auth pages and their bundle exist only for the built-in provider (no route at all otherwise), and are static: they answer before every gate.
+        if (isUiPath(url.pathname)) return builtIn ? ((await serveUi(req, { assets: env.ASSETS })) ?? json(NO_SUCH_ROUTE, 404)) : json(NO_SUCH_ROUTE, 404)
         if (url.pathname === '/auth' || url.pathname.startsWith('/auth/') || (builtIn && url.pathname === AUTH_SERVER_METADATA_PATH)) {
           if (!builtIn) return json(NO_SUCH_ROUTE, 404)
           if (configError || !builtInConfig) return json(INTERNAL, 500)
