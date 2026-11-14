@@ -219,7 +219,7 @@ test('5. every new page carries the exact headers; /consent without a request ex
   await axeBoth('consent-no-request')
 })
 
-// [[UI297]] leg 3 of [[UI247]] D8: the connect page on `better-auth`, in the same browser context (the session of the legs above is live, and leg 3 left one delegated agent).
+// [[UI297]] leg 3 of [[UI247]] D8: the connect page on `better-auth`, in the same browser context (the session of the legs above is live, and leg 2 left one delegated agent).
 const emailShown = (p: Page) => p.locator('[data-section="who"]').getByText('owner@e2e.test')
 
 test('6. /connect signed in: the person and the delegated agent agents.list returns, a self-only CSP, no request leaves the origin', async () => {
@@ -242,7 +242,7 @@ test('6. /connect signed in: the person and the delegated agent agents.list retu
     return ((await res.json()) as { data: { name: string; delegated_by: string | null }[] }).data
   })
   const delegated = listed.filter((a) => a.delegated_by !== null)
-  expect(delegated.length, 'leg 3 left a delegated agent').toBeGreaterThan(0)
+  expect(delegated.length, 'leg 2 left a delegated agent').toBeGreaterThan(0)
   for (const a of delegated) await expect(page.locator('[data-section="agents"]').getByText(a.name, { exact: true }).first()).toBeVisible()
   await axeBoth('connect-signed-in')
 })

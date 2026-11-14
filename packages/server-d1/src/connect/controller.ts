@@ -90,8 +90,9 @@ export function createPage(deps: { clerk: ClerkLike | null; api: Api; origin: st
       try {
         await clerk?.signOut()
       } catch {
-        // UI297 D7: a refused sign-out (the session is still live) is not "signed out".
-        return set({ kind: 'refused', status: 0 })
+        // UI297 D7: a refused sign-out (the session is still live) is not "signed out": keep the state, say so on a signed-in page.
+        if (state.kind === 'signed-in') set({ ...state, error: 'Sign-out did not complete. Reload the page and try again.' })
+        return
       }
       set({ kind: 'signed-out' })
     },

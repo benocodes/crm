@@ -268,7 +268,7 @@ describe('agents.update', () => {
 })
 
 describe('sign out', () => {
-  it('a sign-out the seam rejects does not claim signed out: the page shows the refused-load state and nothing throws', async () => {
+  it('a sign-out the seam rejects does not claim signed out: the page stays signed in with an error line and nothing throws', async () => {
     const clerk = new FakeClerk()
     clerk.signOut = async () => {
       throw new Error('refused')
@@ -276,7 +276,19 @@ describe('sign out', () => {
     const { page } = run(clerk, { 'GET /meta/v1/me': [ok(OWNER)], 'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })] })
     await page.start()
     await expect(page.signOut()).resolves.toBeUndefined()
-    expect(page.state()).toEqual({ kind: 'refused', status: 0 })
+    const s = page.state()
+    expect(s.kind).toBe('signed-in')
+    expect(s.kind === 'signed-in' && s.error).toBe('Sign-out did not complete. Reload the page and try again.')
+  })
+  it('a rejected sign-out from any other state leaves the state unchanged', async () => {
+    const clerk = new FakeClerk(false)
+    clerk.signOut = async () => {
+      throw new Error('refused')
+    }
+    const { page } = run(clerk, {})
+    await page.start()
+    await expect(page.signOut()).resolves.toBeUndefined()
+    expect(page.state()).toEqual({ kind: 'signed-out' })
   })
   it('calls Clerk and ends signed out', async () => {
     const clerk = new FakeClerk()
