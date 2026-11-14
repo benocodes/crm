@@ -43,6 +43,8 @@ export const fixtures: Record<string, ContractFixture> = {
   // Administration ([[CORE3]]): human-only scopes, so the suite runs these as a user.
   memberships: {
     make: async (kit) => ({ id: (await kit.seedMember('member')).membershipId }),
+    // [[CORE288]]: update and delete exist (owner-held `members:write`); a role change is the only patch.
+    patch: async () => ({ role: 'owner' }),
     actors: ['user'],
   },
   agents: {

@@ -204,11 +204,14 @@ describe('removal order and revocation (P5)', () => {
     const stayBefore = await authRows(stays.subject)
     // a consent the person gave (the device grant stores none): it must survive the removal
     await w.control.prepare('insert into auth_oauth_consents (id, client_id, user_id, scopes, created_at, updated_at) values (?, ?, ?, ?, ?, ?)').bind(uuidv7(NOW), otherClient, gone.subject, '["openid"]', NOW.toISOString(), NOW.toISOString()).run()
+    // a device code the person approved and nobody redeemed yet: revoked too, or it could still mint a token
+    await w.control.prepare("insert into auth_device_codes (id, device_code, user_code, user_id, expires_at, status, client_id) values (?, 'dc-1', 'UC111111', ?, ?, 'approved', ?)").bind(uuidv7(NOW), gone.subject, new Date(Date.now() + 600_000).toISOString(), otherClient).run()
     expect(await authRows(gone.subject)).toMatchObject({ refresh: 1, consents: 1 })
     expect((await authRows(gone.subject)).sessions).toBeGreaterThan(0)
     const res = await del(wk, await owner.session(), (await membership(gone.id)).id as string)
     expect(res.status).toBe(200)
     expect(await authRows(gone.subject)).toEqual({ sessions: 0, access: 0, refresh: 0, consents: 1 })
+    expect(await rows(w.control, 'select id from auth_device_codes where user_id = ?', gone.subject)).toEqual([])
     expect(await authRows(stays.subject)).toEqual(stayBefore)
     const a = await audit('user.sessions_revoked')
     expect(a).toHaveLength(1)
@@ -388,6 +391,21 @@ describe('owner-issued reset links (P6, P7)', () => {
     expect(JSON.stringify((await call(wk, 'GET', '/meta/v1/users', await owner.session())).json)).not.toContain(token)
     // no CRM event for the issue
     expect(await events('%')).toEqual([])
+  })
+
+  it('two links issued for the same member at once are both returned, each with its own working token (the capture is per call)', async () => {
+    const owner = await human('owner')
+    const member = await human('member', 'member@x.test')
+    const wk = worker()
+    const tok = await owner.session()
+    const [one, two] = await Promise.all([reset(wk, tok, member.id), reset(wk, tok, member.id)])
+    expect([one.status, two.status]).toEqual([200, 200])
+    const a = tokenOf(one.json.url)
+    const b = tokenOf(two.json.url)
+    expect(a).not.toBe(b)
+    expect((await rows(w.control, "select id from auth_verifications where identifier in (?, ?)", `reset-password:${a}`, `reset-password:${b}`))).toHaveLength(2)
+    expect((await resetPassword(wk, a)).status).toBe(200)
+    expect(await audit('user.reset_link_issued')).toHaveLength(2)
   })
 
   it('an owner may issue one for another owner; each issue is audited', async () => {
