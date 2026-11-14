@@ -163,6 +163,10 @@ counts: the unbudgeted work was a planner decision (P4: setup adds a control dat
 the plan of every existing fixture, so 8 suites asserting "nothing planned" for `smoked1`/`demo` had to record a control database.
 When a charter decision changes the default plan or output for every existing instance or fixture, say so in **Watch out** and
 name it in the Size line ("rider: existing fixtures"), so the split question is asked with that cost in view.
+**CORE283** (`knowledge/specs/015-CORE283-better-auth-clients-discovery/RETRO.md`): 6 groups (1 matrix), 4 decisions, no
+migration, 1 local E2E part, cost 307k / 108 calls (one 8k fix round). The budget holds. A Watch out item that ends in "check what
+it does and record it" (the rate limiter with no client IP) is an unproven behaviour: make it an obligation with its own test,
+or it comes back as a review finding, as it did here.
 
 ### Step 3: Resolve identities
 
