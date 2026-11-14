@@ -4,6 +4,7 @@ import { getSession, signIn, signOut, type SessionUser } from './auth-api.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { returnTarget } from './continuation.js'
 import { emailError, goTo, type PageProps } from './page.js'
+import { GoogleButton, useGoogleEnabled } from './google-button.js'
 
 /**
  * [[UI246]] D5. A session is the signed-in view (the email as text) with sign-out; no session is the form. No sign-up link (admission is the invitation), no "forgot password" flow without email (a line says
@@ -35,6 +36,7 @@ export function SignInPage({ navigate = goTo }: PageProps) {
   ) : (
     <SignInForm
       oauthQuery={oauthQuery}
+      navigate={navigate}
       onSignedIn={(user, redirect) => {
         if (redirect !== undefined) return navigate(redirect)
         if (target !== null) return navigate(target)
@@ -70,7 +72,15 @@ function SignedIn({ user, target, onSignedOut }: { user: SessionUser; target: st
   )
 }
 
-function SignInForm({ oauthQuery, onSignedIn }: { oauthQuery: string | undefined; onSignedIn: (user: SessionUser, redirect?: string) => void }) {
+/** [[CORE294]] P1: Better Auth returns a failed Google callback as `/sign-in?error=<code>`. `invitation_required` is D4's refusal; anything else is one generic message. Neither the code nor `error_description` is ever shown. */
+const callbackError = (search: string): string | undefined => {
+  const code = new URLSearchParams(search).get('error')
+  return code === null ? undefined : code === 'invitation_required' ? MESSAGES.invitationRefused : MESSAGES.googleFailed
+}
+
+function SignInForm({ oauthQuery, navigate, onSignedIn }: { oauthQuery: string | undefined; navigate: (path: string) => void; onSignedIn: (user: SessionUser, redirect?: string) => void }) {
+  const google = useGoogleEnabled()
+  const [googleError, setGoogleError] = useState<string | undefined>(undefined)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
@@ -101,6 +111,7 @@ function SignInForm({ oauthQuery, onSignedIn }: { oauthQuery: string | undefined
     <FormLayout
       title="Sign in"
       onSubmit={onSubmit}
+      error={googleError ?? callbackError(location.search)}
       actions={
         <Button type="submit" busy={busy}>
           Sign in
@@ -110,6 +121,7 @@ function SignInForm({ oauthQuery, onSignedIn }: { oauthQuery: string | undefined
       {notice ? <Alert variant="success">{MESSAGES.passwordResetDone}</Alert> : null}
       <Field label="Email" name="email" type="email" autoComplete="email" value={email} onChange={setEmail} error={errors.email} required />
       <Field label="Password" name="password" type="password" autoComplete="current-password" value={password} onChange={setPassword} error={errors.password} required />
+      {google ? <GoogleButton onError={setGoogleError} navigate={navigate} /> : null}
       <p>{MESSAGES.signInHelp}</p>
     </FormLayout>
   )

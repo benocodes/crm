@@ -15,7 +15,7 @@ const MCP_RESOURCE_PATH = '/mcp'
 /** The configuration the three documents read: public values only, never a secret. */
 export interface DiscoveryConfig {
   /** `undefined` when `AUTH_PROVIDER` is unset (API keys only). */
-  provider?: { name: 'clerk'; issuer: string } | { name: 'better-auth'; issuer: string; /** `PUBLIC_BASE_URL`: the documents' resource and URLs come from it, never the request host ([[CORE243]] D23). */ baseUrl: string }
+  provider?: { name: 'clerk'; issuer: string } | { name: 'better-auth'; issuer: string; /** `PUBLIC_BASE_URL`: the documents' resource and URLs come from it, never the request host ([[CORE243]] D23). */ baseUrl: string; /** [[CORE294]] D7: how a person signs in here; the auth pages read it to show the Google button. */ signInMethods?: readonly ('password' | 'google')[] }
   /** `AUTH_CLI_CLIENT_ID`; `undefined` is `null` in the document. */
   cliClientId?: string
   /** `CLERK_PUBLISHABLE_KEY` ([[UI30]] D5), already validated against the issuer; `undefined` is `null` in the document. */
@@ -70,7 +70,7 @@ export function discoveryResponse(req: Request, config: DiscoveryConfig): Respon
         ? null
         : p.name === 'better-auth'
           ? // [[CORE283]] P3: no publishable key; the issuer, the resource and the metadata URL come from the configured base URL.
-            { provider: p.name, issuer: p.issuer, cli_client_id: config.cliClientId ?? null, resource: p.baseUrl, protected_resource_metadata: p.baseUrl + PROTECTED_RESOURCE_PATH }
+            { provider: p.name, issuer: p.issuer, cli_client_id: config.cliClientId ?? null, resource: p.baseUrl, protected_resource_metadata: p.baseUrl + PROTECTED_RESOURCE_PATH, sign_in_methods: p.signInMethods ?? ['password'] }
           : { provider: p.name, issuer: p.issuer, cli_client_id: config.cliClientId ?? null, publishable_key: config.publishableKey ?? null, protected_resource_metadata: o + PROTECTED_RESOURCE_PATH },
     }
   } else if (url.pathname === PROTECTED_RESOURCE_PATH || url.pathname === MCP_PROTECTED_RESOURCE_PATH) {

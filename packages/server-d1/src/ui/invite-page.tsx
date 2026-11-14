@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
 import { signUp } from './auth-api.js'
 import { takeFragmentToken } from './fragment.js'
+import { GoogleButton, useGoogleEnabled } from './google-button.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { emailError, goTo, newPasswordError, type PageProps } from './page.js'
 
@@ -20,6 +21,8 @@ export function InvitePage({ navigate = goTo }: PageProps) {
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
+  const google = useGoogleEnabled()
+  const [googleError, setGoogleError] = useState<string | undefined>(undefined)
 
   if (token === null) {
     return (
@@ -55,6 +58,7 @@ export function InvitePage({ navigate = goTo }: PageProps) {
     <FormLayout
       title="Accept your invitation"
       onSubmit={onSubmit}
+      error={googleError}
       actions={
         <Button type="submit" busy={busy}>
           Create account
@@ -64,6 +68,7 @@ export function InvitePage({ navigate = goTo }: PageProps) {
       <Field label="Name" name="name" autoComplete="name" value={name} onChange={setName} error={errors.name} required />
       <Field label="Email" name="email" type="email" autoComplete="email" hint="The address the invitation was sent to." value={email} onChange={setEmail} error={errors.email} required />
       <Field label="Password" name="password" type="password" autoComplete="new-password" hint="8 to 128 characters." value={password} onChange={setPassword} error={errors.password} required />
+      {google ? <GoogleButton invitationToken={token} onError={setGoogleError} navigate={navigate} /> : null}
     </FormLayout>
   )
 }

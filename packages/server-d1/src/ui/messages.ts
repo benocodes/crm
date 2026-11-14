@@ -11,6 +11,9 @@ export const MESSAGES = {
   signInAcceptanceFailed: 'Your account is almost ready, but setup did not finish. Sign in again to retry.',
   signInHelp: 'Forgot your password? Ask an owner for a reset link.',
   passwordResetDone: 'Your password has been changed. Sign in with the new one.',
+  // Google sign-in ([[CORE294]] D8, P1): one message for any callback failure; the callback's code and description are never shown.
+  googleButton: 'Continue with Google',
+  googleFailed: 'Google sign-in did not complete. Try again, or sign in with your password.',
   // The reset page.
   resetInvalidLink: 'This reset link is invalid, expired or already used. Ask an owner for a new link.',
   resetNoToken: 'This page needs the reset link you were sent. Open that link again, or ask an owner for a new one.',
