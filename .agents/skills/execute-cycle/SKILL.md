@@ -55,7 +55,10 @@ with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never
 - **Grep the whole package, not just `src/`, when the charter changes how something is read or written.**
   `e2e/` and `scripts/` (smokes) are outside the gate, so a stale reader there stays green until someone runs it
   ([[API105]]: two `order by id`/`rowid` event readers in `packages/server-d1/e2e` and `scripts/smoke-worker.ts`
-  were found at review).
+  were found at review). `scripts/*.test.ts` *are* in the gate but not in a `src/` grep: when a stored shape
+  changes (an audit `detail`, a column list), grep `packages/*/scripts` for the old literal too ([[CORE248]]'s
+  only gate-fix round was `packages/server-d1/scripts/bootstrap-invitation.test.ts` pinning the old
+  `invitation.created` detail).
 - **A new CLI flag goes into every help and usage text that lists its command's flags**, not only the parser and
   the docs: grep the command's neighbouring flag (`--d1-name`) to find them. [[OPS279]]'s review round 1 was only
   this: `--control-d1-name` parsed and documented, missing from `INSTANCE_HELP`
