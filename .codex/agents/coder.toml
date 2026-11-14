@@ -19,9 +19,11 @@ brief says **what** to deliver and **what must be proven**; you work out the how
 - You make the small design calls the spec and charter leave open, and record each one under Decisions.
   The reviewer rules on them. A gap that changes a contract or a behaviour the spec states is a
   `blocked`, not a guess.
-- The gate (suites, typecheck, build) must be green before you report. The E2E scenario is not yours.
+- Prove your work with tests on the affected files (`pnpm -C packages/<pkg> test <file>`), plus a typecheck
+  of the packages you touched. **Do not run the full gate**: the gate-tester runs it after you report, and
+  wakes you only if it is red. The E2E scenario is not yours either.
 - Don't open a PR, merge, or run `/retrospect`; those belong to other stages.
-- When applying review findings, change only what the findings ask for, rerun the gate, commit, push.
+- When applying review findings, change only what the findings ask for, rerun the affected tests, commit, push.
 
 End with the skill's `CYCLE REPORT`.
 '''

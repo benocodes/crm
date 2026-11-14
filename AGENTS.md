@@ -75,9 +75,10 @@ on a single issue (`fix-bugs`, `work-on-ready-issues`), are not orchestrated: do
 
 | Agent | Model | Job |
 |---|---|---|
-| `orchestrator` | Sonnet | The main session (`claude --agent orchestrator`). Picks the next item from `knowledge/SPRINT.md`, briefs the others, merges approved PRs, keeps SPRINT.md current. Reads reports, not code. |
+| `orchestrator` | Sonnet | The main session (`pnpm orchestrator`, i.e. `scripts/launch-orchestrator.sh`: `claude --agent orchestrator --plugin-dir .claude/mods/sprint-relay`, which loads the `next_cycle` hand-off tool). Picks the next item from `knowledge/SPRINT.md`, briefs the others, merges approved PRs, keeps SPRINT.md current. Reads reports, not code. |
 | `planner` | Opus | Modes: `spec` (draft and approve a spec), `plan` (a short charter via `tdd-cycle-generator`), `review` (the diff against charter and spec), `retro` (`/retrospect` and ingest). |
-| `coder` | Sonnet | Implements the charter via `execute-cycle`: surveys the code, proves every test obligation, runs the gate (all suites, typecheck, build; must be green) in the cycle's worktree, records its design decisions; applies review findings. |
+| `coder` | Sonnet | Implements the charter via `execute-cycle`: surveys the code, proves every test obligation with tests on the affected files in the cycle's worktree, records its design decisions; applies review findings and gate failures. It does not run the full gate. |
+| `gate-tester` | Haiku | Runs the full gate (`scripts/gate.sh`: all suites, typecheck, build) on the pushed sha, writes `GATE.md` and reports counts. Never edits, never diagnoses. A red gate goes back to the coder; gate-fix rounds do not count toward the two-round cap. |
 | `e2e-tester` | Sonnet | Runs the charter's E2E scenario (initial state, real actions, expected end state) against a real database or UI, only when the charter has one, and reports evidence. Never edits. |
 
 Subagents cannot start subagents, so the orchestrator must be the main session, never a subagent.
@@ -93,6 +94,7 @@ orchestrator to a subagent. Open design discussions and single-issue work still 
 | orchestrator | GPT-6.1 Sol | xhigh |
 | planner (spec, plan, review, retro) | GPT-6.1 Sol | xhigh |
 | coder | GPT-6.1 Sol | high |
+| gate-tester | GPT-6.1 Sol | low |
 | e2e-tester | GPT-6.1 Sol | medium |
 
 The Opus/Sonnet names above apply to Claude only. Codex uses these TOML settings. If the runtime
@@ -104,7 +106,8 @@ All Codex roles use Sol for now, including verify-only workers.
 Current `AGENTS.md` product rules, gates and standing exceptions take precedence over stale examples
 in either runtime's role prompts. Update both sets when changing a shared workflow rule.
 
-**Per cycle:** planner `spec` (if the spec isn't approved) → planner `plan` → coder (gate green) →
+**Per cycle:** planner `spec` (if the spec isn't approved) → planner `plan` → coder (affected tests green) →
+gate-tester (full gate; on red: coder → gate-tester, until green; these rounds are free) →
 e2e-tester (only if the charter has an E2E scenario; on failure: coder → e2e-tester, until it passes) → planner `review` (on changes requested: coder → e2e-tester if any → review; **at most two coder rounds in total**) → planner
 `retro` → orchestrator opens the PR, waits for checks, merges (`gh pr merge --squash --delete-branch`),
 removes the worktree and its test DB, and checkpoints SPRINT.md. Cycles that build on each other run in

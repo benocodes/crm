@@ -119,7 +119,11 @@ don't guess: stop and report `blocked` with the question.
 
 ## 5. Gate
 
-All of it must be green before you report. Never report a test as passing without having run it.
+**In a sprint the coder does not run the gate.** Before you report, run the tests on the files you changed
+and added (`pnpm -C packages/<pkg> test <file>`) and a typecheck of the packages you touched; report the gate
+as "not run: gate-tester". The orchestrator then spawns the gate-tester, which runs `scripts/gate.sh` and writes
+`GATE.md`; you are woken only if it is red, and that round is free (it does not count toward the reviewer-round
+cap). Outside a sprint, run the gate yourself, as below. Never report a test as passing without having run it.
 
 ```bash
 pnpm -r --workspace-concurrency=1 --filter '!@vibase/api' test   # every other package, one at a time
@@ -127,6 +131,18 @@ pnpm -C packages/api test --reporter=dot                          # the api suit
 pnpm -r typecheck
 pnpm -r build      # where a package has a build
 ```
+
+**Waiting costs context cache; wait as few times as possible.** Every wake-up after a long idle gap re-reads the whole
+context uncached, and a Monitor that expires (900 s) and is re-armed is one such wake-up per expiry. So:
+- While iterating, run only the affected files (`pnpm -C packages/<pkg> test <file>`), in the foreground; they finish in
+  seconds to a minute or two. The full gate runs once, when the work is green, not after each change.
+- Run the whole gate as ONE background script, `scripts/gate.sh [log-dir]` (the four commands above, one log per
+  step, `gate.status` ending in `GATE_EXIT=<0|1>`), started with `run_in_background`. Then wait once. Do not start a
+  Monitor per suite.
+- Wait with a single `until grep -q GATE_EXIT <log>; do sleep 30; done` Monitor given the longest timeout the tool
+  allows, and send nothing while it runs. If it expires, re-arm it once with no commentary; do not poll, re-read the log
+  or run other commands in between.
+- Never start a second gate run while one is going (they contend for the machine and both slow down).
 
 The `@vibase/api` suite runs its files in parallel at 4 workers ([[OPS223]]): about 4.5 to 6 minutes on the 8-core development machine
 (276 to 339 s measured at load 3.4 to 3.8 before the start; 971 s serial), alone on the machine. On a loaded machine lower it with
@@ -200,7 +216,8 @@ Outcome: complete | handed off (<HANDOFF path>) | blocked (<question>)
 Worktree / branch: <path> / <branch> @ <sha>
 Commits: <sha — subject>, one per line
 Migration: <file, or none>
-Gate: <command → N passed / M failed>, one per suite; typecheck <clean | errors>; build <ok | n/a>
+Tests run: <command → N passed / M failed>, affected files; typecheck of touched packages <clean | errors>
+Gate: not run (gate-tester) in a sprint; outside a sprint <command → N passed / M failed>, one per suite; typecheck <clean | errors>; build <ok | n/a>
 Obligations: <each charter obligation → test(s) and evidence (red run / mutation Mn) | not proven — why>
 Decisions: <one line each, or none>
 Deviations from charter: <bullets, or none>
