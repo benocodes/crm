@@ -61,7 +61,7 @@ export function configProblems(root: string): string[] {
   if (JSON.stringify(c.fixed) !== JSON.stringify([['@vibase/cli', '@vibase/server-d1']])) out.push(`fixed is ${JSON.stringify(c.fixed)}, expected exactly one group of @vibase/cli and @vibase/server-d1`)
   const names = workspaceNames(root)
   const others = names.filter((n) => n !== '@vibase/cli' && n !== '@vibase/server-d1')
-  if (others.length !== 11) out.push(`expected 11 other workspace packages, found ${others.length}`)
+  if (others.length !== 12) out.push(`expected 12 other workspace packages, found ${others.length}`)
   const ignore = [...(c.ignore ?? [])].sort()
   if (JSON.stringify(ignore) !== JSON.stringify(others)) out.push(`ignore is ${JSON.stringify(ignore)}, expected the other workspace packages ${JSON.stringify(others)}`)
   if (JSON.stringify(c.privatePackages) !== JSON.stringify({ version: true, tag: false })) out.push('privatePackages must be { version: true, tag: false }')
@@ -104,7 +104,7 @@ export function scratchVersion(mutate: (c: Record<string, any>) => void = () => 
 }
 
 describe('the changesets configuration (D25)', () => {
-  it('has the fixed group of exactly the two names, the other eleven ignored, both packages private', () => {
+  it('has the fixed group of exactly the two names, the other twelve ignored, both packages private', () => {
     expect(configProblems(REPO)).toEqual([])
   })
   it('mutation: private: false on one package is reported', () => {
