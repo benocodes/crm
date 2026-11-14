@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync, mkdirSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { MIGRATIONS } from '@vibase/storage-d1'
+import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
 import { sources } from './fixtures.js'
 import { assertRelease, listFiles, sha256, verifyRelease } from './manifest.js'
 import { stageServer } from './stage.js'
@@ -20,7 +20,7 @@ function stage() {
 describe('D4 release.json', () => {
   it('has every field, and files covers every file but release.json and package.json', () => {
     const { outDir, manifest, s } = stage()
-    expect(Object.keys(manifest).sort()).toEqual(['built_at', 'commit', 'compatibility_date', 'files', 'migrations', 'name', 'node', 'version', 'wrangler'])
+    expect(Object.keys(manifest).sort()).toEqual(['built_at', 'commit', 'compatibility_date', 'control_migrations', 'files', 'migrations', 'name', 'node', 'version', 'wrangler'])
     expect(manifest).toMatchObject({ name: '@vibase/server-d1', version: '0.1.0', commit: 'abc1234', wrangler: '4.149.0', compatibility_date: '2026-07-30', node: '>=22' })
     expect(JSON.parse(readFileSync(join(outDir, 'release.json'), 'utf8'))).toEqual(manifest)
     expect(Object.keys(manifest.files).sort()).toEqual(listFiles(outDir).filter((f) => f !== 'release.json' && f !== 'package.json'))
@@ -77,5 +77,62 @@ describe('D4 verify refusals', () => {
     m.migrations[0].sha256 = '0'.repeat(64)
     writeFileSync(p, JSON.stringify(m))
     expect(verifyRelease(outDir)).toContainEqual({ path: 'migrations/0001_a.sql', kind: 'mismatch' })
+  })
+})
+
+describe('OPS260 D14: the control migrations are shipped, listed and verified like the CRM ones', () => {
+  it('release.json lists them with their hashes, and the files are covered', () => {
+    const { outDir, manifest, s } = stage()
+    expect(manifest.control_migrations).toEqual(s.controlMigrations)
+    expect(Object.keys(manifest.files)).toEqual(expect.arrayContaining(['control-migrations/0001_c.sql', 'control-migrations/0002_d.sql']))
+    expect(listFiles(outDir)).toEqual(expect.arrayContaining(['control-migrations/0001_c.sql', 'control-migrations/0002_d.sql']))
+    expect(verifyRelease(outDir)).toEqual([])
+  })
+  it('the real control directory and its manifest verify (the files CONTROL_MIGRATIONS names)', () => {
+    const dir = new URL('../../storage-d1/control-migrations/', import.meta.url).pathname
+    const s = sources()
+    dirs.push(s.root)
+    const outDir = mkdtempSync(join(tmpdir(), 'ops260-out-'))
+    dirs.push(outDir)
+    const m = stageServer({ ...s, outDir, controlMigrationsDir: dir, controlMigrations: CONTROL_MIGRATIONS })
+    expect(m.control_migrations).toEqual(CONTROL_MIGRATIONS)
+    expect(verifyRelease(outDir)).toEqual([])
+  })
+  it('a control migration missing from the package is refused, naming the file', () => {
+    const { outDir } = stage()
+    unlinkSync(join(outDir, 'control-migrations', '0002_d.sql'))
+    expect(verifyRelease(outDir)).toContainEqual({ path: 'control-migrations/0002_d.sql', kind: 'missing' })
+    expect(() => assertRelease(outDir)).toThrow('control-migrations/0002_d.sql')
+  })
+  it('an extra control migration (a file the manifest does not list) is refused, naming the file', () => {
+    const { outDir } = stage()
+    writeFileSync(join(outDir, 'control-migrations', '0003_e.sql'), 'x')
+    expect(verifyRelease(outDir)).toEqual([{ path: 'control-migrations/0003_e.sql', kind: 'extra' }])
+    expect(() => assertRelease(outDir)).toThrow('control-migrations/0003_e.sql')
+  })
+  it('a manifest that lists the control migrations out of order is refused, naming the file', () => {
+    const { outDir } = stage()
+    const p = join(outDir, 'release.json')
+    const m = JSON.parse(readFileSync(p, 'utf8'))
+    m.control_migrations.reverse()
+    writeFileSync(p, JSON.stringify(m))
+    expect(verifyRelease(outDir)).toContainEqual({ path: 'control-migrations/0001_c.sql', kind: 'reordered' })
+    expect(() => assertRelease(outDir)).toThrow('control-migrations/0001_c.sql')
+  })
+  it('a control entry whose hash differs from its file is refused', () => {
+    const { outDir } = stage()
+    const p = join(outDir, 'release.json')
+    const m = JSON.parse(readFileSync(p, 'utf8'))
+    m.control_migrations[0].sha256 = '0'.repeat(64)
+    writeFileSync(p, JSON.stringify(m))
+    expect(verifyRelease(outDir)).toContainEqual({ path: 'control-migrations/0001_c.sql', kind: 'mismatch' })
+  })
+  it('a manifest with no control_migrations list refuses a package that carries the directory (extra)', () => {
+    const { outDir } = stage()
+    const p = join(outDir, 'release.json')
+    const m = JSON.parse(readFileSync(p, 'utf8'))
+    delete m.control_migrations
+    writeFileSync(p, JSON.stringify(m))
+    expect(verifyRelease(outDir).map((x) => x.kind)).toContain('extra')
   })
 })

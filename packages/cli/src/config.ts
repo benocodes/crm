@@ -23,6 +23,8 @@ export interface OAuthProfile {
   refresh_token: string
   expires_at: number
   scope: string
+  /** RFC 8707 `resource` the instance's discovery named at login ([[CORE283]] P4); sent on every token request. Absent for Clerk. */
+  resource?: string
 }
 export type Profile = ApiKeyProfile | OAuthProfile
 export interface Config {
@@ -86,7 +88,7 @@ export function loadConfig(path: string): Config {
       typeof p.expires_at === 'number' &&
       Number.isFinite(p.expires_at)
     ) {
-      cfg.profiles[name] = { kind: 'oauth', server: p.server, issuer: p.issuer, client_id: p.client_id, access_token: p.access_token, refresh_token: p.refresh_token, expires_at: p.expires_at, scope: p.scope }
+      cfg.profiles[name] = { kind: 'oauth', server: p.server, issuer: p.issuer, client_id: p.client_id, access_token: p.access_token, refresh_token: p.refresh_token, expires_at: p.expires_at, scope: p.scope, ...(typeof p.resource === 'string' && p.resource !== '' ? { resource: p.resource } : {}) }
     } else throw bad()
   }
   return cfg

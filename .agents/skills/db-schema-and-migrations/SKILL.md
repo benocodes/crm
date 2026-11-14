@@ -371,6 +371,32 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   `openLocalD1(..., { control })` (`@vibase/storage-d1/test`); locally, `wrangler d1 migrations apply CONTROL_DB --local`.
 - **Control `0001` is generated** (`pnpm -C packages/auth schema:generate --write`) and `packages/auth/src/schema.test.ts`
   compares it with Better Auth's schema; that test splits on `;`, so a header comment must contain none.
+- **Tooling maps each database by its `binding`, never by position** ([[OPS260]]): `DB` → `migrations/`,
+  `CONTROL_DB` → `control-migrations/`, each with its own `database_id` and `migrations_dir`
+  (`packages/release/src/check-config.ts`). `db:migrate:remote` applies control first and stops on its failure;
+  control is "current" only when applied = shipped exactly (unknown and ahead are not). Until [[CORE261]], an env
+  whose config has no `CONTROL_DB` entry is CRM only, with a printed not-configured line ([[CORE259]] P1).
+  The instance commands (`vibase-server status`/`upgrade`, `packages/server-d1/scripts/instance/`) take the control
+  database's name and id only from the settings' optional `control_d1`, never derived from the env ([[OPS275]]); settings
+  with `AUTH_PROVIDER=better-auth` and no `control_d1` are refused (P2).
+- **"No tracker" differs by database and by reader** ([[OPS275]] D-b): for status and upgrade, a control database with no
+  `d1_migrations` table is `behind` with every control migration pending (a new instance before its first migrate); the
+  Worker's runtime control gate refuses it as `unknown`; the CRM no-tracker case is `unknown` in both.
+- **Check a generated wrangler config with wrangler's own reader** (`unstable_readConfig` from `wrangler` on the written
+  file, `packages/server-d1/scripts/instance/config.test.ts`), not only the object the generator returned ([[OPS275]]).
+  A copy of the repo's `wrangler.jsonc` that an editor rewrote must sit **next to the original** (a unique name in
+  `packages/server-d1`, removed in `finally`): wrangler resolves `migrations_dir` relative to the config file, so a copy
+  in a temp directory cannot show that `CONTROL_DB` points at the shipped `control-migrations/`
+  (`packages/server-d1/scripts/setup-control-config.test.ts`, [[OPS279]]).
+- **Setup gives every instance its control database** ([[OPS279]], [[CORE259]] P4): both front-ends derive
+  `vb-control-<env>` (or take the record / `--control-d1-name`), adopt a D1 of that name, migrate control before CRM
+  inside the one `migrate` step, and write the control marker after the CRM `deployment` row, also on an instance
+  bootstrapped before the control plane existed. `bootstrap --remote` writes it when the env binds `CONTROL_DB`.
+- **Dropping or moving a table: grep every package for its name** (sources, tests, fixtures), not only the package
+  that owns the migration. CRM `0019` (drop `auth_*`) broke `packages/server-d1/src/auth-routing.test.ts`, which the
+  charter's watch list missed and only the full gate found ([[OPS260]]). Grep `scripts/` too: `smoke:worker` is not
+  in the gate, so its check 25d (reading the dropped CRM `auth_jwks`) stayed broken on `main` until [[CORE244]] needed
+  the smoke; a cycle that drops a table runs `pnpm -C packages/server-d1 smoke:worker` before review.
 - Adding a binding means updating every harness that composes the Worker (storage-d1 test support, the server
   kit, the auth harness, `smoke:worker`) and every test that composes `better-auth` without it, which otherwise
   fails with the same `500` as the fail-closed refusal: assert the log line naming the cause.

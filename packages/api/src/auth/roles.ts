@@ -60,6 +60,9 @@ export const SCOPE_POLICY: ScopePolicy = {
   'members:read': { member: true, agentGrantable: false },
   'agents:read': { member: true, agentGrantable: false },
   'agents:write': { member: false, agentGrantable: false },
+  // Invitations ([[CORE245]] P1): owner-held and human-only, like agents:write. They live in the control plane; no agent ever holds them, and a member cannot read who was invited.
+  'invitations:read': { member: false, agentGrantable: false },
+  'invitations:write': { member: false, agentGrantable: false },
 }
 
 /**
@@ -106,6 +109,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'members:read': 'View the members of the workspace',
   'agents:read': 'View the workspace agents and their access',
   'agents:write': 'Create, change and revoke agents and their API keys',
+  'invitations:read': 'View the workspace invitations and whether each is pending, accepted, revoked or expired',
+  'invitations:write': 'Invite people to the workspace and revoke invitations (the invitation link is shown once)',
 }
 
 /** Owner: every declared scope. Member: declared scopes flagged `member`; no entry means not granted (fail closed). */

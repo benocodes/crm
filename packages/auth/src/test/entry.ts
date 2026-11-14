@@ -8,6 +8,8 @@ interface Env {
   AUTH_SECRET: string
   PUBLIC_BASE_URL: string
   OPEN_ADMISSION?: string
+  /** A fake invitation port ([[CORE287]]): admits exactly `<email>|<token>` and settles nothing. */
+  FAKE_ADMISSION?: string
 }
 
 export default {
@@ -31,7 +33,10 @@ export default {
       return Response.json({ ok: await verifyPassword({ hash, password: url.searchParams.get('password') ?? '' }) })
     }
     if (url.pathname.startsWith('/auth/')) {
-      const handler = createAuthHandler(env.CONTROL_DB, { secret: env.AUTH_SECRET, baseURL: env.PUBLIC_BASE_URL }, { unsafeOpenAdmissionForTests: env.OPEN_ADMISSION === '1' })
+      const handler = createAuthHandler(env.CONTROL_DB, { secret: env.AUTH_SECRET, baseURL: env.PUBLIC_BASE_URL }, {
+        unsafeOpenAdmissionForTests: env.OPEN_ADMISSION === '1',
+        ...(env.FAKE_ADMISSION ? { admission: { admits: async (a: { email: string; token: string }) => `${a.email}|${a.token}` === env.FAKE_ADMISSION, settle: async () => undefined } } : {}),
+      })
       return handler(req)
     }
     return new Response('not found', { status: 404 })

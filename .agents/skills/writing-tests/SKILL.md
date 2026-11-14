@@ -46,9 +46,18 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   failed unit" test stayed green for the wrong reason; the counted M4 moved the real call into the plan phase and three
   tests went red. When a mutation stays green, check that the mutated path actually performs the observed effect (a
   request on the fake, a row) before concluding the test is weak.
+  **The reverse holds too: a guard that sits behind another guard is never reached end to end**, so removing it
+  turns nothing red. Test the inner guard by calling it directly ([[CORE287]]: the `databaseHooks.user.create.before`
+  backstop sat behind the endpoint gate; `packages/auth/src/backstop.test.ts` calls the hook, and M5 turns 5 red).
+  **Build fixtures only through states the invariants allow.** A fixture the system cannot reach (CORE287's two live
+  invitations for one email, one backdated) can pin wrong behaviour and turn a correct fix red.
   **A safe backstop can hide the guard you mutate:** AGT166's first M13 removed the pending-transition guard and stayed
   green, because the unique request index also refused the duplicate and the test accepted any `409`. Assert the
   specific code (`action_request_not_pending`) and the winner's attribution, so only the guarded path passes.
+  **When the backstop is a real guard on the same path, the mutated code is the duplicate: delete it.** [[OPS279]]'s
+  M7 removed `bootstrap.ts`'s control-marker pre-check and stayed green, because `bootstrapD1` already refused a
+  foreign marker before either database was written; no test could tell them apart, so the pre-check was dropped
+  (RESULT D-f) rather than kept as untested defence.
   **An atomicity test names its failure the same way:** a bare `rejects.toThrow()` also passes when the unit fails at
   plan or build time, before any batch runs, so "nothing was written" proves no rollback. Assert the in-batch error
   (`rolled back (not_null)`, `packages/api/src/events/feed.integration.d1.test.ts`, [[API105]]).
@@ -84,6 +93,19 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   before the route exists when the gate runs before routing ([[API63]]: the [[CORE61]] `migrations_pending` gate). Keep
   it as a regression guard and pair it with a case that needs the new code (gate open → `200`); a charter should not
   ask for a red run on the first one.
+- **A refusal the real producer cannot emit is proven on crafted inputs at the unit.** Better Auth signs with a key
+  encrypted by `AUTH_SECRET`, so it cannot mint a token with a wrong `iss` or `aud`; [[CORE244]] proved those refusals
+  (and their absence mutations) at the adapter on hand-signed Ed25519 tokens (`packages/api/src/auth/better-auth.test.ts`)
+  and kept the composed workerd test for real tokens of each kind. A charter asking for such a mutation "in workerd"
+  is asking for the impossible: ask for it at the unit, and for real-producer tokens at the composition.
+- **A wiring choice is proven where it is wired.** A reader proven by a unit or route suite does not prove the
+  composition picks it: [[CORE244]]'s `membershipRoleReader` was proven in the api callback suite, but nothing tested
+  that `packages/server-d1/src/compose.ts` passes it as the mail-sync claim's `roleOf` on `better-auth` (a regression
+  there suspends every connection; #284). When code selects an implementation per configuration, add one composed
+  case per branch whose absence mutation is "the other branch's implementation".
+- **A matrix obligation is the full cross product unless the charter removes cells.** List the cells the RESULT
+  covers against rows × columns, and name each omitted cell with its reason; [[CORE244]]'s review found three `cli`
+  cells missing from a 3 × 8 matrix that RESULT reported as complete.
 - **A term that today's configuration makes vacuous cannot be proven with today's configuration.** [[CORE77]]'s
   delegated scopes are token ∩ cap ∩ role ∩ grantable, but under the real `SCOPE_POLICY` every agent-grantable scope
   is also a member scope, so dropping the role term changed nothing. Inject the configuration (an optional `policy`
@@ -193,6 +215,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   turn the named test red: `set_config(..., false)` inside a transaction that rolls back is rolled back too,
   so it cannot redden an "after rollback" leak test ([[CORE1]]). Run each target test alone (`-t`): on a
   shared `max: 1` pool, one test's leak reddens the next for the wrong reason.
+- **A test that passes in the red run is vacuous until proven otherwise.** List every one in RESULT.md, then tighten it
+  so it fails under the stub (assert the success status, `201`/`200`, before the absence it claims) or name the mutation
+  that reddens it. [[CORE245]]'s "no CRM event" test passed in red on a `404`: it proved nothing until it asserted the
+  create succeeded first.
+- **Append-only tables in an emptied-between-tests database.** A `BEFORE DELETE ... RAISE` trigger (`control_audit`,
+  [[CORE245]]) makes a plain `DELETE FROM` fail. `clearD1` (`packages/storage-d1/src/test/index.ts`) drops exactly the
+  `BEFORE DELETE` triggers, empties, and recreates them from their stored `sqlite_master.sql`, all in one batch, so the
+  schema after is the migrated one. Never disable a guard trigger in a fixture any other way; the trigger's own refusal
+  test runs on the migrated schema.
 - **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row passes
   whatever the code under test does ([[CORE29]] review). If the seeded id is not needed, drop the `const`
   (`await seedUser(...)`); if it is, assert something the code decides.

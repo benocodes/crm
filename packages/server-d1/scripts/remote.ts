@@ -38,6 +38,8 @@ export interface Target {
   workerName: string
   databaseName: string
   databaseId: string
+  /** The control-plane database ([[OPS260]] P1): present only when the env's config has a `CONTROL_DB` entry; absent means the env is handled CRM only. */
+  control?: { databaseName: string; databaseId: string }
 }
 export interface Cmd {
   command: 'pnpm'
@@ -89,14 +91,23 @@ export function resolveTarget(config: ConfigLike, envName: string): Target {
   if (db.remote !== true || (db.preview_database_id !== undefined && db.preview_database_id !== db.database_id)) {
     throw new RemoteRefusal(`env ${envName}'s DB binding must be remote: true with no preview_database_id`)
   }
-  return { env: envName, workerName: config.name ?? '', databaseName: db.database_name ?? '', databaseId: db.database_id ?? '' }
+  const target: Target = { env: envName, workerName: config.name ?? '', databaseName: db.database_name ?? '', databaseId: db.database_id ?? '' }
+  if (control) target.control = { databaseName: control.database_name ?? '', databaseId: control.database_id ?? '' }
+  return target
 }
 
-export function migrateCommands(envName: string): Cmd[] {
-  return (['list', 'apply'] as const).map((verb) => ({
-    command: 'pnpm' as const,
-    args: ['exec', 'wrangler', 'd1', 'migrations', verb, 'DB', '--remote', '--env', envName],
-  }))
+/** The line both db scripts print for an env whose config has no `CONTROL_DB` entry ([[OPS260]] P1; [[CORE261]] turns it into a refusal). */
+export const controlNotConfigured = (envName: string): string => `control plane: not configured for env ${envName} (CRM only)`
+
+/** `migrations list` then `apply`, for the control database first when the env has one, then the CRM database ([[OPS260]] D14). */
+export function migrateCommands(envName: string, opts: { control?: boolean } = {}): Cmd[] {
+  const bindings = opts.control ? ['CONTROL_DB', 'DB'] : ['DB']
+  return bindings.flatMap((binding) =>
+    (['list', 'apply'] as const).map((verb) => ({
+      command: 'pnpm' as const,
+      args: ['exec', 'wrangler', 'd1', 'migrations', verb, binding, '--remote', '--env', envName],
+    })),
+  )
 }
 
 export function deployCommands(envName: string, sha: string): Cmd[] {
@@ -110,8 +121,8 @@ export function deployCommands(envName: string, sha: string): Cmd[] {
 }
 
 /** The read of wrangler's tracker on a deployed instance ([[CORE61]] D7): same `--remote --env` addressing as `migrations apply`. */
-export function trackerReadCommand(envName: string): Cmd {
-  return { command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'execute', 'DB', '--remote', '--env', envName, '--json', '--command', 'select name from d1_migrations'] }
+export function trackerReadCommand(envName: string, binding: 'DB' | 'CONTROL_DB' = 'DB'): Cmd {
+  return { command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'execute', binding, '--remote', '--env', envName, '--json', '--command', 'select name from d1_migrations'] }
 }
 
 /**

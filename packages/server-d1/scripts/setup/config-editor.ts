@@ -10,6 +10,9 @@ export interface DesiredEnv {
   d1Name: string
   /** The database's id, or the placeholder while the database is only planned. */
   d1Id: string
+  /** The control-plane database ([[OPS279]]): its `CONTROL_DB` entry is written only when a name is given. */
+  controlD1Name?: string
+  controlD1Id?: string
   r2Name: string
   apiHost: string
   corsOrigins: string
@@ -29,6 +32,8 @@ export interface ReconcileResult {
 type Json = Record<string, unknown>
 const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v)
 
+const controlEntry = (d: DesiredEnv): Json => ({ binding: 'CONTROL_DB', database_name: d.controlD1Name, database_id: d.controlD1Id ?? PLACEHOLDER_DATABASE_ID, migrations_dir: '../storage-d1/control-migrations', remote: true })
+
 /** The desired block, shaped like `env.smoked1` ([[OPS4]] D10). */
 export function desiredBlock(d: DesiredEnv): Json {
   return {
@@ -37,7 +42,7 @@ export function desiredBlock(d: DesiredEnv): Json {
     preview_urls: false,
     routes: [{ pattern: d.apiHost, custom_domain: true }],
     observability: { enabled: true },
-    d1_databases: [{ binding: 'DB', database_name: d.d1Name, database_id: d.d1Id, migrations_dir: '../storage-d1/migrations', remote: true }],
+    d1_databases: [{ binding: 'DB', database_name: d.d1Name, database_id: d.d1Id, migrations_dir: '../storage-d1/migrations', remote: true }, ...(d.controlD1Name ? [controlEntry(d)] : [])],
     r2_buckets: [{ binding: 'BODIES', bucket_name: d.r2Name }],
     vars: Object.fromEntries(Object.entries(d.authVars ? { ...d.authVars, CORS_ALLOWED_ORIGINS: d.corsOrigins, ...d.gmailVars } : { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: d.corsOrigins, ...d.gmailVars }).filter(([, v]) => v !== undefined)),
   }
@@ -47,7 +52,7 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
   const root = parse(text, [], { allowTrailingComma: true }) as unknown
   const current = isObj(root) && isObj(root.env) ? root.env[d.env] : undefined
   const want = desiredBlock(d)
-  const edits: { path: JSONPath; value: unknown; label: string }[] = []
+  const edits: { path: JSONPath; value: unknown; label: string; insert?: boolean }[] = []
   const mismatches: string[] = []
   const at = (label: string) => `env.${d.env}.${label}`
 
@@ -73,16 +78,21 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
     else scalar(current.observability, ['env', d.env, 'observability'], 'enabled', true, at('observability.enabled'))
 
     // Keyed lists: the element is found by its key; a list without it is a mismatch, never an append.
-    const keyed = (field: string, key: string, keyValue: string, fields: Json) => {
+    // `append`: an entry the list lacks is added at the end (the control database of an instance that had none, [[OPS279]] P4); otherwise a list without it is a mismatch.
+    const keyed = (field: string, key: string, keyValue: string, fields: Json, append = false) => {
       const list = current[field]
       const base: JSONPath = ['env', d.env, field]
       if (list === undefined) return void edits.push({ path: base, value: [{ [key]: keyValue, ...fields }], label: at(field) })
       if (!Array.isArray(list)) return void mismatches.push(at(field))
       const idx = list.findIndex((e) => isObj(e) && e[key] === keyValue)
-      if (idx < 0) return void mismatches.push(at(field))
+      if (idx < 0) return append ? void edits.push({ path: [...base, list.length], value: { [key]: keyValue, ...fields }, label: at(`${field}.${keyValue}`), insert: true }) : void mismatches.push(at(field))
       for (const [k, v] of Object.entries(fields)) scalar(list[idx] as Json, [...base, idx], k, v, at(`${field}.${keyValue}.${k}`))
     }
     keyed('d1_databases', 'binding', 'DB', { database_name: d.d1Name, database_id: d.d1Id, migrations_dir: '../storage-d1/migrations', remote: true })
+    if (d.controlD1Name) {
+      const { binding: _b, ...fields } = controlEntry(d)
+      keyed('d1_databases', 'binding', 'CONTROL_DB', fields, true)
+    }
     keyed('r2_buckets', 'binding', 'BODIES', { bucket_name: d.r2Name })
 
     const routes = current.routes
@@ -109,6 +119,6 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
 
   if (mismatches.length > 0) return { text, changed: [], mismatches }
   let out = text
-  for (const e of edits) out = applyEdits(out, modify(out, e.path, e.value, { formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' } }))
+  for (const e of edits) out = applyEdits(out, modify(out, e.path, e.value, { formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' }, isArrayInsertion: e.insert }))
   return { text: out, changed: edits.map((e) => e.label), mismatches: [] }
 }

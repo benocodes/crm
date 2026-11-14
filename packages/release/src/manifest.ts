@@ -13,11 +13,13 @@ export interface ReleaseManifest {
   compatibility_date: string
   node: string
   migrations: { name: string; sha256: string }[]
+  /** The control-plane database's compiled migrations ([[OPS260]] D14), shipped under `control-migrations/` and applied to `CONTROL_DB`; their own list, their own tracker. */
+  control_migrations: { name: string; sha256: string }[]
   files: Record<string, string>
 }
 export interface Problem {
   path: string
-  kind: 'mismatch' | 'missing' | 'extra'
+  kind: 'mismatch' | 'missing' | 'extra' | 'reordered'
 }
 export interface ManifestInput {
   /** The published package name, `@vibase/server-d1` ([[OPS240]] D4). */
@@ -30,6 +32,7 @@ export interface ManifestInput {
   compatibilityDate: string
   node: string
   migrations: readonly { name: string; sha256: string }[]
+  controlMigrations: readonly { name: string; sha256: string }[]
 }
 
 /** The two files `files` does not cover: the manifest cannot hash itself, and `package.json` is what npm rewrites ([[OPS210]] D4). */
@@ -63,6 +66,7 @@ export function buildReleaseManifest(i: ManifestInput): ReleaseManifest {
     compatibility_date: i.compatibilityDate,
     node: i.node,
     migrations: i.migrations.map((m) => ({ name: m.name, sha256: m.sha256 })),
+    control_migrations: i.controlMigrations.map((m) => ({ name: m.name, sha256: m.sha256 })),
     files,
   }
 }
@@ -79,14 +83,19 @@ export function verifyRelease(dir: string): Problem[] {
     else if (sha256(readFileSync(join(dir, path))) !== hash) problems.push({ path, kind: 'mismatch' })
   }
   for (const path of present) if (!UNHASHED.has(path) && !(path in manifest.files)) problems.push({ path, kind: 'extra' })
-  // The migration list the compatibility gate compares must agree with the files it names.
-  for (const m of manifest.migrations) {
-    const p = `migrations/${m.name}`
-    if (p in manifest.files && manifest.files[p] !== m.sha256) problems.push({ path: p, kind: 'mismatch' })
-    else if (!(p in manifest.files) && !problems.some((x) => x.path === p)) problems.push({ path: p, kind: 'missing' })
+  // The migration lists the compatibility gates compare must agree with the files they name: the CRM list and the control list ([[OPS260]] D14), each its own directory.
+  for (const [dirName, list] of [['migrations', manifest.migrations ?? []], ['control-migrations', manifest.control_migrations ?? []]] as const) {
+    for (const m of list) {
+      const p = `${dirName}/${m.name}`
+      if (p in manifest.files && manifest.files[p] !== m.sha256) problems.push({ path: p, kind: 'mismatch' })
+      else if (!(p in manifest.files) && !problems.some((x) => x.path === p)) problems.push({ path: p, kind: 'missing' })
+    }
+    const listed = new Set(list.map((m) => `${dirName}/${m.name}`))
+    for (const p of Object.keys(manifest.files)) if (p.startsWith(`${dirName}/`) && !listed.has(p)) problems.push({ path: p, kind: 'extra' })
   }
-  const listed = new Set(manifest.migrations.map((m) => `migrations/${m.name}`))
-  for (const p of Object.keys(manifest.files)) if (p.startsWith('migrations/') && !listed.has(p)) problems.push({ path: p, kind: 'extra' })
+  // The control set is applied in order: a list out of order is refused, naming the first file that sorts before its predecessor.
+  const control = (manifest.control_migrations ?? []).map((m) => m.name)
+  for (let i = 1; i < control.length; i++) if (control[i]! < control[i - 1]!) { problems.push({ path: `control-migrations/${control[i]}`, kind: 'reordered' }); break }
   const seen = new Set<string>()
   return problems.filter((p) => !seen.has(`${p.kind}:${p.path}`) && seen.add(`${p.kind}:${p.path}`))
 }

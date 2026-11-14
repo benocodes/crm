@@ -247,11 +247,12 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
     if (unknown.length > 0) throw usage(`${server} does not support the scope ${unknown.join(', ')} (supported: ${supported.join(', ')})`, 'unknown_scope')
   }
   const requested = [...new Set([...scopes, 'offline_access'])].join(' ')
-  const grant = await deviceGrant(as, auth.cli_client_id, requested, deps)
+  const resource = nonEmpty(auth.resource) ? auth.resource : undefined
+  const grant = await deviceGrant(as, auth.cli_client_id, requested, deps, resource)
 
   // Reload: another process may have written the config while the person was approving. Replaces any credential of the profile.
   const cfg = loadConfig(path)
-  cfg.profiles[name] = { kind: 'oauth', server, issuer: auth.issuer, client_id: auth.cli_client_id, ...grant }
+  cfg.profiles[name] = { kind: 'oauth', server, issuer: auth.issuer, client_id: auth.cli_client_id, ...grant, ...(resource ? { resource } : {}) }
   cfg.default_profile ??= name
   saveConfig(path, cfg)
 

@@ -622,7 +622,8 @@ try {
     check('25c better-auth with a migrated, paired CONTROL_DB -> /auth/ok 200 in workerd', res.status === 200, { status: res.status })
     res = await withControl.get('/auth/jwks')
     const keyRows = Number(((await withControl.control!.prepare('select count(*) as n from auth_jwks').first()) as { n: number }).n)
-    const crmRows = Number(((await withControl.crm.prepare('select count(*) as n from auth_jwks').first()) as { n: number }).n)
+    // OPS260's 0019 dropped the CRM copy of the table: absent is the strongest form of empty.
+    const crmRows = Number(((await withControl.crm.prepare("select count(*) as n from sqlite_master where type = 'table' and name = 'auth_jwks'").first()) as { n: number }).n)
     check('25d better-auth /auth/jwks writes the signing key into CONTROL_DB and leaves the CRM auth_jwks empty', res.status === 200 && keyRows > 0 && crmRows === 0, { status: res.status, keyRows, crmRows })
   }
 

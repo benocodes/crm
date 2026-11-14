@@ -56,6 +56,10 @@ with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never
   `e2e/` and `scripts/` (smokes) are outside the gate, so a stale reader there stays green until someone runs it
   ([[API105]]: two `order by id`/`rowid` event readers in `packages/server-d1/e2e` and `scripts/smoke-worker.ts`
   were found at review).
+- **A new CLI flag goes into every help and usage text that lists its command's flags**, not only the parser and
+  the docs: grep the command's neighbouring flag (`--d1-name`) to find them. [[OPS279]]'s review round 1 was only
+  this: `--control-d1-name` parsed and documented, missing from `INSTANCE_HELP`
+  (`packages/server-d1/scripts/instance/main.ts`).
 - **A deletion's blast-radius grep is a floor.** Grep the deleted file's basename, its exports, and
   operation names as string literals; treat every surprise as a decision to make and record. A move or rename
   of an entry point is a deletion too: grep for importers of each export the old module had, since a default
@@ -87,7 +91,10 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   and folded the tests into the implementation commit, so the branch history no longer shows red before green.
   That is a recorded deviation, not an equivalent. [[AGT8]] cycle 1 wrote its tests beside a working draft and
   made the red commit by setting the draft aside: two suites then failed on a missing module, not on their
-  assertions, and the reviewer had to run a manifest mutation to see them go red. Write the tests first.
+  assertions, and the reviewer had to run a manifest mutation to see them go red. [[CORE283]] wrote five of six
+  groups' tests after the code and had no red commit at all. Write the tests first. If you did not, say so per
+  group in `RESULT.md`'s Deviations, and give every such group a raw absence mutation that turns *that group's*
+  tests red; a group with neither a red run nor its own mutation is not proven, and the reviewer returns it.
 - **Setting work aside never uses a bare `git checkout <file>` / `git restore <file>`.** Either resets the
   file to the last commit and silently deletes every uncommitted change in it; it cost [[CORE188]] (restoring a
   mutant) and again [[CORE199]] (mid-run, outside any mutation) a rewrite. Before you revert, split or compare
@@ -162,6 +169,10 @@ A new test that needs Postgres is a `*.postgres.test.ts` file, never a list entr
 The `@vibase/api` Postgres baseline is tracked in #89 (128 failures on `main` `7bd7973`, D1-only schema):
 compare the count against it, and if it rises name the D1 migration responsible ([[CORE84]] retro), instead of
 re-running a clean `main` to prove the failures predate the branch.
+**The one allowed skip** ([[OPS275]]): when every changed file is outside `@vibase/api` and outside the packages it
+depends on (`packages/api/package.json`: today `storage`, `storage-d1`, and the parked `db`, `storage-postgres`), for
+example a diff confined to `packages/server-d1/scripts/` or `packages/release/`, the `@vibase/api` suite may be skipped.
+Say so in RESULT.md with the `git diff --name-only` list that justifies it; typecheck and build still run in full.
 The charter's E2E scenario is not part of the gate; in a sprint the e2e-tester runs it.
 When the scenario is a script you wrote (a Playwright `*.e2e.ts`) and it needs only a local Worker and
 `.env.dev`, run it once before you report and fix what is yours. The tester's run is still the evidence; yours
@@ -186,6 +197,9 @@ baseline evidence. Keep RESULT/HANDOFF current before a planned handoff so the n
 - **Evidence**, keyed to the charter's obligations: red runs, absence mutations (raw), the gate's counts per
   suite written out in RESULT.md itself (the retro reads the folder, not the CYCLE REPORT);
 - for a deletion, a title-by-title map of deleted tests to their surviving counterparts.
+
+A change to what `@vibase/cli` or `@vibase/server-d1` ships (a migration, an export, the Worker, the CLI) adds a
+`.changeset/*.md` (`pnpm changeset`; AGENTS.md, [[OPS210]] D25); [[OPS260]]'s review round 1 was partly a missing one.
 
 Commit on the cycle branch with Conventional Commits, staging explicit paths (never `git add -A`), and
 push. In a sprint, stop here: the PR, the retro and the merge belong to other stages. Outside a sprint,

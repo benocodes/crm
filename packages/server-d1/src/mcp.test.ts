@@ -351,7 +351,7 @@ describe('visibility (D6)', () => {
   const expected = (scopes: readonly string[]) =>
     registry
       .operations()
-      .filter((o) => o.output !== 'binary' && (o.kind === 'account' ? o.agents === true : (o.scope ? scopes.includes(`${o.scope.resource}:${o.scope.action}`) : closeScopes(scopes).some((s) => s.endsWith(o.authority === 'write' ? ':write' : o.authority === 'read' ? ':read' : ':request_approval')))))
+      .filter((o) => o.output !== 'binary' && (o.kind === 'account' ? o.agents === true : o.kind === 'control' ? scopes.includes(`${o.scope.resource}:${o.scope.action}`) : (o.scope ? scopes.includes(`${o.scope.resource}:${o.scope.action}`) : closeScopes(scopes).some((s) => s.endsWith(o.authority === 'write' ? ':write' : o.authority === 'read' ? ':read' : ':request_approval')))))
       .map((o) => toolName(o.name))
       .sort()
 

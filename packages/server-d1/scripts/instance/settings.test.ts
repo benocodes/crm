@@ -2,7 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultSettingsPath, loadSettings, parseSettings } from './settings.js'
-import { cleanup, mkTmp, UUID, validSettings } from './test-kit.js'
+import { PLACEHOLDER_DATABASE_ID, CONTROL_PLACEHOLDER_DATABASE_ID } from '../remote.js'
+import { CONTROL_D1, cleanup, controlSettings, mkTmp, UUID, validSettings } from './test-kit.js'
 import { InstanceRefusal } from './types.js'
 
 afterEach(cleanup)
@@ -58,4 +59,33 @@ describe('D9 settings validation', () => {
   })
   it('refuses crons that are not a list of strings', () => refuses(validSettings({ crons: 'x' }), /crons/))
   it('holds no version of the deployed release: a "release" or "deployed_version" key is an unknown key', () => refuses(validSettings({ deployed_version: '0.1.0' }), /deployed_version/))
+})
+
+describe('OPS275 control_d1 (P1, P2, D16)', () => {
+  it('absent loads (P1), with AUTH_PROVIDER unset or clerk', () => {
+    expect(parse(validSettings()).control_d1).toBeUndefined()
+    expect(parse(validSettings({ vars: { AUTH_PROVIDER: 'clerk' } })).control_d1).toBeUndefined()
+    expect(parse(validSettings({ vars: {} })).control_d1).toBeUndefined()
+  })
+  it('present loads and round-trips through the settings writer\'s JSON text', () => {
+    const s = parse(controlSettings())
+    expect(s.control_d1).toEqual(CONTROL_D1)
+    expect(parse(JSON.parse(JSON.stringify(s, null, 2)))).toEqual(s)
+  })
+  it('present with better-auth loads', () => {
+    expect(parse(controlSettings({ vars: { AUTH_PROVIDER: 'better-auth' } })).control_d1).toEqual(CONTROL_D1)
+  })
+  it('refuses, naming the key: an unknown nested key, a non-UUID id, either placeholder, the CRM id, the CRM name, a non-object', () => {
+    refuses(controlSettings({ control_d1: { ...CONTROL_D1, extra: 1 } }), /control_d1\.extra/)
+    refuses(controlSettings({ control_d1: { ...CONTROL_D1, id: 'nope' } }), /control_d1\.id.*UUID/)
+    refuses(controlSettings({ control_d1: { ...CONTROL_D1, id: PLACEHOLDER_DATABASE_ID } }), /control_d1\.id.*placeholder/)
+    refuses(controlSettings({ control_d1: { ...CONTROL_D1, id: CONTROL_PLACEHOLDER_DATABASE_ID } }), /control_d1\.id.*placeholder/)
+    refuses(controlSettings({ control_d1: { ...CONTROL_D1, id: UUID } }), /control_d1\.id.*d1\.id/)
+    refuses(controlSettings({ control_d1: { ...CONTROL_D1, name: 'vault-demo' } }), /control_d1\.name.*d1\.name/)
+    refuses(controlSettings({ control_d1: { id: CONTROL_D1.id } }), /control_d1\.name/)
+    refuses(controlSettings({ control_d1: 'x' }), /control_d1 must be an object/)
+  })
+  it('P2: AUTH_PROVIDER=better-auth without control_d1 is refused', () => {
+    refuses(validSettings({ vars: { AUTH_PROVIDER: 'better-auth' } }), /better-auth.*control_d1/)
+  })
 })

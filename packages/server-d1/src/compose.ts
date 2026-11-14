@@ -1,12 +1,13 @@
-import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createWorkspaceAuthAdapter, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
+import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type InvitationsRuntime, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
-import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readControlMarker, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
+import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, acceptInvitation, findAdoptableInvitation, hasLiveInvitationForToken, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { gmailTransport } from '@vibase/api'
-import { createAuthHandler, type AuthRuntimeConfig } from '@vibase/auth'
+import { AUTH_SERVER_METADATA_PATH, createAuthHandler, resourcesFor, type AuthRuntimeConfig } from '@vibase/auth'
 import { parseBuiltInAuthConfig } from './auth-config.js'
+import { invitationAdmission } from './invitation-admission.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
@@ -138,9 +139,23 @@ export function composeD1Worker(
     if (builtIn && !control) throw new Error('AUTH_PROVIDER=better-auth requires the CONTROL_DB binding (the control-plane database)')
     if (builtIn) builtInConfig = parseBuiltInAuthConfig(vars)
     authAdapter = createWorkspaceAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
-    cliClientId = parseCliClientId(vars)
-    // Only with a provider: without one the key is ignored and discovery has no auth to put it in.
-    if (authAdapter) publishableKey = parsePublishableKey(vars)
+    // [[CORE244]] D8, D9, D23: the built-in provider's tokens are verified in-process against the provider's published signing keys; the issuer and audience come from `PUBLIC_BASE_URL`, never a request. The reads go
+    // through the control store (the one place besides this composition that holds the handle, [[CORE259]] D5).
+    if (builtIn && builtInConfig && control) {
+      authAdapter = createBetterAuthAdapter({
+        issuer: `${builtInConfig.baseURL}/auth`,
+        // [[CORE283]] P1: the API origin and the MCP endpoint's URI are both this Worker.
+        audience: resourcesFor(builtInConfig.baseURL),
+        readKeys: () => readAuthJwks(control),
+        readProfile: (subject) => readAuthProfile(control, subject),
+        readClientName: (clientId) => readOAuthClientName(control, clientId),
+        now: deps.clock,
+      })
+    }
+    // [[CORE244]] P3: the first-party CLI's client id defaults to `vibase-cli` on the built-in provider (the row itself is seeded by [[CORE283]]).
+    cliClientId = parseCliClientId(vars) ?? (builtIn ? 'vibase-cli' : undefined)
+    // Only with a provider: without one the key is ignored and discovery has no auth to put it in. The built-in provider has no publishable key, and its discovery is [[CORE283]]'s.
+    if (authAdapter && !builtIn) publishableKey = parsePublishableKey(vars)
     corsOrigins = parseOriginList(vars.CORS_ALLOWED_ORIGINS, 'CORS_ALLOWED_ORIGINS')
   } catch (err) {
     // The message names a variable ("AUTH_PROVIDER=clerk requires CLERK_JWT_KEY"); no adapter message carries a value.
@@ -174,7 +189,13 @@ export function composeD1Worker(
 
   // [[CORE64]] D21, D22: the documents read configuration only; built once. A bad configuration (below) still answers 500.
   const discovery = {
-    provider: authAdapter ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() } : undefined,
+    provider: builtIn
+      ? builtInConfig && authAdapter
+        ? { name: 'better-auth' as const, issuer: `${builtInConfig.baseURL}/auth`, baseUrl: builtInConfig.baseURL }
+        : undefined
+      : authAdapter
+        ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() }
+        : undefined,
     cliClientId,
     publishableKey,
     declaredScopes: createVibaseRegistry().declaredScopes(),
@@ -244,8 +265,13 @@ export function composeD1Worker(
   }
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
+  // [[CORE245]] P2: the invitation operations' port over the control store, only with the built-in provider (`control` exists only for it); `PUBLIC_BASE_URL` names the invitation URL's origin.
+  const invitations: InvitationsRuntime | null =
+    control && builtInConfig
+      ? { port: { create: (a) => createInvitation(control, a), list: (a) => listInvitations(control, a), revoke: (a) => revokeInvitation(control, a) }, publicBaseUrl: builtInConfig.baseURL }
+      : null
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
-    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, webhooks, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
+    createApp({ storage: () => binding, invitations, workspace: { adapter: authAdapter, cliClientId }, gmail: { ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}), config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, webhooks, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
 
   async function ensure(): Promise<App | undefined> {
     if (app) return app
@@ -302,7 +328,10 @@ export function composeD1Worker(
       gate: async () => {
         if ((await migrations()).status === 'behind') throw new Error('migrations_pending: the database is behind this build, apply the migrations first')
       },
-      roleOf: profiles
+      // [[CORE244]] D7: on the built-in provider the role re-check is the live membership; on Clerk, the cached profile.
+      roleOf: builtIn
+        ? membershipRoleReader(found.binding, 'better-auth')
+        : profiles
         ? async (subject) => {
             const profile = await profiles.profileOf(subject, clock().getTime())
             return profile ? workspaceRole(profile.role) : null
@@ -444,14 +473,30 @@ export function composeD1Worker(
         // [[CORE243]] D1: `/auth/*` exists only for the built-in provider; for clerk and unset it is no route at all, before every gate. For better-auth it passes the migration gate
         // and the configuration gate, then the control gate ([[CORE259]] D6, D7: the auth tables live in the control-plane database, which must be migrated and paired with this
         // CRM database). It still touches no vault table (CORE243 D5).
-        if (url.pathname === '/auth' || url.pathname.startsWith('/auth/')) {
+        if (url.pathname === '/auth' || url.pathname.startsWith('/auth/') || (builtIn && url.pathname === AUTH_SERVER_METADATA_PATH)) {
           if (!builtIn) return json(NO_SUCH_ROUTE, 404)
           if (configError || !builtInConfig) return json(INTERNAL, 500)
           if ((await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
           const refused = await controlGate()
           if (refused) return refused
           // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
-          builtInHandler ??= createAuthHandler(controlAuthDatabase(control!), builtInConfig)
+          // [[CORE287]]: the gate and acceptance. The port is the only way the auth package reaches the vault; the CRM binding is resolved per call from the deployment row.
+          builtInHandler ??= createAuthHandler(
+            controlAuthDatabase(control!),
+            { ...builtInConfig, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) },
+            {
+              admission: invitationAdmission({
+                store: { hasLive: (a) => hasLiveInvitationForToken(control!, a), findAdoptable: (a) => findAdoptableInvitation(control!, a), accept: (a) => acceptInvitation(control!, a) },
+                crm: async () => {
+                  const link = await readDeployment(env.DB)
+                  if (!link) throw new Error('the deployment is not initialised')
+                  return d1Binding(env.DB, link)
+                },
+                clock,
+                newId,
+              }),
+            },
+          )
           return await builtInHandler(req)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
