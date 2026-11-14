@@ -41,6 +41,7 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'webhooks:write': 'Create, change, pause and delete webhook subscriptions and rotate their signing secrets',
   'schema:read': 'Read the data schema: record types, fields and relations',
   'members:read': 'View the members of the workspace',
+  'members:write': 'Change members\' roles, remove members (ending their access at once) and issue one-time password reset links',
   'agents:read': 'View the workspace agents and their access',
   'agents:write': 'Create, change and revoke agents and their API keys',
   'invitations:read': 'View the workspace invitations and whether each is pending, accepted, revoked or expired',

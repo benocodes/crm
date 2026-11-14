@@ -202,6 +202,8 @@ describe('removal order and revocation (P5)', () => {
     await stays.tokens()
     const wk = worker()
     const stayBefore = await authRows(stays.subject)
+    // a consent the person gave (the device grant stores none): it must survive the removal
+    await w.control.prepare('insert into auth_oauth_consents (id, client_id, user_id, scopes, created_at, updated_at) values (?, ?, ?, ?, ?, ?)').bind(uuidv7(NOW), otherClient, gone.subject, '["openid"]', NOW.toISOString(), NOW.toISOString()).run()
     expect(await authRows(gone.subject)).toMatchObject({ refresh: 1, consents: 1 })
     expect((await authRows(gone.subject)).sessions).toBeGreaterThan(0)
     const res = await del(wk, await owner.session(), (await membership(gone.id)).id as string)
@@ -293,12 +295,13 @@ describe('the last owner (P4)', () => {
     const b = await human('owner', 'b@x.test')
     await soleOwner()
     const wk = worker()
-    expect((await del(wk, await a.session(), (await membership(b.id)).id as string)).status).toBe(200)
-    expect((await del(wk, await a.session(), (await membership(a.id)).id as string)).status).toBe(409)
+    const aTok = await a.session()
+    expect((await del(wk, aTok, (await membership(b.id)).id as string)).status).toBe(200)
+    expect((await del(wk, aTok, (await membership(a.id)).id as string)).status).toBe(409)
     const c = await human('owner', 'c@x.test')
-    // a removes themselves while c remains
-    expect((await del(wk, await a.session(), (await membership(a.id)).id as string)).status).toBe(200)
-    expect((await call(wk, 'GET', '/meta/v1/me', await a.session())).status).toBe(403)
+    // a removes themselves while c remains: the JWT held from before is then refused (a new one cannot be had, the sessions are revoked)
+    expect((await del(wk, aTok, (await membership(a.id)).id as string)).status).toBe(200)
+    expect((await call(wk, 'GET', '/meta/v1/me', aTok)).status).toBe(403)
     expect((await call(wk, 'GET', '/meta/v1/me', await c.session())).status).toBe(200)
     // and an owner demotes themselves while another owner remains
     const d = await human('owner', 'd@x.test')
@@ -423,7 +426,7 @@ describe('owner-issued reset links (P6, P7)', () => {
     const member = await human('member', 'member@x.test')
     const wk = worker()
     const count = async () => (await rows(w.control, "select id from auth_verifications where identifier like 'reset-password:%'")).length
-    for (const headers of [{}, { origin: AUTH_BASE }, { origin: 'https://evil.test' }]) {
+    for (const headers of [{}, { origin: AUTH_BASE }, { origin: 'https://evil.test' }] as Array<Record<string, string>>) {
       const res = await call(wk, 'POST', '/auth/request-password-reset', null, { email: 'member@x.test' }, headers)
       expect(res.status, JSON.stringify(headers)).toBeGreaterThanOrEqual(400)
       expect(await count()).toBe(0)
@@ -471,14 +474,16 @@ describe('scope and provider gating', () => {
       'API-key agent': async () => bootKey,
     }
     const wk = worker()
-    const crmBefore = JSON.stringify(await dump(w.d1))
-    const controlBefore = (await audit()).length
+    const crmState = async () => JSON.stringify({ m: await rows(w.d1, 'select * from memberships order by id'), e: await rows(w.d1, 'select * from events order by id') })
     const tok = await token[which]()
+    await call(wk, 'GET', '/meta/v1/me', tok) // first sight of a delegated agent writes its agent row: part of the state before
+    const crmBefore = await crmState()
+    const controlBefore = (await audit()).length
     const res = op === 'update' ? await patch(wk, tok, mid, { role: 'owner' }) : op === 'delete' ? await del(wk, tok, mid) : await reset(wk, tok, target.id)
     expect(res.status, JSON.stringify(res.json)).toBe(403)
     expect(res.json.error.code).toBe('insufficient_scope')
     expect(res.json.error.message).toContain('members:write')
-    expect(JSON.stringify(await dump(w.d1))).toBe(crmBefore)
+    expect(await crmState()).toBe(crmBefore)
     expect((await audit()).length).toBe(controlBefore)
   })
 

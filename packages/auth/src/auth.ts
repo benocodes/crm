@@ -82,7 +82,18 @@ export interface CreateAuthOptions {
   admission?: InvitationAdmission
   /** Ids of every auth row; UUIDv7 by default, like the vault's. */
   generateId?: () => string
+  /**
+   * Owner-issued reset links ([[CORE288]] P6, P7): where `sendResetPassword` hands the token it is given. Present (the shipped composition, through `createAuth`), `sendResetPassword` is configured and the
+   * public reset-request paths are refused for every HTTP request; only an in-process call that registered a waiter for its address passes. Absent: no `sendResetPassword`, as before.
+   */
+  resetCaptures?: ResetCaptures
 }
+
+/** The tokens `sendResetPassword` hands over, by lowercased address: a waiter is registered only around an in-process call, so nothing else can ever receive or see a token. */
+export type ResetCaptures = Map<string, (token: string) => void>
+/** The password reset token's lifetime ([[CORE243]] D15): one hour. */
+export const RESET_PASSWORD_TTL_SECONDS = 60 * 60
+const RESET_REQUEST_PATHS = new Set(['/request-password-reset', '/forget-password'])
 
 /** Better Auth's model keys and the vault's table names for them ([[CORE243]] D4): `auth_` prefixed, plural, snake_case. */
 const MODELS = {
@@ -229,9 +240,15 @@ async function oauthStateOrNull(): Promise<{ serverContext?: Record<string, unkn
  * Before-hooks of every endpoint. [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the
  * library, so it is refused too. [[CORE287]]: email sign-up is gated before anything else runs, so an unadmitted request costs no password hash and cannot tell an existing account from an absent one.
  */
-const endpointGate = (admission: InvitationAdmission | undefined, open: boolean) =>
+const endpointGate = (admission: InvitationAdmission | undefined, open: boolean, captures: ResetCaptures | undefined) =>
   createAuthMiddleware(async (ctx) => {
     if (ctx.path === '/sign-up/email' && !open) await requireInvitation(admission, ctx.body)
+    // [[CORE288]] P7: with email off there is no self-service reset. The request is refused for every HTTP request (it never creates a verification row, never captures, returns or logs a token); the one
+    // in-process call (`issueResetToken`) has no `request` and a waiter registered for its address.
+    if (captures && RESET_REQUEST_PATHS.has(ctx.path)) {
+      const email = typeof (ctx.body as { email?: unknown } | undefined)?.email === 'string' ? (ctx.body as { email: string }).email.trim().toLowerCase() : ''
+      if (ctx.request !== undefined || !captures.has(email)) throw new APIError('BAD_REQUEST', { code: 'RESET_PASSWORD_DISABLED', message: 'password reset links are issued by a workspace owner' })
+    }
     // [[CORE294]] D8, P3: the invitation token of a Google sign-up rides the OAuth state's SERVER context (never a URL), and only a non-empty string is copied.
     if (ctx.path === '/sign-in/social') {
       const token = (ctx.body as Record<string, unknown> | undefined)?.[INVITATION_TOKEN_FIELD]
@@ -254,8 +271,21 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     // Only this origin is trusted (D23): never the request's Host.
     trustedOrigins: [config.baseURL],
     // Admission is closed (P1) unless the composition hands in the invitation port ([[CORE287]]); sign-up is the only path that creates a user here.
-    // [[UI246]] D6: a reset ends every session of that user (it answers a lost or compromised password). No `sendResetPassword` here: the shipped composition issues no reset until [[CORE288]].
-    emailAndPassword: { enabled: true, disableSignUp: !open && !admission, revokeSessionsOnPasswordReset: true, password: { hash: hashPassword, verify: verifyPassword } },
+    // [[UI246]] D6: a reset ends every session of that user (it answers a lost or compromised password). [[CORE288]] P6: `sendResetPassword` only hands the token to an in-process waiter (never sends, never logs).
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: !open && !admission,
+      revokeSessionsOnPasswordReset: true,
+      password: { hash: hashPassword, verify: verifyPassword },
+      ...(opts.resetCaptures
+        ? {
+            resetPasswordTokenExpiresIn: RESET_PASSWORD_TTL_SECONDS,
+            sendResetPassword: async ({ user, token }: { user: { email: string }; token: string }) => {
+              opts.resetCaptures!.get(user.email.trim().toLowerCase())?.(token)
+            },
+          }
+        : {}),
+    },
     user: schemaFor('user'),
     session: { ...schemaFor('session'), expiresIn: BROWSER_SESSION_SECONDS },
     // [[CORE294]] D8: an existing account is linked to Google only by a Google-verified email equal to its own, with no trusted providers; the local email need not be verified (a password account never is: no verification mail).
@@ -271,7 +301,7 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     },
     telemetry: { enabled: false },
     plugins: composePlugins(config.baseURL, schemaFor, config.vaultScopes, config.grantableScopes),
-    hooks: { before: endpointGate(admission, open) },
+    hooks: { before: endpointGate(admission, open, opts.resetCaptures) },
     databaseHooks: {
       user: {
         // The backstop at the point EVERY account creation passes ([[CORE287]] P2): a path the endpoint hook does not name (a later Google sign-in) carries no token and is refused here.
@@ -305,10 +335,50 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
   } as BetterAuthOptions
 }
 
-/** The Worker's handler for everything under `/auth`. Build once per isolate; it holds the library's own caches. */
+/** What the Worker holds of the built-in provider: the handler for everything under `/auth`, and the in-process reset-link issue ([[CORE288]] P6). */
+export interface AuthService {
+  handler: (req: Request) => Promise<Response>
+  /**
+   * Better Auth's own password-reset request, driven in-process for an owner-issued link: `sendResetPassword` hands over the `token` (never its `url`) and the verification row's expiry is read back.
+   * `null` when no account has this email. Calls for one address are serialised; the token is returned to the caller only and never stored or logged here.
+   */
+  issueResetToken(email: string): Promise<{ token: string; expiresAt: Date } | null>
+}
+
+/** The built-in provider for the Worker: build once per isolate; it holds the library's own caches. */
+export function createAuth(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): AuthService {
+  const captures: ResetCaptures = opts.resetCaptures ?? new Map()
+  const auth = betterAuth(authOptions(db, config, { ...opts, resetCaptures: captures }))
+  // RFC 8414 path insertion ([[CORE283]] D12): the library mounts its metadata under `/auth`; the standard URL for the issuer `<base>/auth` is outside the base path.
+  const metadata = oauthProviderAuthServerMetadata(auth as never)
+  const lanes = new Map<string, Promise<unknown>>()
+  return {
+    handler: (req) => (new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? metadata(req) : auth.handler(req)),
+    issueResetToken(email) {
+      const key = email.trim().toLowerCase()
+      const run = (lanes.get(key) ?? Promise.resolve()).then(async () => {
+        let token: string | undefined
+        captures.set(key, (t) => void (token = t))
+        try {
+          await auth.api.requestPasswordReset({ body: { email: key } })
+        } finally {
+          captures.delete(key)
+        }
+        if (token === undefined) return null
+        const { internalAdapter } = (await auth.$context) as unknown as { internalAdapter: { findVerificationValue(identifier: string): Promise<{ expiresAt: Date } | null> } }
+        const row = await internalAdapter.findVerificationValue(`reset-password:${token}`)
+        if (!row) return null
+        return { token, expiresAt: new Date(row.expiresAt) }
+      })
+      lanes.set(key, run.catch(() => undefined))
+      return run
+    },
+  }
+}
+
+/** The handler alone, for composition that issues no reset links (and the tests): no `sendResetPassword`, so every reset request is refused by the library. */
 export function createAuthHandler(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): (req: Request) => Promise<Response> {
   const auth = betterAuth(authOptions(db, config, opts))
-  // RFC 8414 path insertion ([[CORE283]] D12): the library mounts its metadata under `/auth`; the standard URL for the issuer `<base>/auth` is outside the base path.
   const metadata = oauthProviderAuthServerMetadata(auth as never)
   return (req) => (new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? metadata(req) : auth.handler(req))
 }

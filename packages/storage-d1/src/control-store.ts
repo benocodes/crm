@@ -238,3 +238,31 @@ export async function acceptInvitation(c: ControlDb, a: { id: string; auditId: s
   ])
   return (results[0]?.meta?.changes ?? 0) === 1 ? 'accepted' : 'not_live'
 }
+
+// ---- Membership removal and owner-issued reset links ([[CORE288]] P5, P6). Each write is one control batch with its `control_audit` row. ----
+
+/**
+ * The credentials of a removed member's Better Auth account ([[CORE288]] P5, [[CORE259]] D9 (b)): its OAuth access and refresh tokens, its sessions and its pending device codes are deleted, and one
+ * `user.sessions_revoked` audit row (actor the caller, target the Better Auth user id, `detail` `{reason: 'membership_removed'}`, never a token) is written, in ONE batch. Consents and the account stay. Running it
+ * again deletes nothing and writes another audit row, which is why the caller runs it once per removal.
+ */
+export async function revokeSubjectCredentials(c: ControlDb, a: { subject: string; auditId: string; actorId: string; now: string }): Promise<void> {
+  const d1 = raw(c)
+  await d1.batch([
+    d1.prepare('delete from auth_oauth_access_tokens where user_id = ?').bind(a.subject),
+    d1.prepare('delete from auth_oauth_refresh_tokens where user_id = ?').bind(a.subject),
+    d1.prepare('delete from auth_device_codes where user_id = ?').bind(a.subject),
+    d1.prepare('delete from auth_sessions where user_id = ?').bind(a.subject),
+    d1
+      .prepare("insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.sessions_revoked', 'user', ?, json_object('reason', 'membership_removed'))")
+      .bind(a.auditId, a.now, a.actorId, a.subject),
+  ])
+}
+
+/** The audit row of an owner-issued reset link ([[CORE288]] P6): actor the caller, target the Better Auth user id, `detail` holding the expiry only, never the token. */
+export async function recordResetLinkIssued(c: ControlDb, a: { auditId: string; actorId: string; subject: string; expiresAt: string; now: string }): Promise<void> {
+  await raw(c)
+    .prepare("insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.reset_link_issued', 'user', ?, json_object('expires_at', ?))")
+    .bind(a.auditId, a.now, a.actorId, a.subject, a.expiresAt)
+    .run()
+}

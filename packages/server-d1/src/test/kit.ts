@@ -87,27 +87,27 @@ export function spyD1(real: D1Like, opts: { failSelectOne?: () => boolean } = {}
  * (`times: Infinity`). `act` may throw (a failing store) or write through the real database (a change between plan and commit). Reads outside batches pass untouched.
  */
 export function faultD1(real: D1Like, rule: { match: RegExp; act: () => Promise<void>; times?: number }): { d1: D1Like; fired(): number } {
-  const sqlOf = new WeakMap<object, string>()
+  // Each wrapper remembers its SQL and the real statement behind it; `batch` hands the real ones on.
+  const info = new WeakMap<object, { sql: string; real: D1PreparedLike }>()
   let fired = 0
+  const wrap = (sql: string, inner: D1PreparedLike): D1PreparedLike => {
+    const w = {
+      bind: (...values: unknown[]) => wrap(sql, inner.bind(...values)),
+      run: () => inner.run(),
+      all: () => inner.all(),
+      first: () => inner.first(),
+    } as D1PreparedLike
+    info.set(w, { sql, real: inner })
+    return w
+  }
   const d1: D1Like = {
-    prepare(query: string) {
-      // The real statement itself is returned (batch needs it), with `bind` wrapped so a bound copy is attributed to its SQL too.
-      const p = real.prepare(query)
-      sqlOf.set(p, query)
-      const bind = p.bind.bind(p)
-      p.bind = (...values: unknown[]) => {
-        const bound = bind(...values)
-        sqlOf.set(bound, query)
-        return bound
-      }
-      return p
-    },
+    prepare: (query: string) => wrap(query, real.prepare(query)),
     async batch(batch: D1PreparedLike[]) {
-      if (fired < (rule.times ?? 1) && batch.some((s) => rule.match.test(sqlOf.get(s) ?? ''))) {
+      if (fired < (rule.times ?? 1) && batch.some((s) => rule.match.test(info.get(s)?.sql ?? ''))) {
         fired++
         await rule.act()
       }
-      return real.batch(batch)
+      return real.batch(batch.map((s) => info.get(s)?.real ?? s))
     },
   }
   return { d1, fired: () => fired }
