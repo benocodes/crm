@@ -23,9 +23,9 @@ const run = (d1: D1Like, text: string, ...binds: unknown[]) => d1.prepare(text).
 
 describe('control migration 0001_control_plane on an empty database', () => {
   it('applies from its own directory, tracked in its own d1_migrations, and the tracker equals the shipped manifest', async () => {
-    expect(await applyControlMigrations(control)).toEqual(['0001_control_plane.sql', '0002_invitations.sql'])
+    expect(await applyControlMigrations(control)).toEqual(['0001_control_plane.sql', '0002_invitations.sql', '0003_invitation_delivery.sql'])
     const state = await readMigrationState(control, CONTROL_MIGRATIONS.map((m) => m.name))
-    expect(state).toMatchObject({ status: 'current', applied: ['0001_control_plane.sql', '0002_invitations.sql'] })
+    expect(state).toMatchObject({ status: 'current', applied: ['0001_control_plane.sql', '0002_invitations.sql', '0003_invitation_delivery.sql'] })
     expect(CONTROL_MIGRATIONS_DIR).toMatch(/storage-d1\/control-migrations$/)
   })
 

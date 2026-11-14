@@ -2,11 +2,17 @@ import { z } from 'zod'
 import { ApiError } from '../errors.js'
 import type { ControlOperation } from '../registry.js'
 import type { InvitationRow, InvitationsRuntime } from './port.js'
+import { invitationMessage } from './message.js'
 import { INVITATION_TTL_MS, invitationStatus, invitationUrl, newInvitationToken, normaliseInvitationEmail } from './token.js'
 
 const ROLE = z.enum(['owner', 'member', 'agent'])
 
-const createBody = z.strictObject({ email: z.string().max(254).describe('The address the invitation is for; trimmed and lowercased'), role: ROLE })
+const DELIVERY = z.enum(['email', 'link'])
+const createBody = z.strictObject({
+  email: z.string().max(254).describe('The address the invitation is for; trimmed and lowercased'),
+  role: ROLE,
+  delivery: DELIVERY.optional().describe('email: the vault emails the link and does not return it (default when email is configured). link: the link is returned once, nothing is sent (default otherwise).'),
+})
 const listQuery = z.strictObject({ after: z.uuid().optional(), limit: z.coerce.number().int().min(1).max(200).optional() })
 
 /** What list and revoke answer with: no token, no hash, no URL (the link is shown once, by create). `status` is derived from the clock. */
@@ -20,8 +26,10 @@ const invitationRecord = z.object({
   created_by: z.uuid(),
   accepted_at: z.iso.datetime({ offset: true }).nullable(),
   revoked_at: z.iso.datetime({ offset: true }).nullable(),
+  delivery: DELIVERY,
 })
-const createdInvitation = z.object({ id: z.uuid(), email: z.string(), role: ROLE, expires_at: z.iso.datetime({ offset: true }), url: z.string() })
+/** `url` only for `delivery: link`: an emailed invitation's token leaves the vault only toward the mailbox ([[CORE248]] D3). */
+const createdInvitation = z.object({ id: z.uuid(), email: z.string(), role: ROLE, expires_at: z.iso.datetime({ offset: true }), delivery: DELIVERY, url: z.string().optional() })
 
 const recordOf = (row: InvitationRow, now: Date): z.infer<typeof invitationRecord> => ({
   id: row.id,
@@ -33,6 +41,7 @@ const recordOf = (row: InvitationRow, now: Date): z.infer<typeof invitationRecor
   created_by: row.createdBy,
   accepted_at: row.acceptedAt,
   revoked_at: row.revokedAt,
+  delivery: row.delivery,
 })
 
 const needsStore = (runtime: InvitationsRuntime | null): InvitationsRuntime => {
@@ -50,9 +59,9 @@ export function invitationOperations(runtime: InvitationsRuntime | null): Contro
     {
       ...base,
       name: 'invitations.create',
-      summary: 'Invite someone to the workspace; the link is shown once',
+      summary: 'Invite someone to the workspace; the link is emailed or shown once',
       description:
-        'Human only (owners). Creates an invitation for an email address with a role (owner, member or agent) that expires in 7 days, and returns its link once: the token in the link is never stored or shown again. One live invitation per address: a second answers 409 invitation_exists (revoke the first). The link is inert until sign-up accepts invitations. Answers 501 provider_not_configured when the deployment has no built-in auth provider.',
+        'Human only (owners). Creates an invitation for an email address with a role (owner, member or agent) that expires in 7 days, and either emails the link (delivery email, the default when the deployment has email configured; the answer has no url) or returns it once (delivery link, the default otherwise): the token in the link is never stored or shown again. Delivery email while email is not configured answers 501 email_not_configured; when the message cannot be sent the invitation is revoked and the answer is 502 email_send_failed (retry, or use delivery link). One live invitation per address: a second answers 409 invitation_exists (revoke the first). The link is inert until sign-up accepts invitations. Answers 501 provider_not_configured when the deployment has no built-in auth provider.',
       method: 'post',
       path: '/invitations',
       scope: { resource: 'invitations', action: 'write' },
@@ -63,12 +72,27 @@ export function invitationOperations(runtime: InvitationsRuntime | null): Contro
         const body = input.body as z.infer<typeof createBody>
         const email = normaliseInvitationEmail(body.email)
         if (email === null) throw new ApiError(400, 'validation_error', 'email is not a valid address')
+        const delivery = body.delivery ?? (rt.email ? 'email' : 'link')
+        if (delivery === 'email' && !rt.email) throw new ApiError(501, 'email_not_configured', 'email is not configured on this deployment (EMAIL binding and AUTH_EMAIL_FROM); use delivery link')
         const { token, hash } = await newInvitationToken(env.randomBytes)
         const id = env.newId()
         const expiresAt = new Date(env.now.getTime() + INVITATION_TTL_MS).toISOString()
-        const made = await rt.port.create({ id, auditId: env.newId(), organizationId: env.organizationId, email, role: body.role, tokenHash: hash, expiresAt, createdBy: env.actor.id, now: env.now.toISOString() })
+        const made = await rt.port.create({ id, auditId: env.newId(), organizationId: env.organizationId, email, role: body.role, tokenHash: hash, expiresAt, createdBy: env.actor.id, delivery, now: env.now.toISOString() })
         if (made === 'live_exists') throw new ApiError(409, 'invitation_exists', 'a live invitation already exists for that address; revoke it first')
-        return { id, email, role: body.role, expires_at: expiresAt, url: invitationUrl(rt.publicBaseUrl, token) }
+        const url = invitationUrl(rt.publicBaseUrl, token)
+        if (delivery === 'link') return { id, email, role: body.role, expires_at: expiresAt, delivery, url }
+        // The write came first (a 409 above sent nothing); now the send, awaited. A failure revokes the invitation so a failed send never leaves a live one the owner believes was delivered.
+        try {
+          await rt.email!.send({ to: email, ...invitationMessage({ host: new URL(rt.publicBaseUrl).host, url, role: body.role, expiresAt }) })
+        } catch {
+          try {
+            await rt.port.revoke({ id, auditId: env.newId(), actorId: env.actor.id, now: env.now.toISOString(), reason: 'email_failed' })
+          } catch {
+            // The invitation stays pending with a token nobody holds: inert, visible in invitations.list, expires in 7 days.
+          }
+          throw new ApiError(502, 'email_send_failed', 'the invitation email could not be sent; the invitation was not kept. Retry, or create it with delivery link')
+        }
+        return { id, email, role: body.role, expires_at: expiresAt, delivery }
       },
     },
     {

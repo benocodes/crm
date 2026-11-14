@@ -54,7 +54,7 @@ const create = (wk: ReturnType<typeof worker>, tok: string, body: Record<string,
 const list = async (wk: ReturnType<typeof worker>, tok: string) => (await call(wk, 'GET', PATH, tok)).json.data as Array<Record<string, any>>
 const tokenOf = (url: string) => new URL(url).hash.replace(/^#token=/, '')
 const linkIn = (text: string) => /https?:\/\/\S+#token=\S+/.exec(text)![0]!
-const auditOf = async (id: string) => (await rows(w.control, 'select * from control_audit where target_id = ? order by at, id', id)).map((r) => ({ ...r, detail: JSON.parse(r.detail) }))
+const auditOf = async (id: string): Promise<Array<Record<string, any>>> => (await rows(w.control, 'select * from control_audit where target_id = ? order by at, id', id)).map((r) => ({ ...r, detail: JSON.parse(r.detail) }))
 
 let owner: { id: string; session: () => Promise<string> }
 beforeEach(async () => {

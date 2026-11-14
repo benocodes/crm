@@ -9,6 +9,7 @@ import { gmailTransport } from '@vibase/api'
 import { AUTH_SERVER_METADATA_PATH, createAuth, resourcesFor, type AuthRuntimeConfig, type AuthService } from '@vibase/auth'
 import { parseBuiltInAuthConfig } from './auth-config.js'
 import { invitationAdmission } from './invitation-admission.js'
+import { cloudflareEmailSender, parseEmailConfig, type EmailBindingLike } from './email.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
@@ -18,6 +19,10 @@ export interface D1WorkerEnv {
    */
   CONTROL_DB?: D1Like
   AUTH_PROVIDER?: string
+  /** `AUTH_PROVIDER=better-auth` only ([[CORE248]] D2): the `send_email` binding (Cloudflare Email Service). With `AUTH_EMAIL_FROM` turns email on; one without the other is a configuration error. */
+  EMAIL?: EmailBindingLike
+  /** `AUTH_PROVIDER=better-auth` only ([[CORE248]] D2): the sender address on the onboarded domain; required with `EMAIL`. */
+  AUTH_EMAIL_FROM?: string
   /** `AUTH_PROVIDER=better-auth` only ([[CORE243]] D6): a Worker secret, at least 32 characters; Better Auth signs cookies and encrypts its signing key with it. */
   AUTH_SECRET?: string
   /** `AUTH_PROVIDER=better-auth` only ([[CORE294]] D7): a Google client for sign-in; both or neither (half is a configuration error). Absent, the Gmail pair (`GOOGLE_CLIENT_*`) is used when complete, else Google sign-in is off. */
@@ -110,7 +115,7 @@ const NO_UNITS: D1Binding = {
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'AUTH_SECRET', 'AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'COMMIT', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS', 'CRON_TICK_BUDGET'] as const
+const STRING_VARS = ['AUTH_PROVIDER', 'AUTH_SECRET', 'AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET', 'AUTH_EMAIL_FROM', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'COMMIT', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS', 'CRON_TICK_BUDGET'] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -135,6 +140,7 @@ export function composeD1Worker(
   // [[CORE243]] D1: Better Auth is mounted at /auth only for this provider; its configuration is read for no other.
   const builtIn = vars.AUTH_PROVIDER?.trim() === 'better-auth'
   let builtInConfig: AuthRuntimeConfig | undefined
+  let emailFrom: string | undefined
   let builtInService: AuthService | undefined
   // [[CORE259]] D5: the control handle is opened here, once, and goes to the auth provider and the control gate below; nothing else is handed it.
   const control: ControlDb | undefined = builtIn && env.CONTROL_DB ? openControlDb(env.CONTROL_DB) : undefined
@@ -142,6 +148,8 @@ export function composeD1Worker(
     // [[CORE259]] D6: the built-in provider keeps its credentials in the control-plane database; without the binding it fails closed like a bad variable (the message names the binding).
     if (builtIn && !control) throw new Error('AUTH_PROVIDER=better-auth requires the CONTROL_DB binding (the control-plane database)')
     if (builtIn) builtInConfig = parseBuiltInAuthConfig(vars)
+    // [[CORE248]] D2: read for the built-in provider only; half a pair or a malformed address fails closed like every auth variable.
+    if (builtIn) emailFrom = parseEmailConfig({ EMAIL: env.EMAIL, AUTH_EMAIL_FROM: vars.AUTH_EMAIL_FROM })?.from
     authAdapter = createWorkspaceAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
     // [[CORE244]] D8, D9, D23: the built-in provider's tokens are verified in-process against the provider's published signing keys; the issuer and audience come from `PUBLIC_BASE_URL`, never a request. The reads go
     // through the control store (the one place besides this composition that holds the handle, [[CORE259]] D5).
@@ -296,7 +304,7 @@ export function composeD1Worker(
   // [[CORE245]] P2: the invitation operations' port over the control store, only with the built-in provider (`control` exists only for it); `PUBLIC_BASE_URL` names the invitation URL's origin.
   const invitations: InvitationsRuntime | null =
     control && builtInConfig
-      ? { port: { create: (a) => createInvitation(control, a), list: (a) => listInvitations(control, a), revoke: (a) => revokeInvitation(control, a) }, publicBaseUrl: builtInConfig.baseURL }
+      ? { port: { create: (a) => createInvitation(control, a), list: (a) => listInvitations(control, a), revoke: (a) => revokeInvitation(control, a) }, publicBaseUrl: builtInConfig.baseURL, ...(emailFrom !== undefined && env.EMAIL ? { email: cloudflareEmailSender(env.EMAIL, emailFrom) } : {}) }
       : null
   // [[CORE288]] P5, P6: the membership writes' port over the control store and the built-in provider; the reset URL's origin is `PUBLIC_BASE_URL`.
   const members: MembersRuntime | null =

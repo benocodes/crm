@@ -36,13 +36,13 @@ const seedAccepted = (email: string) =>
 
 describe('control migration 0002: invitations and control_audit exist only in the control plane', () => {
   it('the control manifest lists 0002, applied under the control tracker alongside 0001', async () => {
-    expect(CONTROL_MIGRATIONS.map((m) => m.name)).toEqual(['0001_control_plane.sql', '0002_invitations.sql'])
-    expect((await rows(control, 'select name from d1_migrations order by id')).map((r) => r.name)).toEqual(['0001_control_plane.sql', '0002_invitations.sql'])
+    expect(CONTROL_MIGRATIONS.map((m) => m.name).slice(0, 2)).toEqual(['0001_control_plane.sql', '0002_invitations.sql'])
+    expect((await rows(control, 'select name from d1_migrations order by id')).map((r) => r.name).slice(0, 2)).toEqual(['0001_control_plane.sql', '0002_invitations.sql'])
   })
 
   it('the two tables are in the control database with the charter columns, and in no CRM database', async () => {
     const cols = async (t: string) => (await rows(control, `select name from pragma_table_info('${t}')`)).map((r) => r.name)
-    expect(await cols('invitations')).toEqual(['id', 'organization_id', 'email', 'role', 'token_hash', 'expires_at', 'created_by', 'created_at', 'accepted_at', 'revoked_at'])
+    expect(await cols('invitations')).toEqual(['id', 'organization_id', 'email', 'role', 'token_hash', 'expires_at', 'created_by', 'created_at', 'accepted_at', 'revoked_at', 'delivery'])
     expect(await cols('control_audit')).toEqual(['id', 'at', 'actor_id', 'action', 'target_type', 'target_id', 'detail'])
     const crmTables = (await rows(crm, "select name from sqlite_master where type = 'table'")).map((r) => r.name)
     expect(crmTables).not.toContain('invitations')
@@ -69,12 +69,12 @@ describe('create (P3, P4, P5)', () => {
     const a = inv({ email: 'new@x.test', role: 'owner' })
     expect(await createInvitation(c(), a)).toBe('created')
     expect(await rows(control, 'select * from invitations where id = ?', a.id)).toEqual([
-      { id: a.id, organization_id: ORG, email: 'new@x.test', role: 'owner', token_hash: a.tokenHash, expires_at: a.expiresAt, created_by: ACTOR, created_at: NOW, accepted_at: null, revoked_at: null },
+      { id: a.id, organization_id: ORG, email: 'new@x.test', role: 'owner', token_hash: a.tokenHash, expires_at: a.expiresAt, created_by: ACTOR, created_at: NOW, accepted_at: null, revoked_at: null, delivery: 'link' },
     ])
     const [row, ...rest] = await audit(a.id)
     expect(rest).toEqual([])
     expect(row).toEqual({ id: a.auditId, at: NOW, actor_id: ACTOR, action: 'invitation.created', target_type: 'invitation', target_id: a.id, detail: expect.any(String) })
-    expect(JSON.parse(row!.detail)).toEqual({ email: 'new@x.test', role: 'owner', expires_at: a.expiresAt })
+    expect(JSON.parse(row!.detail)).toEqual({ email: 'new@x.test', role: 'owner', expires_at: a.expiresAt, delivery: 'link' })
   })
 
   it('a second live invitation for the same address is refused and writes nothing; after a revoke, or once the first has expired, a new one is created', async () => {
@@ -137,7 +137,7 @@ describe('revoke (P6) and list', () => {
     const page = await listInvitations(c(), { after: made[0]!.id, limit: 2 })
     expect(page.map((r) => r.id)).toEqual([made[1]!.id, made[2]!.id].slice(0, 2))
     for (const r of page) {
-      expect(Object.keys(r).sort()).toEqual(['acceptedAt', 'createdAt', 'createdBy', 'email', 'expiresAt', 'id', 'organizationId', 'revokedAt', 'role'])
+      expect(Object.keys(r).sort()).toEqual(['acceptedAt', 'createdAt', 'createdBy', 'delivery', 'email', 'expiresAt', 'id', 'organizationId', 'revokedAt', 'role'])
       expect(JSON.stringify(r)).not.toContain('aaaaaaaa')
     }
   })
@@ -238,6 +238,6 @@ describe('the audit never holds a token or a hash', () => {
     expect(hashes.length).toBeGreaterThan(5)
     const details = (await rows(control, 'select detail from control_audit')).map((r) => r.detail as string)
     for (const h of hashes) for (const d of details) expect(d).not.toContain(h)
-    for (const d of details) expect(Object.keys(JSON.parse(d)).sort()).toEqual(['email', 'expires_at', 'role'])
+    for (const d of details) expect(Object.keys(JSON.parse(d)).filter((k) => k !== 'delivery' && k !== 'reason').sort()).toEqual(['email', 'expires_at', 'role'])
   })
 })
