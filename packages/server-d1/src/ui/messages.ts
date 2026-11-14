@@ -28,9 +28,7 @@ export const MESSAGES = {
   // The consent page ([[UI247]] D4).
   consentNoRequest: 'This page must be opened by an app that is asking for access. There is nothing to approve here.',
   consentInvalid: 'This request is no longer valid. It may have expired. Start again from the app.',
-  consentSignedOut: 'Your session has ended. Sign in again.',
   consentUnverified: 'This name is chosen by the app and not verified by Vibase',
-  consentDenied: 'Denied. The app was told, and you can close this page.',
   // Shared by both.
   useAnotherAccount: 'Use another account',
   noDescription: 'No description',

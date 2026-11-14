@@ -1,5 +1,5 @@
 // [[UI247]] PLAN, E2E: the device and consent pages in a real browser, with the real `vibase login` and an MCP-style client, against a local Worker on `better-auth` (worktree-local D1s).
-// Prerequisite: fresh local state, both databases migrated, `.dev.vars` with AUTH_PROVIDER=better-auth, AUTH_SECRET (32+ characters) and PUBLIC_BASE_URL=http://localhost:8787,
+// Prerequisite: fresh local state, both databases migrated, `.dev.vars` with AUTH_PROVIDER=better-auth, AUTH_SECRET (32+ characters) and PUBLIC_BASE_URL=https://localhost:8787,
 // `bootstrap --org E2E --auth-provider better-auth --public-base-url https://localhost:8787 --owner-email owner@e2e.test` (E2E_INVITE_URL = the URL it printed), `wrangler dev --local --local-protocol https --port 8787` running.
 // HTTPS (wrangler's self-signed certificate) and not http: the real `vibase login` refuses an issuer that is not https (`insecure_issuer`), and there is no local override. The CLI is run with
 // NODE_TLS_REJECT_UNAUTHORIZED=0 and the browser context ignores the certificate error. The page must be opened at `https://localhost:8787` exactly: Better Auth's origin check trusts PUBLIC_BASE_URL only.
@@ -62,7 +62,7 @@ const signOutHere = async () => {
 }
 
 /** The real `vibase login` (tsx on the CLI source), its config in a private directory. Resolves the `/device` URL it prints; `done` resolves with its exit code and output. */
-function startLogin(): Promise<{ url: string; done: Promise<{ code: number; stdout: string; stderr: string }> }> {
+function startLogin(): Promise<{ url: string; home: string; done: Promise<{ code: number; stdout: string; stderr: string }> }> {
   const home = mkdtempSync(join(tmpdir(), 'vibase-e2e-'))
   const child: ChildProcessWithoutNullStreams = spawn('pnpm', ['exec', 'tsx', CLI, 'login', '--server', BASE], { cwd: PKG, env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0', XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, HOME: home } })
   let stdout = ''
@@ -76,7 +76,7 @@ function startLogin(): Promise<{ url: string; done: Promise<{ code: number; stdo
       const m = /open (\S+\/device\?user_code=[A-Z0-9]{8})/.exec(stderr)
       if (m) {
         clearTimeout(timer)
-        resolve({ url: m[1]!, done })
+        resolve({ url: m[1]!, home, done })
       }
     })
   })
@@ -117,6 +117,16 @@ test('1. device: the printed URL leads through sign-in to the code, the review a
   const result = await login.done
   expect(result.code, result.stderr).toBe(0)
   expect(result.stdout).toContain('owner@e2e.test')
+  // the stored credential works for a later command: `vibase me get` with the same private config directory
+  const me = await new Promise<{ code: number; out: string }>((resolve) => {
+    const c = spawn('pnpm', ['exec', 'tsx', CLI, 'me', 'get', '--server', BASE], { cwd: PKG, env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0', XDG_CONFIG_HOME: login.home, XDG_CACHE_HOME: login.home, HOME: login.home } })
+    let out = ''
+    c.stdout.on('data', (b: Buffer) => (out += b.toString()))
+    c.stderr.on('data', (b: Buffer) => (out += b.toString()))
+    c.on('close', (code) => resolve({ code: code ?? -1, out }))
+  })
+  expect(me.code, me.out).toBe(0)
+  expect(me.out).toContain('owner@e2e.test')
 })
 
 test('2. device: Deny ends the CLI with its denial message', async () => {

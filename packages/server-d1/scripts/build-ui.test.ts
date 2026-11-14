@@ -54,7 +54,7 @@ describe('buildUi (the pages bundle)', () => {
     expect(api.map((i) => i.replace(/^.*api\/src\//, ''))).toEqual(['auth/scope-descriptions.ts'])
   })
 
-  it('the script embeds the catalogue sentences, the device and consent pages and no server text', () => {
+  it('the script embeds a catalogue sentence and an OIDC scope sentence', () => {
     const js = readFileSync(join(out, 'ui/app.js'), 'utf8')
     expect(js).toContain('View deals (also called opportunities)')
     expect(js).toContain('Stay signed in: keep access until you sign out or the access is revoked')
