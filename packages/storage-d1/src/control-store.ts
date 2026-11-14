@@ -55,3 +55,19 @@ export async function writeControlMarker(c: ControlDb, organizationId: string): 
 export function readControlMigrations(c: ControlDb): Promise<MigrationState> {
   return readMigrationState(raw(c), CONTROL_MIGRATIONS.map((m) => m.name))
 }
+
+/** A signing key as `auth_jwks` holds it ([[CORE244]] P1): STUB. */
+export interface AuthJwk {
+  kid: string
+  alg: string
+  publicJwk: string
+}
+export async function readAuthJwks(_c: ControlDb): Promise<AuthJwk[]> {
+  return []
+}
+export async function readAuthProfile(_c: ControlDb, _userId: string): Promise<{ email: string; emailVerified: boolean; name: string } | null> {
+  return null
+}
+export async function readOAuthClientName(_c: ControlDb, _clientId: string): Promise<string | null> {
+  return null
+}

@@ -47,6 +47,11 @@ export type WebhookResult = { ok: true; change: DirectoryChange } | { ok: false;
 export interface AuthAdapter {
   /** Stored in users.auth_provider. 'clerk' for the Clerk adapter. */
   readonly provider: string
+  /**
+   * Where a human's workspace role comes from ([[CORE244]] D7): `claim` (default, Clerk: the token's claim or the provider profile) or `membership` (the vault's own live `memberships`
+   * row, read on every request, the built-in provider).
+   */
+  readonly roleSource?: 'claim' | 'membership'
   /** Networkless. Never throws for a bad token; returns the reason. */
   verify(token: string): Promise<VerifyResult>
   /** Called once per new subject, outside any transaction. Throws on transport or HTTP failure. */
