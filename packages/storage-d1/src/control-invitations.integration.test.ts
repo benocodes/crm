@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like, D1PreparedLike } from './binding.js'
 import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
-import { createInvitation, listInvitations, openControlDb, reissueOwnerInvitation, revokeInvitation, type NewInvitation } from './control-store.js'
+import { acceptInvitation, createInvitation, findAdoptableInvitation, hasLiveInvitationForToken, listInvitations, openControlDb, reissueOwnerInvitation, revokeInvitation, type NewInvitation } from './control-store.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 
 // [[CORE245]] P3-P6: control 0002 (`invitations`, append-only `control_audit`) and the control store's invitation reads and writes, on a real control-plane D1 (Miniflare).
@@ -183,6 +183,52 @@ describe('reissue the owner invitation (P7)', () => {
     const out = await reissueOwnerInvitation(c(), { ...inv({ email: 'both@x.test', role: 'owner', now: plus(NOW, 60_000) }), newAuditId: nextId })
     expect(out).toEqual({ result: 'live_exists' })
     expect((await rows(control, 'select revoked_at from invitations where id = ?', owner.id))[0]!.revoked_at).toBeNull()
+  })
+})
+
+describe('the sign-up gate and acceptance reads and writes ([[CORE287]] P2, P4, P5)', () => {
+  it('hasLiveInvitationForToken is true only for the live invitation of that email and that token hash', async () => {
+    const live = inv({ email: 'gate-live@x.test' })
+    await createInvitation(c(), live)
+    const ok = (tokenHash: string, email: string, now = plus(NOW, 1000)) => hasLiveInvitationForToken(c(), { tokenHash, email, now })
+    expect(await ok(live.tokenHash, 'gate-live@x.test')).toBe(true)
+    expect(await ok(live.tokenHash, 'someone-else@x.test')).toBe(false)
+    expect(await ok('f'.repeat(64), 'gate-live@x.test')).toBe(false)
+    expect(await ok(live.tokenHash, 'gate-live@x.test', plus(NOW, 8 * DAY))).toBe(false)
+    const revoked = inv({ email: 'gate-revoked@x.test' })
+    await createInvitation(c(), revoked)
+    await revokeInvitation(c(), { id: revoked.id, auditId: nextId(), actorId: ACTOR, now: plus(NOW, 500) })
+    expect(await ok(revoked.tokenHash, 'gate-revoked@x.test')).toBe(false)
+  })
+
+  it('findAdoptableInvitation: live, for the email, created no later than the account, compared to the millisecond', async () => {
+    const a = inv({ email: 'adopt@x.test', now: NOW })
+    await createInvitation(c(), a)
+    const find = (accountCreatedAt: string, now = plus(NOW, 1000)) => findAdoptableInvitation(c(), { email: 'adopt@x.test', accountCreatedAt, now })
+    expect((await find(NOW))?.id).toBe(a.id)
+    expect((await find(plus(NOW, 300)))?.id).toBe(a.id)
+    expect(await find(plus(NOW, -1))).toBeNull()
+    expect(await find(plus(NOW, -300))).toBeNull()
+    expect(await find(plus(NOW, 300), plus(NOW, 8 * DAY))).toBeNull()
+  })
+
+  it('acceptInvitation marks a live invitation accepted with one audit row (no token or hash), and writes nothing for a revoked, expired or already accepted one', async () => {
+    const live = inv({ email: 'accept-live@x.test' })
+    await createInvitation(c(), live)
+    expect(await acceptInvitation(c(), { id: live.id, auditId: nextId(), actorId: ACTOR, now: plus(NOW, 1000) })).toBe('accepted')
+    expect((await rows(control, 'select accepted_at from invitations where id = ?', live.id))[0]!.accepted_at).toBe(plus(NOW, 1000))
+    expect((await audit(live.id)).map((r) => r.action)).toEqual(['invitation.created', 'invitation.accepted'])
+    expect(await acceptInvitation(c(), { id: live.id, auditId: nextId(), actorId: ACTOR, now: plus(NOW, 2000) })).toBe('not_live')
+    expect((await audit(live.id)).length).toBe(2)
+    const revoked = inv({ email: 'accept-revoked@x.test' })
+    await createInvitation(c(), revoked)
+    await revokeInvitation(c(), { id: revoked.id, auditId: nextId(), actorId: ACTOR, now: plus(NOW, 500) })
+    expect(await acceptInvitation(c(), { id: revoked.id, auditId: nextId(), actorId: ACTOR, now: plus(NOW, 1000) })).toBe('not_live')
+    expect((await audit(revoked.id)).map((r) => r.action)).toEqual(['invitation.created', 'invitation.revoked'])
+    const expired = inv({ email: 'accept-expired@x.test' })
+    await createInvitation(c(), expired)
+    expect(await acceptInvitation(c(), { id: expired.id, auditId: nextId(), actorId: ACTOR, now: plus(NOW, 8 * DAY) })).toBe('not_live')
+    expect((await audit(expired.id)).map((r) => r.action)).toEqual(['invitation.created'])
   })
 })
 

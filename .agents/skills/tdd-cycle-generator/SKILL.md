@@ -167,6 +167,12 @@ name it in the Size line ("rider: existing fixtures"), so the split question is 
 migration, 1 local E2E part, cost 307k / 108 calls (one 8k fix round). The budget holds. A Watch out item that ends in "check what
 it does and record it" (the rate limiter with no client IP) is an unproven behaviour: make it an obligation with its own test,
 or it comes back as a review finding, as it did here.
+**CORE287** (`knowledge/specs/015-CORE287-invitation-signup/RETRO.md`): 5 groups (1 matrix), 4 decisions + 7 planner rules,
+no migration, 1 local E2E part, cost 258k / 82 calls in one run plus a 9k fix round. The budget holds. Both review findings came
+from the charter. (1) A rule for a commit across two stores (CRM, then control) named a repair for only one partial state. When
+a charter orders a write across stores, list every partial state and say what the next attempt does with each. (2) "Checked
+where every account creation passes" had no obligation of its own, so the second-layer hook shipped untested. Every place a
+requirement names as a check point gets a test that reaches it directly.
 
 ### Step 3: Resolve identities
 

@@ -1,12 +1,13 @@
 import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type InvitationsRuntime, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
-import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
+import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, acceptInvitation, findAdoptableInvitation, hasLiveInvitationForToken, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { gmailTransport } from '@vibase/api'
 import { AUTH_SERVER_METADATA_PATH, createAuthHandler, resourcesFor, type AuthRuntimeConfig } from '@vibase/auth'
 import { parseBuiltInAuthConfig } from './auth-config.js'
+import { invitationAdmission } from './invitation-admission.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
@@ -479,7 +480,23 @@ export function composeD1Worker(
           const refused = await controlGate()
           if (refused) return refused
           // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
-          builtInHandler ??= createAuthHandler(controlAuthDatabase(control!), { ...builtInConfig, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) })
+          // [[CORE287]]: the gate and acceptance. The port is the only way the auth package reaches the vault; the CRM binding is resolved per call from the deployment row.
+          builtInHandler ??= createAuthHandler(
+            controlAuthDatabase(control!),
+            { ...builtInConfig, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) },
+            {
+              admission: invitationAdmission({
+                store: { hasLive: (a) => hasLiveInvitationForToken(control!, a), findAdoptable: (a) => findAdoptableInvitation(control!, a), accept: (a) => acceptInvitation(control!, a) },
+                crm: async () => {
+                  const link = await readDeployment(env.DB)
+                  if (!link) throw new Error('the deployment is not initialised')
+                  return d1Binding(env.DB, link)
+                },
+                clock,
+                newId,
+              }),
+            },
+          )
           return await builtInHandler(req)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
