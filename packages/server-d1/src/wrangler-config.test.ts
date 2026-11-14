@@ -104,6 +104,24 @@ describe('assets (UI30 D2)', () => {
   })
 })
 
+// [[UI247]] D1: every list that must equal the constant, read from the real files (the release fixture and the setup fixture are strings and files that stay in step with `wrangler.jsonc` by hand).
+describe('every run_worker_first list equals the constants the Worker serves (UI247 D1)', () => {
+  const EXPECTED = ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST]
+  const listIn = (text: string): unknown => (parse(text) as { assets?: { run_worker_first?: unknown } }).assets?.run_worker_first
+  it('wrangler.jsonc lists the five pages and /ui/*', () => {
+    expect(listIn(readFileSync(CONFIG, 'utf8'))).toEqual(EXPECTED)
+    expect(UI_PAGE_PATHS).toContain('/consent')
+    expect(UI_PAGE_PATHS).toContain('/device')
+  })
+  it("the setup fixture's list", () => {
+    expect(listIn(readFileSync(fileURLToPath(new URL('../scripts/setup/test/wrangler.fixture.jsonc', import.meta.url)), 'utf8'))).toEqual(EXPECTED)
+  })
+  it("@vibase/release's fixtures.ts BASE_SOURCE", async () => {
+    const { BASE_SOURCE } = await import('../../release/src/fixtures.js')
+    expect(listIn(BASE_SOURCE)).toEqual(EXPECTED)
+  })
+})
+
 // [[CHN141]] D34, D76: the Workflow and the cron are Worker configuration of the instance they run in. `workflows` and `triggers` are not
 // inherited by an env, so each states its own; `hq` got its cron after the supervised first backfill ([[CHN155]] D92; it takes effect at the user's deploy).
 // [[AGT8]] D54: every env also states the per-minute cron of the execution rail and the expiry sweep, beside the 15-minute one.

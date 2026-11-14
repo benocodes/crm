@@ -55,3 +55,11 @@ export const getSession = async (): Promise<ApiResult<{ user: SessionUser } | nu
 }
 export const signOut = (): Promise<ApiResult<unknown>> => call('POST', '/auth/sign-out', {})
 export const resetPassword = (b: { newPassword: string; token: string }): Promise<ApiResult<unknown>> => call('POST', '/auth/reset-password', { newPassword: b.newPassword, token: b.token })
+
+// [[UI247]] STUBS (red commit): replaced in the green commit.
+export const claimDeviceCode = async (_userCode: string): Promise<ApiResult<{ status: string; clientId?: string; scope?: string }>> => ({ ok: false, status: 0 })
+export const approveDevice = async (_userCode: string): Promise<ApiResult<unknown>> => ({ ok: false, status: 0 })
+export const denyDevice = async (_userCode: string): Promise<ApiResult<unknown>> => ({ ok: false, status: 0 })
+export const getClientName = async (_clientId: string): Promise<ApiResult<{ name?: string }>> => ({ ok: false, status: 0 })
+export const submitConsent = async (_accept: boolean, _oauthQuery: string): Promise<ApiResult<{ redirect: string }>> => ({ ok: false, status: 0 })
+export const isFollowable = (_url: string): boolean => false
