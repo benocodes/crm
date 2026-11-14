@@ -1,0 +1,266 @@
+/* The shared UI layer's stylesheet ([[UI254]] D5): tokens, `vb-` component classes, no framework and no inline styles (so pages serve
+   `style-src 'self'`). Colour tokens are redefined for dark mode three ways: the OS preference (unless the page forces light), and the
+   `data-theme` attribute either way. Scheme-independent tokens (space, radius, font, focus ring width) are defined once. */
+
+:root {
+  --vb-color-bg: #ffffff;
+  --vb-color-surface: #ffffff;
+  --vb-color-fg: #171717;
+  --vb-color-muted: #525252;
+  --vb-color-border: #737373;
+  --vb-color-primary: #171717;
+  --vb-color-primary-fg: #fafafa;
+  --vb-color-secondary-bg: #f1f1f1;
+  --vb-color-danger: #b91c1c;
+  --vb-color-danger-fg: #ffffff;
+  --vb-color-focus: #1d4ed8;
+  --vb-color-info-bg: #e8f0fe;
+  --vb-color-info-fg: #1e3a8a;
+  --vb-color-success-bg: #e6f4ea;
+  --vb-color-success-fg: #14532d;
+  --vb-color-error-bg: #fdecec;
+  --vb-color-error-fg: #7f1d1d;
+}
+
+:root {
+  --vb-space-1: 0.25rem;
+  --vb-space-2: 0.5rem;
+  --vb-space-3: 0.75rem;
+  --vb-space-4: 1rem;
+  --vb-space-6: 1.5rem;
+  --vb-radius: 0.5rem;
+  --vb-focus-width: 3px;
+  --vb-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --vb-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --vb-color-bg: #0a0a0a;
+    --vb-color-surface: #171717;
+    --vb-color-fg: #fafafa;
+    --vb-color-muted: #a3a3a3;
+    --vb-color-border: #737373;
+    --vb-color-primary: #fafafa;
+    --vb-color-primary-fg: #171717;
+    --vb-color-secondary-bg: #262626;
+    --vb-color-danger: #ef4444;
+    --vb-color-danger-fg: #0a0a0a;
+    --vb-color-focus: #93c5fd;
+    --vb-color-info-bg: #172554;
+    --vb-color-info-fg: #dbeafe;
+    --vb-color-success-bg: #052e16;
+    --vb-color-success-fg: #dcfce7;
+    --vb-color-error-bg: #450a0a;
+    --vb-color-error-fg: #fee2e2;
+  }
+}
+
+:root[data-theme="dark"] {
+  --vb-color-bg: #0a0a0a;
+  --vb-color-surface: #171717;
+  --vb-color-fg: #fafafa;
+  --vb-color-muted: #a3a3a3;
+  --vb-color-border: #737373;
+  --vb-color-primary: #fafafa;
+  --vb-color-primary-fg: #171717;
+  --vb-color-secondary-bg: #262626;
+  --vb-color-danger: #ef4444;
+  --vb-color-danger-fg: #0a0a0a;
+  --vb-color-focus: #93c5fd;
+  --vb-color-info-bg: #172554;
+  --vb-color-info-fg: #dbeafe;
+  --vb-color-success-bg: #052e16;
+  --vb-color-success-fg: #dcfce7;
+  --vb-color-error-bg: #450a0a;
+  --vb-color-error-fg: #fee2e2;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--vb-color-bg);
+  color: var(--vb-color-fg);
+  font-family: var(--vb-font);
+  line-height: 1.5;
+}
+
+.vb-card {
+  max-width: 28rem;
+  margin: var(--vb-space-6) auto;
+  padding: var(--vb-space-6);
+  background: var(--vb-color-surface);
+  border: 1px solid var(--vb-color-border);
+  border-radius: var(--vb-radius);
+}
+
+.vb-card__title {
+  margin: 0 0 var(--vb-space-4);
+  font-size: 1.25rem;
+}
+
+.vb-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vb-space-4);
+}
+
+.vb-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vb-space-2);
+  margin-top: var(--vb-space-6);
+}
+
+.vb-form {
+  margin: 0;
+}
+
+.vb-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vb-space-1);
+}
+
+.vb-field__label {
+  font-weight: 600;
+}
+
+.vb-field__input {
+  padding: var(--vb-space-2) var(--vb-space-3);
+  font: inherit;
+  color: var(--vb-color-fg);
+  background: var(--vb-color-bg);
+  border: 1px solid var(--vb-color-border);
+  border-radius: var(--vb-radius);
+}
+
+.vb-field__input[aria-invalid="true"] {
+  border-color: var(--vb-color-danger);
+}
+
+.vb-field__input:disabled {
+  opacity: 0.6;
+}
+
+.vb-field__hint {
+  margin: 0;
+  color: var(--vb-color-muted);
+  font-size: 0.875rem;
+}
+
+.vb-field__error {
+  margin: 0;
+  color: var(--vb-color-error-fg);
+  background: var(--vb-color-error-bg);
+  padding: var(--vb-space-1) var(--vb-space-2);
+  border-radius: var(--vb-radius);
+  font-size: 0.875rem;
+}
+
+.vb-code-input__input {
+  font-family: var(--vb-font-mono);
+  font-size: 1.25rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.vb-button {
+  padding: var(--vb-space-2) var(--vb-space-4);
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: var(--vb-radius);
+  cursor: pointer;
+}
+
+.vb-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.vb-button[aria-busy="true"] {
+  cursor: progress;
+}
+
+.vb-button--primary {
+  background: var(--vb-color-primary);
+  color: var(--vb-color-primary-fg);
+}
+
+.vb-button--secondary {
+  background: var(--vb-color-secondary-bg);
+  color: var(--vb-color-fg);
+  border-color: var(--vb-color-border);
+}
+
+.vb-button--destructive {
+  background: var(--vb-color-danger);
+  color: var(--vb-color-danger-fg);
+}
+
+.vb-button--link {
+  background: none;
+  color: var(--vb-color-fg);
+  text-decoration: underline;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.vb-alert {
+  padding: var(--vb-space-3) var(--vb-space-4);
+  border-radius: var(--vb-radius);
+  border: 1px solid currentColor;
+}
+
+.vb-alert--info {
+  background: var(--vb-color-info-bg);
+  color: var(--vb-color-info-fg);
+}
+
+.vb-alert--success {
+  background: var(--vb-color-success-bg);
+  color: var(--vb-color-success-fg);
+}
+
+.vb-alert--error {
+  background: var(--vb-color-error-bg);
+  color: var(--vb-color-error-fg);
+}
+
+.vb-scope-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vb-space-3);
+}
+
+.vb-scope-list__item {
+  display: flex;
+  flex-direction: column;
+}
+
+.vb-scope-list__name {
+  font-family: var(--vb-font-mono);
+  font-weight: 600;
+}
+
+.vb-scope-list__description {
+  color: var(--vb-color-muted);
+}
+
+.vb-button:focus-visible,
+.vb-field__input:focus-visible,
+.vb-alert:focus-visible {
+  outline: var(--vb-focus-width) solid var(--vb-color-focus);
+  outline-offset: 2px;
+}

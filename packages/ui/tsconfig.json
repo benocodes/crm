@@ -10,7 +10,8 @@
     "types": ["node"],
     "skipLibCheck": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "paths": { "#render": ["./src/test/render-preact.ts"] }
   },
-  "include": ["src", "scripts", "gallery", "e2e", "vitest.config.ts", "playwright.config.ts"]
+  "include": ["src", "scripts", "gallery", "e2e"]
 }

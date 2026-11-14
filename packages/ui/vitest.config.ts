@@ -7,10 +7,10 @@ import { engineNeutralProject, reactToPreactAlias } from '../../vitest.projects.
 const render = (name: string) => fileURLToPath(new URL(`./src/test/${name}`, import.meta.url))
 const ui = {
   environment: 'happy-dom',
-  include: ['src/**/*.ui.test.tsx'],
+  include: ['src/**/*.ui.test.tsx'] as string[],
   testTimeout: 30_000,
   pool: 'forks',
-} as const
+}
 const jsx = { oxc: { jsx: { runtime: 'automatic', importSource: 'react' } } } as const
 
 export default defineConfig({
