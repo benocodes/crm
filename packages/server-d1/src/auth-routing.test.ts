@@ -68,8 +68,8 @@ describe('/auth by provider (D1)', () => {
   })
 })
 
-describe('the shipped composition admits nobody (P1)', () => {
-  it('refuses sign-up and dynamic client registration, and writes no auth row', async () => {
+describe('the shipped composition admits no account (P1), and registration is policy-bound ([[CORE283]] P6)', () => {
+  it('refuses sign-up and writes no user; an unauthenticated public registration is the one thing it writes (a client, no secret)', async () => {
     const w = await start(BETTER)
     const up = await w.call('/auth/sign-up/email', { body: { name: 'Nobody', email: 'nobody@auth.test', password: PASSWORD } })
     expect(up.status).toBeGreaterThanOrEqual(400)
@@ -77,11 +77,12 @@ describe('the shipped composition admits nobody (P1)', () => {
     const reg = await w.call('/auth/oauth2/register', {
       body: { client_name: 'Nobody', token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'], scope: 'openid', redirect_uris: ['https://client.test/callback'] },
     })
-    expect(reg.status).toBeGreaterThanOrEqual(400)
-    expect(reg.status).toBeLessThan(500)
-    for (const t of ['auth_users', 'auth_accounts', 'auth_sessions', 'auth_oauth_clients']) {
+    expect(reg.status).toBe(201)
+    expect(((await reg.json()) as Record<string, unknown>).client_secret).toBeUndefined()
+    for (const t of ['auth_users', 'auth_accounts', 'auth_sessions']) {
       expect(await w.controlRows(`select * from ${t}`), t).toEqual([])
     }
+    expect((await w.controlRows('select * from auth_oauth_clients')).length).toBe(1)
   })
 })
 

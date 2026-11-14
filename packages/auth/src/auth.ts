@@ -1,8 +1,9 @@
 // The Better Auth composition for the D1 Worker ([[CORE243]] D1, D3, D4, D13, D21). Better Auth is the vault's built-in sign-in and OAuth authorisation server; this module
 // only configures it: the plugins (`jwt`, `oauthProvider`, `oauthDeviceAuthorization`, nothing else), the vault's table and column names, UUIDv7 ids, the PBKDF2 hasher, and a
 // fail-closed admission policy while the vault has no invitations ([[CORE245]]) and no client-registration policy ([[CORE244]]).
-import { oauthDeviceAuthorization, oauthProvider } from '@better-auth/oauth-provider'
+import { oauthDeviceAuthorization, oauthProvider, oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider'
 import { betterAuth, type BetterAuthOptions } from 'better-auth'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { getAuthTables } from 'better-auth/db'
 import { jwt } from 'better-auth/plugins'
 import { D1Dialect } from 'kysely-d1'
@@ -17,7 +18,17 @@ export interface AuthRuntimeConfig {
   baseURL: string
   /** The vault's scope names (`contacts:read`, ...): joined to the OIDC scopes the provider knows, so an access token can carry them ([[CORE244]] D9). The composition passes the registry's declared scopes. */
   vaultScopes?: readonly string[]
+  /** The subset of `vaultScopes` an agent may be granted ([[CORE243]] D11, P6): the only vault scopes a dynamically registered client may hold. Default none (OIDC scopes only). */
+  grantableScopes?: readonly string[]
 }
+
+/** The resources the provider issues access tokens for ([[CORE283]] P1): the API origin and the MCP endpoint's canonical URI (RFC 8707). Both name this one Worker. */
+export const MCP_RESOURCE_PATH = '/mcp'
+export const resourcesFor = (baseURL: string): [string, string] => [baseURL, `${baseURL}${MCP_RESOURCE_PATH}`]
+/** Registration policy ([[CORE283]] P6): this many registrations per client IP per window. */
+export const REGISTRATION_LIMIT = { window: 60 * 60, max: 10 } as const
+/** RFC 8414 path insertion for the issuer `<base>/auth` ([[CORE283]] D12): the document Better Auth builds, served where the standard says it is. */
+export const AUTH_SERVER_METADATA_PATH = '/.well-known/oauth-authorization-server/auth'
 
 /** A D1 binding, as much of it as Kysely's D1 dialect uses; the Worker passes its `DB`. */
 export interface AuthDatabaseLike {
@@ -26,8 +37,8 @@ export interface AuthDatabaseLike {
 
 export interface CreateAuthOptions {
   /**
-   * TEST ONLY. Admits email sign-up and dynamic client registration. The shipped composition never passes it: until the invitation gate ([[CORE245]]) and the client-registration
-   * policy ([[CORE244]]) exist, `/auth` refuses every account creation and every registration ([[CORE243]] P1).
+   * TEST ONLY. Admits email sign-up. The shipped composition never passes it: until the invitation gate ([[CORE245]]) exists, `/auth` refuses every account creation ([[CORE243]] P1).
+   * Dynamic client registration is open under the policy of [[CORE283]] P6 whatever this says.
    */
   unsafeOpenAdmissionForTests?: boolean
   /** Ids of every auth row; UUIDv7 by default, like the vault's. */
@@ -71,7 +82,7 @@ const snake = (name: string): string => name.replace(/([a-z0-9])([A-Z])/g, '$1_$
 
 // What Better Auth would create unmapped, for the plugins composed below. Only the field NAMES are read, to give each one its snake_case column: a field a library upgrade
 // adds is mapped the same way, and the schema test fails until a new reviewed migration carries it.
-const unmapped = getAuthTables({ baseURL: 'https://x.invalid', secret: 'x'.repeat(32), rateLimit: { enabled: true, storage: 'database' }, plugins: composePlugins('https://x.invalid', false) } as BetterAuthOptions)
+const unmapped = getAuthTables({ baseURL: 'https://x.invalid', secret: 'x'.repeat(32), rateLimit: { enabled: true, storage: 'database' }, plugins: composePlugins('https://x.invalid') } as BetterAuthOptions)
 
 function schemaFor(key: ModelKey): { modelName: string; fields: Record<string, string> } {
   const table = (unmapped as Record<string, { fields: Record<string, unknown> }>)[key]
@@ -79,9 +90,12 @@ function schemaFor(key: ModelKey): { modelName: string; fields: Record<string, s
   return { modelName: MODELS[key], fields: Object.fromEntries(Object.keys(table.fields).map((f) => [f, snake(f)])) }
 }
 
-function composePlugins(baseURL: string, open: boolean, schema?: (key: ModelKey) => ReturnType<typeof schemaFor>, vaultScopes: readonly string[] = []) {
+function composePlugins(baseURL: string, schema?: (key: ModelKey) => ReturnType<typeof schemaFor>, vaultScopes: readonly string[] = [], grantable: readonly string[] = []) {
   const s = schema ?? (() => undefined)
   const scopes = [...AUTH_SCOPES, ...vaultScopes]
+  // [[CORE283]] P6: a registered client holds the OIDC scopes and the grantable vault scopes, never a human-only one (the stored client scopes bound every later grant).
+  const registrable = [...AUTH_SCOPES, ...grantable.filter((x) => vaultScopes.includes(x))]
+  const resources = resourcesFor(baseURL)
   return [
     jwt({
       disableSettingJwtHeader: true,
@@ -100,11 +114,18 @@ function composePlugins(baseURL: string, open: boolean, schema?: (key: ModelKey)
       consentPage: '/auth/consent',
       scopes,
       accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
-      resources: [{ identifier: baseURL, allowedScopes: scopes }],
-      clientRegistrationDefaultResources: [baseURL],
-      clientRegistrationAllowedScopes: scopes,
-      allowDynamicClientRegistration: open,
-      allowUnauthenticatedClientRegistration: open,
+      // No `allowedScopes` on a resource row: the library seeds rows once and never updates them, so a list there would go stale when a scope is added. The client's own scopes
+      // (NULL = the provider's list, for the seeded first-party client) bound a grant instead.
+      resources,
+      clientRegistrationDefaultResources: resources,
+      clientRegistrationAllowedResources: resources,
+      clientRegistrationDefaultScopes: registrable,
+      clientRegistrationAllowedScopes: registrable,
+      // Native MCP clients register a loopback `http://127.0.0.1:<port>` redirect and send no application_type: treat those as native (the web rules for any other client).
+      clientRegistrationDefaultApplicationType: 'infer',
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      rateLimit: { register: REGISTRATION_LIMIT },
       ...(schema
         ? {
             schema: {
@@ -122,6 +143,13 @@ function composePlugins(baseURL: string, open: boolean, schema?: (key: ModelKey)
     oauthDeviceAuthorization({ verificationUri: `${baseURL}/auth/device`, ...(schema ? { schema: { deviceCode: schema('deviceCode') } } : {}) }),
   ]
 }
+
+/** [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the library, so it is refused too. */
+const publicClientsOnly = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== '/oauth2/register') return
+  const method = (ctx.body as { token_endpoint_auth_method?: unknown } | undefined)?.token_endpoint_auth_method
+  if (method !== 'none') throw new APIError('BAD_REQUEST', { error: 'invalid_client_metadata', error_description: 'only public clients may register: token_endpoint_auth_method must be none' })
+})
 
 /** The Better Auth options of the composition. Exported for the schema generator and the tests; the Worker uses `createAuthHandler`. */
 export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): BetterAuthOptions {
@@ -146,12 +174,52 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
     },
     telemetry: { enabled: false },
-    plugins: composePlugins(config.baseURL, open, schemaFor, config.vaultScopes),
+    plugins: composePlugins(config.baseURL, schemaFor, config.vaultScopes, config.grantableScopes),
+    hooks: { before: publicClientsOnly },
   } as BetterAuthOptions
 }
 
 /** The Worker's handler for everything under `/auth`. Build once per isolate; it holds the library's own caches. */
 export function createAuthHandler(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): (req: Request) => Promise<Response> {
   const auth = betterAuth(authOptions(db, config, opts))
-  return (req) => auth.handler(req)
+  // RFC 8414 path insertion ([[CORE283]] D12): the library mounts its metadata under `/auth`; the standard URL for the issuer `<base>/auth` is outside the base path.
+  const metadata = oauthProviderAuthServerMetadata(auth as never)
+  return (req) => (new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? metadata(req) : auth.handler(req))
+}
+
+/** The first-party CLI's fixed client id ([[CORE243]] D10). */
+export const CLI_CLIENT_ID = 'vibase-cli'
+const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
+
+/**
+ * Seeds the first-party CLI client and the two resource rows it links to ([[CORE283]] D10, P5), through Better Auth's own adapter so the stored shapes are the library's.
+ * Idempotent and convergent: a missing row is created; an existing client has its seeded shape (public, device and refresh grants, linked to both resources, `scopes` NULL so it
+ * follows the provider's list) put back, and its `disabled` flag is left alone. Written by bootstrap only (AGENTS.md invariant 5's auth-table exception); the Worker's handler never calls it.
+ */
+export async function seedFirstPartyClient(db: AuthDatabaseLike, config: { baseURL: string }): Promise<{ client: 'created' | 'existing' }> {
+  // The secret signs nothing here: the instance exists only to reach the configured adapter (names, JSON encodings, ids).
+  const auth = betterAuth(authOptions(db, { secret: 'seed-only-secret-never-signs-anything-0123456789', baseURL: config.baseURL }))
+  const { adapter } = (await auth.$context) as unknown as { adapter: SeedAdapter }
+  const now = new Date()
+  for (const identifier of resourcesFor(config.baseURL)) {
+    if (!(await adapter.findOne({ model: 'oauthResource', where: [{ field: 'identifier', value: identifier }] }))) {
+      await adapter.create({ model: 'oauthResource', data: { identifier, name: identifier, allowedScopes: null, dpopBoundAccessTokensRequired: false, disabled: false, policyVersion: 1, createdAt: now, updatedAt: now } })
+    }
+  }
+  const shape = { name: 'Vibase CLI', tokenEndpointAuthMethod: 'none', grantTypes: [DEVICE_GRANT, 'refresh_token'], responseTypes: [], redirectUris: [], scopes: null, applicationType: 'native' }
+  const where = [{ field: 'clientId', value: CLI_CLIENT_ID }]
+  const existing = await adapter.findOne({ model: 'oauthClient', where })
+  if (existing) await adapter.update({ model: 'oauthClient', where, update: { ...shape, updatedAt: now } })
+  else await adapter.create({ model: 'oauthClient', data: { clientId: CLI_CLIENT_ID, ...shape, createdAt: now, updatedAt: now } })
+  for (const resourceId of resourcesFor(config.baseURL)) {
+    const link = [{ field: 'clientId', value: CLI_CLIENT_ID }, { field: 'resourceId', value: resourceId }]
+    if (!(await adapter.findOne({ model: 'oauthClientResource', where: link }))) await adapter.create({ model: 'oauthClientResource', data: { clientId: CLI_CLIENT_ID, resourceId, createdAt: now } })
+  }
+  return { client: existing ? 'existing' : 'created' }
+}
+
+interface SeedAdapter {
+  findOne(o: { model: string; where: Array<{ field: string; value: unknown }> }): Promise<unknown | null>
+  create(o: { model: string; data: Record<string, unknown> }): Promise<unknown>
+  update(o: { model: string; where: Array<{ field: string; value: unknown }>; update: Record<string, unknown> }): Promise<unknown>
 }
