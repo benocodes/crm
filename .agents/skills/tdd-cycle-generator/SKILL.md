@@ -179,6 +179,13 @@ round, approved round 1 with no findings. The budget holds, and a matrix over tw
 serves both. The gate-fix round came from a new workspace package: the release tests pin the package list and the changesets
 `ignore` list (`execute-cycle` §commit). A charter that adds a package says so in Watch out. A browser E2E part earns its
 place for UI: it found the one runtime bug (`spellCheck={false}` dropped by Preact) that both happy-dom projects missed.
+**UI247** (`knowledge/specs/015-UI247-oauth-pages/RETRO.md`): 5 groups (1 matrix), 7 decisions, no migration, 1 local E2E part
+(two legs, the real CLI and an MCP-style client), cost ~307k / 148 calls in one run plus a 5k fix round of four small findings.
+[[UI246]] had the same shape and cost ~290k: a pages cycle with a real-browser E2E lands near 300k at 5 groups, and the E2E
+carries the extra calls. The budget holds. Before writing an E2E initial state, check what the real clients in it demand. UI247's
+charter set `PUBLIC_BASE_URL=http://localhost`, but `vibase login` refuses a non-https issuer, which cost several E2E
+iterations (writing-tests §7 has the HTTPS recipe). A package list copied from the spec ("no change") goes stale as soon as the
+charter leaves a method to the coder. Say "expected" there, not "unchanged".
 
 ### Step 3: Resolve identities
 

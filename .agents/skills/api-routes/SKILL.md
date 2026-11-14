@@ -1025,7 +1025,17 @@ message bodies or addresses at info level (customer communications are personal 
   esbuild entry (`scripts/build-ui.ts`) whose metafile test proves no `react`, with a Worker-bundle check that holds
   no `preact` and no page module.
 - **The page's API client returns `{ status, code }` only** (`src/ui/auth-api.ts`): a server `message` never reaches
-  a component, so no page can render server text. Codes map to the page's own copy, pinned by tests.
+  a component, so no page can render server text. Codes map to the page's own copy, pinned by tests. Better Auth's
+  OAuth and device endpoints answer `{ error, error_description }`, not `{ code, message }`: `code` falls back to
+  `error`, and the description is never read ([[UI247]] D6). A success that answers `{ redirect: true, url }` is
+  validated in the client (`isFollowable`: `http:`/`https:`, absolute or origin-relative). A bad URL becomes a failure
+  (`invalid_redirect`), so a page only ever navigates to a validated URL.
+- **A `return_to` is an allow-list of exact pathnames on the page's origin** (`src/ui/continuation.ts`). The raw value
+  must also be rooted (`/…`) or an absolute same-origin URL. A same-origin check alone admits `/devices` and
+  `/auth/device` (the UI247 absence mutation M3).
+- **A page that needs a constant from `@vibase/api`** (the scope catalogue) imports a dependency-free leaf through a
+  subpath export (`@vibase/api/scope-descriptions`), never the index. `scripts/build-ui.test.ts` pins the page bundle's
+  `@vibase/api` metafile inputs to exactly that leaf ([[UI247]] D5).
 
 ## Large bytes and object storage
 
