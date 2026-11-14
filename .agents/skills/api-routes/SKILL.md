@@ -1017,6 +1017,15 @@ message bodies or addresses at info level (customer communications are personal 
   run under `happy-dom` per file (`// @vitest-environment happy-dom`).
 - **Clerk's `signOut()` with no `redirectUrl` lands on the origin root**, which is the API's 404. Pass the page's
   own path. Only a real browser run caught this.
+- **Several pages in one bundle** ([[UI246]], `packages/server-d1/src/ui-serving.ts`): the page paths and the asset
+  prefix are one exported constant (`UI_RUN_WORKER_FIRST`) that the Worker serves from and that the `wrangler.jsonc`
+  test, `release:check` and `smoke:worker` read; never a copied list. A provider-specific page is gated in the
+  composition before `/auth` and every other gate (`404 not_found` on any other provider), and its directory's
+  `index.html` is reachable only through the page paths (`/ui/` itself is `404`). A Preact bundle is a separate
+  esbuild entry (`scripts/build-ui.ts`) whose metafile test proves no `react`, with a Worker-bundle check that holds
+  no `preact` and no page module.
+- **The page's API client returns `{ status, code }` only** (`src/ui/auth-api.ts`): a server `message` never reaches
+  a component, so no page can render server text. Codes map to the page's own copy, pinned by tests.
 
 ## Large bytes and object storage
 

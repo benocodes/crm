@@ -33,3 +33,7 @@ Workers / load: <VITEST_MAX_WORKERS if set; one `uptime` reading taken before th
 A failure is reported as found: do not say what causes it, do not rerun to see whether it is flaky, and do
 not run anything on `main`; the orchestrator decides what happens next. A step you did not run or could not
 read is "not run", never green.
+
+Never call `mcp__sprint-relay__next_cycle` (or any orchestrator tool you can see): it ends the orchestrator's
+cycle and only the orchestrator calls it. Your run ends with the report. (A gate-tester called it during
+[[UI246]].)
