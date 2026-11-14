@@ -137,6 +137,11 @@ Next Action) and tells the user before any of these, and never works around one:
   `vault-smoked1` resources, DNS and custom-domain changes stay hard stops until the user confirms them. New
   installs and every new resource anywhere use `vb-<kind>-<env>` names; `hq` keeps its `vault-hq` names unless
   the user says otherwise, and no code may hard-code a `vault` prefix.
+  **Extended (user, 2026-11-14, [[CORE294]]):** agents may also set Worker secrets on `smoked1` (Worker
+  `vb-smoked1`, `wrangler secret put --env smoked1`, or the guarded setup scripts) from values in the gitignored
+  `.env.smoked1` (for example `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET`). The values are read from that
+  file only, never printed, logged, committed or put on a command line (pipe them on stdin); `.env.hq` and
+  `.env.hq-staging` are not a source for this (the user copies a value into `.env.smoked1` first).
   Creating resources beyond it, DNS, Clerk, and any other environment stay hard stops.
   **Standing exception, Clerk dev instance (user, 2026-11-02):** the Clerk *development* instance whose
   keys are in the gitignored `.env.dev` (`sk_test_`/`pk_test_`, `CLERK_JWT_KEY`, `CLERK_FRONTEND_API_URL`)
