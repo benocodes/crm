@@ -1,11 +1,11 @@
-import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
+import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
 import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { gmailTransport } from '@vibase/api'
-import { createAuthHandler, type AuthRuntimeConfig } from '@vibase/auth'
+import { AUTH_SERVER_METADATA_PATH, createAuthHandler, resourcesFor, type AuthRuntimeConfig } from '@vibase/auth'
 import { parseBuiltInAuthConfig } from './auth-config.js'
 
 export interface D1WorkerEnv {
@@ -143,7 +143,8 @@ export function composeD1Worker(
     if (builtIn && builtInConfig && control) {
       authAdapter = createBetterAuthAdapter({
         issuer: `${builtInConfig.baseURL}/auth`,
-        audience: builtInConfig.baseURL,
+        // [[CORE283]] P1: the API origin and the MCP endpoint's URI are both this Worker.
+        audience: resourcesFor(builtInConfig.baseURL),
         readKeys: () => readAuthJwks(control),
         readProfile: (subject) => readAuthProfile(control, subject),
         readClientName: (clientId) => readOAuthClientName(control, clientId),
@@ -187,7 +188,13 @@ export function composeD1Worker(
 
   // [[CORE64]] D21, D22: the documents read configuration only; built once. A bad configuration (below) still answers 500.
   const discovery = {
-    provider: authAdapter && !builtIn ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() } : undefined,
+    provider: builtIn
+      ? builtInConfig && authAdapter
+        ? { name: 'better-auth' as const, issuer: `${builtInConfig.baseURL}/auth`, baseUrl: builtInConfig.baseURL }
+        : undefined
+      : authAdapter
+        ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() }
+        : undefined,
     cliClientId,
     publishableKey,
     declaredScopes: createVibaseRegistry().declaredScopes(),
@@ -460,14 +467,14 @@ export function composeD1Worker(
         // [[CORE243]] D1: `/auth/*` exists only for the built-in provider; for clerk and unset it is no route at all, before every gate. For better-auth it passes the migration gate
         // and the configuration gate, then the control gate ([[CORE259]] D6, D7: the auth tables live in the control-plane database, which must be migrated and paired with this
         // CRM database). It still touches no vault table (CORE243 D5).
-        if (url.pathname === '/auth' || url.pathname.startsWith('/auth/')) {
+        if (url.pathname === '/auth' || url.pathname.startsWith('/auth/') || (builtIn && url.pathname === AUTH_SERVER_METADATA_PATH)) {
           if (!builtIn) return json(NO_SUCH_ROUTE, 404)
           if (configError || !builtInConfig) return json(INTERNAL, 500)
           if ((await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
           const refused = await controlGate()
           if (refused) return refused
           // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
-          builtInHandler ??= createAuthHandler(controlAuthDatabase(control!), { ...builtInConfig, vaultScopes: discovery.declaredScopes })
+          builtInHandler ??= createAuthHandler(controlAuthDatabase(control!), { ...builtInConfig, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) })
           return await builtInHandler(req)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).

@@ -1,5 +1,6 @@
 // Test support ([[CORE244]]): the REAL Better Auth composition (open admission, the test switch) on a control-plane database in Node, minting the tokens the Worker under test then verifies.
 // `test/` is exempt from the control-boundary check; production code never gets a handle like this.
+import { grantableScopes } from '@vibase/api'
 import { createAuthHandler } from '@vibase/auth'
 import type { D1Like } from '@vibase/storage-d1'
 
@@ -22,7 +23,7 @@ export interface AuthKit {
 /** The real Better Auth composition (test admission) on a control-plane database, in this process. */
 export function authKit(control: D1Like, over: { base?: string; secret?: string; scopes?: readonly string[] } = {}): AuthKit {
   const base = over.base ?? AUTH_BASE
-  const handler = createAuthHandler(control, { secret: over.secret ?? AUTH_SECRET, baseURL: base, vaultScopes: over.scopes ?? [] }, { unsafeOpenAdmissionForTests: true })
+  const handler = createAuthHandler(control, { secret: over.secret ?? AUTH_SECRET, baseURL: base, vaultScopes: over.scopes ?? [], grantableScopes: grantableScopes(over.scopes ?? []) }, { unsafeOpenAdmissionForTests: true })
   let n = 0
   return authKitOver(
     (path, init = {}) =>
@@ -59,7 +60,7 @@ export function authKitOver(call: AuthKit['call'], base: string, vaultScopes: re
     async registerClient(name) {
       const res = await ok(
         await call('/auth/oauth2/register', {
-          body: { client_name: name, token_endpoint_auth_method: 'none', resources: [base], grant_types: ['authorization_code', DEVICE_GRANT, 'refresh_token'], response_types: ['code'], scope: ['openid', 'offline_access', ...vaultScopes].join(' '), redirect_uris: ['https://client.test/callback'] },
+          body: { client_name: name, token_endpoint_auth_method: 'none', resources: [base], grant_types: ['authorization_code', DEVICE_GRANT, 'refresh_token'], response_types: ['code'], scope: ['openid', 'offline_access', ...grantableScopes(vaultScopes)].join(' '), redirect_uris: ['https://client.test/callback'] },
         }),
         'register',
       )

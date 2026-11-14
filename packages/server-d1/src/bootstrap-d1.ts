@@ -1,6 +1,7 @@
 import { bootstrap, bootstrapWorkspace } from '@vibase/api'
+import { seedFirstPartyClient } from '@vibase/auth'
 import { execute, uuidv7 } from '@vibase/storage'
-import { d1Binding, readControlMarker, writeControlMarker, type ControlDb, type D1Like } from '@vibase/storage-d1'
+import { controlAuthDatabase, d1Binding, readControlMarker, writeControlMarker, type ControlDb, type D1Like } from '@vibase/storage-d1'
 import { initDeploymentOperation, markerInsert, readDeployment, type DeploymentLink } from './init-deployment.js'
 
 export interface BootstrapD1Options {
@@ -18,6 +19,8 @@ export interface BootstrapD1Options {
   authSubject?: string
   /** Defaults to a fresh UUIDv7. With an existing marker it must match, when given. */
   organizationId?: string
+  /** `better-auth` only ([[CORE283]] P5): `PUBLIC_BASE_URL`, the origin the seeded `vibase-cli` client's resources are named by. */
+  publicBaseUrl?: string
 }
 export interface BootstrapD1Result {
   organizationId: string
@@ -28,6 +31,8 @@ export interface BootstrapD1Result {
   apiKeyId: string | null
   key: string | null
   deployment: 'created' | 'existing'
+  /** `better-auth` re-run on an initialised organisation: the seed converged, no agent or key was made whatever `agentName` said. */
+  organizationExisted?: true
 }
 
 type BootstrapD1Env = {
@@ -53,9 +58,13 @@ export async function bootstrapD1(
 ): Promise<BootstrapD1Result & { agentId: string; apiKeyId: string; key: string }>
 export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env?: BootstrapD1Env): Promise<BootstrapD1Result>
 export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: BootstrapD1Env = {}): Promise<BootstrapD1Result> {
-  const clerk = (opts.authProvider ?? 'clerk') === 'clerk'
+  const builtIn = opts.authProvider === 'better-auth'
+  // Clerk and the built-in provider both create no human here: the first owner is invited ([[CORE64]] D11, [[CORE245]]).
+  const clerk = (opts.authProvider ?? 'clerk') === 'clerk' || builtIn
+  if (builtIn && !env.control) throw new Error('authProvider better-auth requires the control database (CONTROL_DB): it holds the auth tables')
+  if (builtIn && !opts.publicBaseUrl) throw new Error('authProvider better-auth requires the public base URL (PUBLIC_BASE_URL)')
   if (clerk && (opts.email !== undefined || opts.authSubject !== undefined || opts.userName !== undefined)) {
-    throw new Error('a Clerk-backed deployment creates no human: the first owner is invited in Clerk (drop the email, name and auth subject)')
+    throw new Error('a Clerk or Better Auth deployment creates no human: the first owner is invited (drop the email, name and auth subject)')
   }
   if (!clerk && (opts.email === undefined || opts.agentName === undefined)) throw new Error(`authProvider ${opts.authProvider} requires an email and an agent name`)
   const now = env.now ?? new Date()
@@ -86,7 +95,11 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
   }
   // The control marker follows the CRM deployment row, so a crash between the two is resumed by the next run (idempotent).
   if (env.control) await writeControlMarker(env.control, link.organizationId)
-  if ((link.authProvider === 'clerk') !== clerk) throw new Error(`the marker's provider is ${link.authProvider}: pass --auth-provider ${link.authProvider}`)
+  if ((link.authProvider === 'clerk' || link.authProvider === 'better-auth') !== clerk || builtIn !== (link.authProvider === 'better-auth')) throw new Error(`the marker's provider is ${link.authProvider}: pass --auth-provider ${link.authProvider}`)
+  // [[CORE283]] P5: the first-party CLI client, in the control plane, idempotent. Bootstrap is its one writer besides Better Auth's own handler.
+  if (builtIn && env.control) await seedFirstPartyClient(controlAuthDatabase(env.control), { baseURL: opts.publicBaseUrl! })
+  // A re-run on the built-in provider converges the seed above and leaves an existing organisation (and its keys) alone ([[CORE283]] P5).
+  if (builtIn && (await d1.prepare('select id from organizations limit 1').first())) return { organizationId: link.organizationId, userId: null, agentId: null, apiKeyId: null, key: null, deployment, organizationExisted: true }
   if (clerk) {
     const w = await bootstrapWorkspace(d1Binding(d1, link), { organizationName: opts.organizationName, agentName: opts.agentName, scopes: opts.scopes }, { now, newId, randomBytes: env.randomBytes })
     return { organizationId: w.organizationId, userId: null, agentId: w.agentId, apiKeyId: w.apiKeyId, key: w.key, deployment }

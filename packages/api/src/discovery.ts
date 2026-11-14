@@ -15,7 +15,7 @@ const MCP_RESOURCE_PATH = '/mcp'
 /** The configuration the three documents read: public values only, never a secret. */
 export interface DiscoveryConfig {
   /** `undefined` when `AUTH_PROVIDER` is unset (API keys only). */
-  provider?: { name: 'clerk'; issuer: string }
+  provider?: { name: 'clerk'; issuer: string } | { name: 'better-auth'; issuer: string; /** `PUBLIC_BASE_URL`: the documents' resource and URLs come from it, never the request host ([[CORE243]] D23). */ baseUrl: string }
   /** `AUTH_CLI_CLIENT_ID`; `undefined` is `null` in the document. */
   cliClientId?: string
   /** `CLERK_PUBLISHABLE_KEY` ([[UI30]] D5), already validated against the issuer; `undefined` is `null` in the document. */
@@ -61,23 +61,28 @@ export function discoveryResponse(req: Request, config: DiscoveryConfig): Respon
   let body: unknown
   if (url.pathname === VIBASE_DISCOVERY_PATH) {
     const o = url.origin
+    const p = config.provider
     body = {
       api: o + SURFACE_PREFIX.api,
       mcp: o + MCP_RESOURCE_PATH,
       openapi: { api: o + openApiPath('api'), meta: o + openApiPath('meta') },
-      auth: config.provider
-        ? { provider: config.provider.name, issuer: config.provider.issuer, cli_client_id: config.cliClientId ?? null, publishable_key: config.publishableKey ?? null, protected_resource_metadata: o + PROTECTED_RESOURCE_PATH }
-        : null,
+      auth: !p
+        ? null
+        : p.name === 'better-auth'
+          ? // [[CORE283]] P3: no publishable key; the issuer, the resource and the metadata URL come from the configured base URL.
+            { provider: p.name, issuer: p.issuer, cli_client_id: config.cliClientId ?? null, resource: p.baseUrl, protected_resource_metadata: p.baseUrl + PROTECTED_RESOURCE_PATH }
+          : { provider: p.name, issuer: p.issuer, cli_client_id: config.cliClientId ?? null, publishable_key: config.publishableKey ?? null, protected_resource_metadata: o + PROTECTED_RESOURCE_PATH },
     }
   } else if (url.pathname === PROTECTED_RESOURCE_PATH || url.pathname === MCP_PROTECTED_RESOURCE_PATH) {
     // Without a provider there is no authorisation server to name: 404, not a document that points nowhere.
     if (!config.provider) return new Response(JSON.stringify({ error: { code: 'not_found', message: 'no such route' } }), { status: 404, headers: { 'content-type': 'application/json' } })
+    const resourceOrigin = config.provider.name === 'better-auth' ? config.provider.baseUrl : url.origin
     body =
       url.pathname === PROTECTED_RESOURCE_PATH
-        ? { resource: url.origin, authorization_servers: [config.provider.issuer], scopes_supported: config.declaredScopes.map(toProviderScope), bearer_methods_supported: ['header'] }
+        ? { resource: resourceOrigin, authorization_servers: [config.provider.issuer], scopes_supported: config.declaredScopes.map(toProviderScope), bearer_methods_supported: ['header'] }
         : // [[API106]] D13: every MCP token is an agent's, and human-only scopes are dropped from agents, so only the grantable ones are offered.
           {
-            resource: url.origin + MCP_RESOURCE_PATH,
+            resource: resourceOrigin + MCP_RESOURCE_PATH,
             authorization_servers: [config.provider.issuer],
             scopes_supported: grantableScopes(config.declaredScopes).map(toProviderScope),
             bearer_methods_supported: ['header'],

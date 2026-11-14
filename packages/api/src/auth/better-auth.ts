@@ -17,8 +17,11 @@ export interface BetterAuthKey {
 export interface BetterAuthAdapterConfig {
   /** `<PUBLIC_BASE_URL>/auth`: configuration only, never the request's host (D23). */
   issuer: string
-  /** The API origin (`PUBLIC_BASE_URL`): the audience of a session JWT and the resource of an access token. */
-  audience: string
+  /**
+   * The API origin (`PUBLIC_BASE_URL`): the audience of a session JWT and the resource of an access token. A list ([[CORE283]] P1) accepts a token whose `aud` includes any of them:
+   * the API origin and the MCP endpoint's URI name the same Worker and the same scope check on every surface.
+   */
+  audience: string | readonly string[]
   /** One read of every public signing key; called at most as often as the cache allows. */
   readKeys(): Promise<BetterAuthKey[]>
   readProfile(subject: string): Promise<{ email: string | null; emailVerified: boolean; name: string | null } | null>
@@ -116,7 +119,7 @@ export function createBetterAuthAdapter(config: BetterAuthAdapterConfig): AuthAd
         ;({ payload } = await jwtVerify(token, known.key, {
           algorithms: [known.alg],
           issuer: config.issuer,
-          audience: config.audience,
+          audience: typeof config.audience === 'string' ? config.audience : [...config.audience],
           clockTolerance: 5,
           currentDate: now(),
           requiredClaims: ['exp', 'sub', 'iat'],

@@ -58,6 +58,18 @@ export interface FakeIssuerOptions {
   noRefresh?: boolean
   /** Answers every request on these paths with a redirect to this URL (the metadata, device or token endpoint redirecting off-origin). */
   redirect?: { path: string; to: string }
+  /**
+   * The issuer identifier is `origin + issuerPath` (a path issuer, [[CORE283]] D12). Its RFC 8414 document is served where `serves` says: `insertion` (`/.well-known/oauth-authorization-server<path>`,
+   * RFC 8414 section 3.1) and/or `appended` (`<path>/.well-known/oauth-authorization-server`); default insertion only. A root issuer (no path) serves the one URL it always did.
+   */
+  issuerPath?: string
+  serves?: Array<'insertion' | 'appended'>
+  /** What the document served at the appended URL names as its `issuer` (default the real one): another issuer's document. */
+  appendedIssuer?: string
+  /** What the document served at the insertion URL names as its `issuer` (default the real one). */
+  insertionIssuer?: string
+  /** Statuses the document URLs answer instead of the document (404, 500...). */
+  metadataStatus?: { insertion?: number; appended?: number }
 }
 
 export function fakeIssuer(opts: FakeIssuerOptions = {}) {
@@ -91,9 +103,17 @@ export function fakeIssuer(opts: FakeIssuerOptions = {}) {
   const handler: Handler = async (req) => {
     const u = new URL(req.url)
     if (redirect && u.pathname === redirect.path) return new Response(null, { status: 307, headers: { location: redirect.to } })
-    if (u.pathname === '/.well-known/oauth-authorization-server') {
+    const ipath = opts.issuerPath ?? ''
+    const serves = opts.serves ?? ['insertion']
+    const insertionPath = '/.well-known/oauth-authorization-server' + ipath
+    const appendedPath = ipath + '/.well-known/oauth-authorization-server'
+    const which = u.pathname === insertionPath ? 'insertion' : ipath !== '' && u.pathname === appendedPath ? 'appended' : undefined
+    if (which !== undefined) {
+      const status = opts.metadataStatus?.[which]
+      if (status !== undefined) return jsonRes({ error: 'not_found' }, status)
+      if (ipath !== '' && !serves.includes(which)) return jsonRes({ error: 'not_found' }, 404)
       const base: Record<string, unknown> = {
-        issuer: origin,
+        issuer: (which === 'appended' ? opts.appendedIssuer : opts.insertionIssuer) ?? origin + ipath,
         device_authorization_endpoint: origin + '/oauth/device_authorization',
         token_endpoint: origin + '/oauth/token',
         scopes_supported: ['openid', 'email', 'profile', 'offline_access'],
@@ -159,6 +179,8 @@ export function fakeIssuer(opts: FakeIssuerOptions = {}) {
 
   return {
     origin,
+    /** The issuer identifier: the origin plus `issuerPath`. */
+    issuer: origin + (opts.issuerPath ?? ''),
     clientId,
     handler,
     /** The device grant's scope parameter of each device request. */

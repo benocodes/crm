@@ -91,7 +91,10 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   and folded the tests into the implementation commit, so the branch history no longer shows red before green.
   That is a recorded deviation, not an equivalent. [[AGT8]] cycle 1 wrote its tests beside a working draft and
   made the red commit by setting the draft aside: two suites then failed on a missing module, not on their
-  assertions, and the reviewer had to run a manifest mutation to see them go red. Write the tests first.
+  assertions, and the reviewer had to run a manifest mutation to see them go red. [[CORE283]] wrote five of six
+  groups' tests after the code and had no red commit at all. Write the tests first. If you did not, say so per
+  group in `RESULT.md`'s Deviations, and give every such group a raw absence mutation that turns *that group's*
+  tests red; a group with neither a red run nor its own mutation is not proven, and the reviewer returns it.
 - **Setting work aside never uses a bare `git checkout <file>` / `git restore <file>`.** Either resets the
   file to the last commit and silently deletes every uncommitted change in it; it cost [[CORE188]] (restoring a
   mutant) and again [[CORE199]] (mid-run, outside any mutation) a rewrite. Before you revert, split or compare

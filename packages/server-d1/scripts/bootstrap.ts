@@ -7,6 +7,7 @@
 // `--key-env`, and never prints it.
 //
 //   pnpm -C packages/server-d1 bootstrap -- --org <name> --issuer <CLERK_ISSUER> [--agent <name>] [--scopes a:read,b:write] [--organization-id <uuid>]
+//   pnpm -C packages/server-d1 bootstrap -- --org <name> --auth-provider better-auth --public-base-url <PUBLIC_BASE_URL> [--auth-org-id <name>] [--agent <name>]   (no human; seeds vibase-cli, CORE283)
 //   pnpm -C packages/server-d1 bootstrap -- --org <name> --auth-provider none --auth-org-id <name> --email <email> --agent <name>
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --key-env <NAME> --org ... (same flags)
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -31,7 +32,7 @@ export function remoteProxyOptions(envName: string, configPath: string = CONFIG_
 
 const KEY_ENV_SHAPE = /^[A-Z][A-Z0-9_]*$/
 const USAGE =
-  'usage: pnpm -C packages/server-d1 bootstrap -- --org <name> --issuer <CLERK_ISSUER> [--agent <name>] [--scopes a:read,b:write] [--organization-id <uuid>] [--remote --env <name> --key-env <NAME>]\n   or: ... --org <name> --auth-provider none --auth-org-id <name> --email <email> --agent <name> [--name <user name>]'
+  'usage: pnpm -C packages/server-d1 bootstrap -- --org <name> --issuer <CLERK_ISSUER> [--agent <name>] [--scopes a:read,b:write] [--organization-id <uuid>] [--remote --env <name> --key-env <NAME>]\n   or: ... --org <name> --auth-provider better-auth --public-base-url <PUBLIC_BASE_URL> [--auth-org-id <name>] [--agent <name>]   (seeds the vibase-cli client; no human)\n   or: ... --org <name> --auth-provider none --auth-org-id <name> --email <email> --agent <name> [--name <user name>]'
 
 export function parseBootstrapArgs(argv: string[]): { mode: 'local' | 'remote'; values: Values; envName?: string; keyEnv?: string } {
   const { values } = parseArgs({
@@ -47,6 +48,7 @@ export function parseBootstrapArgs(argv: string[]): { mode: 'local' | 'remote'; 
       'auth-provider': { type: 'string' },
       'auth-subject': { type: 'string' },
       'organization-id': { type: 'string' },
+      'public-base-url': { type: 'string' },
       remote: { type: 'boolean' },
       env: { type: 'string' },
       'key-env': { type: 'string' },
@@ -75,7 +77,7 @@ export function reportLines(r: BootstrapD1Result, mode: 'local' | 'remote', keyE
     `deployment:      ${r.deployment}`,
     `organization_id: ${r.organizationId}`,
     ...(r.userId === null ? [] : [`user_id:         ${r.userId}`]),
-    ...(r.key === null ? ['agent:           none (no --agent given)'] : [`agent_id:        ${r.agentId}`, `api_key_id:      ${r.apiKeyId}`, mode === 'local' ? `api_key:         ${r.key}   (shown once)` : `api_key: written to .env as ${keyEnv} (not shown)`]),
+    ...(r.organizationExisted ? ['organization:   already initialised: no agent or key was created (--agent is ignored on a re-run)'] : r.key === null ? ['agent:           none (no --agent given)'] : [`agent_id:        ${r.agentId}`, `api_key_id:      ${r.apiKeyId}`, mode === 'local' ? `api_key:         ${r.key}   (shown once)` : `api_key: written to .env as ${keyEnv} (not shown)`]),
   ]
 }
 
@@ -158,6 +160,7 @@ export async function runBootstrap(run: BootstrapRun, proxy: { env: { DB: D1Like
         authOrgId,
         authSubject: values['auth-subject'],
         organizationId,
+        publicBaseUrl: values['public-base-url'],
       },
       // [[CORE259]] D7: the control marker follows the CRM deployment row.
       { control },
@@ -199,12 +202,15 @@ async function main(): Promise<void> {
   const { values } = parsed
   const provider = values['auth-provider'] ?? 'clerk'
   if (values.issuer !== undefined && values['auth-org-id'] !== undefined) usage('pass --issuer or --auth-org-id, not both')
-  const authOrgId = values.issuer ?? values['auth-org-id']
+  // `better-auth` ([[CORE283]] P5): the marker's link is a label, `better-auth` unless --auth-org-id says otherwise; --public-base-url names the seeded client's resources.
+  const authOrgId = values.issuer ?? values['auth-org-id'] ?? (provider === 'better-auth' ? 'better-auth' : undefined)
   if (!values.org || !authOrgId) usage(provider === 'clerk' ? '--org and --issuer are required' : '--org and --auth-org-id are required')
-  if (provider === 'clerk' && (values.email !== undefined || values.name !== undefined || values['auth-subject'] !== undefined)) {
-    usage('a Clerk-backed deployment creates no human: drop --email, --name and --auth-subject (invite the owner in Clerk)')
+  if (provider === 'better-auth' && !values['public-base-url']) usage('--auth-provider better-auth requires --public-base-url <PUBLIC_BASE_URL>')
+  if (provider === 'better-auth' && values.issuer !== undefined) usage('--issuer is for Clerk: drop it')
+  if ((provider === 'clerk' || provider === 'better-auth') && (values.email !== undefined || values.name !== undefined || values['auth-subject'] !== undefined)) {
+    usage(`a ${provider === 'clerk' ? 'Clerk' : 'Better Auth'}-backed deployment creates no human: drop --email, --name and --auth-subject`)
   }
-  if (provider !== 'clerk' && (!values.email || !values.agent)) usage(`--auth-provider ${provider} requires --email and --agent`)
+  if (provider !== 'clerk' && provider !== 'better-auth' && (!values.email || !values.agent)) usage(`--auth-provider ${provider} requires --email and --agent`)
 
   const { getPlatformProxy, unstable_readConfig } = await import('wrangler')
   let proxy: Awaited<ReturnType<RemoteGuardDeps['getPlatformProxy']>>

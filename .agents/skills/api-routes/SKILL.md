@@ -114,6 +114,19 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     token is a JWT only when the client sends `resource=<PUBLIC_BASE_URL>`, otherwise it is opaque and refused. Key,
     profile and client-name reads go through the control store (`readAuthJwks`, `readAuthProfile`,
     `readOAuthClientName`), the only code outside the provider that names `auth_*` tables.
+  - **Better Auth clients, DCR and discovery** ([[CORE243]] D10–D12 as built by [[CORE283]]; `packages/auth/src/auth.ts`,
+    `packages/server-d1/src/compose.ts`). Resources are `PUBLIC_BASE_URL` and `PUBLIC_BASE_URL/mcp`; the adapter's
+    `audience` is that list. Discovery's issuer, `resource` and protected-resource fields come from `PUBLIC_BASE_URL`,
+    never the request host. `createAuthHandler` itself answers `/.well-known/oauth-authorization-server/auth` (path
+    insertion); the Worker routes that path to it through the same gates as `/auth/*`, `better-auth` only. Better Auth
+    1.7.22 facts that bit: DCR's default `application_type` is `web`, which refuses native clients' loopback redirects
+    (set `clientRegistrationDefaultApplicationType: 'infer'`); an absent `token_endpoint_auth_method` means
+    confidential, so public-only is a `before` hook on `/oauth2/register`; resource rows are written insert-only and
+    a client's resource link has an FK to them, so a seed creates the resource rows first and keeps `allowedScopes`
+    off them (a list there goes stale); a refresh can never widen the resource of the grant; the rate limiter with no
+    `cf-connecting-ip` puts every caller in one shared `no-trusted-ip` bucket per path. Seed first-party rows through
+    the library's adapter (`auth.$context.adapter`, `seedFirstPartyClient`), not SQL, and update only when the stored
+    shape differs, so a converged re-run leaves `updated_at` alone.
   - **workerd streams** ([[CORE69]]): R2's `put` refuses a `ReadableStream` of unknown length (`TypeError`), so pipe a
     known-size stream through `FixedLengthStream(size)` and send an unknown-size one through `ObjectStore.putStream`
     (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vibase/api` only as

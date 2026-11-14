@@ -113,7 +113,7 @@ describe('Better Auth in workerd on control migration 0001 (test admission)', ()
   })
 })
 
-describe('the shipped composition (no test admission) refuses admission (P1)', () => {
+describe('the shipped composition (no test admission) refuses sign-up (P1)', () => {
   it('refuses sign-up and writes no user', async () => {
     const res = await shut.call('/auth/sign-up/email', { body: { name: 'Nobody', email: 'nobody@auth.test', password: PASSWORD } })
     expect(res.status).toBeGreaterThanOrEqual(400)
@@ -121,13 +121,13 @@ describe('the shipped composition (no test admission) refuses admission (P1)', (
     expect(await shut.controlRows('select id from auth_users')).toEqual([])
   })
 
-  it('refuses dynamic client registration and writes no client', async () => {
+  it('registers a public client under the policy and still writes no user ([[CORE283]] P6 closes the foundation refusal)', async () => {
     const res = await shut.call('/auth/oauth2/register', {
       body: { client_name: 'Nobody', token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'], scope: 'openid', redirect_uris: ['https://client.test/callback'] },
     })
-    expect(res.status).toBeGreaterThanOrEqual(400)
-    expect(res.status).toBeLessThan(500)
-    expect(await shut.controlRows('select id from auth_oauth_clients')).toEqual([])
+    expect(res.status).toBe(201)
+    expect((await shut.controlRows('select id from auth_oauth_clients')).length).toBe(1)
+    expect(await shut.controlRows('select id from auth_users')).toEqual([])
   })
 })
 
