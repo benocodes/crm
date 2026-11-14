@@ -1,0 +1,1 @@
+{ "name": "sprint-relay", "version": "0.1.0", "description": "Gives the sprint orchestrator a next_cycle tool: after a cycle it clears the context and restarts itself with a handoff." }
