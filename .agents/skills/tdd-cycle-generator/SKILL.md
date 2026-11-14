@@ -198,6 +198,13 @@ security matrix nearly doubled it. The budget holds. The fix round repeated UI29
 shown, not what happens to it when a later action fails. For any displayed error, name when it clears. A stop condition
 phrased as a premise to test ("prove `getOAuthState()` is readable in the hook before building on it") worked: the
 coder answered it with a test instead of improvising.
+**CORE288** (`knowledge/specs/015-CORE288-membership-writes/RETRO.md`): 6 groups (1 matrix), 4 decisions + 7 planner rules,
+no migration, 1 local E2E part, four packages touched. It cost 338k / 116 calls in one run with no fix round (+420 / +625
+lines, 27 files): the dearest cycle of the band so far, at the group limit, and the budget held. The hidden work was a
+read-only resource becoming writable: the generic contract suite (a `patch` fixture), the administration storage suite ("no
+write operations"), a roles test and three goldens all pinned read-only and turned red. When a charter adds writes to an
+existing resource, name those pins in Watch out. A charter that lists every partial state of a cross-store write (P5) and
+puts the race inside the guard (P4), each with an absence mutation, drew no review finding: the CORE287 lesson applied.
 
 ### Step 3: Resolve identities
 
