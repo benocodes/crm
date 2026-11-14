@@ -1,6 +1,6 @@
-import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
+import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type InvitationsRuntime, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
-import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
+import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
@@ -264,8 +264,13 @@ export function composeD1Worker(
   }
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
+  // [[CORE245]] P2: the invitation operations' port over the control store, only with the built-in provider (`control` exists only for it); `PUBLIC_BASE_URL` names the invitation URL's origin.
+  const invitations: InvitationsRuntime | null =
+    control && builtInConfig
+      ? { port: { create: (a) => createInvitation(control, a), list: (a) => listInvitations(control, a), revoke: (a) => revokeInvitation(control, a) }, publicBaseUrl: builtInConfig.baseURL }
+      : null
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
-    createApp({ storage: () => binding, workspace: { adapter: authAdapter, cliClientId }, gmail: { ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}), config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, webhooks, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
+    createApp({ storage: () => binding, invitations, workspace: { adapter: authAdapter, cliClientId }, gmail: { ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}), config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, webhooks, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
 
   async function ensure(): Promise<App | undefined> {
     if (app) return app

@@ -1,7 +1,7 @@
-import { bootstrap, bootstrapWorkspace } from '@vibase/api'
+import { INVITATION_TTL_MS, bootstrap, bootstrapWorkspace, invitationUrl, newInvitationToken, normaliseInvitationEmail } from '@vibase/api'
 import { seedFirstPartyClient } from '@vibase/auth'
 import { execute, uuidv7 } from '@vibase/storage'
-import { controlAuthDatabase, d1Binding, readControlMarker, writeControlMarker, type ControlDb, type D1Like } from '@vibase/storage-d1'
+import { controlAuthDatabase, d1Binding, readControlMarker, reissueOwnerInvitation, writeControlMarker, type ControlDb, type D1Like } from '@vibase/storage-d1'
 import { initDeploymentOperation, markerInsert, readDeployment, type DeploymentLink } from './init-deployment.js'
 
 export interface BootstrapD1Options {
@@ -21,6 +21,16 @@ export interface BootstrapD1Options {
   organizationId?: string
   /** `better-auth` only ([[CORE283]] P5): `PUBLIC_BASE_URL`, the origin the seeded `vibase-cli` client's resources are named by. */
   publicBaseUrl?: string
+  /** `better-auth` only ([[CORE245]] P7): issues the first owner invitation for this address (after the CRM rows, the control marker and the seed) and returns its URL once. Refused with any other provider. */
+  ownerEmail?: string
+}
+/** The owner invitation a run issued ([[CORE245]] P7): the URL is returned here once and never stored. `revoked` lists the live owner invitations this run replaced (a lost-link re-run). */
+export interface OwnerInvitation {
+  id: string
+  email: string
+  url: string
+  expiresAt: string
+  revoked: string[]
 }
 export interface BootstrapD1Result {
   organizationId: string
@@ -33,6 +43,8 @@ export interface BootstrapD1Result {
   deployment: 'created' | 'existing'
   /** `better-auth` re-run on an initialised organisation: the seed converged, no agent or key was made whatever `agentName` said. */
   organizationExisted?: true
+  /** `--owner-email` on `better-auth`: the invitation issued, or `null` when an owner already exists and nothing was issued. Absent without `--owner-email`. */
+  ownerInvitation?: OwnerInvitation | null
 }
 
 type BootstrapD1Env = {
@@ -59,6 +71,8 @@ export async function bootstrapD1(
 export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env?: BootstrapD1Env): Promise<BootstrapD1Result>
 export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: BootstrapD1Env = {}): Promise<BootstrapD1Result> {
   const builtIn = opts.authProvider === 'better-auth'
+  if (opts.ownerEmail !== undefined && !builtIn) throw new Error('--owner-email applies to --auth-provider better-auth only: Clerk keeps its own invitations and the none provider creates its owner from --email')
+  if (opts.ownerEmail !== undefined && normaliseInvitationEmail(opts.ownerEmail) === null) throw new Error('--owner-email is not a valid address')
   // Clerk and the built-in provider both create no human here: the first owner is invited ([[CORE64]] D11, [[CORE245]]).
   const clerk = (opts.authProvider ?? 'clerk') === 'clerk' || builtIn
   if (builtIn && !env.control) throw new Error('authProvider better-auth requires the control database (CONTROL_DB): it holds the auth tables')
@@ -99,10 +113,25 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
   // [[CORE283]] P5: the first-party CLI client, in the control plane, idempotent. Bootstrap is its one writer besides Better Auth's own handler.
   if (builtIn && env.control) await seedFirstPartyClient(controlAuthDatabase(env.control), { baseURL: opts.publicBaseUrl! })
   // A re-run on the built-in provider converges the seed above and leaves an existing organisation (and its keys) alone ([[CORE283]] P5).
-  if (builtIn && (await d1.prepare('select id from organizations limit 1').first())) return { organizationId: link.organizationId, userId: null, agentId: null, apiKeyId: null, key: null, deployment, organizationExisted: true }
+  // [[CORE245]] P7: the owner invitation is the last write, after the CRM rows, the control marker and the seed. An owner membership means nothing is issued; otherwise every live owner invitation
+  // is replaced by a fresh one in one control batch (the only lost-link recovery before `owner-reset`, [[OPS249]]).
+  const issueOwnerInvitation = async (): Promise<{ ownerInvitation?: OwnerInvitation | null }> => {
+    if (!builtIn || opts.ownerEmail === undefined) return {}
+    const email = normaliseInvitationEmail(opts.ownerEmail)!
+    if (await d1.prepare("select id from memberships where role = 'owner' and deleted_at is null limit 1").first()) return { ownerInvitation: null }
+    const system = await d1.prepare("select id from principals where kind = 'system' limit 1").first()
+    if (!system) throw new Error('the CRM database has no system principal: initialise the organisation first')
+    const { token, hash } = await newInvitationToken(env.randomBytes ?? ((n) => crypto.getRandomValues(new Uint8Array(n))))
+    const id = newId()
+    const expiresAt = new Date(now.getTime() + INVITATION_TTL_MS).toISOString()
+    const out = await reissueOwnerInvitation(env.control!, { id, auditId: newId(), newAuditId: newId, organizationId: link.organizationId, email, role: 'owner', tokenHash: hash, expiresAt, createdBy: system.id as string, now: now.toISOString() })
+    if (out.result === 'live_exists') throw new Error(`a live invitation for ${email} already exists with another role: revoke it (invitations.revoke) and run again`)
+    return { ownerInvitation: { id, email, url: invitationUrl(opts.publicBaseUrl!, token), expiresAt, revoked: out.revoked } }
+  }
+  if (builtIn && (await d1.prepare('select id from organizations limit 1').first())) return { organizationId: link.organizationId, userId: null, agentId: null, apiKeyId: null, key: null, deployment, organizationExisted: true, ...(await issueOwnerInvitation()) }
   if (clerk) {
     const w = await bootstrapWorkspace(d1Binding(d1, link), { organizationName: opts.organizationName, agentName: opts.agentName, scopes: opts.scopes }, { now, newId, randomBytes: env.randomBytes })
-    return { organizationId: w.organizationId, userId: null, agentId: w.agentId, apiKeyId: w.apiKeyId, key: w.key, deployment }
+    return { organizationId: w.organizationId, userId: null, agentId: w.agentId, apiKeyId: w.apiKeyId, key: w.key, deployment, ...(await issueOwnerInvitation()) }
   }
   const r = await bootstrap(
     d1Binding(d1, link),

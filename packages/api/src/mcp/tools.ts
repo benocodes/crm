@@ -36,6 +36,7 @@ export function describeOperation(op: Operation): string {
     const p = proposalMeta(op)
     if (p.eligible) lines.push(`Proposable: ${p.request_scope} lets a caller propose this through action_requests.create (operation=${op.name})${p.also_requires ? `; also needs ${p.also_requires}` : ''}.`)
   }
+  else if (op.kind === 'control') lines.push(`Requires ${formatScope(op.scope)} (configuration surface).`)
   else if (!op.agents) lines.push('Requires a signed-in user.')
   return lines.join('\n')
 }
@@ -96,6 +97,7 @@ export function isVisible(op: Operation, principal: Principal, workspace: boolea
   if (op.output === 'binary') return false
   if (op.kind === 'account') return principal.actor.kind === 'user' || (op.agents === true && workspace)
   if (principal.organizationForbidden || principal.organizationId === null) return false
+  if (op.kind === 'control') return principal.scopes.has(op.scope)
   if (op.scope !== null) return principal.scopes.has(op.scope)
   // [[AGT8]] D7: a decision command has the target's authority; it is shown to a caller holding that action on any resource.
   const action = op.authority === 'write' ? ':write' : op.authority === 'read' ? ':read' : ':request_approval'

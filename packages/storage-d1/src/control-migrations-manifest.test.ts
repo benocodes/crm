@@ -40,7 +40,7 @@ afterEach(() => {
 describe('control migrations manifest (CORE259 D4)', () => {
   it('matches the real control-migrations/ directory exactly, and is its own set apart from the CRM one', () => {
     expect(manifestProblems(CONTROL_MIGRATIONS, CONTROL_MIGRATIONS_DIR)).toEqual([])
-    expect(CONTROL_MIGRATIONS.map((e) => e.name)).toEqual(['0001_control_plane.sql'])
+    expect(CONTROL_MIGRATIONS.map((e) => e.name)).toEqual(['0001_control_plane.sql', '0002_invitations.sql'])
     expect(CONTROL_MIGRATIONS.map((e) => e.name).filter((n) => MIGRATIONS.some((m) => m.name === n))).toEqual([])
   })
   it('catches one edited byte', () => {
@@ -53,8 +53,8 @@ describe('control migrations manifest (CORE259 D4)', () => {
   })
   it('catches an unlisted file', () => {
     const dir = copyOfTree()
-    writeFileSync(join(dir, '0002_stray.sql'), 'select 1;')
-    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0002_stray.sql'])
+    writeFileSync(join(dir, '0003_stray.sql'), 'select 1;')
+    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0003_stray.sql'])
   })
   it('catches an entry without a file', () => {
     const dir = copyOfTree()
