@@ -4,6 +4,8 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "types": ["node"],
     "esModuleInterop": true,
     "skipLibCheck": true,

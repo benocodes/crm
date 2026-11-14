@@ -30,6 +30,8 @@ import {
 } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
 import { buildConnect } from './build-connect.js'
+import { buildUi } from './build-ui.js'
+import { UI_RUN_WORKER_FIRST } from '../src/ui-serving.js'
 import { ALLOWED_NODE_MODULES, BUNDLE_SIZE_CEILING, nodeImportProblems, nodeImportsOf } from './node-imports.js'
 
 let failures = 0
@@ -113,6 +115,8 @@ try {
   check(`0 the bundle imports only the allowed node: modules (${nodeImportsOf(readFileSync(bundle, 'utf8')).join(', ') || 'none'}; allowed ${ALLOWED_NODE_MODULES.join(', ')}) and is under ${BUNDLE_SIZE_CEILING} bytes (${bundleBytes})`, nodeProblems.length === 0, nodeProblems)
   // [[UI30]] D2, D3: a fresh build of the connect page, mounted as Workers Static Assets the way wrangler maps run_worker_first.
   await buildConnect(assetsDir)
+  // [[UI246]] D2: and the auth pages' bundle beside it, routed to the Worker first by the same list `wrangler.jsonc` carries.
+  await buildUi(assetsDir)
 
   mf = new Miniflare({
     // Explicit module list: Better Auth's `import(variable)` defeats Miniflare's own module scan (wrangler and workerd accept it).
@@ -125,7 +129,7 @@ try {
     r2Buckets: ['BODIES'],
     // [[CHN141]] D34: the real MailSyncWorkflow, exported by the real bundle, run by Miniflare's Workflows engine.
     workflows: { MAIL_SYNC: { name: 'vb-smoke-mail-sync', className: 'MailSyncWorkflow' } },
-    assets: { directory: assetsDir, binding: 'ASSETS', routerConfig: { has_user_worker: true, static_routing: { user_worker: ['/connect', '/connect/*'] } } },
+    assets: { directory: assetsDir, binding: 'ASSETS', routerConfig: { has_user_worker: true, static_routing: { user_worker: ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST] } } },
     handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
       capture(stdout)
       capture(stderr)
@@ -578,6 +582,11 @@ try {
   check('23 GET /connect/nope -> 404 with the headers', res.status === 404 && (res.headers.get('content-security-policy') ?? '') !== '', { status: res.status })
   res = await call('GET', '/connect.js')
   check('24 GET /connect.js (an asset name outside /connect) -> not served', res.status !== 200 && !(res.headers.get('content-type') ?? '').includes('javascript'), { status: res.status })
+  // [[UI246]] D1: on clerk the auth pages and their bundle are no route at all, with the real assets binding in front of the Worker (the built files exist: only the provider decides).
+  for (const path of ['/sign-in', '/invite', '/reset-password', '/ui/app.js']) {
+    res = await call('GET', path)
+    check(`24b GET ${path} on clerk -> 404 not_found (the auth pages exist only on better-auth)`, res.status === 404 && (await json(res)).error?.code === 'not_found', { status: res.status })
+  }
   res = await call('GET', '/.well-known/vibase')
   body = await json(res)
   check('25 GET /.well-known/vibase -> auth.publishable_key is null (no key configured)', res.status === 200 && body.auth?.publishable_key === null, body.auth)

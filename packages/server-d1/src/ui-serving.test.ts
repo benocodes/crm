@@ -145,12 +145,13 @@ describe('serving matrix: path x provider (D1, D2)', () => {
   })
 })
 
-describe('exact paths and methods (D1: trailing-slash behaviour is the coder\'s call, pinned here)', () => {
+describe('exact paths and methods (D1: a trailing slash is not a page, pinned here)', () => {
   it.each(['/sign-in/', '/invite/', '/reset-password/', '/sign-in/x', '/sign-inx', '/invite.html', '/reset-password/abc'])('%s is not a page: the assets binding is not asked and nothing is served', async (path) => {
     headerRules = false
     const res = await send(betterAuthWorker(), path)
     expect(assetCalls).toEqual([])
-    expect(res.status).toBe(404)
+    // The Worker's own answer for a path that is no page (here the database is behind, so the migration gate speaks): never the page.
+    expect(res.status).not.toBe(200)
     expect(res.headers.get('content-type')).not.toMatch(/^text\/html/)
   })
 
@@ -187,6 +188,13 @@ describe('with a paired, bootstrapped better-auth instance', () => {
     const { MIGRATIONS } = await import('@vibase/storage-d1')
     await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
     await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE, ownerEmail: 'owner@x.test' }, { control: openControlDb(w.control) })
+  })
+
+  it.each(['/sign-in/', '/invite/', '/reset-password/'])('%s (trailing slash) is the Worker\'s 404 not_found, not a page', async (path) => {
+    const res = await send(betterAuthWorker(), path)
+    expect(res.status).toBe(404)
+    expect(res.headers.get('content-type')).toMatch(/json/)
+    expect(assetCalls).toEqual([])
   })
 
   it('/auth/* still reaches Better Auth', async () => {

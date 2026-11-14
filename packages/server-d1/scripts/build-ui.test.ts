@@ -45,7 +45,7 @@ describe('buildUi (the pages bundle)', () => {
     expect(pkgs.has('preact')).toBe(true)
     expect(pkgs.has('react')).toBe(false)
     expect(pkgs.has('react-dom')).toBe(false)
-    expect(Object.keys(metafile.inputs).some((i) => /(^|\/)@vibase\/ui\/|packages\/ui\/src\//.test(i))).toBe(true)
+    expect(Object.keys(metafile.inputs).some((i) => /(^|\/)ui\/src\//.test(i))).toBe(true)
   })
 
   it('the script is a single browser bundle with no source map comment, eval or import', () => {
@@ -64,7 +64,7 @@ describe('the Worker bundle', () => {
     const inputs = Object.keys(res.metafile.inputs)
     expect(inputs.length).toBeGreaterThan(100)
     expect(inputs.filter((i) => packageOf(i) === 'preact' || /preact/.test(i))).toEqual([])
-    expect(inputs.filter((i) => /packages\/ui\/|@vibase\/ui\//.test(i))).toEqual([])
-    expect(inputs.filter((i) => /server-d1\/src\/ui\//.test(i))).toEqual([])
+    expect(inputs.filter((i) => /(^|\/)ui\/src\/|@vibase\/ui\//.test(i))).toEqual([])
+    expect(inputs.filter((i) => /(^|\/)src\/ui\//.test(i))).toEqual([])
   }, 60_000)
 })

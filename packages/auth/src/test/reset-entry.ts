@@ -27,6 +27,7 @@ export default {
         ...options,
         emailAndPassword: {
           ...options.emailAndPassword,
+          enabled: true,
           sendResetPassword: async ({ user, token }: { user: { email: string }; token: string }) => {
             captured.push({ token, email: user.email })
           },

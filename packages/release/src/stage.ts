@@ -21,6 +21,8 @@ export interface StageInput {
   workerEntry: string
   /** The built `connect/` directory, copied to `assets/connect/`. */
   assetsConnectDir: string
+  /** The built `ui/` directory of the auth pages ([[UI246]] D2): `index.html`, `app.js`, `ui.css`, copied to `assets/ui/`. */
+  assetsUiDir: string
   migrationsDir: string
   /** The control-plane database's compiled migrations ([[CORE259]] D4), shipped as `control-migrations/` ([[OPS260]] D14). */
   controlMigrationsDir: string
@@ -72,7 +74,7 @@ export function serverPackageJson(version: string, wrangler: string): Record<str
   return {
     name: '@vibase/server-d1',
     version,
-    description: 'A prebuilt vibase Worker for Cloudflare D1, its migrations and connect page, and vibase-server: setup, status and upgrade of an instance.',
+    description: 'A prebuilt vibase Worker for Cloudflare D1, its migrations, connect page and auth pages, and vibase-server: setup, status and upgrade of an instance.',
     license: 'AGPL-3.0-only',
     type: 'module',
     bin: { 'vibase-server': 'cli/server.js' },
@@ -114,6 +116,7 @@ export function stageServer(i: StageInput): ReleaseManifest {
   copyInto(join(out, 'cli', 'server.js'), i.serverJs)
   copyInto(join(out, 'worker', 'worker.js'), i.workerEntry)
   for (const f of readdirSync(i.assetsConnectDir)) copyInto(join(out, 'assets', 'connect', f), join(i.assetsConnectDir, f))
+  for (const f of readdirSync(i.assetsUiDir)) copyInto(join(out, 'assets', 'ui', f), join(i.assetsUiDir, f))
   for (const f of readdirSync(i.migrationsDir).filter((n) => n.endsWith('.sql'))) copyInto(join(out, 'migrations', f), join(i.migrationsDir, f))
   for (const f of readdirSync(i.controlMigrationsDir).filter((n) => n.endsWith('.sql'))) copyInto(join(out, 'control-migrations', f), join(i.controlMigrationsDir, f))
   const base = deriveBaseConfig(i.baseConfigText, { main: 'worker/worker.js', assetsDirectory: 'assets', migrationsDir: 'migrations', controlMigrationsDir: 'control-migrations' })

@@ -12,6 +12,8 @@ import { SERVER_EXPORTS } from './stage.js'
 export const CLIENT_MARKERS: readonly string[] = ['ops.init_deployment', 'getPlatformProxy', 'wrangler.base.jsonc']
 const CLIENT_FILES = ['LICENSE', 'README.md', 'cli/vibase.js', 'package.json']
 const SERVER_FIXED = ['LICENSE', 'README.md', 'cli/server.js', 'package.json', 'release.json', 'worker/worker.js', 'wrangler.base.jsonc']
+/** [[UI246]] D2: the auth pages the Worker serves from `assets/ui/`; a package without one would answer its pages with a 404, so each is required. */
+export const SERVER_UI_ASSETS = ['assets/ui/index.html', 'assets/ui/app.js', 'assets/ui/ui.css']
 
 const readJson = (file: string): Record<string, any> | null => {
   try {
@@ -54,8 +56,8 @@ export function serverProblems(dir: string, version: string): string[] {
   const migrations = new Set([...(manifest?.migrations ?? []).map((m) => `migrations/${m.name}`), ...(manifest?.control_migrations ?? []).map((m) => `control-migrations/${m.name}`)])
   const out = fileDiff(
     listFiles(dir),
-    (f) => SERVER_FIXED.includes(f) || f.startsWith('assets/connect/') || migrations.has(f),
-    SERVER_FIXED,
+    (f) => SERVER_FIXED.includes(f) || f.startsWith('assets/connect/') || f.startsWith('assets/ui/') || migrations.has(f),
+    [...SERVER_FIXED, ...SERVER_UI_ASSETS],
   )
   const pkg = readJson(join(dir, 'package.json'))
   if (!manifest) out.push('release.json is missing or unreadable')

@@ -35,5 +35,8 @@ export function invitationStatus(row: Pick<InvitationRow, 'acceptedAt' | 'revoke
   return row.expiresAt > now.toISOString() ? 'pending' : 'expired'
 }
 
-/** UI246 stub (red): replaced by the real builder in the green commit. */
-export const passwordResetUrl = (_publicBaseUrl: string, _token: string): string => ''
+/**
+ * `<PUBLIC_BASE_URL>/reset-password#token=<token>` ([[UI246]] D6): built from the `token` Better Auth hands `emailAndPassword.sendResetPassword`, never from its `url` (which puts the token in a path
+ * segment and a `callbackURL` query, both of which reach server logs). Its callers are the owner-issued link ([[CORE288]]), `owner-reset` ([[OPS249]]) and email ([[CORE248]]).
+ */
+export const passwordResetUrl = (publicBaseUrl: string, token: string): string => `${publicBaseUrl.replace(/\/+$/, '')}/reset-password#token=${token}`

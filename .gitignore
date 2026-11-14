@@ -28,3 +28,4 @@ packages/server-d1/recordings-pull/
 # Gallery screenshots (UI254 D7): review evidence, never committed
 packages/ui/e2e-screenshots/
 packages/ui/test-results/
+packages/server-d1/e2e-screenshots/

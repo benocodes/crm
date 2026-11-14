@@ -131,7 +131,8 @@ function composePlugins(baseURL: string, schema?: (key: ModelKey) => ReturnType<
       ...(schema ? { schema: { jwks: schema('jwks') } } : {}),
     }),
     oauthProvider({
-      loginPage: '/auth/sign-in',
+      // [[UI246]] D1: the vault's own sign-in page, outside Better Auth's base path.
+      loginPage: '/sign-in',
       consentPage: '/auth/consent',
       scopes,
       accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
@@ -202,7 +203,8 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     // Only this origin is trusted (D23): never the request's Host.
     trustedOrigins: [config.baseURL],
     // Admission is closed (P1) unless the composition hands in the invitation port ([[CORE287]]); sign-up is the only path that creates a user here.
-    emailAndPassword: { enabled: true, disableSignUp: !open && !admission, password: { hash: hashPassword, verify: verifyPassword } },
+    // [[UI246]] D6: a reset ends every session of that user (it answers a lost or compromised password). No `sendResetPassword` here: the shipped composition issues no reset until [[CORE288]].
+    emailAndPassword: { enabled: true, disableSignUp: !open && !admission, revokeSessionsOnPasswordReset: true, password: { hash: hashPassword, verify: verifyPassword } },
     user: schemaFor('user'),
     session: { ...schemaFor('session'), expiresIn: BROWSER_SESSION_SECONDS },
     account: schemaFor('account'),

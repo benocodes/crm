@@ -13,7 +13,7 @@
     "./test": "./src/test/kit.ts"
   },
   "scripts": {
-    "build": "tsx scripts/build-connect.ts",
+    "build": "tsx scripts/build-connect.ts && tsx scripts/build-ui.ts",
     "dev": "pnpm build && wrangler dev --local --port 8787",
     "e2e:connect": "playwright test --config playwright.config.ts connect.e2e.ts",
     "e2e:mcp-oauth": "playwright test --config playwright.config.ts mcp-oauth.e2e.ts",
@@ -31,7 +31,8 @@
     "db:migrate:remote": "tsx scripts/migrate-remote.ts",
     "db:status:remote": "tsx scripts/status-remote.ts",
     "smoke:remote": "tsx scripts/smoke-remote.ts",
-    "recordings:pull": "tsx scripts/pull-recordings.ts"
+    "recordings:pull": "tsx scripts/pull-recordings.ts",
+    "e2e:auth-pages": "playwright test --config playwright.auth-pages.config.ts auth-pages.e2e.ts"
   },
   "dependencies": {
     "@vibase/api": "workspace:*",
