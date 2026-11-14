@@ -503,7 +503,7 @@ export function composeD1Worker(
           return await builtInHandler(req)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
-        const page = await serveConnect(req, { assets: env.ASSETS, issuer: discovery.provider?.issuer })
+        const page = await serveConnect(req, { assets: env.ASSETS, issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined })
         if (page) return page
         const spec = req.method === 'GET' && (url.pathname === openApiPath('api') || url.pathname === openApiPath('meta'))
         // Exempt from the migration and marker gates, not from a bad configuration (CORE84).

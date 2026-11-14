@@ -1,7 +1,7 @@
 // [[UI30]] D4, D6, D8: the page's state machine over a `ClerkLike` and an `Api`. It decides nothing about markup: it only moves between
 // `PageState`s, which `buildView` turns into what is shown.
 import type { Api, ApiResult } from './api.js'
-import type { AgentRecord, ClerkLike, Discovery, Me, PageState } from './types.js'
+import type { AgentRecord, ClerkLike, Me, PageState } from './types.js'
 
 export interface Page {
   state(): PageState
@@ -13,8 +13,9 @@ export interface Page {
 
 const ok = (r: ApiResult<unknown>): boolean => r.status >= 200 && r.status < 300 && r.body !== null
 
-export function createPage(deps: { clerk: ClerkLike; api: Api; discovery: Discovery; origin: string; onChange?: (s: PageState) => void }): Page {
-  const { clerk, api, discovery, origin } = deps
+/** `clerk` is the sign-in seam, or `null` when sign-in is unavailable ([[UI297]] D7). */
+export function createPage(deps: { clerk: ClerkLike | null; api: Api; origin: string; onChange?: (s: PageState) => void }): Page {
+  const { clerk, api, origin } = deps
   let state: PageState = { kind: 'loading' }
   const set = (s: PageState) => {
     state = s
@@ -29,7 +30,7 @@ export function createPage(deps: { clerk: ClerkLike; api: Api; discovery: Discov
     let r = await call()
     if (r.status !== 401) return r
     if (r.noToken) return 'signed-out'
-    if (!(await clerk.recheckSession())) return 'signed-out'
+    if (!clerk || !(await clerk.recheckSession())) return 'signed-out'
     r = await call()
     return r.noToken ? 'signed-out' : r
   }
@@ -67,8 +68,8 @@ export function createPage(deps: { clerk: ClerkLike; api: Api; discovery: Discov
     state: () => state,
 
     async start() {
-      // D5: with no publishable key there is no Clerk to load and nothing to call.
-      if (!discovery.auth?.publishable_key) return set({ kind: 'unavailable' })
+      // D5, UI297 D7: with no seam there is nothing to load and nothing to call.
+      if (!clerk) return set({ kind: 'unavailable' })
       try {
         await clerk.load()
       } catch {
@@ -83,10 +84,16 @@ export function createPage(deps: { clerk: ClerkLike; api: Api; discovery: Discov
     },
 
     // D6: Account Portal, and back to this page.
-    signIn: () => Promise.resolve(clerk.redirectToSignIn(`${origin}/connect`)),
+    signIn: () => Promise.resolve(clerk?.redirectToSignIn(`${origin}/connect`)),
 
     async signOut() {
-      await clerk.signOut()
+      try {
+        await clerk?.signOut()
+      } catch {
+        // UI297 D7: a refused sign-out (the session is still live) is not "signed out": keep the state, say so on a signed-in page.
+        if (state.kind === 'signed-in') set({ ...state, error: 'Sign-out did not complete. Reload the page and try again.' })
+        return
+      }
       set({ kind: 'signed-out' })
     },
 

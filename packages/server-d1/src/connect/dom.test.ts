@@ -27,6 +27,15 @@ beforeEach(() => {
 })
 const show = (state: PageState, extra: { mcpUrl?: string | null; profileUrl?: string | null } = {}) => render(root, buildView(state, { origin: ORIGIN, ...extra }), noop)
 
+describe('the Clerk-only profile link (UI297 R5)', () => {
+  it('renders from an https profile URL, and not at all without one', () => {
+    show({ kind: 'signed-in', me: me(), agents: [] }, { profileUrl: 'https://accounts.example/user' })
+    expect(root.querySelector('a[href="https://accounts.example/user"]')?.textContent).toBe('Your Clerk profile')
+    show({ kind: 'signed-in', me: me(), agents: [] }, { profileUrl: null })
+    expect(root.textContent).not.toMatch(/clerk/i)
+  })
+})
+
 describe('text only (D10)', () => {
   it('an agent name, a scope, an error and a user email shaped like markup render as text: no element is created from them', () => {
     show({ kind: 'signed-in', me: me(EVIL), agents: [agent({ name: EVIL, scopes: [EVIL], auth_subject: EVIL, delegated_by: EVIL, auth_client_id: 'c' })], error: EVIL })

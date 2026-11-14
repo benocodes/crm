@@ -145,3 +145,20 @@ describe('D11 agent rows', () => {
     expect(rows([rec({ scopes: ['a:read', 'b:read'], created_at: 'C', disabled_at: 'D' })])[0]).toMatchObject({ scopes: ['a:read', 'b:read'], createdAt: 'C', disabledAt: 'D', action: 'enable' })
   })
 })
+
+// [[UI297]] R5: on `better-auth` nothing the page shows names Clerk; the Clerk-only profile link renders only from a profile URL (dom.test.ts).
+describe('provider-neutral copy (UI297 R5)', () => {
+  const states: [string, PageState][] = [
+    ['loading', { kind: 'loading' }],
+    ['unavailable', { kind: 'unavailable' }],
+    ['signed-out', { kind: 'signed-out' }],
+    ['refused, load failed (0)', { kind: 'refused', status: 0 }],
+    ['refused 401', { kind: 'refused', status: 401 }],
+    ['signed-in owner with agents', signedIn(user('owner', OWNER_SCOPES), [rec({ id: ID(10) }), rec({ id: ID(11), delegated_by: ID(1), auth_client_id: 'c' })])],
+    ['signed-in member', signedIn(user('member', ['contacts:read']), null)],
+    ['signed-in agent', signedIn(agentMe(), null)],
+  ]
+  it.each(states)('%s: no string names Clerk when there is no profile URL', (_n, state) => {
+    expect(JSON.stringify(view(state, { mcpUrl: 'https://api.acme.example/mcp' }))).not.toMatch(/clerk/i)
+  })
+})

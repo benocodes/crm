@@ -186,6 +186,11 @@ carries the extra calls. The budget holds. Before writing an E2E initial state, 
 charter set `PUBLIC_BASE_URL=http://localhost`, but `vibase login` refuses a non-https issuer, which cost several E2E
 iterations (writing-tests §7 has the HTTPS recipe). A package list copied from the spec ("no change") goes stale as soon as the
 charter leaves a method to the coder. Say "expected" there, not "unchanged".
+**UI297** (`knowledge/specs/015-UI297-connect-better-auth/RETRO.md`): 5 groups (1 matrix), 2 decisions, no migration, 1 local
+E2E part (one leg added to an existing script). It cost ~140k in one run plus a 3k fix round. This is a follow-on cycle
+split off a pages spec at plan time, and it cost about half the parent cycle, because the E2E harness and the HTTPS recipe
+already existed. The budget holds. The one finding came from a planner rule that gave only the success end state
+("afterwards the page shows signed-out"). A rule for a new action names its end state on failure too.
 
 ### Step 3: Resolve identities
 
