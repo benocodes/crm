@@ -39,6 +39,8 @@ describe('import boundary (D14, D15)', () => {
     ['the D1 runtime importing the server package', { 'storage-d1/src/a.ts': "import '@vibase/server-postgres'" }, '@vibase/server-postgres'],
     ['the auth package importing pg ([[CORE243]] D21)', { 'auth/src/a.ts': "import pg from 'pg'" }, 'pg'],
     ['the auth package importing the Postgres runtime', { 'auth/src/a.ts': "import { postgresBinding } from '@vibase/storage-postgres'" }, '@vibase/storage-postgres'],
+    ['the UI layer importing pg in a .tsx file ([[UI254]] D8)', { 'ui/src/a.tsx': "import pg from 'pg'\nexport const A = () => null" }, 'pg'],
+    ['the UI layer importing the Postgres runtime', { 'ui/src/a.ts': "import { postgresBinding } from '@vibase/storage-postgres'" }, '@vibase/storage-postgres'],
     ['an auth script importing @vibase/db', { 'auth/scripts/x.ts': "import { createDb } from '@vibase/db'" }, '@vibase/db'],
   ])('fails on %s', (_name, files, specifier) => {
     expect(checkBoundary(sandbox(files)).map((v) => v.specifier)).toEqual([specifier])
@@ -48,6 +50,10 @@ describe('import boundary (D14, D15)', () => {
     const composition = RULES.filter((r) => r.dir.startsWith('api/') || r.dir.startsWith('server-d1/'))
     expect(composition.map((r) => r.dir)).toEqual(['api/src', 'api/scripts', 'server-d1/src', 'server-d1/scripts'])
     for (const r of composition) expect(r.allow).toBeUndefined()
+  })
+
+  it('the UI rule skips test files, which are .tsx too', () => {
+    expect(checkBoundary(sandbox({ 'ui/src/a.ui.test.tsx': "import pg from 'pg'", 'ui/src/b.test.tsx': "import pg from 'pg'" }))).toEqual([])
   })
 
   it('allows the D1 server to import the API', () => {
@@ -83,6 +89,7 @@ describe('engine naming (OPS92 D2)', () => {
     ['an engine-neutral test importing the Postgres test helpers', { 'api/src/a.test.ts': "import { createTestDb } from '@vibase/db/test'" }, '@vibase/db/test'],
     ['an integration test importing the Postgres runtime', { 'api/src/a.integration.test.ts': "import { postgresBinding } from '@vibase/storage-postgres'" }, '@vibase/storage-postgres'],
     ['a d1 test importing @vibase/db', { 'api/src/a.d1.test.ts': "import { withServiceRole } from '@vibase/db'" }, '@vibase/db'],
+    ['a .test.tsx importing the Postgres test helpers', { 'ui/src/a.test.tsx': "import { createTestDb } from '@vibase/db/test'" }, '@vibase/db/test'],
     ['a test importing pg lazily', { 'storage-d1/src/a.test.ts': "const pg = await import('pg')" }, 'pg'],
     ['an integration test in a Postgres package without the infix, whatever it imports', { 'db/src/test/a.integration.test.ts': "import { createTestDb } from './db.js'" }, '<integration test in a Postgres package>'],
   ])('fails on %s', (_name, files, specifier) => {

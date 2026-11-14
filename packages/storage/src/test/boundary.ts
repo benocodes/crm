@@ -32,6 +32,8 @@ export const RULES: readonly Rule[] = [
   // The open D1 Worker composition ([[CORE38]] D1): it composes @vibase/api (allowed) and never the enterprise runtime or `pg`.
   { dir: 'server-d1/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
   { dir: 'server-d1/scripts', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] },
+  // The shared UI layer ([[UI254]] D8, invariant 10): `.tsx` sources included, no allow-list.
+  { dir: 'ui/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
 ]
 
 const SPECIFIER = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g
@@ -55,7 +57,7 @@ const forbidden = (specifier: string, forbid: readonly string[]): boolean =>
   forbid.some((f) => specifier === f || specifier.startsWith(`${f}/`))
 
 // `.suite.ts` is a both-engine suite body (OPS92 D3): test code, imported only by `*.d1.test.ts` and `*.postgres.test.ts` entry files.
-const isTest = (path: string): boolean => /\.(test|suite)\.ts$/.test(path) || /[\\/]test[\\/]/.test(path)
+const isTest = (path: string): boolean => /\.(test|suite)\.tsx?$/.test(path) || /[\\/]test[\\/]/.test(path)
 
 export interface Violation {
   file: string
@@ -95,7 +97,7 @@ const TYPE_ONLY_IMPORT = /\bimport\s+type\b[^;'"]*?\bfrom\s+['"][^'"]+['"]/gs
 export function checkEngineNaming(packagesRoot: string): Violation[] {
   const out: Violation[] = []
   for (const file of files(packagesRoot)) {
-    if (!/\.test\.ts$/.test(file) || /\.postgres\.test\.ts$/.test(file)) continue
+    if (!/\.test\.tsx?$/.test(file) || /\.postgres\.test\.tsx?$/.test(file)) continue
     const rel = relative(packagesRoot, file)
     if (rel in NAMING_EXEMPT) continue
     // Inside the Postgres packages an `.integration.` test is database-backed by definition, whatever it imports (relative helpers hide it).

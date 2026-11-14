@@ -12,8 +12,8 @@ const workspace = readdirSync(PACKAGES)
   .map((d) => ({ dir: d, pkg: JSON.parse(readFileSync(join(PACKAGES, d, 'package.json'), 'utf8')) as { name: string; private?: boolean; dependencies?: Record<string, string> } }))
 
 describe('OPS262 workspace package names', () => {
-  it('finds the 13 workspace packages', () => {
-    expect(workspace.map((w) => w.dir).sort()).toEqual(['api', 'approvals-app', 'auth', 'cli', 'db', 'docs', 'release', 'server-d1', 'server-postgres', 'storage', 'storage-d1', 'storage-postgres', 'webhook-receiver-example'])
+  it('finds the 14 workspace packages', () => {
+    expect(workspace.map((w) => w.dir).sort()).toEqual(['api', 'approvals-app', 'auth', 'cli', 'db', 'docs', 'release', 'server-d1', 'server-postgres', 'storage', 'storage-d1', 'storage-postgres', 'ui', 'webhook-receiver-example'])
   })
   it('every package is named @vibase/<directory>', () => {
     expect(workspace.map((w) => [w.dir, w.pkg.name])).toEqual(workspace.map((w) => [w.dir, `@vibase/${w.dir}`]))

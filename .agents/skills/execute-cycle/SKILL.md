@@ -201,6 +201,10 @@ baseline evidence. Keep RESULT/HANDOFF current before a planned handoff so the n
 A change to what `@vibase/cli` or `@vibase/server-d1` ships (a migration, an export, the Worker, the CLI) adds a
 `.changeset/*.md` (`pnpm changeset`; AGENTS.md, [[OPS210]] D25); [[OPS260]]'s review round 1 was partly a missing one.
 
+A new workspace package (`packages/<dir>`) must update `packages/release/src/workspace.test.ts` (the full
+directory list), the count in `packages/release/src/version.test.ts` and `.changeset/config.json`'s `ignore` list
+(every package but `@vibase/cli` and `@vibase/server-d1`), or the gate goes red ([[UI254]]'s gate-fix round).
+
 Commit on the cycle branch with Conventional Commits, staging explicit paths (never `git add -A`), and
 push. In a sprint, stop here: the PR, the retro and the merge belong to other stages. Outside a sprint,
 run `/retrospect` on the cycle folder, then open the PR (`gh pr create`) and leave the merge to a human.

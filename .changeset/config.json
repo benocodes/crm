@@ -18,6 +18,7 @@
     "@vibase/storage",
     "@vibase/storage-d1",
     "@vibase/storage-postgres",
+    "@vibase/ui",
     "@vibase/webhook-receiver-example"
   ],
   "privatePackages": { "version": true, "tag": false }

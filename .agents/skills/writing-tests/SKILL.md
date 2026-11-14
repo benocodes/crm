@@ -570,6 +570,13 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
 
 ## 7. Browser E2E scripts (Playwright, Clerk)
 
+**Preact components: prove rendered attributes in a real browser.** Preact removes an attribute whose JSX value is
+boolean `false`, which happy-dom suites asserting the prop shape miss. Enumerated attributes (`spellCheck`,
+`draggable`, `contentEditable`) are written as `"true"`/`"false"` strings (spec [[UI254]] D2). The gallery E2E
+(`packages/ui/e2e/gallery.e2e.ts`) asserts the browser *property* (`input.spellcheck === false`). An identity
+case that tells Preact from React cannot inspect elements: `preact/compat` stamps `$$typeof` on vnodes. Check the
+`react` module's React-only exports instead (`packages/ui/src/runtime.ui.test.tsx`).
+
 `packages/server-d1/e2e/*.e2e.ts` run Playwright + `@clerk/testing` against a local Worker and the Clerk dev
 instance (`.env.dev` only), outside the gate. They fail on browser and provider timing, not on vault logic, so
 write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oauth.e2e.ts`):
