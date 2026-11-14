@@ -82,6 +82,37 @@ export function spyD1(real: D1Like, opts: { failSelectOne?: () => boolean } = {}
   return { d1, log: { statements, clear: () => void (statements.length = 0) }, betweenPlanAndCommit: (hook) => void (pending.hook = hook) }
 }
 
+/**
+ * A D1Like that watches the batches sent to `real` ([[CORE288]]): when a batch holds a statement whose SQL matches `match`, `act` runs first, once (`times`, default 1) or on every match
+ * (`times: Infinity`). `act` may throw (a failing store) or write through the real database (a change between plan and commit). Reads outside batches pass untouched.
+ */
+export function faultD1(real: D1Like, rule: { match: RegExp; act: () => Promise<void>; times?: number }): { d1: D1Like; fired(): number } {
+  const sqlOf = new WeakMap<object, string>()
+  let fired = 0
+  const d1: D1Like = {
+    prepare(query: string) {
+      // The real statement itself is returned (batch needs it), with `bind` wrapped so a bound copy is attributed to its SQL too.
+      const p = real.prepare(query)
+      sqlOf.set(p, query)
+      const bind = p.bind.bind(p)
+      p.bind = (...values: unknown[]) => {
+        const bound = bind(...values)
+        sqlOf.set(bound, query)
+        return bound
+      }
+      return p
+    },
+    async batch(batch: D1PreparedLike[]) {
+      if (fired < (rule.times ?? 1) && batch.some((s) => rule.match.test(sqlOf.get(s) ?? ''))) {
+        fired++
+        await rule.act()
+      }
+      return real.batch(batch)
+    },
+  }
+  return { d1, fired: () => fired }
+}
+
 export interface ClerkKit {
   issuer: TestIssuer
   fetch: FakeFetch

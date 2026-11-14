@@ -34,8 +34,8 @@ place('meta', 'agents', CRUD)
 place('meta', 'connections', ['list', 'get', 'delete', 'authorize', 'sync'])
 place('meta', 'api_keys', [...CRUD, 'revoke'])
 place('meta', 'invitations', ['create', 'list', 'revoke'])
-place('meta', 'memberships', CRUD)
-place('meta', 'users', ['list', 'get'])
+place('meta', 'memberships', ['list', 'get', 'update', 'delete'])
+place('meta', 'users', ['list', 'get', 'issue_reset_link'])
 place('meta', 'me', ['get'])
 place('meta', 'schema', ['get'])
 place('meta', 'webhooks', ['list', 'get', 'deliveries', 'create', 'update', 'delete', 'rotate_secret'])
@@ -44,7 +44,7 @@ place('meta', 'webhooks', ['list', 'get', 'deliveries', 'create', 'update', 'del
 const NOT_GENERATED = [
   ...['threads', 'messages', 'interactions', 'files'].flatMap((r) => [`${r}.create`, `${r}.update`, `${r}.delete`]),
   'contact_files.update', 'company_files.update',
-  'memberships.create', 'memberships.update', 'memberships.delete',
+  'memberships.create',
   'agents.delete',
   'api_keys.update', 'api_keys.delete',
 ]
@@ -68,13 +68,13 @@ describe('placement (D6)', () => {
       'connections.authorize', 'connections.delete', 'connections.get', 'connections.list', 'connections.sync',
       'invitations.create', 'invitations.list', 'invitations.revoke',
       'me.get',
-      'memberships.get', 'memberships.list',
+      'memberships.delete', 'memberships.get', 'memberships.list', 'memberships.update',
       ...['pipelines', 'pipeline_stages'].flatMap((r) => CRUD.map((a) => `${r}.${a}`)),
       'schema.get',
-      'users.get', 'users.list',
+      'users.get', 'users.issue_reset_link', 'users.list',
       'webhooks.create', 'webhooks.delete', 'webhooks.deliveries', 'webhooks.get', 'webhooks.list', 'webhooks.rotate_secret', 'webhooks.update',
     ].sort())
-    expect(ops.length).toBe(111)
+    expect(ops.length).toBe(114)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)
