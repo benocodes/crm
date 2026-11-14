@@ -1,7 +1,8 @@
 // [[UI247]] PLAN, E2E: the device and consent pages in a real browser, with the real `vibase login` and an MCP-style client, against a local Worker on `better-auth` (worktree-local D1s).
 // Prerequisite: fresh local state, both databases migrated, `.dev.vars` with AUTH_PROVIDER=better-auth, AUTH_SECRET (32+ characters) and PUBLIC_BASE_URL=http://localhost:8787,
-// `bootstrap --org E2E --auth-provider better-auth --public-base-url http://localhost:8787 --owner-email owner@e2e.test` (E2E_INVITE_URL = the URL it printed), `pnpm dev` running.
-// The page must be opened at `http://localhost:8787` exactly: Better Auth's origin check trusts PUBLIC_BASE_URL only.
+// `bootstrap --org E2E --auth-provider better-auth --public-base-url https://localhost:8787 --owner-email owner@e2e.test` (E2E_INVITE_URL = the URL it printed), `wrangler dev --local --local-protocol https --port 8787` running.
+// HTTPS (wrangler's self-signed certificate) and not http: the real `vibase login` refuses an issuer that is not https (`insecure_issuer`), and there is no local override. The CLI is run with
+// NODE_TLS_REJECT_UNAUTHORIZED=0 and the browser context ignores the certificate error. The page must be opened at `https://localhost:8787` exactly: Better Auth's origin check trusts PUBLIC_BASE_URL only.
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdirSync, mkdtempSync } from 'node:fs'
@@ -11,21 +12,21 @@ import { fileURLToPath } from 'node:url'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
-const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:8787'
+const BASE = process.env.E2E_BASE_URL ?? 'https://localhost:8787'
 const INVITE_URL = process.env.E2E_INVITE_URL
 const PKG = fileURLToPath(new URL('..', import.meta.url))
 const CLI = join(PKG, '..', 'cli', 'src', 'bin.ts')
 const SHOTS = join(PKG, 'e2e-screenshots')
 mkdirSync(SHOTS, { recursive: true })
 const PASSWORD = 'a long enough password 123'
-const CALLBACK = 'http://127.0.0.1:33999/cb'
+const CALLBACK = 'http://127.0.0.1:33999/cb'  // the client's own loopback callback stays http (RFC 8252)
 
 // One browser context for the whole run (the session cookie made at sign-up is what later steps use or drop).
 const violations: string[] = []
 let context: BrowserContext
 let page: Page
 test.beforeAll(async ({ browser }) => {
-  context = await browser.newContext()
+  context = await browser.newContext({ ignoreHTTPSErrors: true })
   page = await context.newPage()
   page.on('console', (m) => /content security policy/i.test(m.text()) && violations.push(m.text()))
 })
@@ -63,7 +64,7 @@ const signOutHere = async () => {
 /** The real `vibase login` (tsx on the CLI source), its config in a private directory. Resolves the `/device` URL it prints; `done` resolves with its exit code and output. */
 function startLogin(): Promise<{ url: string; done: Promise<{ code: number; stdout: string; stderr: string }> }> {
   const home = mkdtempSync(join(tmpdir(), 'vibase-e2e-'))
-  const child: ChildProcessWithoutNullStreams = spawn('pnpm', ['exec', 'tsx', CLI, 'login', '--server', BASE], { cwd: PKG, env: { ...process.env, XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, HOME: home } })
+  const child: ChildProcessWithoutNullStreams = spawn('pnpm', ['exec', 'tsx', CLI, 'login', '--server', BASE], { cwd: PKG, env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0', XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, HOME: home } })
   let stdout = ''
   let stderr = ''
   const done = new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr })))
@@ -137,6 +138,7 @@ const pkce = () => {
 }
 async function register(name: string): Promise<string> {
   const res = await page.request.post('/auth/oauth2/register', {
+    headers: { origin: BASE },
     data: { client_name: name, token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], redirect_uris: [CALLBACK], scope: 'openid offline_access contacts:read' },
   })
   expect(res.status(), await res.text()).toBe(201)
@@ -154,6 +156,9 @@ async function callbackOf(action: () => Promise<void>): Promise<URL> {
 }
 
 test('3. MCP-style client: sign-in resumes the flow, /consent shows the app, Allow returns a code that works at /mcp', async () => {
+  // signed out first: the device legs left a session behind, and a signed-in authorize would go straight to /consent
+  await visit('/sign-in')
+  await signOutHere()
   const id = await register('E2E MCP Client')
   const { verifier, challenge } = pkce()
   await visit(authorizeUrl(id, challenge, 'state-allow'))
@@ -173,7 +178,7 @@ test('3. MCP-style client: sign-in resumes the flow, /consent shows the app, All
   expect(back.searchParams.get('state')).toBe('state-allow')
   const code = back.searchParams.get('code')!
   expect(code).toBeTruthy()
-  const tok = await page.request.post('/auth/oauth2/token', { form: { grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: CALLBACK, client_id: id, resource: `${BASE}/mcp` } })
+  const tok = await page.request.post('/auth/oauth2/token', { headers: { origin: BASE }, form: { grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: CALLBACK, client_id: id, resource: `${BASE}/mcp` } })
   expect(tok.status(), await tok.text()).toBe(200)
   const access = ((await tok.json()) as { access_token: string }).access_token
   const mcp = await page.request.post('/mcp', { headers: { authorization: `Bearer ${access}`, accept: 'application/json, text/event-stream' }, data: { jsonrpc: '2.0', id: 1, method: 'tools/list' } })
@@ -192,14 +197,13 @@ test('4. MCP-style client: Deny reaches the callback with error=access_denied', 
   expect(back.searchParams.get('state')).toBe('state-deny')
 })
 
-test('5. every new page carries the exact headers; no session sends /device to sign-in and /consent without a request explains', async ({ request }) => {
+test('5. every new page carries the exact headers; /consent without a request explains', async ({ request }) => {
   for (const path of ['/consent', '/device']) {
-    const res = await request.get(path)
+    const res = await request.get(path, { ignoreHTTPSErrors: true } as never)
     expect(res.status(), path).toBe(200)
     expect(res.headers()['content-security-policy'], path).toContain("default-src 'self'")
     expect(res.headers()['cache-control'], path).toBe('no-store')
   }
-  await signOutHere()
   await visit('/consent')
   await expect(page.getByText(/must be opened by an app/)).toBeVisible()
   await axeBoth('consent-no-request')
