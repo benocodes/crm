@@ -135,6 +135,18 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `set-cookie`, so side effects that must succeed before a session (acceptance, repair) go there. The sign-up body
     schema passes unknown fields through (`invitation_token`). The auth package reaches the vault only through a port
     the composition hands in (`InvitationAdmission`), never a database handle ([[CORE259]] D5).
+  - **Better Auth social sign-in** ([[CORE294]], `packages/auth/src/auth.ts`; 1.7.22). A value the server must carry
+    across the provider redirect goes into the OAuth state's server context (`addOAuthServerContext` in a
+    `hooks.before` on `/sign-in/social`) and is read back **only** from `getOAuthState().serverContext`: top-level
+    state keys are the client's `additionalData`, attacker-chosen. `getOAuthState()` is readable inside
+    `databaseHooks.user.create.before` on the callback (workerd included) and is `null` on every non-callback creation,
+    which is how the backstop tells the two paths apart. An `APIError` with a `code` thrown there reaches
+    `errorCallbackURL` as `?error=<code>`. Account linking by default also demands the *local* user's email be
+    verified, which no password account here is (no verification mail): `requireLocalEmailVerified: false` with
+    `trustedProviders: []` keeps the provider's `email_verified` as the only proof ([[UI246]] D8). Google's default
+    scopes come out `email profile openid`; `disableDefaultScope` plus an explicit `scope` list gives a stated order.
+    Its redirect flow calls only `https://oauth2.googleapis.com/token` and decodes the ID token unverified (JWKS only
+    for the `idToken` body path), so a fake Google is one token endpoint minting an unsigned ID token.
   - **Commits across the CRM and control databases** ([[CORE259]] D9, [[CORE287]]): with "CRM program commits, then
     the control batch", repair must handle each partial state separately: neither half written (re-run both), and
     the CRM half written without the control half (finish the control batch only). A short-circuit on "already
@@ -1026,6 +1038,10 @@ message bodies or addresses at info level (customer communications are personal 
 - **A failed action keeps the page's state and adds an error line.** It never reuses a state that names a different
   failure ([[UI297]] review). A rejected sign-out once became the refused-*load* state, which told a signed-in person
   that sign-in could not load and hid their agents.
+- **One error slot, several sources: a stale error must not mask a fresh one** ([[CORE294]] review). `error={a ?? b}`
+  shows `a` forever once set. Read a one-shot error from the address (an OAuth callback's `?error=`) into state once
+  and drop it from the URL with `history.replaceState`; every submit clears the other sources' errors before it runs.
+  The test: error A shown, then action B fails, B's message is the one on the page.
 - **Several pages in one bundle** ([[UI246]], `packages/server-d1/src/ui-serving.ts`): the page paths and the asset
   prefix are one exported constant (`UI_RUN_WORKER_FIRST`) that the Worker serves from and that the `wrangler.jsonc`
   test, `release:check` and `smoke:worker` read; never a copied list. A provider-specific page is gated in the
