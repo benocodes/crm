@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "paths": { "#render": ["./src/test/render-preact.ts"] }
+  },
+  "include": ["src", "scripts", "gallery", "e2e", "vitest.config.ts", "playwright.config.ts"]
+}
