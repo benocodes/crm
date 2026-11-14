@@ -34,3 +34,6 @@ export function invitationStatus(row: Pick<InvitationRow, 'acceptedAt' | 'revoke
   if (row.revokedAt !== null) return 'revoked'
   return row.expiresAt > now.toISOString() ? 'pending' : 'expired'
 }
+
+/** UI246 stub (red): replaced by the real builder in the green commit. */
+export const passwordResetUrl = (_publicBaseUrl: string, _token: string): string => ''
