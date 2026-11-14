@@ -127,6 +127,18 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `cf-connecting-ip` puts every caller in one shared `no-trusted-ip` bucket per path. Seed first-party rows through
     the library's adapter (`auth.$context.adapter`, `seedFirstPartyClient`), not SQL, and update only when the stored
     shape differs, so a converged re-run leaves `updated_at` alone.
+  - **Better Auth hook points** ([[CORE287]], `packages/auth/src/auth.ts`; 1.7.22). `hooks.before` on a path runs
+    before the password hash and before the library's own existing-email `422 USER_ALREADY_EXISTS`, so a gate that must
+    not be an account-existence oracle sits there. `databaseHooks.user.create.before` is the one point EVERY account
+    creation passes (its `ctx.body` is the request body): put the backstop there. `databaseHooks.session.create.before`
+    runs on sign-up and every sign-in before the cookie: throwing an `APIError` answers that status with no
+    `set-cookie`, so side effects that must succeed before a session (acceptance, repair) go there. The sign-up body
+    schema passes unknown fields through (`invitation_token`). The auth package reaches the vault only through a port
+    the composition hands in (`InvitationAdmission`), never a database handle ([[CORE259]] D5).
+  - **Commits across the CRM and control databases** ([[CORE259]] D9, [[CORE287]]): with "CRM program commits, then
+    the control batch", repair must handle each partial state separately: neither half written (re-run both), and
+    the CRM half written without the control half (finish the control batch only). A short-circuit on "already
+    linked" silently drops the second case; CORE287's review had to add it.
   - **workerd streams** ([[CORE69]]): R2's `put` refuses a `ReadableStream` of unknown length (`TypeError`), so pipe a
     known-size stream through `FixedLengthStream(size)` and send an unknown-size one through `ObjectStore.putStream`
     (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vibase/api` only as

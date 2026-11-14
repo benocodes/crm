@@ -46,6 +46,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   failed unit" test stayed green for the wrong reason; the counted M4 moved the real call into the plan phase and three
   tests went red. When a mutation stays green, check that the mutated path actually performs the observed effect (a
   request on the fake, a row) before concluding the test is weak.
+  **The reverse holds too: a guard that sits behind another guard is never reached end to end**, so removing it
+  turns nothing red. Test the inner guard by calling it directly ([[CORE287]]: the `databaseHooks.user.create.before`
+  backstop sat behind the endpoint gate; `packages/auth/src/backstop.test.ts` calls the hook, and M5 turns 5 red).
+  **Build fixtures only through states the invariants allow.** A fixture the system cannot reach (CORE287's two live
+  invitations for one email, one backdated) can pin wrong behaviour and turn a correct fix red.
   **A safe backstop can hide the guard you mutate:** AGT166's first M13 removed the pending-transition guard and stayed
   green, because the unique request index also refused the duplicate and the test accepted any `409`. Assert the
   specific code (`action_request_not_pending`) and the winner's attribution, so only the guarded path passes.
