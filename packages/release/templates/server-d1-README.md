@@ -16,4 +16,14 @@ The settings and secrets of an instance are files outside the package: `$XDG_CON
 
 The stable paths other tooling may rely on are the package's `exports`: `./worker`, `./wrangler.base.jsonc`, `./release.json`, `./migrations/*`, `./control-migrations/*` (the control-plane database's migrations), `./assets/*` and `./package.json`.
 
+## Turning on email
+
+Email is off by default: invitation links are handed over by the owner. To have the Worker email invitations instead, an operator turns it on by hand (setup does not):
+
+1. In the Cloudflare dashboard, onboard a sending domain for Email Service (the domain's DNS must be on Cloudflare; arbitrary recipients need the Workers Paid plan; the service is in beta).
+2. Add a `send_email` binding named `EMAIL` to the Worker config (`"send_email": [{ "name": "EMAIL" }]`) and a variable `AUTH_EMAIL_FROM` holding a bare sender address on that domain (for example `invites@example.com`).
+3. Deploy. Both must be present; one without the other, or a malformed address, makes every request except `/health` answer `500` and the log names the variable.
+
+With email on, `invitations.create` sends the link to the invited address by default and does not return it (`delivery: "email"`); pass `delivery: "link"` to get the link back instead. A failed send revokes the invitation and answers `502 email_send_failed`. Accepting an emailed invitation records the address as verified. Email applies to the built-in provider (`AUTH_PROVIDER=better-auth`) only.
+
 Node 22 or newer. Licence: AGPL-3.0-only.

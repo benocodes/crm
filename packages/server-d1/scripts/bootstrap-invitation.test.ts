@@ -53,7 +53,7 @@ describe('the first run (P7)', () => {
     const [row, ...more] = await audits()
     expect(more).toEqual([])
     expect(row).toMatchObject({ actor_id: system!.id, action: 'invitation.created', target_type: 'invitation', target_id: inv!.id })
-    expect(JSON.parse(row!.detail)).toEqual({ email: 'owner@x.test', role: 'owner', expires_at: inv!.expires_at })
+    expect(JSON.parse(row!.detail)).toEqual({ email: 'owner@x.test', role: 'owner', expires_at: inv!.expires_at, delivery: 'link' })
     // the token is nowhere in either database
     for (const d1 of [pair.control, pair.d1]) {
       const tables = (await rows(d1, "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like '_cf_%'")).map((r) => r.name)

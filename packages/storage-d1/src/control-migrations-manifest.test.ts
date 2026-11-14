@@ -40,7 +40,7 @@ afterEach(() => {
 describe('control migrations manifest (CORE259 D4)', () => {
   it('matches the real control-migrations/ directory exactly, and is its own set apart from the CRM one', () => {
     expect(manifestProblems(CONTROL_MIGRATIONS, CONTROL_MIGRATIONS_DIR)).toEqual([])
-    expect(CONTROL_MIGRATIONS.map((e) => e.name)).toEqual(['0001_control_plane.sql', '0002_invitations.sql'])
+    expect(CONTROL_MIGRATIONS.map((e) => e.name)).toEqual(['0001_control_plane.sql', '0002_invitations.sql', '0003_invitation_delivery.sql'])
     expect(CONTROL_MIGRATIONS.map((e) => e.name).filter((n) => MIGRATIONS.some((m) => m.name === n))).toEqual([])
   })
   it('catches one edited byte', () => {

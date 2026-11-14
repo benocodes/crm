@@ -38,8 +38,9 @@ export function invitationAdmission(d: InvitationAdmissionDeps): InvitationAdmis
         await d.store.accept({ id: invitation.id, auditId: d.newId(), actorId: linked, now: now.toISOString() })
         return
       }
+      // [[CORE248]] D5: an emailed invitation's token never left the vault but toward the address, so accepting it proves the mailbox; a link proves nothing (Google's own verified flag still counts).
       // P3: the CRM program is the commit point; if it throws, nothing below runs and the invitation stays pending.
-      const { principalId } = await acceptInvitedAccount(storage, { now, newId: d.newId }, { role: invitation.role, subject, email: address, name, emailVerified })
+      const { principalId } = await acceptInvitedAccount(storage, { now, newId: d.newId }, { role: invitation.role, subject, email: address, name, emailVerified: emailVerified || invitation.delivery === 'email' })
       // P4: marked accepted only after the commit, guarded on the invitation still being live. A revoke that landed in between leaves the membership ([[CORE288]] removes it).
       await d.store.accept({ id: invitation.id, auditId: d.newId(), actorId: principalId, now: now.toISOString() })
     },

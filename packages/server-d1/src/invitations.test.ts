@@ -94,7 +94,7 @@ describe('create (P2, P3, P4)', () => {
     const before = Date.now()
     const res = await create(wk, await owner.session(), { email: 'Ann@X.test', role: 'member' })
     expect(res.status, JSON.stringify(res.json)).toBe(201)
-    expect(Object.keys(res.json).sort()).toEqual(['email', 'expires_at', 'id', 'role', 'url'])
+    expect(Object.keys(res.json).sort()).toEqual(['delivery', 'email', 'expires_at', 'id', 'role', 'url'])
     expect(res.json).toMatchObject({ email: 'ann@x.test', role: 'member' })
     const url = new URL(res.json.url)
     expect(url.origin + url.pathname).toBe(`${AUTH_BASE}/invite`)
@@ -120,7 +120,7 @@ describe('create (P2, P3, P4)', () => {
     const audit = await rows(w.control, 'select * from control_audit where target_id = ?', res.json.id)
     expect(audit).toHaveLength(1)
     expect(audit[0]).toMatchObject({ actor_id: owner.id, action: 'invitation.created', target_type: 'invitation' })
-    expect(JSON.parse(audit[0]!.detail)).toEqual({ email: 'audit@x.test', role: 'agent', expires_at: res.json.expires_at })
+    expect(JSON.parse(audit[0]!.detail)).toEqual({ email: 'audit@x.test', role: 'agent', expires_at: res.json.expires_at, delivery: 'link' })
     const token = tokenOf(res.json.url)
     expect(audit[0]!.detail).not.toContain(token)
     expect(audit[0]!.detail).not.toContain(sha256(token))
@@ -201,7 +201,7 @@ describe('revoke and list (P6)', () => {
     expect(res.status).toBe(200)
     expect(Object.fromEntries(res.json.data.map((r: any) => [r.email, r.status]))).toEqual({ 'pending@x.test': 'pending', 'accepted@x.test': 'accepted', 'revoked@x.test': 'revoked', 'expired@x.test': 'expired' })
     expect(res.json.next_cursor).toBeNull()
-    for (const r of res.json.data) expect(Object.keys(r).sort()).toEqual(['accepted_at', 'created_at', 'created_by', 'email', 'expires_at', 'id', 'revoked_at', 'role', 'status'])
+    for (const r of res.json.data) expect(Object.keys(r).sort()).toEqual(['accepted_at', 'created_at', 'created_by', 'delivery', 'email', 'expires_at', 'id', 'revoked_at', 'role', 'status'])
     expect(JSON.stringify(res.json)).not.toMatch(/token|hash|url|invite/i)
     // paging follows the other meta lists: limit and a cursor
     const first = await call(worker(), 'GET', `${PATH}?limit=3`, await owner.session())
@@ -336,7 +336,7 @@ describe('one control batch, nothing in the CRM (D9 c)', () => {
     await call(wk, 'POST', `${PATH}/${made.json.id}/revoke`, tok)
     const hashes = (await rows(w.control, 'select token_hash from invitations')).map((r) => r.token_hash as string)
     for (const a of await rows(w.control, 'select detail from control_audit')) {
-      expect(Object.keys(JSON.parse(a.detail)).sort()).toEqual(['email', 'expires_at', 'role'])
+      expect(Object.keys(JSON.parse(a.detail)).filter((k) => k !== 'delivery').sort()).toEqual(['email', 'expires_at', 'role'])
       for (const h of hashes) expect(a.detail).not.toContain(h)
     }
   })

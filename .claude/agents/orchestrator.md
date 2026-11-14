@@ -45,6 +45,8 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    typecheck, build) once, writes `GATE.md` in the cycle folder and reports counts; it never edits or
    diagnoses. Nothing else runs in that worktree meanwhile. If it reports red, send its report to the coder
    (the coder wakes only for this), then run the gate-tester again on the new sha; repeat until green.
+   `invalid (disk)` goes to nobody: free space (merged worktrees' `node_modules`, old `~/.cache/vibase-gate`
+   runs, test DBs this sprint created) and rerun the gate on the same sha ([[CORE248]]).
    **Gate-fix rounds are free: they do not count toward the two-round cap in step 6**, since the gate
    exists to catch them. If the same step stays red for three rounds, or the failure is a test that
    passes alone and fails in the full run, say so in SPRINT.md and tell the user rather than loop.
