@@ -3,10 +3,11 @@ import { uuidv7 } from '@vibase/storage'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
 import { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
-import { createVibaseRegistry, scopesForRole } from '@vibase/api'
+import { SESSION_TOKEN_CLAIM, SESSION_TOKEN_VALUE, createVibaseRegistry, scopesForRole } from '@vibase/api'
+import * as provider from '@vibase/auth'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
+import { AUTH_BASE, AUTH_SECRET, authKit, renameClient, type AuthKit } from './test/auth-kit.js'
 import { NOW, openWorkerPair, spyD1, type WorkerPair } from './test/kit.js'
 
 // [[CORE244]] D7, D8, D9, D19, D20 (agent half), D23, P1, P2, P3 through the composition: the REAL Better Auth (test admission) mints the tokens on the control-plane database, the Worker
@@ -172,9 +173,7 @@ describe('the principal matrix: credential path x subject state (D7, D9, D20 age
 
   it('P3: with AUTH_CLI_CLIENT_ID unset the first-party client id is vibase-cli', async () => {
     const s = await subject('owner')
-    const now = new Date().toISOString()
-    // the seeded vibase-cli client row is CORE283's; a row of that id is enough for the provider to mint for it here
-    await w.control.prepare('insert into auth_oauth_clients (id, client_id, redirect_uris, grant_types, response_types, token_endpoint_auth_method, scopes, created_at, updated_at, disabled, skip_consent) select ?, ?, redirect_uris, grant_types, response_types, token_endpoint_auth_method, scopes, ?, ?, 0, skip_consent from auth_oauth_clients where client_id = ?').bind(uuidv7(), 'vibase-cli', now, now, cliClient).run()
+    await renameClient(w.control, cliClient, 'vibase-cli')
     const tok = await s.oauth('vibase-cli')
     const res = await me(worker({ AUTH_CLI_CLIENT_ID: undefined }), tok)
     expect(res.status, JSON.stringify(res.json)).toBe(200)
@@ -274,5 +273,11 @@ describe('real tokens and the warm path (D8, D19, D23, P1)', () => {
     const wk = worker()
     expect((await me(wk, bootKey)).status).toBe(200)
     expect((await me(wk, 'not-a-key-and-not-a-jwt')).status).toBe(401)
+  })
+})
+
+describe('the two packages agree on the session marker (D8)', () => {
+  it('@vibase/api (the verifier) and @vibase/auth (the minter) name the same claim and value', () => {
+    expect([SESSION_TOKEN_CLAIM, SESSION_TOKEN_VALUE]).toEqual([provider.SESSION_TOKEN_CLAIM, provider.SESSION_TOKEN_VALUE])
   })
 })

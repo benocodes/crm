@@ -56,18 +56,30 @@ export function readControlMigrations(c: ControlDb): Promise<MigrationState> {
   return readMigrationState(raw(c), CONTROL_MIGRATIONS.map((m) => m.name))
 }
 
-/** A signing key as `auth_jwks` holds it ([[CORE244]] P1): STUB. */
+/** A signing key as `auth_jwks` holds it: the key id Better Auth puts in a token's `kid`, its algorithm (`EdDSA` unless the row says otherwise) and the public JWK as JSON text. */
 export interface AuthJwk {
   kid: string
   alg: string
   publicJwk: string
 }
-export async function readAuthJwks(_c: ControlDb): Promise<AuthJwk[]> {
-  return []
+
+/**
+ * Every public signing key of the built-in provider ([[CORE244]] P1): one read of `auth_jwks`, no private key column. The adapter caches the result per isolate; this is the only reader.
+ * Rotated keys stay in the table, so a token signed by an older key still verifies until the operator removes the row.
+ */
+export async function readAuthJwks(c: ControlDb): Promise<AuthJwk[]> {
+  const res = await raw(c).prepare('select id, alg, public_key from auth_jwks').all()
+  return ((res.results ?? []) as Array<{ id: string; alg: string | null; public_key: string }>).map((r) => ({ kid: r.id, alg: r.alg ?? 'EdDSA', publicJwk: r.public_key }))
 }
-export async function readAuthProfile(_c: ControlDb, _userId: string): Promise<{ email: string; emailVerified: boolean; name: string } | null> {
-  return null
+
+/** The Better Auth account behind a token's subject ([[CORE244]] D9): what first sight of a delegated agent's human needs. `null` when no such account. */
+export async function readAuthProfile(c: ControlDb, userId: string): Promise<{ email: string; emailVerified: boolean; name: string } | null> {
+  const row = await raw(c).prepare('select email, email_verified, name from auth_users where id = ?').bind(userId).first()
+  return row ? { email: row.email as string, emailVerified: Number(row.email_verified) === 1, name: row.name as string } : null
 }
-export async function readOAuthClientName(_c: ControlDb, _clientId: string): Promise<string | null> {
-  return null
+
+/** The display name of an OAuth client by its client id ([[CORE244]] D9); `null` when the provider has no such client or it has no name. */
+export async function readOAuthClientName(c: ControlDb, clientId: string): Promise<string | null> {
+  const row = await raw(c).prepare('select name from auth_oauth_clients where client_id = ?').bind(clientId).first()
+  return typeof row?.name === 'string' && row.name !== '' ? row.name : null
 }

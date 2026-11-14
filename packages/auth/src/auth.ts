@@ -15,6 +15,8 @@ export interface AuthRuntimeConfig {
   secret: string
   /** `PUBLIC_BASE_URL`, an origin without a path. It is the one base URL, whatever host a request arrives on (D23): the issuer is `<baseURL>/auth`. */
   baseURL: string
+  /** The vault's scope names (`contacts:read`, ...): joined to the OIDC scopes the provider knows, so an access token can carry them ([[CORE244]] D9). The composition passes the registry's declared scopes. */
+  vaultScopes?: readonly string[]
 }
 
 /** A D1 binding, as much of it as Kysely's D1 dialect uses; the Worker passes its `DB`. */
@@ -57,6 +59,14 @@ export const AUTH_TABLES: readonly string[] = Object.values(MODELS)
 /** The OIDC scopes this cycle's clients may ask for. The vault's resource scopes join them with token verification ([[CORE244]]). */
 export const AUTH_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const
 
+/** The claim that marks a session JWT ([[CORE244]] D8): an OAuth access token cannot carry it (the provider fixes the access-token claims), and the API refuses a JWT without it that is not an access token. */
+export const SESSION_TOKEN_CLAIM = 'vibase_token'
+export const SESSION_TOKEN_VALUE = 'session'
+/** Lifetimes ([[CORE244]] D19), in seconds. */
+export const SESSION_JWT_SECONDS = 15 * 60
+export const ACCESS_TOKEN_SECONDS = 60 * 60
+export const BROWSER_SESSION_SECONDS = 7 * 24 * 60 * 60
+
 const snake = (name: string): string => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
 
 // What Better Auth would create unmapped, for the plugins composed below. Only the field NAMES are read, to give each one its snake_case column: a field a library upgrade
@@ -69,17 +79,30 @@ function schemaFor(key: ModelKey): { modelName: string; fields: Record<string, s
   return { modelName: MODELS[key], fields: Object.fromEntries(Object.keys(table.fields).map((f) => [f, snake(f)])) }
 }
 
-function composePlugins(baseURL: string, open: boolean, schema?: (key: ModelKey) => ReturnType<typeof schemaFor>) {
+function composePlugins(baseURL: string, open: boolean, schema?: (key: ModelKey) => ReturnType<typeof schemaFor>, vaultScopes: readonly string[] = []) {
   const s = schema ?? (() => undefined)
+  const scopes = [...AUTH_SCOPES, ...vaultScopes]
   return [
-    jwt({ disableSettingJwtHeader: true, ...(schema ? { schema: { jwks: schema('jwks') } } : {}) }),
+    jwt({
+      disableSettingJwtHeader: true,
+      // The issuer is `<PUBLIC_BASE_URL>/auth` for both token kinds and the audience is the API origin ([[CORE243]] D23, [[CORE244]] D8): never read from a request.
+      jwt: {
+        issuer: `${baseURL}/auth`,
+        audience: baseURL,
+        expirationTime: `${SESSION_JWT_SECONDS}s`,
+        // The session JWT carries no profile: the subject, the session id and the kind marker. The role is read from the vault on every request.
+        definePayload: (session) => ({ [SESSION_TOKEN_CLAIM]: SESSION_TOKEN_VALUE, sid: session.session.id }),
+      },
+      ...(schema ? { schema: { jwks: schema('jwks') } } : {}),
+    }),
     oauthProvider({
       loginPage: '/auth/sign-in',
       consentPage: '/auth/consent',
-      scopes: [...AUTH_SCOPES],
-      resources: [{ identifier: baseURL, allowedScopes: [...AUTH_SCOPES] }],
+      scopes,
+      accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
+      resources: [{ identifier: baseURL, allowedScopes: scopes }],
       clientRegistrationDefaultResources: [baseURL],
-      clientRegistrationAllowedScopes: [...AUTH_SCOPES],
+      clientRegistrationAllowedScopes: scopes,
       allowDynamicClientRegistration: open,
       allowUnauthenticatedClientRegistration: open,
       ...(schema
@@ -112,10 +135,8 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     trustedOrigins: [config.baseURL],
     // Admission is closed (P1). Sign-up is the only path that creates a user here; the invitation gate replaces the refusal ([[CORE245]]).
     emailAndPassword: { enabled: true, disableSignUp: !open, password: { hash: hashPassword, verify: verifyPassword } },
-    // The `/token` endpoint hands out a session JWT; the vault owns that contract ([[CORE244]] D8).
-    disabledPaths: ['/token'],
     user: schemaFor('user'),
-    session: schemaFor('session'),
+    session: { ...schemaFor('session'), expiresIn: BROWSER_SESSION_SECONDS },
     account: schemaFor('account'),
     verification: schemaFor('verification'),
     rateLimit: { enabled: true, storage: 'database', ...schemaFor('rateLimit') },
@@ -125,7 +146,7 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
     },
     telemetry: { enabled: false },
-    plugins: composePlugins(config.baseURL, open, schemaFor),
+    plugins: composePlugins(config.baseURL, open, schemaFor, config.vaultScopes),
   } as BetterAuthOptions
 }
 

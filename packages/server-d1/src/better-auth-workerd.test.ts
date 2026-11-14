@@ -3,7 +3,7 @@ import { BASE, PAIRED_ORG, bundleWorker, startWorkerd, type Bundle, type Workerd
 import { uuidv7 } from '@vibase/storage'
 import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { authKitOver } from './test/auth-kit.js'
+import { authKitOver, renameClient } from './test/auth-kit.js'
 import { createVibaseRegistry } from '@vibase/api'
 
 // [[CORE244]] D8, D19, composition in workerd: the REAL Worker module (src/worker.ts through test/entry-mint.ts), both D1s as Miniflare bindings with distinct ids. A token minted by the
@@ -47,8 +47,7 @@ describe('minted in workerd, resolved by the real Worker', () => {
     // the seeded first-party client is CORE283's; a row of the default id (P3) stands in for it here
     const other = await kit.registerClient('Claude Desktop')
     const cli = await kit.registerClient('Vibase CLI')
-    const now = new Date().toISOString()
-    await w.control.prepare('update auth_oauth_clients set client_id = ?, updated_at = ? where client_id = ?').bind('vibase-cli', now, cli).run()
+    await renameClient(w.control, cli, 'vibase-cli')
     const cliTokens = await kit.deviceTokens(cookie, 'vibase-cli', 'openid contacts:read')
     expect(decode(cliTokens.access_token).exp - decode(cliTokens.access_token).iat).toBe(60 * 60)
     const asCli = await me(cliTokens.access_token)

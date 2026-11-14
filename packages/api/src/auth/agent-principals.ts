@@ -5,17 +5,26 @@ import { eventStatement } from '../outbox.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from '../directory/system-principal.js'
 import { agents } from '../resources/agents.js'
 import { columnsOf, receipt } from '../storage/crud.js'
+import { admittedRole, membershipRoleRead } from './membership-role.js'
+import type { Role } from './roles.js'
 import type { InternalEnv } from '../storage/internal.js'
 
 /** An agent principal found or created for a token: its id, the stored grants (or cap) and whether it is disabled. */
 export type AgentLogin = { agentId: string; scopes: string[]; disabled: boolean }
 /** What the vault already holds for a token's subject: the human's id, the agent account linked to the subject, the delegated agent for (client, human). */
-export type PrincipalLookup = { userId: string | null; account: AgentLogin | null; delegated: AgentLogin | null }
+export type PrincipalLookup = {
+  userId: string | null
+  account: AgentLogin | null
+  delegated: AgentLogin | null
+  /** Only when the lookup asked for it (`organizationId` given: the built-in provider, [[CORE244]] D7): the live membership's role in that organisation, `null` when none or not admitted. */
+  membershipRole?: Role | null
+}
 
 const INTERNAL = { kind: 'internal', organizationId: null } as const
 const USER = 'principal:user'
 const ACCOUNT = 'principal:account'
 const DELEGATED = 'principal:delegated'
+const MEMBERSHIP = 'principal:membership'
 const AGENT_COLUMNS = ['agents.id as agent_id', 'agents.scopes', 'agents.disabled_at'] as const
 
 type Row = Record<string, unknown>
@@ -27,7 +36,7 @@ const loginOf = (row: Row | null): AgentLogin | null =>
  * agent account is linked to the subject (D17) and, when the token's client is not the first-party CLI, whether the delegated agent for
  * (client, human) exists (D15). Reads only; the three answers decide the principal kind.
  */
-export function lookupPrincipalOperation(a: { provider: string; subject: string; clientId: string | null }): PreparedOperation<PrincipalLookup> {
+export function lookupPrincipalOperation(a: { provider: string; subject: string; clientId: string | null; organizationId?: string }): PreparedOperation<PrincipalLookup> {
   return defineOperation<PrincipalLookup>({
     name: 'auth.lookup_principal',
     mutates: false,
@@ -48,6 +57,7 @@ export function lookupPrincipalOperation(a: { provider: string; subject: string;
             .where('users.auth_subject', '=', a.subject),
         )
       }
+      if (a.organizationId !== undefined) reads[MEMBERSHIP] = membershipRoleRead(qc, { provider: a.provider, subject: a.subject, organizationId: a.organizationId })
       return reads
     },
     build: (found) =>
@@ -58,12 +68,13 @@ export function lookupPrincipalOperation(a: { provider: string; subject: string;
           userId: (found.maybe(USER)?.id as string | undefined) ?? null,
           account: loginOf(found.maybe(ACCOUNT)),
           delegated: loginOf(found.maybe(DELEGATED)),
+          ...(a.organizationId !== undefined ? { membershipRole: admittedRole(found.maybe(MEMBERSHIP)?.role) } : {}),
         }),
       }),
   })
 }
 
-export async function lookupPrincipal(storage: StorageBinding, a: { provider: string; subject: string; clientId: string | null }): Promise<PrincipalLookup> {
+export async function lookupPrincipal(storage: StorageBinding, a: { provider: string; subject: string; clientId: string | null; organizationId?: string }): Promise<PrincipalLookup> {
   try {
     return (await execute(storage, INTERNAL, lookupPrincipalOperation(a))).value
   } catch (err) {

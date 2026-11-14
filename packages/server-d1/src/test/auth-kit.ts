@@ -74,3 +74,16 @@ export function authKitOver(call: AuthKit['call'], base: string, vaultScopes: re
     },
   }
 }
+
+/**
+ * Gives a registered client another client id, as the seeded `vibase-cli` row will have ([[CORE283]] seeds it for real). Two statements in one batch with deferred foreign keys: the client row
+ * and the row that links it to the API resource.
+ */
+export async function renameClient(control: D1Like, from: string, to: string): Promise<void> {
+  const now = new Date().toISOString()
+  await control.batch([
+    control.prepare('pragma defer_foreign_keys = on'),
+    control.prepare('update auth_oauth_clients set client_id = ?, updated_at = ? where client_id = ?').bind(to, now, from),
+    control.prepare('update auth_oauth_client_resources set client_id = ? where client_id = ?').bind(to, from),
+  ])
+}

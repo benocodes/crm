@@ -1,4 +1,5 @@
 import { ApiError } from '../errors.js'
+import type { StorageBinding } from '@vibase/storage'
 import { ScopeSet, closeScopes } from '../scopes.js'
 import { AuthFailure, ProfileNotFoundError, type AuthAdapter, type AuthProfile } from './adapter.js'
 import { lookupPrincipal, provisionAgent } from './agent-principals.js'
@@ -6,6 +7,7 @@ import { provisionUser } from './first-sight.js'
 import { resolveActiveOrganization } from './organization.js'
 import { SCOPE_POLICY, isAgentGrantable, scopesForRole, type Role, type ScopePolicy } from './roles.js'
 import type { Principal, UserAuthenticator } from './types.js'
+import type { InternalEnv } from '../storage/internal.js'
 
 /** The workspace role of a token's claim or a profile's metadata; anything but `owner` and `member` (a missing, unknown or `agent` value) is null ([[CORE64]] D9). */
 export function workspaceRole(claim: unknown): Role | null {
@@ -80,6 +82,79 @@ export function createWorkspaceAuthenticator(opts: {
     return declaredScopes.filter((s) => closed.every((l) => l.includes(s))).sort()
   }
 
+  /**
+   * The built-in provider's resolution ([[CORE244]] D7, D9, D20, P2; the tree in [[CORE243]] "Token resolution on better-auth"). The role is the subject's LIVE membership in the deployment's
+   * organisation, read in the same unit as the principal lookup on every request (no cache). An agent account is the agent row linked to the subject; a subject that is both a person and
+   * an agent account is refused. A subject the vault does not hold (no `users` row, no agent) or no longer admits (no live membership) is `403 organization_forbidden` and NOTHING is written:
+   * people and agent accounts are created by invitation acceptance ([[CORE245]]). Delegated agents (one per client and person) are still created on first sight, with their event.
+   */
+  async function authenticateByMembership(a: {
+    storage: StorageBinding
+    organizationHeader: string | undefined
+    env: InternalEnv
+    provider: string
+    nowMs: number
+    subject: string
+    clientId: string | null
+    tokenScopes: string[] | null
+  }): Promise<Principal> {
+    const { storage, env, provider, subject, clientId, tokenScopes, organizationHeader } = a
+    if (storage.kind !== 'd1') throw new Error('the workspace authenticator serves a D1 deployment only')
+    const organizationId = storage.organizationId
+    const delegating = clientId !== null && clientId !== cliClientId
+    const found = await lookupPrincipal(storage, { provider, subject, clientId: delegating ? clientId : null, organizationId })
+    const wrongOrganization = organizationHeader !== undefined && organizationHeader.toLowerCase() !== organizationId.toLowerCase()
+    const agentPrincipal = (agentId: string, scopes: string[]): Principal =>
+      wrongOrganization
+        ? { actor: { id: agentId, kind: 'agent' }, organizationId: null, scopes: ScopeSet.parse([]), organizationForbidden: true, ...(clientId ? { clientId } : {}) }
+        : { actor: { id: agentId, kind: 'agent' }, organizationId, scopes: ScopeSet.parse(scopes), ...(clientId ? { clientId } : {}) }
+
+    if (found.account !== null) {
+      if (found.userId !== null) {
+        console.warn('[auth] kind mismatch: an agent account that is also a person')
+        throw forbidden()
+      }
+      if (found.account.disabled) throw new AuthFailure('disabled')
+      return agentPrincipal(found.account.agentId, meet(found.account.scopes, tokenScopes ?? declaredScopes, grantable))
+    }
+    const role = found.membershipRole ?? null
+    if (found.userId === null || role === null) {
+      console.warn('[auth] no user or no live membership for the subject')
+      throw forbidden()
+    }
+
+    if (!delegating) {
+      // A session JWT, or the first-party CLI acting as the person (D16).
+      const actor = { id: found.userId, kind: 'user' as const }
+      const resolved = resolveActiveOrganization({ organizationId, role }, organizationHeader)
+      if (resolved.organizationId === null) return { actor, organizationId: null, scopes: ScopeSet.parse([]), organizationForbidden: true, ...(clientId ? { clientId } : {}) }
+      const roleScopes = scopesForRole(resolved.role, declaredScopes, policy).toStrings()
+      return { actor, organizationId: resolved.organizationId, scopes: ScopeSet.parse(tokenScopes ? meet(roleScopes, tokenScopes) : roleScopes), role: resolved.role, ...(clientId ? { clientId } : {}) }
+    }
+
+    // Any other OAuth client: the person's delegated agent for this client (D15), created on first sight.
+    let delegated = found.delegated
+    if (delegated === null) {
+      let p: AuthProfile
+      try {
+        p = await profileOf(subject, a.nowMs).then((x) => {
+          if (x === null) throw new ProfileNotFoundError()
+          return x
+        })
+      } catch (err) {
+        if (!(err instanceof ProfileNotFoundError)) throw err
+        console.warn('[auth] profile not found')
+        throw forbidden()
+      }
+      const clientName = await adapter.fetchOAuthClientName(clientId!).catch(() => null)
+      const name = `${clientName ?? clientId} (${p.email ?? subject})`
+      delegated = await provisionAgent(storage, env, { provider, subject, clientId, kind: 'delegated', name, scopes: grantable, humanId: found.userId, organizationId })
+    }
+    if (delegated.disabled) throw new AuthFailure('disabled')
+    const roleScopes = scopesForRole(role, declaredScopes, policy).toStrings()
+    return agentPrincipal(delegated.agentId, meet(tokenScopes!, delegated.scopes, roleScopes, grantable))
+  }
+
   return {
     async authenticate(token, { storage, organizationHeader, env }) {
       const verified = await adapter.verify(token)
@@ -90,6 +165,10 @@ export function createWorkspaceAuthenticator(opts: {
       const oauth = verified.kind === 'oauth'
       const tokenScopes = verified.kind === 'oauth' ? verified.scopes.filter((s) => declared.has(s)) : null
       const clientId = verified.kind === 'oauth' ? verified.clientId : null
+
+      if (adapter.roleSource === 'membership') {
+        return authenticateByMembership({ storage, organizationHeader, env, provider, nowMs, subject: verified.subject, clientId, tokenScopes })
+      }
 
       // The role: the claim of a session token, the profile's metadata for an OAuth token (D12).
       let rawRole: unknown
