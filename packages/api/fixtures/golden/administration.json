@@ -2086,11 +2086,11 @@
           "request": {
             "role": "owner"
           },
-          "status": 404,
+          "status": 403,
           "response": {
             "error": {
-              "code": "not_found",
-              "message": "no such route"
+              "code": "insufficient_scope",
+              "message": "requires members:write"
             }
           },
           "events": []
@@ -2101,11 +2101,11 @@
           "method": "DELETE",
           "path": "/meta/v1/memberships/0190b2c4-0000-7000-8000-00000000d002",
           "request": null,
-          "status": 404,
+          "status": 403,
           "response": {
             "error": {
-              "code": "not_found",
-              "message": "no such route"
+              "code": "insufficient_scope",
+              "message": "requires members:write"
             }
           },
           "events": []

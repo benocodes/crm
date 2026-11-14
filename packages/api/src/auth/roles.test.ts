@@ -42,7 +42,8 @@ describe('roles', () => {
   })
   it('administration rows', () => {
     expect(SCOPE_POLICY['members:read']).toEqual({ member: true, agentGrantable: false })
-    expect(SCOPE_POLICY).not.toHaveProperty('members:write')
+    // [[CORE288]] P1: the built-in provider's membership administration: owner-held, never a member or agent scope.
+    expect(SCOPE_POLICY['members:write']).toEqual({ member: false, agentGrantable: false })
     expect(SCOPE_POLICY['agents:read']).toEqual({ member: true, agentGrantable: false })
     expect(SCOPE_POLICY['agents:write']).toEqual({ member: false, agentGrantable: false })
   })

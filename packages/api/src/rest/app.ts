@@ -19,6 +19,7 @@ import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVibaseRegistry } from '../operations.js'
 import type { InvitationsRuntime } from '../invitations/port.js'
+import type { MembersRuntime } from '../members/port.js'
 import { webhooksConfigNotice, type WebhooksRuntime } from '../webhooks/config.js'
 import type { ObjectStore } from '../objects/store.js'
 import { validateOperationInput, type BinaryBody, type Operation, type OperationInput, type PrepareContext, type Registry } from '../registry.js'
@@ -95,6 +96,8 @@ export interface AppOptions {
   webhooks?: { runtime: WebhooksRuntime; problems?: readonly string[] }
   /** [[CORE245]] P2: the control-plane port of the invitation operations (built-in auth provider only). Absent: they answer `501 provider_not_configured`. Ignored when `registry` is given. */
   invitations?: InvitationsRuntime | null
+  /** [[CORE288]]: the membership writes' control-plane port (and the reset link's origin); absent or null: they answer `501 provider_not_configured`. */
+  members?: MembersRuntime | null
   /** Extra operations registered before the queue's (Node tests; see `createVibaseRegistry`). Ignored when `registry` is given. */
   extraOperations?: (registry: Registry) => void
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
@@ -241,7 +244,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   }
   const gmail = options.gmail
   const push: PushConfig | null = gmail?.config && gmail.instances && gmail.push ? gmail.push : null
-  const registry = options.registry ?? createVibaseRegistry({ operations: options.extraOperations, ...(options.invitations ? { invitations: options.invitations } : {}), ...(options.webhooks ? { webhooks: options.webhooks.runtime } : {}), connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}), push, ...(gmail?.fetch ? { fetch: gmail.fetch } : {}), ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}) } })
+  const registry = options.registry ?? createVibaseRegistry({ operations: options.extraOperations, ...(options.invitations ? { invitations: options.invitations } : {}), ...(options.members ? { members: options.members } : {}), ...(options.webhooks ? { webhooks: options.webhooks.runtime } : {}), connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}), push, ...(gmail?.fetch ? { fetch: gmail.fetch } : {}), ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}) } })
   // [[CHN5]] D58: a partial configuration is a startup log line naming what is wrong; nothing configured at all is simply "off".
   if (gmail?.problems && gmail.problems.length > 0 && !gmailUnconfigured(gmail.problems)) console.warn(gmailConfigNotice(gmail.problems))
   if (options.webhooks?.problems && options.webhooks.problems.length > 0) console.warn(webhooksConfigNotice(options.webhooks.problems))

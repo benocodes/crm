@@ -101,7 +101,9 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `controlAuthDatabase` in `packages/storage-d1/src/control-store.ts`; `ControlDb` is opaque (not a `D1Like`), so
     `d1Binding(control)` does not typecheck. Only `server-d1/src/compose.ts`, `server-d1/src/bootstrap-d1.ts`,
     `server-d1/scripts/*` and the control store may name it (`packages/server-d1/src/control-boundary.test.ts`); a new
-    reader is a spec decision. Under `better-auth` the Worker fails closed without the binding (`500`, log names
+    reader is a spec decision. The boundary test greps text, comments included: a comment in `@vibase/api` that says
+    `control-store` fails it ([[CORE288]]). An operation that must reach the control plane after its CRM unit takes a
+    narrow port composition hands in (`InvitationsPort`, `MembersPort`) in a decorated `after` stage. Under `better-auth` the Worker fails closed without the binding (`500`, log names
     `CONTROL_DB`), refuses an untracked or behind control database (`503 migrations_pending`) and an unpaired control
     marker (`500`, log `control database not paired`); `clerk` and unset never open it.
   - **Better Auth tokens on the API** ([[CORE243]] D8 as pinned by [[CORE244]]; `packages/api/src/auth/better-auth.ts`):
@@ -113,7 +115,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     any scope it was not configured with, so the registry's declared scopes are passed in (`vaultScopes`); an access
     token is a JWT only when the client sends `resource=<PUBLIC_BASE_URL>`, otherwise it is opaque and refused. Key,
     profile and client-name reads go through the control store (`readAuthJwks`, `readAuthProfile`,
-    `readOAuthClientName`), the only code outside the provider that names `auth_*` tables.
+    `readOAuthClientName`), and its one writer, `revokeSubjectCredentials` ([[CORE288]]), are the only code outside the
+    provider that names `auth_*` tables.
   - **Better Auth clients, DCR and discovery** ([[CORE243]] D10–D12 as built by [[CORE283]]; `packages/auth/src/auth.ts`,
     `packages/server-d1/src/compose.ts`). Resources are `PUBLIC_BASE_URL` and `PUBLIC_BASE_URL/mcp`; the adapter's
     `audience` is that list. Discovery's issuer, `resource` and protected-resource fields come from `PUBLIC_BASE_URL`,
@@ -135,6 +138,21 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `set-cookie`, so side effects that must succeed before a session (acceptance, repair) go there. The sign-up body
     schema passes unknown fields through (`invitation_token`). The auth package reaches the vault only through a port
     the composition hands in (`InvitationAdmission`), never a database handle ([[CORE259]] D5).
+  - **Better Auth in-process calls and captured tokens** ([[CORE288]], `packages/auth/src/auth.ts`; 1.7.22).
+    `hooks.before` runs for in-process `auth.api.*` calls too (`dist/api/to-auth-endpoints.mjs`), and an in-process
+    call has `ctx.request === undefined`: that is how a gate refuses a public route (`/request-password-reset`,
+    `/forget-password`, `400 RESET_PASSWORD_DISABLED`) yet lets the server drive the same endpoint. Gate on both "no
+    request" and a server-registered waiter, so neither alone opens it. To take a secret the library would mail
+    (`sendResetPassword`'s `token`), register a per-address waiter before the call, resolve it in the callback, remove
+    it in `finally`, serialise calls per address, and read the row's expiry back through the library's adapter; never
+    take the library's `url`. One Better Auth instance serves both `/auth` and the in-process call (`createAuth`).
+    Device-grant access tokens are stateless JWTs with no stored row: revocation cannot kill one, so a removed member's
+    token stays denied only by the per-request membership read until it expires; what revocation can cut is sessions,
+    refresh tokens and unredeemed device codes (an approved device code still mints a token).
+  - **Invariants over a set of rows** (the last owner, [[CORE288]] D14 (c)): a plan-time read only picks the refusal
+    (`409 last_owner`); the guard itself is a correlated predicate ANDed into the UPDATE (`... and exists (another live
+    owner)`), so a lost race writes 0 rows, which is drift, and `replanOnDrift` re-reads and answers the plan-time
+    refusal. A prior read alone lets two owners remove each other.
   - **Better Auth social sign-in** ([[CORE294]], `packages/auth/src/auth.ts`; 1.7.22). A value the server must carry
     across the provider redirect goes into the OAuth state's server context (`addOAuthServerContext` in a
     `hooks.before` on `/sign-in/social`) and is read back **only** from `getOAuthState().serverContext`: top-level

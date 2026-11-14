@@ -2,6 +2,8 @@ import { connectionOperations, withWatchStop, type ConnectionsRuntime } from './
 import { contentOperations } from './messaging/content-operations.js'
 import { adminOperations } from './admin/operations.js'
 import { invitationOperations } from './invitations/operations.js'
+import { resetLinkOperation, withMembershipWrites } from './members/operations.js'
+import type { MembersRuntime } from './members/port.js'
 import type { InvitationsRuntime } from './invitations/port.js'
 import { accountOperations } from './account/operations.js'
 import { dealOperations } from './deals/operations.js'
@@ -41,7 +43,7 @@ import type { WebhooksRuntime } from './webhooks/config.js'
  * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
  * authorize operation reads ([[CHN5]] D58); the registry has the same operations whatever it is.
  */
-export function createVibaseRegistry(options: { connections?: ConnectionsRuntime; /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */ operations?: (registry: Registry) => void; /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */ webhooks?: WebhooksRuntime; /** [[CORE245]] P2: the control-plane port of the invitation operations; absent or null: this composition has no control store and they answer `501 provider_not_configured`. The registry has them all the same. */ invitations?: InvitationsRuntime | null } = {}): Registry {
+export function createVibaseRegistry(options: { connections?: ConnectionsRuntime; /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */ operations?: (registry: Registry) => void; /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */ webhooks?: WebhooksRuntime; /** [[CORE245]] P2: the control-plane port of the invitation operations; absent or null: this composition has no control store and they answer `501 provider_not_configured`. The registry has them all the same. */ invitations?: InvitationsRuntime | null; /** [[CORE288]] P1, P2: the membership writes' control-plane port; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */ members?: MembersRuntime | null } = {}): Registry {
   const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes).registerResource(tags)
   registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
   registry.registerResource(connections)
@@ -53,11 +55,15 @@ export function createVibaseRegistry(options: { connections?: ConnectionsRuntime
   for (const op of associationOperations(() => registry.resources())) registry.register(op)
   for (const op of contentOperations()) registry.register(op)
   registry.registerResource(memberships).registerResource(agents).registerResource(apiKeys)
+  // [[CORE288]]: the generated membership writes get their control-plane stages; the reset link is a hand-written operation beside `users.list`.
+  const memberWrites = withMembershipWrites(memberships, options.members ?? null)
+  registry.decorate('memberships.update', memberWrites.update).decorate('memberships.delete', memberWrites.delete)
   // [[API6]] D4: the feed's visibility map. Definitions register their own `eventName`; these are the types no definition names or that the feed hides.
   registry.registerEventType('association', { scope: 'associations', edge: true })
   registry.registerEventType('organization', { scope: 'members' })
   for (const op of adminOperations()) registry.register(op)
   for (const op of invitationOperations(options.invitations ?? null)) registry.register(op)
+  registry.register(resetLinkOperation(options.members ?? null))
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
   options.operations?.(registry)

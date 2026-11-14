@@ -34,13 +34,14 @@ describe('memberships (read-only: the directory sync is the only writer)', () =>
     membershipRecord.parse(await res.json())
   })
 
-  it('PATCH and DELETE have no route', async () => {
+  // [[CORE288]]: the writes are registered everywhere; the Postgres composition has no control store, so they answer 501 (Clerk keeps its own membership, the directory sync is the writer).
+  it('PATCH and DELETE are refused 501 provider_not_configured', async () => {
     const t = await k.seedOrg()
     const id = await mid(t.memberId)
     for (const [method, body] of [['PATCH', { role: 'owner' }], ['DELETE', undefined]] as const) {
       const res = await k.call(`/meta/v1/memberships/${id}`, 'o', { method, org: t.organizationId, body })
-      expect(res.status, method).toBe(404)
-      expect((await res.json()).error.code).toBe('not_found')
+      expect(res.status, method).toBe(501)
+      expect((await res.json()).error.code).toBe('provider_not_configured')
     }
     expect((await k.events()).filter((e) => e.type.startsWith('membership.'))).toHaveLength(0)
   })

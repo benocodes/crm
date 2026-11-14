@@ -6244,10 +6244,12 @@
                   "path": "/meta/v1/memberships",
                   "operations": [
                     "memberships.list",
-                    "memberships.get"
+                    "memberships.get",
+                    "memberships.update",
+                    "memberships.delete"
                   ],
                   "read_scope": "members:read",
-                  "write_scope": null,
+                  "write_scope": "members:write",
                   "sorts": [
                     {
                       "name": "id",

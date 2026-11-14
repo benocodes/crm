@@ -1,12 +1,12 @@
-import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type InvitationsRuntime, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
+import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type InvitationsRuntime, type MembersRuntime, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
-import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, acceptInvitation, findAdoptableInvitation, hasLiveInvitationForToken, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
+import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, acceptInvitation, findAdoptableInvitation, recordResetLinkIssued, revokeSubjectCredentials, hasLiveInvitationForToken, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { isUiPath, serveUi } from './ui-serving.js'
 import { gmailTransport } from '@vibase/api'
-import { AUTH_SERVER_METADATA_PATH, createAuthHandler, resourcesFor, type AuthRuntimeConfig } from '@vibase/auth'
+import { AUTH_SERVER_METADATA_PATH, createAuth, resourcesFor, type AuthRuntimeConfig, type AuthService } from '@vibase/auth'
 import { parseBuiltInAuthConfig } from './auth-config.js'
 import { invitationAdmission } from './invitation-admission.js'
 
@@ -135,7 +135,7 @@ export function composeD1Worker(
   // [[CORE243]] D1: Better Auth is mounted at /auth only for this provider; its configuration is read for no other.
   const builtIn = vars.AUTH_PROVIDER?.trim() === 'better-auth'
   let builtInConfig: AuthRuntimeConfig | undefined
-  let builtInHandler: ((req: Request) => Promise<Response>) | undefined
+  let builtInService: AuthService | undefined
   // [[CORE259]] D5: the control handle is opened here, once, and goes to the auth provider and the control gate below; nothing else is handed it.
   const control: ControlDb | undefined = builtIn && env.CONTROL_DB ? openControlDb(env.CONTROL_DB) : undefined
   try {
@@ -269,13 +269,55 @@ export function composeD1Worker(
   }
 
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
+  /**
+   * The built-in provider ([[CORE259]] D3: composed on the control-plane database, never on `DB`), built once per isolate: the `/auth` handler and the in-process reset-link issue share one instance.
+   * [[CORE287]]: the gate and acceptance. The port is the only way the auth package reaches the vault; the CRM binding is resolved per call from the deployment row. Only called once `builtInConfig` and `control` exist.
+   */
+  function builtInAuth(): AuthService {
+    builtInService ??= createAuth(
+      controlAuthDatabase(control!),
+      { ...builtInConfig!, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) },
+      {
+        admission: invitationAdmission({
+          store: { hasLive: (a) => hasLiveInvitationForToken(control!, a), findAdoptable: (a) => findAdoptableInvitation(control!, a), accept: (a) => acceptInvitation(control!, a) },
+          crm: async () => {
+            const link = await readDeployment(env.DB)
+            if (!link) throw new Error('the deployment is not initialised')
+            return d1Binding(env.DB, link)
+          },
+          clock,
+          newId,
+        }),
+      },
+    )
+    return builtInService
+  }
+
   // [[CORE245]] P2: the invitation operations' port over the control store, only with the built-in provider (`control` exists only for it); `PUBLIC_BASE_URL` names the invitation URL's origin.
   const invitations: InvitationsRuntime | null =
     control && builtInConfig
       ? { port: { create: (a) => createInvitation(control, a), list: (a) => listInvitations(control, a), revoke: (a) => revokeInvitation(control, a) }, publicBaseUrl: builtInConfig.baseURL }
       : null
+  // [[CORE288]] P5, P6: the membership writes' port over the control store and the built-in provider; the reset URL's origin is `PUBLIC_BASE_URL`.
+  const members: MembersRuntime | null =
+    control && builtInConfig
+      ? {
+          port: {
+            revokeCredentials: (a) => revokeSubjectCredentials(control, a),
+            issueResetLink: async (a) => {
+              const issued = await builtInAuth().issueResetToken(a.email)
+              if (!issued) return null
+              const expiresAt = issued.expiresAt.toISOString()
+              // The audit row comes before the answer: a link nobody can account for is never returned. A failure here leaves an unreturned verification row, inert until it expires.
+              await recordResetLinkIssued(control, { auditId: a.auditId, actorId: a.actorId, subject: a.subject, expiresAt, now: a.now })
+              return { token: issued.token, expiresAt }
+            },
+          },
+          publicBaseUrl: builtInConfig.baseURL,
+        }
+      : null
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
-    createApp({ storage: () => binding, invitations, workspace: { adapter: authAdapter, cliClientId }, gmail: { ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}), config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, webhooks, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
+    createApp({ storage: () => binding, invitations, members, workspace: { adapter: authAdapter, cliClientId }, gmail: { ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}), config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, webhooks, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
 
   async function ensure(): Promise<App | undefined> {
     if (app) return app
@@ -486,24 +528,7 @@ export function composeD1Worker(
           const refused = await controlGate()
           if (refused) return refused
           // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
-          // [[CORE287]]: the gate and acceptance. The port is the only way the auth package reaches the vault; the CRM binding is resolved per call from the deployment row.
-          builtInHandler ??= createAuthHandler(
-            controlAuthDatabase(control!),
-            { ...builtInConfig, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) },
-            {
-              admission: invitationAdmission({
-                store: { hasLive: (a) => hasLiveInvitationForToken(control!, a), findAdoptable: (a) => findAdoptableInvitation(control!, a), accept: (a) => acceptInvitation(control!, a) },
-                crm: async () => {
-                  const link = await readDeployment(env.DB)
-                  if (!link) throw new Error('the deployment is not initialised')
-                  return d1Binding(env.DB, link)
-                },
-                clock,
-                newId,
-              }),
-            },
-          )
-          return await builtInHandler(req)
+          return await builtInAuth().handler(req)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
         const page = await serveConnect(req, { assets: env.ASSETS, issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined })

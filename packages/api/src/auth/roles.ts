@@ -55,9 +55,10 @@ export const SCOPE_POLICY: ScopePolicy = {
   'webhooks:write': { member: false, agentGrantable: true },
   // Schema discovery ([[API63]] D8): designing against the schema is expected agent work.
   'schema:read': { member: true, agentGrantable: true },
-  // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. Memberships are
-  // read-only: Clerk is the source of truth ([[CORE3]] D1).
+  // Administration ([[CORE3]] D8, D15): humans only. Members read; only owners write agents. On Clerk memberships are read-only (Clerk is the source of truth, [[CORE3]] D1);
+  // `members:write` ([[CORE288]] P1) is the built-in provider's membership administration: owner-held, never a member or agent scope.
   'members:read': { member: true, agentGrantable: false },
+  'members:write': { member: false, agentGrantable: false },
   'agents:read': { member: true, agentGrantable: false },
   'agents:write': { member: false, agentGrantable: false },
   // Invitations ([[CORE245]] P1): owner-held and human-only, like agents:write. They live in the control plane; no agent ever holds them, and a member cannot read who was invited.

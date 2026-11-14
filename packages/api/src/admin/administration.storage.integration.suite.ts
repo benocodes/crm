@@ -523,8 +523,10 @@ export function engineSuite(engineName: EngineName): void {
         expect(await fail('memberships.get', { params: { id: extra.membershipId } })).toEqual([404, 'not_found', 'membership not found'])
       })
 
-      it('has no write operations', () => {
-        for (const op of ['create', 'update', 'delete']) expect(registry.get(`memberships.${op}`)).toBeUndefined()
+      // [[CORE288]]: a role change and a removal exist ([[CORE41]]'s directory sync stays the writer on Clerk); there is still no create (a membership is made by accepting an invitation).
+      it('has update and delete but no create', () => {
+        expect(registry.get('memberships.create')).toBeUndefined()
+        for (const op of ['update', 'delete']) expect(registry.get(`memberships.${op}`), op).toBeDefined()
       })
     })
 

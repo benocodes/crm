@@ -102,6 +102,18 @@ describe('against the D1 app', () => {
     expect(bad.code).not.toBe(0)
   })
 
+  it('the membership writes and the reset link are commands derived from the registry ([[CORE288]]): listed in help, and an agent without members:write is refused naming the scope', async () => {
+    const r = await session()
+    expect((await ok(r, ['memberships', '--help'])).stdout).toMatch(/update[\s\S]*delete|delete[\s\S]*update/)
+    expect((await ok(r, ['users', '--help'])).stdout).toContain('issue-reset-link')
+    const denied = await r.run(['memberships', 'update', '0190b2c4-0000-7000-8000-00000000dead', '--role', 'member'])
+    expect(denied.code).not.toBe(0)
+    expect(denied.stderr).toContain('members:write')
+    const reset = await r.run(['users', 'issue-reset-link', '--user-id', '0190b2c4-0000-7000-8000-00000000dead'])
+    expect(reset.code).not.toBe(0)
+    expect(reset.stderr).toContain('members:write')
+  })
+
   it('list --all follows next_cursor across pages and prints one NDJSON line per record', async () => {
     const r = await session()
     const ids: string[] = []
