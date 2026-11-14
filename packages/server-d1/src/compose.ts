@@ -138,7 +138,7 @@ export function composeD1Worker(
     if (builtIn && !control) throw new Error('AUTH_PROVIDER=better-auth requires the CONTROL_DB binding (the control-plane database)')
     if (builtIn) builtInConfig = parseBuiltInAuthConfig(vars)
     authAdapter = createWorkspaceAuthAdapter(vars, { fetch: deps.fetch, now: deps.clock })
-    // [[CORE244]] D8, D9, D23: the built-in provider's tokens are verified in-process against the keys in `auth_jwks`; the issuer and audience come from `PUBLIC_BASE_URL`, never a request. The reads go
+    // [[CORE244]] D8, D9, D23: the built-in provider's tokens are verified in-process against the provider's published signing keys; the issuer and audience come from `PUBLIC_BASE_URL`, never a request. The reads go
     // through the control store (the one place besides this composition that holds the handle, [[CORE259]] D5).
     if (builtIn && builtInConfig && control) {
       authAdapter = createBetterAuthAdapter({

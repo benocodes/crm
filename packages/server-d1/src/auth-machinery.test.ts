@@ -48,11 +48,13 @@ describe('the auth tables are machinery (D5)', () => {
     for (const table of AUTH_TABLES) expect(text, table).not.toContain(table)
   })
 
-  it('no vault production source (api, storage, storage-d1, server-d1) names an auth table: no operation reads or writes one', () => {
+  it('no vault production source (api, storage, storage-d1 except the control store, server-d1) names an auth table: no operation reads or writes one', () => {
     expect(AUTH_TABLES.length).toBeGreaterThanOrEqual(13)
     const offenders: string[] = []
     for (const pkg of ['api/src', 'storage/src', 'storage-d1/src', 'server-d1/src']) {
       for (const file of sources(join(PACKAGES, pkg))) {
+        // [[CORE244]]: the control store is the one module that reads the auth tables (the signing keys, the profile and the client name for token verification); it holds the control handle and no operation can reach it ([[CORE259]] D5, control-boundary.test.ts).
+        if (file.endsWith(join('storage-d1', 'src', 'control-store.ts'))) continue
         const text = readFileSync(file, 'utf8')
         for (const table of AUTH_TABLES) if (text.includes(table)) offenders.push(`${file.slice(PACKAGES.length)} names ${table}`)
       }

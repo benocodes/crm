@@ -3,11 +3,11 @@ import { ProfileNotFoundError } from './adapter.js'
 import type { AuthAdapter, AuthProfile, VerifyFailure, VerifyResult } from './adapter.js'
 
 /**
- * The built-in provider's token adapter ([[CORE244]] D8, D9, D23): a Bearer JWT minted by the Worker's own Better Auth, verified in-process against the public keys of `auth_jwks`. The
+ * The built-in provider's token adapter ([[CORE244]] D8, D9, D23): a Bearer JWT minted by the Worker's own Better Auth, verified in-process against the provider's public signing keys. The
  * reads (keys, profile, client name) are injected: composition supplies them from the control store, so this module never names the control-plane database ([[CORE259]] D5).
  */
 export interface BetterAuthKey {
-  /** The `kid` header Better Auth puts in a token: the `auth_jwks` row id. */
+  /** The `kid` header Better Auth puts in a token: the key row id. */
   kid: string
   /** The key's algorithm; Better Auth's default is `EdDSA`. */
   alg: string
