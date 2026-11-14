@@ -2,10 +2,10 @@
 // package's own prebuilt Worker with `--no-bundle`, verify `/health` and run the key-less smoke. `--rollback` deploys an older package's Worker without any migration.
 // Every wrangler call is the package's own wrangler on the generated config (never `--env`, never `pnpm exec`); the instance is only ever told what is in the package.
 import { parseArgs } from 'node:util'
-import { formatMigrationDiff, requireConfirm, statusOf } from '../remote.js'
+import { requireConfirm, statusOf } from '../remote.js'
 import { keylessChecks } from '../smoke-checks.js'
 import { withGeneratedConfig } from './config.js'
-import { childEnv, readTrackerAt, runGate } from './gate.js'
+import { childEnv, databasesCurrent, diffLines, pendingLines, readTrackerAt, runGate } from './gate.js'
 import { isRefusal, InstanceRefusal, type InstanceDeps } from './types.js'
 
 /** Exit codes ([[OPS234]] P2): 0 done or nothing to do; 2 refused before any remote write; 3 failed after a remote write began. */
@@ -21,7 +21,7 @@ const USAGE = 'usage: vibase-server upgrade --env <name> [--dry-run] [--rollback
 
 /** The exact argument list of the deploy: the release's own version and commit stamped as vars, no bundling. `check.ts` hands the same list to the installed wrangler. */
 export const deployArgs = (version: string, commit: string, configPath: string): string[] => ['deploy', '--no-bundle', '--var', `VERSION:${version}`, '--var', `COMMIT:${commit}`, '-c', configPath]
-export const migrateArgs = (configPath: string): string[] => ['d1', 'migrations', 'apply', 'DB', '--remote', '-c', configPath]
+export const migrateArgs = (configPath: string, binding: 'DB' | 'CONTROL_DB' = 'DB'): string[] => ['d1', 'migrations', 'apply', binding, '--remote', '-c', configPath]
 
 /** A failure after the first remote write began: names the step. */
 class StepFailure extends Error {
@@ -55,9 +55,9 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
     deps.out(`instance: ${settings.env} at ${url} (worker ${settings.worker}, settings ${g.settingsPath})`)
     deps.out(`live: version ${g.live.version}${g.live.commit ? `, commit ${g.live.commit}` : ''}`)
     for (const n of g.notes) deps.out(`note: ${n}`)
-    for (const l of formatMigrationDiff(g.applied, expected)) deps.out(l)
+    for (const l of diffLines(g)) deps.out(l)
 
-    if (!rollback && g.live.version === manifest.version && statusOf(g.applied, expected) === 'current') {
+    if (!rollback && g.live.version === manifest.version && databasesCurrent(g, statusOf(g.applied, expected))) {
       deps.out(`plan: nothing to do, the instance is at ${manifest.version}`)
       return EXIT_DONE
     }
@@ -66,8 +66,7 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
       deps.out('the database stays at its newer schema; the older Worker runs on it (migrations: ahead)')
     } else {
       deps.out(`plan: live ${g.live.version} -> package ${manifest.version}`)
-      deps.out(g.pending.length === 0 ? 'migrations to apply: none' : `migrations to apply (${g.pending.length}):`)
-      for (const n of g.pending) deps.out(`  ${n}`)
+      for (const l of pendingLines(g)) deps.out(l)
     }
     if (values['dry-run']) {
       deps.out('dry run: nothing was changed')
@@ -81,20 +80,27 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
     const tail = (r: { stdout: string; stderr: string }) => redact((r.stderr.trim() || r.stdout.trim()).slice(-400))
     withGeneratedConfig({ packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot }, (configPath) => {
       if (!rollback) {
-        step = 'migrate'
-        const m = wrangler(configPath, migrateArgs(configPath))
-        if (m.status !== 0) throw new StepFailure('migrate', `wrangler d1 migrations apply failed (exit ${m.status ?? 'none'}): ${tail(m)}`)
-        deps.out('migrate: applied')
-        step = 'tracker check'
-        let after: string[] | null
-        try {
-          after = readTrackerAt(configPath, g.secrets, deps)
-        } catch (e) {
-          throw new StepFailure('tracker check', e instanceof Error ? e.message : 'unreadable')
+        // Control first, then CRM ([[OPS275]] D14): each is applied, then its tracker must read exactly the shipped list before the next step.
+        const targets: { binding: 'DB' | 'CONTROL_DB'; label: string; expected: string[] }[] = [
+          ...(g.control ? [{ binding: 'CONTROL_DB' as const, label: ' control', expected: g.control.expected }] : []),
+          { binding: 'DB' as const, label: g.control ? ' crm' : '', expected },
+        ]
+        for (const t of targets) {
+          step = `migrate${t.label}`
+          const m = wrangler(configPath, migrateArgs(configPath, t.binding))
+          if (m.status !== 0) throw new StepFailure(step, `wrangler d1 migrations apply failed (exit ${m.status ?? 'none'}): ${tail(m)}`)
+          deps.out(`${step}: applied`)
+          step = `tracker check${t.label}`
+          let after: string[] | null
+          try {
+            after = readTrackerAt(configPath, g.secrets, deps, t.binding)
+          } catch (e) {
+            throw new StepFailure(step, e instanceof Error ? e.message : 'unreadable')
+          }
+          const status = statusOf(after, t.expected)
+          if (status !== 'current') throw new StepFailure(step, `after the migrations the ${t.binding === 'DB' ? '' : 'control '}database is ${status}, not current: not deploying`)
+          deps.out(`${step}: current`)
         }
-        const status = statusOf(after, expected)
-        if (status !== 'current') throw new StepFailure('tracker check', `after the migrations the database is ${status}, not current: not deploying`)
-        deps.out('tracker check: current')
       }
       step = 'deploy'
       const d = wrangler(configPath, deployArgs(manifest.version, manifest.commit, configPath))

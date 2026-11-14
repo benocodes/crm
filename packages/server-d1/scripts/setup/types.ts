@@ -57,7 +57,7 @@ export interface SetupDeps {
   readConfigText(): string
   writeConfigText(text: string): void
   /** The instance's remote D1 (a platform proxy in the real command). */
-  openD1(envName: string): Promise<{ d1: D1Like; dispose(): Promise<void> }>
+  openD1(envName: string): Promise<{ d1: D1Like; /** `CONTROL_DB`, when the env binds one (OPS279). */ control?: D1Like; dispose(): Promise<void> }>
   /** The Clerk env file ([[OPS65]] D34): resolves the path (default `.env.<env>` at the repo root), compares real paths with the root `.env`, asks git whether it is ignored, reads it. Never touches `process.env`. */
   probeEnvFile(arg: string | undefined, envName: string): EnvFileProbe
   readEnvText(): string
@@ -79,7 +79,11 @@ export interface SetupOptions {
   ownerEmail?: string
   workerName: string
   d1Name: string
+  /** The control-plane database ([[CORE259]] D16): `vb-control-<env>` unless a record or `--control-d1-name` says otherwise ([[OPS279]]). */
+  controlD1Name: string
   r2Name: string
+  /** The names given as flags, before any default or recorded name filled them ([[OPS276]] P3). */
+  nameFlags?: { workerName?: string; d1Name?: string; controlD1Name?: string; r2Name?: string }
   only?: StepName[]
   dryRun: boolean
   /** `--clerk-env-file`; default `.env.<env>` at the repo root. */

@@ -10,7 +10,7 @@ import { runInstance } from './main.js'
 import { parseInstanceSetupArgs } from './setup-args.js'
 import { ALL_MIGRATIONS, API_HOST, CLERK_ARGS, CLERK_SECRET_VALUES, CLERK_SECRETS_TEXT, NONE_ARGS, isWrite, setupWorld, type SetupWorld, type SetupWorldOptions } from './setup-kit.js'
 import { runSetup } from './setup.js'
-import { cleanup, mkTmp, packageLine, TOKEN, UUID, validSettings } from './test-kit.js'
+import { CONTROL_ALL, CONTROL_UUID, cleanup, mkTmp, packageLine, TOKEN, UUID, validSettings } from './test-kit.js'
 import { loadSettings } from './settings.js'
 import { deployArgs } from './upgrade.js'
 import { InstanceRefusal } from './types.js'
@@ -26,7 +26,7 @@ const run = (s: SetupWorld, argv: string[] = NONE_ARGS) => runSetup(argv, s.w.de
 const verbs = (s: SetupWorld) => s.w.wrangler.map((c) => c.args.filter((a) => !a.startsWith('-')).slice(0, 3).join(' '))
 const FRESH_SIM = {}
 /** The smoked1 shape: resources exist by name, the database is migrated and bootstrapped, `/health` shows a source deploy's sha. */
-const ADOPTED = () => ({ d1s: [{ uuid: UUID, name: 'vault-demo' }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], marker: { organization_id: 'org-1', auth_provider: 'none', auth_org_id: 'demo', organizations: 1 }, deployed: { version: 'a'.repeat(40), commit: null } })
+const ADOPTED = () => ({ d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: 'vb-control-demo' }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], marker: { organization_id: 'org-1', auth_provider: 'none', auth_org_id: 'demo', organizations: 1 }, deployed: { version: 'a'.repeat(40), commit: null } })
 const configsOf = (s: SetupWorld) => s.w.wrangler.flatMap((c) => (c.configText ? [JSON.parse(c.configText) as Record<string, any>] : []))
 const surface = (s: SetupWorld) => [s.w.all(), s.settings() ?? '', ...s.w.wrangler.map((c) => c.args.join(' ')), ...s.w.wrangler.flatMap((c) => (c.configText ? [c.configText] : []))].join('\n')
 
@@ -35,7 +35,7 @@ describe('arguments (P1)', () => {
     const o = parseInstanceSetupArgs(['--env', 'demo', '--api-host', API_HOST, '--owner-email', 'o@x.invalid', '--settings', '/s/demo.json', '--secrets-file', '/s/demo.env', '--only', 'migrate,deploy', '--rotate-secrets', '--no-dcr'])
     expect(o.settingsPath).toBe('/s/demo.json')
     expect(o.secretsPath).toBe('/s/demo.env')
-    expect(o.opts).toMatchObject({ env: 'demo', apiHost: API_HOST, auth: 'clerk', workerName: 'vault-demo', d1Name: 'vault-demo', r2Name: 'vault-demo-bodies', only: ['migrate', 'deploy'], rotateSecrets: true, noDcr: true })
+    expect(o.opts).toMatchObject({ env: 'demo', apiHost: API_HOST, auth: 'clerk', workerName: 'vb-demo', d1Name: 'vb-crm-demo', r2Name: 'vb-bodies-demo', only: ['migrate', 'deploy'], rotateSecrets: true, noDcr: true })
     expect(() => parseInstanceSetupArgs([...NONE_ARGS, '--clerk-env-file', '.env.demo'])).toThrow(/clerk-env-file/)
     expect(() => parseInstanceSetupArgs(['--api-host', API_HOST, '--auth', 'none'])).toThrow(/--env/)
     expect(() => parseInstanceSetupArgs([...NONE_ARGS, '--no-dcr'])).toThrow(/--auth clerk/)
@@ -57,13 +57,13 @@ describe('fresh install, release mode', () => {
       expect(c.args.join(' ')).not.toMatch(/\b(pnpm|git)\b/)
     }
     expect(readdirSync(s.w.tmpRoot)).toEqual([])
-    expect(s.writes().map((a) => a.slice(0, 3).join(' '))).toEqual(['d1 create vault-demo', 'r2 bucket create', 'd1 migrations apply', 'deploy --no-bundle --var'])
+    expect(s.writes().map((a) => a.slice(0, 3).join(' '))).toEqual(['d1 create vb-crm-demo', 'd1 create vb-control-demo', 'r2 bucket create', 'd1 migrations apply', 'd1 migrations apply', 'deploy --no-bundle --var'])
     const deploy = s.w.wrangler.find((c) => c.args[0] === 'deploy')!
     expect(deploy.args).toEqual(deployArgs('0.1.0', 'abc1234', deploy.configPath!))
-    expect(s.sim.d1s).toHaveLength(1)
+    expect(s.sim.d1s).toHaveLength(2)
     expect(s.sim.opened).toHaveLength(1)
     const settings = loadSettings(s.w.settingsPath, 'demo')
-    expect(settings).toEqual({ version: 1, env: 'demo', worker: 'vault-demo', api_host: API_HOST, d1: { name: 'vault-demo', id: s.sim.d1s[0]!.uuid }, r2_bucket: 'vault-demo-bodies', workflow: { name: 'vault-demo-mail-sync' }, vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' } })
+    expect(settings).toEqual({ version: 1, env: 'demo', worker: 'vb-demo', api_host: API_HOST, d1: { name: 'vb-crm-demo', id: s.sim.d1s[0]!.uuid }, control_d1: { name: 'vb-control-demo', id: s.sim.d1s[1]!.uuid }, r2_bucket: 'vb-bodies-demo', workflow: { name: 'vb-mail-sync-demo' }, vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' } })
 
     // The second identical run: every step ok, zero writes, the file byte for byte the same.
     const before = s.settings()
@@ -89,10 +89,12 @@ describe('fresh install, release mode', () => {
 describe('adoption and the settings file', () => {
   const fx = JSON.parse(readFileSync(new URL('./test/source-env-blocks.json', import.meta.url), 'utf8')) as Record<string, any>
   const pick = (c: Record<string, any>) => ({ name: c.name, routes: c.routes, d1: { ...c.d1_databases[0], migrations_dir: undefined }, r2_buckets: c.r2_buckets, vars: c.vars })
-  const FLAGS = [...NONE_ARGS, '--web-origin', 'https://app.demo.invalid']
+  // An instance adopted from `vault-` names with no settings file yet: the names come from flags ([[OPS276]]; with a file, from the record).
+  const ADOPT = ['--worker-name', 'vault-demo', '--d1-name', 'vault-demo', '--r2-name', 'vault-demo-bodies']
+  const FLAGS = [...NONE_ARGS, ...ADOPT, '--web-origin', 'https://app.demo.invalid']
 
   it('adopts existing resources by name (the smoked1 shape): nothing created, the file written with the adopted id, the marker found', async () => {
-    const s = world({ sim: ADOPTED() })
+    const s = world({ controlMarker: 'org-1', sim: ADOPTED() })
     expect(await run(s, FLAGS)).toBe(0)
     expect(s.writes().map((a) => a[0])).toEqual(['deploy'])
     expect(s.sim.opened).toHaveLength(0)
@@ -108,23 +110,23 @@ describe('adoption and the settings file', () => {
     const text = readFileSync(new URL('../setup/test/wrangler.fixture.jsonc', import.meta.url), 'utf8')
     expect((parse(reconcileEnvBlock(text, { env: 'demo', workerName: 'vault-demo', d1Name: 'vault-demo', d1Id: UUID, r2Name: 'vault-demo-bodies', apiHost: API_HOST, corsOrigins: 'https://app.demo.invalid' }).text) as any).env.demo).toEqual(fx.none)
 
-    const none = world({ sim: ADOPTED() })
+    const none = world({ controlMarker: 'org-1', sim: ADOPTED() })
     expect(await run(none, FLAGS)).toBe(0)
     expect(pick(configsOf(none).at(-1)!)).toEqual(pick(fx.none))
 
-    const clerk = world({ sim: { ...ADOPTED(), marker: { organization_id: 'org-1', auth_provider: 'clerk', auth_org_id: 'https://acme-test-12.clerk.accounts.dev', organizations: 1 }, clerk: makeClerk() }, secretsText: CLERK_SECRETS_TEXT })
-    expect(await run(clerk, CLERK_ARGS)).toBe(0)
+    const clerk = world({ controlMarker: 'org-1', sim: { ...ADOPTED(), marker: { organization_id: 'org-1', auth_provider: 'clerk', auth_org_id: 'https://acme-test-12.clerk.accounts.dev', organizations: 1 }, clerk: makeClerk() }, secretsText: CLERK_SECRETS_TEXT })
+    expect(await run(clerk, [...CLERK_ARGS, ...ADOPT])).toBe(0)
     expect(pick(configsOf(clerk).at(-1)!)).toEqual(pick(fx.clerk))
     expect(loadSettings(clerk.w.settingsPath, 'demo').vars).toEqual(fx.clerk.vars)
   })
 
   it('a settings file that differs from the flags fails config:write, names the key, and stays unchanged', async () => {
-    const s = world({ sim: ADOPTED(), settings: validSettings({ r2_bucket: 'some-other-bucket' }) })
+    const s = world({ controlMarker: 'org-1', sim: ADOPTED(), settings: validSettings({ api_host: 'other.demo.invalid', control_d1: { name: 'vb-control-demo', id: CONTROL_UUID } }) })
     const before = s.settings()
     expect(await run(s)).toBe(3)
     const fail = s.rows().find((r) => r.status === 'fail')!
     expect(fail.step).toBe('config:write')
-    expect(fail.detail).toMatch(/r2_bucket/)
+    expect(fail.detail).toMatch(/api_host/)
     expect(s.rows().map((r) => r.step)).not.toContain('migrate')
     expect(s.settings()).toBe(before)
     expect(s.writes()).toEqual([])
@@ -202,19 +204,19 @@ describe('refusals and failures (the matrix)', () => {
     expect(s.w.err.join('\n')).toMatch(new RegExp(`^vibase-server setup: ${step} failed`))
   }
   it('ahead at migrate: exit 3, nothing deployed', async () => {
-    const s = world({ sim: { ...ADOPTED(), applied: [...ALL_MIGRATIONS, '0003_from_the_future.sql'] } })
+    const s = world({ controlMarker: 'org-1', sim: { ...ADOPTED(), applied: [...ALL_MIGRATIONS, '0003_from_the_future.sql'] } })
     failedAt(s, await run(s), 'migrate')
     expect(s.writes().filter((a) => a[0] === 'deploy' || a.includes('apply'))).toEqual([])
     expect(s.w.out.join('\n')).toMatch(/0003_from_the_future/)
   })
   it('the deploy fails: exit 3, no secrets and no verify', async () => {
-    const s = world({ sim: { ...ADOPTED(), failDeploy: true } })
+    const s = world({ controlMarker: 'org-1', sim: { ...ADOPTED(), failDeploy: true } })
     failedAt(s, await run(s), 'deploy')
     expect(s.rows().map((r) => r.step)).not.toContain('secrets')
     expect(s.sim.bulk).toEqual([])
   })
   it('verify never sees the package version: exit 3 after the 300 s bound on the injected clock', async () => {
-    const s = world({ sim: { ...ADOPTED(), deployed: { version: '0.0.9', commit: null }, deployNoop: true } })
+    const s = world({ controlMarker: 'org-1', sim: { ...ADOPTED(), deployed: { version: '0.0.9', commit: null }, deployNoop: true } })
     failedAt(s, await run(s), 'verify')
     expect(s.w.clock.t).toBeGreaterThanOrEqual(300_000)
     expect(s.w.clock.t).toBeLessThan(400_000)
@@ -241,7 +243,7 @@ describe('refusals and failures (the matrix)', () => {
 })
 
 describe('bootstrap from the release (P3, P4)', () => {
-  const OPERATOR = [...NONE_ARGS, '--owner-email', 'owner@example.com', '--operator-agent', 'operator', '--key-env', 'DEMO_KEY']
+  const OPERATOR = [...NONE_ARGS, '--worker-name', 'vault-demo', '--d1-name', 'vault-demo', '--r2-name', 'vault-demo-bodies', '--owner-email', 'owner@example.com', '--operator-agent', 'operator', '--key-env', 'DEMO_KEY']
   const count = async (table: string) => ((await d1.d1.prepare(`select count(*) as n from ${table}`).first()) as { n: number }).n
 
   it('opens the generated config with remoteBindings and no persistence, and writes the marker, the organisation and the operator key to the secrets file', async () => {
@@ -307,7 +309,7 @@ describe('secrets and side effects', () => {
   })
 
   it('a failing wrangler that echoes its whole environment leaks nothing into the output', async () => {
-    const s = world({ sim: { ...ADOPTED(), failDeploy: true, clerk: makeClerk(), marker: { organization_id: 'o', auth_provider: 'clerk', auth_org_id: 'https://acme-test-12.clerk.accounts.dev', organizations: 1 } }, secretsText: CLERK_SECRETS_TEXT })
+    const s = world({ controlMarker: 'o', sim: { ...ADOPTED(), failDeploy: true, clerk: makeClerk(), marker: { organization_id: 'o', auth_provider: 'clerk', auth_org_id: 'https://acme-test-12.clerk.accounts.dev', organizations: 1 } }, secretsText: CLERK_SECRETS_TEXT })
     expect(await run(s, CLERK_ARGS)).toBe(3)
     const deploy = s.w.wrangler.find((c) => c.args[0] === 'deploy')!
     expect(deploy.env.CLOUDFLARE_API_TOKEN).toBe(TOKEN)

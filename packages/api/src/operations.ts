@@ -1,6 +1,8 @@
 import { connectionOperations, withWatchStop, type ConnectionsRuntime } from './connections/operations.js'
 import { contentOperations } from './messaging/content-operations.js'
 import { adminOperations } from './admin/operations.js'
+import { invitationOperations } from './invitations/operations.js'
+import type { InvitationsRuntime } from './invitations/port.js'
 import { accountOperations } from './account/operations.js'
 import { dealOperations } from './deals/operations.js'
 import { identityOperations } from './identity/operations.js'
@@ -39,7 +41,7 @@ import type { WebhooksRuntime } from './webhooks/config.js'
  * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
  * authorize operation reads ([[CHN5]] D58); the registry has the same operations whatever it is.
  */
-export function createVibaseRegistry(options: { connections?: ConnectionsRuntime; /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */ operations?: (registry: Registry) => void; /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */ webhooks?: WebhooksRuntime } = {}): Registry {
+export function createVibaseRegistry(options: { connections?: ConnectionsRuntime; /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */ operations?: (registry: Registry) => void; /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */ webhooks?: WebhooksRuntime; /** [[CORE245]] P2: the control-plane port of the invitation operations; absent or null: this composition has no control store and they answer `501 provider_not_configured`. The registry has them all the same. */ invitations?: InvitationsRuntime | null } = {}): Registry {
   const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes).registerResource(tags)
   registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
   registry.registerResource(connections)
@@ -55,6 +57,7 @@ export function createVibaseRegistry(options: { connections?: ConnectionsRuntime
   registry.registerEventType('association', { scope: 'associations', edge: true })
   registry.registerEventType('organization', { scope: 'members' })
   for (const op of adminOperations()) registry.register(op)
+  for (const op of invitationOperations(options.invitations ?? null)) registry.register(op)
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
   options.operations?.(registry)

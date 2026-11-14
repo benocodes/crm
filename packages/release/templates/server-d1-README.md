@@ -14,6 +14,6 @@ Or install it, then run `vibase-server <command>`. The package that runs is the 
 
 The settings and secrets of an instance are files outside the package: `$XDG_CONFIG_HOME/vibase/instances/<env>.json` and `<env>.env` (mode 600, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`). Remote commands need `CONFIRM_REMOTE=1`; `--dry-run` reads only. `vibase-server --help` lists every flag.
 
-The stable paths other tooling may rely on are the package's `exports`: `./worker`, `./wrangler.base.jsonc`, `./release.json`, `./migrations/*`, `./assets/*` and `./package.json`.
+The stable paths other tooling may rely on are the package's `exports`: `./worker`, `./wrangler.base.jsonc`, `./release.json`, `./migrations/*`, `./control-migrations/*` (the control-plane database's migrations), `./assets/*` and `./package.json`.
 
 Node 22 or newer. Licence: AGPL-3.0-only.

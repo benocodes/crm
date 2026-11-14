@@ -5,10 +5,12 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { unstable_readConfig } from 'wrangler'
-import { MIGRATIONS } from '@vibase/storage-d1'
-import { CONFIG_PATH, PACKAGE_DIR, RemoteRefusal, formatMigrationDiff, loadRootEnv, parseEnvFlag, parseTrackerOutput, requireConfirm, resolveTarget, statusExitCode, statusOf, trackerReadCommand, type Cmd, type ConfigLike, type Target } from './remote.js'
+import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
+import { CONFIG_PATH, PACKAGE_DIR, controlNotConfigured, RemoteRefusal, formatMigrationDiff, loadRootEnv, parseEnvFlag, parseTrackerOutput, requireConfirm, resolveTarget, statusExitCode, statusOf, trackerReadCommand, type Cmd, type ConfigLike, type Target } from './remote.js'
 
 export const EXPECTED = MIGRATIONS.map((m) => m.name)
+/** The control plane's shipped set ([[CORE259]] D4): "current" is applied equals this, exactly. */
+export const CONTROL_EXPECTED = CONTROL_MIGRATIONS.map((m) => m.name)
 
 export interface StatusDeps {
   loadEnv(): void
@@ -36,18 +38,28 @@ export function guardedTarget(argv: string[], procEnv: NodeJS.ProcessEnv, deps: 
 }
 
 /** Reads the applied names (`null`: no tracker). A failed read throws. */
-export function readApplied(envName: string, deps: Pick<StatusDeps, 'exec'>): string[] | null {
-  const r = deps.exec(trackerReadCommand(envName))
+export function readApplied(envName: string, deps: Pick<StatusDeps, 'exec'>, binding: 'DB' | 'CONTROL_DB' = 'DB'): string[] | null {
+  const r = deps.exec(trackerReadCommand(envName, binding))
   return parseTrackerOutput(r.stdout)
 }
 
-/** Prints the diff and returns the exit code. */
+/**
+ * Prints each database's diff and returns the exit code ([[OPS260]] D14): the control database first when the env has one, then the CRM database. Exit 0 only when every configured
+ * database is current; each line names its database. An env with no `CONTROL_DB` entry is reported CRM only, with one line saying so (P1).
+ */
 export function runStatus(argv: string[], procEnv: NodeJS.ProcessEnv, deps: StatusDeps): number {
   const target = guardedTarget(argv, procEnv, deps)
+  let code = 0
+  if (target.control) {
+    deps.log(`target: env ${target.env}, control database ${target.control.databaseName} (${target.control.databaseId})`)
+    const applied = readApplied(target.env, deps, 'CONTROL_DB')
+    for (const line of formatMigrationDiff(applied, CONTROL_EXPECTED)) deps.log(`[control] ${line}`)
+    code = Math.max(code, statusExitCode(statusOf(applied, CONTROL_EXPECTED)))
+  } else deps.log(controlNotConfigured(target.env))
   deps.log(`target: env ${target.env}, database ${target.databaseName} (${target.databaseId})`)
   const applied = readApplied(target.env, deps)
-  for (const line of formatMigrationDiff(applied, EXPECTED)) deps.log(line)
-  return statusExitCode(statusOf(applied, EXPECTED))
+  for (const line of formatMigrationDiff(applied, EXPECTED)) deps.log(`[crm] ${line}`)
+  return Math.max(code, statusExitCode(statusOf(applied, EXPECTED)))
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

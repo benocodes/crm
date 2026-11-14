@@ -194,8 +194,8 @@ pnpm -C packages/server-d1 exec wrangler d1 create vault-smoked1
 pnpm -C packages/server-d1 exec wrangler r2 bucket create vault-smoked1-bodies
 
 # Shipping order: migrate (only when packages/storage-d1/migrations changed), then deploy, then look
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env smoked1   # prints the applied-versus-expected diff before and after
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env smoked1    # read-only: the same diff, exit 0 only when current
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env smoked1   # prints the applied-versus-expected diff before and after, per database: the control database (CONTROL_DB) first when the env has one, then the CRM database; an env with no CONTROL_DB entry is CRM only and says so
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env smoked1    # read-only: the same diff per database, exit 0 only when every configured database is current
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env smoked1   # clean tree; typecheck and tests first; --var VERSION:<sha>
 curl https://api.smoked1.vibase.ai/health                                    # shows the deployed sha
 

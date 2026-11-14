@@ -104,6 +104,41 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     reader is a spec decision. Under `better-auth` the Worker fails closed without the binding (`500`, log names
     `CONTROL_DB`), refuses an untracked or behind control database (`503 migrations_pending`) and an unpaired control
     marker (`500`, log `control database not paired`); `clerk` and unset never open it.
+  - **Better Auth tokens on the API** ([[CORE243]] D8 as pinned by [[CORE244]]; `packages/api/src/auth/better-auth.ts`):
+    the adapter's `roleSource` is `'membership'` (role read live from `memberships` per request, in the principal
+    lookup's read-only unit; Clerk stays `'claim'`). Kinds: header `typ: at+jwt` (+ `client_id`) = OAuth access token;
+    claim `vibase_token: "session"` (from `jwt.definePayload` in `@vibase/auth`, no `client_id`/`azp`) = session JWT;
+    anything else (an OIDC ID token) is `401`. Better Auth 1.7.22 facts that bit: the `jwt` plugin's default `iss`/`aud`
+    are the bare origin (set `issuer` = `<PUBLIC_BASE_URL>/auth`, `audience` = `PUBLIC_BASE_URL`); the provider refuses
+    any scope it was not configured with, so the registry's declared scopes are passed in (`vaultScopes`); an access
+    token is a JWT only when the client sends `resource=<PUBLIC_BASE_URL>`, otherwise it is opaque and refused. Key,
+    profile and client-name reads go through the control store (`readAuthJwks`, `readAuthProfile`,
+    `readOAuthClientName`), the only code outside the provider that names `auth_*` tables.
+  - **Better Auth clients, DCR and discovery** ([[CORE243]] D10–D12 as built by [[CORE283]]; `packages/auth/src/auth.ts`,
+    `packages/server-d1/src/compose.ts`). Resources are `PUBLIC_BASE_URL` and `PUBLIC_BASE_URL/mcp`; the adapter's
+    `audience` is that list. Discovery's issuer, `resource` and protected-resource fields come from `PUBLIC_BASE_URL`,
+    never the request host. `createAuthHandler` itself answers `/.well-known/oauth-authorization-server/auth` (path
+    insertion); the Worker routes that path to it through the same gates as `/auth/*`, `better-auth` only. Better Auth
+    1.7.22 facts that bit: DCR's default `application_type` is `web`, which refuses native clients' loopback redirects
+    (set `clientRegistrationDefaultApplicationType: 'infer'`); an absent `token_endpoint_auth_method` means
+    confidential, so public-only is a `before` hook on `/oauth2/register`; resource rows are written insert-only and
+    a client's resource link has an FK to them, so a seed creates the resource rows first and keeps `allowedScopes`
+    off them (a list there goes stale); a refresh can never widen the resource of the grant; the rate limiter with no
+    `cf-connecting-ip` puts every caller in one shared `no-trusted-ip` bucket per path. Seed first-party rows through
+    the library's adapter (`auth.$context.adapter`, `seedFirstPartyClient`), not SQL, and update only when the stored
+    shape differs, so a converged re-run leaves `updated_at` alone.
+  - **Better Auth hook points** ([[CORE287]], `packages/auth/src/auth.ts`; 1.7.22). `hooks.before` on a path runs
+    before the password hash and before the library's own existing-email `422 USER_ALREADY_EXISTS`, so a gate that must
+    not be an account-existence oracle sits there. `databaseHooks.user.create.before` is the one point EVERY account
+    creation passes (its `ctx.body` is the request body): put the backstop there. `databaseHooks.session.create.before`
+    runs on sign-up and every sign-in before the cookie: throwing an `APIError` answers that status with no
+    `set-cookie`, so side effects that must succeed before a session (acceptance, repair) go there. The sign-up body
+    schema passes unknown fields through (`invitation_token`). The auth package reaches the vault only through a port
+    the composition hands in (`InvitationAdmission`), never a database handle ([[CORE259]] D5).
+  - **Commits across the CRM and control databases** ([[CORE259]] D9, [[CORE287]]): with "CRM program commits, then
+    the control batch", repair must handle each partial state separately: neither half written (re-run both), and
+    the CRM half written without the control half (finish the control batch only). A short-circuit on "already
+    linked" silently drops the second case; CORE287's review had to add it.
   - **workerd streams** ([[CORE69]]): R2's `put` refuses a `ReadableStream` of unknown length (`TypeError`), so pipe a
     known-size stream through `FixedLengthStream(size)` and send an unknown-size one through `ObjectStore.putStream`
     (buffer to 5 MiB, else multipart). `crypto.DigestStream` and `FixedLengthStream` reach `@vibase/api` only as
@@ -247,11 +282,18 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 
 ## The registry and the REST adapter ([[CORE15]])
 
-- **An operation** is `{ kind: 'tenant' | 'account', name, summary, method, path, request?, validation?,
+- **An operation** is `{ kind: 'tenant' | 'account' | 'control', name, summary, method, path, request?, validation?,
   response, prepare }`. `scope` is required on tenant operations; account operations take none and are
   for users only (`403 user_required`). An account operation is `prepare(env: AccountEnv, input)` returning a
   **read-only** prepared operation, run with the `account` storage identity ([[CORE41]] P12). One that must write
   becomes an internal unit with an explicit organisation instead.
+  - **A `control` operation** ([[CORE245]], [[CORE243]] D14; `ControlOperation` in `src/registry.ts`) acts on the
+    control plane, not the CRM: scope-checked like a tenant operation (its scopes count in `declaredScopes`), it runs
+    `run(env, input)` against a narrow port its factory closes over (`InvitationsPort` in `src/invitations/port.ts`,
+    implemented by composition over the control store), with no storage unit, no proposal and no CRM event. Where
+    composition hands in no port (`clerk`, unset) it answers `501 provider_not_configured`; it stays registered on every
+    provider, so there is one registry and one golden. Reuse this kind for the next control-plane resource
+    (`audit.list`, [[CORE261]]) rather than adding another.
   - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
     derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
   - `surface` is required, `'api'` (records) or `'meta'` (configuration: agents, API keys, members, users, `me`,
@@ -737,6 +779,14 @@ interactive transaction, no `withContext` and no `executor` marker.
   - **A statement that inserts no row resets D1's `changes()` to 0**, and so does a holding assertion. Never put
     an `appliedPrev`-gated statement (such as `eventStatement`) directly after an assertion. Gate it on an
     `exists (event id)` instead, or rely on the `exactly` before it.
+  - **Check-then-write belongs inside the batch, not before it** ([[CORE245]], `packages/storage-d1/src/control-store.ts`).
+    A guard read in its own query and acted on in a later `batch()` is a race: a concurrent writer lands in between.
+    Put the guard in the write (`insert ... select ... where not exists (live same email)`), make the dependent row
+    conditional on it (the audit row as `insert ... select ... from invitations where id = ?`, so it exists only if the
+    change did), and read `meta.changes` of the guarded statement for the outcome. Set-based changes go the same way
+    (`update ... where role = 'owner' and <live>` rather than reading ids first). `reissueOwnerInvitation` still reads
+    the live owner invitations before its batch (acceptable for a single-operator bootstrap; not for [[OPS249]]'s
+    `owner-reset`).
   - **A compare-and-set `UPDATE` that matches no row does not fail a `batch()`.** To learn whether it applied,
     follow it with a `result` step gated on `appliedPrev`. A cursor moved this way, with the rows it covers made
     idempotent by a unique pair `ON CONFLICT DO NOTHING`, guarantees "each row once, the cursor never moves back".

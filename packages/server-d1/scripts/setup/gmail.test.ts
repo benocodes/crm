@@ -56,8 +56,8 @@ beforeEach(async () => {
   await db.reset()
 })
 
-const D1S = [{ uuid: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', name: 'vault-acme' }]
-const R2S = ['vault-acme-bodies']
+const D1S = [{ uuid: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', name: 'vb-crm-acme' }, { uuid: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', name: 'vb-control-acme' }]
+const R2S = ['vb-bodies-acme']
 function setup(gmail: Record<string, string | undefined> | null, o: Partial<WorldOptions> = {}, clerk = false): { w: World; clerk: FakeClerk } {
   const fake = makeClerk()
   const text = gmail === null ? (clerk ? clerkPair : null) : `${clerk ? clerkPair : ''}${file(gmail)}`
@@ -66,7 +66,7 @@ function setup(gmail: Record<string, string | undefined> | null, o: Partial<Worl
 /** `env.acme` as a clerk first run writes it (so `config:write` has the CLI client id without the clerk step). */
 const clerkConfig = () =>
   reconcileEnvBlock(realConfig, {
-    env: 'acme', workerName: 'vault-acme', d1Name: 'vault-acme', d1Id: D1S[0]!.uuid, r2Name: 'vault-acme-bodies', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
+    env: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', d1Id: D1S[0]!.uuid, controlD1Name: 'vb-control-acme', controlD1Id: D1S[1]!.uuid, r2Name: 'vb-bodies-acme', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
     authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: PK_TEST, CLERK_AUTHORIZED_PARTIES: 'https://api.acme.vibase.ai', AUTH_CLI_CLIENT_ID: 'client_1' },
   }).text
 const ARGS = { none: NONE, clerk: CLERK } as const

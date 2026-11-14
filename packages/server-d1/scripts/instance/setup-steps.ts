@@ -5,14 +5,14 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { uuidv7, execute } from '@vibase/storage'
-import { d1Binding } from '@vibase/storage-d1'
+import { d1Binding, openControlDb, writeControlMarker } from '@vibase/storage-d1'
 import { bootstrapD1, probeBatchAtomicity } from '../../src/bootstrap-d1.js'
 import { initDeploymentOperation } from '../../src/init-deployment.js'
 import { PLACEHOLDER_DATABASE_ID, formatMigrationDiff, statusOf } from '../remote.js'
 import { clerkStep, configuredCliClientId, signingKeyPem, type ClerkCtx } from '../setup/clerk.js'
 import type { ClerkKeys } from '../setup/clerk-keys.js'
 import { desiredBlock } from '../setup/config-editor.js'
-import { MARKER_SQL, parseD1List, parseMarkerOutput, parseR2List, parseSecretList, parseTrackerOutput } from '../setup/commands.js'
+import { CONTROL_MARKER_SQL, MARKER_SQL, parseControlMarkerOutput, parseD1List, parseMarkerOutput, parseR2List, parseSecretList, parseTrackerOutput } from '../setup/commands.js'
 import { GMAIL_SECRET_NAMES, NEVER_REPLACED, type Gmail } from '../setup/gmail.js'
 import { preflight } from '../setup/steps.js'
 import type { Credentials, SetupOptions, StepName, StepResult } from '../setup/types.js'
@@ -57,6 +57,9 @@ export function isWriteArgs(args: readonly string[]): boolean {
   return j.includes(' d1 create ') || j.includes(' r2 bucket create ') || j.includes(' d1 migrations apply ') || args[0] === 'deploy' || j.includes(' secret bulk ')
 }
 
+/** [[OPS262]] D5: a new instance's Workflow; an existing record's name wins (the settings file's `workflow.name`). */
+export const workflowName = (env: string): string => `vb-mail-sync-${env}`
+
 const CORS = (o: SetupOptions) => o.origins.join(',')
 
 /** The settings the flags (and the clerk and Gmail inputs) ask for; the database id is the discovered one, or the placeholder while it is only planned. */
@@ -64,6 +67,7 @@ export function desiredSettings(ctx: SetupCtx): InstanceSettings {
   const { opts } = ctx
   const clerk = opts.auth === 'clerk'
   const d1 = ctx.facts?.d1s.find((d) => d.name === opts.d1Name)
+  const control = ctx.facts?.d1s.find((d) => d.name === opts.controlD1Name)
   const cliId = clerk ? (ctx.cliClientId ?? configuredCliClientId(ctx.deps.readConfigText(), opts.env)) : undefined
   const block = desiredBlock({
     env: opts.env,
@@ -84,8 +88,9 @@ export function desiredSettings(ctx: SetupCtx): InstanceSettings {
     worker: opts.workerName,
     api_host: opts.apiHost,
     d1: { name: opts.d1Name, id: d1?.uuid ?? PLACEHOLDER_DATABASE_ID },
+    control_d1: { name: opts.controlD1Name, id: control?.uuid ?? PLACEHOLDER_DATABASE_ID },
     r2_bucket: opts.r2Name,
-    workflow: { name: `${opts.workerName}-mail-sync` },
+    workflow: { name: ctx.existing?.workflow.name ?? workflowName(opts.env) },
     vars: block.vars as Record<string, string>,
   }
 }
@@ -96,7 +101,7 @@ const effective = (ctx: SetupCtx): InstanceSettings => ctx.current ?? desiredSet
 /** Every wrangler call goes through here: a write in a dry run is refused in code, and the config is generated for the call and gone after it. */
 function wr(ctx: SetupCtx, args: string[] | ((configPath: string) => string[]), o: { input?: string } = {}): RunResult {
   const settings = effective(ctx)
-  return withGeneratedConfig({ packageDir: ctx.deps.packageDir, settings, tmpRoot: ctx.deps.tmpRoot, resourcesOnly: settings.d1.id === PLACEHOLDER_DATABASE_ID }, (configPath) => {
+  return withGeneratedConfig({ packageDir: ctx.deps.packageDir, settings, tmpRoot: ctx.deps.tmpRoot, resourcesOnly: settings.d1.id === PLACEHOLDER_DATABASE_ID || settings.control_d1?.id === PLACEHOLDER_DATABASE_ID }, (configPath) => {
     const full = typeof args === 'function' ? args(configPath) : [...args, '-c', configPath]
     if (isWriteArgs(full)) {
       if (ctx.opts.dryRun) throw new Error(`refusing to run a write command in a dry run: ${full.join(' ')}`)
@@ -119,18 +124,19 @@ function readFacts(ctx: SetupCtx, fresh = false): NonNullable<SetupCtx['facts']>
 const preflightStep: Step = async (ctx) => preflight(ctx)
 
 const configResources: Step = async (ctx) => {
-  const facts = readFacts(ctx)
+  readFacts(ctx)
   const planned: string[] = []
-  const { d1Name, r2Name } = ctx.opts
+  const { d1Name, controlD1Name, r2Name } = ctx.opts
   const dry = ctx.opts.dryRun
-  if (!facts.d1s.some((d) => d.name === d1Name)) {
-    planned.push(`D1 ${d1Name}`)
-    if (!dry) {
-      const r = wr(ctx, ['d1', 'create', d1Name])
-      if (r.status !== 0) return result('config:resources', 'fail', `wrangler d1 create ${d1Name} failed (exit ${r.status ?? 'none'})`, [tail(ctx, r)].filter(Boolean))
-      readFacts(ctx, true)
-      if (!ctx.facts!.d1s.some((d) => d.name === d1Name)) return result('config:resources', 'fail', `D1 ${d1Name} was created but is not in wrangler d1 list`)
-    }
+  // The CRM database first, then the control database ([[OPS279]] P4: every instance gets one, whatever `--auth`).
+  for (const name of [d1Name, controlD1Name]) {
+    if (ctx.facts!.d1s.some((d) => d.name === name)) continue
+    planned.push(`D1 ${name}`)
+    if (dry) continue
+    const r = wr(ctx, ['d1', 'create', name])
+    if (r.status !== 0) return result('config:resources', 'fail', `wrangler d1 create ${name} failed (exit ${r.status ?? 'none'})`, [tail(ctx, r)].filter(Boolean))
+    readFacts(ctx, true)
+    if (!ctx.facts!.d1s.some((d) => d.name === name)) return result('config:resources', 'fail', `D1 ${name} was created but is not in wrangler d1 list`)
   }
   if (!ctx.facts!.r2s.includes(r2Name)) {
     planned.push(`R2 ${r2Name}`)
@@ -139,10 +145,10 @@ const configResources: Step = async (ctx) => {
       if (r.status !== 0) return result('config:resources', 'fail', `wrangler r2 bucket create ${r2Name} failed (exit ${r.status ?? 'none'})`, [tail(ctx, r)].filter(Boolean))
     }
   }
-  if (planned.length === 0) return result('config:resources', 'ok', `D1 ${d1Name} and R2 ${r2Name} exist`)
+  if (planned.length === 0) return result('config:resources', 'ok', `D1 ${d1Name}, D1 ${controlD1Name} and R2 ${r2Name} exist`)
   const state = (n: string) => (planned.includes(n) ? (dry ? 'would create' : 'created') : 'exists')
   if (dry) ctx.pending = true
-  return result('config:resources', 'create', planned.join(', '), [`D1 ${d1Name}: ${state(`D1 ${d1Name}`)}`, `R2 ${r2Name}: ${state(`R2 ${r2Name}`)}`])
+  return result('config:resources', 'create', planned.join(', '), [`D1 ${d1Name}: ${state(`D1 ${d1Name}`)}`, `D1 ${controlD1Name} (control): ${state(`D1 ${controlD1Name}`)}`, `R2 ${r2Name}: ${state(`R2 ${r2Name}`)}`])
 }
 
 const textOf = (s: InstanceSettings): string => `${JSON.stringify(s, null, 2)}\n`
@@ -180,8 +186,17 @@ const configWrite: Step = async (ctx) => {
   if (desired.d1.id !== PLACEHOLDER_DATABASE_ID) same('d1.id', existing.d1.id, desired.d1.id)
   same('r2_bucket', existing.r2_bucket, desired.r2_bucket)
   same('workflow.name', existing.workflow.name, desired.workflow.name)
-  const vars = { ...existing.vars }
+  // [[OPS279]]: the control database is recorded once and never changed; an instance recorded without one gets it (P4).
+  let control_d1 = existing.control_d1
   const added: string[] = []
+  if (existing.control_d1 === undefined) {
+    control_d1 = desired.control_d1
+    added.push('control_d1')
+  } else {
+    same('control_d1.name', existing.control_d1.name, desired.control_d1!.name)
+    if (desired.control_d1!.id !== PLACEHOLDER_DATABASE_ID) same('control_d1.id', existing.control_d1.id, desired.control_d1!.id)
+  }
+  const vars = { ...existing.vars }
   for (const [k, v] of Object.entries(desired.vars)) {
     const here = existing.vars[k]
     if (here === undefined || (k === 'CLERK_PUBLISHABLE_KEY' && here === '')) {
@@ -204,18 +219,19 @@ const configWrite: Step = async (ctx) => {
     ctx.current = existing
     return result('config:write', 'ok', `${ctx.settingsPath} is as desired`)
   }
-  return write({ ...existing, vars }, `write ${added.join(', ')} into ${ctx.settingsPath}`, 'update')
+  return write({ ...existing, ...(control_d1 ? { control_d1 } : {}), vars }, `write ${added.join(', ')} into ${ctx.settingsPath}`, 'update')
 }
 
 const blocked = (ctx: SetupCtx, step: StepName): StepResult | null => {
   if (ctx.blockedBy) return result(step, 'blocked', `waits on ${ctx.blockedBy} (nothing is evaluated until the settings file is written)`)
   if (ctx.current === undefined) return result(step, 'fail', `there is no settings file at ${ctx.settingsPath}: run config:write first`)
-  return ctx.current.d1.id === PLACEHOLDER_DATABASE_ID ? result(step, 'blocked', 'waits on the database planned above') : null
+  return ctx.current.d1.id === PLACEHOLDER_DATABASE_ID || ctx.current.control_d1?.id === PLACEHOLDER_DATABASE_ID ? result(step, 'blocked', 'waits on the database planned above') : null
 }
 
 const expectedMigrations = (ctx: SetupCtx) => ctx.manifest.migrations.map((m) => m.name)
-const readTracker = (ctx: SetupCtx): string[] | null => {
-  const r = wr(ctx, ['d1', 'execute', 'DB', '--remote', '--json', '--command', 'select name from d1_migrations'])
+const expectedControlMigrations = (ctx: SetupCtx) => (ctx.manifest.control_migrations ?? []).map((m) => m.name)
+const readTracker = (ctx: SetupCtx, binding: 'DB' | 'CONTROL_DB' = 'DB'): string[] | null => {
+  const r = wr(ctx, ['d1', 'execute', binding, '--remote', '--json', '--command', 'select name from d1_migrations'])
   try {
     return parseTrackerOutput(r.stdout)
   } catch (e) {
@@ -223,24 +239,40 @@ const readTracker = (ctx: SetupCtx): string[] | null => {
   }
 }
 
-/** The expected set is `release.json`'s ([[OPS232]] P2); an `ahead` database fails here, and nothing is deployed. */
+/**
+ * The expected sets are `release.json`'s ([[OPS232]] P2). Decision (OPS279 D-a): the `migrate` step covers both databases, control first ([[CORE259]] D14); an `ahead`
+ * database fails before anything is applied, only a behind database is applied, and a control failure stops before the CRM migration and before deploy.
+ */
 const migrate: Step = async (ctx) => {
   const b = blocked(ctx, 'migrate')
   if (b) return b
-  const expected = expectedMigrations(ctx)
-  const before = readTracker(ctx)
-  const status = statusOf(before, expected)
-  if (status === 'current') return result('migrate', 'ok', `${expected.length} migrations applied`)
-  if (status === 'ahead') return result('migrate', 'fail', 'the database has migrations this release does not know: install a newer release, do not migrate', formatMigrationDiff(before, expected))
+  const dbs = [
+    ...(ctx.current?.control_d1 ? [{ label: 'control', binding: 'CONTROL_DB' as const, expected: expectedControlMigrations(ctx) }] : []),
+    { label: 'crm', binding: 'DB' as const, expected: expectedMigrations(ctx) },
+  ]
+  const both = dbs.length > 1
+  const read = () => dbs.map((db) => {
+    const applied = readTracker(ctx, db.binding)
+    return { db, applied, status: statusOf(applied, db.expected) }
+  })
+  const diff = (rows: ReturnType<typeof read>) => rows.flatMap((x) => formatMigrationDiff(x.applied, x.db.expected).map((l) => (both ? `[${x.db.label}] ${l}` : l)))
+  const before = read()
+  const ahead = before.find((x) => x.status === 'ahead')
+  if (ahead) return result('migrate', 'fail', `the ${both ? `${ahead.db.label} ` : ''}database has migrations this release does not know: install a newer release, do not migrate`, diff(before))
+  if (before.every((x) => x.status === 'current')) return result('migrate', 'ok', both ? `${dbs[0]!.expected.length} control and ${dbs[1]!.expected.length} CRM migrations applied` : `${dbs[0]!.expected.length} migrations applied`)
   if (ctx.opts.dryRun) {
     ctx.pending = true
-    return result('migrate', 'update', `would apply: ${status}`, formatMigrationDiff(before, expected))
+    return result('migrate', 'update', `would apply: ${both ? before.map((x) => `${x.db.label} ${x.status}`).join(', ') : before[0]!.status}`, diff(before))
   }
-  const r = wr(ctx, (cfg) => migrateArgs(cfg))
-  if (r.status !== 0) return result('migrate', 'fail', `wrangler d1 migrations apply failed (exit ${r.status ?? 'none'}): ${tail(ctx, r)}`)
-  const after = readTracker(ctx)
-  if (statusOf(after, expected) !== 'current') return result('migrate', 'fail', 'migrations are not current after apply', formatMigrationDiff(after, expected))
-  return result('migrate', 'update', 'applied', formatMigrationDiff(after, expected))
+  for (const x of before) {
+    if (x.status === 'current') continue
+    const r = wr(ctx, (cfg) => migrateArgs(cfg, x.db.binding))
+    if (r.status !== 0) return result('migrate', 'fail', `${both ? `${x.db.label} ` : ''}wrangler d1 migrations apply failed (exit ${r.status ?? 'none'}): ${tail(ctx, r)}`)
+  }
+  const after = read()
+  const notCurrent = after.find((x) => x.status !== 'current')
+  if (notCurrent) return result('migrate', 'fail', `${both ? `${notCurrent.db.label} ` : ''}migrations are not current after apply`, diff(after))
+  return result('migrate', 'update', 'applied', diff(after))
 }
 
 const wantedLink = (ctx: SetupCtx) => (ctx.opts.auth === 'clerk' ? { authProvider: 'clerk', authOrgId: ctx.keys!.issuer } : { authProvider: 'none', authOrgId: ctx.opts.env })
@@ -267,9 +299,16 @@ const bootstrap: Step = async (ctx) => {
   const { opts } = ctx
   const want = wantedLink(ctx)
   const clerk = opts.auth === 'clerk'
+  const hasControl = ctx.current?.control_d1 !== undefined
   const read = wr(ctx, ['d1', 'execute', 'DB', '--remote', '--json', '--command', MARKER_SQL])
   const marker = parseMarkerOutput(read.stdout)
   if (marker === 'no-table') return opts.dryRun ? result('bootstrap', 'blocked', 'the database is not migrated yet') : result('bootstrap', 'fail', 'the database is not migrated: run migrate first')
+  // [[OPS279]] (D7, D9): the control marker is read with the CRM one; a marker that names another organisation is refused before either database is written.
+  const control = hasControl ? parseControlMarkerOutput(wr(ctx, ['d1', 'execute', 'CONTROL_DB', '--remote', '--json', '--command', CONTROL_MARKER_SQL]).stdout) : undefined
+  if (control === 'no-table') return opts.dryRun ? result('bootstrap', 'blocked', 'the control database is not migrated yet') : result('bootstrap', 'fail', 'the control database is not migrated: run migrate first')
+  if (control && (marker === null || control.organizationId !== marker.organizationId)) {
+    return result('bootstrap', 'fail', `the control database is already paired with organization ${control.organizationId}, not ${marker === null ? 'this deployment' : marker.organizationId}: it belongs to another deployment`)
+  }
   if (marker !== null) {
     if (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId) {
       return result('bootstrap', 'fail', `the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`)
@@ -277,33 +316,55 @@ const bootstrap: Step = async (ctx) => {
     // A Clerk bootstrap always makes the organisation (CORE64 D11); `none` without the operator flags is the marker alone.
     if (!clerk || marker.organizations > 0) {
       const mark = `marker ${want.authProvider}:${want.authOrgId} present`
-      return result('bootstrap', 'ok', opts.operatorAgent !== undefined ? `${mark}: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key through api_keys.create on /meta/v1` : mark)
+      if (control !== null) return result('bootstrap', 'ok', opts.operatorAgent !== undefined ? `${mark}: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key through api_keys.create on /meta/v1` : mark)
+      // An instance bootstrapped before the control database existed: only its control marker is missing.
+      const what = `control marker for organization ${marker.organizationId}`
+      if (opts.dryRun) {
+        ctx.pending = true
+        return result('bootstrap', 'create', `would write ${what}`)
+      }
+      ctx.wrote = true
+      return withGeneratedConfigAsync({ packageDir: ctx.deps.packageDir, settings: effective(ctx), tmpRoot: ctx.deps.tmpRoot }, async (configPath) => {
+        const opened = await ctx.deps.openD1({ configPath, remoteBindings: true, persist: false, env: childEnv(ctx.deps, ctx.secrets) })
+        try {
+          if (!opened.control) return result('bootstrap', 'fail', 'the control database is not bound in the instance proxy')
+          await writeControlMarker(openControlDb(opened.control), marker.organizationId)
+          return result('bootstrap', 'create', `wrote ${what}`)
+        } finally {
+          await opened.dispose()
+        }
+      })
     }
   }
   const operator = opts.operatorAgent !== undefined
   if (operator && assigned(ctx.secrets.text, opts.keyEnv!)) return result('bootstrap', 'fail', `${opts.keyEnv} is already set in ${ctx.secretsPath}: refusing to overwrite a key`)
   const mark = `marker ${want.authProvider}:${want.authOrgId}`
   const keyTo = operator ? `, operator agent ${opts.operatorAgent} (key to ${ctx.secretsPath} as ${opts.keyEnv})` : ''
-  const what = clerk ? `${marker ? 'organisation' : `${mark}, organisation`} ${opts.org}${keyTo}, no human (the owner arrives by invitation)` : operator ? `${mark}, organisation ${opts.org}${keyTo}` : mark
+  const ctl = hasControl ? ', control marker' : ''
+  const what = clerk ? `${marker ? 'organisation' : `${mark}, organisation`} ${opts.org}${keyTo}${ctl}, no human (the owner arrives by invitation)` : operator ? `${mark}, organisation ${opts.org}${keyTo}${ctl}` : `${mark}${ctl}`
   if (opts.dryRun) {
     ctx.pending = true
     return result('bootstrap', 'create', `would write ${what}`)
   }
   ctx.wrote = true
   return withGeneratedConfigAsync({ packageDir: ctx.deps.packageDir, settings: effective(ctx), tmpRoot: ctx.deps.tmpRoot }, async (configPath) => {
-    const { d1, dispose } = await ctx.deps.openD1({ configPath, remoteBindings: true, persist: false, env: childEnv(ctx.deps, ctx.secrets) })
+    const { d1, control: controlD1, dispose } = await ctx.deps.openD1({ configPath, remoteBindings: true, persist: false, env: childEnv(ctx.deps, ctx.secrets) })
     try {
+      if (hasControl && !controlD1) return result('bootstrap', 'fail', 'the control database is not bound in the instance proxy')
+      const controlDb = hasControl ? openControlDb(controlD1!) : undefined
       const link = { organizationId: marker?.organizationId ?? uuidv7(), ...want }
       if (marker === null) {
         if ((await probeBatchAtomicity(d1, link)) === 'not-atomic') return result('bootstrap', 'fail', 'atomicity probe failed (a failed batch left a row): stopping')
       }
       if (!clerk && !operator) {
         await execute(d1Binding(d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+        // The control marker follows the CRM deployment row ([[CORE259]] D7).
+        if (controlDb) await writeControlMarker(controlDb, link.organizationId)
         return result('bootstrap', 'create', `wrote ${what}`)
       }
       const r = clerk
-        ? await bootstrapD1(d1, { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId })
-        : await bootstrapD1(d1, { organizationName: opts.org, email: opts.ownerEmail, agentName: opts.operatorAgent!, ...want, organizationId: link.organizationId })
+        ? await bootstrapD1(d1, { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId }, { control: controlDb })
+        : await bootstrapD1(d1, { organizationName: opts.org, email: opts.ownerEmail, agentName: opts.operatorAgent!, ...want, organizationId: link.organizationId }, { control: controlDb })
       if (r.key === null || r.agentId === null) return result('bootstrap', 'create', `wrote ${what}`)
       ctx.extraMasks.push(r.key)
       try {

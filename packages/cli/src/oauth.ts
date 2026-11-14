@@ -90,12 +90,26 @@ export function issuerOrigin(issuer: unknown): string {
   return u.origin
 }
 
-/** RFC 8414 metadata of `issuer`: its `issuer` must equal it, and every endpoint is checked before anything is sent to one. */
+/**
+ * RFC 8414 metadata of `issuer` ([[CORE283]] D12). A root issuer has one document URL. A path issuer (`https://h/auth`) is fetched by path insertion first
+ * (`https://h/.well-known/oauth-authorization-server/auth`, RFC 8414 section 3.1) and by the appended form (`https://h/auth/.well-known/...`) only when the
+ * first answers a non-200. A 200 is final: its `issuer` must equal the one asked for, and a mismatch is refused, never retried at the other URL. Every endpoint
+ * is checked before anything is sent to one.
+ */
 export async function fetchAuthServer(issuer: string, deps: Deps): Promise<AuthServer> {
   const origin = issuerOrigin(issuer)
-  const url = `${issuer.replace(/\/+$/, '')}/.well-known/oauth-authorization-server`
-  const { status, body } = await getJson(url, deps)
-  if (status !== 200 || typeof body !== 'object' || body === null) throw usage(`${url} answered ${status}: the issuer does not publish RFC 8414 metadata`, 'discovery_failed')
+  const path = new URL(issuer).pathname.replace(/\/+$/, '')
+  const base = issuer.replace(/\/+$/, '')
+  const candidates = path === '' ? [`${base}/.well-known/oauth-authorization-server`] : [`${origin}/.well-known/oauth-authorization-server${path}`, `${base}/.well-known/oauth-authorization-server`]
+  let url = candidates[0]!
+  let answer: { status: number; body: any } = { status: 0, body: undefined }
+  for (const candidate of candidates) {
+    url = candidate
+    answer = await getJson(candidate, deps)
+    if (answer.status === 200) break
+  }
+  const { status, body } = answer
+  if (status !== 200 || typeof body !== 'object' || body === null) throw usage(`${candidates.join(' and ')} answered ${status}: the issuer does not publish RFC 8414 metadata`, 'discovery_failed')
   if (body.issuer !== issuer) throw usage(`${url} names the issuer ${String(body.issuer).slice(0, 200)}, not ${issuer}: refusing to continue`, 'issuer_mismatch')
   const token_endpoint = endpoint(origin, 'token_endpoint', body.token_endpoint)
   const device = endpoint(origin, 'device_authorization_endpoint', body.device_authorization_endpoint)
@@ -114,9 +128,9 @@ export interface LoginGrant {
 }
 
 /** The device grant (steps 3 to 5 of D11): request, prompt on stderr, poll. Throws exit 1 on denial and expiry. */
-export async function deviceGrant(as: AuthServer, clientId: string, scope: string, deps: Deps): Promise<LoginGrant> {
+export async function deviceGrant(as: AuthServer, clientId: string, scope: string, deps: Deps, resource?: string): Promise<LoginGrant> {
   if (!as.device_authorization_endpoint) throw usage('the issuer publishes no device_authorization_endpoint: it does not support device login', 'discovery_failed')
-  const dev = await postForm(as.device_authorization_endpoint, { client_id: clientId, scope }, deps)
+  const dev = await postForm(as.device_authorization_endpoint, { client_id: clientId, scope, ...(resource ? { resource } : {}) }, deps)
   if (!dev.ok) throw oauthError(dev)
   const b = dev.body
   if (!str(b?.device_code) || !str(b?.user_code) || !str(b?.verification_uri)) throw new CliError(1, 'invalid_response', 'the device authorization response is missing device_code, user_code or verification_uri')
@@ -129,7 +143,7 @@ export async function deviceGrant(as: AuthServer, clientId: string, scope: strin
   for (;;) {
     await deps.sleep(interval * 1000)
     if (deps.now() > deadline) throw new CliError(1, 'expired_token', 'the sign-in code expired before it was approved: run `vibase login` again')
-    const res = await postForm(as.token_endpoint, { grant_type: DEVICE_GRANT, device_code: b.device_code, client_id: clientId }, deps)
+    const res = await postForm(as.token_endpoint, { grant_type: DEVICE_GRANT, device_code: b.device_code, client_id: clientId, ...(resource ? { resource } : {}) }, deps)
     if (res.ok) return grantFrom(res.body, scope, deps)
     switch (res.body?.error) {
       case 'authorization_pending':
@@ -246,7 +260,7 @@ export async function refreshProfile(deps: Deps, name: string, why: { kind: 'exp
     if (why.kind === 'rejected' && p.access_token !== why.stale) return p
     if (p.refresh_token === '') throw new CliError(1, 'login_required', `this profile has no refresh token: ${loginAgain(name, p.server)}`)
     const as = await fetchAuthServer(p.issuer, deps)
-    const res = await postForm(as.token_endpoint, { grant_type: 'refresh_token', refresh_token: p.refresh_token, client_id: p.client_id }, deps)
+    const res = await postForm(as.token_endpoint, { grant_type: 'refresh_token', refresh_token: p.refresh_token, client_id: p.client_id, ...(p.resource ? { resource: p.resource } : {}) }, deps)
     if (res.ok) {
       const g = grantFrom(res.body, p.scope, deps)
       // A rotating issuer sends a new refresh token; one that does not keeps the old one valid.

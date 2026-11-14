@@ -51,7 +51,7 @@ export function clientProblems(dir: string, version: string): string[] {
 /** What is wrong with a `@vibase/server-d1` directory ([[OPS210]] D3, D8 (2), (3), (4), (9)); empty means it is exactly the server. */
 export function serverProblems(dir: string, version: string): string[] {
   const manifest = readJson(join(dir, 'release.json')) as ReleaseManifest | null
-  const migrations = new Set((manifest?.migrations ?? []).map((m) => `migrations/${m.name}`))
+  const migrations = new Set([...(manifest?.migrations ?? []).map((m) => `migrations/${m.name}`), ...(manifest?.control_migrations ?? []).map((m) => `control-migrations/${m.name}`)])
   const out = fileDiff(
     listFiles(dir),
     (f) => SERVER_FIXED.includes(f) || f.startsWith('assets/connect/') || migrations.has(f),

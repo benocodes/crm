@@ -10,6 +10,7 @@
   "scripts": {
     "changeset": "changeset",
     "vibase": "node scripts/vibase.mjs",
+    "orchestrator": "bash scripts/launch-orchestrator.sh",
     "release:build": "pnpm -C packages/release release:build",
     "release:check": "pnpm -C packages/release release:check",
     "release:ci": "pnpm -C packages/release release:ci",

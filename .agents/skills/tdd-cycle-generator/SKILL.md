@@ -143,6 +143,36 @@ gate; the budget holds. The calls went to harness rewrites in three packages for
 binding or a database, (1) list every harness and test that composes the Worker in Watch out, and (2) add an obligation against
 the **real** `wrangler.jsonc` (`getPlatformProxy`), not only the test kit's own Miniflare: the shared placeholder
 `database_id` that made the two databases one locally passed every kit-based test and was caught only at review.
+**OPS260** (`knowledge/specs/015-OPS260-two-database-tooling/RETRO.md`): 5 groups (1 matrix), 5 decisions, 1 migration, no E2E,
+cost ~374k tokens / 75 calls over three runs (the first ran out of context at 204k after 47 calls, before a green gate). Few
+calls, many tokens: a real `release:build` + `release:check` run and full-suite output fill the context. The budget holds; when a
+charter asks for such a run, say "capture the output to a file, quote the decisive lines", and for a migration that drops or
+moves tables, Watch out says "grep every package for the names" rather than listing the files the planner found.
+**OPS275** (`knowledge/specs/015-OPS275-instance-tooling-two-databases/RETRO.md`): the same Size line (5 groups, 1 matrix, 5
+decisions), no migration, scripts-only, cost 143k / 41 calls in one run with review approved in round 1; without release runs
+and with the `@vibase/api` suite legitimately skipped (`execute-cycle` §5) the same counts cost ~40% of OPS260. The budget holds.
+**OPS276** (`knowledge/specs/015-OPS276-setup-vb-names/RETRO.md`): 4 groups (1 matrix), 4 decisions, no migration, scripts-only,
+cost 182k / 51 calls in one run, approved round 1. When an obligation spans several front-ends (two CLIs, REST and MCP), state a
+refusal as "refused before any call, with that front-end's refusal exit code", not one number: OPS276's charter said exit 2 for
+both setup front-ends, but `setup:remote` exits 1 for every refusal, and the coder had to amend it. And when a cycle changes a
+default name, ship the guard that keeps existing instances on their recorded names in the same cycle, and say where the record is
+read relative to the first step that creates a resource.
+**OPS279** (`knowledge/specs/015-OPS279-setup-control-database/RETRO.md`): 6 groups (1 matrix), 7 decisions, at the limit on
+groups, no migration, scripts-only, cost ~320k / 97 calls in one run plus a one-line fix round. Twice OPS276's cost for 1.5x the
+counts: the unbudgeted work was a planner decision (P4: setup adds a control database to *every* recorded instance) that changed
+the plan of every existing fixture, so 8 suites asserting "nothing planned" for `smoked1`/`demo` had to record a control database.
+When a charter decision changes the default plan or output for every existing instance or fixture, say so in **Watch out** and
+name it in the Size line ("rider: existing fixtures"), so the split question is asked with that cost in view.
+**CORE283** (`knowledge/specs/015-CORE283-better-auth-clients-discovery/RETRO.md`): 6 groups (1 matrix), 4 decisions, no
+migration, 1 local E2E part, cost 307k / 108 calls (one 8k fix round). The budget holds. A Watch out item that ends in "check what
+it does and record it" (the rate limiter with no client IP) is an unproven behaviour: make it an obligation with its own test,
+or it comes back as a review finding, as it did here.
+**CORE287** (`knowledge/specs/015-CORE287-invitation-signup/RETRO.md`): 5 groups (1 matrix), 4 decisions + 7 planner rules,
+no migration, 1 local E2E part, cost 258k / 82 calls in one run plus a 9k fix round. The budget holds. Both review findings came
+from the charter. (1) A rule for a commit across two stores (CRM, then control) named a repair for only one partial state. When
+a charter orders a write across stores, list every partial state and say what the next attempt does with each. (2) "Checked
+where every account creation passes" had no obligation of its own, so the second-layer hook shipped untested. Every place a
+requirement names as a check point gets a test that reaches it directly.
 
 ### Step 3: Resolve identities
 

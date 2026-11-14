@@ -75,9 +75,10 @@ on a single issue (`fix-bugs`, `work-on-ready-issues`), are not orchestrated: do
 
 | Agent | Model | Job |
 |---|---|---|
-| `orchestrator` | Sonnet | The main session (`claude --agent orchestrator`). Picks the next item from `knowledge/SPRINT.md`, briefs the others, merges approved PRs, keeps SPRINT.md current. Reads reports, not code. |
+| `orchestrator` | Sonnet | The main session (`pnpm orchestrator`, i.e. `scripts/launch-orchestrator.sh`: `claude --agent orchestrator --plugin-dir .claude/mods/sprint-relay`, which loads the `next_cycle` hand-off tool). Picks the next item from `knowledge/SPRINT.md`, briefs the others, merges approved PRs, keeps SPRINT.md current. Reads reports, not code. |
 | `planner` | Opus | Modes: `spec` (draft and approve a spec), `plan` (a short charter via `tdd-cycle-generator`), `review` (the diff against charter and spec), `retro` (`/retrospect` and ingest). |
-| `coder` | Sonnet | Implements the charter via `execute-cycle`: surveys the code, proves every test obligation, runs the gate (all suites, typecheck, build; must be green) in the cycle's worktree, records its design decisions; applies review findings. |
+| `coder` | Sonnet | Implements the charter via `execute-cycle`: surveys the code, proves every test obligation with tests on the affected files in the cycle's worktree, records its design decisions; applies review findings and gate failures. It does not run the full gate. |
+| `gate-tester` | Haiku | Runs the full gate (`scripts/gate.sh`: all suites, typecheck, build) on the pushed sha, writes `GATE.md` and reports counts. Never edits, never diagnoses. A red gate goes back to the coder; gate-fix rounds do not count toward the two-round cap. |
 | `e2e-tester` | Sonnet | Runs the charter's E2E scenario (initial state, real actions, expected end state) against a real database or UI, only when the charter has one, and reports evidence. Never edits. |
 
 Subagents cannot start subagents, so the orchestrator must be the main session, never a subagent.
@@ -93,6 +94,7 @@ orchestrator to a subagent. Open design discussions and single-issue work still 
 | orchestrator | GPT-6.1 Sol | xhigh |
 | planner (spec, plan, review, retro) | GPT-6.1 Sol | xhigh |
 | coder | GPT-6.1 Sol | high |
+| gate-tester | GPT-6.1 Sol | low |
 | e2e-tester | GPT-6.1 Sol | medium |
 
 The Opus/Sonnet names above apply to Claude only. Codex uses these TOML settings. If the runtime
@@ -104,7 +106,8 @@ All Codex roles use Sol for now, including verify-only workers.
 Current `AGENTS.md` product rules, gates and standing exceptions take precedence over stale examples
 in either runtime's role prompts. Update both sets when changing a shared workflow rule.
 
-**Per cycle:** planner `spec` (if the spec isn't approved) → planner `plan` → coder (gate green) →
+**Per cycle:** planner `spec` (if the spec isn't approved) → planner `plan` → coder (affected tests green) →
+gate-tester (full gate; on red: coder → gate-tester, until green; these rounds are free) →
 e2e-tester (only if the charter has an E2E scenario; on failure: coder → e2e-tester, until it passes) → planner `review` (on changes requested: coder → e2e-tester if any → review; **at most two coder rounds in total**) → planner
 `retro` → orchestrator opens the PR, waits for checks, merges (`gh pr merge --squash --delete-branch`),
 removes the worktree and its test DB, and checkpoints SPRINT.md. Cycles that build on each other run in
@@ -202,7 +205,7 @@ pnpm -C packages/server-postgres dev               # Postgres dev server (DATABA
 pnpm -C packages/server-postgres bootstrap -- --org <n> --email <e> --agent <a>
 pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need SMOKE_EXPECT_DATABASE
 pnpm -C packages/api golden:generate               # and golden:check; goldens generated on D1 (Miniflare), review the fixture diff
-pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner
+pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner; `--auth-provider better-auth --public-base-url <url> [--auth-org-id <label>]` creates no human and seeds `vibase-cli` in the control database (CORE283)
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the /connect page first
 pnpm release:build [--allow-dirty]                 # the two release packages in packages/release/dist/: vibase-cli-<version>.tgz (@vibase/cli, bin `vibase`) and vibase-server-d1-<version>.tgz (@vibase/server-d1, bin `vibase-server`) plus one SHA256SUMS (OPS210, OPS240); refuses a dirty tree unless --allow-dirty (commit <sha>-dirty); nothing published; not in the gate
 pnpm release:check [<cli tarball> <server tarball>]  # verifies and scans both tarballs, npm-installs each into its own directory outside the repo (public registry read), runs the installed `vibase` and `vibase-server`, `npm exec --package`, the exports, the migrations and the Worker in workerd; not in the gate
@@ -236,8 +239,9 @@ in-place edits ([[CORE29]] retro).
   all say Vibase, with no aliases. "The vault" stays the internal term in comments and knowledge prose. What keeps
   `vault`: stored `…@vault.invalid` rows (history, never rewritten), the `vault_*` Postgres roles and
   databases (#266), the existing `vault-<env>` instances (`vault-smoked1`, `vault-hq`, `vault-approvals-hq`:
-  [[OPS251]], [[OPS252]]) and `setup`'s `vault-${env}` derivation ([[OPS260]]); no code may hard-code a `vault`
-  prefix for anything new.
+  [[OPS251]], [[OPS252]]); no code may hard-code a `vault` prefix for anything new. Both setup front-ends derive
+  `vb-<env>`, `vb-crm-<env>`, `vb-bodies-<env>` for a new instance and take an existing instance's names from its
+  record (settings file, or `wrangler.jsonc`'s env block), refusing a differing name flag ([[OPS276]]).
 - UUIDv7 primary keys (`uuid_generate_v7()`), never v4.
 - Migrations: Kysely, forward-only, one squashed baseline to start.
 - Commits: Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`, ...). Branches:
@@ -292,8 +296,8 @@ Carried over from the predecessor product, where each cost real time. Add new on
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).
    Writes that skip events are allowed only when they are not resources and a spec decision names them.
-   Today that means eight: identity bookkeeping (`principals`, `users` on first sight and on a provider
-   profile refresh, [[CORE3]] D12, [[CORE41]] P11), channel machinery tables (credentials, subscriptions,
+   Today that means the list below (no count: it grows by spec decision): identity bookkeeping (`principals`, `users` on first sight, on a provider
+   profile refresh and on invitation acceptance, [[CORE3]] D12, [[CORE41]] P11, [[CORE287]] P3), channel machinery tables (credentials, subscriptions,
    sync state and cursors, [[CHN5]] D22; the provider-id maps `message_sources` and `thread_sources`, [[CORE25]] D17), the dev/ops `bootstrap` script ([[CORE15]]), the API-key
    usage stamp (`api_keys.last_used_at` only, at most once a minute, never `updated_at`, [[CORE36]] D17), and
    execution machinery tables' lease columns: claim, dispatch stamp, retry scheduling and lease recovery
@@ -302,7 +306,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
    changing `updated_at`; creation and the final outcome of an execution, and the linked request's
    `executed`/`failed`, are resources and emit `action_execution.created|completed|failed` and
    `action_request.executed|failed` ([[AGT8]] D56); and the D1 full-text search indexes (`<table>_search` FTS5
-   tables), written only by triggers on their base table, never by a program, an operation or a script ([[CORE194]] D5); and the webhook machinery tables (`webhook_secrets`, `webhook_dispatch_state`, later `webhook_deliveries`), written by the subscription units, the dispatcher, the sender and the purge without an event and without touching `webhook_subscriptions.updated_at`, while creation, update, deletion, rotation and auto-disable of a subscription emit `webhook.*` ([[API7]] D20); and the built-in auth provider's tables (`auth_*`, in the control-plane database `CONTROL_DB`, control migration 0001, [[CORE259]]; the CRM copy from 0018 is dormant until [[OPS260]] drops it) and the control marker `control_deployment` (written only by `bootstrap`), written only by Better Auth's handler at `/auth` (later also [[OPS250]]'s migration tool), never by a program or an operation, without events and outside the `updated_at` rules; they are deployment-scoped (no `organization_id`), and the `auth_` prefix is reserved and hidden from schema discovery ([[CORE243]] D5); only composition, bootstrap and the control store may touch `CONTROL_DB`, never an operation (`control-boundary.test.ts`, [[CORE259]] D5). If such a write has a tenant-visible consequence (a
+   tables), written only by triggers on their base table, never by a program, an operation or a script ([[CORE194]] D5); and the webhook machinery tables (`webhook_secrets`, `webhook_dispatch_state`, later `webhook_deliveries`), written by the subscription units, the dispatcher, the sender and the purge without an event and without touching `webhook_subscriptions.updated_at`, while creation, update, deletion, rotation and auto-disable of a subscription emit `webhook.*` ([[API7]] D20); and the built-in auth provider's tables (`auth_*`, in the control-plane database `CONTROL_DB`, control migration 0001, [[CORE259]]; the CRM copy from 0018 is dropped by CRM 0019, [[OPS260]]) and the control marker `control_deployment` (written only by `bootstrap`), written only by Better Auth's handler at `/auth`, by `bootstrap`'s idempotent seed of the first-party `vibase-cli` client and its two resource rows (through Better Auth's own adapter in-process, never hand-written SQL, [[CORE283]]) and later [[OPS250]]'s migration tool, never by a program or an operation, without events and outside the `updated_at` rules; they are deployment-scoped (no `organization_id`), and the `auth_` prefix is reserved and hidden from schema discovery ([[CORE243]] D5); only composition, bootstrap, the control store and the release tooling (binding-to-directory mapping; tracker reads in the local `release:check` only, [[OPS260]]) may touch `CONTROL_DB`, never an operation (`control-boundary.test.ts`, [[CORE259]] D5). Likewise the control-plane `invitations` and `control_audit` (control migration 0002, [[CORE245]], [[CORE259]] D12): written only by the control store, one control batch per change and its audit row, `control_audit` append-only by trigger, no CRM event. If such a write has a tenant-visible consequence (a
    membership, a connection's status), that consequence must still emit its event. Add a new exception
    through a spec decision, never ad hoc.
 6. **Raw bodies stay out of the database**, Postgres and D1 alike (R2 behind `ObjectStore`).

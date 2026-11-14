@@ -86,7 +86,7 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
     expect(() => assertServerLayout(dir, s.version)).not.toThrow()
   })
   it('an extra root file, a client in the server, an asset outside assets/connect and a migration release.json does not list are each refused by name', () => {
-    for (const f of ['notes.txt', 'cli/vibase.js', 'assets/other/x.js', 'migrations/0003_c.sql', 'worker/worker.js.map']) {
+    for (const f of ['notes.txt', 'cli/vibase.js', 'assets/other/x.js', 'migrations/0003_c.sql', 'control-migrations/0003_e.sql', 'worker/worker.js.map']) {
       const { dir, s } = server()
       put(dir, f, 'x')
       expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(f.replace(/[.]/g, '\\.')))
@@ -153,7 +153,7 @@ describe('D8 (9): every exports entry resolves from a consumer directory', () =>
   it('resolves each entry (a pattern through one real file) to a file inside the installed package', () => {
     const { root } = consumer()
     const got = assertExportsResolve(root)
-    expect(got.map((g) => g.entry)).toEqual(['./worker', './wrangler.base.jsonc', './release.json', './migrations/*', './assets/*', './package.json'])
+    expect(got.map((g) => g.entry)).toEqual(['./worker', './wrangler.base.jsonc', './release.json', './migrations/*', './control-migrations/*', './assets/*', './package.json'])
     for (const g of got) expect(g.resolved).toContain(join('node_modules', '@vibase', 'server-d1'))
   })
   it('refuses an entry whose target is not shipped (Node says so)', () => {

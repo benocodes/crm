@@ -33,6 +33,7 @@ place('api', 'events', ['list', 'get'])
 place('meta', 'agents', CRUD)
 place('meta', 'connections', ['list', 'get', 'delete', 'authorize', 'sync'])
 place('meta', 'api_keys', [...CRUD, 'revoke'])
+place('meta', 'invitations', ['create', 'list', 'revoke'])
 place('meta', 'memberships', CRUD)
 place('meta', 'users', ['list', 'get'])
 place('meta', 'me', ['get'])
@@ -65,6 +66,7 @@ describe('placement (D6)', () => {
       'agents.create', 'agents.get', 'agents.list', 'agents.update',
       'api_keys.create', 'api_keys.get', 'api_keys.list', 'api_keys.revoke',
       'connections.authorize', 'connections.delete', 'connections.get', 'connections.list', 'connections.sync',
+      'invitations.create', 'invitations.list', 'invitations.revoke',
       'me.get',
       'memberships.get', 'memberships.list',
       ...['pipelines', 'pipeline_stages'].flatMap((r) => CRUD.map((a) => `${r}.${a}`)),
@@ -72,7 +74,7 @@ describe('placement (D6)', () => {
       'users.get', 'users.list',
       'webhooks.create', 'webhooks.delete', 'webhooks.deliveries', 'webhooks.get', 'webhooks.list', 'webhooks.rotate_secret', 'webhooks.update',
     ].sort())
-    expect(ops.length).toBe(108)
+    expect(ops.length).toBe(111)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

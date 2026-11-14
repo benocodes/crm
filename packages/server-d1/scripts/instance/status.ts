@@ -1,8 +1,8 @@
 // `vibase-server status --env <name>` ([[OPS210]] D15, [[OPS231]]): the gate's reads and the upgrade plan. Read-only: it writes nothing remote,
 // needs no CONFIRM_REMOTE and never runs a write command.
 import { parseArgs } from 'node:util'
-import { formatMigrationDiff, statusOf } from '../remote.js'
-import { runGate } from './gate.js'
+import { statusOf } from '../remote.js'
+import { databasesCurrent, diffLines, pendingLines, runGate } from './gate.js'
 import { InstanceRefusal, isRefusal, type InstanceDeps } from './types.js'
 
 /** Exit codes: 0 the instance is at this release and `current`; 1 it is not (a plan or a note was printed); 2 refused. */
@@ -28,15 +28,14 @@ export async function runStatus(argv: string[], deps: InstanceDeps): Promise<num
     deps.out(`instance: ${g.settings.env} at https://${g.settings.api_host} (worker ${g.settings.worker}, settings ${g.settingsPath})`)
     deps.out(`live: version ${g.live.version}${g.live.commit ? `, commit ${g.live.commit}` : ''}`)
     for (const n of g.notes) deps.out(`note: ${n}`)
-    for (const l of formatMigrationDiff(g.applied, expected)) deps.out(l)
+    for (const l of diffLines(g)) deps.out(l)
     const sameVersion = g.live.version === g.manifest.version
-    if (sameVersion && migrations === 'current') {
+    if (sameVersion && databasesCurrent(g, migrations)) {
       deps.out(`plan: nothing to do, the instance is at ${g.manifest.version}`)
       return EXIT_CURRENT
     }
     deps.out(`plan: live ${g.live.version} -> package ${g.manifest.version}`)
-    deps.out(g.pending.length === 0 ? 'migrations to apply: none' : `migrations to apply (${g.pending.length}):`)
-    for (const n of g.pending) deps.out(`  ${n}`)
+    for (const l of pendingLines(g)) deps.out(l)
     return EXIT_BEHIND
   } catch (e) {
     if (!isRefusal(e)) throw e

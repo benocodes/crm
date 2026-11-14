@@ -45,6 +45,7 @@ export function parseSetupFlags(argv: string[], extra: Extra): FlagValues {
         'owner-email': { type: 'string' },
         'worker-name': { type: 'string' },
         'd1-name': { type: 'string' },
+        'control-d1-name': { type: 'string' },
         'r2-name': { type: 'string' },
         only: { type: 'string' },
         'dry-run': { type: 'boolean' },
@@ -104,7 +105,9 @@ export function buildSetupOptions(values: FlagValues): SetupOptions {
     if (auth === 'none' && only.some((s) => CLERK_ONLY_STEPS.includes(s))) throw new RemoteRefusal(`--only ${only.filter((s) => CLERK_ONLY_STEPS.includes(s)).join(', ')} needs --auth clerk`)
   }
 
-  return {
+  // [[OPS262]] D5: a new instance's names are vb-<kind>-<env>; a recorded instance's names are applied by `applyRecordedNames`. Cloudflare's limit is 63.
+  const nameFlags = { workerName: str('worker-name'), d1Name: str('d1-name'), controlD1Name: str('control-d1-name'), r2Name: str('r2-name') }
+  const opts: SetupOptions = {
     env,
     apiHost,
     auth,
@@ -113,9 +116,11 @@ export function buildSetupOptions(values: FlagValues): SetupOptions {
     operatorAgent,
     keyEnv,
     ownerEmail,
-    workerName: str('worker-name') ?? `vault-${env}`,
-    d1Name: str('d1-name') ?? `vault-${env}`,
-    r2Name: str('r2-name') ?? `vault-${env}-bodies`,
+    workerName: nameFlags.workerName ?? `vb-${env}`,
+    d1Name: nameFlags.d1Name ?? `vb-crm-${env}`,
+    controlD1Name: nameFlags.controlD1Name ?? `vb-control-${env}`,
+    r2Name: nameFlags.r2Name ?? `vb-bodies-${env}`,
+    nameFlags,
     only,
     dryRun: values['dry-run'] === true,
     clerkEnvFile: str('clerk-env-file'),
@@ -124,4 +129,17 @@ export function buildSetupOptions(values: FlagValues): SetupOptions {
     noDcr: values['no-dcr'] === true,
     rotateSecrets: values['rotate-secrets'] === true,
   }
+  checkNameLengths([opts.workerName, opts.d1Name, opts.controlD1Name, opts.r2Name])
+  checkDistinctDatabases(opts.d1Name, opts.controlD1Name)
+  return opts
+}
+
+/** [[OPS262]] D5: Cloudflare names are at most 63 characters; a refusal before any step. */
+export function checkNameLengths(names: string[]): void {
+  for (const n of names) if (n.length > 63) throw new RemoteRefusal(`name ${n} is ${n.length} characters; Cloudflare allows at most 63 (use a shorter --env or give the name with a flag)`)
+}
+
+/** [[OPS279]]: the control plane is its own database ([[CORE259]] D16), so its name differs from the CRM database's; a refusal before any step. */
+export function checkDistinctDatabases(d1Name: string, controlD1Name: string): void {
+  if (d1Name === controlD1Name) throw new RemoteRefusal(`control D1 name ${controlD1Name} equals the CRM database's name: the control plane is its own database (give --control-d1-name a different name)`)
 }

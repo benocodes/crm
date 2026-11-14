@@ -4,13 +4,14 @@ import { parse } from 'jsonc-parser'
 import { bootstrapD1, probeBatchAtomicity } from '../../src/bootstrap-d1.js'
 import { initDeploymentOperation } from '../../src/init-deployment.js'
 import { execute, uuidv7 } from '@vibase/storage'
-import { MIGRATIONS, d1Binding } from '@vibase/storage-d1'
+import { CONTROL_MIGRATIONS, MIGRATIONS, d1Binding, openControlDb, writeControlMarker } from '@vibase/storage-d1'
 import { PLACEHOLDER_DATABASE_ID, RemoteRefusal, formatMigrationDiff, resolveTarget, statusOf, type ConfigLike, type Target } from '../remote.js'
 import { clerkStep, configuredCliClientId, signingKeyPem } from './clerk.js'
 import type { ClerkKeys } from './clerk-keys.js'
 import { GMAIL_SECRET_NAMES, NEVER_REPLACED, hideGmailValues, type Gmail } from './gmail.js'
 import { reconcileEnvBlock, type DesiredEnv } from './config-editor.js'
 import {
+  controlMarkerCommand,
   d1CreateCommand,
   d1ListCommand,
   deployStepCommands,
@@ -19,6 +20,7 @@ import {
   isWriteCommand,
   markerCommand,
   migrateStepCommands,
+  parseControlMarkerOutput,
   parseD1List,
   parseMarkerOutput,
   parseR2List,
@@ -33,6 +35,7 @@ import {
 import type { Credentials, ExecResult, SetupCmd, SetupDeps, SetupOptions, StepName, StepResult } from './types.js'
 
 const EXPECTED = MIGRATIONS.map((m) => m.name)
+const CONTROL_EXPECTED = CONTROL_MIGRATIONS.map((m) => m.name)
 const CF = 'https://api.cloudflare.com/client/v4/'
 export const VERIFY_INTERVAL_MS = 10_000
 export const VERIFY_BOUND_MS = 300_000
@@ -134,17 +137,19 @@ export const preflight = async (ctx: PreflightCtx): Promise<StepResult> => {
 }
 
 const configResources: Step = async (ctx) => {
-  const facts = await readFacts(ctx)
+  await readFacts(ctx)
   const planned: string[] = []
   const lines: string[] = []
-  const { d1Name, r2Name } = ctx.opts
-  if (!facts.d1s.some((d) => d.name === d1Name)) {
-    planned.push(`D1 ${d1Name}`)
+  const { d1Name, controlD1Name, r2Name } = ctx.opts
+  // The CRM database first, then the control database ([[OPS279]] P4: every instance gets one, whatever `--auth`).
+  for (const name of [d1Name, controlD1Name]) {
+    if (ctx.facts!.d1s.some((d) => d.name === name)) continue
+    planned.push(`D1 ${name}`)
     if (!ctx.opts.dryRun) {
-      const r = await run(ctx, d1CreateCommand(d1Name))
-      if (r.status !== 0) return result('config:resources', 'fail', `wrangler d1 create ${d1Name} failed (exit ${r.status})`, [r.stderr.trim()].filter(Boolean))
+      const r = await run(ctx, d1CreateCommand(name))
+      if (r.status !== 0) return result('config:resources', 'fail', `wrangler d1 create ${name} failed (exit ${r.status})`, [r.stderr.trim()].filter(Boolean))
       await readFacts(ctx, true)
-      if (!ctx.facts!.d1s.some((d) => d.name === d1Name)) return result('config:resources', 'fail', `D1 ${d1Name} was created but is not in wrangler d1 list`)
+      if (!ctx.facts!.d1s.some((d) => d.name === name)) return result('config:resources', 'fail', `D1 ${name} was created but is not in wrangler d1 list`)
     }
   }
   if (!ctx.facts!.r2s.includes(r2Name)) {
@@ -154,9 +159,11 @@ const configResources: Step = async (ctx) => {
       if (r.status !== 0) return result('config:resources', 'fail', `wrangler r2 bucket create ${r2Name} failed (exit ${r.status})`, [r.stderr.trim()].filter(Boolean))
     }
   }
-  lines.push(`D1 ${d1Name}: ${planned.includes(`D1 ${d1Name}`) ? (ctx.opts.dryRun ? 'would create' : 'created') : 'exists'}`)
-  lines.push(`R2 ${r2Name}: ${planned.includes(`R2 ${r2Name}`) ? (ctx.opts.dryRun ? 'would create' : 'created') : 'exists'}`)
-  if (planned.length === 0) return result('config:resources', 'ok', `D1 ${d1Name} and R2 ${r2Name} exist`)
+  const state = (n: string) => (planned.includes(n) ? (ctx.opts.dryRun ? 'would create' : 'created') : 'exists')
+  lines.push(`D1 ${d1Name}: ${state(`D1 ${d1Name}`)}`)
+  lines.push(`D1 ${controlD1Name} (control): ${state(`D1 ${controlD1Name}`)}`)
+  lines.push(`R2 ${r2Name}: ${state(`R2 ${r2Name}`)}`)
+  if (planned.length === 0) return result('config:resources', 'ok', `D1 ${d1Name}, D1 ${controlD1Name} and R2 ${r2Name} exist`)
   if (ctx.opts.dryRun) ctx.pending = true
   return result('config:resources', 'create', planned.join(', '), lines)
 }
@@ -175,6 +182,7 @@ const configWrite: Step = async (ctx) => {
   const facts = await readFacts(ctx)
   const before0 = ctx.deps.readConfigText()
   const created = facts.d1s.find((d) => d.name === ctx.opts.d1Name)
+  const createdControl = facts.d1s.find((d) => d.name === ctx.opts.controlD1Name)
   const clerk = ctx.opts.auth === 'clerk'
   const cliId = clerk ? (ctx.cliClientId ?? configuredCliClientId(before0, ctx.opts.env)) : undefined
   if (clerk && cliId === undefined && !ctx.opts.dryRun) {
@@ -185,6 +193,8 @@ const configWrite: Step = async (ctx) => {
     workerName: ctx.opts.workerName,
     d1Name: ctx.opts.d1Name,
     d1Id: created?.uuid ?? PLACEHOLDER_DATABASE_ID,
+    controlD1Name: ctx.opts.controlD1Name,
+    controlD1Id: createdControl?.uuid ?? PLACEHOLDER_DATABASE_ID,
     r2Name: ctx.opts.r2Name,
     apiHost: ctx.opts.apiHost,
     corsOrigins: ctx.opts.origins.join(','),
@@ -223,26 +233,53 @@ const configWrite: Step = async (ctx) => {
 const blocked = (ctx: Ctx, step: StepName): StepResult | null =>
   ctx.blockedBy ? result(step, 'blocked', `waits on ${ctx.blockedBy} (nothing is evaluated until the config is written and committed)`) : null
 
+interface Db {
+  label: 'control' | 'crm'
+  binding: 'CONTROL_DB' | 'DB'
+  expected: string[]
+}
+
+/**
+ * Decision (OPS279 D-a): the `migrate` step covers both databases, control first ([[CORE259]] D14); `--only migrate` migrates both. Each database is read, a database
+ * `ahead` of this build fails before anything is applied, and only a behind database is applied; a control failure stops before the CRM migration and before deploy.
+ */
 const migrate: Step = async (ctx) => {
   const b = blocked(ctx, 'migrate')
   if (b) return b
   const t = target(ctx)
-  const applied = async () => parseTrackerOutput((await run(ctx, trackerCommand(t.env))).stdout)
-  const before = await applied()
-  const status = statusOf(before, EXPECTED)
-  if (status === 'current') return result('migrate', 'ok', `${EXPECTED.length} migrations applied`)
-  if (status === 'ahead') return result('migrate', 'fail', 'the database has migrations this build does not know: deploy a newer build, do not migrate', formatMigrationDiff(before, EXPECTED))
+  const dbs: Db[] = [...(t.control ? [{ label: 'control' as const, binding: 'CONTROL_DB' as const, expected: CONTROL_EXPECTED }] : []), { label: 'crm', binding: 'DB', expected: EXPECTED }]
+  const both = t.control !== undefined
+  const tag = (db: Db, lines: string[]) => (both ? lines.map((l) => `[${db.label}] ${l}`) : lines)
+  const read = async () => {
+    const out: { db: Db; applied: string[] | null; status: ReturnType<typeof statusOf> }[] = []
+    for (const db of dbs) {
+      const applied = parseTrackerOutput((await run(ctx, trackerCommand(t.env, db.binding))).stdout)
+      out.push({ db, applied, status: statusOf(applied, db.expected) })
+    }
+    return out
+  }
+  const before = await read()
+  const ahead = before.find((x) => x.status === 'ahead')
+  if (ahead) {
+    return result('migrate', 'fail', `the ${both ? `${ahead.db.label} ` : ''}database has migrations this build does not know: deploy a newer build, do not migrate`, before.flatMap((x) => tag(x.db, formatMigrationDiff(x.applied, x.db.expected))))
+  }
+  const diff = (rows: typeof before) => rows.flatMap((x) => tag(x.db, formatMigrationDiff(x.applied, x.db.expected)))
+  if (before.every((x) => x.status === 'current')) return result('migrate', 'ok', both ? `${CONTROL_EXPECTED.length} control and ${EXPECTED.length} CRM migrations applied` : `${EXPECTED.length} migrations applied`)
   if (ctx.opts.dryRun) {
     ctx.pending = true
-    return result('migrate', 'update', `would apply: ${status}`, formatMigrationDiff(before, EXPECTED))
+    return result('migrate', 'update', `would apply: ${both ? before.map((x) => `${x.db.label} ${x.status}`).join(', ') : before[0]!.status}`, diff(before))
   }
-  for (const cmd of migrateStepCommands(t.env)) {
-    const r = await run(ctx, cmd)
-    if (r.status !== 0) return result('migrate', 'fail', `${cmd.args.slice(2, 5).join(' ')} ${cmd.args[5]} failed (exit ${r.status})`)
+  for (const x of before) {
+    if (x.status === 'current') continue
+    for (const cmd of migrateStepCommands(t.env, x.db.binding)) {
+      const r = await run(ctx, cmd)
+      if (r.status !== 0) return result('migrate', 'fail', `${both ? `${x.db.label} ` : ''}${cmd.args.slice(2, 5).join(' ')} ${cmd.args[5]} failed (exit ${r.status})`)
+    }
   }
-  const after = await applied()
-  if (statusOf(after, EXPECTED) !== 'current') return result('migrate', 'fail', 'migrations are not current after apply', formatMigrationDiff(after, EXPECTED))
-  return result('migrate', 'update', 'applied', formatMigrationDiff(after, EXPECTED))
+  const after = await read()
+  const notCurrent = after.find((x) => x.status !== 'current')
+  if (notCurrent) return result('migrate', 'fail', `${both ? `${notCurrent.db.label} ` : ''}migrations are not current after apply`, diff(after))
+  return result('migrate', 'update', 'applied', diff(after))
 }
 
 /** The marker's link for this run: `clerk:<issuer>` or `none:<env>` ([[OPS65]] D18). */
@@ -257,6 +294,12 @@ const bootstrap: Step = async (ctx) => {
   const clerk = opts.auth === 'clerk'
   const marker = parseMarkerOutput((await run(ctx, markerCommand(t.env))).stdout)
   if (marker === 'no-table') return opts.dryRun ? result('bootstrap', 'blocked', 'the database is not migrated yet') : result('bootstrap', 'fail', 'the database is not migrated: run migrate first')
+  // [[OPS279]] (D7, D9): the control marker is read with the CRM one; a marker that names another organisation is refused before either database is written.
+  const control = t.control ? parseControlMarkerOutput((await run(ctx, controlMarkerCommand(t.env))).stdout) : undefined
+  if (control === 'no-table') return opts.dryRun ? result('bootstrap', 'blocked', 'the control database is not migrated yet') : result('bootstrap', 'fail', 'the control database is not migrated: run migrate first')
+  if (control && (marker === null || control.organizationId !== marker.organizationId)) {
+    return result('bootstrap', 'fail', `the control database is already paired with organization ${control.organizationId}, not ${marker === null ? 'this deployment' : marker.organizationId}: it belongs to another deployment`)
+  }
   if (marker !== null) {
     if (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId) {
       return result('bootstrap', 'fail', `the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`)
@@ -265,7 +308,23 @@ const bootstrap: Step = async (ctx) => {
     if (!clerk || marker.organizations > 0) {
       const flags = opts.operatorAgent !== undefined
       const mark = `marker ${want.authProvider}:${want.authOrgId} present`
-      return result('bootstrap', 'ok', flags ? `${mark}: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)` : mark)
+      const done = flags ? `${mark}: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)` : mark
+      if (control !== null) return result('bootstrap', 'ok', done)
+      // An instance bootstrapped before the control database existed: only its control marker is missing.
+      const what = `control marker for organization ${marker.organizationId}`
+      if (opts.dryRun) {
+        ctx.pending = true
+        return result('bootstrap', 'create', `would write ${what}`)
+      }
+      const { d1, control: controlD1, dispose } = await ctx.deps.openD1(opts.env)
+      void d1
+      try {
+        if (!controlD1) return result('bootstrap', 'fail', 'the control database is not bound in the instance proxy')
+        await writeControlMarker(openControlDb(controlD1), marker.organizationId)
+        return result('bootstrap', 'create', `wrote ${what}`)
+      } finally {
+        await dispose()
+      }
     }
   }
   const operator = opts.operatorAgent !== undefined
@@ -273,17 +332,20 @@ const bootstrap: Step = async (ctx) => {
     return result('bootstrap', 'fail', `${opts.keyEnv} is already set in .env: refusing to overwrite a key`)
   }
   const mark = `marker ${want.authProvider}:${want.authOrgId}`
+  const ctl = t.control ? ', control marker' : ''
   const what = clerk
-    ? `${marker ? 'organisation' : `${mark}, organisation`} ${opts.org}${operator ? `, operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})` : ''}, no human (the owner arrives by invitation)`
+    ? `${marker ? 'organisation' : `${mark}, organisation`} ${opts.org}${operator ? `, operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})` : ''}${ctl}, no human (the owner arrives by invitation)`
     : operator
-      ? `${mark}, organisation ${opts.org}, operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})`
-      : mark
+      ? `${mark}, organisation ${opts.org}, operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})${ctl}`
+      : `${mark}${ctl}`
   if (opts.dryRun) {
     ctx.pending = true
     return result('bootstrap', 'create', `would write ${what}`)
   }
-  const { d1, dispose } = await ctx.deps.openD1(opts.env)
+  const { d1, control: controlD1, dispose } = await ctx.deps.openD1(opts.env)
   try {
+    if (t.control && !controlD1) return result('bootstrap', 'fail', 'the control database is not bound in the instance proxy')
+    const controlDb = t.control ? openControlDb(controlD1!) : undefined
     const link = { organizationId: marker?.organizationId ?? uuidv7(), ...want }
     if (marker === null) {
       const probe = await probeBatchAtomicity(d1, link)
@@ -291,11 +353,13 @@ const bootstrap: Step = async (ctx) => {
     }
     if (!clerk && !operator) {
       await execute(d1Binding(d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+      // The control marker follows the CRM deployment row ([[CORE259]] D7).
+      if (controlDb) await writeControlMarker(controlDb, link.organizationId)
       return result('bootstrap', 'create', `wrote ${what}`)
     }
     const r = clerk
-      ? await bootstrapD1(d1, { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId })
-      : await bootstrapD1(d1, { organizationName: opts.org, email: opts.ownerEmail, agentName: opts.operatorAgent!, ...want, organizationId: link.organizationId })
+      ? await bootstrapD1(d1, { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId }, { control: controlDb })
+      : await bootstrapD1(d1, { organizationName: opts.org, email: opts.ownerEmail, agentName: opts.operatorAgent!, ...want, organizationId: link.organizationId }, { control: controlDb })
     if (r.key === null || r.agentId === null) return result('bootstrap', 'create', `wrote ${what}`)
     try {
       ctx.deps.appendEnvVar(opts.keyEnv!, r.key)
