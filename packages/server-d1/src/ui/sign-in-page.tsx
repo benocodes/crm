@@ -81,6 +81,16 @@ const callbackError = (search: string): string | undefined => {
 function SignInForm({ oauthQuery, navigate, onSignedIn }: { oauthQuery: string | undefined; navigate: (path: string) => void; onSignedIn: (user: SessionUser, redirect?: string) => void }) {
   const google = useGoogleEnabled()
   const [googleError, setGoogleError] = useState<string | undefined>(undefined)
+  // [[CORE294]] P1: the callback error is taken into state once and leaves the address, so it cannot mask a later error.
+  const [callbackMessage, setCallbackMessage] = useState<string | undefined>(() => callbackError(location.search))
+  useEffect(() => {
+    const q = new URLSearchParams(location.search)
+    if (!q.has('error') && !q.has('error_description')) return
+    q.delete('error')
+    q.delete('error_description')
+    const rest = q.toString()
+    history.replaceState(history.state, '', location.pathname + (rest === '' ? '' : `?${rest}`) + location.hash)
+  }, [])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
@@ -88,6 +98,8 @@ function SignInForm({ oauthQuery, navigate, onSignedIn }: { oauthQuery: string |
   const notice = new URLSearchParams(location.search).get('notice') === 'password-reset'
 
   const onSubmit = async () => {
+    setCallbackMessage(undefined)
+    setGoogleError(undefined)
     const found: { email?: string; password?: string } = {}
     const emailProblem = emailError(email.trim())
     if (emailProblem) found.email = emailProblem
@@ -111,7 +123,7 @@ function SignInForm({ oauthQuery, navigate, onSignedIn }: { oauthQuery: string |
     <FormLayout
       title="Sign in"
       onSubmit={onSubmit}
-      error={googleError ?? callbackError(location.search)}
+      error={googleError ?? callbackMessage}
       actions={
         <Button type="submit" busy={busy}>
           Sign in

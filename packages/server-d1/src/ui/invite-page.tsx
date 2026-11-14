@@ -33,6 +33,7 @@ export function InvitePage({ navigate = goTo }: PageProps) {
   }
 
   const onSubmit = async () => {
+    setGoogleError(undefined)
     const found: Errors = {}
     if (name.trim() === '') found.name = MESSAGES.nameRequired
     const emailProblem = emailError(email.trim())
