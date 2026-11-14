@@ -50,7 +50,8 @@ export function CodeInput({ label, value, onChange, groupLength = DEFAULT_GROUP_
         value={value}
         autoComplete="one-time-code"
         autoCapitalize="characters"
-        spellCheck={false}
+        // The string, not `{false}`: Preact drops a `false` attribute value, so the browser kept spellcheck on (found by the gallery run).
+        spellCheck="false"
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={[hintId, errorId].filter(Boolean).join(' ')}

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { build, type BuildOptions, type Metafile } from 'esbuild'
 import { esbuildOptions } from '../src/esbuild-options'
 
+const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const GALLERY = fileURLToPath(new URL('../gallery/', import.meta.url))
 const STYLESHEET = fileURLToPath(new URL('../src/ui.css', import.meta.url))
 export const GALLERY_OUT = fileURLToPath(new URL('../dist/gallery', import.meta.url))
@@ -19,6 +20,8 @@ export async function buildGallery(
   mkdirSync(outDir, { recursive: true })
   const result = await build({
     ...options,
+    // esbuild resolves an alias target from the working directory, so this build runs from the package that depends on `preact`.
+    absWorkingDir: PACKAGE,
     entryPoints: [join(GALLERY, 'main.tsx')],
     bundle: true,
     format: 'esm',

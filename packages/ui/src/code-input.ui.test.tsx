@@ -34,8 +34,8 @@ describe('CodeInput', () => {
     const input = screen.getByLabelText('Code')
     expect(input.getAttribute('autocomplete')).toBe('one-time-code')
     expect(input.getAttribute('autocapitalize')).toBe('characters')
-    // `spellCheck={false}` is not asserted here: happy-dom has no `spellcheck` property, so Preact (property) and React (attribute) differ in it.
-    // The gallery e2e asserts `input.spellcheck === false` in Chromium.
+    // The attribute reads "false" under both runtimes (Preact drops a boolean `false`; the gallery e2e checks `input.spellcheck` in Chromium).
+    expect(input.getAttribute('spellcheck')).toBe('false')
   })
 
   it('wires a format hint by aria-describedby', () => {
