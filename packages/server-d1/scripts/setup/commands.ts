@@ -116,6 +116,18 @@ export function parseControlMarkerOutput(stdout: string): { organizationId: stri
   return { organizationId: row.organization_id }
 }
 
+/** The owner state of the two reads ([[OPS249]] D7): `owner` when a membership exists, else `pending` with the newest live owner invitation's address and expiry, else `none`. */
+export type OwnerState = { kind: 'owner' } | { kind: 'pending'; email: string; expiresAt: string } | { kind: 'none' }
+export function parseOwnerState(ownersStdout: string, invitationsStdout: string): OwnerState {
+  const owners = rowsOf(ownersStdout)
+  if (owners !== 'no-table' && Number(owners[0]?.owners ?? 0) > 0) return { kind: 'owner' }
+  const inv = rowsOf(invitationsStdout)
+  if (inv === 'no-table' || inv.length === 0) return { kind: 'none' }
+  const { email, expires_at: expiresAt } = inv[0]!
+  if (typeof email !== 'string' || typeof expiresAt !== 'string') throw new Error('unexpected owner invitation row shape')
+  return { kind: 'pending', email, expiresAt }
+}
+
 /** The secret names of `wrangler secret list --format json`. */
 export function parseSecretList(stdout: string): string[] {
   let json: unknown

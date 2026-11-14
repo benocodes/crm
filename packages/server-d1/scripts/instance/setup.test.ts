@@ -32,7 +32,7 @@ const surface = (s: SetupWorld) => [s.w.all(), s.settings() ?? '', ...s.w.wrangl
 
 describe('arguments (P1)', () => {
   it('takes setup:remote\'s flags with --secrets-file and --settings, and no --clerk-env-file', () => {
-    const o = parseInstanceSetupArgs(['--env', 'demo', '--api-host', API_HOST, '--owner-email', 'o@x.invalid', '--settings', '/s/demo.json', '--secrets-file', '/s/demo.env', '--only', 'migrate,deploy', '--rotate-secrets', '--no-dcr'])
+    const o = parseInstanceSetupArgs(['--env', 'demo', '--auth', 'clerk', '--api-host', API_HOST, '--owner-email', 'o@x.invalid', '--settings', '/s/demo.json', '--secrets-file', '/s/demo.env', '--only', 'migrate,deploy', '--rotate-secrets', '--no-dcr'])
     expect(o.settingsPath).toBe('/s/demo.json')
     expect(o.secretsPath).toBe('/s/demo.env')
     expect(o.opts).toMatchObject({ env: 'demo', apiHost: API_HOST, auth: 'clerk', workerName: 'vb-demo', d1Name: 'vb-crm-demo', r2Name: 'vb-bodies-demo', only: ['migrate', 'deploy'], rotateSecrets: true, noDcr: true })

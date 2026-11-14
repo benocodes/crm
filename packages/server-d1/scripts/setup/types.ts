@@ -73,7 +73,7 @@ export interface SetupDeps {
 export interface SetupOptions {
   env: string
   apiHost: string
-  auth: 'none' | 'clerk'
+  auth: 'better-auth' | 'clerk' | 'none'
   org: string
   origins: string[]
   operatorAgent?: string

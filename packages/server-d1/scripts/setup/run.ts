@@ -3,6 +3,7 @@ import { RemoteRefusal, requireConfirm } from '../remote.js'
 import { parse } from 'jsonc-parser'
 import { parseSetupArgs } from './args.js'
 import { applyRecordedNames, type RecordedNames } from './names.js'
+import { loadBetterAuth, providerFromVars } from './better-auth.js'
 import { loadClerkKeys } from './clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from './gmail.js'
 import { STEPS, type Ctx } from './steps.js'
@@ -20,7 +21,8 @@ const row = (r: StepResult) => `${r.status.padEnd(7)} ${r.step.padEnd(17)} ${r.d
 export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps: SetupDeps): Promise<SetupOutcome> {
   let ctx: Ctx
   try {
-    const parsed = parseSetupArgs(argv)
+    // [[OPS249]] D1: the provider the env block already records wins; a differing --auth is refused here, before any step.
+    const parsed = parseSetupArgs(argv, (env) => recordedAuth(readOrEmpty(deps), env))
     // [[OPS276]]: the names the env block already records win over the derivation, before any step creates anything.
     const opts = applyRecordedNames(parsed, recordedNames(readOrEmpty(deps), parsed.env), 'wrangler.jsonc')
     if (!opts.dryRun) requireConfirm(procEnv)
@@ -29,7 +31,9 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     const probe = deps.probeEnvFile(opts.clerkEnvFile, opts.env)
     const keys = opts.auth === 'clerk' ? loadClerkKeys(opts, deps, probe) : undefined
     const gmail = loadGmail(opts, probe)
-    ctx = { opts, deps, creds: deps.loadEnv(), pending: false, keys, gmail }
+    // `--auth better-auth`: `AUTH_SECRET` and the optional Google pair from the same file ([[OPS249]] D3, D4), judged before any request.
+    const betterAuth = loadBetterAuth(opts, probe.text, probe.display)
+    ctx = { opts, deps, creds: deps.loadEnv(), pending: false, keys, gmail, betterAuth }
   } catch (err) {
     if (!(err instanceof RemoteRefusal)) throw err
     deps.log(`setup: ${err.message}`)
@@ -47,6 +51,10 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
       ? `gmail: on, from ${ctx.gmail.file}: secrets ${GMAIL_SECRET_NAMES.join(', ')}; vars ${Object.keys(ctx.gmail.vars).sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never)).join(', ')}`
       : 'gmail: skipped (none of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_STATE_SECRET, CREDENTIALS_KEY in the env file)',
   )
+  if (ctx.betterAuth) {
+    const b = ctx.betterAuth
+    deps.log(`better-auth: PUBLIC_BASE_URL https://${opts.apiHost}; AUTH_SECRET ${b.authSecret ? `from ${b.file}` : `not in ${b.file} (generated and written there when the Worker lacks it)`}; Google sign-in secrets ${b.google ? `from ${b.file}` : 'not set'}`)
+  }
   const results: StepResult[] = []
   for (const name of selected) {
     let r: StepResult
@@ -87,6 +95,15 @@ export function recordedNames(configText: string, env: string): RecordedNames {
     controlD1Id: named(block.d1_databases, 'binding', 'CONTROL_DB', 'database_id'),
     r2Name: named(block.r2_buckets, 'binding', 'BODIES', 'bucket_name'),
   }
+}
+
+/** The provider `env.<env>` in wrangler.jsonc records ([[OPS249]] D1): `null` when there is no such block (a new instance). */
+export function recordedAuth(configText: string, env: string) {
+  const root = parse(configText, [], { allowTrailingComma: true }) as { env?: Record<string, any> } | undefined
+  const block = root?.env?.[env]
+  if (typeof block !== 'object' || block === null) return null
+  const where = `env.${env} in wrangler.jsonc`
+  return { provider: providerFromVars(block.vars, where), where }
 }
 
 /** A config that cannot be read is no record: `config:write` reports the read error as its own step failure, as before. */

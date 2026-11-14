@@ -16,8 +16,11 @@ export interface DesiredEnv {
   r2Name: string
   apiHost: string
   corsOrigins: string
-  /** `--auth clerk`: the Clerk variables ([[OPS65]] D3). `AUTH_CLI_CLIENT_ID` is absent while the CLI application is only planned. */
-  authVars?: { AUTH_PROVIDER: string; CLERK_ISSUER: string; CLERK_PUBLISHABLE_KEY?: string; CLERK_AUTHORIZED_PARTIES: string; AUTH_CLI_CLIENT_ID?: string }
+  /**
+   * The provider's variables: `--auth clerk` ([[OPS65]] D3; `AUTH_CLI_CLIENT_ID` is absent while the CLI application is only planned) or `--auth better-auth`
+   * (`AUTH_PROVIDER` and `PUBLIC_BASE_URL` only, [[OPS249]] D2). Absent on `none`.
+   */
+  authVars?: Record<string, string | undefined>
   /** The Gmail group's public vars ([[OPS150]]); only names from the allow-list ever get here. */
   gmailVars?: Record<string, string>
 }

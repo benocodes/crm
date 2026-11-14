@@ -87,6 +87,10 @@ export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null
   const { problems } = parseGmailConfig({ ...secrets, ...vars })
   const bad = problems.filter((n) => n in WORKER_RULES)
   if (bad.length > 0) throw new RemoteRefusal(bad.map((n) => `${n} in ${f} ${WORKER_RULES[n]}`).join('; '))
+  // [[OPS249]] D2: on `better-auth` one base URL is the issuer, the Gmail push endpoint and the redirect origin, so the file may not name another.
+  if (opts.auth === 'better-auth' && vars.PUBLIC_BASE_URL !== undefined && new URL(vars.PUBLIC_BASE_URL).origin !== `https://${opts.apiHost}`) {
+    throw new RemoteRefusal(`PUBLIC_BASE_URL in ${f} differs from https://${opts.apiHost}, the base URL derived from --api-host: on --auth better-auth they are one value (remove it from the file)`)
+  }
   vars.PUBLIC_BASE_URL ??= `https://${opts.apiHost}`
   return { secrets, vars, file: f }
 }

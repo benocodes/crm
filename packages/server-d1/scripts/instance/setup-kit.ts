@@ -13,7 +13,7 @@ import type { OpenD1Options, RunResult } from './types.js'
 export const ALL_MIGRATIONS = ['0001_a.sql', '0002_b.sql']
 export const API_HOST = 'api.demo.invalid'
 export const NONE_ARGS = ['--env', 'demo', '--api-host', API_HOST, '--auth', 'none']
-export const CLERK_ARGS = ['--env', 'demo', '--api-host', API_HOST, '--owner-email', 'owner@example.com', '--web-origin', 'https://app.demo.invalid']
+export const CLERK_ARGS = ['--env', 'demo', '--auth', 'clerk', '--api-host', API_HOST, '--owner-email', 'owner@example.com', '--web-origin', 'https://app.demo.invalid']
 export const GMAIL_CREDENTIALS_KEY = Buffer.alloc(32, 7).toString('base64')
 export const GOOGLE_CLIENT_SECRET = 'gsecret-CANARY-0123456789'
 export const OAUTH_STATE_SECRET = 'oauth-state-CANARY-0123456789'

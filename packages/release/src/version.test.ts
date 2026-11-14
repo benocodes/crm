@@ -77,7 +77,9 @@ const BUMPED = '0.1.1'
 /** Copies the workspace manifests and the changesets config to a scratch git repository, adds one fixture changeset for `@vibase/server-d1`, runs `changeset version`, returns each package.json's version afterwards and the files that changed. */
 export function scratchVersion(mutate: (c: Record<string, any>) => void = () => {}): { versions: Record<string, string | undefined>; changed: string[] } {
   const dir = tmp('ops237-scratch-')
-  cpSync(join(REPO, '.changeset'), join(dir, '.changeset'), { recursive: true })
+  // Only the config: the repository's own pending changesets (a `minor` one among them, OPS249) must not decide the bump the fixture changeset is expected to produce.
+  mkdirSync(join(dir, '.changeset'), { recursive: true })
+  cpSync(join(REPO, '.changeset', 'config.json'), join(dir, '.changeset', 'config.json'))
   for (const f of ['package.json', 'pnpm-workspace.yaml']) cpSync(join(REPO, f), join(dir, f))
   for (const d of pkgDirs(REPO)) {
     mkdirSync(join(dir, 'packages', d), { recursive: true })

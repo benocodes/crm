@@ -14,7 +14,7 @@ import { ISSUER, OWNER_EMAIL, PK_TEST, SK_LIVE_SENTINEL, SK_TEST, jwkFor, makeCl
 import { EXPECTED_MIGRATIONS, FIXTURE_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
-const BASE = ['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-email', OWNER_EMAIL]
+const BASE = ['--env', 'acme', '--auth', 'clerk', '--api-host', 'api.acme.vibase.ai', '--owner-email', OWNER_EMAIL]
 const realConfig = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const states = (o: SetupOutcome) => o.results.map((r) => `${r.step}:${r.status}`)
 const text = (o: SetupOutcome, step = 'clerk') => {

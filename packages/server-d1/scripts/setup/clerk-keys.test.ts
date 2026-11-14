@@ -8,7 +8,7 @@ import { makeWorld } from './test/world.js'
 
 const b64 = (s: string) => Buffer.from(s).toString('base64')
 const PK_LIVE = `pk_live_${b64('clerk.acme.example$')}`
-const opts = (extra: string[] = []) => parseSetupArgs(['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-email', 'o@example.com', ...extra])
+const opts = (extra: string[] = []) => parseSetupArgs(['--env', 'acme', '--auth', 'clerk', '--api-host', 'api.acme.vibase.ai', '--owner-email', 'o@example.com', ...extra])
 const load = (extra: string[], text: string | null, status?: 'root-env' | 'not-ignored') => {
   const w = makeWorld({ d1: undefined as never, clerkEnvText: text, clerkFileStatus: status })
   return loadClerkKeys(opts(extra), w.deps)

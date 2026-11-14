@@ -5,7 +5,7 @@ A prebuilt vibase Worker for Cloudflare D1: the Worker bundle, the connect page,
 `release.json` lists the version, the source commit, the wrangler version this release was tested with and a sha256 of every file. The package installs that exact wrangler beside `vibase-server`; every command verifies the files against `release.json` before it touches the network.
 
 ```bash
-npx @vibase/server-d1@<version> setup --env <name> --api-host <host> [--auth clerk|none] [--dry-run]
+npx @vibase/server-d1@<version> setup --env <name> --api-host <host> [--auth better-auth|clerk|none] [--dry-run]
 npx @vibase/server-d1@<version> status --env <name>
 npx @vibase/server-d1@<version> upgrade --env <name> [--dry-run]
 ```

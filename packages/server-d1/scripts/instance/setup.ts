@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { verifyRelease, type ReleaseManifest } from '../../../release/src/manifest.js'
 import { requireConfirm, resolveTarget } from '../remote.js'
 import { applyRecordedNames } from '../setup/names.js'
+import { loadBetterAuth, providerFromVars } from '../setup/better-auth.js'
 import { loadClerkKeys } from '../setup/clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from '../setup/gmail.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type EnvFileProbe, type StepResult } from '../setup/types.js'
@@ -21,7 +22,7 @@ export const EXIT_DONE = 0
 export const EXIT_REFUSED = 2
 export const EXIT_FAILED = 3
 
-const USAGE = 'usage: vibase-server setup --env <name> --api-host <host> [--auth clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
+const USAGE = 'usage: vibase-server setup --env <name> --api-host <host> [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
 const row = (r: StepResult) => `${r.status.padEnd(7)} ${r.step.padEnd(17)} ${r.detail}`
 
 /** A step's failure that is a refusal (an unresolvable wrangler) before anything was written is a refusal, not a failed step. */
@@ -39,7 +40,11 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   try {
     let parsed: ReturnType<typeof parseInstanceSetupArgs>
     try {
-      parsed = parseInstanceSetupArgs(argv)
+      // [[OPS249]] D1: the provider the settings file already records wins; a differing --auth is refused here, before any step (exit 2).
+      parsed = parseInstanceSetupArgs(argv, (env, given) => {
+        const path = given ?? defaultSettingsPath(deps.env, deps.homedir, env)
+        return existsSync(path) ? { provider: providerFromVars(loadSettings(path, env).vars, path), where: path } : null
+      })
     } catch (e) {
       if (!isRefusal(e)) throw e
       throw new InstanceRefusal(`${(e as Error).message}; ${USAGE}`)
@@ -66,6 +71,8 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     const probe: EnvFileProbe = { display: secretsPath, status: 'ok', text: secrets.text }
     const keys = opts.auth === 'clerk' ? loadClerkKeys(opts, { probeEnvFile: () => probe }, probe) : undefined
     const gmail = loadGmail(opts, probe)
+    // `--auth better-auth`: `AUTH_SECRET` and the optional Google pair from the same file ([[OPS249]] D3, D4), judged before any step.
+    const betterAuth = loadBetterAuth(opts, secrets.text, secretsPath)
     if (!opts.dryRun) requireConfirm(deps.env as NodeJS.ProcessEnv)
 
     // (c) P2: a live instance that is a newer release refuses before any write; no answer or a non-semver version (a source deploy) proceeds.
@@ -85,6 +92,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       current: existing ?? undefined,
       keys,
       gmail,
+      betterAuth,
       pending: false,
       wrote: false,
       extraMasks,
@@ -107,6 +115,10 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       ? `gmail: on, from ${ctx.secretsPath}: secrets ${GMAIL_SECRET_NAMES.join(', ')}; vars ${Object.keys(ctx.gmail.vars).sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never)).join(', ')}`
       : 'gmail: skipped (none of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_STATE_SECRET, CREDENTIALS_KEY in the secrets file)',
   )
+  if (ctx.betterAuth) {
+    const b = ctx.betterAuth
+    say(`better-auth: PUBLIC_BASE_URL https://${opts.apiHost}; AUTH_SECRET ${b.authSecret ? `from ${b.file}` : `not in ${b.file} (generated and written there when the Worker lacks it)`}; Google sign-in secrets ${b.google ? `from ${b.file}` : 'not set'}`)
+  }
   const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)))
   const results: StepResult[] = []
   for (const name of selected) {
