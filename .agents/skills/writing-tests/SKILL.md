@@ -210,6 +210,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   turn the named test red: `set_config(..., false)` inside a transaction that rolls back is rolled back too,
   so it cannot redden an "after rollback" leak test ([[CORE1]]). Run each target test alone (`-t`): on a
   shared `max: 1` pool, one test's leak reddens the next for the wrong reason.
+- **A test that passes in the red run is vacuous until proven otherwise.** List every one in RESULT.md, then tighten it
+  so it fails under the stub (assert the success status, `201`/`200`, before the absence it claims) or name the mutation
+  that reddens it. [[CORE245]]'s "no CRM event" test passed in red on a `404`: it proved nothing until it asserted the
+  create succeeded first.
+- **Append-only tables in an emptied-between-tests database.** A `BEFORE DELETE ... RAISE` trigger (`control_audit`,
+  [[CORE245]]) makes a plain `DELETE FROM` fail. `clearD1` (`packages/storage-d1/src/test/index.ts`) drops exactly the
+  `BEFORE DELETE` triggers, empties, and recreates them from their stored `sqlite_master.sql`, all in one batch, so the
+  schema after is the migrated one. Never disable a guard trigger in a fixture any other way; the trigger's own refusal
+  test runs on the migrated schema.
 - **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row passes
   whatever the code under test does ([[CORE29]] review). If the seeded id is not needed, drop the `const`
   (`await seedUser(...)`); if it is, assert something the code decides.

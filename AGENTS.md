@@ -293,7 +293,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).
    Writes that skip events are allowed only when they are not resources and a spec decision names them.
-   Today that means eight: identity bookkeeping (`principals`, `users` on first sight and on a provider
+   Today that means the list below (no count: it grows by spec decision): identity bookkeeping (`principals`, `users` on first sight and on a provider
    profile refresh, [[CORE3]] D12, [[CORE41]] P11), channel machinery tables (credentials, subscriptions,
    sync state and cursors, [[CHN5]] D22; the provider-id maps `message_sources` and `thread_sources`, [[CORE25]] D17), the dev/ops `bootstrap` script ([[CORE15]]), the API-key
    usage stamp (`api_keys.last_used_at` only, at most once a minute, never `updated_at`, [[CORE36]] D17), and

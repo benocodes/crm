@@ -270,11 +270,18 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 
 ## The registry and the REST adapter ([[CORE15]])
 
-- **An operation** is `{ kind: 'tenant' | 'account', name, summary, method, path, request?, validation?,
+- **An operation** is `{ kind: 'tenant' | 'account' | 'control', name, summary, method, path, request?, validation?,
   response, prepare }`. `scope` is required on tenant operations; account operations take none and are
   for users only (`403 user_required`). An account operation is `prepare(env: AccountEnv, input)` returning a
   **read-only** prepared operation, run with the `account` storage identity ([[CORE41]] P12). One that must write
   becomes an internal unit with an explicit organisation instead.
+  - **A `control` operation** ([[CORE245]], [[CORE243]] D14; `ControlOperation` in `src/registry.ts`) acts on the
+    control plane, not the CRM: scope-checked like a tenant operation (its scopes count in `declaredScopes`), it runs
+    `run(env, input)` against a narrow port its factory closes over (`InvitationsPort` in `src/invitations/port.ts`,
+    implemented by composition over the control store), with no storage unit, no proposal and no CRM event. Where
+    composition hands in no port (`clerk`, unset) it answers `501 provider_not_configured`; it stays registered on every
+    provider, so there is one registry and one golden. Reuse this kind for the next control-plane resource
+    (`audit.list`, [[CORE261]]) rather than adding another.
   - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
     derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
   - `surface` is required, `'api'` (records) or `'meta'` (configuration: agents, API keys, members, users, `me`,
@@ -760,6 +767,14 @@ interactive transaction, no `withContext` and no `executor` marker.
   - **A statement that inserts no row resets D1's `changes()` to 0**, and so does a holding assertion. Never put
     an `appliedPrev`-gated statement (such as `eventStatement`) directly after an assertion. Gate it on an
     `exists (event id)` instead, or rely on the `exactly` before it.
+  - **Check-then-write belongs inside the batch, not before it** ([[CORE245]], `packages/storage-d1/src/control-store.ts`).
+    A guard read in its own query and acted on in a later `batch()` is a race: a concurrent writer lands in between.
+    Put the guard in the write (`insert ... select ... where not exists (live same email)`), make the dependent row
+    conditional on it (the audit row as `insert ... select ... from invitations where id = ?`, so it exists only if the
+    change did), and read `meta.changes` of the guarded statement for the outcome. Set-based changes go the same way
+    (`update ... where role = 'owner' and <live>` rather than reading ids first). `reissueOwnerInvitation` still reads
+    the live owner invitations before its batch (acceptable for a single-operator bootstrap; not for [[OPS249]]'s
+    `owner-reset`).
   - **A compare-and-set `UPDATE` that matches no row does not fail a `batch()`.** To learn whether it applied,
     follow it with a `result` step gated on `appliedPrev`. A cursor moved this way, with the rows it covers made
     idempotent by a unique pair `ON CONFLICT DO NOTHING`, guarantees "each row once, the cursor never moves back".
