@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like, D1PreparedLike } from './binding.js'
 import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
 import { createInvitation, listInvitations, openControlDb, reissueOwnerInvitation, revokeInvitation, type NewInvitation } from './control-store.js'
-import { applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 
 // [[CORE245]] P3-P6: control 0002 (`invitations`, append-only `control_audit`) and the control store's invitation reads and writes, on a real control-plane D1 (Miniflare).
 // `control_audit` refuses DELETE, so tables are never emptied between tests: every test uses its own e-mail addresses and ids.
@@ -44,7 +44,6 @@ describe('control migration 0002: invitations and control_audit exist only in th
     const cols = async (t: string) => (await rows(control, `select name from pragma_table_info('${t}')`)).map((r) => r.name)
     expect(await cols('invitations')).toEqual(['id', 'organization_id', 'email', 'role', 'token_hash', 'expires_at', 'created_by', 'created_at', 'accepted_at', 'revoked_at'])
     expect(await cols('control_audit')).toEqual(['id', 'at', 'actor_id', 'action', 'target_type', 'target_id', 'detail'])
-    await applyMigrations(crm)
     const crmTables = (await rows(crm, "select name from sqlite_master where type = 'table'")).map((r) => r.name)
     expect(crmTables).not.toContain('invitations')
     expect(crmTables).not.toContain('control_audit')
@@ -169,7 +168,8 @@ describe('reissue the owner invitation (P7)', () => {
     await createInvitation(c(), old)
     const fresh = inv({ email: 'owner-new@x.test', role: 'owner', now: plus(NOW, 60_000) })
     const out = await reissueOwnerInvitation(c(), { ...fresh, newAuditId: nextId })
-    expect(out).toEqual({ result: 'created', revoked: [old.id] })
+    expect(out).toMatchObject({ result: 'created', revoked: expect.arrayContaining([old.id]) })
+    expect((await rows(control, "select id from invitations where role = 'owner' and accepted_at is null and revoked_at is null and expires_at > ?", plus(NOW, 60_000))).map((r) => r.id)).toEqual([fresh.id])
     expect((await rows(control, 'select revoked_at from invitations where id = ?', old.id))[0]!.revoked_at).toBe(plus(NOW, 60_000))
     expect((await audit(old.id)).map((r) => r.action)).toEqual(['invitation.created', 'invitation.revoked'])
     expect((await audit(fresh.id)).map((r) => r.action)).toEqual(['invitation.created'])

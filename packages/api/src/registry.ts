@@ -135,7 +135,28 @@ export interface AccountOperation extends OperationBase {
   agents?: boolean
   prepare: (env: AccountEnv, input: OperationInput) => PreparedOperation<unknown>
 }
-export type Operation = TenantOperation | AccountOperation
+/**
+ * What a control operation sees ([[CORE245]] P2): the actor, the deployment's organisation, the unit's clock and id and random sources. It carries no storage binding: a control operation reaches the control
+ * plane only through the port its factory closed over, handed in by composition ([[CORE259]] D5).
+ */
+export interface ControlEnv {
+  readonly actor: Actor
+  readonly organizationId: string
+  readonly scopes: ScopeSet
+  readonly now: Date
+  readonly newId: () => string
+  readonly randomBytes: (n: number) => Uint8Array
+}
+/**
+ * An administration operation whose state lives in the control-plane database, not the CRM one ([[CORE245]]): scope-checked like a tenant operation, run by `run` against a port instead of a
+ * storage unit. No CRM event, no proposal (the authority is the owner's, human-only).
+ */
+export interface ControlOperation extends OperationBase {
+  kind: 'control'
+  scope: Scope
+  run: (env: ControlEnv, input: OperationInput) => Promise<unknown>
+}
+export type Operation = TenantOperation | AccountOperation | ControlOperation
 export type AnyResource = PreparedResource<any, any>
 
 /**
@@ -239,15 +260,15 @@ export class Registry {
   }
 
   /**
-   * Every scope a tenant operation requires, formatted, sorted and unique, plus `<resource>:request_approval` for each resource that
+   * Every scope a tenant or control operation requires, formatted, sorted and unique, plus `<resource>:request_approval` for each resource that
    * has a proposable operation ([[AGT8]] D30).
    */
   declaredScopes(): string[] {
     const out = new Set<string>()
     for (const op of this.ops) {
-      if (op.kind !== 'tenant' || op.scope === null) continue
+      if (op.kind === 'account' || op.scope === null) continue
       out.add(formatScope(op.scope))
-      if (op.proposal?.eligible) out.add(formatScope({ resource: op.scope.resource, action: 'request_approval' }))
+      if (op.kind === 'tenant' && op.proposal?.eligible) out.add(formatScope({ resource: op.scope.resource, action: 'request_approval' }))
     }
     return [...out].sort()
   }

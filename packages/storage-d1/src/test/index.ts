@@ -107,7 +107,10 @@ export async function clearD1(d1: D1Like): Promise<void> {
   const known = order.filter((t) => tables.has(t))
   const rest = [...tables].filter((t) => !order.includes(t))
   const statements = [...rest, ...known].map((t) => d1.prepare(`DELETE FROM "${t}"`))
-  if (statements.length > 0) await d1.batch(statements)
+  // An append-only table refuses DELETE by trigger (`control_audit`, [[CORE245]] P5). A test helper that empties between tests drops exactly those `BEFORE DELETE` triggers and recreates them from their
+  // own stored SQL, all in the one batch (atomic: a failure leaves the triggers in place), so the schema afterwards is byte-for-byte the one the migrations made.
+  const guards = ((await d1.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND sql LIKE '% BEFORE DELETE ON %'").all()).results ?? []) as { name: string; sql: string }[]
+  if (statements.length > 0) await d1.batch([...guards.map((g) => d1.prepare(`DROP TRIGGER "${g.name}"`)), ...statements, ...guards.map((g) => d1.prepare(g.sql))])
 }
 
 /** The DDL wrangler 4.149.0 uses for its tracker (verified with `migrations apply --local`, [[CORE61]] Risks). */
