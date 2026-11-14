@@ -559,6 +559,11 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   body schema trims and bounds input; a channel calling the function directly does not pass through it.
   Clean free text from external sources inside the function (`cleanName` in `src/identity/resolve.ts`:
   trim, blank is absent, cap at the column limit), or one odd display name fails a whole capture batch.
+- **Prove a browser-side client against the real handler without a browser** ([[UI297]],
+  `packages/server-d1/src/connect-seam-real.test.ts`). Drive the client's own module with a `fetch` bound to
+  `composeD1Worker(env)`. That `fetch` resolves relative URLs against `PUBLIC_BASE_URL`, sends that origin as
+  `Origin` (Better Auth checks it) and keeps `Set-Cookie` in a jar. This checks the request and response shapes the
+  fake-`fetch` unit suite assumes, inside the gate. The browser E2E then only has to cover what needs a browser.
 - `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
 - `beforeEach` is scoped to its enclosing `describe`. A second top-level `describe` in a file does not
   inherit the first one's reset; give it its own.

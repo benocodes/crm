@@ -1017,6 +1017,15 @@ message bodies or addresses at info level (customer communications are personal 
   run under `happy-dom` per file (`// @vitest-environment happy-dom`).
 - **Clerk's `signOut()` with no `redirectUrl` lands on the origin root**, which is the API's 404. Pass the page's
   own path. Only a real browser run caught this.
+- **The sign-in seam is chosen in one pure function of discovery** (`selectSeam` in `src/connect/seam.ts`, [[UI297]]):
+  `clerk` with a publishable key gives `windowClerk`, `better-auth` gives `betterAuthSession` (same-origin `fetch`, no
+  third-party script), and anything else gives `null`, which means unavailable. The controller's only availability
+  check is "has a seam". The composition hands `serveConnect` an issuer only on `clerk`, so every other provider gets
+  the `'self'`-only CSP. Test that through the composed Worker: a `connectCsp` unit test cannot see what `compose.ts`
+  passes.
+- **A failed action keeps the page's state and adds an error line.** It never reuses a state that names a different
+  failure ([[UI297]] review). A rejected sign-out once became the refused-*load* state, which told a signed-in person
+  that sign-in could not load and hid their agents.
 - **Several pages in one bundle** ([[UI246]], `packages/server-d1/src/ui-serving.ts`): the page paths and the asset
   prefix are one exported constant (`UI_RUN_WORKER_FIRST`) that the Worker serves from and that the `wrangler.jsonc`
   test, `release:check` and `smoke:worker` read; never a copied list. A provider-specific page is gated in the
