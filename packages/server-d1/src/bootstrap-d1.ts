@@ -31,6 +31,8 @@ export interface BootstrapD1Result {
   apiKeyId: string | null
   key: string | null
   deployment: 'created' | 'existing'
+  /** `better-auth` re-run on an initialised organisation: the seed converged, no agent or key was made whatever `agentName` said. */
+  organizationExisted?: true
 }
 
 type BootstrapD1Env = {
@@ -97,7 +99,7 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
   // [[CORE283]] P5: the first-party CLI client, in the control plane, idempotent. Bootstrap is its one writer besides Better Auth's own handler.
   if (builtIn && env.control) await seedFirstPartyClient(controlAuthDatabase(env.control), { baseURL: opts.publicBaseUrl! })
   // A re-run on the built-in provider converges the seed above and leaves an existing organisation (and its keys) alone ([[CORE283]] P5).
-  if (builtIn && (await d1.prepare('select id from organizations limit 1').first())) return { organizationId: link.organizationId, userId: null, agentId: null, apiKeyId: null, key: null, deployment }
+  if (builtIn && (await d1.prepare('select id from organizations limit 1').first())) return { organizationId: link.organizationId, userId: null, agentId: null, apiKeyId: null, key: null, deployment, organizationExisted: true }
   if (clerk) {
     const w = await bootstrapWorkspace(d1Binding(d1, link), { organizationName: opts.organizationName, agentName: opts.agentName, scopes: opts.scopes }, { now, newId, randomBytes: env.randomBytes })
     return { organizationId: w.organizationId, userId: null, agentId: w.agentId, apiKeyId: w.apiKeyId, key: w.key, deployment }

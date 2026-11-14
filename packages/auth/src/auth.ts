@@ -209,7 +209,12 @@ export async function seedFirstPartyClient(db: AuthDatabaseLike, config: { baseU
   const shape = { name: 'Vibase CLI', tokenEndpointAuthMethod: 'none', grantTypes: [DEVICE_GRANT, 'refresh_token'], responseTypes: [], redirectUris: [], scopes: null, applicationType: 'native' }
   const where = [{ field: 'clientId', value: CLI_CLIENT_ID }]
   const existing = await adapter.findOne({ model: 'oauthClient', where })
-  if (existing) await adapter.update({ model: 'oauthClient', where, update: { ...shape, updatedAt: now } })
+  // Updated only when the stored shape differs, so a converged re-run writes nothing (not even `updated_at`).
+  const current = existing as Record<string, unknown> | null
+  const same = current !== null && Object.entries(shape).every(([k, v]) => JSON.stringify(current[k] ?? null) === JSON.stringify(v))
+  if (existing) {
+    if (!same) await adapter.update({ model: 'oauthClient', where, update: { ...shape, updatedAt: now } })
+  }
   else await adapter.create({ model: 'oauthClient', data: { clientId: CLI_CLIENT_ID, ...shape, createdAt: now, updatedAt: now } })
   for (const resourceId of resourcesFor(config.baseURL)) {
     const link = [{ field: 'clientId', value: CLI_CLIENT_ID }, { field: 'resourceId', value: resourceId }]

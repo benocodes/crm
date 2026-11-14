@@ -62,10 +62,9 @@ describe('the seeded vibase-cli client (P5)', () => {
     expect(await rows('select count(*) n from auth_oauth_clients')).toEqual([{ n: 1 }])
     expect(await rows('select count(*) n from auth_oauth_client_resources')).toEqual([{ n: 2 }])
     // and now it converged: a third run changes no row
-    await pair.control.prepare('update auth_oauth_clients set updated_at = updated_at').run()
-    const before = JSON.stringify((await rows('select * from auth_oauth_clients')).map(({ updated_at, ...rest }) => rest))
+    const before = await snapshot()
     await bootstrapD1(pair.d1, opts, { control: control() })
-    expect(JSON.stringify((await rows('select * from auth_oauth_clients')).map(({ updated_at, ...rest }) => rest))).toBe(before)
+    expect(await snapshot()).toBe(before)
   })
 
   it('the --remote code path seeds too, through its test seam', async () => {
@@ -77,6 +76,16 @@ describe('the seeded vibase-cli client (P5)', () => {
     // local mode, a second time: one row still
     expect(await runBootstrap({ mode: 'local', values: { org: 'demo', 'auth-provider': 'better-auth', 'public-base-url': BASE }, authOrgId: 'better-auth' }, { env: { DB: pair.d1, CONTROL_DB: pair.control } }, io())).toBe(0)
     expect(await rows('select count(*) n from auth_oauth_clients')).toEqual([{ n: 1 }])
+  })
+
+  it('a re-run with --agent says the organisation is already initialised and creates no agent', async () => {
+    const values = { org: 'demo', agent: 'op', 'auth-provider': 'better-auth', 'public-base-url': BASE }
+    expect(await runBootstrap({ mode: 'local', values: { ...values, agent: undefined }, authOrgId: 'better-auth' }, { env: { DB: pair.d1, CONTROL_DB: pair.control } }, io())).toBe(0)
+    const second = io()
+    expect(await runBootstrap({ mode: 'local', values, authOrgId: 'better-auth' }, { env: { DB: pair.d1, CONTROL_DB: pair.control } }, second)).toBe(0)
+    expect(second.logs.join('\n')).toContain('already initialised: no agent or key was created (--agent is ignored on a re-run)')
+    expect(second.logs.join('\n')).not.toContain('no --agent given')
+    expect((await pair.d1.prepare('select count(*) n from agents').first())).toEqual({ n: 0 })
   })
 
   it('--email, --name and --auth-subject are refused with better-auth, as with Clerk; so is a missing control database or base URL', async () => {

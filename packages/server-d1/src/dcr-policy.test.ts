@@ -120,4 +120,13 @@ describe('registration rate limit (P6)', () => {
     const crm = (await w.d1.prepare("select name from sqlite_master where name like 'auth\\_%' escape '\\'").all()).results
     expect(crm).toEqual([])
   })
+
+  it('with no cf-connecting-ip header the requests share one bucket and are limited too: the 11th is 429', async () => {
+    const h = handler()
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) statuses.push((await post(h, null)).status)
+    expect(statuses).toEqual([...Array(10).fill(201), 429])
+    // one shared bucket for the path: a single limiter row, counted to the limit
+    expect(await rows('select count from auth_rate_limits')).toEqual([{ count: 10 }])
+  })
 })

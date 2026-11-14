@@ -77,7 +77,7 @@ export function reportLines(r: BootstrapD1Result, mode: 'local' | 'remote', keyE
     `deployment:      ${r.deployment}`,
     `organization_id: ${r.organizationId}`,
     ...(r.userId === null ? [] : [`user_id:         ${r.userId}`]),
-    ...(r.key === null ? ['agent:           none (no --agent given)'] : [`agent_id:        ${r.agentId}`, `api_key_id:      ${r.apiKeyId}`, mode === 'local' ? `api_key:         ${r.key}   (shown once)` : `api_key: written to .env as ${keyEnv} (not shown)`]),
+    ...(r.organizationExisted ? ['organization:   already initialised: no agent or key was created (--agent is ignored on a re-run)'] : r.key === null ? ['agent:           none (no --agent given)'] : [`agent_id:        ${r.agentId}`, `api_key_id:      ${r.apiKeyId}`, mode === 'local' ? `api_key:         ${r.key}   (shown once)` : `api_key: written to .env as ${keyEnv} (not shown)`]),
   ]
 }
 
