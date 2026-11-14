@@ -106,20 +106,21 @@ function lookupSubjectOperation(subject: string): PreparedOperation<AcceptedAcco
   })
 }
 
-/** Whether the vault already holds a row for this subject: a `users` row or an agent account linked to it. A linked subject never re-runs acceptance ([[CORE287]] P5). */
-export function linkedSubjectOperation(subject: string): PreparedOperation<boolean> {
-  return defineOperation<boolean>({
+/** The principal the vault already holds for this subject (a `users` row or an agent account). A linked subject never re-runs the CRM program ([[CORE287]] P5); it may only complete P4. */
+export function linkedSubjectOperation(subject: string): PreparedOperation<string | null> {
+  return defineOperation<string | null>({
     name: 'invitations.linked_subject',
     mutates: false,
     reads: (qc) => ({
       user: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', BUILT_IN_PROVIDER).where('users.auth_subject', '=', subject)),
       agent: readMaybe(qc.db.selectFrom('agents').select('agents.id').where('agents.auth_provider', '=', BUILT_IN_PROVIDER).where('agents.auth_subject', '=', subject)),
     }),
-    build: (found) => unit({ steps: [], events: [], decode: () => found.maybe('user') !== null || found.maybe('agent') !== null }),
+    build: (found) => unit({ steps: [], events: [], decode: () => ((found.maybe('user') ?? found.maybe('agent'))?.id as string | undefined) ?? null }),
   })
 }
 
-export async function isSubjectLinked(storage: StorageBinding, subject: string): Promise<boolean> {
+/** The principal id of the `users` row or agent account linked to the subject, or `null`. */
+export async function linkedPrincipalId(storage: StorageBinding, subject: string): Promise<string | null> {
   try {
     return (await execute(storage, INTERNAL, linkedSubjectOperation(subject))).value
   } catch (err) {

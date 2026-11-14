@@ -55,9 +55,25 @@ function flaky(real: D1Like, fail: { on: boolean }): D1Like {
   }
 }
 
+/** A control D1 whose batches throw while `failControl.on` and any statement is the acceptance's `update invitations set accepted_at`: an injected failure of P4's batch only. */
+const failControl = { on: false }
+function flakyControl(real: D1Like): D1Like {
+  const sqlOf = new WeakMap<object, string>()
+  return {
+    prepare(query: string) {
+      const p = real.prepare(query)
+      return { bind: (...v: unknown[]) => { const b = p.bind(...v); sqlOf.set(b, query); return b }, run: () => p.run(), all: () => p.all(), first: () => p.first() } as D1PreparedLike
+    },
+    async batch(batch: D1PreparedLike[]) {
+      if (failControl.on && batch.some((s) => /update\s+invitations\s+set\s+accepted_at/i.test(sqlOf.get(s) ?? ''))) throw new Error('injected control failure')
+      return real.batch(batch)
+    },
+  }
+}
+
 let fail: { on: boolean }
 let clock: () => Date
-const worker = (over: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: flaky(w.d1, fail), CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, ...over }, { clock: () => clock() })
+const worker = (over: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: flaky(w.d1, fail), CONTROL_DB: flakyControl(w.control), AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, ...over }, { clock: () => clock() })
 let wk: ReturnType<typeof worker>
 const send = (path: string, init: { method?: string; body?: unknown; cookie?: string; bearer?: string } = {}) =>
   wk.fetch(
@@ -93,6 +109,7 @@ beforeEach(async () => {
   await createMigrationTracker(w.d1)
   await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
   fail = { on: false }
+  failControl.on = false
   clock = () => new Date()
   const r = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE, ownerEmail: 'owner@x.test' }, { control: openControlDb(w.control) })
   orgId = r.organizationId
@@ -316,16 +333,42 @@ describe('repair on sign-in (P5)', () => {
     expect(await count(w.d1, 'memberships')).toBe(1)
   })
 
-  it('a linked subject never re-runs acceptance: its sign-in leaves every CRM and control row unchanged', async () => {
+  it('a linked subject never re-runs the CRM program: with nothing adoptable its sign-in leaves every CRM and control row unchanged', async () => {
     expect((await signUp('owner@x.test', ownerToken)).status).toBe(200)
-    // A later live invitation for the same address (created after acceptance) must not be adopted by the linked subject.
-    await invite('owner@x.test', 'member', { createdAt: Date.now() - 5000 })
+    // The real P6 re-invite: a live invitation for the same address created AFTER the account is not the one that admitted it.
+    const at = await ((async () => Date.parse((await ctl('select created_at from auth_users'))[0]!.created_at))())
+    await invite('owner@x.test', 'member', { createdAt: at + 1000 })
     const crmBefore = await dump(w.d1)
     const ctlBefore = (await dump(w.control)) as Record<string, unknown[]>
     expect((await signIn('owner@x.test')).status).toBe(200)
     expect(await dump(w.d1)).toEqual(crmBefore)
     const after = (await dump(w.control)) as Record<string, unknown[]>
     for (const t of Object.keys(ctlBefore).filter((t) => !t.startsWith('auth_'))) expect(after[t], t).toEqual(ctlBefore[t])
+    expect((await ctl("select accepted_at from invitations where email = 'owner@x.test' and role = 'member'"))[0]!.accepted_at).toBeNull()
+    expect(await ctl("select * from control_audit where action = 'invitation.accepted'")).toHaveLength(1)
+  })
+
+  it('a failed P4 batch after the CRM commit: sign-up is non-2xx, the CRM rows exist; the next sign-in completes P4 only (one audit row, actor the principal, CRM unchanged) and a second writes nothing', async () => {
+    failControl.on = true
+    const up = await signUp('owner@x.test', ownerToken)
+    expect(up.status).toBeGreaterThanOrEqual(400)
+    expect(await count(w.d1, 'memberships')).toBe(1)
+    expect((await ctl('select accepted_at from invitations'))[0]!.accepted_at).toBeNull()
+    expect(await ctl("select * from control_audit where action = 'invitation.accepted'")).toEqual([])
+    failControl.on = false
+    const crmBefore = await dump(w.d1)
+    expect((await signIn('owner@x.test')).status).toBe(200)
+    expect(await dump(w.d1)).toEqual(crmBefore)
+    expect((await ctl('select accepted_at from invitations'))[0]!.accepted_at).not.toBeNull()
+    const user = (await crm('select id from users'))[0]!
+    const audit = await ctl("select * from control_audit where action = 'invitation.accepted'")
+    expect(audit).toHaveLength(1)
+    expect(audit[0]!.actor_id).toBe(user.id)
+    const ctlAfter = await dump(w.control)
+    expect((await signIn('owner@x.test')).status).toBe(200)
+    expect(await dump(w.d1)).toEqual(crmBefore)
+    const again = (await dump(w.control)) as Record<string, unknown[]>
+    for (const t of Object.keys(ctlAfter).filter((t) => !t.startsWith('auth_'))) expect(again[t], t).toEqual((ctlAfter as any)[t])
   })
 })
 

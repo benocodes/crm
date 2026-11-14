@@ -1,6 +1,6 @@
 // The invitation gate and acceptance, composed ([[CORE287]], [[CORE259]] D5): the port `@vibase/auth` is handed so it never reaches the CRM or the control database itself. The gate reads the control
 // plane; settling runs the vault's acceptance program (the commit point) and then marks the invitation accepted with its audit row, in that order.
-import { acceptInvitedAccount, hashInvitationToken, isSubjectLinked } from '@vibase/api'
+import { acceptInvitedAccount, hashInvitationToken, linkedPrincipalId } from '@vibase/api'
 import type { InvitationAdmission } from '@vibase/auth'
 import type { D1Binding } from '@vibase/storage'
 import type { InvitationRecord } from '@vibase/storage-d1'
@@ -27,13 +27,17 @@ export function invitationAdmission(d: InvitationAdmissionDeps): InvitationAdmis
     },
     async settle({ subject, email, name, accountCreatedAt }) {
       const storage = await d.crm()
-      // P5: a linked subject (a users row or an agent account) never re-runs acceptance.
-      if (await isSubjectLinked(storage, subject)) return
+      const linked = await linkedPrincipalId(storage, subject)
       const now = d.clock()
       const address = email.trim().toLowerCase()
       // P5: only the invitation that admitted this account (live, created no later than the account) adopts it; anything else leaves the subject inert.
       const invitation = await d.store.findAdoptable({ email: address, accountCreatedAt: accountCreatedAt.toISOString(), now: now.toISOString() })
       if (!invitation) return
+      // Amended P5: a linked subject never re-runs the CRM program, but if the control batch of an earlier acceptance failed, its admitting invitation is still live: complete P4 only, actor the linked principal.
+      if (linked) {
+        await d.store.accept({ id: invitation.id, auditId: d.newId(), actorId: linked, now: now.toISOString() })
+        return
+      }
       // P3: the CRM program is the commit point; if it throws, nothing below runs and the invitation stays pending.
       const { principalId } = await acceptInvitedAccount(storage, { now, newId: d.newId }, { role: invitation.role, subject, email: address, name })
       // P4: marked accepted only after the commit, guarded on the invitation still being live. A revoke that landed in between leaves the membership ([[CORE288]] removes it).
