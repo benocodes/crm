@@ -7,6 +7,7 @@ import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { gmailTransport } from '@vibase/api'
 import { AUTH_SERVER_METADATA_PATH, createAuthHandler, resourcesFor, type AuthRuntimeConfig } from '@vibase/auth'
 import { parseBuiltInAuthConfig } from './auth-config.js'
+import { invitationAdmission } from './invitation-admission.js'
 
 export interface D1WorkerEnv {
   DB: D1Like
@@ -479,7 +480,23 @@ export function composeD1Worker(
           const refused = await controlGate()
           if (refused) return refused
           // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
-          builtInHandler ??= createAuthHandler(controlAuthDatabase(control!), { ...builtInConfig, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) })
+          // [[CORE287]]: the gate and acceptance. The port is the only way the auth package reaches the vault; the CRM binding is resolved per call from the deployment row.
+          builtInHandler ??= createAuthHandler(
+            controlAuthDatabase(control!),
+            { ...builtInConfig, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) },
+            {
+              admission: invitationAdmission({
+                control: control!,
+                crm: async () => {
+                  const link = await readDeployment(env.DB)
+                  if (!link) throw new Error('the deployment is not initialised')
+                  return d1Binding(env.DB, link)
+                },
+                clock,
+                newId,
+              }),
+            },
+          )
           return await builtInHandler(req)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).

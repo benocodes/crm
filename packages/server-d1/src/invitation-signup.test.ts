@@ -102,7 +102,7 @@ beforeEach(async () => {
 })
 
 describe('the gate (P1, P2)', () => {
-  const REFUSED = { error: { code: CODE } }
+  const REFUSED = { code: CODE }
   const causes: Array<[string, () => Promise<{ email: string; token?: string }>]> = [
     ['no token', async () => ({ email: 'owner@x.test' })],
     ['an unknown token', async () => ({ email: 'owner@x.test', token: 'not-a-token' })],
@@ -176,8 +176,8 @@ describe('acceptance per role (P3)', () => {
       expect(await count(w.d1, 'users')).toBe(0)
       expect(events[0]!.resource_id).toBe(agent.id)
       const got = await me(cookie)
-      expect([got.status, got.json.principal?.kind ?? got.json.kind]).toEqual([200, 'agent'])
-      expect(JSON.stringify(got.json)).toContain(agent.id)
+      expect([got.status, got.json.principal.kind, got.json.principal.id]).toEqual([200, 'agent', agent.id])
+      expect(got.json.active_organization.scopes).toEqual([])
     } else {
       const user = (await crm('select * from users where auth_subject = ?', subject))[0]!
       expect(user).toEqual({ id: user.id, created_at: user.created_at, updated_at: user.created_at, email, name: 'Ann Tester', auth_provider: 'better-auth', auth_subject: subject, email_verified: 0 })
@@ -188,9 +188,8 @@ describe('acceptance per role (P3)', () => {
       expect(await count(w.d1, 'agents')).toBe(0)
       const got = await me(cookie)
       expect(got.status, JSON.stringify(got.json)).toBe(200)
-      expect(got.json.active_organization.role).toBe(role)
-      const declared = createVibaseRegistry().declaredScopes()
-      expect(got.json.scopes ?? scopesForRole(role, declared).toStrings()).toEqual(scopesForRole(role, declared).toStrings())
+      expect([got.json.principal.kind, got.json.principal.id, got.json.active_organization.role]).toEqual(['user', user.id, role])
+      expect(got.json.active_organization.scopes).toEqual(scopesForRole(role, createVibaseRegistry().declaredScopes()).toStrings())
     }
   })
 

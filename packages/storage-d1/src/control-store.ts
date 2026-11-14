@@ -202,3 +202,39 @@ export async function reissueOwnerInvitation(c: ControlDb, a: NewInvitation & { 
   if ((results[revoke.length]?.meta?.changes ?? 0) !== 1) return { result: 'live_exists' }
   return { result: 'created', revoked: owners.map((o) => o.id) }
 }
+
+// ---- Sign-up gate and acceptance ([[CORE287]] P2, P4, P5). ----
+
+/**
+ * The sign-up gate's one read ([[CORE287]] P2): is there a LIVE invitation for this email whose token hashes to `tokenHash`? Never tells a caller which condition failed (missing, other email, expired,
+ * revoked, accepted are all `false`); the email is compared as stored (trimmed, lowercased by the caller).
+ */
+export async function hasLiveInvitationForToken(c: ControlDb, a: { tokenHash: string; email: string; now: string }): Promise<boolean> {
+  const row = await raw(c).prepare(`select 1 as ok from invitations where token_hash = ? and email = ? and ${LIVE}`).bind(a.tokenHash, a.email, a.now).first()
+  return row !== null && row !== undefined
+}
+
+/**
+ * The invitation that admitted an account ([[CORE287]] P5): LIVE for this email and created no later than the account. A fresh invitation made after the account never adopts it. `accountCreatedAt` is
+ * the caller's ISO-8601 text with milliseconds and a Z (Better Auth's own column holds another encoding; the caller converts it through a `Date`), so the comparison is text on one encoding.
+ */
+export async function findAdoptableInvitation(c: ControlDb, a: { email: string; accountCreatedAt: string; now: string }): Promise<InvitationRecord | null> {
+  const row = await raw(c)
+    .prepare(`select ${COLUMNS} from invitations where email = ? and ${LIVE} and created_at <= ?`)
+    .bind(a.email, a.now, a.accountCreatedAt)
+    .first()
+  return row ? recordOf(row) : null
+}
+
+/**
+ * Marks a still-LIVE invitation accepted and writes its `invitation.accepted` audit row, in one batch ([[CORE287]] P4). `not_live` (nothing written) when a revoke, an expiry or an earlier
+ * acceptance got there first.
+ */
+export async function acceptInvitation(c: ControlDb, a: { id: string; auditId: string; actorId: string; now: string }): Promise<'accepted' | 'not_live'> {
+  const d1 = raw(c)
+  const results = await d1.batch([
+    d1.prepare(`update invitations set accepted_at = ? where id = ? and ${LIVE}`).bind(a.now, a.id, a.now),
+    auditStatement(d1, { auditId: a.auditId, now: a.now, actorId: a.actorId, action: 'invitation.accepted', invitationId: a.id, guard: 'accepted_at = ?', guardBinds: [a.now] }),
+  ])
+  return (results[0]?.meta?.changes ?? 0) === 1 ? 'accepted' : 'not_live'
+}

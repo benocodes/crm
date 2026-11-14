@@ -35,12 +35,33 @@ export interface AuthDatabaseLike {
   prepare(query: string): unknown
 }
 
+/** The one refusal code of the sign-up gate ([[CORE287]] P2): missing, unknown, another email, expired, revoked and accepted invitations are all this, so the answer says nothing about which invitations exist. */
+export const INVITATION_REQUIRED = 'invitation_required'
+/** The body field that carries the raw invitation token on `POST /auth/sign-up/email` ([[CORE287]] P1; Better Auth's body schema passes unknown fields through). */
+export const INVITATION_TOKEN_FIELD = 'invitation_token'
+
+/**
+ * What the composition hands the auth package so it can gate and settle accounts without ever reaching the CRM or control database itself ([[CORE259]] D5, [[CORE287]]): the Worker implements it over
+ * the control store and the vault's acceptance program.
+ */
+export interface InvitationAdmission {
+  /** The gate: is there a live invitation for this (trimmed, lowercased) email whose token is `token`? Reads only; `false` for every failing cause alike. */
+  admits(a: { email: string; token: string }): Promise<boolean>
+  /**
+   * Called on every session creation (sign-up and sign-in, [[CORE287]] P3, P5) with the Better Auth account behind it. Writes the vault's rows and marks the invitation accepted when the account has no
+   * rows yet and a live invitation created no later than the account admitted it; otherwise writes nothing. Throws when the write fails: the session is then not created.
+   */
+  settle(a: { subject: string; email: string; name: string; accountCreatedAt: Date }): Promise<void>
+}
+
 export interface CreateAuthOptions {
   /**
-   * TEST ONLY. Admits email sign-up. The shipped composition never passes it: until the invitation gate ([[CORE245]]) exists, `/auth` refuses every account creation ([[CORE243]] P1).
+   * TEST ONLY. Admits email sign-up with no invitation. The shipped composition never passes it: `/auth` admits an account only through `admission` ([[CORE243]] P1, [[CORE287]]).
    * Dynamic client registration is open under the policy of [[CORE283]] P6 whatever this says.
    */
   unsafeOpenAdmissionForTests?: boolean
+  /** The invitation gate and acceptance ([[CORE287]]). Without it (and without the test switch) `/auth` refuses every account creation. */
+  admission?: InvitationAdmission
   /** Ids of every auth row; UUIDv7 by default, like the vault's. */
   generateId?: () => string
 }
@@ -144,16 +165,35 @@ function composePlugins(baseURL: string, schema?: (key: ModelKey) => ReturnType<
   ]
 }
 
-/** [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the library, so it is refused too. */
-const publicClientsOnly = createAuthMiddleware(async (ctx) => {
-  if (ctx.path !== '/oauth2/register') return
-  const method = (ctx.body as { token_endpoint_auth_method?: unknown } | undefined)?.token_endpoint_auth_method
-  if (method !== 'none') throw new APIError('BAD_REQUEST', { error: 'invalid_client_metadata', error_description: 'only public clients may register: token_endpoint_auth_method must be none' })
-})
+const refusal = () => new APIError('FORBIDDEN', { code: INVITATION_REQUIRED, message: 'sign-up requires a valid invitation for this email' })
+
+/**
+ * The gate ([[CORE287]] P1, P2): a live invitation for `body.email` whose token is `body.invitation_token`, else the one refusal. Every cause is the same `403`, and nothing is written.
+ * Without an `admission` port nothing is admitted.
+ */
+async function requireInvitation(admission: InvitationAdmission | undefined, body: unknown): Promise<void> {
+  const b = (body ?? {}) as Record<string, unknown>
+  const email = typeof b.email === 'string' ? b.email.trim().toLowerCase() : ''
+  const token = typeof b[INVITATION_TOKEN_FIELD] === 'string' ? (b[INVITATION_TOKEN_FIELD] as string) : ''
+  if (!admission || email === '' || token === '' || !(await admission.admits({ email, token }))) throw refusal()
+}
+
+/**
+ * Before-hooks of every endpoint. [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the
+ * library, so it is refused too. [[CORE287]]: email sign-up is gated before anything else runs, so an unadmitted request costs no password hash and cannot tell an existing account from an absent one.
+ */
+const endpointGate = (admission: InvitationAdmission | undefined, open: boolean) =>
+  createAuthMiddleware(async (ctx) => {
+    if (ctx.path === '/sign-up/email' && !open) await requireInvitation(admission, ctx.body)
+    if (ctx.path !== '/oauth2/register') return
+    const method = (ctx.body as { token_endpoint_auth_method?: unknown } | undefined)?.token_endpoint_auth_method
+    if (method !== 'none') throw new APIError('BAD_REQUEST', { error: 'invalid_client_metadata', error_description: 'only public clients may register: token_endpoint_auth_method must be none' })
+  })
 
 /** The Better Auth options of the composition. Exported for the schema generator and the tests; the Worker uses `createAuthHandler`. */
 export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): BetterAuthOptions {
   const open = opts.unsafeOpenAdmissionForTests === true
+  const { admission } = opts
   return {
     baseURL: config.baseURL,
     basePath: '/auth',
@@ -161,8 +201,8 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     database: { dialect: new D1Dialect({ database: db as never }), type: 'sqlite' },
     // Only this origin is trusted (D23): never the request's Host.
     trustedOrigins: [config.baseURL],
-    // Admission is closed (P1). Sign-up is the only path that creates a user here; the invitation gate replaces the refusal ([[CORE245]]).
-    emailAndPassword: { enabled: true, disableSignUp: !open, password: { hash: hashPassword, verify: verifyPassword } },
+    // Admission is closed (P1) unless the composition hands in the invitation port ([[CORE287]]); sign-up is the only path that creates a user here.
+    emailAndPassword: { enabled: true, disableSignUp: !open && !admission, password: { hash: hashPassword, verify: verifyPassword } },
     user: schemaFor('user'),
     session: { ...schemaFor('session'), expiresIn: BROWSER_SESSION_SECONDS },
     account: schemaFor('account'),
@@ -175,7 +215,29 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     },
     telemetry: { enabled: false },
     plugins: composePlugins(config.baseURL, schemaFor, config.vaultScopes, config.grantableScopes),
-    hooks: { before: publicClientsOnly },
+    hooks: { before: endpointGate(admission, open) },
+    databaseHooks: {
+      user: {
+        // The backstop at the point EVERY account creation passes ([[CORE287]] P2): a path the endpoint hook does not name (a later Google sign-in) carries no token and is refused here.
+        create: { before: async (_user: unknown, ctx: { body?: unknown } | null | undefined) => void (open || (await requireInvitation(admission, ctx?.body))) },
+      },
+      session: {
+        // Every successful sign-up and sign-in creates a session: the one place acceptance and repair ([[CORE287]] P3, P5) run, before the session exists, so a failure leaves no cookie.
+        create: {
+          before: async (session: { userId: string }, ctx: { context?: { internalAdapter?: { findUserById(id: string): Promise<{ id: string; email: string; name: string; createdAt: Date | string | number } | null> }; logger?: { error(...a: unknown[]): void } } } | null | undefined) => {
+            if (!admission) return
+            const user = await ctx?.context?.internalAdapter?.findUserById(session.userId)
+            if (!user) return
+            try {
+              await admission.settle({ subject: user.id, email: user.email, name: user.name, accountCreatedAt: new Date(user.createdAt) })
+            } catch (err) {
+              ctx?.context?.logger?.error('invitation acceptance failed', err instanceof Error ? err.message : 'unknown error')
+              throw new APIError('INTERNAL_SERVER_ERROR', { code: 'invitation_acceptance_failed', message: 'the account could not be settled; sign in again to retry' })
+            }
+          },
+        },
+      },
+    },
   } as BetterAuthOptions
 }
 
