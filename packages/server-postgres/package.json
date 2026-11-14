@@ -19,7 +19,7 @@
     "@vibase/storage": "workspace:*",
     "@vibase/storage-postgres": "workspace:*",
     "jose": "6.2.12",
-    "kysely": "0.29.6"
+    "kysely": "0.29.8"
   },
   "devDependencies": {
     "@types/node": "^22",
