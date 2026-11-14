@@ -3,13 +3,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createApi } from './api.js'
 import { createPage } from './controller.js'
 import { FakeClerk } from './test/fake-clerk.js'
-import type { AgentRecord, Discovery, Me } from './types.js'
+import type { AgentRecord, ClerkLike, Me } from './types.js'
 
 // [[UI30]] D4, D6, D8: the page's state machine over a fake Clerk and a fake API. No network, no Clerk instance.
 
 const ORIGIN = 'http://localhost:8787'
 const ID = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')}`
-const DISCOVERY: Discovery = { auth: { provider: 'clerk', issuer: 'https://x.clerk.accounts.dev', cli_client_id: 'cli', publishable_key: ['pk', 'test', btoa('x.clerk.accounts.dev$')].join('_') } }
 
 const me = (kind: 'user' | 'agent', scopes: string[], role: 'owner' | 'member' | null = 'owner'): Me => ({
   principal: { id: ID(1), kind },
@@ -50,10 +49,10 @@ function fakeVibase(script: Record<string, (Response | (() => Response))[]>) {
 const ok = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const err = (status: number) => ok({ error: { code: 'x', message: 'y' } }, status)
 
-const setup = (clerk: FakeClerk, vibase: ReturnType<typeof fakeVibase>, discovery: Discovery = DISCOVERY) => {
+const setup = (clerk: FakeClerk, vibase: ReturnType<typeof fakeVibase>, seam: ClerkLike | null = clerk) => {
   const api = createApi({ origin: ORIGIN, getToken: () => clerk.getToken(), fetch: vibase.fetchFn })
   const states: string[] = []
-  const page = createPage({ clerk, api, discovery, origin: ORIGIN, onChange: (s) => states.push(s.kind) })
+  const page = createPage({ clerk: seam, api, origin: ORIGIN, onChange: (s) => states.push(s.kind) })
   return { page, states }
 }
 
@@ -74,10 +73,10 @@ afterEach(() => {
   expect(sessionStorage.length).toBe(0)
   current = undefined
 })
-const run = (clerk: FakeClerk, script: Record<string, (Response | (() => Response))[]>, discovery?: Discovery) => {
+const run = (clerk: FakeClerk, script: Record<string, (Response | (() => Response))[]>, seam?: ClerkLike | null) => {
   const vibase = fakeVibase(script)
   current = { clerk, vibase }
-  return { vibase, ...setup(clerk, vibase, discovery) }
+  return { vibase, ...setup(clerk, vibase, seam) }
 }
 
 describe('start', () => {
@@ -86,17 +85,22 @@ describe('start', () => {
     expect(page.state().kind).toBe('loading')
   })
 
-  it.each([
-    ['no auth in discovery', { auth: null } as Discovery],
-    ['no publishable key', { auth: { ...DISCOVERY.auth!, publishable_key: null } } as Discovery],
-  ])('%s: sign-in unavailable, Clerk is never loaded and the API is never called', async (_n, discovery) => {
+  // [[UI297]] D7: availability is "has a seam", not "has a publishable key": the page gets a seam or null from `selectSeam`.
+  it('no seam: sign-in unavailable, nothing is loaded and the API is never called', async () => {
     const clerk = new FakeClerk()
-    const { page, vibase } = run(clerk, {}, discovery)
+    const { page, vibase } = run(clerk, {}, null)
     await page.start()
     expect(page.state().kind).toBe('unavailable')
     expect(clerk.loads).toBe(0)
     expect(vibase.seen).toEqual([])
     current = undefined
+  })
+
+  it('a seam is enough: the controller no longer asks for a publishable key (better-auth has none)', async () => {
+    const clerk = new FakeClerk(false)
+    const { page } = run(clerk, {})
+    await page.start()
+    expect(page.state().kind).toBe('signed-out')
   })
 
   it('signed out: loads Clerk, calls nothing, and sign-in redirects back to this page', async () => {
@@ -253,7 +257,7 @@ describe('agents.update', () => {
     current = { clerk, vibase }
     let down = false
     const flaky = ((i: RequestInfo | URL, init?: RequestInit) => (down ? Promise.reject(new TypeError('network')) : vibase.fetchFn(i, init))) as typeof fetch
-    const page = createPage({ clerk, api: createApi({ origin: ORIGIN, getToken: () => clerk.getToken(), fetch: flaky }), discovery: DISCOVERY, origin: ORIGIN })
+    const page = createPage({ clerk, api: createApi({ origin: ORIGIN, getToken: () => clerk.getToken(), fetch: flaky }), origin: ORIGIN })
     await page.start()
     down = true
     await page.setDisabled(ID(10), true)

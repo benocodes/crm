@@ -12,7 +12,7 @@ const sources = readdirSync(DIR)
 
 describe('page source guard', () => {
   it('finds the page modules', () => {
-    expect(sources.map((s) => s.f)).toEqual(expect.arrayContaining(['view-model.ts', 'controller.ts', 'dom.ts', 'api.ts', 'main.ts']))
+    expect(sources.map((s) => s.f)).toEqual(expect.arrayContaining(['view-model.ts', 'controller.ts', 'dom.ts', 'api.ts', 'main.ts', 'better-auth-session.ts', 'seam.ts']))
   })
   it.each(['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'createContextualFragment', 'DOMParser', 'eval(', 'new Function'])('no page module uses %s', (sink) => {
     for (const s of sources) expect(s.text, `${s.f} uses ${sink}`).not.toContain(sink)
