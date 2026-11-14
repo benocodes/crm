@@ -1,6 +1,6 @@
 import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type InvitationsRuntime, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
-import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
+import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, acceptInvitation, findAdoptableInvitation, hasLiveInvitationForToken, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
@@ -486,7 +486,7 @@ export function composeD1Worker(
             { ...builtInConfig, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) },
             {
               admission: invitationAdmission({
-                control: control!,
+                store: { hasLive: (a) => hasLiveInvitationForToken(control!, a), findAdoptable: (a) => findAdoptableInvitation(control!, a), accept: (a) => acceptInvitation(control!, a) },
                 crm: async () => {
                   const link = await readDeployment(env.DB)
                   if (!link) throw new Error('the deployment is not initialised')

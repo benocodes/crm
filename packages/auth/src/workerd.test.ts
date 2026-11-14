@@ -13,14 +13,17 @@ const PASSWORD = 'a long enough password 123'
 let bundle: Bundle
 let open: Workerd
 let shut: Workerd
+let gated: Workerd
 beforeAll(async () => {
   bundle = await bundleWorker(ENTRY)
   open = await startWorkerd({ bundle, bindings: { OPEN_ADMISSION: '1' } })
   shut = await startWorkerd({ bundle })
+  gated = await startWorkerd({ bundle, bindings: { FAKE_ADMISSION: 'ann@auth.test|the-token' } })
 }, 120_000)
 afterAll(async () => {
   await open?.dispose()
   await shut?.dispose()
+  await gated?.dispose()
   bundle?.dispose()
 })
 
@@ -113,7 +116,7 @@ describe('Better Auth in workerd on control migration 0001 (test admission)', ()
   })
 })
 
-describe('the shipped composition (no test admission) refuses sign-up (P1)', () => {
+describe('a composition handed no invitation port (and no test admission) refuses sign-up (P1, fail closed; the Worker hands the port in, [[CORE287]])', () => {
   it('refuses sign-up and writes no user', async () => {
     const res = await shut.call('/auth/sign-up/email', { body: { name: 'Nobody', email: 'nobody@auth.test', password: PASSWORD } })
     expect(res.status).toBeGreaterThanOrEqual(400)
@@ -128,6 +131,25 @@ describe('the shipped composition (no test admission) refuses sign-up (P1)', () 
     expect(res.status).toBe(201)
     expect((await shut.controlRows('select id from auth_oauth_clients')).length).toBe(1)
     expect(await shut.controlRows('select id from auth_users')).toEqual([])
+  })
+})
+
+// [[CORE287]] P1, P2 in workerd: with an invitation port the gate admits exactly the invited email with its token, and every other attempt is the one 403 with no auth row.
+describe('the invitation gate in workerd ([[CORE287]] P1, P2)', () => {
+  const up = (email: string, invitation_token?: string) => gated.call('/auth/sign-up/email', { body: { name: 'Ann', email, password: PASSWORD, ...(invitation_token === undefined ? {} : { invitation_token }) }, headers: { 'cf-connecting-ip': `203.0.113.${Math.floor(Math.random() * 200) + 1}` } })
+  it('refuses a missing token, a wrong token and another email with the same 403 and writes no auth row; admits the invited email, differently cased', async () => {
+    const bodies = new Set<string>()
+    for (const [email, token] of [['ann@auth.test', undefined], ['ann@auth.test', 'wrong'], ['bob@auth.test', 'the-token']] as const) {
+      const res = await up(email, token)
+      expect(res.status).toBe(403)
+      bodies.add(JSON.stringify(await res.json()))
+    }
+    expect([...bodies]).toHaveLength(1)
+    expect(JSON.parse([...bodies][0]!)).toMatchObject({ code: 'invitation_required' })
+    expect(await gated.controlRows('select id from auth_users')).toEqual([])
+    const ok = await up('Ann@Auth.test', 'the-token')
+    expect(ok.status, await ok.clone().text()).toBe(200)
+    expect((await gated.controlRows('select email from auth_users')).map((r) => r.email)).toEqual(['ann@auth.test'])
   })
 })
 
