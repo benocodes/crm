@@ -88,6 +88,19 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   before the route exists when the gate runs before routing ([[API63]]: the [[CORE61]] `migrations_pending` gate). Keep
   it as a regression guard and pair it with a case that needs the new code (gate open → `200`); a charter should not
   ask for a red run on the first one.
+- **A refusal the real producer cannot emit is proven on crafted inputs at the unit.** Better Auth signs with a key
+  encrypted by `AUTH_SECRET`, so it cannot mint a token with a wrong `iss` or `aud`; [[CORE244]] proved those refusals
+  (and their absence mutations) at the adapter on hand-signed Ed25519 tokens (`packages/api/src/auth/better-auth.test.ts`)
+  and kept the composed workerd test for real tokens of each kind. A charter asking for such a mutation "in workerd"
+  is asking for the impossible: ask for it at the unit, and for real-producer tokens at the composition.
+- **A wiring choice is proven where it is wired.** A reader proven by a unit or route suite does not prove the
+  composition picks it: [[CORE244]]'s `membershipRoleReader` was proven in the api callback suite, but nothing tested
+  that `packages/server-d1/src/compose.ts` passes it as the mail-sync claim's `roleOf` on `better-auth` (a regression
+  there suspends every connection; #284). When code selects an implementation per configuration, add one composed
+  case per branch whose absence mutation is "the other branch's implementation".
+- **A matrix obligation is the full cross product unless the charter removes cells.** List the cells the RESULT
+  covers against rows × columns, and name each omitted cell with its reason; [[CORE244]]'s review found three `cli`
+  cells missing from a 3 × 8 matrix that RESULT reported as complete.
 - **A term that today's configuration makes vacuous cannot be proven with today's configuration.** [[CORE77]]'s
   delegated scopes are token ∩ cap ∩ role ∩ grantable, but under the real `SCOPE_POLICY` every agent-grantable scope
   is also a member scope, so dropping the role term changed nothing. Inject the configuration (an optional `policy`

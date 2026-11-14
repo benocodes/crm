@@ -394,7 +394,9 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   bootstrapped before the control plane existed. `bootstrap --remote` writes it when the env binds `CONTROL_DB`.
 - **Dropping or moving a table: grep every package for its name** (sources, tests, fixtures), not only the package
   that owns the migration. CRM `0019` (drop `auth_*`) broke `packages/server-d1/src/auth-routing.test.ts`, which the
-  charter's watch list missed and only the full gate found ([[OPS260]]).
+  charter's watch list missed and only the full gate found ([[OPS260]]). Grep `scripts/` too: `smoke:worker` is not
+  in the gate, so its check 25d (reading the dropped CRM `auth_jwks`) stayed broken on `main` until [[CORE244]] needed
+  the smoke; a cycle that drops a table runs `pnpm -C packages/server-d1 smoke:worker` before review.
 - Adding a binding means updating every harness that composes the Worker (storage-d1 test support, the server
   kit, the auth harness, `smoke:worker`) and every test that composes `better-auth` without it, which otherwise
   fails with the same `500` as the fail-closed refusal: assert the log line naming the cause.
