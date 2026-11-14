@@ -29,8 +29,8 @@
   ],
   // The connect page ([[UI30]] D2): built by `pnpm build` into dist/assets/connect/. The Worker goes first for /connect* only and serves
   // the files itself (adding the security headers); no asset is reachable at any other path. `assets` is inherited by every env.
-  // [[UI246]] D2: the auth pages (`/sign-in`, `/invite`, `/reset-password`) and their bundle under `/ui/`, built beside it by `pnpm build`; same rule, and the list is the one `src/ui-serving.ts` serves.
-  "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*", "/sign-in", "/invite", "/reset-password", "/ui/*"] },
+  // [[UI246]] D2: the auth pages (`/sign-in`, `/invite`, `/reset-password`, `/consent`, `/device`) and their bundle under `/ui/`, built beside it by `pnpm build`; same rule, and the list is the one `src/ui-serving.ts` serves.
+  "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*", "/sign-in", "/invite", "/reset-password", "/consent", "/device", "/ui/*"] },
   // Local R2 (no account needed): message bodies and file bytes, served by messages.content and files.content.
   "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vb-bodies" }],
   // The Gmail sync run ([[CHN141]], CHN5 D34): a Workflow whose class `src/worker.ts` exports, and the 15-minute cron that requests syncs. Neither is

@@ -9,7 +9,7 @@ describe('returnTarget', () => {
     ['/device', '/device'],
     ['/device?user_code=ABCDEFGH', '/device?user_code=ABCDEFGH'],
     ['/connect', '/connect'],
-    ['http://localhost:8787/device?user_code=ABCDEFGH', '/device?user_code=ABCDEFGH'],
+    [`${location.origin}/device?user_code=ABCDEFGH`, '/device?user_code=ABCDEFGH'],
   ])('%s is honoured as %s', (value, expected) => {
     expect(returnTarget(q(value))).toBe(expected)
   })

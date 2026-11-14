@@ -583,7 +583,7 @@ try {
   res = await call('GET', '/connect.js')
   check('24 GET /connect.js (an asset name outside /connect) -> not served', res.status !== 200 && !(res.headers.get('content-type') ?? '').includes('javascript'), { status: res.status })
   // [[UI246]] D1: on clerk the auth pages and their bundle are no route at all, with the real assets binding in front of the Worker (the built files exist: only the provider decides).
-  for (const path of ['/sign-in', '/invite', '/reset-password', '/ui/app.js']) {
+  for (const path of ['/sign-in', '/invite', '/reset-password', '/consent', '/device', '/ui/app.js']) {
     res = await call('GET', path)
     check(`24b GET ${path} on clerk -> 404 not_found (the auth pages exist only on better-auth)`, res.status === 404 && (await json(res)).error?.code === 'not_found', { status: res.status })
   }

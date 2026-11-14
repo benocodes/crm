@@ -64,8 +64,10 @@ describe('signed in: the code form', () => {
   it('typing lower case, spaces and hyphens normalises to XXXX-XXXX and sends the unseparated code', async () => {
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
-    await submitCode('ab cd-ef gh')
+    const user = userEvent.setup()
+    await user.type(await screen.findByLabelText(MESSAGES.deviceCodeLabel), 'ab cd-ef gh')
     expect((screen.getByLabelText(MESSAGES.deviceCodeLabel) as HTMLInputElement).value).toBe('ABCD-EFGH')
+    await user.click(screen.getByRole('button', { name: /check code/i }))
     await screen.findByRole('button', { name: /approve/i })
     const claim = urlsOf(f).find((u) => u.startsWith('/auth/device?'))!
     expect(new URL(claim, 'http://x').searchParams.get('user_code')).toBe('ABCDEFGH')
@@ -122,15 +124,16 @@ describe('claim, then review', () => {
     fakeFetch({
       ...happyRoutes(),
       'GET /auth/get-session': { status: 200, json: { user: { id: 'u', email: '<i id="e">a</i>@x.test' } } },
-      'GET /auth/device': { status: 200, json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'c', scope: '<u id="s">x</u>:read' } },
+      'GET /auth/device': { status: 200, json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'c', scope: '<u>x</u>:read' } },
       'GET /auth/oauth2/public-client': { status: 200, json: { client_name: '<b id="n">Evil</b>' } },
     })
     render(<DevicePage />)
     await submitCode()
     await screen.findByText('<b id="n">Evil</b>')
     expect(screen.getByText('Signed in as <i id="e">a</i>@x.test')).toBeTruthy()
-    expect(screen.getByText('<u id="s">x</u>:read')).toBeTruthy()
-    for (const id of ['n', 'e', 's']) expect(document.getElementById(id), id).toBeNull()
+    expect(screen.getByText('<u>x</u>:read')).toBeTruthy()
+    expect(document.querySelector('u')).toBeNull()
+    for (const id of ['n', 'e']) expect(document.getElementById(id), id).toBeNull()
   })
 
   it('an unknown scope is shown by name with "No description"', async () => {

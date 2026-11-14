@@ -84,7 +84,7 @@ describe('signed in', () => {
   })
 
   it('an app name, email and scope holding markup are text: no element is created', async () => {
-    at('client_id=app-1&scope=%3Cu+id%3D%22s%22%3Ex%3C%2Fu%3E&sig=s&redirect_uri=https%3A%2F%2Fclient.test%2Fcb')
+    at('client_id=app-1&scope=%3Cu%3Ex%3C%2Fu%3E&sig=s&redirect_uri=https%3A%2F%2Fclient.test%2Fcb')
     fakeFetch(
       routes({
         'GET /auth/get-session': { status: 200, json: { user: { id: 'u', email: '<i id="e">a</i>@x.test' } } },
@@ -94,8 +94,9 @@ describe('signed in', () => {
     render(<ConsentPage />)
     await screen.findByText('<b id="n">Evil</b>')
     expect(screen.getByText('Signed in as <i id="e">a</i>@x.test')).toBeTruthy()
-    expect(screen.getByText('<u id="s">x</u>')).toBeTruthy()
-    for (const id of ['n', 'e', 's']) expect(document.getElementById(id), id).toBeNull()
+    expect(screen.getByText('<u>x</u>')).toBeTruthy()
+    expect(document.querySelector('u')).toBeNull()
+    for (const id of ['n', 'e']) expect(document.getElementById(id), id).toBeNull()
   })
 
   it('a failed name lookup falls back to the client id as text', async () => {

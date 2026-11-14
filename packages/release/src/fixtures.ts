@@ -15,7 +15,7 @@ export const BASE_SOURCE = `{
     { "binding": "DB", "database_name": "vb-crm", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../storage-d1/migrations" },
     { "binding": "CONTROL_DB", "database_name": "vb-control", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "../storage-d1/control-migrations" }
   ],
-  "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*", "/sign-in", "/invite", "/reset-password", "/ui/*"] },
+  "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*", "/sign-in", "/invite", "/reset-password", "/consent", "/device", "/ui/*"] },
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": { "AUTH_PROVIDER": "" },
   "env": { "prod": { "name": "vb-prod", "d1_databases": [{ "binding": "DB", "database_name": "p", "database_id": "11111111-2222-3333-4444-555555555555" }] } }

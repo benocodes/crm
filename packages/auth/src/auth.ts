@@ -30,6 +30,17 @@ export const REGISTRATION_LIMIT = { window: 60 * 60, max: 10 } as const
 /** RFC 8414 path insertion for the issuer `<base>/auth` ([[CORE283]] D12): the document Better Auth builds, served where the standard says it is. */
 export const AUTH_SERVER_METADATA_PATH = '/.well-known/oauth-authorization-server/auth'
 
+/** The device user code ([[UI247]] D2): 8 characters from a 32-character alphabet without `I`, `O`, `0` and `1` (40 bits), stored unseparated (the page shows it as `XXXX-XXXX`), valid 30 minutes, polled every 5 seconds. */
+export const DEVICE_USER_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+export const DEVICE_USER_CODE_LENGTH = 8
+export const DEVICE_CODE_EXPIRES_IN = '30m'
+export const DEVICE_POLL_INTERVAL = '5s'
+/** 256 is a multiple of the alphabet's 32, so a random byte masked to 5 bits is uniform. */
+export function generateDeviceUserCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(DEVICE_USER_CODE_LENGTH))
+  return Array.from(bytes, (b) => DEVICE_USER_CODE_ALPHABET[b & 31]!).join('')
+}
+
 /** A D1 binding, as much of it as Kysely's D1 dialect uses; the Worker passes its `DB`. */
 export interface AuthDatabaseLike {
   prepare(query: string): unknown
@@ -133,7 +144,8 @@ function composePlugins(baseURL: string, schema?: (key: ModelKey) => ReturnType<
     oauthProvider({
       // [[UI246]] D1: the vault's own sign-in page, outside Better Auth's base path.
       loginPage: '/sign-in',
-      consentPage: '/auth/consent',
+      // [[UI247]] D1: the vault's own consent page, outside Better Auth's base path (the signed query rides on it).
+      consentPage: '/consent',
       scopes,
       accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
       // No `allowedScopes` on a resource row: the library seeds rows once and never updates them, so a list there would go stale when a scope is added. The client's own scopes
@@ -162,7 +174,15 @@ function composePlugins(baseURL: string, schema?: (key: ModelKey) => ReturnType<
           }
         : {}),
     }),
-    oauthDeviceAuthorization({ verificationUri: `${baseURL}/auth/device`, ...(schema ? { schema: { deviceCode: schema('deviceCode') } } : {}) }),
+    oauthDeviceAuthorization({
+      // [[UI247]] D1, D2: `verification_uri(_complete)` name the vault's page; the library's JSON endpoint `GET /auth/device` stays the page's claim call. The code format is pinned here, not left to a library default.
+      verificationUri: `${baseURL}/device`,
+      userCodeLength: DEVICE_USER_CODE_LENGTH,
+      generateUserCode: generateDeviceUserCode,
+      expiresIn: DEVICE_CODE_EXPIRES_IN,
+      interval: DEVICE_POLL_INTERVAL,
+      ...(schema ? { schema: { deviceCode: schema('deviceCode') } } : {}),
+    }),
   ]
 }
 
