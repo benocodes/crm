@@ -23,17 +23,18 @@ const run = (d1: D1Like, text: string, ...binds: unknown[]) => d1.prepare(text).
 
 describe('control migration 0001_control_plane on an empty database', () => {
   it('applies from its own directory, tracked in its own d1_migrations, and the tracker equals the shipped manifest', async () => {
-    expect(await applyControlMigrations(control)).toEqual(['0001_control_plane.sql'])
+    expect(await applyControlMigrations(control)).toEqual(['0001_control_plane.sql', '0002_invitations.sql'])
     const state = await readMigrationState(control, CONTROL_MIGRATIONS.map((m) => m.name))
-    expect(state).toMatchObject({ status: 'current', applied: ['0001_control_plane.sql'] })
+    expect(state).toMatchObject({ status: 'current', applied: ['0001_control_plane.sql', '0002_invitations.sql'] })
     expect(CONTROL_MIGRATIONS_DIR).toMatch(/storage-d1\/control-migrations$/)
   })
 
-  it('creates the 14 auth tables and control_deployment, and no CRM table', async () => {
+  it('creates the 14 auth tables, control_deployment and (0002, CORE245) invitations and control_audit, and no CRM table', async () => {
     const names = (await tables(control)).filter((n) => n !== 'd1_migrations')
     expect(names).toContain('control_deployment')
+    expect(names).toEqual(expect.arrayContaining(['invitations', 'control_audit']))
     expect(names.filter((n) => n.startsWith('auth_'))).toHaveLength(14)
-    expect(names).toHaveLength(15)
+    expect(names).toHaveLength(17)
     for (const crmTable of ['deployment', 'organizations', 'principals', 'events', 'api_keys']) expect(names).not.toContain(crmTable)
   })
 
@@ -56,6 +57,7 @@ describe('control migration 0001_control_plane on an empty database', () => {
       for (const fk of fks) expect(fk.ref, t).toMatch(/^auth_/)
     }
     const triggers = ((await control.prepare("select name from sqlite_master where type = 'trigger'").all()).results ?? []) as unknown[]
-    expect(triggers).toEqual([])
+    // control_audit's two append-only triggers (0002, CORE245 P5) are the only ones, and name no other database.
+    expect(triggers.map((t) => (t as { name: string }).name).sort()).toEqual(['control_audit_no_delete', 'control_audit_no_update'])
   })
 })

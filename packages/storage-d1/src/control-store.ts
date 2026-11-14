@@ -83,3 +83,46 @@ export async function readOAuthClientName(c: ControlDb, clientId: string): Promi
   const row = await raw(c).prepare('select name from auth_oauth_clients where client_id = ?').bind(clientId).first()
   return typeof row?.name === 'string' && row.name !== '' ? row.name : null
 }
+
+// ---- Invitations and the audit log ([[CORE245]], [[CORE259]] D3, D9 (c), D12). STUBS in the red commit; the behaviour arrives with the green commit. ----
+export type InvitationRole = 'owner' | 'member' | 'agent'
+/** An invitation as the control plane holds it, without its token or token hash (neither is ever read back). Timestamps are ISO-8601 text. */
+export interface InvitationRecord {
+  id: string
+  organizationId: string
+  email: string
+  role: InvitationRole
+  expiresAt: string
+  createdBy: string
+  createdAt: string
+  acceptedAt: string | null
+  revokedAt: string | null
+}
+export interface NewInvitation {
+  id: string
+  /** The `control_audit` row written in the same batch. */
+  auditId: string
+  organizationId: string
+  email: string
+  role: InvitationRole
+  tokenHash: string
+  expiresAt: string
+  createdBy: string
+  /** The unit's clock: `created_at`, the audit `at`, and what "live" is judged against. */
+  now: string
+}
+const notYet = (): never => {
+  throw new Error('not implemented')
+}
+export async function createInvitation(_c: ControlDb, _a: NewInvitation): Promise<'created' | 'live_exists'> {
+  return notYet()
+}
+export async function listInvitations(_c: ControlDb, _a: { after?: string; limit: number }): Promise<InvitationRecord[]> {
+  return notYet()
+}
+export async function revokeInvitation(_c: ControlDb, _a: { id: string; auditId: string; actorId: string; now: string }): Promise<{ result: 'revoked' | 'not_live'; record: InvitationRecord } | { result: 'not_found' }> {
+  return notYet()
+}
+export async function reissueOwnerInvitation(_c: ControlDb, _a: NewInvitation & { newAuditId: () => string }): Promise<{ result: 'created'; revoked: string[] } | { result: 'live_exists' }> {
+  return notYet()
+}

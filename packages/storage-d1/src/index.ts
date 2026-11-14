@@ -143,4 +143,4 @@ export function d1Binding(d1: D1Like, options: D1RuntimeOptions): D1Binding {
 export { MIGRATIONS } from './migrations-manifest.js'
 export { compareMigrations, readMigrationState, type MigrationDiff, type MigrationState, type MigrationStatus } from './migration-state.js'
 export { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
-export { controlAuthDatabase, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, readControlMigrations, writeControlMarker, type AuthJwk, type ControlDb } from './control-store.js'
+export { controlAuthDatabase, createInvitation, listInvitations, openControlDb, reissueOwnerInvitation, revokeInvitation, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, readControlMigrations, writeControlMarker, type AuthJwk, type ControlDb, type InvitationRecord, type InvitationRole, type NewInvitation } from './control-store.js'
