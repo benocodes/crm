@@ -1,5 +1,6 @@
 // The host rules of both setup front-ends ([[OPS308]], [[OPS249]] D12, D14): `--workers-dev` and its account subdomain, the record's host mode, the host change an instance
 // may make only with `--change-host`, and the lines that say what a move breaks. Pure but for the injected `fetch`: no subprocess, no file.
+import { CALLBACK_PATH } from '@vibase/api'
 import { RemoteRefusal } from '../remote.js'
 import type { Credentials, SetupOptions } from './types.js'
 
@@ -27,11 +28,12 @@ export const hostChangeRefusal = (flag: string, why: string): string =>
   `${flag}: ${why}. Changing the host changes the issuer, which logs everyone out: ${HOST_CHANGE_CONSEQUENCES.join('; ')}. Add --change-host to do it on purpose`
 
 /** The consequence lines of an accepted move, with the new Google redirect URI when Google sign-in is on. */
-export function moveLines(from: string | undefined, to: string, google: boolean): string[] {
+export function moveLines(from: string | undefined, to: string, google: boolean, gmail = false): string[] {
   return [
     `host change: ${from ?? 'workers.dev'} -> ${to}`,
     ...HOST_CHANGE_CONSEQUENCES.map((c) => `consequence: ${c}`),
-    ...(google ? [`consequence: add the redirect URI https://${to}/auth/callback/google to the Google OAuth client (the old one stops working)`] : []),
+    ...(google ? [`consequence: add the redirect URI https://${to}/auth/callback/google to the Google sign-in OAuth client (the old one stops working)`] : []),
+    ...(gmail ? [`consequence: add the redirect URI https://${to}${CALLBACK_PATH} to the Google OAuth client of the Gmail connection (the old one stops working)`] : []),
   ]
 }
 
@@ -47,13 +49,13 @@ async function readSubdomain(creds: Credentials, f: typeof fetch): Promise<Read>
   const res = await f(subdomainUrl(creds), { headers: { authorization: `Bearer ${creds.apiToken}` } })
   // Cloudflare's reference does not document the answer for an account with no subdomain; a 404 is what it gives (UNCONFIRMED, see OPS308's RESULT.md).
   if (res.status === 404) return { kind: 'none' }
-  if (!res.ok) throw new RemoteRefusal(`Account / Workers Scripts / Read: the token cannot read the account's workers.dev subdomain (HTTP ${res.status})`)
+  if (!res.ok) throw new RemoteRefusal(`Workers Scripts Read: the token cannot read the account's workers.dev subdomain (HTTP ${res.status})`)
   const sub = ((await res.json()) as { result?: { subdomain?: unknown } | null }).result?.subdomain
   return typeof sub === 'string' && sub !== '' ? { kind: 'present', subdomain: sub } : { kind: 'none' }
 }
 async function putSubdomain(creds: Credentials, f: typeof fetch, name: string): Promise<void> {
   const res = await f(subdomainUrl(creds), { method: 'PUT', headers: { authorization: `Bearer ${creds.apiToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ subdomain: name }) })
-  if (!res.ok) throw new RemoteRefusal(`Account / Workers Scripts / Write: registering the workers.dev subdomain ${name} failed (HTTP ${res.status})`)
+  if (!res.ok) throw new RemoteRefusal(`Workers Scripts Edit: registering the workers.dev subdomain ${name} failed (HTTP ${res.status})`)
 }
 
 /**
@@ -63,6 +65,7 @@ async function putSubdomain(creds: Credentials, f: typeof fetch, name: string): 
  */
 export async function resolveHost(opts: SetupOptions, creds: Credentials, f: typeof fetch): Promise<SetupOptions> {
   let host = opts.apiHost
+  let pending: string | undefined
   const notes: string[] = []
   if (opts.workersDev) {
     const read = await readSubdomain(creds, f)
@@ -75,12 +78,10 @@ export async function resolveHost(opts: SetupOptions, creds: Credentials, f: typ
     } else if (opts.registerSubdomain === undefined) {
       throw new RemoteRefusal(`this account has no workers.dev subdomain: register one in the dashboard (${DASHBOARD}), or pass --register-workers-subdomain <name> once (an account-wide, one-time choice)`)
     } else {
+      // No write here: the host is derived from the planned name and the PUT waits (`registerPending`) until every refusal and the preflight have passed.
       subdomain = opts.registerSubdomain
-      if (opts.dryRun) notes.push(`would register the workers.dev subdomain ${subdomain} (--register-workers-subdomain; a dry run registers nothing)`)
-      else {
-        await putSubdomain(creds, f, subdomain)
-        notes.push(`registered the workers.dev subdomain ${subdomain}`)
-      }
+      pending = subdomain
+      notes.push(opts.dryRun ? `would register the workers.dev subdomain ${subdomain} (--register-workers-subdomain; a dry run registers nothing)` : `will register the workers.dev subdomain ${subdomain} once every check and the preflight have passed (--register-workers-subdomain)`)
     }
     host = `${opts.workerName}.${subdomain}${WORKERS_DEV_SUFFIX}`
   }
@@ -90,5 +91,15 @@ export async function resolveHost(opts: SetupOptions, creds: Credentials, f: typ
   if (changed && !opts.changeHost) {
     throw new RemoteRefusal(hostChangeRefusal(opts.workersDev ? '--workers-dev' : `--api-host ${host}`, `this instance is recorded on ${rec!.apiHost ?? 'workers.dev'}, not ${host}`))
   }
-  return { ...opts, apiHost: host, hostNotes: notes, ...(changed ? { move: { from: rec!.apiHost, fromMode: recordedMode(rec!) } } : {}) }
+  return { ...opts, apiHost: host, hostNotes: notes, ...(pending !== undefined && !opts.dryRun ? { pendingSubdomain: pending } : {}), ...(changed ? { move: { from: rec!.apiHost, fromMode: recordedMode(rec!) } } : {}) }
+}
+
+/**
+ * The one write of host resolution: the PUT of `--register-workers-subdomain`, made by the caller after every refusal and after the preflight passed, never on a dry run.
+ * Returns the line to print, or `null` when nothing was pending. Throws `RemoteRefusal` when Cloudflare refuses it.
+ */
+export async function registerPending(opts: SetupOptions, creds: Credentials, f: typeof fetch): Promise<string | null> {
+  if (opts.pendingSubdomain === undefined || opts.dryRun) return null
+  await putSubdomain(creds, f, opts.pendingSubdomain)
+  return `registered the workers.dev subdomain ${opts.pendingSubdomain}`
 }

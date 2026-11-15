@@ -125,6 +125,20 @@ describe('2. the subdomain read, registration and preflight (D12, P3)', () => {
     expect(hostOf(s)).toBe('vb-demo.newsub.workers.dev')
     expect(settings(s).api_host).toBe('vb-demo.newsub.workers.dev')
   })
+  it.each([
+    ['a partial Gmail group in the secrets file', `${SECRETS_TEXT}GOOGLE_CLIENT_ID=gid.apps.googleusercontent.com\n`],
+    ['a Gmail PUBLIC_BASE_URL naming another host', gmail('https://other.example.com')],
+  ])('the registration is the first write: %s is refused (exit 2) and nothing is registered', async (_n, secretsText) => {
+    const s = world({ secretsText, sim: { subdomain: { subdomain: null, puts: [] } } })
+    expect(await run(s, [...WD, '--register-workers-subdomain', 'newsub'])).toBe(2)
+    expect(s.sim.subdomain.puts).toEqual([])
+    expect(s.writes()).toEqual([])
+  })
+  it('a preflight that fails registers nothing', async () => {
+    const s = world({ sim: { subdomain: { subdomain: null, puts: [] }, denyAll: true } })
+    expect(await run(s, [...WD, '--register-workers-subdomain', 'newsub'])).not.toBe(0)
+    expect(s.sim.subdomain.puts).toEqual([])
+  })
   it('a dry run with the flag: no PUT, reported as planned, the host still derived', async () => {
     const s = world({ sim: { subdomain: { subdomain: null, puts: [] } } })
     expect(await run(s, [...WD, '--register-workers-subdomain', 'newsub', '--dry-run']), s.w.all()).toBe(0)
@@ -292,6 +306,7 @@ describe('5. --change-host (D14, P5)', () => {
     const out = s.w.out.join('\n')
     for (const n of CONSEQUENCES) expect(out, n).toContain(n)
     expect(out).toContain(`${BASE}/auth/callback/google`)
+    expect(out).not.toContain('/oauth/google/callback')
     // the re-run with --api-host alone is a plain re-run
     s.w.out.length = 0
     s.w.wrangler.length = 0
@@ -299,6 +314,13 @@ describe('5. --change-host (D14, P5)', () => {
     expect(row(s, 'config:write').status).toBe('ok')
     expect(s.w.out.join('\n')).not.toContain('sign in again')
     expect(s.w.wrangler.some((c) => c.args[0] === 'deploy')).toBe(false)
+  })
+  it('a Gmail-only instance is told the Gmail callback, not the Better Auth Google sign-in one', async () => {
+    const s = recordedWorld(RECORD_WD, { secretsText: gmail() })
+    expect(await run(s, [...CHANGE, ...ONLY]), s.w.all()).toBe(0)
+    const out = s.w.out.join('\n')
+    expect(out).toContain(`${BASE}/oauth/google/callback`)
+    expect(out).not.toContain('/auth/callback/google')
   })
   it('a missing zone for the new host is refused before any write', async () => {
     const s = recordedWorld(RECORD_WD, { sim: { zones: [] } })

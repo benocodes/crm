@@ -122,6 +122,22 @@ describe('2. the subdomain read, registration and preflight (D12, P3)', () => {
     expect(hostOf(w)).toBe('vb-acme.newsub.workers.dev')
     expect(block(w).vars.PUBLIC_BASE_URL).toBe('https://vb-acme.newsub.workers.dev')
   })
+  it.each([
+    ['a partial Gmail group in the env file', 'GOOGLE_CLIENT_ID=gid.apps.googleusercontent.com\n'],
+    ['a Gmail PUBLIC_BASE_URL naming another host', gmail('https://other.example.com')],
+  ])('the registration is the first write: %s is refused (exit 1) and nothing is registered', async (_n, envText) => {
+    const w = world({ subdomain: null, clerkEnvText: envText })
+    const o = await run(w, [...WD, '--register-workers-subdomain', 'newsub'])
+    expect(o.exitCode, said(w)).toBe(1)
+    expect(w.state.subdomain.puts).toEqual([])
+    expect(w.writes()).toEqual([])
+  })
+  it('a preflight that fails registers nothing', async () => {
+    const w = world({ subdomain: null, denied: ['d1'] })
+    const o = await run(w, [...WD, '--register-workers-subdomain', 'newsub'])
+    expect(step(o, 'preflight').status).toBe('fail')
+    expect(w.state.subdomain.puts).toEqual([])
+  })
   it('a dry run with the flag: no PUT, reported as planned, the host still derived', async () => {
     const w = world({ subdomain: null })
     const o = await dry(w, [...WD, '--register-workers-subdomain', 'newsub'])
@@ -273,6 +289,7 @@ describe('5. --change-host (D14, P5)', () => {
     expect(b.vars.PUBLIC_BASE_URL).toBe(BASE)
     for (const n of CONSEQUENCES) expect(said(w), n).toContain(n)
     expect(said(w)).toContain(`${BASE}/auth/callback/google`)
+    expect(said(w)).not.toContain('/oauth/google/callback')
     // the re-run with --api-host alone is a plain re-run: no flag needed, no consequence lines, verify on the new host
     w.logs.length = 0
     w.fetched.length = 0
@@ -282,6 +299,14 @@ describe('5. --change-host (D14, P5)', () => {
     expect(w.fetched).toContain(`${BASE}/health`)
     expect(said(w)).toContain(`vibase login --server ${BASE}`)
     expect(said(w)).not.toContain('sign in again')
+  })
+  it('a Gmail-only instance is told the Gmail callback, not the Better Auth Google sign-in one', async () => {
+    const w = world({ clerkEnvText: gmail() })
+    expect((await fullRun(w, WD)).exitCode, said(w)).toBe(0)
+    w.logs.length = 0
+    await run(w, CHANGE)
+    expect(said(w)).toContain(`${BASE}/oauth/google/callback`)
+    expect(said(w)).not.toContain('/auth/callback/google')
   })
   it('a missing zone for the new host is refused before any write', async () => {
     const w = world({ zones: [], configText: RECORD_WD })

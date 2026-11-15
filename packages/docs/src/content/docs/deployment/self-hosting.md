@@ -154,7 +154,7 @@ The account needs a workers.dev subdomain. If it has none, setup refuses and tel
 CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env mycompany --workers-dev --register-workers-subdomain mycompany --owner-email owner@example.com
 ```
 
-Everything else is as in the section above: the same steps, the same owner invitation printed once, the same verify, now on the workers.dev host. The API token needs `Workers Scripts` read to read the subdomain, and `Workers Scripts` edit to register it; no zone permission is needed.
+Everything else is as in the section above: the same steps, the same owner invitation printed once, the same verify, now on the workers.dev host. The API token needs `Workers Scripts Read` to read the subdomain, and `Workers Scripts Edit` to register it; no zone permission is needed.
 
 ## Moving to a custom domain
 

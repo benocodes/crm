@@ -4,7 +4,7 @@ import { parse } from 'jsonc-parser'
 import { parseSetupArgs } from './args.js'
 import { applyRecordedNames, type RecordedNames } from './names.js'
 import { loadBetterAuth, providerFromVars } from './better-auth.js'
-import { moveLines, resolveHost } from './host.js'
+import { moveLines, registerPending, resolveHost } from './host.js'
 import { loadClerkKeys } from './clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from './gmail.js'
 import { STEPS, type Ctx } from './steps.js'
@@ -47,7 +47,7 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
   const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)) && !(s === 'secrets' && opts.only === undefined && opts.auth === 'none' && !ctx.gmail))
   deps.log(`setup:remote env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
   for (const n of opts.hostNotes ?? []) deps.log(n)
-  if (opts.move) for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined || ctx.gmail != null)) deps.log(l)
+  if (opts.move) for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined, ctx.gmail != null)) deps.log(l)
   if (ctx.keys) {
     const k = ctx.keys
     deps.log(`clerk instance: ${k.kind}${k.kind === 'development' ? ' (warning: a development instance is a test instance, with Clerk\'s user cap and dev-browser handshake)' : ''}, issuer ${k.issuer}, keys from ${k.file}`)
@@ -62,9 +62,16 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     deps.log(`better-auth: PUBLIC_BASE_URL https://${opts.apiHost}; AUTH_SECRET ${b.authSecret ? `from ${b.file}` : `not in ${b.file} (generated and written there when the Worker lacks it)`}; Google sign-in secrets ${b.google ? `from ${b.file}` : 'not set'}`)
   }
   const results: StepResult[] = []
+  let registered = false
   for (const name of selected) {
     let r: StepResult
     try {
+      // [[OPS308]] P3: the subdomain registration is the first write, after every refusal and once the preflight has passed.
+      if (!registered && name !== 'preflight') {
+        registered = true
+        const note = await registerPending(opts, ctx.creds, deps.fetch)
+        if (note) deps.log(note)
+      }
       r = await STEPS[name](ctx)
     } catch (err) {
       r = { step: name, status: 'fail', detail: err instanceof Error ? err.message : 'failed' }

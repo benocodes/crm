@@ -85,6 +85,8 @@ export interface SetupOptions {
   recordedHost?: RecordedHost
   /** Set by `resolveHost` when this run changes the host: the record's old host (absent when it was not recorded) and mode. */
   move?: { from?: string; fromMode: HostMode }
+  /** A subdomain `--register-workers-subdomain` still has to register: set by `resolveHost`, written by `registerPending` after the preflight, never on a dry run. */
+  pendingSubdomain?: string
   /** Lines of the host resolution to print under the header (a registration done or planned). */
   hostNotes?: string[]
   auth: 'better-auth' | 'clerk' | 'none'

@@ -8,7 +8,7 @@ import { verifyRelease, type ReleaseManifest } from '../../../release/src/manife
 import { requireConfirm, resolveTarget } from '../remote.js'
 import { applyRecordedNames } from '../setup/names.js'
 import { loadBetterAuth, providerFromVars } from '../setup/better-auth.js'
-import { moveLines, resolveHost } from '../setup/host.js'
+import { moveLines, registerPending, resolveHost } from '../setup/host.js'
 import { loadClerkKeys } from '../setup/clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from '../setup/gmail.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type EnvFileProbe, type StepResult } from '../setup/types.js'
@@ -117,7 +117,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   say(`package: vibase-server/${manifest.version} (${manifest.commit}), ${Object.keys(manifest.files).length} files verified`)
   say(`setup: env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}, settings ${ctx.settingsPath}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
   for (const n of opts.hostNotes ?? []) say(n)
-  if (opts.move) for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined || ctx.gmail !== null)) say(l)
+  if (opts.move) for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined, ctx.gmail !== null)) say(l)
   if (ctx.keys) say(`clerk instance: ${ctx.keys.kind}${ctx.keys.kind === 'development' ? " (warning: a development instance is a test instance, with Clerk's user cap and dev-browser handshake)" : ''}, issuer ${ctx.keys.issuer}, keys from ${ctx.secretsPath}`)
   say(
     ctx.gmail
@@ -130,9 +130,19 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   }
   const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)))
   const results: StepResult[] = []
+  let registered = false
   for (const name of selected) {
     let r: StepResult
     try {
+      // [[OPS308]] P3: the subdomain registration is the first write, after every refusal and once the preflight has passed.
+      if (!registered && name !== 'preflight') {
+        registered = true
+        const note = await registerPending(opts, ctx.creds, deps.fetch)
+        if (note) {
+          ctx.wrote = true
+          say(note)
+        }
+      }
       r = await STEPS[name](ctx)
     } catch (e) {
       const refusal = refusalOf(e, ctx)
