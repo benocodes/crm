@@ -549,3 +549,158 @@ export async function runAuthSweep(c: ControlDb, crm: D1Like, clock: () => Date)
     )
   return { revoked: plan.revoke.length, deleted: plan.orphans.length - remaining }
 }
+
+// ---- Webhooks in the control plane ([[CORE327]], [[CORE259]] D3, D5, D8, D9 (c), D12; dormant until [[CORE337]]). The four tables of control 0004. The store stores: ids, `now`, the sealed secret and every fact that
+// lives in the CRM database (an agent's eligibility and scopes, an event's id) arrive BY VALUE from the caller (P4); nothing here reads the CRM database. A subscription change is ONE batch with its
+// `control_audit` row (P2); machinery (dispatch, deliveries, leases, attempts) writes no audit row (P3). ----
+export type WebhookStatus = 'active' | 'paused' | 'disabled'
+export type WebhookDeliveryStatus = 'pending' | 'delivered' | 'dead' | 'cancelled'
+export interface WebhookSubscriptionRecord {
+  id: string
+  organizationId: string
+  agentId: string
+  url: string
+  eventTypes: string[]
+  status: WebhookStatus
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+export interface WebhookDeliveryRecord {
+  id: string
+  subscriptionId: string
+  eventId: string
+  eventType: string
+  status: WebhookDeliveryStatus
+  attempts: number
+  nextAttemptAt: string
+  lastAttemptAt: string | null
+  lastStatusCode: number | null
+  lastError: string | null
+  deliveredAt: string | null
+  createdAt: string
+}
+/** The previous secret still signs for this long after a rotation ([[API7]] D12); the same constant as `@vibase/api`'s `ROTATION_OVERLAP_MS`. */
+export const WEBHOOK_ROTATION_OVERLAP_MS = 24 * 3_600_000
+
+const NOT_IMPLEMENTED = (): never => {
+  throw new Error('not implemented')
+}
+export interface NewWebhookSubscription {
+  id: string
+  secretId: string
+  auditId: string
+  organizationId: string
+  /** The calling principal: `created_by` of every row and the audit `actor_id`. */
+  actorId: string
+  agentId: string
+  url: string
+  eventTypes: string[]
+  /** The secret, sealed by the caller under `CREDENTIALS_KEY`. */
+  sealed: string
+  keyVersion: number
+  /** The newest event's id, read by the caller from the CRM feed: the dispatch position at creation ([[API7]] D5). */
+  cursorEventId: string
+  maxLivePerAgent: number
+  now: string
+}
+export const createWebhookSubscription = (_c: ControlDb, _a: NewWebhookSubscription): Promise<'created' | 'limit'> =>
+  NOT_IMPLEMENTED()
+export interface WebhookChange {
+  id: string
+  auditId: string
+  actorId: string
+  now: string
+  /** The `updated_at` the caller read: the write applies only while the row still carries it. */
+  expectedUpdatedAt: string
+  /** An agent caller's own id: a subscription of another agent is `not_found`. */
+  ownerAgentId?: string
+}
+export const updateWebhookSubscription = (
+  _c: ControlDb,
+  _a: WebhookChange & { url?: string; eventTypes?: string[]; status?: 'active' | 'paused' },
+): Promise<'updated' | 'not_found' | 'drifted'> => NOT_IMPLEMENTED()
+export const deleteWebhookSubscription = (_c: ControlDb, _a: WebhookChange): Promise<'deleted' | 'not_found' | 'drifted'> =>
+  NOT_IMPLEMENTED()
+export const rotateWebhookSecret = (
+  _c: ControlDb,
+  _a: {
+    id: string
+    secretId: string
+    auditId: string
+    actorId: string
+    sealed: string
+    keyVersion: number
+    now: string
+    ownerAgentId?: string
+  },
+): Promise<'rotated' | 'not_found'> => NOT_IMPLEMENTED()
+export const getWebhookSubscription = (
+  _c: ControlDb,
+  _a: { id: string; ownerAgentId?: string },
+): Promise<WebhookSubscriptionRecord | null> => NOT_IMPLEMENTED()
+export const listWebhookSubscriptions = (
+  _c: ControlDb,
+  _a: { ownerAgentId?: string; agentId?: string; after?: string; limit: number },
+): Promise<WebhookSubscriptionRecord[]> => NOT_IMPLEMENTED()
+export const listWebhookDeliveries = (
+  _c: ControlDb,
+  _a: { subscriptionId: string; ownerAgentId?: string; status?: WebhookDeliveryStatus; after?: string; limit: number },
+): Promise<WebhookDeliveryRecord[] | null> => NOT_IMPLEMENTED()
+export const readWebhookSecrets = (
+  _c: ControlDb,
+  _a: { subscriptionIds: string[]; inForceAt?: string },
+): Promise<Array<{ subscriptionId: string; sealed: string; createdAt: string }>> => NOT_IMPLEMENTED()
+export interface DispatchTarget {
+  subscriptionId: string
+  createdBy: string
+  agentId: string
+  eventTypes: string[]
+  cursor: string
+}
+export const listDispatchableWebhooks = (
+  _c: ControlDb,
+  _a: { organizationId: string; eligibleAgentIds: string[] },
+): Promise<DispatchTarget[]> => NOT_IMPLEMENTED()
+export const applyWebhookDispatchPage = (
+  _c: ControlDb,
+  _a: {
+    organizationId: string
+    subscriptionId: string
+    createdBy: string
+    expectedCursor: string
+    events: Array<{ id: string; eventId: string; eventType: string }>
+    now: string
+  },
+): Promise<{ moved: boolean }> => NOT_IMPLEMENTED()
+export interface DueDelivery {
+  id: string
+  subscriptionId: string
+  eventId: string
+  attempts: number
+  url: string
+  deleted: boolean
+  agentId: string
+}
+export const claimWebhookDeliveries = (
+  _c: ControlDb,
+  _a: {
+    organizationId: string
+    cutoff: string
+    now: string
+    limit: number
+    caps: Record<string, number>
+    defaultCap: number
+    maxAttempts: number
+    token: string
+    leaseUntil: string
+  },
+): Promise<{ rows: DueDelivery[]; dead: number; totalDue: number }> => NOT_IMPLEMENTED()
+export type DeliveryOutcome =
+  | { id: string; subscriptionId: string; kind: 'delivered'; statusCode: number }
+  | { id: string; subscriptionId: string; kind: 'failed'; code: string; statusCode: number | null; nextAttemptAt: string | null; dead: boolean }
+  | { id: string; subscriptionId: string; kind: 'cancelled'; code: string }
+export const recordWebhookDeliveries = (
+  _c: ControlDb,
+  _a: { token: string; at: string; outcomes: DeliveryOutcome[] },
+): Promise<boolean[]> => NOT_IMPLEMENTED()
