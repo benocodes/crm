@@ -414,8 +414,8 @@ describe('partial states and races (P4)', () => {
     expect(await liveCount(p.userId)).toHaveLength(1)
     expect((await signIn('p@x.test')).status).toBe(200)
     expect((await ctl('select accepted_at from invitations where id = ?', before.id))[0]!.accepted_at).not.toBeNull()
-    // Same second, later: not the admitting invitation.
-    const after = await invite('m2@x.test', 'member', { createdAt: T })
+    // Same second, later: not the admitting invitation. The admitting invitation must predate the real account (Better Auth stamps it with the real clock, not the injected one), so it is made 5 s ago; the membership still lands at T + 300.
+    const after = await invite('m2@x.test', 'member', { createdAt: Date.now() - 5000 })
     expect((await signUp('m2@x.test', after.token)).status).toBe(200)
     const membershipAt = Date.parse((await crm("select created_at from memberships where user_id = (select id from users where email = 'm2@x.test')"))[0]!.created_at)
     const late = await invite('m2@x.test', 'owner', { createdAt: membershipAt + 300 })
