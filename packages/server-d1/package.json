@@ -21,7 +21,7 @@
     "e2e:rail": "tsx scripts/e2e-rail.ts",
     "e2e:gmail-send": "tsx scripts/e2e-gmail-send.ts",
     "e2e:webhook-example": "tsx scripts/e2e-webhook-example.ts",
-    "test": "vitest run --config ../../vitest.config.ts",
+    "test": "VITEST_MAX_WORKERS=${VITEST_MAX_WORKERS:-4} vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "bootstrap": "tsx scripts/bootstrap.ts",
     "smoke:worker": "tsx scripts/smoke-worker.ts",

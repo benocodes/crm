@@ -2,6 +2,7 @@
 // (invariant 2), so they stay serial; the default projects (engine-neutral, d1) open a private in-memory D1 per file and may
 // run in parallel, but only where a package's `test` script raises the worker count (the root `maxWorkers: 1` is the default).
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 // Loaded by path, not by a static import: the root config files import each other with `.ts` extensions, which this package's
@@ -30,5 +31,15 @@ describe('test project parallelism (OPS223 D3, D5)', () => {
 
   it('the root default is one worker, so only a package that raises the count runs files in parallel', () => {
     expect(rootConfig.test?.maxWorkers).toBe(1)
+  })
+})
+
+// OPS339 D1/D2: every D1 package runs four test files at once, through the same overridable variable api uses.
+describe('worker count per D1 package (OPS339 D1, D2)', () => {
+  const testScript = (pkg: string): string =>
+    JSON.parse(readFileSync(fileURLToPath(new URL(`../../${pkg}/package.json`, import.meta.url)), 'utf8')).scripts.test
+
+  it.each(['api', 'server-d1', 'storage-d1', 'cli'])('%s defaults to four workers, overridable', (pkg) => {
+    expect(testScript(pkg)).toContain('VITEST_MAX_WORKERS=${VITEST_MAX_WORKERS:-4} vitest run')
   })
 })

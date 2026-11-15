@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsx scripts/build.ts",
-    "test": "vitest run --config ../../vitest.config.ts",
+    "test": "VITEST_MAX_WORKERS=${VITEST_MAX_WORKERS:-4} vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

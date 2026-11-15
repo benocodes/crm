@@ -18,10 +18,10 @@ the worktree, branch and sha.
 2. Run `scripts/gate.sh` with no argument (its default log dir is outside every repo, and `~/.cache/vibase-gate/latest` always points at it so the human can `tail -f ~/.cache/vibase-gate/latest/all.log`; the status file is `~/.cache/vibase-gate/latest/gate.status`, the same path as `<log-dir>/gate.status` below). Say that tail command in your first message once, in the background, and wait **once** for it
    (`until grep -q GATE_EXIT <log-dir>/gate.status; do sleep 30; done`, with the longest timeout the runtime
    allows). Send nothing while it runs; if the wait expires, wait again until the marker appears (the gate takes
-   ~25 min; CORE326's gate-tester gave up early), giving up only after 60 min. Never poll the logs, never start a second run while one is going,
+   about 5 min with the request transport and four test workers in every D1 package (OPS340's two green gates, at load 5 to 10: about 5 min each, packages about 160 s (server-d1 122 to 132 s, storage-d1 11 s, cli 8 to 9 s), api 87 to 100 s, typecheck about 20 s, build about 15 s, lint about 1 s); CORE326's gate-tester gave up early), giving up only after 20 min (a gate still running at 20 min is a hang: report it; 20 min is four times the measured gate and covers a run with fewer workers on a loaded machine, while 45 min, set when the gate took 25, would hide a hang for 40). Never poll the logs, never start a second run while one is going (when the brief asks for several runs, copy each finished run's `gate.status` and summary lines into `GATE.md` before starting the next: every run overwrites `~/.cache/vibase-gate/latest`, and OPS339 lost run 1's logs that way),
    never run other test commands.
-3. Read `gate.status`, then for each step the log's final summary lines (vitest's `Test Files`/`Tests`
-   lines, the first error for a failing step). That is all you read, plus one
+3. Read `gate.status` (its first lines are the stamp `GATE_SHA=<sha>` and `GATE_TREE=clean|dirty`, #342; quote both in the report, and say `dirty` or a sha that is not the pushed sha as a defect of the run), then for each step the log's final summary lines (vitest's `Test Files`/`Tests`
+   lines, the first error for a failing step; `packages.log` holds one `Test Files`/`Tests` pair per package, about eleven, so sum them all: OPS340's report quoted only server-d1's and cli's and undercounted the stage). That is all you read, plus one
    `grep -l -E 'ENOSPC|SQLITE_FULL|SQLITE_IOERR|no space left' <log-dir>/*.log`: any hit makes the run
    **invalid**, not red (a full disk fails tests that are fine; CORE248's gate was once invalid this way).
    Report `Overall: invalid (disk)`; the orchestrator frees space and reruns, and it is not a coder round.

@@ -125,6 +125,11 @@ does not reproduce ([[API214]]: 172 such failures). Wait for the tester's report
 suite, a "quick check" and a backgrounded run you poll for. Any run of tests, typecheck or build goes to a
 gate-tester (never the coder, never the planner), whose report carries the counts. If you start a run by mistake, stop it
 before briefing the agent that should run it, so the two do not contend for the test database.
+Never stop a gate-tester's run because it seems to be taking long: a gate is finished only when
+`~/.cache/vibase-gate/latest/gate.status` holds `GATE_EXIT`, and it is a hang only past the gate-tester's give-up
+limit. Check `gate.status` and the log mtimes (`ls -l ~/.cache/vibase-gate/latest/`) before judging; in OPS339 the
+orchestrator killed a healthy run one minute in on an elapsed-time guess and cost a full gate (about 5 min since OPS340, measured on two green gates).
+Accept a green gate only if the stamp in `gate.status` has `GATE_SHA` equal to the pushed sha (`git rev-parse HEAD` of the cycle branch, as pushed) and `GATE_TREE=clean` (#342); otherwise it proves nothing about the pushed commit: rerun it.
 
 **A planner review is only for new specced code.** Step 6 applies to a cycle that has a spec and a charter.
 A tests-only or mechanical bug fix (a fixture, a flaky test, a docs or config correction) has no review: a

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Miniflare } from 'miniflare'
 import type { D1Like } from '../binding.js'
+import { createRequestTransport, harnessScript, registerTransport, resolveTransport } from './request-transport.js'
 
 export const MIGRATIONS_DIR = fileURLToPath(new URL('../../migrations', import.meta.url))
 /** The control-plane database's own compiled migrations ([[CORE259]] D4): a separate directory and a separate `d1_migrations` tracker. */
@@ -79,26 +80,44 @@ export async function openLocalD1(
   opts: {
     migrate?: boolean /** Names that are control-plane databases ([[CORE259]]): migrated from `control-migrations/` and tracked in their own `d1_migrations`. */
     control?: readonly string[]
+    /** OPS340 D9: how a statement reaches D1. An explicit value wins over `VIBASE_TEST_D1_TRANSPORT`; unset means the variable, then `request`. */
+    transport?: 'binding' | 'request'
   } = {},
 ): Promise<LocalD1> {
+  const kind = resolveTransport(opts.transport)
   const mf = new Miniflare({
     // OPS223 D6: an OS-assigned port, stated so a Miniflare upgrade that changes its default cannot reintroduce a fixed one (files run in parallel).
     port: 0,
     modules: true,
-    script: 'export default { fetch() { return new Response("local d1") } }',
+    // OPS340: the harness Worker; with `binding` it is never called.
+    script: harnessScript(),
     d1Databases: Object.fromEntries(names.map((n) => [n, `local-${n}-${crypto.randomUUID()}`])),
   })
   try {
+    const request = kind === 'request' ? createRequestTransport(await mf.ready, names) : undefined
     const bindings: Record<string, D1Like> = {}
-    for (const name of names) {
-      const d1 = (await mf.getD1Database(name)) as unknown as D1Like
-      if (opts.migrate !== false) {
-        if (opts.control?.includes(name)) await applyControlMigrations(d1)
-        else await applyMigrations(d1)
+    try {
+      for (const name of names) {
+        const d1 = request ? request.bindings[name]! : ((await mf.getD1Database(name)) as unknown as D1Like)
+        if (opts.migrate !== false) {
+          if (opts.control?.includes(name)) await applyControlMigrations(d1)
+          else await applyMigrations(d1)
+        }
+        bindings[name] = d1
       }
-      bindings[name] = d1
+    } catch (err) {
+      await request?.close()
+      throw err
     }
-    return { bindings, dispose: () => mf.dispose() }
+    const local: LocalD1 = {
+      bindings,
+      dispose: async () => {
+        await request?.close()
+        await mf.dispose()
+      },
+    }
+    registerTransport(local, kind, request)
+    return local
   } catch (err) {
     await mf.dispose()
     throw err

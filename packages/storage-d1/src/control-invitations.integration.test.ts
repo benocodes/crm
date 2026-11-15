@@ -434,6 +434,25 @@ describe('the sign-up gate and acceptance reads and writes ([[CORE287]] P2, P4, 
     ).toBe('not_live')
     expect((await audit(expired.id)).map((r) => r.action)).toEqual(['invitation.created'])
   })
+
+  // #343: two concurrent callers read the same millisecond `now`; the second update changes nothing, so it must write no audit row either.
+  it('acceptInvitation twice with the same now: the second is not_live and exactly one invitation.accepted row exists', async () => {
+    const i = inv({ email: 'accept-same-ms@x.test' })
+    await createInvitation(c(), i)
+    const now = plus(NOW, 1000)
+    expect(await acceptInvitation(c(), { id: i.id, auditId: nextId(), actorId: ACTOR, now })).toBe('accepted')
+    expect(await acceptInvitation(c(), { id: i.id, auditId: nextId(), actorId: ACTOR, now })).toBe('not_live')
+    expect((await audit(i.id)).filter((r) => r.action === 'invitation.accepted')).toHaveLength(1)
+  })
+
+  it('revokeInvitation twice with the same now: the second is not_live and exactly one invitation.revoked row exists', async () => {
+    const i = inv({ email: 'revoke-same-ms@x.test' })
+    await createInvitation(c(), i)
+    const now = plus(NOW, 1000)
+    expect((await revokeInvitation(c(), { id: i.id, auditId: nextId(), actorId: ACTOR, now })).result).toBe('revoked')
+    expect((await revokeInvitation(c(), { id: i.id, auditId: nextId(), actorId: ACTOR, now })).result).toBe('not_live')
+    expect((await audit(i.id)).filter((r) => r.action === 'invitation.revoked')).toHaveLength(1)
+  })
 })
 
 describe('the audit never holds a token or a hash', () => {
