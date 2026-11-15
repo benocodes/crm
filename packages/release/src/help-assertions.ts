@@ -2,8 +2,14 @@
 // The check itself runs the installed bin; the needles live here so a unit test sees them without a tarball.
 export const SERVER_HELP_NEEDLES: ReadonlyArray<{ name: string; pattern: RegExp }> = [
   { name: 'status --env', pattern: /vibase-server status --env/ },
-  { name: 'upgrade [--dry-run] [--rollback]', pattern: /vibase-server upgrade --env <name> \[--dry-run\] \[--rollback\]/ },
-  { name: 'setup --env <name> (--api-host <host> | --workers-dev)', pattern: /vibase-server setup --env <name> \(--api-host <host> \| --workers-dev\)/ },
+  {
+    name: 'upgrade [--dry-run] [--rollback]',
+    pattern: /vibase-server upgrade --env <name> \[--dry-run\] \[--rollback\]/,
+  },
+  {
+    name: 'setup --env <name> (--api-host <host> | --workers-dev)',
+    pattern: /vibase-server setup --env <name> \(--api-host <host> \| --workers-dev\)/,
+  },
   { name: 'owner-reset --env <name>', pattern: /vibase-server owner-reset --env <name>/ },
 ]
 

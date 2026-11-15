@@ -23,7 +23,30 @@ afterEach(() => {
 beforeEach(async () => {
   await w.reset()
   hideOperation = undefined
-  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['contacts:read', 'contacts:write', 'schema:read', 'interactions:read', 'deals:read', 'deals:write', 'pipelines:read', 'pipelines:write', 'companies:read', 'companies:write', 'associations:read', 'associations:write', 'webhooks:read', 'webhooks:write', 'tasks:read'] })
+  const b = await bootstrapD1(w.d1, {
+    organizationName: 'Acme',
+    authProvider: 'none',
+    authOrgId: 'e2e',
+    email: 'e2e@example.com',
+    agentName: 'e2e-agent',
+    scopes: [
+      'contacts:read',
+      'contacts:write',
+      'schema:read',
+      'interactions:read',
+      'deals:read',
+      'deals:write',
+      'pipelines:read',
+      'pipelines:write',
+      'companies:read',
+      'companies:write',
+      'associations:read',
+      'associations:write',
+      'webhooks:read',
+      'webhooks:write',
+      'tasks:read',
+    ],
+  })
   key = b.key
 })
 const session = async (env: { CREDENTIALS_KEY?: string } = {}) => {
@@ -33,7 +56,8 @@ const session = async (env: { CREDENTIALS_KEY?: string } = {}) => {
       const res = await worker.fetch(req)
       if (hideOperation && new URL(req.url).pathname === '/api/v1/openapi.json') {
         const doc = (await res.json()) as any
-        for (const methods of Object.values<any>(doc.paths)) for (const [m, op] of Object.entries<any>(methods)) if (op.operationId === hideOperation) delete methods[m]
+        for (const methods of Object.values<any>(doc.paths))
+          for (const [m, op] of Object.entries<any>(methods)) if (op.operationId === hideOperation) delete methods[m]
         return new Response(JSON.stringify(doc), { headers: { 'content-type': 'application/json' } })
       }
       return res
@@ -95,9 +119,19 @@ describe('against the D1 app', () => {
     const help = (await ok(r, ['action-executions', 'list', '--help'])).stdout
     expect(help).toContain('--sort')
     expect(help).toContain('--order')
-    for (const pattern of [/queued at/i, /executed at/i, /done or failed/i, /unfinished/i, /sort=done_at&order=desc/, /approved at/i]) expect(help, String(pattern)).toMatch(pattern)
+    for (const pattern of [
+      /queued at/i,
+      /executed at/i,
+      /done or failed/i,
+      /unfinished/i,
+      /sort=done_at&order=desc/,
+      /approved at/i,
+    ])
+      expect(help, String(pattern)).toMatch(pattern)
     // A sorted call with nothing readable answers the same empty page as an unsorted one.
-    expect(JSON.parse((await ok(r, ['action-executions', 'list', '--sort', 'done_at', '--order', 'desc'])).stdout)).toEqual({ data: [], next_cursor: null })
+    expect(
+      JSON.parse((await ok(r, ['action-executions', 'list', '--sort', 'done_at', '--order', 'desc'])).stdout),
+    ).toEqual({ data: [], next_cursor: null })
     const bad = await r.run(['action-executions', 'list', '--sort', 'dispatched_at'])
     expect(bad.code).not.toBe(0)
   })
@@ -117,7 +151,8 @@ describe('against the D1 app', () => {
   it('list --all follows next_cursor across pages and prints one NDJSON line per record', async () => {
     const r = await session()
     const ids: string[] = []
-    for (const name of ['A', 'B', 'C']) ids.push(JSON.parse((await ok(r, ['contacts', 'create', '--name', name])).stdout).id)
+    for (const name of ['A', 'B', 'C'])
+      ids.push(JSON.parse((await ok(r, ['contacts', 'create', '--name', name])).stdout).id)
     const page = JSON.parse((await ok(r, ['contacts', 'list', '--limit', '1'])).stdout)
     expect(page.data).toHaveLength(1)
     expect(page.next_cursor).toBe(page.data[0].id)
@@ -136,9 +171,13 @@ describe('against the D1 app', () => {
     const never = JSON.parse((await ok(r, ['contacts', 'list', '--never-contacted', 'true'])).stdout)
     expect(never.data.map((c: any) => c.id).sort()).toEqual([...ids].sort())
     expect(never.data[0]).toMatchObject({ last_contacted_at: null, last_interacted_at: null })
-    const contacted = JSON.parse((await ok(r, ['contacts', 'list', '--contacted-since', '2026-01-01T00:00:00Z'])).stdout)
+    const contacted = JSON.parse(
+      (await ok(r, ['contacts', 'list', '--contacted-since', '2026-01-01T00:00:00Z'])).stdout,
+    )
     expect(contacted.data).toEqual([])
-    const stale = JSON.parse((await ok(r, ['contacts', 'list', '--not-contacted-since', '2026-01-01T00:00:00Z'])).stdout)
+    const stale = JSON.parse(
+      (await ok(r, ['contacts', 'list', '--not-contacted-since', '2026-01-01T00:00:00Z'])).stdout,
+    )
     expect(stale.data).toHaveLength(2)
     expect((await r.run(['contacts', 'list', '--never-contacted', 'maybe'])).code).toBe(2)
   })
@@ -146,7 +185,8 @@ describe('against the D1 app', () => {
   /** Three contacts that were all contacted, at known times, through the capture unit of the API (D14): the CLI cannot write interactions. */
   const seedSorted = async (r: ReturnType<typeof rig>) => {
     const ids: string[] = []
-    for (const name of ['A', 'B', 'C']) ids.push(JSON.parse((await ok(r, ['contacts', 'create', '--name', name])).stdout).id)
+    for (const name of ['A', 'B', 'C'])
+      ids.push(JSON.parse((await ok(r, ['contacts', 'create', '--name', name])).stdout).id)
     return ids
   }
 
@@ -171,12 +211,28 @@ describe('against the D1 app', () => {
     const r = await session()
     const ids = await seedSorted(r)
     const before = r.seen.length
-    const all = await ok(r, ['contacts', 'list', '--all', '--limit', '1', '--sort', 'last_interacted_at', '--order', 'asc'])
+    const all = await ok(r, [
+      'contacts',
+      'list',
+      '--all',
+      '--limit',
+      '1',
+      '--sort',
+      'last_interacted_at',
+      '--order',
+      'asc',
+    ])
     const lines = all.stdout.trimEnd().split('\n')
     expect(lines.map((l) => JSON.parse(l).id)).toEqual([...ids].sort())
     const gets = r.seen.slice(before).filter((x) => x.url.includes('/api/v1/contacts?'))
     expect(gets).toHaveLength(3)
-    expect(gets.every((g) => new URL(g.url).searchParams.get('sort') === 'last_interacted_at' && new URL(g.url).searchParams.get('order') === 'asc')).toBe(true)
+    expect(
+      gets.every(
+        (g) =>
+          new URL(g.url).searchParams.get('sort') === 'last_interacted_at' &&
+          new URL(g.url).searchParams.get('order') === 'asc',
+      ),
+    ).toBe(true)
     const afters = gets.map((g) => new URL(g.url).searchParams.get('after'))
     expect(afters[0]).toBeNull()
     expect(afters[1]).not.toMatch(/^[0-9a-f]{8}-/) // opaque, not a bare id
@@ -211,9 +267,21 @@ describe('against the D1 app', () => {
     expect(first.next_cursor).not.toBeNull()
     const file = join(r.cacheDir, readdirSync(r.cacheDir).find((f) => f.startsWith('discovery-'))!)
     const cache = JSON.parse(readFileSync(file, 'utf8'))
-    cache.ops.find((o: any) => o.id === 'contacts.list').parameters.find((x: any) => x.name === 'after').schema = { type: 'string', format: 'uuid' }
+    cache.ops.find((o: any) => o.id === 'contacts.list').parameters.find((x: any) => x.name === 'after').schema = {
+      type: 'string',
+      format: 'uuid',
+    }
     writeFileSync(file, JSON.stringify(cache))
-    const next = await r.run(['contacts', 'list', '--limit', '1', '--sort', 'last_contacted_at', '--after', first.next_cursor])
+    const next = await r.run([
+      'contacts',
+      'list',
+      '--limit',
+      '1',
+      '--sort',
+      'last_contacted_at',
+      '--after',
+      first.next_cursor,
+    ])
     expect(next.stderr).toBe('')
     expect(next.code).toBe(0)
     expect(JSON.parse(next.stdout).data).toHaveLength(1)
@@ -223,15 +291,52 @@ describe('against the D1 app', () => {
     const r = await session()
     const json = async (argv: string[]) => JSON.parse((await ok(r, argv)).stdout)
     const p = await json(['pipelines', 'create', '--name', 'Prospecting'])
-    const open = await json(['pipeline-stages', 'create', '--pipeline-id', p.id, '--name', 'Researched', '--kind', 'open', '--position', '10'])
-    const won = await json(['pipeline_stages', 'create', '--pipeline-id', p.id, '--name', 'Won', '--kind', 'won', '--position', '90'])
-    expect((await json(['pipeline-stages', 'list', '--pipeline-id', p.id, '--kind', 'won'])).data.map((x: any) => x.id)).toEqual([won.id])
-    const d = await json(['deals', 'create', '--name', 'Acme - pilot', '--stage-id', open.id, '--amount-minor', '5000', '--currency', 'usd'])
+    const open = await json([
+      'pipeline-stages',
+      'create',
+      '--pipeline-id',
+      p.id,
+      '--name',
+      'Researched',
+      '--kind',
+      'open',
+      '--position',
+      '10',
+    ])
+    const won = await json([
+      'pipeline_stages',
+      'create',
+      '--pipeline-id',
+      p.id,
+      '--name',
+      'Won',
+      '--kind',
+      'won',
+      '--position',
+      '90',
+    ])
+    expect(
+      (await json(['pipeline-stages', 'list', '--pipeline-id', p.id, '--kind', 'won'])).data.map((x: any) => x.id),
+    ).toEqual([won.id])
+    const d = await json([
+      'deals',
+      'create',
+      '--name',
+      'Acme - pilot',
+      '--stage-id',
+      open.id,
+      '--amount-minor',
+      '5000',
+      '--currency',
+      'usd',
+    ])
     expect(d).toMatchObject({ pipeline_id: p.id, status: 'open', currency: 'USD' })
     const moved = await json(['deals', 'move-stage', d.id, '--stage-id', won.id])
     expect(moved).toMatchObject({ id: d.id, stage_id: won.id, status: 'won' })
     expect((await json(['deals', 'move_stage', d.id, '--stage-id', open.id])).status).toBe('open')
-    expect((await json(['deals', 'list', '--status', 'open', '--pipeline-id', p.id])).data.map((x: any) => x.id)).toEqual([d.id])
+    expect(
+      (await json(['deals', 'list', '--status', 'open', '--pipeline-id', p.id])).data.map((x: any) => x.id),
+    ).toEqual([d.id])
     const refused = await r.run(['deals', 'update', d.id, '--data', JSON.stringify({ stage_id: won.id })]) // create-only: the API refuses, naming deals.move_stage
     expect(refused.code).toBe(1)
     expect(JSON.parse(refused.stderr).error.message).toContain('deals.move_stage')
@@ -256,11 +361,27 @@ describe('against the D1 app', () => {
     const r = await session()
     const json = async (argv: string[]) => JSON.parse((await ok(r, argv)).stdout)
     const p = await json(['pipelines', 'create', '--name', 'Sales'])
-    const stage = await json(['pipeline-stages', 'create', '--pipeline-id', p.id, '--name', 'Researched', '--kind', 'open', '--position', '10'])
+    const stage = await json([
+      'pipeline-stages',
+      'create',
+      '--pipeline-id',
+      p.id,
+      '--name',
+      'Researched',
+      '--kind',
+      'open',
+      '--position',
+      '10',
+    ])
     const linked = await json(['deals', 'create', '--name', 'Linked', '--stage-id', stage.id])
     await json(['deals', 'create', '--name', 'Other', '--stage-id', stage.id])
     const co = await json(['companies', 'create', '--name', 'Acme'])
-    await json(['associations', 'create', '--data', JSON.stringify({ a_type: 'companies', a_id: co.id, b_type: 'deals', b_id: linked.id })])
+    await json([
+      'associations',
+      'create',
+      '--data',
+      JSON.stringify({ a_type: 'companies', a_id: co.id, b_type: 'deals', b_id: linked.id }),
+    ])
     const file = join(r.cacheDir, readdirSync(r.cacheDir).find((f) => f.startsWith('discovery-'))!)
     const cache = JSON.parse(readFileSync(file, 'utf8'))
     const list = cache.ops.find((o: any) => o.id === 'deals.list')
@@ -272,7 +393,12 @@ describe('against the D1 app', () => {
     expect(res.stderr).not.toMatch(/TypeError/)
     if (res.code === 0) {
       expect(JSON.parse(res.stdout).data.map((d: any) => d.id)).toEqual([linked.id])
-      expect(r.seen.slice(before).filter((s) => s.url.includes('/api/v1/deals?')).every((s) => s.url.includes('company_id='))).toBe(true)
+      expect(
+        r.seen
+          .slice(before)
+          .filter((s) => s.url.includes('/api/v1/deals?'))
+          .every((s) => s.url.includes('company_id=')),
+      ).toBe(true)
     } else {
       expect(res.code).toBe(2)
       expect(res.stderr).toContain('company-id')
@@ -333,7 +459,10 @@ describe('webhook subscriptions through the CLI ([[API7]])', () => {
 
   it('webhooks create, list, get, update, rotate-secret and delete, derived from the meta document', async () => {
     const r = await session({ CREDENTIALS_KEY: KEY })
-    const created = JSON.parse((await ok(r, ['webhooks', 'create', '--url', 'https://example.com/hook', '--event-types', '["task.created"]'])).stdout)
+    const created = JSON.parse(
+      (await ok(r, ['webhooks', 'create', '--url', 'https://example.com/hook', '--event-types', '["task.created"]']))
+        .stdout,
+    )
     expect(created).toMatchObject({ url: 'https://example.com/hook', event_types: ['task.created'], status: 'active' })
     expect(created.secret).toMatch(/^whsec_/)
     const listed = JSON.parse((await ok(r, ['webhooks', 'list'])).stdout)
@@ -352,7 +481,14 @@ describe('webhook subscriptions through the CLI ([[API7]])', () => {
 
   it('without the key the CLI reports the 501 as an error naming webhooks_not_configured', async () => {
     const r = await session()
-    const res = await r.run(['webhooks', 'create', '--url', 'https://example.com/hook', '--event-types', '["task.created"]'])
+    const res = await r.run([
+      'webhooks',
+      'create',
+      '--url',
+      'https://example.com/hook',
+      '--event-types',
+      '["task.created"]',
+    ])
     expect(res.code).not.toBe(0)
     expect(res.stderr).toContain('webhooks_not_configured')
   })

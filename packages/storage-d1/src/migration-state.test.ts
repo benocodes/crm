@@ -10,7 +10,11 @@ describe('compareMigrations (D9)', () => {
     expect(compareMigrations([...EXPECTED].reverse(), EXPECTED)).toEqual({ status: 'current', missing: [], extra: [] })
   })
   it('behind: something expected is missing', () => {
-    expect(compareMigrations(EXPECTED.slice(0, 2), EXPECTED)).toEqual({ status: 'behind', missing: ['0003_c.sql'], extra: [] })
+    expect(compareMigrations(EXPECTED.slice(0, 2), EXPECTED)).toEqual({
+      status: 'behind',
+      missing: ['0003_c.sql'],
+      extra: [],
+    })
   })
   it('behind wins over extras (a diverged history)', () => {
     expect(compareMigrations(['0001_a.sql', '0002_renamed.sql', '0003_c.sql'], EXPECTED)).toEqual({
@@ -20,7 +24,11 @@ describe('compareMigrations (D9)', () => {
     })
   })
   it('ahead: nothing missing, extras present', () => {
-    expect(compareMigrations([...EXPECTED, '0004_d.sql'], EXPECTED)).toEqual({ status: 'ahead', missing: [], extra: ['0004_d.sql'] })
+    expect(compareMigrations([...EXPECTED, '0004_d.sql'], EXPECTED)).toEqual({
+      status: 'ahead',
+      missing: [],
+      extra: ['0004_d.sql'],
+    })
   })
   it('nothing applied and something expected is behind', () => {
     expect(compareMigrations([], EXPECTED)).toEqual({ status: 'behind', missing: EXPECTED, extra: [] })
@@ -43,7 +51,12 @@ describe('readMigrationState (D6)', () => {
     expect(await readMigrationState(d1, EXPECTED)).toEqual({ status: 'unknown', applied: [], readFailed: false })
   })
   it('a throwing read is unknown and flagged as failed', async () => {
-    const broken: D1Like = { prepare: () => { throw new Error('D1 is unavailable') }, batch: () => Promise.reject(new Error('x')) }
+    const broken: D1Like = {
+      prepare: () => {
+        throw new Error('D1 is unavailable')
+      },
+      batch: () => Promise.reject(new Error('x')),
+    }
     expect(await readMigrationState(broken, EXPECTED)).toEqual({ status: 'unknown', applied: [], readFailed: true })
   })
   it('reads each status from the tracker', async () => {

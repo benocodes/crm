@@ -5,9 +5,23 @@ import { bootstrapD1, probeBatchAtomicity } from '../../src/bootstrap-d1.js'
 import { initDeploymentOperation } from '../../src/init-deployment.js'
 import { execute, uuidv7 } from '@vibase/storage'
 import { CONTROL_MIGRATIONS, MIGRATIONS, d1Binding, openControlDb, writeControlMarker } from '@vibase/storage-d1'
-import { PLACEHOLDER_DATABASE_ID, RemoteRefusal, formatMigrationDiff, resolveTarget, statusOf, type ConfigLike, type Target } from '../remote.js'
+import {
+  PLACEHOLDER_DATABASE_ID,
+  RemoteRefusal,
+  formatMigrationDiff,
+  resolveTarget,
+  statusOf,
+  type ConfigLike,
+  type Target,
+} from '../remote.js'
 import { oldDomainManual } from './host.js'
-import { GOOGLE_SECRET_NAMES, authSecretManual, authSecretState, newAuthSecret, type BetterAuthInputs } from './better-auth.js'
+import {
+  GOOGLE_SECRET_NAMES,
+  authSecretManual,
+  authSecretState,
+  newAuthSecret,
+  type BetterAuthInputs,
+} from './better-auth.js'
 import { clerkStep, configuredCliClientId, signingKeyPem } from './clerk.js'
 import type { ClerkKeys } from './clerk-keys.js'
 import { GMAIL_SECRET_NAMES, NEVER_REPLACED, hideGmailValues, type Gmail } from './gmail.js'
@@ -79,17 +93,25 @@ export interface Ctx {
 }
 
 type Step = (ctx: Ctx) => Promise<StepResult>
-const result = (step: StepName, status: StepResult['status'], detail: string, lines?: string[]): StepResult => ({ step, status, detail, ...(lines ? { lines } : {}) })
+const result = (step: StepName, status: StepResult['status'], detail: string, lines?: string[]): StepResult => ({
+  step,
+  status,
+  detail,
+  ...(lines ? { lines } : {}),
+})
 const message = (e: unknown) => (e instanceof Error ? e.message : 'failed')
 
 /** Every subprocess goes through here: a write in a dry run is refused in code, not only by each step's own check. */
 async function run(ctx: Ctx, cmd: SetupCmd): Promise<ExecResult> {
-  if (ctx.opts.dryRun && isWriteCommand(cmd)) throw new Error(`refusing to run a write command in a dry run: ${cmd.args.join(' ')}`)
+  if (ctx.opts.dryRun && isWriteCommand(cmd))
+    throw new Error(`refusing to run a write command in a dry run: ${cmd.args.join(' ')}`)
   return ctx.deps.exec(cmd)
 }
 
 function envConfig(text: string, env: string): ConfigLike {
-  const root = parse(text, [], { allowTrailingComma: true }) as { env?: Record<string, { name?: string; d1_databases?: ConfigLike['d1_databases'] }> } | undefined
+  const root = parse(text, [], { allowTrailingComma: true }) as
+    | { env?: Record<string, { name?: string; d1_databases?: ConfigLike['d1_databases'] }> }
+    | undefined
   const block = root?.env?.[env]
   if (!block) throw new RemoteRefusal(`env ${env} is not in wrangler.jsonc yet: run config:write first`)
   return { name: block.name, d1_databases: block.d1_databases }
@@ -108,7 +130,8 @@ async function readFacts(ctx: Ctx, fresh = false): Promise<NonNullable<Ctx['fact
   return ctx.facts
 }
 
-const cfGet = (ctx: PreflightCtx, path: string) => ctx.deps.fetch(`${CF}${path}`, { headers: { authorization: `Bearer ${ctx.creds.apiToken}` } })
+const cfGet = (ctx: PreflightCtx, path: string) =>
+  ctx.deps.fetch(`${CF}${path}`, { headers: { authorization: `Bearer ${ctx.creds.apiToken}` } })
 
 /** What `preflight` reads: shared with `vibase-server setup` ([[OPS232]]). */
 export interface PreflightCtx {
@@ -130,8 +153,13 @@ export const preflight = async (ctx: PreflightCtx): Promise<StepResult> => {
   }
   // [[OPS308]] D12: a workers.dev host is on no zone of the account; D1, R2 and Workers are still checked.
   if (ctx.opts.workersDev) {
-    if (failures.length > 0) return result('preflight', 'fail', `missing: ${failures.map((f) => f.split(':')[0]).join(', ')}`, failures)
-    return result('preflight', 'ok', 'Cloudflare credentials reach D1, R2 and Workers (workers.dev mode: no zone check)')
+    if (failures.length > 0)
+      return result('preflight', 'fail', `missing: ${failures.map((f) => f.split(':')[0]).join(', ')}`, failures)
+    return result(
+      'preflight',
+      'ok',
+      'Cloudflare credentials reach D1, R2 and Workers (workers.dev mode: no zone check)',
+    )
   }
   const labels = ctx.opts.apiHost.split('.')
   let zone: string | null = null
@@ -147,8 +175,12 @@ export const preflight = async (ctx: PreflightCtx): Promise<StepResult> => {
     const body = (await res.json()) as { result?: { name?: string }[] }
     if (body.result?.some((z) => z.name === candidate)) zone = candidate
   }
-  if (zone === null && !zoneDenied) failures.push(`zone: no zone for ${ctx.opts.apiHost} is visible to the token (the API host must be on a zone in this account)`)
-  if (failures.length > 0) return result('preflight', 'fail', `missing: ${failures.map((f) => f.split(':')[0]).join(', ')}`, failures)
+  if (zone === null && !zoneDenied)
+    failures.push(
+      `zone: no zone for ${ctx.opts.apiHost} is visible to the token (the API host must be on a zone in this account)`,
+    )
+  if (failures.length > 0)
+    return result('preflight', 'fail', `missing: ${failures.map((f) => f.split(':')[0]).join(', ')}`, failures)
   return result('preflight', 'ok', `Cloudflare credentials reach D1, R2, Workers and zone ${zone}`)
 }
 
@@ -163,23 +195,37 @@ const configResources: Step = async (ctx) => {
     planned.push(`D1 ${name}`)
     if (!ctx.opts.dryRun) {
       const r = await run(ctx, d1CreateCommand(name))
-      if (r.status !== 0) return result('config:resources', 'fail', `wrangler d1 create ${name} failed (exit ${r.status})`, [r.stderr.trim()].filter(Boolean))
+      if (r.status !== 0)
+        return result(
+          'config:resources',
+          'fail',
+          `wrangler d1 create ${name} failed (exit ${r.status})`,
+          [r.stderr.trim()].filter(Boolean),
+        )
       await readFacts(ctx, true)
-      if (!ctx.facts!.d1s.some((d) => d.name === name)) return result('config:resources', 'fail', `D1 ${name} was created but is not in wrangler d1 list`)
+      if (!ctx.facts!.d1s.some((d) => d.name === name))
+        return result('config:resources', 'fail', `D1 ${name} was created but is not in wrangler d1 list`)
     }
   }
   if (!ctx.facts!.r2s.includes(r2Name)) {
     planned.push(`R2 ${r2Name}`)
     if (!ctx.opts.dryRun) {
       const r = await run(ctx, r2CreateCommand(r2Name))
-      if (r.status !== 0) return result('config:resources', 'fail', `wrangler r2 bucket create ${r2Name} failed (exit ${r.status})`, [r.stderr.trim()].filter(Boolean))
+      if (r.status !== 0)
+        return result(
+          'config:resources',
+          'fail',
+          `wrangler r2 bucket create ${r2Name} failed (exit ${r.status})`,
+          [r.stderr.trim()].filter(Boolean),
+        )
     }
   }
   const state = (n: string) => (planned.includes(n) ? (ctx.opts.dryRun ? 'would create' : 'created') : 'exists')
   lines.push(`D1 ${d1Name}: ${state(`D1 ${d1Name}`)}`)
   lines.push(`D1 ${controlD1Name} (control): ${state(`D1 ${controlD1Name}`)}`)
   lines.push(`R2 ${r2Name}: ${state(`R2 ${r2Name}`)}`)
-  if (planned.length === 0) return result('config:resources', 'ok', `D1 ${d1Name}, D1 ${controlD1Name} and R2 ${r2Name} exist`)
+  if (planned.length === 0)
+    return result('config:resources', 'ok', `D1 ${d1Name}, D1 ${controlD1Name} and R2 ${r2Name} exist`)
   if (ctx.opts.dryRun) ctx.pending = true
   return result('config:resources', 'create', planned.join(', '), lines)
 }
@@ -189,8 +235,10 @@ function lineDiff(before: string, after: string): string[] {
   const b = count(before)
   const a = count(after)
   const out: string[] = []
-  for (const l of before.split('\n')) if ((a.get(l) ?? 0) < (b.get(l) ?? 0)) (a.set(l, (a.get(l) ?? 0) + 1), out.push(`- ${l}`))
-  for (const l of after.split('\n')) if ((b.get(l) ?? 0) < (a.get(l) ?? 0)) (b.set(l, (b.get(l) ?? 0) + 1), out.push(`+ ${l}`))
+  for (const l of before.split('\n'))
+    if ((a.get(l) ?? 0) < (b.get(l) ?? 0)) a.set(l, (a.get(l) ?? 0) + 1), out.push(`- ${l}`)
+  for (const l of after.split('\n'))
+    if ((b.get(l) ?? 0) < (a.get(l) ?? 0)) b.set(l, (b.get(l) ?? 0) + 1), out.push(`+ ${l}`)
   return out
 }
 
@@ -203,7 +251,11 @@ const configWrite: Step = async (ctx) => {
   const betterAuth = ctx.opts.auth === 'better-auth'
   const cliId = clerk ? (ctx.cliClientId ?? configuredCliClientId(before0, ctx.opts.env)) : undefined
   if (clerk && cliId === undefined && !ctx.opts.dryRun) {
-    return result('config:write', 'fail', 'AUTH_CLI_CLIENT_ID is not known: the Vibase CLI application comes from the clerk step (run it, or set the variable in wrangler.jsonc)')
+    return result(
+      'config:write',
+      'fail',
+      'AUTH_CLI_CLIENT_ID is not known: the Vibase CLI application comes from the clerk step (run it, or set the variable in wrangler.jsonc)',
+    )
   }
   const desired: DesiredEnv = {
     env: ctx.opts.env,
@@ -222,7 +274,9 @@ const configWrite: Step = async (ctx) => {
     // [[UI30]] D7: the connect page's own origin is an authorized party (never a CORS origin, never a Clerk allowed origin), and the
     // publishable key is a public var. `--auth none` writes neither.
     // [[OPS249]] D2: `better-auth` writes `AUTH_PROVIDER` and `PUBLIC_BASE_URL` and nothing else (the Worker's default `vibase-cli`, no Clerk variable, no role claim).
-    ...(betterAuth ? { authVars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: `https://${ctx.opts.apiHost}` } } : {}),
+    ...(betterAuth
+      ? { authVars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: `https://${ctx.opts.apiHost}` } }
+      : {}),
     ...(clerk
       ? {
           authVars: {
@@ -238,26 +292,50 @@ const configWrite: Step = async (ctx) => {
   const before = ctx.deps.readConfigText()
   const r = reconcileEnvBlock(before, desired)
   if (r.mismatches.length > 0) {
-    return result('config:write', 'fail', `wrangler.jsonc differs from the desired value at ${r.mismatches.join(', ')}; it is never overwritten: fix it or the flag`, r.mismatches.map((k) => `differs: ${k}`))
+    return result(
+      'config:write',
+      'fail',
+      `wrangler.jsonc differs from the desired value at ${r.mismatches.join(', ')}; it is never overwritten: fix it or the flag`,
+      r.mismatches.map((k) => `differs: ${k}`),
+    )
   }
   if (r.changed.length === 0) return result('config:write', 'ok', `env.${ctx.opts.env} in wrangler.jsonc is as desired`)
   const diff = lineDiff(before, r.text).map(hideGmailValues)
   const { move } = ctx.opts
   // [[OPS308]] P5: setup makes no DNS or custom-domain delete call, so a custom domain the move leaves behind is the operator's to detach.
-  const leftBehind = move?.fromMode === 'custom' && move.from !== undefined && !ctx.opts.workersDev ? [oldDomainManual(move.from)] : []
+  const leftBehind =
+    move?.fromMode === 'custom' && move.from !== undefined && !ctx.opts.workersDev ? [oldDomainManual(move.from)] : []
   const withManual = (res: StepResult): StepResult => (leftBehind.length ? { ...res, manual: leftBehind } : res)
   if (ctx.opts.dryRun) {
     ctx.pending = true
     ctx.blockedBy = 'config:write'
-    return withManual(result('config:write', 'update', `would write ${r.changed.join(', ')}${clerk && cliId === undefined ? ' (AUTH_CLI_CLIENT_ID follows once the Vibase CLI application exists)' : ''}`, diff))
+    return withManual(
+      result(
+        'config:write',
+        'update',
+        `would write ${r.changed.join(', ')}${clerk && cliId === undefined ? ' (AUTH_CLI_CLIENT_ID follows once the Vibase CLI application exists)' : ''}`,
+        diff,
+      ),
+    )
   }
   ctx.deps.writeConfigText(r.text)
   ctx.stop = true
-  return withManual(result('config:write', 'update', `wrote ${r.changed.join(', ')}`, [...diff, 'review and commit wrangler.jsonc, then re-run the same command to migrate, bootstrap, deploy and verify']))
+  return withManual(
+    result('config:write', 'update', `wrote ${r.changed.join(', ')}`, [
+      ...diff,
+      'review and commit wrangler.jsonc, then re-run the same command to migrate, bootstrap, deploy and verify',
+    ]),
+  )
 }
 
 const blocked = (ctx: Ctx, step: StepName): StepResult | null =>
-  ctx.blockedBy ? result(step, 'blocked', `waits on ${ctx.blockedBy} (nothing is evaluated until the config is written and committed)`) : null
+  ctx.blockedBy
+    ? result(
+        step,
+        'blocked',
+        `waits on ${ctx.blockedBy} (nothing is evaluated until the config is written and committed)`,
+      )
+    : null
 
 interface Db {
   label: 'control' | 'crm'
@@ -273,7 +351,10 @@ const migrate: Step = async (ctx) => {
   const b = blocked(ctx, 'migrate')
   if (b) return b
   const t = target(ctx)
-  const dbs: Db[] = [...(t.control ? [{ label: 'control' as const, binding: 'CONTROL_DB' as const, expected: CONTROL_EXPECTED }] : []), { label: 'crm', binding: 'DB', expected: EXPECTED }]
+  const dbs: Db[] = [
+    ...(t.control ? [{ label: 'control' as const, binding: 'CONTROL_DB' as const, expected: CONTROL_EXPECTED }] : []),
+    { label: 'crm', binding: 'DB', expected: EXPECTED },
+  ]
   const both = t.control !== undefined
   const tag = (db: Db, lines: string[]) => (both ? lines.map((l) => `[${db.label}] ${l}`) : lines)
   const read = async () => {
@@ -287,50 +368,102 @@ const migrate: Step = async (ctx) => {
   const before = await read()
   const ahead = before.find((x) => x.status === 'ahead')
   if (ahead) {
-    return result('migrate', 'fail', `the ${both ? `${ahead.db.label} ` : ''}database has migrations this build does not know: deploy a newer build, do not migrate`, before.flatMap((x) => tag(x.db, formatMigrationDiff(x.applied, x.db.expected))))
+    return result(
+      'migrate',
+      'fail',
+      `the ${both ? `${ahead.db.label} ` : ''}database has migrations this build does not know: deploy a newer build, do not migrate`,
+      before.flatMap((x) => tag(x.db, formatMigrationDiff(x.applied, x.db.expected))),
+    )
   }
   const diff = (rows: typeof before) => rows.flatMap((x) => tag(x.db, formatMigrationDiff(x.applied, x.db.expected)))
-  if (before.every((x) => x.status === 'current')) return result('migrate', 'ok', both ? `${CONTROL_EXPECTED.length} control and ${EXPECTED.length} CRM migrations applied` : `${EXPECTED.length} migrations applied`)
+  if (before.every((x) => x.status === 'current'))
+    return result(
+      'migrate',
+      'ok',
+      both
+        ? `${CONTROL_EXPECTED.length} control and ${EXPECTED.length} CRM migrations applied`
+        : `${EXPECTED.length} migrations applied`,
+    )
   if (ctx.opts.dryRun) {
     ctx.pending = true
-    return result('migrate', 'update', `would apply: ${both ? before.map((x) => `${x.db.label} ${x.status}`).join(', ') : before[0]!.status}`, diff(before))
+    return result(
+      'migrate',
+      'update',
+      `would apply: ${both ? before.map((x) => `${x.db.label} ${x.status}`).join(', ') : before[0]!.status}`,
+      diff(before),
+    )
   }
   for (const x of before) {
     if (x.status === 'current') continue
     for (const cmd of migrateStepCommands(t.env, x.db.binding)) {
       const r = await run(ctx, cmd)
-      if (r.status !== 0) return result('migrate', 'fail', `${both ? `${x.db.label} ` : ''}${cmd.args.slice(2, 5).join(' ')} ${cmd.args[5]} failed (exit ${r.status})`)
+      if (r.status !== 0)
+        return result(
+          'migrate',
+          'fail',
+          `${both ? `${x.db.label} ` : ''}${cmd.args.slice(2, 5).join(' ')} ${cmd.args[5]} failed (exit ${r.status})`,
+        )
     }
   }
   const after = await read()
   const notCurrent = after.find((x) => x.status !== 'current')
-  if (notCurrent) return result('migrate', 'fail', `${both ? `${notCurrent.db.label} ` : ''}migrations are not current after apply`, diff(after))
+  if (notCurrent)
+    return result(
+      'migrate',
+      'fail',
+      `${both ? `${notCurrent.db.label} ` : ''}migrations are not current after apply`,
+      diff(after),
+    )
   return result('migrate', 'update', 'applied', diff(after))
 }
 
 /** The marker's link for this run: `clerk:<issuer>`, `better-auth:<env>` or `none:<env>` ([[OPS65]] D18, [[OPS249]] D6; the label is informational, [[CORE64]] D11). */
 const wantedLink = (ctx: Ctx) =>
-  ctx.opts.auth === 'clerk' ? { authProvider: 'clerk', authOrgId: ctx.keys!.issuer } : { authProvider: ctx.opts.auth, authOrgId: ctx.opts.env }
+  ctx.opts.auth === 'clerk'
+    ? { authProvider: 'clerk', authOrgId: ctx.keys!.issuer }
+    : { authProvider: ctx.opts.auth, authOrgId: ctx.opts.env }
 
 /**
  * [[OPS249]] D6, D7: the `better-auth` bootstrap. Setup reads the owner state first (an owner membership, else the newest live owner invitation, else neither) and passes `ownerEmail` to the
  * shared `bootstrapD1` only in the third state, so a re-run never re-issues (and never reprints) the link. A dry run reports the state it found and writes nothing. Decision: an initialised instance
  * with an owner or a pending invitation is `ok` without opening the databases (the invitation is the last write of a run, so it implies the markers and the seed).
  */
-async function betterAuthBootstrap(ctx: Ctx, t: Target, want: { authProvider: string; authOrgId: string }, marker: MarkerRow | null, control: { organizationId: string } | null | undefined): Promise<StepResult> {
+async function betterAuthBootstrap(
+  ctx: Ctx,
+  t: Target,
+  want: { authProvider: string; authOrgId: string },
+  marker: MarkerRow | null,
+  control: { organizationId: string } | null | undefined,
+): Promise<StepResult> {
   const { opts } = ctx
-  if (!t.control) return result('bootstrap', 'fail', 'better-auth needs the control database: it is not bound in the env block')
+  if (!t.control)
+    return result('bootstrap', 'fail', 'better-auth needs the control database: it is not bound in the env block')
   const complete = marker !== null && marker.organizations > 0 && control !== null
-  const state = parseOwnerState((await run(ctx, ownersCommand(t.env))).stdout, (await run(ctx, ownerInvitationsCommand(t.env))).stdout)
+  const state = parseOwnerState(
+    (await run(ctx, ownersCommand(t.env))).stdout,
+    (await run(ctx, ownerInvitationsCommand(t.env))).stdout,
+  )
   const operator = opts.operatorAgent !== undefined
   const mark = `marker ${want.authProvider}:${want.authOrgId} present`
   if (complete && state.kind !== 'none') {
-    const note = operator ? ': bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)' : ''
-    return result('bootstrap', 'ok', state.kind === 'owner' ? `${mark}, an owner exists: nothing to issue${note}` : `${mark}, owner invitation pending for ${state.email} (expires ${state.expiresAt}), a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${t.env} --owner-reset --email ${state.email}${note}`)
+    const note = operator
+      ? ': bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)'
+      : ''
+    return result(
+      'bootstrap',
+      'ok',
+      state.kind === 'owner'
+        ? `${mark}, an owner exists: nothing to issue${note}`
+        : `${mark}, owner invitation pending for ${state.email} (expires ${state.expiresAt}), a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${t.env} --owner-reset --email ${state.email}${note}`,
+    )
   }
   const issue = state.kind === 'none'
   if (issue && opts.ownerEmail === undefined) {
-    return result('bootstrap', 'fail', '--owner-email is required: this instance has no owner and no live owner invitation, so setup must issue one (pass --owner-email <address>)')
+    return result(
+      'bootstrap',
+      'fail',
+      '--owner-email is required: this instance has no owner and no live owner invitation, so setup must issue one (pass --owner-email <address>)',
+    )
   }
   if (operator && !complete && new RegExp(`^\\s*(export\\s+)?${opts.keyEnv}=`, 'm').test(ctx.deps.readEnvText())) {
     return result('bootstrap', 'fail', `${opts.keyEnv} is already set in .env: refusing to overwrite a key`)
@@ -339,17 +472,31 @@ async function betterAuthBootstrap(ctx: Ctx, t: Target, want: { authProvider: st
   if (opts.dryRun) {
     ctx.pending = true
     if (complete) return result('bootstrap', 'create', `would issue ${invite}`)
-    const parts = [...(marker === null ? [`marker ${want.authProvider}:${want.authOrgId}`] : []), ...(marker === null || marker.organizations === 0 ? [`organisation ${opts.org}`] : []), ...(control === null ? ['control marker'] : []), 'the vibase-cli client', ...(operator ? [`operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})`] : [])]
+    const parts = [
+      ...(marker === null ? [`marker ${want.authProvider}:${want.authOrgId}`] : []),
+      ...(marker === null || marker.organizations === 0 ? [`organisation ${opts.org}`] : []),
+      ...(control === null ? ['control marker'] : []),
+      'the vibase-cli client',
+      ...(operator ? [`operator agent ${opts.operatorAgent} (key to .env as ${opts.keyEnv})`] : []),
+    ]
     return result('bootstrap', 'create', `would write ${parts.join(', ')}${invite ? `, then issue ${invite}` : ''}`)
   }
   const { d1, control: controlD1, dispose } = await ctx.deps.openD1(opts.env)
   try {
     if (!controlD1) return result('bootstrap', 'fail', 'the control database is not bound in the instance proxy')
     const link = { organizationId: marker?.organizationId ?? uuidv7(), ...want }
-    if (marker === null && (await probeBatchAtomicity(d1, link)) === 'not-atomic') return result('bootstrap', 'fail', 'atomicity probe failed (a failed batch left a row): stopping')
+    if (marker === null && (await probeBatchAtomicity(d1, link)) === 'not-atomic')
+      return result('bootstrap', 'fail', 'atomicity probe failed (a failed batch left a row): stopping')
     const r = await bootstrapD1(
       d1,
-      { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId, publicBaseUrl: `https://${opts.apiHost}`, ...(issue ? { ownerEmail: opts.ownerEmail } : {}) },
+      {
+        organizationName: opts.org,
+        agentName: opts.operatorAgent,
+        ...want,
+        organizationId: link.organizationId,
+        publicBaseUrl: `https://${opts.apiHost}`,
+        ...(issue ? { ownerEmail: opts.ownerEmail } : {}),
+      },
       { control: openControlDb(controlD1) },
     )
     const lines: string[] = []
@@ -357,15 +504,31 @@ async function betterAuthBootstrap(ctx: Ctx, t: Target, want: { authProvider: st
       try {
         ctx.deps.appendEnvVar(opts.keyEnv!, r.key)
       } catch {
-        return result('bootstrap', 'fail', `the API key could not be written to .env; it is lost: revoke api key ${r.apiKeyId} and create a new one`)
+        return result(
+          'bootstrap',
+          'fail',
+          `the API key could not be written to .env; it is lost: revoke api key ${r.apiKeyId} and create a new one`,
+        )
       }
       ctx.keyWritten = true
-      lines.push(`agent_id: ${r.agentId}`, `api_key_id: ${r.apiKeyId}`, `api_key: written to .env as ${opts.keyEnv} (not shown)`)
+      lines.push(
+        `agent_id: ${r.agentId}`,
+        `api_key_id: ${r.apiKeyId}`,
+        `api_key: written to .env as ${opts.keyEnv} (not shown)`,
+      )
     }
     // The URL is printed once, here, and stored nowhere (a later run reads the state and prints none).
     if (r.ownerInvitation) ctx.ownerLinkIssued = true
-    if (r.ownerInvitation) lines.push(`owner invitation for ${r.ownerInvitation.email} (expires ${r.ownerInvitation.expiresAt}; shown once, stored nowhere): ${r.ownerInvitation.url}`)
-    return result('bootstrap', 'create', `wrote ${[...(marker === null ? [`marker ${want.authProvider}:${want.authOrgId}`] : []), `organisation ${opts.org}`, 'control marker', 'the vibase-cli client', ...(r.ownerInvitation ? ['an owner invitation'] : [])].join(', ')}`, lines.length ? lines : undefined)
+    if (r.ownerInvitation)
+      lines.push(
+        `owner invitation for ${r.ownerInvitation.email} (expires ${r.ownerInvitation.expiresAt}; shown once, stored nowhere): ${r.ownerInvitation.url}`,
+      )
+    return result(
+      'bootstrap',
+      'create',
+      `wrote ${[...(marker === null ? [`marker ${want.authProvider}:${want.authOrgId}`] : []), `organisation ${opts.org}`, 'control marker', 'the vibase-cli client', ...(r.ownerInvitation ? ['an owner invitation'] : [])].join(', ')}`,
+      lines.length ? lines : undefined,
+    )
   } finally {
     await dispose()
   }
@@ -379,15 +542,29 @@ const bootstrap: Step = async (ctx) => {
   const want = wantedLink(ctx)
   const clerk = opts.auth === 'clerk'
   const marker = parseMarkerOutput((await run(ctx, markerCommand(t.env))).stdout)
-  if (marker === 'no-table') return opts.dryRun ? result('bootstrap', 'blocked', 'the database is not migrated yet') : result('bootstrap', 'fail', 'the database is not migrated: run migrate first')
+  if (marker === 'no-table')
+    return opts.dryRun
+      ? result('bootstrap', 'blocked', 'the database is not migrated yet')
+      : result('bootstrap', 'fail', 'the database is not migrated: run migrate first')
   // [[OPS279]] (D7, D9): the control marker is read with the CRM one; a marker that names another organisation is refused before either database is written.
   const control = t.control ? parseControlMarkerOutput((await run(ctx, controlMarkerCommand(t.env))).stdout) : undefined
-  if (control === 'no-table') return opts.dryRun ? result('bootstrap', 'blocked', 'the control database is not migrated yet') : result('bootstrap', 'fail', 'the control database is not migrated: run migrate first')
+  if (control === 'no-table')
+    return opts.dryRun
+      ? result('bootstrap', 'blocked', 'the control database is not migrated yet')
+      : result('bootstrap', 'fail', 'the control database is not migrated: run migrate first')
   if (control && (marker === null || control.organizationId !== marker.organizationId)) {
-    return result('bootstrap', 'fail', `the control database is already paired with organization ${control.organizationId}, not ${marker === null ? 'this deployment' : marker.organizationId}: it belongs to another deployment`)
+    return result(
+      'bootstrap',
+      'fail',
+      `the control database is already paired with organization ${control.organizationId}, not ${marker === null ? 'this deployment' : marker.organizationId}: it belongs to another deployment`,
+    )
   }
   if (marker !== null && (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId)) {
-    return result('bootstrap', 'fail', `the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`)
+    return result(
+      'bootstrap',
+      'fail',
+      `the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`,
+    )
   }
   if (opts.auth === 'better-auth') return betterAuthBootstrap(ctx, t, want, marker, control)
   if (marker !== null) {
@@ -395,7 +572,9 @@ const bootstrap: Step = async (ctx) => {
     if (!clerk || marker.organizations > 0) {
       const flags = opts.operatorAgent !== undefined
       const mark = `marker ${want.authProvider}:${want.authOrgId} present`
-      const done = flags ? `${mark}: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)` : mark
+      const done = flags
+        ? `${mark}: bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)`
+        : mark
       if (control !== null) return result('bootstrap', 'ok', done)
       // An instance bootstrapped before the control database existed: only its control marker is missing.
       const what = `control marker for organization ${marker.organizationId}`
@@ -431,30 +610,58 @@ const bootstrap: Step = async (ctx) => {
   }
   const { d1, control: controlD1, dispose } = await ctx.deps.openD1(opts.env)
   try {
-    if (t.control && !controlD1) return result('bootstrap', 'fail', 'the control database is not bound in the instance proxy')
+    if (t.control && !controlD1)
+      return result('bootstrap', 'fail', 'the control database is not bound in the instance proxy')
     const controlDb = t.control ? openControlDb(controlD1!) : undefined
     const link = { organizationId: marker?.organizationId ?? uuidv7(), ...want }
     if (marker === null) {
       const probe = await probeBatchAtomicity(d1, link)
-      if (probe === 'not-atomic') return result('bootstrap', 'fail', 'atomicity probe failed (a failed batch left a row): stopping')
+      if (probe === 'not-atomic')
+        return result('bootstrap', 'fail', 'atomicity probe failed (a failed batch left a row): stopping')
     }
     if (!clerk && !operator) {
-      await execute(d1Binding(d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+      await execute(
+        d1Binding(d1, link),
+        { kind: 'internal', organizationId: link.organizationId },
+        initDeploymentOperation(link),
+      )
       // The control marker follows the CRM deployment row ([[CORE259]] D7).
       if (controlDb) await writeControlMarker(controlDb, link.organizationId)
       return result('bootstrap', 'create', `wrote ${what}`)
     }
     const r = clerk
-      ? await bootstrapD1(d1, { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId }, { control: controlDb })
-      : await bootstrapD1(d1, { organizationName: opts.org, email: opts.ownerEmail, agentName: opts.operatorAgent!, ...want, organizationId: link.organizationId }, { control: controlDb })
+      ? await bootstrapD1(
+          d1,
+          { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId },
+          { control: controlDb },
+        )
+      : await bootstrapD1(
+          d1,
+          {
+            organizationName: opts.org,
+            email: opts.ownerEmail,
+            agentName: opts.operatorAgent!,
+            ...want,
+            organizationId: link.organizationId,
+          },
+          { control: controlDb },
+        )
     if (r.key === null || r.agentId === null) return result('bootstrap', 'create', `wrote ${what}`)
     try {
       ctx.deps.appendEnvVar(opts.keyEnv!, r.key)
     } catch {
-      return result('bootstrap', 'fail', `the API key could not be written to .env; it is lost: revoke api key ${r.apiKeyId} and create a new one`)
+      return result(
+        'bootstrap',
+        'fail',
+        `the API key could not be written to .env; it is lost: revoke api key ${r.apiKeyId} and create a new one`,
+      )
     }
     ctx.keyWritten = true
-    return result('bootstrap', 'create', `wrote ${what}`, [`agent_id: ${r.agentId}`, `api_key_id: ${r.apiKeyId}`, `api_key: written to .env as ${opts.keyEnv} (not shown)`])
+    return result('bootstrap', 'create', `wrote ${what}`, [
+      `agent_id: ${r.agentId}`,
+      `api_key_id: ${r.apiKeyId}`,
+      `api_key: written to .env as ${opts.keyEnv} (not shown)`,
+    ])
   } finally {
     await dispose()
   }
@@ -465,7 +672,10 @@ async function readHealth(ctx: Ctx): Promise<{ version?: string; migrations?: st
     const res = await ctx.deps.fetch(`https://${ctx.opts.apiHost}/health`)
     if (res.status !== 200) return null
     const j = (await res.json()) as { version?: unknown; migrations?: { status?: unknown } }
-    return { version: typeof j.version === 'string' ? j.version : undefined, migrations: typeof j.migrations?.status === 'string' ? j.migrations.status : undefined }
+    return {
+      version: typeof j.version === 'string' ? j.version : undefined,
+      migrations: typeof j.migrations?.status === 'string' ? j.migrations.status : undefined,
+    }
   } catch {
     return null
   }
@@ -481,7 +691,8 @@ const deploy: Step = async (ctx) => {
   const t = target(ctx)
   const head = await run(ctx, gitHead())
   const sha = head.stdout.trim()
-  if (head.status !== 0 || !/^[0-9a-f]{40}$/.test(sha)) return result('deploy', 'fail', 'could not read the commit (git rev-parse HEAD failed)')
+  if (head.status !== 0 || !/^[0-9a-f]{40}$/.test(sha))
+    return result('deploy', 'fail', 'could not read the commit (git rev-parse HEAD failed)')
   const health = await readHealth(ctx)
   if (health?.version === sha) {
     ctx.expectSha = sha
@@ -494,10 +705,20 @@ const deploy: Step = async (ctx) => {
     return result('deploy', 'update', `would deploy ${sha.slice(0, 12)} (/health: ${seen})`)
   }
   const status = await run(ctx, gitStatus())
-  if (status.status !== 0 || status.stdout.trim() !== '') return result('deploy', 'fail', 'the working tree is not clean: commit or stash first (deploy stamps the commit sha)')
+  if (status.status !== 0 || status.stdout.trim() !== '')
+    return result(
+      'deploy',
+      'fail',
+      'the working tree is not clean: commit or stash first (deploy stamps the commit sha)',
+    )
   for (const cmd of deployStepCommands(t.env, sha)) {
     const r = await run(ctx, cmd)
-    if (r.status !== 0) return result('deploy', 'fail', `${cmd.args.includes('deploy') ? 'wrangler deploy' : cmd.args.slice(-1)[0]} failed (exit ${r.status})`)
+    if (r.status !== 0)
+      return result(
+        'deploy',
+        'fail',
+        `${cmd.args.includes('deploy') ? 'wrangler deploy' : cmd.args.slice(-1)[0]} failed (exit ${r.status})`,
+      )
   }
   ctx.expectSha = sha
   return result('deploy', 'update', `deployed ${sha.slice(0, 12)} (was ${seen})`)
@@ -516,8 +737,13 @@ const secrets: Step = async (ctx) => {
   if (b) return b
   const clerk = ctx.opts.auth === 'clerk'
   const ba = ctx.betterAuth
-  const names: string[] = [...(clerk ? CLERK_SECRET_NAMES : []), ...(ba ? ['AUTH_SECRET', ...(ba.google ? GOOGLE_SECRET_NAMES : [])] : []), ...(ctx.gmail ? GMAIL_SECRET_NAMES : [])]
-  if (names.length === 0) return result('secrets', 'ok', 'no secrets for this configuration (--auth none, no Gmail group)')
+  const names: string[] = [
+    ...(clerk ? CLERK_SECRET_NAMES : []),
+    ...(ba ? ['AUTH_SECRET', ...(ba.google ? GOOGLE_SECRET_NAMES : [])] : []),
+    ...(ctx.gmail ? GMAIL_SECRET_NAMES : []),
+  ]
+  if (names.length === 0)
+    return result('secrets', 'ok', 'no secrets for this configuration (--auth none, no Gmail group)')
   const t = target(ctx)
   const list = await run(ctx, secretListCommand(t.env))
   if (list.status !== 0) {
@@ -528,17 +754,36 @@ const secrets: Step = async (ctx) => {
   const present = parseSecretList(list.stdout)
   // [[OPS249]] D3: AUTH_SECRET is judged by its four states and never rotated; every other name keeps the rotate rule.
   const authState = ba ? authSecretState(ba.authSecret !== undefined, present.includes('AUTH_SECRET')) : undefined
-  const put = names.filter((n) => (n === 'AUTH_SECRET' ? authState === 'a' || authState === 'b' : n === NEVER_REPLACED && ctx.gmail ? !present.includes(n) : ctx.opts.rotateSecrets || !present.includes(n)))
-  const kept = ctx.gmail && ctx.opts.rotateSecrets && present.includes(NEVER_REPLACED) ? [`${NEVER_REPLACED} kept: stored credentials are encrypted under it (rotate through CREDENTIALS_KEY_VERSION, not setup)`] : []
+  const put = names.filter((n) =>
+    n === 'AUTH_SECRET'
+      ? authState === 'a' || authState === 'b'
+      : n === NEVER_REPLACED && ctx.gmail
+        ? !present.includes(n)
+        : ctx.opts.rotateSecrets || !present.includes(n),
+  )
+  const kept =
+    ctx.gmail && ctx.opts.rotateSecrets && present.includes(NEVER_REPLACED)
+      ? [
+          `${NEVER_REPLACED} kept: stored credentials are encrypted under it (rotate through CREDENTIALS_KEY_VERSION, not setup)`,
+        ]
+      : []
   const manual = authState === 'd' ? authSecretManual(ba!.file) : undefined
   if (put.length === 0) {
     if (manual) return result('secrets', 'manual', manual, kept.length ? kept : undefined)
-    return result('secrets', 'ok', `${names.join(' and ')} are present (--rotate-secrets replaces them${ctx.gmail ? `, except ${NEVER_REPLACED}` : ''}${ba ? ', and never AUTH_SECRET' : ''})`, kept.length ? kept : undefined)
+    return result(
+      'secrets',
+      'ok',
+      `${names.join(' and ')} are present (--rotate-secrets replaces them${ctx.gmail ? `, except ${NEVER_REPLACED}` : ''}${ba ? ', and never AUTH_SECRET' : ''})`,
+      kept.length ? kept : undefined,
+    )
   }
   const rotating = put.filter((n) => present.includes(n))
   const status = rotating.length === put.length ? 'update' : 'create'
   const wouldPut = `${authState === 'a' ? `would generate AUTH_SECRET into ${ba!.file} and ` : 'would '}put ${put.join(', ')}`
-  if (ctx.opts.dryRun) return manual ? result('secrets', 'manual', manual, [wouldPut, ...kept]) : result('secrets', status, wouldPut, kept.length ? kept : undefined)
+  if (ctx.opts.dryRun)
+    return manual
+      ? result('secrets', 'manual', manual, [wouldPut, ...kept])
+      : result('secrets', status, wouldPut, kept.length ? kept : undefined)
   const values: Record<string, string> = {}
   if (put.includes('CLERK_SECRET_KEY')) values.CLERK_SECRET_KEY = ctx.keys!.secretKey
   if (put.includes('CLERK_JWT_KEY')) values.CLERK_JWT_KEY = await signingKeyPem(ctx)
@@ -555,9 +800,16 @@ const secrets: Step = async (ctx) => {
   if (ba?.google) for (const n of GOOGLE_SECRET_NAMES) if (put.includes(n)) values[n] = ba.google[n]
   for (const n of GMAIL_SECRET_NAMES) if (put.includes(n)) values[n] = ctx.gmail!.secrets[n]!
   const r = await run(ctx, secretBulkCommand(t.env, JSON.stringify(values)))
-  if (r.status !== 0) return result('secrets', 'fail', `wrangler secret bulk failed (exit ${r.status})${authState === 'a' ? `; AUTH_SECRET is in ${ba!.file}, the next run puts it` : ''}`)
+  if (r.status !== 0)
+    return result(
+      'secrets',
+      'fail',
+      `wrangler secret bulk failed (exit ${r.status})${authState === 'a' ? `; AUTH_SECRET is in ${ba!.file}, the next run puts it` : ''}`,
+    )
   const done = `put ${put.join(', ')}`
-  return manual ? result('secrets', 'manual', manual, [done, ...kept]) : result('secrets', status, done, kept.length ? kept : undefined)
+  return manual
+    ? result('secrets', 'manual', manual, [done, ...kept])
+    : result('secrets', status, done, kept.length ? kept : undefined)
 }
 
 type Marker = Awaited<ReturnType<typeof readMarker>>
@@ -576,13 +828,24 @@ function repairLines(ctx: Ctx, marker: Marker): string[] {
   const none = `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${opts.env} --key-env <NAME> --org <name> --auth-provider none --auth-org-id ${opts.env} --email <email> --agent <name>`
   const builtIn = `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${opts.env} --key-env <NAME> --org <name> --auth-provider better-auth --auth-org-id ${opts.env} --public-base-url https://${opts.apiHost} --agent <name>`
   const clerk = `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${opts.env} --key-env <NAME> --org <name> --issuer ${want.authOrgId} --agent <name>`
-  if (marker !== null && marker !== 'no-table' && (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId)) {
-    return [`the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`]
+  if (
+    marker !== null &&
+    marker !== 'no-table' &&
+    (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId)
+  ) {
+    return [
+      `the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`,
+    ]
   }
   if (marker !== null && marker !== 'no-table' && marker.organizations > 0) {
-    return [`this env is bootstrapped; create agents and keys through agents.create and api_keys.create on /meta/v1 (${opts.auth === 'none' ? 'with an existing owner key' : 'after vibase login'})`]
+    return [
+      `this env is bootstrapped; create agents and keys through agents.create and api_keys.create on /meta/v1 (${opts.auth === 'none' ? 'with an existing owner key' : 'after vibase login'})`,
+    ]
   }
-  return ['no operator key was created in this run; to create an agent and key:', `  ${opts.auth === 'clerk' ? clerk : opts.auth === 'better-auth' ? builtIn : none}`]
+  return [
+    'no operator key was created in this run; to create an agent and key:',
+    `  ${opts.auth === 'clerk' ? clerk : opts.auth === 'better-auth' ? builtIn : none}`,
+  ]
 }
 
 /** `/.well-known/vibase` `auth` must equal what setup configured ([[OPS65]] D21). */
@@ -597,11 +860,15 @@ async function checkDiscovery(ctx: Ctx): Promise<string | null> {
   } catch {
     return `https://${ctx.opts.apiHost}/.well-known/vibase did not answer`
   }
-  if (!auth) return '/.well-known/vibase reports no auth provider: the Worker has no Clerk configuration (are the secrets and variables in place?)'
+  if (!auth)
+    return '/.well-known/vibase reports no auth provider: the Worker has no Clerk configuration (are the secrets and variables in place?)'
   const bad: string[] = []
-  if (auth.issuer !== expectedIssuer) bad.push(`auth.issuer is ${String(auth.issuer)}, setup configured ${expectedIssuer}`)
-  if (expectedClient === undefined) bad.push('auth.cli_client_id cannot be compared: AUTH_CLI_CLIENT_ID is not in wrangler.jsonc (run the clerk step)')
-  else if (auth.cli_client_id !== expectedClient) bad.push(`auth.cli_client_id is ${String(auth.cli_client_id)}, setup configured ${expectedClient}`)
+  if (auth.issuer !== expectedIssuer)
+    bad.push(`auth.issuer is ${String(auth.issuer)}, setup configured ${expectedIssuer}`)
+  if (expectedClient === undefined)
+    bad.push('auth.cli_client_id cannot be compared: AUTH_CLI_CLIENT_ID is not in wrangler.jsonc (run the clerk step)')
+  else if (auth.cli_client_id !== expectedClient)
+    bad.push(`auth.cli_client_id is ${String(auth.cli_client_id)}, setup configured ${expectedClient}`)
   return bad.length ? `/.well-known/vibase disagrees: ${bad.join('; ')}` : null
 }
 
@@ -613,20 +880,33 @@ async function checkDiscovery(ctx: Ctx): Promise<string | null> {
 const verify: Step = async (ctx) => {
   const b = blocked(ctx, 'verify')
   if (b) return b
-  const ready = (h: Awaited<ReturnType<typeof readHealth>>) => h !== null && h.migrations === 'current' && (ctx.expectSha === undefined || h.version === ctx.expectSha)
+  const ready = (h: Awaited<ReturnType<typeof readHealth>>) =>
+    h !== null && h.migrations === 'current' && (ctx.expectSha === undefined || h.version === ctx.expectSha)
   // [[OPS308]] P2: one deadline, started here, covers the health wait and both discovery reads.
   const start = ctx.deps.now()
   let health = await readHealth(ctx)
   if (ctx.opts.dryRun) {
-    if (!ready(health)) return ctx.pending ? result('verify', 'blocked', 'waits on the changes planned above') : result('verify', 'fail', `https://${ctx.opts.apiHost}/health is not at the expected version with migrations current`)
+    if (!ready(health))
+      return ctx.pending
+        ? result('verify', 'blocked', 'waits on the changes planned above')
+        : result(
+            'verify',
+            'fail',
+            `https://${ctx.opts.apiHost}/health is not at the expected version with migrations current`,
+          )
   } else {
     while (!ready(health) && ctx.deps.now() - start < VERIFY_BOUND_MS) {
       await ctx.deps.sleep(VERIFY_INTERVAL_MS)
       health = await readHealth(ctx)
     }
     if (!ready(health)) {
-      const seen = health === null ? 'no answer' : `version ${health.version ?? '?'}, migrations ${health.migrations ?? '?'}`
-      return result('verify', 'fail', `https://${ctx.opts.apiHost}/health did not become current within ${VERIFY_BOUND_MS / 1000}s (${seen})`)
+      const seen =
+        health === null ? 'no answer' : `version ${health.version ?? '?'}, migrations ${health.migrations ?? '?'}`
+      return result(
+        'verify',
+        'fail',
+        `https://${ctx.opts.apiHost}/health did not become current within ${VERIFY_BOUND_MS / 1000}s (${seen})`,
+      )
     }
   }
   const detail = `https://${ctx.opts.apiHost}/health is current (${health!.version?.slice(0, 12) ?? 'no version'})`
@@ -637,15 +917,36 @@ const verify: Step = async (ctx) => {
   let signInMethods: string[] = []
   if (ctx.opts.auth === 'better-auth') {
     // OPS306 D8, P1: the issuer is the recorded PUBLIC_BASE_URL (`https://<api host>`, the value config:write records), never a request host.
-    const issuer = await checkBetterAuthIssuer(`https://${ctx.opts.apiHost}`, { fetch: ctx.deps.fetch, now: ctx.deps.now, sleep: ctx.deps.sleep, dryRun: ctx.opts.dryRun, start })
+    const issuer = await checkBetterAuthIssuer(`https://${ctx.opts.apiHost}`, {
+      fetch: ctx.deps.fetch,
+      now: ctx.deps.now,
+      sleep: ctx.deps.sleep,
+      dryRun: ctx.opts.dryRun,
+      start,
+    })
     if (!issuer.ok) return result('verify', 'fail', issuer.detail)
     signInMethods = issuer.signInMethods
   }
   const clerk = ctx.opts.auth === 'clerk'
-  const hint = ctx.keyWritten ? [`agents use the operator key in .env (${ctx.opts.keyEnv}) as a Bearer token`] : repairLines(ctx, await readMarker(ctx))
+  const hint = ctx.keyWritten
+    ? [`agents use the operator key in .env (${ctx.opts.keyEnv}) as a Bearer token`]
+    : repairLines(ctx, await readMarker(ctx))
   if (ctx.opts.auth === 'better-auth') {
-    const root = parse(ctx.deps.readConfigText(), [], { allowTrailingComma: true }) as { env?: Record<string, Parameters<typeof emailConfigured>[0]> } | undefined
-    return result('verify', 'ok', detail, betterAuthNextSteps({ url: `https://${ctx.opts.apiHost}`, claimLink: ctx.ownerLinkIssued === true, google: signInMethods.includes('google'), emailConfigured: emailConfigured(root?.env?.[ctx.opts.env]), hint }))
+    const root = parse(ctx.deps.readConfigText(), [], { allowTrailingComma: true }) as
+      | { env?: Record<string, Parameters<typeof emailConfigured>[0]> }
+      | undefined
+    return result(
+      'verify',
+      'ok',
+      detail,
+      betterAuthNextSteps({
+        url: `https://${ctx.opts.apiHost}`,
+        claimLink: ctx.ownerLinkIssued === true,
+        google: signInMethods.includes('google'),
+        emailConfigured: emailConfigured(root?.env?.[ctx.opts.env]),
+        hint,
+      }),
+    )
   }
   const next = [
     `API: https://${ctx.opts.apiHost}`,

@@ -27,7 +27,18 @@ export interface Catalog {
  */
 /** [[CORE243]] D5: the reserved prefix of the built-in auth provider's tables (Better Auth's own, written only by it). Hidden whatever the table's name ends in. */
 export const AUTH_TABLE_PREFIX = 'auth_'
-export const HIDDEN_TABLES: readonly string[] = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'webhook_secrets', 'webhook_dispatch_state']
+export const HIDDEN_TABLES: readonly string[] = [
+  'deployment',
+  'unit_assertion',
+  'message_sources',
+  'thread_sources',
+  'channel_credentials',
+  'gmail_watches',
+  'mail_sync_state',
+  'mail_sync_cursors',
+  'webhook_secrets',
+  'webhook_dispatch_state',
+]
 
 /** D6: a column's default label is its name with `_` as spaces and the first letter capitalised (`due_at` -> "Due at"). */
 export const defaultLabel = (name: string): string => {
@@ -38,7 +49,7 @@ export const defaultLabel = (name: string): string => {
 export const CATALOG: Catalog = {
   common: {
     id: 'Unique id (UUIDv7).',
-    organization_id: 'The organisation that owns the row; always the deployment\'s single organisation.',
+    organization_id: "The organisation that owns the row; always the deployment's single organisation.",
     created_by: 'The principal (user or agent) that created the row.',
     created_at: 'When the row was created.',
     updated_at: 'When the row last changed.',
@@ -59,7 +70,8 @@ export const CATALOG: Catalog = {
     },
     principals: {
       label: 'Principals',
-      description: 'Everyone and everything that can act and be recorded as an actor: users, agents and the system. Read through the users and agents resources; no operation lists principals directly.',
+      description:
+        'Everyone and everything that can act and be recorded as an actor: users, agents and the system. Read through the users and agents resources; no operation lists principals directly.',
       columns: {
         id: 'The principal id; users and agents reuse it as their own id.',
         kind: 'What kind of actor: user, agent or system.',
@@ -68,7 +80,8 @@ export const CATALOG: Catalog = {
     },
     events: {
       label: 'Events',
-      description: 'The outbox: one row per change to a record, written in the same unit as the change. Append-only: a stored event is never changed. Hooks and the agent cursor read it; no operation lists it yet.',
+      description:
+        'The outbox: one row per change to a record, written in the same unit as the change. Append-only: a stored event is never changed. Hooks and the agent cursor read it; no operation lists it yet.',
       columns: {
         seq: 'The commit order: SQLite assigns it as each event is stored, so it always increases in the order changes became visible. The feed pages by it; it is never shown to callers (the event id is the cursor).',
         id: 'Event id (UUIDv7), the public identifier of the event. It increases with the time the event was minted, which is not always the order it was committed in; use seq for order.',
@@ -95,7 +108,8 @@ export const CATALOG: Catalog = {
     },
     companies: {
       label: 'Companies',
-      description: 'An organisation the workspace deals with. Contacts point at their primary company; further links are associations.',
+      description:
+        'An organisation the workspace deals with. Contacts point at their primary company; further links are associations.',
       columns: {
         name: 'The company name.',
         domain: 'Its web or email domain, lowercase; unique among live companies.',
@@ -106,12 +120,18 @@ export const CATALOG: Catalog = {
       description: 'A person the organisation deals with. Addresses live in identities.',
       columns: {
         name: 'The contact name; may be empty when only an address is known.',
-        company_id: { label: 'Primary company', description: "The contact's primary company; further affiliations are associations." },
-        merged_into_id: 'Set when this contact was merged into another; the row is then deleted and this points at the survivor.',
+        company_id: {
+          label: 'Primary company',
+          description: "The contact's primary company; further affiliations are associations.",
+        },
+        merged_into_id:
+          'Set when this contact was merged into another; the row is then deleted and this points at the survivor.',
       },
       derived: {
-        last_contacted_at: "When the latest outbound interaction with any of the contact's identities happened; null if none.",
-        last_interacted_at: "When the latest interaction, in either direction, with any of the contact's identities happened; null if none.",
+        last_contacted_at:
+          "When the latest outbound interaction with any of the contact's identities happened; null if none.",
+        last_interacted_at:
+          "When the latest interaction, in either direction, with any of the contact's identities happened; null if none.",
       },
     },
     identities: {
@@ -126,7 +146,8 @@ export const CATALOG: Catalog = {
     },
     users: {
       label: 'Users',
-      description: 'People who can sign in. Listed by the users operations (members:read); membership in the organisation is in memberships.',
+      description:
+        'People who can sign in. Listed by the users operations (members:read); membership in the organisation is in memberships.',
       columns: {
         id: 'The user id; equals the principal id.',
         created_at: 'When the user was first seen.',
@@ -140,7 +161,8 @@ export const CATALOG: Catalog = {
     },
     memberships: {
       label: 'Memberships',
-      description: 'Which users belong to the organisation, and with which role. Kept in step with the sign-in provider.',
+      description:
+        'Which users belong to the organisation, and with which role. Kept in step with the sign-in provider.',
       columns: {
         user_id: 'The member.',
         role: 'owner (every scope) or member (the member-flagged scopes).',
@@ -149,13 +171,15 @@ export const CATALOG: Catalog = {
     },
     agents: {
       label: 'Agents',
-      description: 'Software principals that read Vibase and propose actions, each with a fixed list of scopes and its own API keys.',
+      description:
+        'Software principals that read Vibase and propose actions, each with a fixed list of scopes and its own API keys.',
       columns: {
         id: 'The agent id; equals the principal id.',
         name: 'Display name of the agent.',
         scopes: 'The scopes granted to the agent, as a JSON array of strings (for example tasks:read).',
         disabled_at: 'When the agent was disabled; null while enabled.',
-        auth_provider: 'The sign-in provider that identifies the agent (for example clerk); null for an agent that only uses API keys.',
+        auth_provider:
+          'The sign-in provider that identifies the agent (for example clerk); null for an agent that only uses API keys.',
         auth_subject: "An agent account: the provider's id of the user whose role is agent; null otherwise.",
         auth_client_id: 'A delegated agent: the OAuth client the person consented to; null otherwise.',
         delegated_by: 'A delegated agent: the user who consented and whose role bounds its scopes; null otherwise.',
@@ -183,7 +207,8 @@ export const CATALOG: Catalog = {
     },
     messages: {
       label: 'Messages',
-      description: 'One captured message (or reaction) in a thread. The body is not in the database: content_key points at stored content.',
+      description:
+        'One captured message (or reaction) in a thread. The body is not in the database: content_key points at stored content.',
       columns: {
         thread_id: 'The thread the message belongs to.',
         channel: 'The channel the message arrived on (email today).',
@@ -193,18 +218,20 @@ export const CATALOG: Catalog = {
         author: "Who wrote it, as JSON (the author's user id, name and whether it is a bot).",
         occurred_at: 'When the message was sent or received.',
         preview: 'A short plain-text excerpt of the body.',
-        content_key: 'Secret: the object-store key of the stored body. Never returned; read content through the message content operations.',
+        content_key:
+          'Secret: the object-store key of the stored body. Never returned; read content through the message content operations.',
         version: 'Increases when the stored content of the message is replaced.',
         retracted_at: 'When the message was retracted by its author or the channel; null otherwise.',
       },
     },
     interactions: {
       label: 'Interactions',
-      description: 'Something that happened between the organisation and others, on a timeline. Today each interaction is a message or reaction.',
+      description:
+        'Something that happened between the organisation and others, on a timeline. Today each interaction is a message or reaction.',
       columns: {
         kind: 'message or reaction.',
         channel: 'The channel it happened on (email today).',
-        direction: 'inbound or outbound, from the organisation\'s point of view.',
+        direction: "inbound or outbound, from the organisation's point of view.",
         occurred_at: 'When it happened.',
         thread_id: 'The thread of the underlying message.',
         message_id: 'The underlying message.',
@@ -221,13 +248,15 @@ export const CATALOG: Catalog = {
     },
     files: {
       label: 'Files',
-      description: 'A stored file (an attachment or an upload). The bytes live in the object store; this row describes them.',
+      description:
+        'A stored file (an attachment or an upload). The bytes live in the object store; this row describes them.',
       columns: {
         name: 'The file name.',
         mime_type: 'The media type.',
         size_bytes: 'Size in bytes.',
         sha256: 'SHA-256 of the content, lowercase hex.',
-        storage_key: 'Secret: the object-store key of the bytes. Never returned; download through the file content operations.',
+        storage_key:
+          'Secret: the object-store key of the bytes. Never returned; download through the file content operations.',
       },
     },
     message_attachments: {
@@ -235,7 +264,7 @@ export const CATALOG: Catalog = {
       description: 'The attachments of a message, in order, with the state of fetching each file.',
       columns: {
         message_id: 'The message the attachment belongs to.',
-        position: 'The attachment\'s place in the message, from 0.',
+        position: "The attachment's place in the message, from 0.",
         file_id: 'The stored file; null until the bytes are fetched.',
         type: 'image, file, video or audio.',
         name: 'The attachment name as sent.',
@@ -266,7 +295,8 @@ export const CATALOG: Catalog = {
     },
     notes: {
       label: 'Notes',
-      description: 'A Markdown note: research, context or a record of a conversation. A note belongs to nothing by itself; link it to other records through associations.',
+      description:
+        'A Markdown note: research, context or a record of a conversation. A note belongs to nothing by itself; link it to other records through associations.',
       columns: {
         title: 'Optional short title.',
         content: 'The note body, Markdown.',
@@ -282,33 +312,39 @@ export const CATALOG: Catalog = {
     },
     pipelines: {
       label: 'Pipelines',
-      description: 'A named sales process of the organisation, configuration under /meta/v1. It holds ordered stages; deals sit in one of them.',
+      description:
+        'A named sales process of the organisation, configuration under /meta/v1. It holds ordered stages; deals sit in one of them.',
       columns: {
         name: 'The pipeline name, 1 to 100 characters; unique among live pipelines, ignoring case.',
       },
     },
     pipeline_stages: {
       label: 'Pipeline stages',
-      description: 'One step of a pipeline. Its kind says whether a deal in it is open, won or lost; its position orders the stages. Configuration under /meta/v1, covered by the pipelines scopes.',
+      description:
+        'One step of a pipeline. Its kind says whether a deal in it is open, won or lost; its position orders the stages. Configuration under /meta/v1, covered by the pipelines scopes.',
       columns: {
         pipeline_id: 'The pipeline the stage belongs to; fixed when the stage is created.',
         name: 'The stage name, 1 to 100 characters; unique among the live stages of the pipeline, ignoring case.',
         kind: 'Whether a deal in this stage is open, won or lost; fixed when the stage is created.',
-        position: 'The stage\'s place in the pipeline order, an integer from 0; stages are shown by ascending position, ties by id. Leave gaps (10, 20, 30) so a stage can be inserted between.',
+        position:
+          "The stage's place in the pipeline order, an integer from 0; stages are shown by ascending position, ties by id. Leave gaps (10, 20, 30) so a stage can be inserted between.",
       },
     },
     deals: {
       label: 'Deals',
-      description: 'A potential sale (also called an opportunity): a name, an optional amount and expected close date, an owner, sitting in one stage of one pipeline. Change the stage with deals.move_stage; link companies and contacts through associations.',
+      description:
+        'A potential sale (also called an opportunity): a name, an optional amount and expected close date, an owner, sitting in one stage of one pipeline. Change the stage with deals.move_stage; link companies and contacts through associations.',
       columns: {
         name: 'The deal name, 1 to 200 characters; not unique.',
         pipeline_id: "The deal's pipeline; always the pipeline of its stage.",
         stage_id: "The deal's stage; set when the deal is created and changed only with deals.move_stage.",
-        amount_minor: "The deal value in the currency's minor units (cents; for a currency without a minor unit such as JPY, the unit). Optional; needs a currency.",
+        amount_minor:
+          "The deal value in the currency's minor units (cents; for a currency without a minor unit such as JPY, the unit). Optional; needs a currency.",
         currency: 'Optional ISO 4217 code such as USD, stored upper case. Required when an amount is set.',
         expected_close_date: 'Optional calendar date (YYYY-MM-DD) the deal is expected to close.',
         owner_id: 'Optional: the user or agent responsible for the deal.',
-        closed_at: 'When the deal last became won or lost; null while it is open. Set by Vibase when the deal enters a won or lost stage (also at creation), cleared when it is reopened.',
+        closed_at:
+          'When the deal last became won or lost; null while it is open. Set by Vibase when the deal enters a won or lost stage (also at creation), cleared when it is reopened.',
       },
       derived: {
         status: "The kind of the deal's stage: open, won or lost. Derived, read-only; filter with ?status=.",
@@ -316,81 +352,103 @@ export const CATALOG: Catalog = {
     },
     channel_connections: {
       label: 'Connections',
-      description: "A mailbox connected to Vibase through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
+      description:
+        "A mailbox connected to Vibase through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
       columns: {
         provider: 'The provider of the account; google only for now.',
-        account_id: "The provider's stable id for the account (Google's sub), not the address, which can change. Unique among live connections.",
+        account_id:
+          "The provider's stable id for the account (Google's sub), not the address, which can change. Unique among live connections.",
         identity_id: "The own identity that is the connected mailbox's address.",
         owner_id: 'The user who owns the connection now. A reconnect of the same account by another person moves it.',
-        status: 'active works; reauth_required when the provider refused the stored grant; suspended when the owner is no longer admitted. A reconnect makes it active again.',
+        status:
+          'active works; reauth_required when the provider refused the stored grant; suspended when the owner is no longer admitted. A reconnect makes it active again.',
         granted_scopes: 'The OAuth scopes the person granted at the provider, as a JSON array.',
         connected_at: 'When the connection was made or last reconnected.',
       },
       derived: {
-        last_synced_at: 'When the mailbox was last brought up to date; null until a sync has finished. Derived from the sync cursor, read-only.',
-        last_error_code: 'A short code for the last sync failure; null when the last run was fine or none ran. Derived from the sync state, read-only.',
+        last_synced_at:
+          'When the mailbox was last brought up to date; null until a sync has finished. Derived from the sync cursor, read-only.',
+        last_error_code:
+          'A short code for the last sync failure; null when the last run was fine or none ran. Derived from the sync state, read-only.',
       },
     },
     action_requests: {
       label: 'Action requests',
-      description: 'A proposed change awaiting review: a registered operation with its arguments, who proposed it and why. A person or agent with write on the target resource approves it (the operation then runs as the approver), rejects it, or the proposer withdraws it.',
+      description:
+        'A proposed change awaiting review: a registered operation with its arguments, who proposed it and why. A person or agent with write on the target resource approves it (the operation then runs as the approver), rejects it, or the proposer withdraws it.',
       columns: {
         operation: 'The registered operation the request proposes (for example tasks.update).',
-        arguments: 'The operation\'s flat arguments as proposed, as JSON. Never changed after creation.',
-        edited_arguments: 'The complete replacement arguments a reviewer approved instead, as JSON; null unless approved with an edit.',
-        status: 'pending, approved (an enqueued operation is queued, not yet run), rejected, withdrawn, expired, superseded, executed or failed.',
+        arguments: "The operation's flat arguments as proposed, as JSON. Never changed after creation.",
+        edited_arguments:
+          'The complete replacement arguments a reviewer approved instead, as JSON; null unless approved with an edit.',
+        status:
+          'pending, approved (an enqueued operation is queued, not yet run), rejected, withdrawn, expired, superseded, executed or failed.',
         reason: 'Why the proposer asks for this change, plain text.',
         evidence: 'The messages and interactions the proposal rests on, as a JSON array of { type, id }.',
         contact_id: 'Context: the contact the request is about; not an input of the operation.',
         thread_id: 'Context: the thread the request is about; not an input of the operation.',
         interaction_id: 'Context: the interaction the request is about; not an input of the operation.',
-        dedup_key: 'At most one pending request per key: the same proposer replaces its earlier one, another proposer is refused.',
+        dedup_key:
+          'At most one pending request per key: the same proposer replaces its earlier one, another proposer is refused.',
         expires_at: 'When a pending request stops being approvable.',
-        decided_by: 'The principal (user or agent) that approved, rejected or withdrew it, or the system when it expired.',
-        decided_at: 'Approved at, when the decision was made (approved, rejected or withdrawn; null while pending). For an approval of an enqueued operation it is the instant its execution was queued: the execution\'s created_at equals it.',
-        decision_reason: 'The reviewer\'s reason, when given.',
+        decided_by:
+          'The principal (user or agent) that approved, rejected or withdrew it, or the system when it expired.',
+        decided_at:
+          "Approved at, when the decision was made (approved, rejected or withdrawn; null while pending). For an approval of an enqueued operation it is the instant its execution was queued: the execution's created_at equals it.",
+        decision_reason: "The reviewer's reason, when given.",
         superseded_by_id: 'The request that replaced this one, when it was superseded.',
-        result: 'What approval did: the events an inline operation wrote, or the execution\'s result for a queued one, as JSON; null until executed.',
+        result:
+          "What approval did: the events an inline operation wrote, or the execution's result for a queued one, as JSON; null until executed.",
         error_code: 'Why a queued execution failed (the same code as on the execution); null otherwise.',
         error_message: 'The failure sentence of a queued execution; null otherwise.',
         executed_at: 'When the operation ran; null until then.',
       },
       derived: {
-        execution_id: 'The execution a queued approval created, from the execution\'s own link to the request; null until then and for operations that run inline. Derived, read-only.',
+        execution_id:
+          "The execution a queued approval created, from the execution's own link to the request; null until then and for operations that run inline. Derived, read-only.",
       },
     },
     action_executions: {
       label: 'Action executions',
-      description: 'The durable run of an operation that talks to the outside world (an enqueued operation), created when a direct call or an approved action request authorises it. Vibase runs it with retries and reconciliation; the row holds its status, final arguments and outcome. Read through action_executions.list and .get, which show you the executions whose operation you may read.',
+      description:
+        'The durable run of an operation that talks to the outside world (an enqueued operation), created when a direct call or an approved action request authorises it. Vibase runs it with retries and reconciliation; the row holds its status, final arguments and outcome. Read through action_executions.list and .get, which show you the executions whose operation you may read.',
       columns: {
         connection_id: 'The authorised sending connection, null for executions without a connection.',
         created_by: 'The principal that asked: the proposer for an approved request, the caller for a direct call.',
         authorised_by: 'The principal whose authority it runs under: the approver, or the caller for a direct call.',
-        action_request_id: 'The approved action request this executes; null for a direct call. At most one execution per request.',
+        action_request_id:
+          'The approved action request this executes; null for a direct call. At most one execution per request.',
         operation: 'The enqueued operation (for example messages.send).',
-        arguments: 'The operation\'s final arguments, as JSON, fixed when it was authorised.',
-        resolution: 'What was resolved when it was authorised (a reply anchor, a connection), as JSON. Internal; not returned by the API.',
+        arguments: "The operation's final arguments, as JSON, fixed when it was authorised.",
+        resolution:
+          'What was resolved when it was authorised (a reply anchor, a connection), as JSON. Internal; not returned by the API.',
         status: 'queued (waiting or between attempts), claimed (an attempt is running), done or failed.',
         client_ref: 'The identifier Vibase gave the outgoing item, the same on every attempt; internal.',
-        idempotency_key: 'The key a direct caller chose: the same key and arguments answer the same execution. Unique per caller; null for an approved request.',
+        idempotency_key:
+          'The key a direct caller chose: the same key and arguments answer the same execution. Unique per caller; null for an approved request.',
         input_hash: 'A SHA-256 of the operation and its canonical arguments, to recognise a repeated key; internal.',
-        deadline_at: 'When an execution that was never attempted stops being attempted (ten minutes after authorisation).',
+        deadline_at:
+          'When an execution that was never attempted stops being attempted (ten minutes after authorisation).',
         dispatched_at: 'When the last attempt reached the provider; internal.',
-        created_at: 'Queued at: when it was queued, the moment it was authorised. For an approved action request that is the approval, equal to the request\'s decided_at (approved at); for a direct call, the call.',
-        done_at: 'Executed at: when it finished, done or failed; null while queued or claimed. Sort by it with sort=done_at&order=desc for the latest executed; unfinished executions sort last in desc.',
+        created_at:
+          "Queued at: when it was queued, the moment it was authorised. For an approved action request that is the approval, equal to the request's decided_at (approved at); for a direct call, the call.",
+        done_at:
+          'Executed at: when it finished, done or failed; null while queued or claimed. Sort by it with sort=done_at&order=desc for the latest executed; unfinished executions sort last in desc.',
         attempts: 'How many attempts were started (at most five); internal.',
         next_attempt_at: 'When the next attempt is due; internal.',
-        lease_until: 'When the running attempt\'s lease lapses; internal.',
+        lease_until: "When the running attempt's lease lapses; internal.",
         lease_token: 'Identifies the runner holding the lease; internal, never returned.',
-        last_error_code: 'The class of the last attempt\'s failure, while it is retried; internal.',
+        last_error_code: "The class of the last attempt's failure, while it is retried; internal.",
         result: 'What the operation produced, as JSON; null until done.',
-        error_code: 'Why it failed: reauth_required, permission_missing, anchor_missing, provider_rejected, outcome_unknown, attempts_exhausted or deadline_passed.',
-        error_message: 'Vibase\'s sentence for the failure; never a provider\'s own text.',
+        error_code:
+          'Why it failed: reauth_required, permission_missing, anchor_missing, provider_rejected, outcome_unknown, attempts_exhausted or deadline_passed.',
+        error_message: "Vibase's sentence for the failure; never a provider's own text.",
       },
     },
     webhook_subscriptions: {
       label: 'Webhook subscriptions',
-      description: 'An agent\'s standing request to have events POSTed, signed, to one https URL. Each belongs to one agent, which receives only event types it could read itself. Managed through the webhooks operations; the signing secret is shown once, when it is created or rotated, and is never stored readably.',
+      description:
+        "An agent's standing request to have events POSTed, signed, to one https URL. Each belongs to one agent, which receives only event types it could read itself. Managed through the webhooks operations; the signing secret is shown once, when it is created or rotated, and is never stored readably.",
       columns: {
         agent_id: 'The agent that owns the subscription: whose read scopes decide which events it may receive.',
         url: 'Where the events are POSTed: https, a public host, at most 2048 characters.',
@@ -401,25 +459,30 @@ export const CATALOG: Catalog = {
     },
     webhook_deliveries: {
       label: 'Webhook deliveries',
-      description: 'One row per event per webhook subscription: the dispatcher adds it pending when the event reaches the subscription\'s position in the feed, and the sender settles it as delivered, dead or cancelled. Read a subscription\'s rows through webhooks.deliveries to see why a hook did or did not fire. Vibase writes it; nothing here is edited by callers.',
+      description:
+        "One row per event per webhook subscription: the dispatcher adds it pending when the event reaches the subscription's position in the feed, and the sender settles it as delivered, dead or cancelled. Read a subscription's rows through webhooks.deliveries to see why a hook did or did not fire. Vibase writes it; nothing here is edited by callers.",
       columns: {
         subscription_id: 'The webhook subscription this delivery belongs to.',
-        event_id: 'The id of the event to deliver (the event feed\'s id; there is no foreign key, an event id is a position).',
-        event_type: 'The event\'s type, for example task.created.',
-        status: 'pending (waiting or between attempts), delivered, dead (every attempt failed) or cancelled (the subscription was deleted or lost its read scope).',
+        event_id:
+          "The id of the event to deliver (the event feed's id; there is no foreign key, an event id is a position).",
+        event_type: "The event's type, for example task.created.",
+        status:
+          'pending (waiting or between attempts), delivered, dead (every attempt failed) or cancelled (the subscription was deleted or lost its read scope).',
         attempts: 'How many attempts were started.',
         next_attempt_at: 'When the next attempt is due.',
-        lease_until: 'When the running attempt\'s lease lapses; internal, never returned.',
+        lease_until: "When the running attempt's lease lapses; internal, never returned.",
         lease_token: 'Identifies the sender holding the lease; internal, never returned.',
         last_attempt_at: 'When the last attempt started; null before the first.',
         last_status_code: 'The HTTP status the last attempt got, when it got one.',
-        last_error: 'Why the last attempt failed: timeout, connection_failed, http_status, redirect, sender_failed, cancelled_subscription or cancelled_scope. A response body is never stored.',
+        last_error:
+          'Why the last attempt failed: timeout, connection_failed, http_status, redirect, sender_failed, cancelled_subscription or cancelled_scope. A response body is never stored.',
         delivered_at: 'When a 2xx answered; null until then.',
       },
     },
     associations: {
       label: 'Associations',
-      description: 'Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; Vibase checks both ends exist).',
+      description:
+        'Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; Vibase checks both ends exist).',
       columns: {
         a_type: 'Table of the first end; the lower of the two ends in canonical order.',
         a_id: 'Record id of the first end.',

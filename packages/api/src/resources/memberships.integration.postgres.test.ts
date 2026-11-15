@@ -4,7 +4,14 @@ import { membershipRecord } from '../account/organizations.js'
 
 const k = useAdminKit()
 const mid = async (userId: string) =>
-  (await k.owner.selectFrom('memberships').select('id').where('user_id', '=', userId).where('deleted_at', 'is', null).executeTakeFirstOrThrow()).id
+  (
+    await k.owner
+      .selectFrom('memberships')
+      .select('id')
+      .where('user_id', '=', userId)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirstOrThrow()
+  ).id
 
 describe('memberships (read-only: the directory sync is the only writer)', () => {
   it('lists', async () => {
@@ -21,7 +28,9 @@ describe('memberships (read-only: the directory sync is the only writer)', () =>
 
   it('filters', async () => {
     const t = await k.seedOrg()
-    const byUser = await (await k.call(`/meta/v1/memberships?user_id=${t.memberId}`, 'o', { org: t.organizationId })).json()
+    const byUser = await (
+      await k.call(`/meta/v1/memberships?user_id=${t.memberId}`, 'o', { org: t.organizationId })
+    ).json()
     expect(byUser.data.map((m: { user_id: string }) => m.user_id)).toEqual([t.memberId])
     const byRole = await (await k.call('/meta/v1/memberships?role=owner', 'o', { org: t.organizationId })).json()
     expect(byRole.data.map((m: { user_id: string }) => m.user_id)).toEqual([t.ownerId])
@@ -38,7 +47,10 @@ describe('memberships (read-only: the directory sync is the only writer)', () =>
   it('PATCH and DELETE are refused 501 provider_not_configured', async () => {
     const t = await k.seedOrg()
     const id = await mid(t.memberId)
-    for (const [method, body] of [['PATCH', { role: 'owner' }], ['DELETE', undefined]] as const) {
+    for (const [method, body] of [
+      ['PATCH', { role: 'owner' }],
+      ['DELETE', undefined],
+    ] as const) {
       const res = await k.call(`/meta/v1/memberships/${id}`, 'o', { method, org: t.organizationId, body })
       expect(res.status, method).toBe(501)
       expect((await res.json()).error.code).toBe('provider_not_configured')

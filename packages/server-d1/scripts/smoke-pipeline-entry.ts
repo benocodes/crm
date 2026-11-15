@@ -6,7 +6,15 @@
 // libraries run in workerd.
 import { uuidv7 } from '@vibase/storage'
 import { d1Binding, type D1Like } from '@vibase/storage-d1'
-import { captureMessages, r2ObjectStore, ScopeSet, workerdStreams, type GmailSyncDeps, type PipelineContext, type R2BucketLike } from '@vibase/api'
+import {
+  captureMessages,
+  r2ObjectStore,
+  ScopeSet,
+  workerdStreams,
+  type GmailSyncDeps,
+  type PipelineContext,
+  type R2BucketLike,
+} from '@vibase/api'
 import { execute } from '@vibase/storage'
 import { ensureConnection } from '@vibase/api/test/capture'
 import { bytesOf, FakeChannel } from '@vibase/api/test/channels'
@@ -23,7 +31,11 @@ interface Env {
 }
 
 /** A fixture under another Gmail id and Message-ID (the external id), so the messages do not dedupe into one. */
-const withId = (m: MessageSpec, id: string): MessageSpec => ({ ...m, id, headers: m.headers.map(([k, v]) => [k, k === 'Message-ID' ? `<${id}@acme.test>` : v]) })
+const withId = (m: MessageSpec, id: string): MessageSpec => ({
+  ...m,
+  id,
+  headers: m.headers.map(([k, v]) => [k, k === 'Message-ID' ? `<${id}@acme.test>` : v]),
+})
 
 // The scripted page: a normal attachment, a length mismatch, and an original of unknown size over 5 MiB (multipart).
 
@@ -35,7 +47,11 @@ const withId = (m: MessageSpec, id: string): MessageSpec => ({ ...m, id, headers
 async function gmailPages(env: Env): Promise<Response> {
   const now = new Date('2026-11-05T10:00:00.000Z')
   const org = String(((await env.DB.prepare('select organization_id as o from deployment').first()) as { o: string }).o)
-  const actor = ((await env.DB.prepare("select id from principals where kind = 'user' order by rowid limit 1").first()) as { id: string }).id
+  const actor = (
+    (await env.DB.prepare("select id from principals where kind = 'user' order by rowid limit 1").first()) as {
+      id: string
+    }
+  ).id
   const binding = d1Binding(env.DB, { organizationId: org, authProvider: 'clerk', authOrgId: env.AUTH_ORG_ID })
   const key = new Uint8Array(32).fill(5)
   const refreshToken = `rt-${crypto.randomUUID()}`
@@ -44,16 +60,29 @@ async function gmailPages(env: Env): Promise<Response> {
   const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(new Request(input as RequestInfo, init).url)
     hosts.add(url.origin)
-    if (url.origin !== 'https://oauth2.googleapis.com' || url.pathname !== '/token') throw new Error('smoke: only the faked token endpoint may be reached')
+    if (url.origin !== 'https://oauth2.googleapis.com' || url.pathname !== '/token')
+      throw new Error('smoke: only the faked token endpoint may be reached')
     const form = new URLSearchParams(String(init?.body))
-    if (form.get('grant_type') !== 'refresh_token' || form.get('refresh_token') !== refreshToken) return Response.json({ error: 'invalid_grant' }, { status: 400 })
+    if (form.get('grant_type') !== 'refresh_token' || form.get('refresh_token') !== refreshToken)
+      return Response.json({ error: 'invalid_grant' }, { status: 400 })
     const access = `at-${crypto.randomUUID()}`
     accessTokens.push(access)
     return Response.json({ access_token: access, expires_in: 3599, token_type: 'Bearer' })
   }) as typeof fetch
-  const env0 = { actor: { id: actor, kind: 'user' as const }, organizationId: org, scopes: ScopeSet.parse([]), now, newId: () => uuidv7(now), randomBytes: (n: number) => crypto.getRandomValues(new Uint8Array(n)) }
+  const env0 = {
+    actor: { id: actor, kind: 'user' as const },
+    organizationId: org,
+    scopes: ScopeSet.parse([]),
+    now,
+    newId: () => uuidv7(now),
+    randomBytes: (n: number) => crypto.getRandomValues(new Uint8Array(n)),
+  }
   const connectionId = await seedGmailConnection(
-    { env: () => env0, run: (op) => execute(binding, { kind: 'tenant', actorId: actor, organizationId: org }, op), d1: env.DB },
+    {
+      env: () => env0,
+      run: (op) => execute(binding, { kind: 'tenant', actorId: actor, organizationId: org }, op),
+      d1: env.DB,
+    },
     { key, refreshToken, mailbox: 'pages@smoke.test', sub: 'sub-pages', historyId: '1000' },
   )
   const recent = now.getTime() - 3600_000
@@ -75,12 +104,24 @@ async function gmailPages(env: Env): Promise<Response> {
     clock: () => now,
     newId: () => uuidv7(now),
     randomBytes: env0.randomBytes,
-    config: { clientId: 'smoke-client.apps.test', clientSecret: 'smoke-client-secret', credentialsKey: key, keyVersion: 1, backfillDays: 30, attachmentMaxBytes: 50 * 1024 * 1024 },
+    config: {
+      clientId: 'smoke-client.apps.test',
+      clientSecret: 'smoke-client-secret',
+      credentialsKey: key,
+      keyVersion: 1,
+      backfillDays: 30,
+      attachmentMaxBytes: 50 * 1024 * 1024,
+    },
     fetch: fakeFetch,
     clientFor: (accessToken) => gmail.withToken(accessToken, (t) => accessTokens.includes(t)),
   }
   const run = await runGmailSync(deps, connectionId)
-  return Response.json({ run, connectionId, hosts: [...hosts], secrets: [refreshToken, ...accessTokens, 'smoke-client-secret'] })
+  return Response.json({
+    run,
+    connectionId,
+    hosts: [...hosts],
+    secrets: [refreshToken, ...accessTokens, 'smoke-client-secret'],
+  })
 }
 
 export default {
@@ -89,7 +130,10 @@ export default {
       try {
         return await gmailPages(env)
       } catch (err) {
-        return Response.json({ error: err instanceof Error ? `${err.name}: ${err.message}` : String(err) }, { status: 500 })
+        return Response.json(
+          { error: err instanceof Error ? `${err.name}: ${err.message}` : String(err) },
+          { status: 500 },
+        )
       }
     }
     const gmail = new URL(req.url).pathname === '/gmail'
@@ -98,28 +142,62 @@ export default {
           new FakeGmail(
             [
               // an attachment, an HTML table (hast in workerd), a declared size that is wrong, and an original over 5 MiB of unknown size
-              gmailFixture('attachment', (m) => ({ ...withId(m, 'g-att'), payload: { ...m.payload, parts: m.payload.parts!.map((p) => (p.bytes ? { ...p, bytes: bytesOf(ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED), attachmentId: 'att-g' } : p)) } })),
+              gmailFixture('attachment', (m) => ({
+                ...withId(m, 'g-att'),
+                payload: {
+                  ...m.payload,
+                  parts: m.payload.parts!.map((p) =>
+                    p.bytes
+                      ? { ...p, bytes: bytesOf(ATTACHMENT_BYTES, GMAIL_ATTACHMENT_SEED), attachmentId: 'att-g' }
+                      : p,
+                  ),
+                },
+              })),
               gmailFixture('alternativeTable', (m) => withId(m, 'g-table')),
-              gmailFixture('attachment', (m) => ({ ...withId(m, 'g-mismatch'), payload: { ...m.payload, parts: m.payload.parts!.map((p) => (p.bytes ? { ...p, declaredSize: 400 } : p)) } })),
+              gmailFixture('attachment', (m) => ({
+                ...withId(m, 'g-mismatch'),
+                payload: {
+                  ...m.payload,
+                  parts: m.payload.parts!.map((p) => (p.bytes ? { ...p, declaredSize: 400 } : p)),
+                },
+              })),
               gmailFixture('plain', (m) => ({ ...withId(m, 'g-big'), rawOverride: bytesOf(ORIGINAL_BYTES) })),
             ],
             { chunk: (i) => 700 + ((i * 977) % 30000) },
           ),
         )
       : new FakeChannel([
-      { providerMessageId: 'smoke-att', attachments: [{ name: 'a.bin', mimeType: 'application/octet-stream', bytes: bytesOf(ATTACHMENT_BYTES) }] },
-      { providerMessageId: 'smoke-mismatch', attachments: [{ name: 'liar.bin', bytes: bytesOf(100), reportedSize: 120 }] },
-      { providerMessageId: 'smoke-big', raw: { size: 'unknown', bytes: bytesOf(ORIGINAL_BYTES) } },
-    ])
+          {
+            providerMessageId: 'smoke-att',
+            attachments: [{ name: 'a.bin', mimeType: 'application/octet-stream', bytes: bytesOf(ATTACHMENT_BYTES) }],
+          },
+          {
+            providerMessageId: 'smoke-mismatch',
+            attachments: [{ name: 'liar.bin', bytes: bytesOf(100), reportedSize: 120 }],
+          },
+          { providerMessageId: 'smoke-big', raw: { size: 'unknown', bytes: bytesOf(ORIGINAL_BYTES) } },
+        ])
     const now = new Date('2026-10-30T09:00:00.000Z')
-    const org = String(((await env.DB.prepare('select organization_id as o from deployment').first()) as { o: string }).o)
+    const org = String(
+      ((await env.DB.prepare('select organization_id as o from deployment').first()) as { o: string }).o,
+    )
     // CHN140 D27, D31: the sources name a connection, and a connection's owner is a user. This Worker has only the bootstrap agent, so it makes a user once.
-    let actor = ((await env.DB.prepare("select id from principals where kind = 'user' order by rowid limit 1").first()) as { id: string } | null)?.id
+    let actor = (
+      (await env.DB.prepare("select id from principals where kind = 'user' order by rowid limit 1").first()) as {
+        id: string
+      } | null
+    )?.id
     if (!actor) {
       actor = uuidv7(now)
       await env.DB.batch([
-        env.DB.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(actor, 'user', now.toISOString()),
-        env.DB.prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)').bind(actor, now.toISOString(), now.toISOString(), 'pipeline-owner@smoke.test'),
+        env.DB.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(
+          actor,
+          'user',
+          now.toISOString(),
+        ),
+        env.DB.prepare(
+          'insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)',
+        ).bind(actor, now.toISOString(), now.toISOString(), 'pipeline-owner@smoke.test'),
       ])
     }
     const ctx: PipelineContext = {
@@ -134,7 +212,8 @@ export default {
     }
     const gmailConn = { id: uuidv7(now), mailbox: MAILBOX }
     const fakeConn = { id: uuidv7(now) }
-    for (const c of [gmailConn, fakeConn]) await ensureConnection(ctx.binding, { organizationId: org, userId: actor }, c.id)
+    for (const c of [gmailConn, fakeConn])
+      await ensureConnection(ctx.binding, { organizationId: org, userId: actor }, c.id)
     const result =
       channel instanceof GmailChannel
         ? await captureMessages(ctx, channel, gmailConn, ['g-att', 'g-table', 'g-mismatch', 'g-big'])

@@ -3,7 +3,10 @@
 import type { Message } from 'chat'
 
 /** The contract with the SDK: a renamed or retyped field upstream fails typecheck here. Plain data, hand-constructible. */
-export type VibaseMessage = Pick<Message, 'id' | 'threadId' | 'text' | 'formatted' | 'author' | 'metadata' | 'attachments'>
+export type VibaseMessage = Pick<
+  Message,
+  'id' | 'threadId' | 'text' | 'formatted' | 'author' | 'metadata' | 'attachments'
+>
 
 export type ChannelName = 'email'
 export type ParticipantRole = 'from' | 'to' | 'cc' | 'bcc'
@@ -46,17 +49,32 @@ export interface ConnectionRef {
 
 /** Authorised outbound content. Provider ids are transport details, never vault external ids. */
 export interface OutboundPost {
-  from: string; to: string[]; cc: string[]; bcc: string[]; subject: string; text: string; client_ref: string
-  provider_thread_id: string | null; provider_anchor_id: string | null
-  anchor_external_id?: string; in_reply_to?: string; references?: string[]
+  from: string
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  subject: string
+  text: string
+  client_ref: string
+  provider_thread_id: string | null
+  provider_anchor_id: string | null
+  anchor_external_id?: string
+  in_reply_to?: string
+  references?: string[]
 }
-export interface OutboundResult { id: string; threadId: string }
+export interface OutboundResult {
+  id: string
+  threadId: string
+}
 
 export interface ChannelPort<C extends ConnectionRef = ConnectionRef> {
   readonly channel: ChannelName
   postToThread?(post: OutboundPost, signal: AbortSignal, beforeSend?: () => void): Promise<OutboundResult>
   readMessage(conn: C, providerMessageId: string): Promise<ChannelMessage | { skip: string }>
-  fetchAttachment(conn: C, fetchMetadata: Record<string, string>): Promise<{ body: ReadableStream<Uint8Array>; size: number }>
+  fetchAttachment(
+    conn: C,
+    fetchMetadata: Record<string, string>,
+  ): Promise<{ body: ReadableStream<Uint8Array>; size: number }>
 }
 
 /** A failed attachment fetch. `code` is a short machine code (stored in `fetch_error`); never put provider text in it. */

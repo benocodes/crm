@@ -28,7 +28,7 @@ describe('createApi', () => {
     expect(r.body).toMatchObject({ principal: { id: 'p' } })
     expect(calls).toHaveLength(1)
     expect(calls[0]!.url).toBe(`${ORIGIN}/meta/v1/me`)
-    expect((calls[0]!.init.method ?? 'GET')).toBe('GET')
+    expect(calls[0]!.init.method ?? 'GET').toBe('GET')
     expect(new Headers(calls[0]!.init.headers).get('authorization')).toBe('Bearer token-1')
     expect(calls[0]!.init.credentials).toBe('omit')
   })
@@ -38,8 +38,14 @@ describe('createApi', () => {
     const { api, calls } = rig(() => pages.shift()!)
     const r = await api.agents()
     expect(r.body).toEqual([{ id: 'a' }, { id: 'b' }])
-    expect(calls.map((c) => c.url)).toEqual([`${ORIGIN}/meta/v1/agents?limit=200`, `${ORIGIN}/meta/v1/agents?limit=200&after=c1`])
-    expect(calls.map((c) => new Headers(c.init.headers).get('authorization'))).toEqual(['Bearer token-1', 'Bearer token-2'])
+    expect(calls.map((c) => c.url)).toEqual([
+      `${ORIGIN}/meta/v1/agents?limit=200`,
+      `${ORIGIN}/meta/v1/agents?limit=200&after=c1`,
+    ])
+    expect(calls.map((c) => new Headers(c.init.headers).get('authorization'))).toEqual([
+      'Bearer token-1',
+      'Bearer token-2',
+    ])
   })
 
   it('agents(): a non-2xx page ends the walk with that status', async () => {
@@ -62,7 +68,11 @@ describe('createApi', () => {
 
   it('no token: no request, status 401 (the page treats it as signed out)', async () => {
     const calls: unknown[] = []
-    const api = createApi({ origin: ORIGIN, getToken: async () => null, fetch: (async (...a: unknown[]) => void calls.push(a)) as unknown as typeof fetch })
+    const api = createApi({
+      origin: ORIGIN,
+      getToken: async () => null,
+      fetch: (async (...a: unknown[]) => void calls.push(a)) as unknown as typeof fetch,
+    })
     expect((await api.me()).status).toBe(401)
     expect(calls).toEqual([])
   })

@@ -151,7 +151,6 @@ export interface ApiKeysTable {
   created_by: string
 }
 
-
 // ---- the messaging model (CORE25 D44): capture tables are append-only, the two link tables are soft-deleted ----------
 export interface ThreadsTable {
   id: string
@@ -570,7 +569,9 @@ export type Table = keyof StorageDatabase & string
 export type RowOf<T extends Table> = Selectable<StorageDatabase[T]>
 export type ColumnOf<T extends Table> = keyof RowOf<T> & string
 /** The value a column accepts in a predicate or an update. */
-export type ValueOf<T extends Table, C extends ColumnOf<T>> = UpdateType<StorageDatabase[T][C & keyof StorageDatabase[T]]>
+export type ValueOf<T extends Table, C extends ColumnOf<T>> = UpdateType<
+  StorageDatabase[T][C & keyof StorageDatabase[T]]
+>
 
 /** Columns that must never appear in a public projection, per table. */
 export interface SecretColumns {
@@ -583,7 +584,10 @@ export interface SecretColumns {
   /** [[API7]] D12: the sealed signing secret; only the sender will open it, by an explicit column list. */
   webhook_secrets: 'sealed'
 }
-export type PublicColumn<T extends Table> = Exclude<ColumnOf<T>, T extends keyof SecretColumns ? SecretColumns[T] : never>
+export type PublicColumn<T extends Table> = Exclude<
+  ColumnOf<T>,
+  T extends keyof SecretColumns ? SecretColumns[T] : never
+>
 
 export type ColumnKind = 'uuid' | 'text' | 'timestamp' | 'json' | 'boolean' | 'string_array' | 'integer'
 /** Every table exists physically on both engines (CORE40 migrated the last type-only table, api_keys). */
@@ -595,7 +599,14 @@ export type PhysicalTable = Table
  * column a compile error.
  */
 export const COLUMN_KINDS = {
-  organizations: { id: 'uuid', name: 'text', auth_provider: 'text', auth_org_id: 'text', created_at: 'timestamp', updated_at: 'timestamp' },
+  organizations: {
+    id: 'uuid',
+    name: 'text',
+    auth_provider: 'text',
+    auth_org_id: 'text',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+  },
   principals: { id: 'uuid', kind: 'text', created_at: 'timestamp' },
   events: {
     seq: 'integer',
@@ -703,7 +714,14 @@ export const COLUMN_KINDS = {
     expires_at: 'timestamp',
     created_by: 'uuid',
   },
-  threads: { id: 'uuid', created_at: 'timestamp', organization_id: 'uuid', created_by: 'uuid', channel: 'text', subject: 'text' },
+  threads: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    channel: 'text',
+    subject: 'text',
+  },
   messages: {
     id: 'uuid',
     created_at: 'timestamp',
@@ -845,7 +863,14 @@ export const COLUMN_KINDS = {
     refresh_token_ciphertext: 'text',
     key_version: 'integer',
   },
-  gmail_watches: { connection_id: 'uuid', organization_id: 'uuid', created_by: 'uuid', created_at: 'timestamp', mailbox: 'text', expires_at: 'timestamp' },
+  gmail_watches: {
+    connection_id: 'uuid',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    created_at: 'timestamp',
+    mailbox: 'text',
+    expires_at: 'timestamp',
+  },
   mail_sync_state: {
     connection_id: 'uuid',
     organization_id: 'uuid',

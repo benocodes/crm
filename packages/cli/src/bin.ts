@@ -10,7 +10,8 @@ const readStdin = async () => {
 }
 const sink = (s: NodeJS.WriteStream) => ({
   isTTY: Boolean(s.isTTY),
-  write: (chunk: string | Uint8Array) => new Promise<void>((resolve, reject) => s.write(chunk, (e) => (e ? reject(e) : resolve()))),
+  write: (chunk: string | Uint8Array) =>
+    new Promise<void>((resolve, reject) => s.write(chunk, (e) => (e ? reject(e) : resolve()))),
 })
 const code = await run(process.argv.slice(2), {
   fetch,

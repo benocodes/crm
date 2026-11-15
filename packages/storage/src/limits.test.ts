@@ -16,7 +16,8 @@ import {
   type Row,
 } from './index.js'
 
-const ids = (n: number): string[] => Array.from({ length: n }, (_, i) => `0190b2c4-0000-7000-8000-${String(i + 1).padStart(12, '0')}`)
+const ids = (n: number): string[] =>
+  Array.from({ length: n }, (_, i) => `0190b2c4-0000-7000-8000-${String(i + 1).padStart(12, '0')}`)
 const dialects: readonly Dialect[] = ['postgres', 'd1']
 
 /**
@@ -50,7 +51,9 @@ function fakeReads(n: number) {
   const ran: string[] = []
   return {
     ran,
-    run: async (reads: ReadonlyArray<{ key: string; sql: string; parameters: readonly unknown[] }>): Promise<Record<string, readonly Row[]>> => {
+    run: async (
+      reads: ReadonlyArray<{ key: string; sql: string; parameters: readonly unknown[] }>,
+    ): Promise<Record<string, readonly Row[]>> => {
       ran.push(...reads.map((r) => r.sql))
       return Object.fromEntries(reads.map((r) => [r.key, ids(n).map((id) => ({ id }))]))
     },

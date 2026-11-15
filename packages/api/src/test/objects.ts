@@ -26,7 +26,8 @@ export function fakeR2Bucket(): FakeR2Bucket {
   const bytesOf = async (value: ArrayBuffer | ArrayBufferView | string | ReadableStream): Promise<Uint8Array> => {
     if (typeof value === 'string') return new TextEncoder().encode(value)
     if (value instanceof ReadableStream) return new Uint8Array(await new Response(value).arrayBuffer())
-    if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
+    if (ArrayBuffer.isView(value))
+      return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
     return new Uint8Array(value.slice(0))
   }
   return {

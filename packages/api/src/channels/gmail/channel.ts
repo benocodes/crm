@@ -5,10 +5,15 @@ import { AttachmentFetchError, ChannelThrottledError, type ChannelMessage, type 
 import { GmailApiError, isGmailThrottle, type GmailClient } from './client.js'
 import { base64UrlMemberDecoder } from './decoder.js'
 import { mapGmailMessage, type GmailConnection } from './mapper.js'
-import { decodeMimeWords,header,messageIdTokens } from './mime.js'
-import { outboundMime,type OutboundPost } from './send-mime.js'
+import { decodeMimeWords, header, messageIdTokens } from './mime.js'
+import { outboundMime, type OutboundPost } from './send-mime.js'
 
-export class GmailAnchorError extends Error { override name='GmailAnchorError'; constructor(){super('authorised anchor unavailable')} }
+export class GmailAnchorError extends Error {
+  override name = 'GmailAnchorError'
+  constructor() {
+    super('authorised anchor unavailable')
+  }
+}
 
 /** A short machine code for a failed attachment fetch ([[CORE69]] D3): never provider text. A throttle never gets here ([[CHN5]] D83). */
 function fetchErrorCode(err: unknown): string {
@@ -28,19 +33,34 @@ export class GmailChannel implements ChannelPort<GmailConnection> {
   ) {}
 
   /** Only the authorised provider id is read; a later message can never replace the immutable anchor. */
-  async postToThread(post:OutboundPost,signal:AbortSignal,beforeSend:()=>void=()=>{}):Promise<{id:string;threadId:string}> {
-    let fixed=post
-    if(post.provider_anchor_id!==null){
-      const anchor=await this.client.getMessageMetadata(post.provider_anchor_id)
-      const ids=messageIdTokens(header(anchor.payload?.headers,'Message-ID'))
-      if(anchor.id!==post.provider_anchor_id||anchor.threadId!==post.provider_thread_id||ids.length!==1||ids[0]!==post.anchor_external_id)throw new GmailAnchorError()
-      const subject=decodeMimeWords(header(anchor.payload?.headers,'Subject')??'').replace(/[\r\n]+[ \t]*/g,' ')
-      fixed={...post,subject,in_reply_to:ids[0]!,references:messageIdTokens(header(anchor.payload?.headers,'References'))}
+  async postToThread(
+    post: OutboundPost,
+    signal: AbortSignal,
+    beforeSend: () => void = () => {},
+  ): Promise<{ id: string; threadId: string }> {
+    let fixed = post
+    if (post.provider_anchor_id !== null) {
+      const anchor = await this.client.getMessageMetadata(post.provider_anchor_id)
+      const ids = messageIdTokens(header(anchor.payload?.headers, 'Message-ID'))
+      if (
+        anchor.id !== post.provider_anchor_id ||
+        anchor.threadId !== post.provider_thread_id ||
+        ids.length !== 1 ||
+        ids[0] !== post.anchor_external_id
+      )
+        throw new GmailAnchorError()
+      const subject = decodeMimeWords(header(anchor.payload?.headers, 'Subject') ?? '').replace(/[\r\n]+[ \t]*/g, ' ')
+      fixed = {
+        ...post,
+        subject,
+        in_reply_to: ids[0]!,
+        references: messageIdTokens(header(anchor.payload?.headers, 'References')),
+      }
     }
-    const mime=outboundMime(fixed)
+    const mime = outboundMime(fixed)
     signal.throwIfAborted()
     beforeSend()
-    return this.client.sendMessage(mime,post.provider_thread_id??undefined)
+    return this.client.sendMessage(mime, post.provider_thread_id ?? undefined)
   }
 
   async readMessage(conn: GmailConnection, providerMessageId: string): Promise<ChannelMessage | { skip: string }> {
@@ -56,11 +76,15 @@ export class GmailChannel implements ChannelPort<GmailConnection> {
     return mapGmailMessage({
       conn,
       resource,
-      openRaw: async () => (await this.client.getMessageRaw(providerMessageId)).pipeThrough(base64UrlMemberDecoder('raw')),
+      openRaw: async () =>
+        (await this.client.getMessageRaw(providerMessageId)).pipeThrough(base64UrlMemberDecoder('raw')),
     })
   }
 
-  async fetchAttachment(_conn: GmailConnection, fetchMetadata: Record<string, string>): Promise<{ body: ReadableStream<Uint8Array>; size: number }> {
+  async fetchAttachment(
+    _conn: GmailConnection,
+    fetchMetadata: Record<string, string>,
+  ): Promise<{ body: ReadableStream<Uint8Array>; size: number }> {
     const { message_id: messageId, attachment_id: attachmentId, size: declared } = fetchMetadata
     const size = declared !== undefined && /^\d+$/.test(declared) ? Number(declared) : null
     if (!messageId || !attachmentId || size === null) throw new AttachmentFetchError('bad_metadata')

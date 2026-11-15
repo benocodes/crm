@@ -6,8 +6,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { releaseCommit } from './git.js'
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
-const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd, encoding: 'utf8' }).trim()
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
+const git = (cwd: string, ...a: string[]) =>
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd, encoding: 'utf8' }).trim()
 function repo() {
   const d = mkdtempSync(join(tmpdir(), 'ops210-git-'))
   dirs.push(d)

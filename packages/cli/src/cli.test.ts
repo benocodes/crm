@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { apiDoc, metaDoc, wellKnown } from './test/fixtures.js'
+import { apiDoc, wellKnown } from './test/fixtures.js'
 import { KEY, SERVER, fakeInstance, json, rig } from './test/harness.js'
 
 // [[API6]] cycle 1: the CLI against a fake instance (discovery, cache, origins, profiles, binary). The D1 app is cli.integration.test.ts.
@@ -11,7 +11,11 @@ afterEach(() => {
   while (rigs.length) rigs.pop()!.dispose()
 })
 const setup = (opts: Parameters<typeof fakeInstance>[0] = {}, rigOpts: Partial<Parameters<typeof rig>[0]> = {}) => {
-  const inst = fakeInstance({ routes: (req) => (new URL(req.url).pathname === '/meta/v1/me' ? json({ principal: { id: 'p1', kind: 'agent' } }) : undefined), ...opts })
+  const inst = fakeInstance({
+    routes: (req) =>
+      new URL(req.url).pathname === '/meta/v1/me' ? json({ principal: { id: 'p1', kind: 'agent' } }) : undefined,
+    ...opts,
+  })
   const r = rig({ fetch: inst.fetch, ...rigOpts })
   rigs.push(r)
   return { inst, r }
@@ -69,7 +73,12 @@ describe('commands come from the live documents', () => {
 
 describe('output and exit codes', () => {
   it('prints the response as compact JSON on a pipe and indented on a terminal; an API error is JSON on stderr with exit 1', async () => {
-    const { r } = setup({ routes: (req) => (new URL(req.url).pathname === '/meta/v1/me' ? json({ principal: { id: 'p1' } }) : json({ error: { code: 'forbidden', message: 'missing scope' } }, 403)) })
+    const { r } = setup({
+      routes: (req) =>
+        new URL(req.url).pathname === '/meta/v1/me'
+          ? json({ principal: { id: 'p1' } })
+          : json({ error: { code: 'forbidden', message: 'missing scope' } }, 403),
+    })
     await login(r)
     const piped = await r.run(['me', 'get'])
     expect(piped.code).toBe(0)
@@ -83,12 +92,18 @@ describe('output and exit codes', () => {
   })
 
   it('a network failure is exit 1 with a JSON error; a non-JSON error body is wrapped', async () => {
-    const { r } = setup({ routes: (req) => { throw new TypeError('connect ECONNREFUSED') } })
+    const { r } = setup({
+      routes: (req) => {
+        throw new TypeError('connect ECONNREFUSED')
+      },
+    })
     await login(r)
     const net = await r.run(['me', 'get'])
     expect(net.code).toBe(1)
     expect(errBody(net.stderr).code).toBe('network_error')
-    const html = setup({ routes: () => new Response('<html>bad gateway</html>', { status: 502, headers: { 'content-type': 'text/html' } }) })
+    const html = setup({
+      routes: () => new Response('<html>bad gateway</html>', { status: 502, headers: { 'content-type': 'text/html' } }),
+    })
     await login(html.r)
     const res = await html.r.run(['me', 'get'])
     expect(res.code).toBe(1)
@@ -214,7 +229,9 @@ describe('same-origin rule for credentials (D18)', () => {
 
   it('a document path that escapes to another origin is refused before any request leaves', async () => {
     const api = apiDoc()
-    api.paths['//evil.example/steal'] = { get: { operationId: 'steal.get', summary: 'hostile', responses: { '200': { description: 'ok' } } } }
+    api.paths['//evil.example/steal'] = {
+      get: { operationId: 'steal.get', summary: 'hostile', responses: { '200': { description: 'ok' } } },
+    }
     const { r } = setup({ api })
     await login(r)
     const res = await r.run(['steal', 'get'])
@@ -230,7 +247,8 @@ describe('same-origin rule for credentials (D18)', () => {
     const a = authed(r)
     expect(a.length).toBe(2)
     for (const s of a) expect(new URL(s.url).origin).toBe(SERVER)
-    for (const s of r.seen.filter((x) => /well-known|openapi/.test(x.url))) expect(s.headers.authorization).toBeUndefined()
+    for (const s of r.seen.filter((x) => /well-known|openapi/.test(x.url)))
+      expect(s.headers.authorization).toBeUndefined()
   })
 
   it('does not follow a redirect carrying the credential', async () => {
@@ -254,13 +272,21 @@ describe('same-origin rule for credentials (D18)', () => {
     expect(flag.code).toBe(2)
     expect(r.seen.filter((s) => s.url.includes('vibase.example.com'))).toEqual([])
     for (const ok of ['https://vibase.example.com', 'http://localhost:8787', 'http://127.0.0.1:1']) {
-      expect((await r.run(['login', '--api-key', '--server', ok, '--profile', 'p' + ok.length], { stdin: KEY })).code).toBe(0)
+      expect(
+        (await r.run(['login', '--api-key', '--server', ok, '--profile', 'p' + ok.length], { stdin: KEY })).code,
+      ).toBe(0)
     }
   })
 
   it('--server is an origin: a path, query or userinfo is a usage error', async () => {
     const { r } = setup()
-    for (const s of ['https://v.example.com/api', 'https://v.example.com/?x=1', 'https://u:p@v.example.com', 'ftp://v.example.com', 'not a url']) {
+    for (const s of [
+      'https://v.example.com/api',
+      'https://v.example.com/?x=1',
+      'https://u:p@v.example.com',
+      'ftp://v.example.com',
+      'not a url',
+    ]) {
       expect((await r.run(['login', '--api-key', '--server', s], { stdin: KEY })).code).toBe(2)
     }
   })
@@ -286,7 +312,12 @@ describe('the key never comes from argv (D10)', () => {
 
   it('a key passed as an argument is refused, in every spelling, and is never echoed or stored', async () => {
     const { r } = setup()
-    for (const argv of [['login', '--api-key', KEY, '--server', SERVER], ['login', `--api-key=${KEY}`, '--server', SERVER], ['login', '--server', SERVER, '--api-key', '--key', KEY], ['login', KEY, '--api-key', '--server', SERVER]]) {
+    for (const argv of [
+      ['login', '--api-key', KEY, '--server', SERVER],
+      ['login', `--api-key=${KEY}`, '--server', SERVER],
+      ['login', '--server', SERVER, '--api-key', '--key', KEY],
+      ['login', KEY, '--api-key', '--server', SERVER],
+    ]) {
       // stdin holds a usable key, so only the refusal of the argument can make this exit 2
       const res = await r.run(argv, { stdin: ['vk', 'stdin'.repeat(6)].join('_') })
       expect(res.code).toBe(2)
@@ -325,7 +356,14 @@ describe('the key never comes from argv (D10)', () => {
   it('no test run leaks the key on stdout or stderr: a full session', async () => {
     const { r } = setup()
     await login(r)
-    for (const argv of [['me', 'get'], ['widgets', 'list'], ['config', 'get', 'default_profile'], ['nope', 'x'], ['--help']]) noKey(await r.run(argv))
+    for (const argv of [
+      ['me', 'get'],
+      ['widgets', 'list'],
+      ['config', 'get', 'default_profile'],
+      ['nope', 'x'],
+      ['--help'],
+    ])
+      noKey(await r.run(argv))
   })
 })
 
@@ -382,7 +420,9 @@ describe('config file (D10)', () => {
       const env = await r.run(['me', 'get'], { env: { VIBASE_SERVER: 'http://127.0.0.1:2222', VIBASE_API_KEY: KEY2 } })
       expect(env.code).toBe(0)
       expect(new URL(authed(r).at(-1)!.url).origin).toBe('http://127.0.0.1:2222')
-      const flag = await r.run(['me', 'get', '--server', 'http://127.0.0.1:3333'], { env: { VIBASE_SERVER: 'http://127.0.0.1:2222', VIBASE_API_KEY: KEY2 } })
+      const flag = await r.run(['me', 'get', '--server', 'http://127.0.0.1:3333'], {
+        env: { VIBASE_SERVER: 'http://127.0.0.1:2222', VIBASE_API_KEY: KEY2 },
+      })
       expect(flag.code).toBe(0)
       expect(new URL(authed(r).at(-1)!.url).origin).toBe('http://127.0.0.1:3333')
     })
@@ -473,7 +513,12 @@ describe('binary operations (D14)', () => {
   const BYTES = new Uint8Array([0, 255, 1, 128, 10, 13, 0, 65])
   const content = (req: Request) =>
     new URL(req.url).pathname === '/api/v1/files/F1/content'
-      ? new Response(BYTES, { headers: { 'content-type': 'application/octet-stream', 'content-disposition': 'attachment; filename="../../evil.txt"' } })
+      ? new Response(BYTES, {
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-disposition': 'attachment; filename="../../evil.txt"',
+          },
+        })
       : undefined
   const cmd = ['files', 'content', 'F1']
 

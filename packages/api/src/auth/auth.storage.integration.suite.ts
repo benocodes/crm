@@ -69,10 +69,13 @@ export function engineSuite(engineName: EngineName): void {
         ['a revoked key', () => seedKey({ revoked_at: iso(-10) })],
         ['a key expiring exactly now', () => seedKey({ expires_at: iso(0) })],
         ['an expired key', () => seedKey({ expires_at: iso(-1) })],
-        ['a key of a disabled agent', async () => {
-          await e.update('agents', e.agentId, { disabled_at: iso(-10) })
-          return seedKey()
-        }],
+        [
+          'a key of a disabled agent',
+          async () => {
+            await e.update('agents', e.agentId, { disabled_at: iso(-10) })
+            return seedKey()
+          },
+        ],
       ])('%s is refused and nothing is written', async (_n, make) => {
         const { key } = await make()
         const before = await state()
@@ -145,15 +148,27 @@ export function engineSuite(engineName: EngineName): void {
 
     describe('lookup and first sight', () => {
       it('a known subject is a read-only unit that finds the latest membership of the linked organisation', async () => {
-        const login = await lookupUser(kit.binding, { provider: 'clerk', subject: e.userSubject, organizationExternalId: e.authOrgId })
-        expect(login).toMatchObject({ userId: e.userId, linkedOrganizationId: e.organizationId, latestMembership: { role: 'owner', deletedAt: null } })
+        const login = await lookupUser(kit.binding, {
+          provider: 'clerk',
+          subject: e.userSubject,
+          organizationExternalId: e.authOrgId,
+        })
+        expect(login).toMatchObject({
+          userId: e.userId,
+          linkedOrganizationId: e.organizationId,
+          latestMembership: { role: 'owner', deletedAt: null },
+        })
         expect(login!.latestMembership!.updatedAt).toBeInstanceOf(Date)
         expect(kit.ran.at(-1)!.stats).toMatchObject({ writes: 0, locks: 0 })
       })
 
       it('an unknown subject is null; a known one without a claim has no organisation', async () => {
-        expect(await lookupUser(kit.binding, { provider: 'clerk', subject: 'nobody', organizationExternalId: null })).toBeNull()
-        expect(await lookupUser(kit.binding, { provider: 'clerk', subject: e.userSubject, organizationExternalId: null })).toEqual({
+        expect(
+          await lookupUser(kit.binding, { provider: 'clerk', subject: 'nobody', organizationExternalId: null }),
+        ).toBeNull()
+        expect(
+          await lookupUser(kit.binding, { provider: 'clerk', subject: e.userSubject, organizationExternalId: null }),
+        ).toEqual({
           userId: e.userId,
           linkedOrganizationId: null,
           latestMembership: null,
@@ -194,7 +209,11 @@ export function engineSuite(engineName: EngineName): void {
         kit.profile('user_u', { email: 'ñandú@x.test' })
         const before = await state()
         const err = await provisionUser(kit.binding, kit.clerk.adapter, 'user_u', kit.env()).catch((x: unknown) => x)
-        expect(err).toMatchObject({ status: 400, code: 'invalid_identity', message: 'non-ASCII email addresses are not supported' })
+        expect(err).toMatchObject({
+          status: 400,
+          code: 'invalid_identity',
+          message: 'non-ASCII email addresses are not supported',
+        })
         expect(kit.ran).toEqual([])
         expect(await state()).toEqual(before)
       })
@@ -217,7 +236,13 @@ export function engineSuite(engineName: EngineName): void {
           const before = (await userPrincipals()).length
           kit.armOn('auth.first_sight', async () => {
             await e.insert('principals', { id: winner, kind: 'user' })
-            await e.insert('users', { id: winner, email: 'race@x.test', auth_provider: 'clerk', auth_subject: 'user_race', email_verified: true })
+            await e.insert('users', {
+              id: winner,
+              email: 'race@x.test',
+              auth_provider: 'clerk',
+              auth_subject: 'user_race',
+              email_verified: true,
+            })
           })
           const login = await provisionUser(kit.binding, kit.clerk.adapter, 'user_race', kit.env())
           expect(login.userId).toBe(winner)
@@ -232,9 +257,17 @@ export function engineSuite(engineName: EngineName): void {
           const before = (await userPrincipals()).length
           kit.armOn('auth.first_sight', async () => {
             await e.insert('principals', { id: other, kind: 'user' })
-            await e.insert('users', { id: other, email: 'shared@x.test', auth_provider: 'clerk', auth_subject: 'user_other', email_verified: true })
+            await e.insert('users', {
+              id: other,
+              email: 'shared@x.test',
+              auth_provider: 'clerk',
+              auth_subject: 'user_other',
+              email_verified: true,
+            })
           })
-          const err = await provisionUser(kit.binding, kit.clerk.adapter, 'user_mine', kit.env()).catch((x: unknown) => x)
+          const err = await provisionUser(kit.binding, kit.clerk.adapter, 'user_mine', kit.env()).catch(
+            (x: unknown) => x,
+          )
           expect(err).toMatchObject({ status: 409, code: 'account_conflict' })
           expect(await userPrincipals()).toHaveLength(before + 1)
           expect((await e.rows('users')).filter((u) => u.auth_subject === 'user_mine')).toEqual([])
@@ -245,7 +278,9 @@ export function engineSuite(engineName: EngineName): void {
     describe('D19: one organisation per D1', () => {
       if (name === 'd1') {
         it('a token claiming another organisation is 403 before any fetch or unit (D1)', async () => {
-          const res = await kit.call('/api/v1/tasks', 'user_stranger', { claim: { id: 'org_somewhere_else', rol: 'admin' } })
+          const res = await kit.call('/api/v1/tasks', 'user_stranger', {
+            claim: { id: 'org_somewhere_else', rol: 'admin' },
+          })
           expect(res.status).toBe(403)
           expect(((await res.json()) as { error: { code: string } }).error.code).toBe('organization_forbidden')
           expect(kit.clerk.fetch.calls).toEqual([])
@@ -256,7 +291,10 @@ export function engineSuite(engineName: EngineName): void {
         it('sign-in with no claim lists local memberships only; a tenant operation is 403 organization_required (D1)', async () => {
           const me = await kit.call('/meta/v1/me', e.userSubject)
           expect(me.status).toBe(200)
-          const body = (await me.json()) as { memberships: Array<{ organization_id: string }>; active_organization: unknown }
+          const body = (await me.json()) as {
+            memberships: Array<{ organization_id: string }>
+            active_organization: unknown
+          }
           expect(body.memberships.map((m) => m.organization_id)).toEqual([e.organizationId])
           expect(body.active_organization).toBeNull()
           const tasks = await kit.call('/api/v1/tasks', e.userSubject)
@@ -281,18 +319,37 @@ export function engineSuite(engineName: EngineName): void {
         const user = (await e.rows('users')).find((u) => u.id === e.userId)!
         expect(body.user).toEqual({ id: e.userId, email: user.email, name: null, email_verified: false })
         expect(JSON.stringify(body)).not.toMatch(/auth_(provider|subject)/)
-        expect(body.memberships).toEqual([{ organization_id: e.organizationId, organization_name: (await e.rows('organizations'))[0]!.name, role: 'owner' }])
+        expect(body.memberships).toEqual([
+          {
+            organization_id: e.organizationId,
+            organization_name: (await e.rows('organizations'))[0]!.name,
+            role: 'owner',
+          },
+        ])
         expect(body.active_organization).toMatchObject({ id: e.organizationId, role: 'owner' })
         expect(body.active_organization.scopes.length).toBeGreaterThan(0)
-        expect(kit.ran.filter((r) => r.name === 'me.get').at(-1)).toMatchObject({ identity: { kind: 'account', actorId: e.userId } })
+        expect(kit.ran.filter((r) => r.name === 'me.get').at(-1)).toMatchObject({
+          identity: { kind: 'account', actorId: e.userId },
+        })
         expect(kit.ran.filter((r) => r.name === 'me.get').at(-1)!.stats).toMatchObject({ writes: 0, locks: 0 })
       })
 
       if (name === 'postgres') {
         it('lists every organisation the user belongs to (Postgres)', async () => {
-          const other = await e.insert('organizations', { name: 'Alpha', auth_provider: 'clerk', auth_org_id: 'org_alpha' })
-          await e.insert('memberships', { organization_id: other.id, user_id: e.userId, role: 'member', created_by: e.userId })
-          const body = (await (await kit.call('/meta/v1/me', e.userSubject, { claim: { id: e.authOrgId, rol: 'admin' } })).json()) as any
+          const other = await e.insert('organizations', {
+            name: 'Alpha',
+            auth_provider: 'clerk',
+            auth_org_id: 'org_alpha',
+          })
+          await e.insert('memberships', {
+            organization_id: other.id,
+            user_id: e.userId,
+            role: 'member',
+            created_by: e.userId,
+          })
+          const body = (await (
+            await kit.call('/meta/v1/me', e.userSubject, { claim: { id: e.authOrgId, rol: 'admin' } })
+          ).json()) as any
           expect(body.memberships.map((m: any) => m.organization_name)).toEqual(['Alpha', 'Engine org'])
         })
       }

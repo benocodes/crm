@@ -58,10 +58,12 @@ export function decodeCursor(raw: unknown, field: string, order: SortOrder, kind
   }
   if (!Array.isArray(parsed) || parsed.length !== 4) throw bad('it is not a four-element array')
   const [cursorSort, cursorOrder, value, id] = parsed as unknown[]
-  if (typeof cursorSort !== 'string' || (cursorOrder !== 'asc' && cursorOrder !== 'desc')) throw bad('the sort or order is malformed')
+  if (typeof cursorSort !== 'string' || (cursorOrder !== 'asc' && cursorOrder !== 'desc'))
+    throw bad('the sort or order is malformed')
   if (typeof id !== 'string' || !UUID.safeParse(id).success) throw bad('the id is not a UUID')
   const position = { value: valueOf(kind, value), id: id.toLowerCase() }
-  if (cursorSort !== field || cursorOrder !== order) throw bad(`it belongs to sort=${cursorSort} order=${cursorOrder}, not sort=${field} order=${order}`)
+  if (cursorSort !== field || cursorOrder !== order)
+    throw bad(`it belongs to sort=${cursorSort} order=${cursorOrder}, not sort=${field} order=${order}`)
   if (field === 'id' && position.value !== position.id) throw bad('the value does not fit the sorted field')
   return position
 }

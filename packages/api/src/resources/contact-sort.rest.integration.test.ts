@@ -33,7 +33,8 @@ const must = async (scopes: string[], method: string, path: string, body?: unkno
   expect(r.status, `${method} ${path} ${JSON.stringify(r.body)}`).toBeLessThan(300)
   return r.body
 }
-const cursorOf = (value: unknown) => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url')
+const cursorOf = (value: unknown) =>
+  Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url')
 const T_A = '2026-10-10T00:00:00.000Z'
 const T_B = '2026-10-15T12:00:00.000Z'
 const messageTo = (to: string, at: string) =>
@@ -52,7 +53,11 @@ async function seed(): Promise<Record<'A' | 'B' | 'C' | 'D', string>> {
   const ids: Record<string, string> = {}
   for (const n of ['A', 'B', 'C', 'D']) {
     const c = await must(FULL, 'POST', '/api/v1/contacts', { name: n })
-    await must(FULL, 'POST', '/api/v1/identities', { kind: 'email', value: `${n.toLowerCase()}@x.test`, contact_id: c.id })
+    await must(FULL, 'POST', '/api/v1/identities', {
+      kind: 'email',
+      value: `${n.toLowerCase()}@x.test`,
+      contact_id: c.id,
+    })
     ids[n] = c.id
   }
   await s.capture(t, { connection_id: C1, messages: [messageTo('a@x.test', T_A), messageTo('b@x.test', T_B)] })
@@ -88,7 +93,14 @@ describe('sort and order (D8)', () => {
 
   it('order without sort is 400, an unknown sort or order value is 400, and none of them runs a query that answers', async () => {
     await seed()
-    for (const q of ['order=desc', 'order=asc', 'sort=no_such_field', 'sort=', 'sort=last_contacted_at&order=sideways', 'sort=last_contacted_at&order=']) {
+    for (const q of [
+      'order=desc',
+      'order=asc',
+      'sort=no_such_field',
+      'sort=',
+      'sort=last_contacted_at&order=sideways',
+      'sort=last_contacted_at&order=',
+    ]) {
       const r = await call(WITH, 'GET', `/api/v1/contacts?${q}`)
       expect(r.status, q).toBe(400)
       expect(r.body.error.code, q).toBe('validation_error')
@@ -97,7 +109,8 @@ describe('sort and order (D8)', () => {
 })
 
 describe('the cursor codec (D9)', () => {
-  const sorted = (cursor: string, extra = 'sort=last_contacted_at&order=asc') => `/api/v1/contacts?${extra}&after=${encodeURIComponent(cursor)}`
+  const sorted = (cursor: string, extra = 'sort=last_contacted_at&order=asc') =>
+    `/api/v1/contacts?${extra}&after=${encodeURIComponent(cursor)}`
   const id = '0190b2c4-0000-7000-8000-000000000001'
 
   it('a cursor from a page round-trips: the next page starts exactly after it', async () => {
@@ -142,7 +155,11 @@ describe('the cursor codec (D9)', () => {
   it('a cursor carrying another sort or another order is 400', async () => {
     await seed()
     const first = await must(WITH, 'GET', '/api/v1/contacts?sort=last_contacted_at&order=asc&limit=1')
-    for (const q of ['sort=last_interacted_at&order=asc', 'sort=last_contacted_at&order=desc', 'sort=last_contacted_at']) {
+    for (const q of [
+      'sort=last_interacted_at&order=asc',
+      'sort=last_contacted_at&order=desc',
+      'sort=last_contacted_at',
+    ]) {
       // `sort=last_contacted_at` alone is asc, which matches; the third case must therefore succeed.
       const r = await call(WITH, 'GET', sorted(first.next_cursor, q))
       expect(r.status, q).toBe(q === 'sort=last_contacted_at' ? 200 : 400)

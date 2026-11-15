@@ -32,10 +32,24 @@ const CLI = 'cli_client_test'
 const NAMES = MIGRATIONS.map((m) => m.name)
 const challenge = (origin: string) => `Bearer resource_metadata="${origin}${PRM}"`
 
-const worker = (extra: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: CLI, ...extra }, { fetch: kit.fetch })
-const get = (wk: { fetch(r: Request): Promise<Response> }, path: string, headers: Record<string, string> = {}, base = BASE, method = 'GET') =>
-  wk.fetch(new Request(base + path, { method, headers }))
-const boot = () => bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: kit.issuer.issuer }, { now: NOW, newId: () => uuidv7(NOW) })
+const worker = (extra: Partial<D1WorkerEnv> = {}) =>
+  composeD1Worker(
+    { DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: CLI, ...extra },
+    { fetch: kit.fetch },
+  )
+const get = (
+  wk: { fetch(r: Request): Promise<Response> },
+  path: string,
+  headers: Record<string, string> = {},
+  base = BASE,
+  method = 'GET',
+) => wk.fetch(new Request(base + path, { method, headers }))
+const boot = () =>
+  bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', agentName: 'bot', authOrgId: kit.issuer.issuer },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
 const tracker = async (names: readonly string[]) => {
   await createMigrationTracker(w.d1)
   await recordMigrations(w.d1, names)
@@ -52,7 +66,13 @@ describe('D21 GET /.well-known/vibase', () => {
       api: `${a}/api/v1`,
       mcp: `${a}/mcp`,
       openapi: { api: `${a}/api/v1/openapi.json`, meta: `${a}/meta/v1/openapi.json` },
-      auth: { provider: 'clerk', issuer: kit.issuer.issuer, cli_client_id: CLI, publishable_key: null, protected_resource_metadata: `${a}${PRM}` },
+      auth: {
+        provider: 'clerk',
+        issuer: kit.issuer.issuer,
+        cli_client_id: CLI,
+        publishable_key: null,
+        protected_resource_metadata: `${a}${PRM}`,
+      },
     })
     expect(await res.json()).toEqual(body(BASE))
     expect(await (await get(wk, VIBASE, {}, 'http://localhost:8787')).json()).toEqual(body('http://localhost:8787'))
@@ -63,7 +83,13 @@ describe('D21 GET /.well-known/vibase', () => {
     expect(none.auth).toBeNull()
     expect(none.api).toBe(`${BASE}/api/v1`)
     const noCli = (await (await get(worker({ AUTH_CLI_CLIENT_ID: undefined }), VIBASE)).json()) as any
-    expect(noCli.auth).toEqual({ provider: 'clerk', issuer: kit.issuer.issuer, cli_client_id: null, publishable_key: null, protected_resource_metadata: `${BASE}${PRM}` })
+    expect(noCli.auth).toEqual({
+      provider: 'clerk',
+      issuer: kit.issuer.issuer,
+      cli_client_id: null,
+      publishable_key: null,
+      protected_resource_metadata: `${BASE}${PRM}`,
+    })
   })
 })
 
@@ -89,21 +115,24 @@ describe('auth.publishable_key', () => {
   it.each([
     ['a key for another Frontend API host', () => pk('other.clerk.accounts.dev')],
     ['a malformed key', () => 'pk_test_' + 'x'.repeat(12) + '!!'],
-  ])('%s: discovery and the API are 500 internal, the variable is named in the log and the value is nowhere', async (_n, make) => {
-    const { key, errors } = bad(make())
-    const wk = worker({ CLERK_PUBLISHABLE_KEY: key })
-    for (const path of [VIBASE, PRM, '/api/v1/contacts']) {
-      const res = await get(wk, path)
-      expect(res.status).toBe(500)
-      const text = await res.text()
-      expect(JSON.parse(text).error.code).toBe('internal')
-      expect(text).not.toContain(key)
-    }
-    const logged = errors.mock.calls.flat().join('\n')
-    expect(logged).toContain('CLERK_PUBLISHABLE_KEY')
-    expect(logged).not.toContain(key)
-    expect(logged).not.toContain('other.clerk.accounts.dev')
-  })
+  ])(
+    '%s: discovery and the API are 500 internal, the variable is named in the log and the value is nowhere',
+    async (_n, make) => {
+      const { key, errors } = bad(make())
+      const wk = worker({ CLERK_PUBLISHABLE_KEY: key })
+      for (const path of [VIBASE, PRM, '/api/v1/contacts']) {
+        const res = await get(wk, path)
+        expect(res.status).toBe(500)
+        const text = await res.text()
+        expect(JSON.parse(text).error.code).toBe('internal')
+        expect(text).not.toContain(key)
+      }
+      const logged = errors.mock.calls.flat().join('\n')
+      expect(logged).toContain('CLERK_PUBLISHABLE_KEY')
+      expect(logged).not.toContain(key)
+      expect(logged).not.toContain('other.clerk.accounts.dev')
+    },
+  )
 })
 
 describe('D22 GET /.well-known/oauth-protected-resource', () => {
@@ -121,7 +150,9 @@ describe('D22 GET /.well-known/oauth-protected-resource', () => {
     const humanOnly = declared.filter((s) => !scopesForRole('member', declared).toStrings().includes(s))
     expect(humanOnly.length).toBeGreaterThan(0)
     for (const s of humanOnly) expect(body.scopes_supported).toContain(toProviderScope(s))
-    expect((await (await get(worker(), PRM, {}, 'http://localhost:8787')).json() as any).resource).toBe('http://localhost:8787')
+    expect(((await (await get(worker(), PRM, {}, 'http://localhost:8787')).json()) as any).resource).toBe(
+      'http://localhost:8787',
+    )
   })
 
   it('without a provider the document is 404 not_found (nothing to point at)', async () => {
@@ -132,24 +163,35 @@ describe('D22 GET /.well-known/oauth-protected-resource', () => {
 })
 
 describe('both documents are public and cacheable', () => {
-  it.each([VIBASE, PRM])('%s: 200 with no credentials and with a garbage Authorization header, no WWW-Authenticate', async (path) => {
-    const wk = worker()
-    for (const headers of [{}, { authorization: 'Bearer garbage' }, { authorization: 'Bearer a.b.c' }, { authorization: 'Basic !!' }] as Record<string, string>[]) {
-      const res = await get(wk, path, headers)
-      expect(res.status).toBe(200)
-      expect(res.headers.get('www-authenticate')).toBeNull()
-    }
-  })
-  it.each([VIBASE, PRM])('%s: Cache-Control public, max-age=60; HEAD answers the headers without a body', async (path) => {
-    const wk = worker()
-    const res = await get(wk, path)
-    expect(res.headers.get('cache-control')).toBe('public, max-age=60')
-    const head = await get(wk, path, {}, BASE, 'HEAD')
-    expect(head.status).toBe(200)
-    expect(head.headers.get('content-type')).toMatch(/^application\/json/)
-    expect(await head.text()).toBe('')
-  })
-  it('a trailing slash and other methods keep today\'s behaviour (no marker: 503 not_initialised)', async () => {
+  it.each([VIBASE, PRM])(
+    '%s: 200 with no credentials and with a garbage Authorization header, no WWW-Authenticate',
+    async (path) => {
+      const wk = worker()
+      for (const headers of [
+        {},
+        { authorization: 'Bearer garbage' },
+        { authorization: 'Bearer a.b.c' },
+        { authorization: 'Basic !!' },
+      ] as Record<string, string>[]) {
+        const res = await get(wk, path, headers)
+        expect(res.status).toBe(200)
+        expect(res.headers.get('www-authenticate')).toBeNull()
+      }
+    },
+  )
+  it.each([VIBASE, PRM])(
+    '%s: Cache-Control public, max-age=60; HEAD answers the headers without a body',
+    async (path) => {
+      const wk = worker()
+      const res = await get(wk, path)
+      expect(res.headers.get('cache-control')).toBe('public, max-age=60')
+      const head = await get(wk, path, {}, BASE, 'HEAD')
+      expect(head.status).toBe(200)
+      expect(head.headers.get('content-type')).toMatch(/^application\/json/)
+      expect(await head.text()).toBe('')
+    },
+  )
+  it("a trailing slash and other methods keep today's behaviour (no marker: 503 not_initialised)", async () => {
     const wk = worker()
     expect((await get(wk, VIBASE + '/')).status).toBe(503)
     expect((await get(wk, VIBASE, {}, BASE, 'POST')).status).toBe(503)
@@ -214,9 +256,18 @@ describe('WWW-Authenticate on every 401 with a provider (D22)', () => {
     await expectChallenge(await get(wk, api, { authorization: 'Bearer garbage' }))
     await expectChallenge(await get(wk, api, { authorization: 'Bearer vk_unknown_key' }))
     const old = Math.floor(NOW.getTime() / 1000) - 3600
-    const expired = await mintClerkToken(kit.issuer, { sub: 'user_a', extra: { vibase_role: 'owner' }, exp: old, now: new Date(NOW.getTime() - 7200_000) })
+    const expired = await mintClerkToken(kit.issuer, {
+      sub: 'user_a',
+      extra: { vibase_role: 'owner' },
+      exp: old,
+      now: new Date(NOW.getTime() - 7200_000),
+    })
     await expectChallenge(await get(wk, api, { authorization: `Bearer ${expired}` }))
-    const foreign = await mintClerkToken(kit.issuer, { sub: 'user_a', extra: { vibase_role: 'owner' }, iss: 'https://evil.example' })
+    const foreign = await mintClerkToken(kit.issuer, {
+      sub: 'user_a',
+      extra: { vibase_role: 'owner' },
+      iss: 'https://evil.example',
+    })
     await expectChallenge(await get(wk, api, { authorization: `Bearer ${foreign}` }))
     await expectChallenge(await get(wk, '/meta/v1/me'), BASE)
     // a disabled agent's key
@@ -244,7 +295,9 @@ describe('WWW-Authenticate on every 401 with a provider (D22)', () => {
     const ok = await get(wk, '/api/v1/contacts', { authorization: `Bearer ${key}` })
     expect(ok.status).toBe(200)
     expect(ok.headers.get('www-authenticate')).toBeNull()
-    expect((await get(wk, '/api/v1/nope', { authorization: `Bearer ${key}` })).headers.get('www-authenticate')).toBeNull()
+    expect(
+      (await get(wk, '/api/v1/nope', { authorization: `Bearer ${key}` })).headers.get('www-authenticate'),
+    ).toBeNull()
   })
 
   it('AUTH_PROVIDER unset: an API-key 401 carries no challenge', async () => {

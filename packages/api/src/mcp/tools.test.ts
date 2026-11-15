@@ -22,9 +22,15 @@ describe('tools derive from the registry', () => {
       expect(tool.description.startsWith(op.summary)).toBe(true)
       expect(tool.inputSchema.type).toBe('object')
       expect(tool._meta['vibase/surface']).toBe(op.surface)
-      if (op.kind === 'tenant' && op.scope) expect(tool.description).toContain(`Requires ${op.scope.resource}:${op.scope.action} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`)
+      if (op.kind === 'tenant' && op.scope)
+        expect(tool.description).toContain(
+          `Requires ${op.scope.resource}:${op.scope.action} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`,
+        )
       // A decision command has the target's authority, which its description says ([[AGT8]] D7).
-      if (op.kind === 'tenant' && !op.scope) expect(tool.description).toContain(op.authority === 'read' ? 'read scope of the execution' : 'on the target operation')
+      if (op.kind === 'tenant' && !op.scope)
+        expect(tool.description).toContain(
+          op.authority === 'read' ? 'read scope of the execution' : 'on the target operation',
+        )
     }
   })
 
@@ -40,7 +46,10 @@ describe('tools derive from the registry', () => {
   })
 
   it('flat input: path, query and body fields are siblings, required is the union', () => {
-    const update = byName('contacts_update').tool.inputSchema as { properties: Record<string, unknown>; required?: string[] }
+    const update = byName('contacts_update').tool.inputSchema as {
+      properties: Record<string, unknown>
+      required?: string[]
+    }
     expect(Object.keys(update.properties)).toContain('id')
     expect(Object.keys(update.properties).length).toBeGreaterThan(2)
     expect(update.required).toContain('id')
@@ -84,11 +93,22 @@ describe('tools derive from the registry', () => {
 describe('splitting arguments (D9)', () => {
   const op = (name: string) => registry.get(name)!
   it('path and query values go over as strings, the rest into the body', () => {
-    expect(splitArguments(op('contacts.update'), { id: '0190b2c4-0000-7000-8000-000000000001', name: 'Ada' })).toEqual({ params: { id: '0190b2c4-0000-7000-8000-000000000001' }, query: {}, body: { name: 'Ada' } })
-    expect(splitArguments(op('contacts.list'), { limit: 5, after: 'x' })).toEqual({ params: {}, query: { limit: '5', after: 'x' }, body: undefined })
+    expect(splitArguments(op('contacts.update'), { id: '0190b2c4-0000-7000-8000-000000000001', name: 'Ada' })).toEqual({
+      params: { id: '0190b2c4-0000-7000-8000-000000000001' },
+      query: {},
+      body: { name: 'Ada' },
+    })
+    expect(splitArguments(op('contacts.list'), { limit: 5, after: 'x' })).toEqual({
+      params: {},
+      query: { limit: '5', after: 'x' },
+      body: undefined,
+    })
   })
   it('an unknown name reaches the body of an object body; with no body it is a validation error', () => {
-    expect(splitArguments(op('contacts.create'), { name: 'Ada', nonsense: 1 }).body).toEqual({ name: 'Ada', nonsense: 1 })
+    expect(splitArguments(op('contacts.create'), { name: 'Ada', nonsense: 1 }).body).toEqual({
+      name: 'Ada',
+      nonsense: 1,
+    })
     expect(() => splitArguments(op('contacts.list'), { nonsense: 1 })).toThrow(ApiError)
   })
 })
@@ -97,8 +117,11 @@ describe('tags tools (CORE129 D14)', () => {
   it('the five tags tools exist, and tag_id is an argument of the three taggable lists only', () => {
     const named = tools.map((t) => t.tool.name).filter((n) => n.startsWith('tags_'))
     expect(named).toEqual(['tags_list', 'tags_get', 'tags_create', 'tags_update', 'tags_delete'])
-    for (const n of ['companies_list', 'contacts_list', 'tasks_list']) expect(Object.keys((byName(n).tool.inputSchema as { properties: object }).properties), n).toContain('tag_id')
-    expect(Object.keys((byName('notes_list').tool.inputSchema as { properties: object }).properties)).not.toContain('tag_id')
+    for (const n of ['companies_list', 'contacts_list', 'tasks_list'])
+      expect(Object.keys((byName(n).tool.inputSchema as { properties: object }).properties), n).toContain('tag_id')
+    expect(Object.keys((byName('notes_list').tool.inputSchema as { properties: object }).properties)).not.toContain(
+      'tag_id',
+    )
   })
   it('the instructions tell an agent that lists are tags and membership is an association', () => {
     expect(INSTRUCTIONS).toContain('tags_list')
@@ -108,14 +131,32 @@ describe('tags tools (CORE129 D14)', () => {
 })
 
 describe('derived contact activity ([[CORE131]] D12)', () => {
-  const SIX = ['contacted_since', 'not_contacted_since', 'never_contacted', 'interacted_since', 'not_interacted_since', 'never_interacted']
+  const SIX = [
+    'contacted_since',
+    'not_contacted_since',
+    'never_contacted',
+    'interacted_since',
+    'not_interacted_since',
+    'never_interacted',
+  ]
   it('contacts_list takes the six filters with descriptions, and sort and order ([[CORE133]] D12)', () => {
-    const props = (byName('contacts_list').tool.inputSchema as { properties: Record<string, { description?: string; enum?: string[]; type?: string; format?: string }> }).properties
+    const props = (
+      byName('contacts_list').tool.inputSchema as {
+        properties: Record<string, { description?: string; enum?: string[]; type?: string; format?: string }>
+      }
+    ).properties
     for (const f of SIX) {
       expect(props[f], f).toBeDefined()
       expect(props[f]!.description ?? '', `${f} description`).not.toBe('')
     }
-    expect(props.sort!.enum).toEqual(['id', 'created_at', 'updated_at', 'name', 'last_contacted_at', 'last_interacted_at'])
+    expect(props.sort!.enum).toEqual([
+      'id',
+      'created_at',
+      'updated_at',
+      'name',
+      'last_contacted_at',
+      'last_interacted_at',
+    ])
     expect(props.order!.enum).toEqual(['asc', 'desc'])
     expect(props.sort!.description ?? '').toMatch(/repeat in asc/)
   })
@@ -130,13 +171,21 @@ describe('derived contact activity ([[CORE131]] D12)', () => {
     // CORE175 D15, CORE188 D1: the hand-written lists left out by design keep uuid cursors and no sort.
     for (const n of ['associations_list', 'users_list']) {
       const other = byName(n).tool
-      expect(JSON.stringify((other.inputSchema as { properties: Record<string, unknown> }).properties.after), n).toContain('uuid')
-      expect(JSON.stringify((other.outputSchema as { properties: Record<string, unknown> }).properties.next_cursor), n).toContain('uuid')
+      expect(
+        JSON.stringify((other.inputSchema as { properties: Record<string, unknown> }).properties.after),
+        n,
+      ).toContain('uuid')
+      expect(
+        JSON.stringify((other.outputSchema as { properties: Record<string, unknown> }).properties.next_cursor),
+        n,
+      ).toContain('uuid')
       expect(Object.keys((other.inputSchema as { properties: object }).properties), n).not.toContain('sort')
     }
   })
   it('the contacts_list output record carries the two fields, optional', () => {
-    const out = byName('contacts_list').tool.outputSchema as { properties: { data: { items: { properties: Record<string, unknown>; required?: string[] } } } }
+    const out = byName('contacts_list').tool.outputSchema as {
+      properties: { data: { items: { properties: Record<string, unknown>; required?: string[] } } }
+    }
     const item = out.properties.data.items
     for (const f of ['last_contacted_at', 'last_interacted_at']) {
       expect(item.properties, f).toHaveProperty(f)
@@ -148,9 +197,29 @@ describe('derived contact activity ([[CORE131]] D12)', () => {
 describe('deals tools (CORE130 D17)', () => {
   it('lists every pipelines_*, pipeline_stages_* and deals_* tool, and the move command', () => {
     const named = tools.map((t) => t.tool.name)
-    expect(named.filter((n) => n.startsWith('pipelines_'))).toEqual(['pipelines_list', 'pipelines_get', 'pipelines_create', 'pipelines_update', 'pipelines_delete'])
-    expect(named.filter((n) => n.startsWith('pipeline_stages_'))).toEqual(['pipeline_stages_list', 'pipeline_stages_get', 'pipeline_stages_create', 'pipeline_stages_update', 'pipeline_stages_delete'])
-    expect(named.filter((n) => n.startsWith('deals_'))).toEqual(['deals_list', 'deals_aggregate', 'deals_get', 'deals_create', 'deals_update', 'deals_delete', 'deals_move_stage'])
+    expect(named.filter((n) => n.startsWith('pipelines_'))).toEqual([
+      'pipelines_list',
+      'pipelines_get',
+      'pipelines_create',
+      'pipelines_update',
+      'pipelines_delete',
+    ])
+    expect(named.filter((n) => n.startsWith('pipeline_stages_'))).toEqual([
+      'pipeline_stages_list',
+      'pipeline_stages_get',
+      'pipeline_stages_create',
+      'pipeline_stages_update',
+      'pipeline_stages_delete',
+    ])
+    expect(named.filter((n) => n.startsWith('deals_'))).toEqual([
+      'deals_list',
+      'deals_aggregate',
+      'deals_get',
+      'deals_create',
+      'deals_update',
+      'deals_delete',
+      'deals_move_stage',
+    ])
   })
   it('pipelines and stages are configuration tools; deals are record tools; the filters are arguments', () => {
     expect(byName('pipelines_create').tool._meta['vibase/surface']).toBe('meta')
@@ -158,7 +227,18 @@ describe('deals tools (CORE130 D17)', () => {
     expect(byName('deals_create').tool._meta['vibase/surface']).toBe('api')
     expect(byName('deals_move_stage').tool.description).toContain('Requires deals:write (records surface).')
     const props = (n: string) => Object.keys((byName(n).tool.inputSchema as { properties: object }).properties)
-    expect(props('deals_list')).toEqual(expect.arrayContaining(['pipeline_id', 'stage_id', 'owner_id', 'created_by', 'status', 'tag_id', 'company_id', 'contact_id']))
+    expect(props('deals_list')).toEqual(
+      expect.arrayContaining([
+        'pipeline_id',
+        'stage_id',
+        'owner_id',
+        'created_by',
+        'status',
+        'tag_id',
+        'company_id',
+        'contact_id',
+      ]),
+    )
     expect(props('pipeline_stages_list')).toEqual(expect.arrayContaining(['pipeline_id', 'kind']))
     expect(props('pipelines_list')).toContain('name')
     expect(props('deals_move_stage')).toEqual(expect.arrayContaining(['id', 'stage_id']))
@@ -174,13 +254,17 @@ describe('instructions (D18)', () => {
     expect(INSTRUCTIONS.length).toBeLessThanOrEqual(1200)
   })
   it('tell an agent how deals work: stages, moving, linking ([[CORE136]] D17)', () => {
-    for (const name of ['pipelines_list', 'pipeline_stages_list', 'deals_move_stage', 'associations_create']) expect(INSTRUCTIONS, name).toContain(name)
+    for (const name of ['pipelines_list', 'pipeline_stages_list', 'deals_move_stage', 'associations_create'])
+      expect(INSTRUCTIONS, name).toContain(name)
     expect(INSTRUCTIONS).toMatch(/deals?\b/i)
     expect(INSTRUCTIONS).toMatch(/compan/)
   })
   it('mention only tools that exist, and mention the ones the spec lists', () => {
-    const mentioned = [...INSTRUCTIONS.matchAll(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g)].map((m) => m[0]).filter((w) => w !== 'next_cursor')
-    for (const name of ['me_get', 'schema_get', 'identities_resolve', 'companies_list']) expect(mentioned).toContain(name)
+    const mentioned = [...INSTRUCTIONS.matchAll(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g)]
+      .map((m) => m[0])
+      .filter((w) => w !== 'next_cursor')
+    for (const name of ['me_get', 'schema_get', 'identities_resolve', 'companies_list'])
+      expect(mentioned).toContain(name)
     for (const m of mentioned) expect(names, m).toContain(m)
   })
 })

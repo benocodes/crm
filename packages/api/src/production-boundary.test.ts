@@ -10,19 +10,28 @@ const SRC = dirname(fileURLToPath(import.meta.url))
 const TEST_FILE = /\.(test|suite|typecheck)\.ts$/
 
 function walk(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? walk(join(dir, d.name)) : [join(dir, d.name)]))
+  return readdirSync(dir, { withFileTypes: true }).flatMap((d) =>
+    d.isDirectory() ? walk(join(dir, d.name)) : [join(dir, d.name)],
+  )
 }
-const production = (): string[] => walk(SRC).filter((f) => f.endsWith('.ts') && !TEST_FILE.test(f) && !relative(SRC, f).startsWith('test/'))
-const specifiersOf = (text: string): string[] => [...text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map((m) => m[1]!)
+const production = (): string[] =>
+  walk(SRC).filter((f) => f.endsWith('.ts') && !TEST_FILE.test(f) && !relative(SRC, f).startsWith('test/'))
+const specifiersOf = (text: string): string[] =>
+  [...text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map((m) => m[1]!)
 
 describe('production boundary', () => {
   it('no production file imports a Node built-in', () => {
-    const offenders = production().flatMap((f) => specifiersOf(readFileSync(f, 'utf8')).filter((s) => s.startsWith('node:') || ['fs', 'path', 'crypto', 'os', 'stream', 'buffer'].includes(s)).map((s) => `${relative(SRC, f)} -> ${s}`))
+    const offenders = production().flatMap((f) =>
+      specifiersOf(readFileSync(f, 'utf8'))
+        .filter((s) => s.startsWith('node:') || ['fs', 'path', 'crypto', 'os', 'stream', 'buffer'].includes(s))
+        .map((s) => `${relative(SRC, f)} -> ${s}`),
+    )
     expect(offenders).toEqual([])
   })
 
-  it("`chat` is imported type-only everywhere in @vibase/api/src except test files (it cannot load in workerd, D25)", () => {
-    const runtimeChat = /^\s*(?:import|export)\s+(?!type\b)[^;]*?from\s+['"]chat['"]|^\s*import\s+['"]chat['"]|\bimport\(\s*['"]chat['"]\s*\)/m
+  it('`chat` is imported type-only everywhere in @vibase/api/src except test files (it cannot load in workerd, D25)', () => {
+    const runtimeChat =
+      /^\s*(?:import|export)\s+(?!type\b)[^;]*?from\s+['"]chat['"]|^\s*import\s+['"]chat['"]|\bimport\(\s*['"]chat['"]\s*\)/m
     const offenders = walk(SRC)
       .filter((f) => f.endsWith('.ts') && !/\.test\.ts$/.test(f))
       .filter((f) => runtimeChat.test(readFileSync(f, 'utf8')))
@@ -32,7 +41,15 @@ describe('production boundary', () => {
 
   it('the production set includes the new pipeline files (the walk is live)', () => {
     const names = production().map((f) => relative(SRC, f))
-    for (const n of ['channels/port.ts', 'messaging/streams.ts', 'messaging/preview.ts', 'messaging/store-content.ts', 'messaging/pipeline.ts', 'objects/store.ts']) expect(names).toContain(n)
+    for (const n of [
+      'channels/port.ts',
+      'messaging/streams.ts',
+      'messaging/preview.ts',
+      'messaging/store-content.ts',
+      'messaging/pipeline.ts',
+      'objects/store.ts',
+    ])
+      expect(names).toContain(n)
   })
 
   it('nothing reachable from the production barrel is in the test kit (FakeChannel, node streams, fakes)', () => {

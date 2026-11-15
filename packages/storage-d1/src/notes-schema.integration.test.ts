@@ -22,12 +22,31 @@ afterAll(async () => {
   await local.dispose()
 })
 
-const note = (over: Record<string, unknown> = {}) => ({ id: NOTE, organization_id: ORG, created_by: USER, created_at: AT, updated_at: AT, title: 'T', content: 'C', ...over })
+const note = (over: Record<string, unknown> = {}) => ({
+  id: NOTE,
+  organization_id: ORG,
+  created_by: USER,
+  created_at: AT,
+  updated_at: AT,
+  title: 'T',
+  content: 'C',
+  ...over,
+})
 const attempt = async (row: Record<string, unknown>) => {
   const cols = Object.keys(row)
-  await d1.batch([d1.prepare(`INSERT INTO "notes" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...Object.values(row))])
+  await d1.batch([
+    d1
+      .prepare(
+        `INSERT INTO "notes" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+      )
+      .bind(...Object.values(row)),
+  ])
 }
-const refused = (row: Record<string, unknown>) => attempt(row).then(() => null, (e: Error) => e.message)
+const refused = (row: Record<string, unknown>) =>
+  attempt(row).then(
+    () => null,
+    (e: Error) => e.message,
+  )
 
 describe('migration 0006_notes over a database at 0005 with data', () => {
   it('applies, keeps the existing rows, and creates the table', async () => {
@@ -37,13 +56,21 @@ describe('migration 0006_notes over a database at 0005 with data', () => {
     await applyMigrations(d1, dir)
     await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
     await seedPrincipal(d1, { id: USER, kind: 'user' })
-    await d1.prepare('INSERT INTO tasks (id, organization_id, title, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').bind(NOTE.replace('c1', 'd1'), ORG, 'keep me', USER, AT, AT).run()
+    await d1
+      .prepare(
+        'INSERT INTO tasks (id, organization_id, title, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .bind(NOTE.replace('c1', 'd1'), ORG, 'keep me', USER, AT, AT)
+      .run()
     expect((await d1.prepare("select name from sqlite_master where name = 'notes'").all()).results).toEqual([])
     const only = mkdtempSync(join(tmpdir(), 'mig6-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0006'))) cpSync(join(MIGRATIONS_DIR, f), join(only, f))
+    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0006')))
+      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
     expect(await applyMigrations(d1, only)).toEqual(['0006_notes.sql'])
     expect((await d1.prepare('select title from tasks').all()).results).toEqual([{ title: 'keep me' }])
-    expect((await d1.prepare("select name from sqlite_master where name = 'notes'").all()).results).toEqual([{ name: 'notes' }])
+    expect((await d1.prepare("select name from sqlite_master where name = 'notes'").all()).results).toEqual([
+      { name: 'notes' },
+    ])
   })
 
   it('constrains the table: content 1..100000, title null or 1..500, uuid id, ISO stamps, declared FKs', async () => {
@@ -56,7 +83,9 @@ describe('migration 0006_notes over a database at 0005 with data', () => {
     expect(await refused(note({ id: 'not-a-uuid' }))).toMatch(/CHECK/)
     expect(await refused(note({ id: NOTE.replace('c1', 'c4'), created_at: 'yesterday' }))).toMatch(/CHECK/)
     expect(await refused(note({ id: NOTE.replace('c1', 'c4'), deleted_at: 'never' }))).toMatch(/CHECK/)
-    const fks = (await d1.prepare("select \"table\" as t from pragma_foreign_key_list('notes') order by 1").all()).results!.map((r) => (r as { t: string }).t)
+    const fks = (
+      await d1.prepare('select "table" as t from pragma_foreign_key_list(\'notes\') order by 1').all()
+    ).results!.map((r) => (r as { t: string }).t)
     expect(fks).toEqual(['organizations', 'principals'])
   })
 })

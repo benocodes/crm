@@ -173,7 +173,9 @@ export async function up(db: Kysely<any>): Promise<void> {
     )`.execute(db)
   await sql`
     CREATE POLICY users_tenant ON users FOR SELECT TO vault_authenticated
-    USING (EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = users.id AND m.organization_id = app.current_organization_id()))`.execute(db)
+    USING (EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = users.id AND m.organization_id = app.current_organization_id()))`.execute(
+    db,
+  )
   for (const t of TENANT_TABLES) {
     await sql`
       CREATE POLICY ${sql.id(`${t}_tenant`)} ON ${sql.table(t)} FOR ALL TO vault_authenticated

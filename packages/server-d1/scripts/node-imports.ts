@@ -16,6 +16,7 @@ export function nodeImportProblems(bundleText: string, bytes: number): string[] 
   const out = nodeImportsOf(bundleText)
     .filter((m) => !ALLOWED_NODE_MODULES.includes(m))
     .map((m) => `the bundle imports ${m}, which is not in ALLOWED_NODE_MODULES (scripts/node-imports.ts)`)
-  if (bytes > BUNDLE_SIZE_CEILING) out.push(`the bundle is ${bytes} bytes, over the ceiling of ${BUNDLE_SIZE_CEILING} (scripts/node-imports.ts)`)
+  if (bytes > BUNDLE_SIZE_CEILING)
+    out.push(`the bundle is ${bytes} bytes, over the ceiling of ${BUNDLE_SIZE_CEILING} (scripts/node-imports.ts)`)
   return out
 }

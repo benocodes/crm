@@ -23,13 +23,22 @@ export function engineSuite(engineName: EngineName): void {
       await e.reset()
       k = identityKit(e)
     })
-    const resolve = (entries: ResolveEntry[], opts?: { as?: 'agent' }) => k.run((env) => resolveOperation(env, entries), opts)
-    const email = (value: string, extra: Partial<ResolveEntry> = {}): ResolveEntry => ({ kind: 'email', value, ...extra })
+    const resolve = (entries: ResolveEntry[], opts?: { as?: 'agent' }) =>
+      k.run((env) => resolveOperation(env, entries), opts)
+    const email = (value: string, extra: Partial<ResolveEntry> = {}): ResolveEntry => ({
+      kind: 'email',
+      value,
+      ...extra,
+    })
 
     describe('resolve', () => {
       it('creates a contact and an identity for a new address, normalised, with the name', async () => {
         const [r] = await resolve([email(' Ori@Example.com ', { name: 'Ori' })])
-        expect(r).toMatchObject({ created: true, identity: { kind: 'email', value: 'ori@example.com', own: false }, contact: { name: 'Ori' } })
+        expect(r).toMatchObject({
+          created: true,
+          identity: { kind: 'email', value: 'ori@example.com', own: false },
+          contact: { name: 'Ori' },
+        })
         expect(r!.identity.contact_id).toBe(r!.contact!.id)
         const ev = await k.events()
         expect(ev.map((x) => x.type)).toEqual(['contact.created', 'identity.created'])
@@ -46,7 +55,11 @@ export function engineSuite(engineName: EngineName): void {
         const [first] = await resolve([email('a@example.com', { name: 'First' })])
         const mark = (await e.rows('events')).length
         const [again] = await resolve([email('A@Example.com', { name: 'Second' })])
-        expect(again).toMatchObject({ created: false, identity: { id: first!.identity.id }, contact: { id: first!.contact!.id, name: 'First' } })
+        expect(again).toMatchObject({
+          created: false,
+          identity: { id: first!.identity.id },
+          contact: { id: first!.contact!.id, name: 'First' },
+        })
         expect(await e.rows('events')).toHaveLength(mark)
       })
 
@@ -58,14 +71,21 @@ export function engineSuite(engineName: EngineName): void {
 
       it('a mixed batch answers in input order', async () => {
         const [known] = await resolve([email('known@example.com', { name: 'Known' })])
-        const out = await resolve([email('new1@example.com'), email('known@example.com'), { kind: 'phone', value: '+44 20 7946 0958' }])
+        const out = await resolve([
+          email('new1@example.com'),
+          email('known@example.com'),
+          { kind: 'phone', value: '+44 20 7946 0958' },
+        ])
         expect(out.map((r) => r.created)).toEqual([true, false, true])
         expect(out.map((r) => r.identity.value)).toEqual(['new1@example.com', 'known@example.com', '+442079460958'])
         expect(out[1]!.identity.id).toBe(known!.identity.id)
       })
 
       it('an address repeated in a batch is one contact and one identity, created only on its first occurrence', async () => {
-        const out = await resolve([email('dup@example.com', { name: 'First' }), email('DUP@example.com', { name: 'Second' })])
+        const out = await resolve([
+          email('dup@example.com', { name: 'First' }),
+          email('DUP@example.com', { name: 'Second' }),
+        ])
         expect(out.map((r) => r.created)).toEqual([true, false])
         expect(out[1]!.identity.id).toBe(out[0]!.identity.id)
         expect(out[0]!.contact!.name).toBe('First')
@@ -74,7 +94,9 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('an invalid entry fails the whole call with its index and writes nothing', async () => {
-        const err = await k.fail((env) => resolveOperation(env, [email('ok@example.com'), { kind: 'phone', value: 'abc' }]))
+        const err = await k.fail((env) =>
+          resolveOperation(env, [email('ok@example.com'), { kind: 'phone', value: 'abc' }]),
+        )
         expect(err.code).toBe('invalid_identity')
         expect(err.message.startsWith('identities[1]: ')).toBe(true)
         expect(await e.rows('events')).toHaveLength(0)
@@ -82,7 +104,11 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('cleans names: padded trimmed, blank absent, long capped at 500', async () => {
-        const out = await resolve([email('a@example.com', { name: '  Padded  ' }), email('b@example.com', { name: '   ' }), email('c@example.com', { name: 'x'.repeat(600) })])
+        const out = await resolve([
+          email('a@example.com', { name: '  Padded  ' }),
+          email('b@example.com', { name: '   ' }),
+          email('c@example.com', { name: 'x'.repeat(600) }),
+        ])
         expect(out[0]!.contact!.name).toBe('Padded')
         expect(out[1]!.contact!.name).toBeNull()
         expect(out[2]!.contact!.name).toHaveLength(500)
@@ -97,7 +123,14 @@ export function engineSuite(engineName: EngineName): void {
       it('emits every contact.created before every identity.created, each in input order (P5)', async () => {
         const out = await resolve([email('a@example.com'), email('b@example.com'), email('c@example.com')])
         const ev = await k.events()
-        expect(ev.map((x) => x.type)).toEqual(['contact.created', 'contact.created', 'contact.created', 'identity.created', 'identity.created', 'identity.created'])
+        expect(ev.map((x) => x.type)).toEqual([
+          'contact.created',
+          'contact.created',
+          'contact.created',
+          'identity.created',
+          'identity.created',
+          'identity.created',
+        ])
         expect(ev.slice(0, 3).map((x) => x.resource_id)).toEqual(out.map((r) => r.contact!.id))
         expect(ev.slice(3).map((x) => x.resource_id)).toEqual(out.map((r) => r.identity.id))
       })
@@ -119,7 +152,8 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     describe('ensureOwnIdentity', () => {
-      const ensure = (address: { kind: 'email' | 'phone'; value: string }) => k.run((env) => ensureOwnIdentity(env, address))
+      const ensure = (address: { kind: 'email' | 'phone'; value: string }) =>
+        k.run((env) => ensureOwnIdentity(env, address))
 
       it('creates an own identity', async () => {
         const r = await ensure({ kind: 'email', value: ' Me@Us.com ' })

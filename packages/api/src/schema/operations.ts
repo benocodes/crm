@@ -22,11 +22,15 @@ export function schemaGetOperation(resources: readonly AnyResource[]): PreparedO
       return {
         columns: readAll(
           sql`select m.name as table_name, c.cid as cid, c.name as name, c.type as type, c."notnull" as "notnull", c.dflt_value as dflt_value, c.pk as pk
-            from sqlite_schema as m join pragma_table_info(m.name) as c where ${ELIGIBLE} order by m.name, c.cid`.compile(qc.db),
+            from sqlite_schema as m join pragma_table_info(m.name) as c where ${ELIGIBLE} order by m.name, c.cid`.compile(
+            qc.db,
+          ),
         ),
         foreign_keys: readAll(
           sql`select m.name as table_name, f.id as id, f.seq as seq, f."table" as ref_table, f."from" as "from", f."to" as "to", f.on_delete as on_delete
-            from sqlite_schema as m join pragma_foreign_key_list(m.name) as f where ${ELIGIBLE} order by m.name, f.id desc, f.seq`.compile(qc.db),
+            from sqlite_schema as m join pragma_foreign_key_list(m.name) as f where ${ELIGIBLE} order by m.name, f.id desc, f.seq`.compile(
+            qc.db,
+          ),
         ),
       }
     },

@@ -16,12 +16,26 @@ const SCOPES = ['webhooks:read', 'webhooks:write', 'events:read', 'tasks:read', 
 const NAMES = MIGRATIONS.map((m) => m.name)
 // API220: the sender runs after dispatch whenever the key is set, so these suites hand it a receiver that always answers 503: a row is dispatched, attempted once and left pending (nothing reaches a network).
 const receiver: typeof fetch = async () => new Response(null, { status: 503 })
-const worker = () => composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY }, { fetch: receiver, clock: () => NOW, newId: () => uuidv7(NOW) })
+const worker = () =>
+  composeD1Worker(
+    { DB: w.d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY },
+    { fetch: receiver, clock: () => NOW, newId: () => uuidv7(NOW) },
+  )
 const call = async (wk: ReturnType<typeof worker>, method: string, path: string, body?: unknown) => {
-  const res = await wk.fetch(new Request(BASE + path, { method, headers: { authorization: `Bearer ${key}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) }))
+  const res = await wk.fetch(
+    new Request(BASE + path, {
+      method,
+      headers: {
+        authorization: `Bearer ${key}`,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  )
   return { status: res.status, body: (await res.json().catch(() => null)) as any }
 }
-const rows = async (sqlText: string) => ((await w.d1.prepare(sqlText).all()).results ?? []) as Array<Record<string, any>>
+const rows = async (sqlText: string) =>
+  ((await w.d1.prepare(sqlText).all()).results ?? []) as Array<Record<string, any>>
 
 beforeAll(async () => {
   w = await openWorkerD1()
@@ -30,21 +44,32 @@ afterAll(() => w.dispose())
 beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
-  key = (await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', scopes: SCOPES }, { now: NOW, newId: () => uuidv7(NOW) })).key
+  key = (
+    await bootstrapD1(
+      w.d1,
+      { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', scopes: SCOPES },
+      { now: NOW, newId: () => uuidv7(NOW) },
+    )
+  ).key
 })
 afterEach(() => vi.restoreAllMocks())
 
 describe('the per-minute handler dispatches webhooks after the rail (D6)', () => {
   it('a subscription and a task event produce one pending row after "* * * * *", and its log line follows the rail line', async () => {
     const wk = worker()
-    const sub = await call(wk, 'POST', '/meta/v1/webhooks', { url: 'https://example.com/hook', event_types: ['task.created'] })
+    const sub = await call(wk, 'POST', '/meta/v1/webhooks', {
+      url: 'https://example.com/hook',
+      event_types: ['task.created'],
+    })
     expect(sub.status, JSON.stringify(sub.body)).toBe(201)
     expect((await call(wk, 'POST', '/api/v1/tasks', { title: 'cron me' })).status).toBe(201)
     expect(await rows('select id from webhook_deliveries')).toEqual([])
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     await wk.scheduled({ cron: '* * * * *' })
     const delivered = await rows('select subscription_id, event_type, status, attempts from webhook_deliveries')
-    expect(delivered).toEqual([{ subscription_id: sub.body.id, event_type: 'task.created', status: 'pending', attempts: 1 }]) // API220: attempted once by the sender in the same tick
+    expect(delivered).toEqual([
+      { subscription_id: sub.body.id, event_type: 'task.created', status: 'pending', attempts: 1 },
+    ]) // API220: attempted once by the sender in the same tick
     const lines = log.mock.calls.map((c) => String(c[0]))
     const rail = lines.findIndex((l) => l.includes('rail expired 0 request(s), attempted 0 execution(s)'))
     const hooks = lines.findIndex((l) => l.includes('webhooks dispatched 1 event(s) for 1 subscription(s)'))
@@ -56,8 +81,25 @@ describe('the per-minute handler dispatches webhooks after the rail (D6)', () =>
 
   // The two halves are independent (a decision of this cycle): one failing does not stop the other, and the failure is rethrown after both ran. A statement that mentions
   // `table` throws at prepare time, standing in for a database fault in that half only.
-  const breaking = (table: RegExp) => new Proxy(w.d1, { get: (t: any, p) => (p === 'prepare' ? (q: string) => (table.test(q) ? (() => { throw new Error('database fault') })() : t.prepare(q)) : typeof t[p] === 'function' ? t[p].bind(t) : t[p]) }) as typeof w.d1
-  const workerOn = (d1: typeof w.d1, at = NOW) => composeD1Worker({ DB: d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY }, { fetch: receiver, clock: () => at, newId: () => uuidv7(at) })
+  const breaking = (table: RegExp) =>
+    new Proxy(w.d1, {
+      get: (t: any, p) =>
+        p === 'prepare'
+          ? (q: string) =>
+              table.test(q)
+                ? (() => {
+                    throw new Error('database fault')
+                  })()
+                : t.prepare(q)
+          : typeof t[p] === 'function'
+            ? t[p].bind(t)
+            : t[p],
+    }) as typeof w.d1
+  const workerOn = (d1: typeof w.d1, at = NOW) =>
+    composeD1Worker(
+      { DB: d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY },
+      { fetch: receiver, clock: () => at, newId: () => uuidv7(at) },
+    )
 
   it('a failing rail sweep does not stop dispatch, and the failure is still raised after it', async () => {
     const wk = worker()
@@ -72,11 +114,18 @@ describe('the per-minute handler dispatches webhooks after the rail (D6)', () =>
 
   it('a failing dispatch does not undo the rail, and the failure is raised', async () => {
     const wk = worker()
-    const r = await call(wk, 'POST', '/api/v1/action-requests', { operation: 'tasks.create', arguments: { title: 't' }, reason: 'r', expires_at: new Date(NOW.getTime() + 60_000).toISOString() })
+    const r = await call(wk, 'POST', '/api/v1/action-requests', {
+      operation: 'tasks.create',
+      arguments: { title: 't' },
+      reason: 'r',
+      expires_at: new Date(NOW.getTime() + 60_000).toISOString(),
+    })
     expect(r.status).toBe(201)
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    await expect(workerOn(breaking(/webhook_dispatch_state/), new Date(NOW.getTime() + 120_000)).scheduled({ cron: '* * * * *' })).rejects.toThrow()
+    await expect(
+      workerOn(breaking(/webhook_dispatch_state/), new Date(NOW.getTime() + 120_000)).scheduled({ cron: '* * * * *' }),
+    ).rejects.toThrow()
     expect((await rows(`select status from action_requests where id = '${r.body.id}'`))[0]!.status).toBe('expired')
   })
 
@@ -107,12 +156,14 @@ describe('the per-minute handler dispatches webhooks after the rail (D6)', () =>
     await expect(worker().scheduled({ cron: '* * * * *' })).resolves.toBeUndefined()
   })
 
-  it('no CREDENTIALS_KEY is no obstacle to dispatch (D12 is the sender\'s): rows are written whatever the key', async () => {
+  it("no CREDENTIALS_KEY is no obstacle to dispatch (D12 is the sender's): rows are written whatever the key", async () => {
     const wk = worker()
     await call(wk, 'POST', '/meta/v1/webhooks', { url: 'https://example.com/hook', event_types: ['task.created'] })
     await call(wk, 'POST', '/api/v1/tasks', { title: 'keyless' })
     vi.spyOn(console, 'log').mockImplementation(() => {})
-    await composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' }, { clock: () => NOW, newId: () => uuidv7(NOW) }).scheduled({ cron: '* * * * *' })
+    await composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' }, { clock: () => NOW, newId: () => uuidv7(NOW) }).scheduled({
+      cron: '* * * * *',
+    })
     expect(await rows('select id from webhook_deliveries')).toHaveLength(1)
   })
 })

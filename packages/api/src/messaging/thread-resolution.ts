@@ -51,7 +51,11 @@ export function rankedHints(m: HintSource): string[] {
  * one, whichever ranks lower -> `ancestor`; otherwise a `new` thread. Every pair without an alias gets one to the thread
  * the message ends up in (the first message of a pair sets it).
  */
-export function resolveThreads(sorted: readonly ThreadInput[], planned: PlannedThreads, newId: () => string): ThreadResolution {
+export function resolveThreads(
+  sorted: readonly ThreadInput[],
+  planned: PlannedThreads,
+  newId: () => string,
+): ThreadResolution {
   const decisions: ThreadDecision[] = []
   const newThreads: ThreadResolution['new_threads'] = []
   const aliasesToAdd: ThreadResolution['aliases_to_add'] = []

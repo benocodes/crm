@@ -31,7 +31,8 @@ export interface PushDeps {
   newId?: () => string
 }
 
-const error = (c: Context, status: 401 | 404 | 500 | 501 | 503, code: string, message: string): Response => c.json({ error: { code, message } }, status)
+const error = (c: Context, status: 401 | 404 | 500 | 501 | 503, code: string, message: string): Response =>
+  c.json({ error: { code, message } }, status)
 
 /** The request body as text, or null when it exceeds `limit` bytes (read as a stream: an oversized body is never held whole). */
 async function readCapped(req: Request, limit: number): Promise<string | null> {
@@ -71,7 +72,12 @@ function decodeData(data: string): string | null {
   }
 }
 
-type Watched = { id: string; lease_until: string | null; last_success_at: string | null; sync_requested_at: string | null }
+type Watched = {
+  id: string
+  lease_until: string | null
+  last_success_at: string | null
+  sync_requested_at: string | null
+}
 const text = (v: unknown): string | null => (v === null || v === undefined ? null : String(v))
 
 /** The live, `active` connections watching `mailbox`, with the lease and request columns the coalescing decision reads. */
@@ -90,7 +96,18 @@ async function watched(binding: D1Binding, mailbox: string): Promise<Watched[]> 
           order by c.id`.compile(qc.db),
       ),
     }),
-    build: (found) => unit({ steps: [], events: [], decode: () => found.all('watched').map((r) => ({ id: String(r.id), lease_until: text(r.lease_until), last_success_at: text(r.last_success_at), sync_requested_at: text(r.sync_requested_at) })) }),
+    build: (found) =>
+      unit({
+        steps: [],
+        events: [],
+        decode: () =>
+          found.all('watched').map((r) => ({
+            id: String(r.id),
+            lease_until: text(r.lease_until),
+            last_success_at: text(r.last_success_at),
+            sync_requested_at: text(r.sync_requested_at),
+          })),
+      }),
   })
   return (await execute(binding, { kind: 'internal', organizationId }, op)).value
 }
@@ -130,8 +147,16 @@ export function gmailPushHandler(d: PushDeps): (c: Context) => Promise<Response>
 
     // 3. The token.
     try {
-      const { payload } = await jwtVerify(jwt, keys, { issuer: ISSUERS, audience: push.audience, algorithms: ['RS256'], clockTolerance: CLOCK_TOLERANCE_S, currentDate: clock(), requiredClaims: ['exp'] })
-      if (typeof payload.email !== 'string' || payload.email.toLowerCase() !== push.serviceAccount) return refuse('email')
+      const { payload } = await jwtVerify(jwt, keys, {
+        issuer: ISSUERS,
+        audience: push.audience,
+        algorithms: ['RS256'],
+        clockTolerance: CLOCK_TOLERANCE_S,
+        currentDate: clock(),
+        requiredClaims: ['exp'],
+      })
+      if (typeof payload.email !== 'string' || payload.email.toLowerCase() !== push.serviceAccount)
+        return refuse('email')
       if (payload.email_verified !== true) return refuse('email_verified')
     } catch {
       return refuse('token')
@@ -157,7 +182,8 @@ export function gmailPushHandler(d: PushDeps): (c: Context) => Promise<Response>
     if (data !== null) {
       try {
         const n = JSON.parse(data) as { emailAddress?: unknown }
-        if (typeof n.emailAddress === 'string' && n.emailAddress.trim() !== '') mailbox = n.emailAddress.trim().toLowerCase()
+        if (typeof n.emailAddress === 'string' && n.emailAddress.trim() !== '')
+          mailbox = n.emailAddress.trim().toLowerCase()
       } catch {
         // not JSON
       }
@@ -179,7 +205,8 @@ export function gmailPushHandler(d: PushDeps): (c: Context) => Promise<Response>
       const newId = d.newId ?? (() => uuidv7(now))
       for (const w of found) {
         const leaseHeld = w.lease_until !== null && w.lease_until >= at
-        const unserved = w.sync_requested_at !== null && (w.last_success_at === null || w.sync_requested_at > w.last_success_at)
+        const unserved =
+          w.sync_requested_at !== null && (w.last_success_at === null || w.sync_requested_at > w.last_success_at)
         const young = unserved && now.getTime() - Date.parse(w.sync_requested_at!) < COALESCE_MS
         // Always advance the request: a running pass re-passes on it ([[CHN5]] D11).
         await markRequested({ binding, organizationId: binding.organizationId }, w.id, at)

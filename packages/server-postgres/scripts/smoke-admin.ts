@@ -27,8 +27,12 @@ const profiles = new Map<string, unknown>([
 ])
 // The fake Clerk's organisation and its (mutable) memberships.
 const orgExt = `org_smoke_${rand}`
-const organizations = new Map<string, unknown>([[orgExt, { object: 'organization', id: orgExt, name: `Smoke ${rand}` }]])
-const clerkMembers: { role: string; public_user_data: { user_id: string } }[] = [{ role: 'org:admin', public_user_data: { user_id: owner.sub } }]
+const organizations = new Map<string, unknown>([
+  [orgExt, { object: 'organization', id: orgExt, name: `Smoke ${rand}` }],
+])
+const clerkMembers: { role: string; public_user_data: { user_id: string } }[] = [
+  { role: 'org:admin', public_user_data: { user_id: owner.sub } },
+]
 
 function userJson(id: string, email: string, verified = true) {
   return {
@@ -36,11 +40,14 @@ function userJson(id: string, email: string, verified = true) {
     first_name: 'Smoke',
     last_name: 'Test',
     primary_email_address_id: 'idn_1',
-    email_addresses: [{ id: 'idn_1', email_address: email, verification: { status: verified ? 'verified' : 'unverified' } }],
+    email_addresses: [
+      { id: 'idn_1', email_address: email, verification: { status: verified ? 'verified' : 'unverified' } },
+    ],
   }
 }
 
-const listen = (server: Server) => new Promise<number>((r) => server.listen(0, '127.0.0.1', () => r((server.address() as AddressInfo).port)))
+const listen = (server: Server) =>
+  new Promise<number>((r) => server.listen(0, '127.0.0.1', () => r((server.address() as AddressInfo).port)))
 
 const fakeClerk = createServer((req, res) => {
   const url = new URL(req.url ?? '', 'http://fake')
@@ -83,7 +90,8 @@ const adapter = createAuthAdapter({
 })!
 
 const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhost/vault_dev', { max: 4 })
-const dbName = (await sql<{ current_database: string }>`SELECT current_database()`.execute(db)).rows[0]!.current_database
+const dbName = (await sql<{ current_database: string }>`SELECT current_database()`.execute(db)).rows[0]!
+  .current_database
 console.log(`database ${dbName}`)
 const expectedDb = process.env.SMOKE_EXPECT_DATABASE
 if (!expectedDb || dbName !== expectedDb) {
@@ -100,7 +108,12 @@ const declared = createVibaseRegistry().declaredScopes()
 
 const mint = (sub: string, o: { azp?: string; exp?: number; rol?: string } = {}) => {
   const now = Math.floor(Date.now() / 1000)
-  return new SignJWT({ azp: o.azp ?? origin, sid: 'sess_smoke', v: 2, ...(o.rol ? { o: { id: orgExt, rol: o.rol, slg: 'smoke' } } : {}) })
+  return new SignJWT({
+    azp: o.azp ?? origin,
+    sid: 'sess_smoke',
+    v: 2,
+    ...(o.rol ? { o: { id: orgExt, rol: o.rol, slg: 'smoke' } } : {}),
+  })
     .setProtectedHeader({ alg: 'RS256' })
     .setIssuer(ISSUER)
     .setSubject(sub)
@@ -129,7 +142,9 @@ async function check(
   const json = text ? JSON.parse(text) : undefined
   const problem = res.status !== expectStatus ? `expected ${expectStatus}` : verify?.(json, res)
   if (problem) failures++
-  console.log(`${problem ? 'FAIL' : 'ok  '} ${name} -> ${res.status}${json?.error ? ` ${json.error.code}` : ''}${problem ? ` (${problem})` : ''}`)
+  console.log(
+    `${problem ? 'FAIL' : 'ok  '} ${name} -> ${res.status}${json?.error ? ` ${json.error.code}` : ''}${problem ? ` (${problem})` : ''}`,
+  )
   return json
 }
 
@@ -146,7 +161,13 @@ async function deliver(type: string, data: unknown, opts: { secret?: string; id?
     body,
   })
 }
-async function webhook(name: string, type: string, data: unknown, expectStatus = 200, opts: { secret?: string; id?: string } = {}) {
+async function webhook(
+  name: string,
+  type: string,
+  data: unknown,
+  expectStatus = 200,
+  opts: { secret?: string; id?: string } = {},
+) {
   const res = await deliver(type, data, opts)
   const ok = res.status === expectStatus
   if (!ok) failures++
@@ -157,14 +178,18 @@ const membershipData = () => ({ organization: { id: orgExt } })
 /** Directory events (organization.*, membership.*) of one organisation straight from the database (service role): types in order and their actors. */
 async function events(organizationId: string) {
   return withServiceRole(db, async (trx) => {
-    const rows = await trx.selectFrom('events').select(['type', 'actor_id']).where('organization_id', '=', organizationId)
+    const rows = await trx
+      .selectFrom('events')
+      .select(['type', 'actor_id'])
+      .where('organization_id', '=', organizationId)
       .where((eb) => eb.or([eb('type', 'like', 'organization.%'), eb('type', 'like', 'membership.%')]))
       .execute()
     const system = await trx.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirst()
     return { types: rows.map((r) => r.type).sort(), allSystem: rows.every((r) => r.actor_id === system?.id) }
   })
 }
-const eq = (a: unknown, b: unknown, what: string) => (JSON.stringify(a) === JSON.stringify(b) ? undefined : `${what}: got ${JSON.stringify(a)}`)
+const eq = (a: unknown, b: unknown, what: string) =>
+  JSON.stringify(a) === JSON.stringify(b) ? undefined : `${what}: got ${JSON.stringify(a)}`
 
 try {
   const tokO = await mint(owner.sub, { rol: 'org:admin' })
@@ -173,26 +198,61 @@ try {
   for (const surface of ['api', 'meta'] as const) {
     await check(`GET /${surface}/v1/openapi.json`, { path: `/${surface}/v1/openapi.json` }, 200, (j) => {
       const have = new Set(Object.values(j.paths).flatMap((p: any) => Object.values(p).map((o: any) => o.operationId)))
-      const missing = createVibaseRegistry().operations().filter((o) => o.surface === surface).map((o) => o.name).filter((n) => !have.has(n))
+      const missing = createVibaseRegistry()
+        .operations()
+        .filter((o) => o.surface === surface)
+        .map((o) => o.name)
+        .filter((n) => !have.has(n))
       return missing.length ? `missing ${missing.join(', ')}` : undefined
     })
   }
-  const me = await check('GET /meta/v1/me (owner, first sight, claim repairs the copy)', { path: '/meta/v1/me', token: tokO }, 200, (j) =>
-    eq(j.active_organization?.role, 'owner', 'role'),
+  const me = await check(
+    'GET /meta/v1/me (owner, first sight, claim repairs the copy)',
+    { path: '/meta/v1/me', token: tokO },
+    200,
+    (j) => eq(j.active_organization?.role, 'owner', 'role'),
   )
   const orgId = me.active_organization.id as string
 
-  await webhook('bad signature', 'organizationMembership.created', membershipData(), 401, { secret: 'whsec_' + randomBytes(24).toString('base64') })
+  await webhook('bad signature', 'organizationMembership.created', membershipData(), 401, {
+    secret: 'whsec_' + randomBytes(24).toString('base64'),
+  })
   clerkMembers.push({ role: 'org:member', public_user_data: { user_id: member.sub } })
   const created = `msg_${randomBytes(8).toString('hex')}`
-  await webhook('organizationMembership.created (member who never signed in)', 'organizationMembership.created', membershipData(), 200, { id: created })
-  await check('GET /meta/v1/memberships (owner)', { path: '/meta/v1/memberships', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
-  await check('GET /meta/v1/users (owner)', { path: '/meta/v1/users', token: tokO }, 200, (j) => eq(j.data.length, 2, 'count'))
-  const users = await check('GET /meta/v1/users (owner, to find the member)', { path: '/meta/v1/users', token: tokO }, 200)
+  await webhook(
+    'organizationMembership.created (member who never signed in)',
+    'organizationMembership.created',
+    membershipData(),
+    200,
+    { id: created },
+  )
+  await check('GET /meta/v1/memberships (owner)', { path: '/meta/v1/memberships', token: tokO }, 200, (j) =>
+    eq(j.data.length, 2, 'count'),
+  )
+  await check('GET /meta/v1/users (owner)', { path: '/meta/v1/users', token: tokO }, 200, (j) =>
+    eq(j.data.length, 2, 'count'),
+  )
+  const users = await check(
+    'GET /meta/v1/users (owner, to find the member)',
+    { path: '/meta/v1/users', token: tokO },
+    200,
+  )
   const memberUser = users.data.find((u: { email: string }) => u.email === member.email)
-  await check('GET /meta/v1/users/{id} (member who never signed in)', { path: `/meta/v1/users/${memberUser?.id}`, token: tokO }, 200, (j) => eq(j.email, member.email, 'email'))
-  await check('GET /meta/v1/users/nope', { path: '/meta/v1/users/nope', token: tokO }, 404, (j) => eq(j.error.code, 'not_found', 'code'))
-  await check('GET /meta/v1/memberships (member, first sign-in)', { path: '/meta/v1/memberships', token: tokM }, 200, (j) => eq(j.data.length, 2, 'count'))
+  await check(
+    'GET /meta/v1/users/{id} (member who never signed in)',
+    { path: `/meta/v1/users/${memberUser?.id}`, token: tokO },
+    200,
+    (j) => eq(j.email, member.email, 'email'),
+  )
+  await check('GET /meta/v1/users/nope', { path: '/meta/v1/users/nope', token: tokO }, 404, (j) =>
+    eq(j.error.code, 'not_found', 'code'),
+  )
+  await check(
+    'GET /meta/v1/memberships (member, first sign-in)',
+    { path: '/meta/v1/memberships', token: tokM },
+    200,
+    (j) => eq(j.data.length, 2, 'count'),
+  )
   const before = await events(orgId)
   await webhook('replayed delivery', 'organizationMembership.created', membershipData(), 200, { id: created })
   const after = await events(orgId)
@@ -200,50 +260,134 @@ try {
   if (replayed) failures++
   console.log(`${replayed ? 'FAIL' : 'ok  '} replay adds no events${replayed ? ` (${replayed})` : ''}`)
 
-  await check('POST /meta/v1/agents (member)', { path: '/meta/v1/agents', method: 'POST', token: tokM, body: { name: 'Bot', scopes: [] } }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
-  await check('POST /meta/v1/agents (human-only scope)', { path: '/meta/v1/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['members:read'] } }, 400, (j) => eq(j.error.code, 'scope_not_grantable', 'code'))
-  await check('POST /meta/v1/agents (unknown scope)', { path: '/meta/v1/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['nope:read'] } }, 400, (j) => eq(j.error.code, 'unknown_scope', 'code'))
-  const agent = await check('POST /meta/v1/agents', { path: '/meta/v1/agents', method: 'POST', token: tokO, body: { name: `Bot ${rand}`, scopes: ['tasks:read', 'tasks:write'] } }, 201)
-  const made = await check('POST /meta/v1/api-keys', { path: '/meta/v1/api-keys', method: 'POST', token: tokO, body: { agent_id: agent.id } }, 201, (j) => (typeof j.key === 'string' && j.key.startsWith('vk_') ? undefined : 'no key'))
-  // CORE41 D17: the key's own use stamps last_used_at (through authenticateApiKey on storage) and leaves updated_at alone.
-  const unused = await check('GET /meta/v1/api-keys/{id} (before use)', { path: `/meta/v1/api-keys/${made.id}`, token: tokO }, 200, (j) => (j.last_used_at === null ? undefined : 'last_used_at already set'))
-  await check('GET /api/v1/tasks (agent key)', { path: '/api/v1/tasks', token: made.key }, 200)
-  await check('GET /meta/v1/api-keys/{id} (after use: last_used_at set, updated_at unchanged)', { path: `/meta/v1/api-keys/${made.id}`, token: tokO }, 200, (j) =>
-    j.last_used_at ? eq(j.updated_at, unused.updated_at, 'updated_at') : 'last_used_at unset',
+  await check(
+    'POST /meta/v1/agents (member)',
+    { path: '/meta/v1/agents', method: 'POST', token: tokM, body: { name: 'Bot', scopes: [] } },
+    403,
+    (j) => eq(j.error.code, 'insufficient_scope', 'code'),
   )
-  await check('GET /meta/v1/agents (agent key)', { path: '/meta/v1/agents', token: made.key }, 403, (j) => eq(j.error.code, 'insufficient_scope', 'code'))
+  await check(
+    'POST /meta/v1/agents (human-only scope)',
+    { path: '/meta/v1/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['members:read'] } },
+    400,
+    (j) => eq(j.error.code, 'scope_not_grantable', 'code'),
+  )
+  await check(
+    'POST /meta/v1/agents (unknown scope)',
+    { path: '/meta/v1/agents', method: 'POST', token: tokO, body: { name: 'Bot', scopes: ['nope:read'] } },
+    400,
+    (j) => eq(j.error.code, 'unknown_scope', 'code'),
+  )
+  const agent = await check(
+    'POST /meta/v1/agents',
+    {
+      path: '/meta/v1/agents',
+      method: 'POST',
+      token: tokO,
+      body: { name: `Bot ${rand}`, scopes: ['tasks:read', 'tasks:write'] },
+    },
+    201,
+  )
+  const made = await check(
+    'POST /meta/v1/api-keys',
+    { path: '/meta/v1/api-keys', method: 'POST', token: tokO, body: { agent_id: agent.id } },
+    201,
+    (j) => (typeof j.key === 'string' && j.key.startsWith('vk_') ? undefined : 'no key'),
+  )
+  // CORE41 D17: the key's own use stamps last_used_at (through authenticateApiKey on storage) and leaves updated_at alone.
+  const unused = await check(
+    'GET /meta/v1/api-keys/{id} (before use)',
+    { path: `/meta/v1/api-keys/${made.id}`, token: tokO },
+    200,
+    (j) => (j.last_used_at === null ? undefined : 'last_used_at already set'),
+  )
+  await check('GET /api/v1/tasks (agent key)', { path: '/api/v1/tasks', token: made.key }, 200)
+  await check(
+    'GET /meta/v1/api-keys/{id} (after use: last_used_at set, updated_at unchanged)',
+    { path: `/meta/v1/api-keys/${made.id}`, token: tokO },
+    200,
+    (j) => (j.last_used_at ? eq(j.updated_at, unused.updated_at, 'updated_at') : 'last_used_at unset'),
+  )
+  await check('GET /meta/v1/agents (agent key)', { path: '/meta/v1/agents', token: made.key }, 403, (j) =>
+    eq(j.error.code, 'insufficient_scope', 'code'),
+  )
   const keyBody = await fetch(`${base}/api-keys?agent_id=${agent.id}`, { headers: { authorization: `Bearer ${tokO}` } })
   const keyText = await keyBody.text()
   const leaked = keyBody.status !== 200 || /"key"|key_hash/.test(keyText)
   if (leaked) failures++
-  console.log(`${leaked ? 'FAIL' : 'ok  '} GET /meta/v1/api-keys?agent_id= -> ${keyBody.status} (no key or key_hash in the body)`)
+  console.log(
+    `${leaked ? 'FAIL' : 'ok  '} GET /meta/v1/api-keys?agent_id= -> ${keyBody.status} (no key or key_hash in the body)`,
+  )
 
-  await check('PATCH /meta/v1/agents/{id} (disable)', { path: `/meta/v1/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: true } }, 200, (j) => (j.disabled_at ? undefined : 'disabled_at unset'))
+  await check(
+    'PATCH /meta/v1/agents/{id} (disable)',
+    { path: `/meta/v1/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: true } },
+    200,
+    (j) => (j.disabled_at ? undefined : 'disabled_at unset'),
+  )
   await check('GET /api/v1/tasks (agent key, disabled)', { path: '/api/v1/tasks', token: made.key }, 401)
-  await check('PATCH /meta/v1/agents/{id} (enable)', { path: `/meta/v1/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: false } }, 200)
+  await check(
+    'PATCH /meta/v1/agents/{id} (enable)',
+    { path: `/meta/v1/agents/${agent.id}`, method: 'PATCH', token: tokO, body: { disabled: false } },
+    200,
+  )
   await check('GET /api/v1/tasks (agent key, enabled)', { path: '/api/v1/tasks', token: made.key }, 200)
-  const revoked = await check('POST /meta/v1/api-keys/{id}/revoke', { path: `/meta/v1/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => (j.revoked_at ? undefined : 'revoked_at unset'))
+  const revoked = await check(
+    'POST /meta/v1/api-keys/{id}/revoke',
+    { path: `/meta/v1/api-keys/${made.id}/revoke`, method: 'POST', token: tokO },
+    200,
+    (j) => (j.revoked_at ? undefined : 'revoked_at unset'),
+  )
   const stamped = eq(revoked.updated_at, revoked.revoked_at, 'updated_at moves with revoked_at')
   if (stamped) failures++
   console.log(`${stamped ? 'FAIL' : 'ok  '} revoke stamps updated_at with revoked_at${stamped ? ` (${stamped})` : ''}`)
   await check('GET /api/v1/tasks (agent key, revoked)', { path: '/api/v1/tasks', token: made.key }, 401)
-  await check('POST /meta/v1/api-keys/{id}/revoke (again)', { path: `/meta/v1/api-keys/${made.id}/revoke`, method: 'POST', token: tokO }, 200, (j) => eq(j.revoked_at, revoked.revoked_at, 'revoked_at'))
+  await check(
+    'POST /meta/v1/api-keys/{id}/revoke (again)',
+    { path: `/meta/v1/api-keys/${made.id}/revoke`, method: 'POST', token: tokO },
+    200,
+    (j) => eq(j.revoked_at, revoked.revoked_at, 'revoked_at'),
+  )
 
   clerkMembers[1]!.role = 'org:admin'
-  await webhook('organizationMembership.updated (member becomes admin)', 'organizationMembership.updated', membershipData())
-  await check('GET /meta/v1/memberships?role=owner', { path: '/meta/v1/memberships?role=owner', token: tokO }, 200, (j) => eq(j.data.length, 2, 'owners'))
+  await webhook(
+    'organizationMembership.updated (member becomes admin)',
+    'organizationMembership.updated',
+    membershipData(),
+  )
+  await check(
+    'GET /meta/v1/memberships?role=owner',
+    { path: '/meta/v1/memberships?role=owner', token: tokO },
+    200,
+    (j) => eq(j.data.length, 2, 'owners'),
+  )
   clerkMembers.pop()
   await webhook('organizationMembership.deleted (member removed)', 'organizationMembership.deleted', membershipData())
-  await check('GET /meta/v1/memberships (one left)', { path: '/meta/v1/memberships', token: tokO }, 200, (j) => eq(j.data.length, 1, 'count'))
-  await check('GET /api/v1/tasks (removed member, token without the organisation)', { path: '/api/v1/tasks', token: await mint(member.sub) }, 403, (j) =>
-    eq(j.error.code, 'organization_required', 'code'),
+  await check('GET /meta/v1/memberships (one left)', { path: '/meta/v1/memberships', token: tokO }, 200, (j) =>
+    eq(j.data.length, 1, 'count'),
+  )
+  await check(
+    'GET /api/v1/tasks (removed member, token without the organisation)',
+    { path: '/api/v1/tasks', token: await mint(member.sub) },
+    403,
+    (j) => eq(j.error.code, 'organization_required', 'code'),
   )
 
   const final = await events(orgId)
-  const expected = ['membership.created', 'membership.created', 'membership.deleted', 'membership.updated', 'organization.created']
-  const problem = eq(final.types, expected, 'event types') ?? (final.allSystem ? undefined : 'a directory event is not attributed to the system principal')
+  const expected = [
+    'membership.created',
+    'membership.created',
+    'membership.deleted',
+    'membership.updated',
+    'organization.created',
+  ]
+  const problem =
+    eq(final.types, expected, 'event types') ??
+    (final.allSystem ? undefined : 'a directory event is not attributed to the system principal')
   if (problem) failures++
-  console.log(`${problem ? 'FAIL' : 'ok  '} directory events: ${final.types.join(', ')}${problem ? ` (${problem})` : ''}`)
+  console.log(
+    `${problem ? 'FAIL' : 'ok  '} directory events: ${final.types.join(', ')}${problem ? ` (${problem})` : ''}`,
+  )
   console.log(`organization_id: ${orgId}`)
 } finally {
   server.close()

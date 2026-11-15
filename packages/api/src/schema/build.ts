@@ -55,7 +55,8 @@ export const KIND_NOTES: Readonly<Record<string, string>> = {
   integer: 'INTEGER',
 }
 
-const ASSOCIATIONS_DESCRIPTION = 'Any two records of associable tables can be linked once, undirected; list with GET /api/v1/associations?type=&id=.'
+const ASSOCIATIONS_DESCRIPTION =
+  'Any two records of associable tables can be linked once, undirected; list with GET /api/v1/associations?type=&id=.'
 
 /** D14: at most one definition per table; two make the builder (and the operation factory) throw at load. */
 export function resourcesByTable(defs: readonly AnyResource[]): Map<string, AnyResource> {
@@ -71,13 +72,21 @@ export function resourcesByTable(defs: readonly AnyResource[]): Map<string, AnyR
 /** The allowed values of a record field when its zod schema (unwrapping nullable/optional/default) is an enum. */
 function enumValues(schema: unknown): string[] | null {
   let s = schema as { def?: { type?: string; innerType?: unknown; entries?: Record<string, string> } } | undefined
-  while (s?.def && (s.def.type === 'optional' || s.def.type === 'nullable' || s.def.type === 'default' || s.def.type === 'readonly')) s = s.def.innerType as typeof s
+  while (
+    s?.def &&
+    (s.def.type === 'optional' || s.def.type === 'nullable' || s.def.type === 'default' || s.def.type === 'readonly')
+  )
+    s = s.def.innerType as typeof s
   return s?.def?.type === 'enum' && s.def.entries ? Object.values(s.def.entries) : null
 }
 
 /** [[CORE187]] D10, D16: the sorts the list validates `sort` against (`sortKinds`, in its key order), each with the plan fact. A definition with no column sorts has none. */
 function sortsOf(def: AnyResource, stated: ReadonlySet<string>) {
-  return Object.entries(def.sortKinds ?? {}).map(([name, kind]) => ({ name, kind, indexed: !stated.has(`${def.name}\u0000${name}`) }))
+  return Object.entries(def.sortKinds ?? {}).map(([name, kind]) => ({
+    name,
+    kind,
+    indexed: !stated.has(`${def.name}\u0000${name}`),
+  }))
 }
 
 /**
@@ -113,15 +122,30 @@ function resourceOf(def: AnyResource, stated: ReadonlySet<string>, statedFilters
     path: fullPath({ surface: def.surface, path: resourcePath(def) }),
     operations: resourceOperations(def).map((o) => o.name),
     read_scope: formatScope({ resource: scope, action: 'read' }),
-    write_scope: actions.has('create') || actions.has('update') || actions.has('delete') ? formatScope({ resource: scope, action: 'write' }) : null,
+    write_scope:
+      actions.has('create') || actions.has('update') || actions.has('delete')
+        ? formatScope({ resource: scope, action: 'write' })
+        : null,
     sorts: sortsOf(def, stated),
     filters: filtersOf(def, statedFilters),
-    aggregate: def.aggregate ? { sum: [...def.aggregate.fields.sum], avg: [...def.aggregate.fields.avg], min: [...def.aggregate.fields.min], max: [...def.aggregate.fields.max], money: { ...def.aggregate.money } } : null,
+    aggregate: def.aggregate
+      ? {
+          sum: [...def.aggregate.fields.sum],
+          avg: [...def.aggregate.fields.avg],
+          min: [...def.aggregate.fields.min],
+          max: [...def.aggregate.fields.max],
+          money: { ...def.aggregate.money },
+        }
+      : null,
   }
 }
 
 const textOf = (entry: string | { label?: string; description: string } | undefined) =>
-  entry === undefined ? { label: undefined, description: undefined } : typeof entry === 'string' ? { label: undefined, description: entry } : entry
+  entry === undefined
+    ? { label: undefined, description: undefined }
+    : typeof entry === 'string'
+      ? { label: undefined, description: entry }
+      : entry
 
 function groupBy<T>(rows: readonly T[], key: (r: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>()
@@ -138,12 +162,17 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
   const kinds = input.kinds ?? (COLUMN_KINDS as Record<string, Record<string, string>>)
   const hidden = new Set(input.hidden ?? HIDDEN_TABLES)
   const stated = new Set((input.statedCosts ?? STATED_SORT_COSTS).map((c) => `${c.list}\u0000${c.sort}`))
-  const statedFilters = new Set((input.statedFilterCosts ?? STATED_FILTER_COSTS).map((c) => `${c.list}\u0000${c.filter}`))
+  const statedFilters = new Set(
+    (input.statedFilterCosts ?? STATED_FILTER_COSTS).map((c) => `${c.list}\u0000${c.filter}`),
+  )
   const byTable = resourcesByTable(input.resources)
   const columnsOf = groupBy(input.columns, (r) => r.table_name)
   const fksOf = groupBy(input.foreignKeys, (r) => r.table_name)
   const primaryKeyOf = (table: string): string[] =>
-    [...(columnsOf.get(table) ?? [])].filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name)
+    [...(columnsOf.get(table) ?? [])]
+      .filter((c) => c.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map((c) => c.name)
 
   const tables = [...columnsOf.keys()]
     .filter((name) => !hidden.has(name) && !name.startsWith(AUTH_TABLE_PREFIX))
@@ -228,7 +257,10 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
     associations: {
       table: 'associations',
       relations: ['related_to'],
-      associable: input.resources.filter((d) => d.associable).map((d) => d.table).sort(),
+      associable: input.resources
+        .filter((d) => d.associable)
+        .map((d) => d.table)
+        .sort(),
       description: ASSOCIATIONS_DESCRIPTION,
     },
   }

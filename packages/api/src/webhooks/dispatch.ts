@@ -1,5 +1,15 @@
 import { sql } from 'kysely'
-import { appliedPrev, codecs, defineOperation, execute, readAll, step, unit, type PreparedOperation, type StorageBinding } from '@vibase/storage'
+import {
+  appliedPrev,
+  codecs,
+  defineOperation,
+  execute,
+  readAll,
+  step,
+  unit,
+  type PreparedOperation,
+  type StorageBinding,
+} from '@vibase/storage'
 import { feedVisibility } from '../events/operations.js'
 import { readStableFeed, type FeedEvent } from '../events/feed.js'
 import type { Registry } from '../registry.js'
@@ -35,7 +45,9 @@ export interface DispatchTarget {
   scopes: string[]
 }
 /** What one read of a subscription's feed found, applied (or not) by `applyPage`. A plan carries the cursor it was read at: that is the compare-and-set value. */
-export type PagePlan = { kind: 'page'; target: DispatchTarget; events: FeedEvent[]; hasMore: boolean } | { kind: 'unknown_cursor'; target: DispatchTarget }
+export type PagePlan =
+  | { kind: 'page'; target: DispatchTarget; events: FeedEvent[]; hasMore: boolean }
+  | { kind: 'unknown_cursor'; target: DispatchTarget }
 export interface DispatchSummary {
   /** Subscriptions that received at least one event this tick. */
   subscriptions: number
@@ -104,8 +116,17 @@ export async function eligibleSubscriptions(d: DispatchDeps): Promise<DispatchTa
 export async function readPage(d: DispatchDeps, target: DispatchTarget): Promise<PagePlan> {
   const organizationId = organizationOf(d)
   if (organizationId === null) return { kind: 'page', target, events: [], hasMore: false }
-  const vis = feedVisibility(d.registry, { scopes: ScopeSet.parse(target.scopes), actor: { id: target.agentId, kind: 'agent' } })
-  const feed = (await execute(d.binding, { kind: 'internal', organizationId }, readStableFeed({ ...vis, types: target.eventTypes, after: target.cursor, limit: PAGE_LIMIT }))).value
+  const vis = feedVisibility(d.registry, {
+    scopes: ScopeSet.parse(target.scopes),
+    actor: { id: target.agentId, kind: 'agent' },
+  })
+  const feed = (
+    await execute(
+      d.binding,
+      { kind: 'internal', organizationId },
+      readStableFeed({ ...vis, types: target.eventTypes, after: target.cursor, limit: PAGE_LIMIT }),
+    )
+  ).value
   if (feed.status === 'unknown_cursor') return { kind: 'unknown_cursor', target }
   return { kind: 'page', target, events: feed.events, hasMore: feed.has_more }
 }
@@ -139,7 +160,9 @@ export async function applyPage(d: DispatchDeps, plan: PagePlan): Promise<{ move
           ),
           step(
             sql`update "webhook_dispatch_state" set "cursor_event_id" = ${last}, "last_dispatched_at" = ${at}
-              where "subscription_id" = ${target.subscriptionId} and "organization_id" = ${organizationId} and "cursor_event_id" = ${target.cursor}`.compile(qc.db),
+              where "subscription_id" = ${target.subscriptionId} and "organization_id" = ${organizationId} and "cursor_event_id" = ${target.cursor}`.compile(
+              qc.db,
+            ),
           ),
           step(qc.db.selectNoFrom(sql<number>`1`.as('moved')).where(appliedPrev(qc)), 'result'),
         ],
@@ -177,7 +200,9 @@ export async function dispatchWebhooks(d: DispatchDeps): Promise<DispatchSummary
         const plan = await readPage(d, at)
         if (plan.kind === 'unknown_cursor') {
           out.unknownCursor++
-          console.warn(`[webhooks] subscription ${target.subscriptionId}: its cursor names no event, skipped (never restarted)`)
+          console.warn(
+            `[webhooks] subscription ${target.subscriptionId}: its cursor names no event, skipped (never restarted)`,
+          )
           break
         }
         if (plan.events.length === 0) break
@@ -192,7 +217,9 @@ export async function dispatchWebhooks(d: DispatchDeps): Promise<DispatchSummary
       if (received) out.subscriptions++
     } catch (err) {
       out.failed++
-      console.error(`[webhooks] dispatch for subscription ${target.subscriptionId} failed: ${err instanceof Error ? err.name : 'error'}`)
+      console.error(
+        `[webhooks] dispatch for subscription ${target.subscriptionId} failed: ${err instanceof Error ? err.name : 'error'}`,
+      )
     }
   }
   return out

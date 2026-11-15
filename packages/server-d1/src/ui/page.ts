@@ -8,5 +8,11 @@ export interface PageProps {
 export const goTo = (path: string): void => location.assign(path)
 
 const ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-export const emailError = (email: string): string | undefined => (email === '' ? MESSAGES.emailRequired : ADDRESS.test(email) ? undefined : MESSAGES.emailInvalid)
-export const newPasswordError = (password: string): string | undefined => (password.length < PASSWORD_MIN ? MESSAGES.passwordTooShort : password.length > PASSWORD_MAX ? MESSAGES.passwordTooLong : undefined)
+export const emailError = (email: string): string | undefined =>
+  email === '' ? MESSAGES.emailRequired : ADDRESS.test(email) ? undefined : MESSAGES.emailInvalid
+export const newPasswordError = (password: string): string | undefined =>
+  password.length < PASSWORD_MIN
+    ? MESSAGES.passwordTooShort
+    : password.length > PASSWORD_MAX
+      ? MESSAGES.passwordTooLong
+      : undefined

@@ -12,7 +12,15 @@ type Range = 'public' | 'loopback' | 'private'
 /** The class of an IPv4 address given as four octets. */
 function classifyV4([a, b]: readonly number[]): Range {
   if (a === 127) return 'loopback'
-  if (a === 0 || a === 10 || (a === 172 && b! >= 16 && b! <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b! >= 64 && b! <= 127)) return 'private'
+  if (
+    a === 0 ||
+    a === 10 ||
+    (a === 172 && b! >= 16 && b! <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254) ||
+    (a === 100 && b! >= 64 && b! <= 127)
+  )
+    return 'private'
   return 'public'
 }
 
@@ -59,7 +67,8 @@ export function validateWebhookUrl(raw: string, options: { allowInsecure: boolea
   } catch {
     return refuse('the URL is not a valid absolute URL')
   }
-  if (url.protocol !== 'https:' && !(options.allowInsecure && url.protocol === 'http:')) return refuse('the URL must use https')
+  if (url.protocol !== 'https:' && !(options.allowInsecure && url.protocol === 'http:'))
+    return refuse('the URL must use https')
   if (url.username !== '' || url.password !== '') return refuse('the URL must not carry credentials')
   const host = url.hostname.toLowerCase()
   if (host === '') return refuse('the URL has no host')
@@ -70,7 +79,9 @@ export function validateWebhookUrl(raw: string, options: { allowInsecure: boolea
     const name = host.endsWith('.') ? host.slice(0, -1) : host
     range = name === 'localhost' || name.endsWith('.localhost') ? 'loopback' : 'public'
   }
-  if (range === 'private') return refuse('the host must be a public name or address: no private, link-local or carrier-grade NAT address')
-  if (range === 'loopback' && !options.allowInsecure) return refuse('the host must be a public name or address: no localhost or loopback address')
+  if (range === 'private')
+    return refuse('the host must be a public name or address: no private, link-local or carrier-grade NAT address')
+  if (range === 'loopback' && !options.allowInsecure)
+    return refuse('the host must be a public name or address: no localhost or loopback address')
   return { ok: true }
 }

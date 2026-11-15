@@ -10,7 +10,9 @@ describe('errors', () => {
     expect(e).toBeInstanceOf(Error)
   })
   it('maps a storage foreign-key failure to invalid_reference without leaking the detail', () => {
-    const mapped = mapStorageError(new StatementFailed('tasks.create', 'foreign_key', new Error('Key (assignee_id)=(abc) is not present')))
+    const mapped = mapStorageError(
+      new StatementFailed('tasks.create', 'foreign_key', new Error('Key (assignee_id)=(abc) is not present')),
+    )
     expect(mapped).toBeInstanceOf(ApiError)
     const e = mapped as ApiError
     expect(e.status).toBe(400)

@@ -13,7 +13,14 @@ beforeAll(async () => {
 afterAll(() => k.close())
 beforeEach(() => k.reset())
 
-const OPS = ['webhooks.list', 'webhooks.get', 'webhooks.create', 'webhooks.update', 'webhooks.delete', 'webhooks.rotate_secret']
+const OPS = [
+  'webhooks.list',
+  'webhooks.get',
+  'webhooks.create',
+  'webhooks.update',
+  'webhooks.delete',
+  'webhooks.rotate_secret',
+]
 const TASKS = ['tasks:read']
 const BASE = '/meta/v1/webhooks'
 const body = (over: Record<string, unknown> = {}) => ({ url: URL_OK, event_types: ['task.created'], ...over })
@@ -171,9 +178,15 @@ describe('proposals (D2)', () => {
   it('every webhook write is registered proposal-ineligible with a reason, and an action request naming one is refused', async () => {
     for (const name of ['webhooks.create', 'webhooks.update', 'webhooks.delete', 'webhooks.rotate_secret']) {
       const op = k.registry.get(name)
-      expect(op?.kind === 'tenant' && op.proposal && !op.proposal.eligible && op.proposal.reason.length > 0, name).toBe(true)
+      expect(op?.kind === 'tenant' && op.proposal && !op.proposal.eligible && op.proposal.reason.length > 0, name).toBe(
+        true,
+      )
     }
-    const r = await k.owner('POST', '/api/v1/action-requests', { operation: 'webhooks.create', arguments: { url: URL_OK, agent_id: k.e.agentId }, reason: 'because' })
+    const r = await k.owner('POST', '/api/v1/action-requests', {
+      operation: 'webhooks.create',
+      arguments: { url: URL_OK, agent_id: k.e.agentId },
+      reason: 'because',
+    })
     expect([r.status, r.body.error.code]).toEqual([400, 'operation_not_proposable'])
     expect(await k.all('select id from action_requests')).toEqual([])
   })
@@ -183,30 +196,56 @@ describe('surfaces (D22, D23)', () => {
   it('all six are on the meta OpenAPI document and none on the api one', async () => {
     const meta = (await (await k.app.request('/meta/v1/openapi.json')).json()) as any
     const api = (await (await k.app.request('/api/v1/openapi.json')).json()) as any
-    const found = Object.fromEntries(Object.entries<any>(meta.paths).flatMap(([p, ms]) => Object.entries<any>(ms).map(([m, op]) => [op.operationId, `${m.toUpperCase()} ${p}`])))
+    const found = Object.fromEntries(
+      Object.entries<any>(meta.paths).flatMap(([p, ms]) =>
+        Object.entries<any>(ms).map(([m, op]) => [op.operationId, `${m.toUpperCase()} ${p}`]),
+      ),
+    )
     for (const name of OPS) expect(found[name], name).toBeDefined()
-    expect(OPS.map((n) => found[n])).toEqual(['GET /meta/v1/webhooks', 'GET /meta/v1/webhooks/{id}', 'POST /meta/v1/webhooks', 'PATCH /meta/v1/webhooks/{id}', 'DELETE /meta/v1/webhooks/{id}', 'POST /meta/v1/webhooks/{id}/rotate-secret'])
+    expect(OPS.map((n) => found[n])).toEqual([
+      'GET /meta/v1/webhooks',
+      'GET /meta/v1/webhooks/{id}',
+      'POST /meta/v1/webhooks',
+      'PATCH /meta/v1/webhooks/{id}',
+      'DELETE /meta/v1/webhooks/{id}',
+      'POST /meta/v1/webhooks/{id}/rotate-secret',
+    ])
     expect(JSON.stringify(api.paths)).not.toContain('webhooks')
   })
 
   it('all six are MCP tools for an agent holding both scopes, and none for one holding neither', async () => {
     const rpc = async (scopes: string[], method: string, params: unknown) => {
-      const token = mintTestUserToken({ userId: k.e.agentId, organizationId: k.e.organizationId, scopes, kind: 'agent' })
-      return (await (await k.app.request('/mcp', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json()) as any
+      const token = mintTestUserToken({
+        userId: k.e.agentId,
+        organizationId: k.e.organizationId,
+        scopes,
+        kind: 'agent',
+      })
+      return (await (
+        await k.app.request('/mcp', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        })
+      ).json()) as any
     }
     const names = (await rpc(AGENT_SCOPES, 'tools/list', {})).result.tools.map((t: any) => t.name)
     expect(names).toEqual(expect.arrayContaining(OPS.map((n) => n.replaceAll('.', '_'))))
     const none = (await rpc(['tasks:read'], 'tools/list', {})).result.tools.map((t: any) => t.name)
     expect(none.filter((n: string) => n.startsWith('webhooks_'))).toEqual([])
     await k.grant(k.e.agentId, TASKS)
-    const out = await rpc(AGENT_SCOPES, 'tools/call', { name: 'webhooks_create', arguments: { url: URL_OK, event_types: ['task.created'] } })
+    const out = await rpc(AGENT_SCOPES, 'tools/call', {
+      name: 'webhooks_create',
+      arguments: { url: URL_OK, event_types: ['task.created'] },
+    })
     expect(out.result.isError, JSON.stringify(out)).not.toBe(true)
     expect(JSON.stringify(out)).toContain('whsec_')
   })
 
   it('a binding that is not D1 answers 501 not_implemented for all six, after the scope check', async () => {
     const cold = createApp({ storage: coldStorage(), registry: k.registry, userAuthenticator: fakeUserAuthenticator() })
-    const token = (scopes: string[]) => mintTestUserToken({ userId: k.e.userId, organizationId: k.e.organizationId, scopes, kind: 'user' })
+    const token = (scopes: string[]) =>
+      mintTestUserToken({ userId: k.e.userId, organizationId: k.e.organizationId, scopes, kind: 'user' })
     const calls: [string, string, unknown?][] = [
       ['GET', BASE],
       ['GET', `${BASE}/${NO_SUCH}`],
@@ -216,7 +255,11 @@ describe('surfaces (D22, D23)', () => {
       ['POST', `${BASE}/${NO_SUCH}/rotate-secret`],
     ]
     for (const [method, path, payload] of calls) {
-      const init = (scopes: string[]) => ({ method, headers: { authorization: `Bearer ${token(scopes)}`, 'content-type': 'application/json' }, body: payload === undefined ? undefined : JSON.stringify(payload) })
+      const init = (scopes: string[]) => ({
+        method,
+        headers: { authorization: `Bearer ${token(scopes)}`, 'content-type': 'application/json' },
+        body: payload === undefined ? undefined : JSON.stringify(payload),
+      })
       const res = await cold.request(path, init(['webhooks:read', 'webhooks:write']))
       expect([method, res.status, ((await res.json()) as any).error.code]).toEqual([method, 501, 'not_implemented'])
       expect((await cold.request(path, init(['tasks:read']))).status, method).toBe(403)

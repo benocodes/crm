@@ -9,7 +9,14 @@ import { runSetup } from './run.js'
 import { VERIFY_BOUND_MS } from './steps.js'
 import { NO_EMAIL_STATEMENT } from './verify-better-auth.js'
 import type { BetterAuthScript } from './test/better-auth-answers.js'
-import { EXPECTED_MIGRATIONS, FIXTURE_CONFIG_PATH, makeWorld, SHA, type World, type WorldOptions } from './test/world.js'
+import {
+  EXPECTED_MIGRATIONS,
+  FIXTURE_CONFIG_PATH,
+  makeWorld,
+  SHA,
+  type World,
+  type WorldOptions,
+} from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const HOST = 'api.acme.vibase.ai'
@@ -31,10 +38,20 @@ beforeEach(async () => {
   await pair.reset()
 })
 
-const world = (o: Partial<WorldOptions> = {}): World => makeWorld({ d1: pair.d1, control: pair.control, clerkEnvText: null, ...o })
+const world = (o: Partial<WorldOptions> = {}): World =>
+  makeWorld({ d1: pair.d1, control: pair.control, clerkEnvText: null, ...o })
 const run = (w: World, argv: string[] = ACME) => runSetup(argv, CONFIRM, w.deps)
 const step = (o: Awaited<ReturnType<typeof runSetup>>, name: string) => o.results.find((r) => r.step === name)!
-const block = (b: Record<string, unknown>) => applyEdits(fixture, modify(fixture, ['env', 'acme'], { name: 'vb-acme', ...b }, { formattingOptions: { insertSpaces: true, tabSize: 2 } }))
+const block = (b: Record<string, unknown>) =>
+  applyEdits(
+    fixture,
+    modify(
+      fixture,
+      ['env', 'acme'],
+      { name: 'vb-acme', ...b },
+      { formattingOptions: { insertSpaces: true, tabSize: 2 } },
+    ),
+  )
 const BA_VARS = { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE }
 /** An instance that is deployed and migrated, so `--only verify` reaches verify's own work. */
 const deployed = (o: Partial<WorldOptions> = {}, b: Record<string, unknown> = { vars: BA_VARS }): World =>
@@ -67,7 +84,17 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 
   it('discovery 500 then 200 within the bound: ok, after one wait', async () => {
-    const w2 = deployed(ba({ vibase: [{ status: 500 }, { status: 200, body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: ['password'] } } }] }))
+    const w2 = deployed(
+      ba({
+        vibase: [
+          { status: 500 },
+          {
+            status: 200,
+            body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: ['password'] } },
+          },
+        ],
+      }),
+    )
     const o = await verifyOnly(w2)
     expect(step(o, 'verify').status, step(o, 'verify').detail).toBe('ok')
     expect(calls(w2, VIBASE_URL)).toBe(2)
@@ -81,7 +108,14 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 
   it('a connection failure then 200 within the bound: ok', async () => {
-    const w = deployed(ba({ vibase: ['throw', { status: 200, body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: [] } } }] }))
+    const w = deployed(
+      ba({
+        vibase: [
+          'throw',
+          { status: 200, body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: [] } } },
+        ],
+      }),
+    )
     const o = await verifyOnly(w)
     expect(step(o, 'verify').status, step(o, 'verify').detail).toBe('ok')
   })
@@ -98,10 +132,22 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
 
   const FAIL: [string, BetterAuthScript, RegExp][] = [
     ['auth null (the Worker is still on none)', { vibase: [ok200({ auth: null })] }, /no auth provider/],
-    ['auth.provider is clerk', { vibase: [ok200({ auth: { provider: 'clerk', issuer: `${BASE}/auth` } })] }, /auth\.provider is clerk/],
-    ['wrong auth.issuer', { vibase: [ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })] }, /auth\.issuer is https:\/\/other\.example\/auth, setup configured https:\/\/api\.acme\.vibase\.ai\/auth/],
+    [
+      'auth.provider is clerk',
+      { vibase: [ok200({ auth: { provider: 'clerk', issuer: `${BASE}/auth` } })] },
+      /auth\.provider is clerk/,
+    ],
+    [
+      'wrong auth.issuer',
+      { vibase: [ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })] },
+      /auth\.issuer is https:\/\/other\.example\/auth, setup configured https:\/\/api\.acme\.vibase\.ai\/auth/,
+    ],
     ['metadata 404', { metadata: [{ status: 404 }] }, /oauth-authorization-server\/auth answered 404/],
-    ['metadata issuer differs', { metadata: [ok200({ issuer: 'https://other.example/auth' })] }, /oauth-authorization-server\/auth disagrees: issuer is https:\/\/other\.example\/auth/],
+    [
+      'metadata issuer differs',
+      { metadata: [ok200({ issuer: 'https://other.example/auth' })] },
+      /oauth-authorization-server\/auth disagrees: issuer is https:\/\/other\.example\/auth/,
+    ],
     ['discovery 404', { vibase: [{ status: 404 }] }, /\.well-known\/vibase answered 404/],
   ]
   it.each(FAIL)('%s: fail at once, naming the URL and what differed, with no wait', async (_n, script, re) => {
@@ -115,7 +161,11 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 
   it('discovery 200 with the wrong content after an earlier 500: fail without waiting out the bound', async () => {
-    const w = deployed(ba({ vibase: [{ status: 500 }, ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })] }))
+    const w = deployed(
+      ba({
+        vibase: [{ status: 500 }, ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })],
+      }),
+    )
     const o = await verifyOnly(w)
     expect(step(o, 'verify').status).toBe('fail')
     expect(step(o, 'verify').detail).toMatch(/auth\.issuer/)
@@ -141,12 +191,18 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 
   it('the expected issuer is the recorded PUBLIC_BASE_URL host, not anything a response says: a Worker reporting another host fails', async () => {
-    const w = deployed(ba({ vibase: [ok200({ auth: { provider: 'better-auth', issuer: 'https://api.elsewhere.vibase.ai/auth' } })] }))
+    const w = deployed(
+      ba({ vibase: [ok200({ auth: { provider: 'better-auth', issuer: 'https://api.elsewhere.vibase.ai/auth' } })] }),
+    )
     expect(step(await verifyOnly(w), 'verify').status).toBe('fail')
   })
 
   it('none and clerk verify do not read the metadata document', async () => {
-    const w = world({ configText: block({ vars: { AUTH_PROVIDER: '' } }), deployedSha: SHA, applied: [...EXPECTED_MIGRATIONS] })
+    const w = world({
+      configText: block({ vars: { AUTH_PROVIDER: '' } }),
+      deployedSha: SHA,
+      applied: [...EXPECTED_MIGRATIONS],
+    })
     const o = await runSetup([...ACME, '--auth', 'none', '--only', 'verify'], CONFIRM, w.deps)
     expect(step(o, 'verify').status, step(o, 'verify').detail).toBe('ok')
     expect(calls(w, META_URL)).toBe(0)
@@ -164,11 +220,17 @@ describe('2. the next steps on better-auth (D8)', () => {
     const w = world()
     const o = await fullRun(w)
     const l = lines(o)
-    expect(l.slice(0, 5)).toEqual([`API: ${BASE}`, CLAIM, `vibase login --server ${BASE}`, `MCP: ${BASE}/mcp`, NO_EMAIL_STATEMENT])
+    expect(l.slice(0, 5)).toEqual([
+      `API: ${BASE}`,
+      CLAIM,
+      `vibase login --server ${BASE}`,
+      `MCP: ${BASE}/mcp`,
+      NO_EMAIL_STATEMENT,
+    ])
     expect(l[5]).toMatch(/^this env is bootstrapped; create agents and keys through agents\.create/)
   })
 
-  it('the invitation URL and token appear in the bootstrap step\'s lines only, never in verify\'s', async () => {
+  it("the invitation URL and token appear in the bootstrap step's lines only, never in verify's", async () => {
     const w = world()
     const o = await fullRun(w)
     const token = /\/invite#token=([A-Za-z0-9_-]+)/.exec((step(o, 'bootstrap').lines ?? []).join('\n'))?.[1]
@@ -194,8 +256,12 @@ describe('2. the next steps on better-auth (D8)', () => {
     expect(lines(o).slice(0, 3)).toEqual([`API: ${BASE}`, `vibase login --server ${BASE}`, `MCP: ${BASE}/mcp`])
   })
 
-  it('none: the next steps are today\'s (API, then the hint) with no login, MCP, claim or statement', async () => {
-    const w = world({ configText: block({ vars: { AUTH_PROVIDER: '' } }), deployedSha: SHA, applied: [...EXPECTED_MIGRATIONS] })
+  it("none: the next steps are today's (API, then the hint) with no login, MCP, claim or statement", async () => {
+    const w = world({
+      configText: block({ vars: { AUTH_PROVIDER: '' } }),
+      deployedSha: SHA,
+      applied: [...EXPECTED_MIGRATIONS],
+    })
     const o = await runSetup([...ACME, '--auth', 'none', '--only', 'verify'], CONFIRM, w.deps)
     const l = lines(o)
     expect(l[0]).toBe(`API: ${BASE}`)
@@ -213,7 +279,12 @@ describe('3. the Google line (D4, P2)', () => {
     expect(l.indexOf(REDIRECT)).toBe(l.indexOf(`MCP: ${BASE}/mcp`) + 1)
   })
   it('sign_in_methods is ["password"]: no Google line, whatever the secrets file or the Worker secrets hold', async () => {
-    const o = await verifyOnly(deployed({ ...ba({ signInMethods: ['password'] }), secrets: ['AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET'] }))
+    const o = await verifyOnly(
+      deployed({
+        ...ba({ signInMethods: ['password'] }),
+        secrets: ['AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET'],
+      }),
+    )
     expect(lines(o).join('\n')).not.toContain('/auth/callback/google')
   })
 })
@@ -223,8 +294,10 @@ describe('4. the no-email statement (D5, P3)', () => {
   const FROM = { AUTH_EMAIL_FROM: 'invites@example.com' }
   const stmt = (o: Awaited<ReturnType<typeof runSetup>>) => lines(o).includes(NO_EMAIL_STATEMENT)
 
-  it('the text is CORE243 D16\'s in full, with its owner sentence (OPS307 D5)', () => {
-    expect(NO_EMAIL_STATEMENT).toBe('Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner; an owner gets one from `vibase-server owner-reset` (needs this instance\'s Cloudflare credentials). Invitation links are printed for you to send.')
+  it("the text is CORE243 D16's in full, with its owner sentence (OPS307 D5)", () => {
+    expect(NO_EMAIL_STATEMENT).toBe(
+      "Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner; an owner gets one from `vibase-server owner-reset` (needs this instance's Cloudflare credentials). Invitation links are printed for you to send.",
+    )
     expect(NO_EMAIL_STATEMENT).toMatch(/an owner gets one from `vibase-server owner-reset`/)
   })
   it('the empty state prints it', async () => {
@@ -237,13 +310,19 @@ describe('4. the no-email statement (D5, P3)', () => {
     expect(stmt(await verifyOnly(deployed({}, { vars: { ...BA_VARS, ...FROM } })))).toBe(true)
   })
   it('a binding of another name plus AUTH_EMAIL_FROM: it prints', async () => {
-    expect(stmt(await verifyOnly(deployed({}, { send_email: [{ name: 'MAIL' }], vars: { ...BA_VARS, ...FROM } })))).toBe(true)
+    expect(
+      stmt(await verifyOnly(deployed({}, { send_email: [{ name: 'MAIL' }], vars: { ...BA_VARS, ...FROM } }))),
+    ).toBe(true)
   })
   it('both values recorded: it is absent', async () => {
     expect(stmt(await verifyOnly(deployed({}, { ...emailBlock, vars: { ...BA_VARS, ...FROM } })))).toBe(false)
   })
   it('never on none', async () => {
-    const w = world({ configText: block({ vars: { AUTH_PROVIDER: '' } }), deployedSha: SHA, applied: [...EXPECTED_MIGRATIONS] })
+    const w = world({
+      configText: block({ vars: { AUTH_PROVIDER: '' } }),
+      deployedSha: SHA,
+      applied: [...EXPECTED_MIGRATIONS],
+    })
     expect(stmt(await runSetup([...ACME, '--auth', 'none', '--only', 'verify'], CONFIRM, w.deps))).toBe(false)
   })
 })

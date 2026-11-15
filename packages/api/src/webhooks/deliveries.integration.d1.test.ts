@@ -16,7 +16,20 @@ beforeEach(() => k.reset())
 
 const BASE = '/meta/v1/webhooks'
 const TASKS = ['tasks:read', 'events:read']
-const KEYS = ['attempts', 'created_at', 'delivered_at', 'event_id', 'event_type', 'id', 'last_attempt_at', 'last_error', 'last_status_code', 'next_attempt_at', 'status', 'subscription_id']
+const KEYS = [
+  'attempts',
+  'created_at',
+  'delivered_at',
+  'event_id',
+  'event_type',
+  'id',
+  'last_attempt_at',
+  'last_error',
+  'last_status_code',
+  'next_attempt_at',
+  'status',
+  'subscription_id',
+]
 const AT = NOW.toISOString()
 
 /** A subscription with `n` pending rows (through the dispatcher), the last of them marked delivered and the one before dead. */
@@ -26,8 +39,18 @@ async function seeded(agent: string, n = 4) {
   await k.dispatch()
   const rows = await k.deliveries(sub.id)
   expect(rows).toHaveLength(n)
-  await k.e.d1!.prepare("UPDATE webhook_deliveries SET status = 'delivered', attempts = 1, last_attempt_at = ?, last_status_code = 204, delivered_at = ? WHERE id = ?").bind(AT, AT, rows[n - 1]!.id).run()
-  await k.e.d1!.prepare("UPDATE webhook_deliveries SET status = 'dead', attempts = 8, last_attempt_at = ?, last_status_code = 500, last_error = 'http_status' WHERE id = ?").bind(AT, rows[n - 2]!.id).run()
+  await k.e
+    .d1!.prepare(
+      "UPDATE webhook_deliveries SET status = 'delivered', attempts = 1, last_attempt_at = ?, last_status_code = 204, delivered_at = ? WHERE id = ?",
+    )
+    .bind(AT, AT, rows[n - 1]!.id)
+    .run()
+  await k.e
+    .d1!.prepare(
+      "UPDATE webhook_deliveries SET status = 'dead', attempts = 8, last_attempt_at = ?, last_status_code = 500, last_error = 'http_status' WHERE id = ?",
+    )
+    .bind(AT, rows[n - 2]!.id)
+    .run()
   return { sub, rows: await k.deliveries(sub.id) }
 }
 
@@ -41,9 +64,21 @@ describe('webhooks.deliveries (D14)', () => {
     expect(r.body.data.map((d: any) => d.id)).toEqual(rows.map((d) => d.id))
     for (const d of r.body.data) expect(Object.keys(d).sort()).toEqual(KEYS)
     expect(r.body.data.map((d: any) => d.status)).toEqual(['pending', 'pending', 'dead', 'delivered'])
-    expect(r.body.data[2]).toMatchObject({ subscription_id: sub.id, attempts: 8, last_status_code: 500, last_error: 'http_status', delivered_at: null })
+    expect(r.body.data[2]).toMatchObject({
+      subscription_id: sub.id,
+      attempts: 8,
+      last_status_code: 500,
+      last_error: 'http_status',
+      delivered_at: null,
+    })
     expect(r.body.data[3]).toMatchObject({ attempts: 1, last_status_code: 204, delivered_at: AT })
-    expect(r.body.data[0]).toMatchObject({ event_type: 'task.created', next_attempt_at: AT, last_attempt_at: null, last_status_code: null, last_error: null })
+    expect(r.body.data[0]).toMatchObject({
+      event_type: 'task.created',
+      next_attempt_at: AT,
+      last_attempt_at: null,
+      last_status_code: null,
+      last_error: null,
+    })
     expect(r.text).not.toMatch(/lease_|organization_id|created_by/)
   })
 
@@ -53,7 +88,9 @@ describe('webhooks.deliveries (D14)', () => {
     const who = { as: 'agent' as const, id: a, scopes: AGENT_SCOPES }
     const pending = await k.call(who, 'GET', `${BASE}/${sub.id}/deliveries?status=pending`)
     expect(pending.body.data.map((d: any) => d.id)).toEqual([rows[0]!.id, rows[1]!.id])
-    expect((await k.call(who, 'GET', `${BASE}/${sub.id}/deliveries?status=dead`)).body.data.map((d: any) => d.id)).toEqual([rows[2]!.id])
+    expect(
+      (await k.call(who, 'GET', `${BASE}/${sub.id}/deliveries?status=dead`)).body.data.map((d: any) => d.id),
+    ).toEqual([rows[2]!.id])
     expect((await k.call(who, 'GET', `${BASE}/${sub.id}/deliveries?status=cancelled`)).body.data).toEqual([])
     const first = await k.call(who, 'GET', `${BASE}/${sub.id}/deliveries?limit=3`)
     expect(first.body.data.map((d: any) => d.id)).toEqual(rows.slice(0, 3).map((d) => d.id))
@@ -95,14 +132,26 @@ describe('webhooks.deliveries (D14)', () => {
     const api = (await (await k.app.request('/api/v1/openapi.json')).json()) as any
     expect(meta.paths['/meta/v1/webhooks/{id}/deliveries'].get.operationId).toBe('webhooks.deliveries')
     expect(JSON.stringify(api.paths)).not.toContain('deliveries')
-    const token = mintTestUserToken({ userId: k.e.agentId, organizationId: k.e.organizationId, scopes: AGENT_SCOPES, kind: 'agent' })
-    const res = (await (await k.app.request('/mcp', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) })).json()) as any
+    const token = mintTestUserToken({
+      userId: k.e.agentId,
+      organizationId: k.e.organizationId,
+      scopes: AGENT_SCOPES,
+      kind: 'agent',
+    })
+    const res = (await (
+      await k.app.request('/mcp', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+      })
+    ).json()) as any
     expect(res.result.tools.map((t: any) => t.name)).toContain('webhooks_deliveries')
   })
 
   it('a binding that is not D1 answers 501 not_implemented after the scope check', async () => {
     const cold = createApp({ storage: coldStorage(), registry: k.registry, userAuthenticator: fakeUserAuthenticator() })
-    const token = (scopes: string[]) => mintTestUserToken({ userId: k.e.userId, organizationId: k.e.organizationId, scopes, kind: 'user' })
+    const token = (scopes: string[]) =>
+      mintTestUserToken({ userId: k.e.userId, organizationId: k.e.organizationId, scopes, kind: 'user' })
     const init = (scopes: string[]) => ({ headers: { authorization: `Bearer ${token(scopes)}` } })
     const res = await cold.request(`${BASE}/${NO_SUCH}/deliveries`, init(['webhooks:read']))
     expect([res.status, ((await res.json()) as any).error.code]).toEqual([501, 'not_implemented'])
@@ -118,7 +167,18 @@ describe('the table in schema.get (API63)', () => {
     const t = tables.find((x) => x.name === 'webhook_deliveries')
     expect(t, 'webhook_deliveries is in schema.get').toBeDefined()
     expect(t!.description?.length ?? 0).toBeGreaterThan(20)
-    expect(t!.columns.map((c) => c.name)).toEqual(expect.arrayContaining(['subscription_id', 'event_id', 'event_type', 'status', 'attempts', 'next_attempt_at', 'last_error', 'delivered_at']))
+    expect(t!.columns.map((c) => c.name)).toEqual(
+      expect.arrayContaining([
+        'subscription_id',
+        'event_id',
+        'event_type',
+        'status',
+        'attempts',
+        'next_attempt_at',
+        'last_error',
+        'delivered_at',
+      ]),
+    )
     expect(tables.map((x) => x.name)).not.toContain('webhook_secrets')
     expect(tables.map((x) => x.name)).not.toContain('webhook_dispatch_state')
   })

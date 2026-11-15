@@ -36,7 +36,11 @@ export async function seedUser(
   },
 ): Promise<{ id: string }> {
   return withServiceRole(db, async (trx) => {
-    const principal = await trx.insertInto('principals').values({ kind: 'user' }).returning('id').executeTakeFirstOrThrow()
+    const principal = await trx
+      .insertInto('principals')
+      .values({ kind: 'user' })
+      .returning('id')
+      .executeTakeFirstOrThrow()
     await trx
       .insertInto('users')
       .values({
@@ -84,7 +88,11 @@ export async function seedAgent(
   opts: { organizationId: string; createdBy: string; name?: string; scopes?: string[] },
 ): Promise<{ id: string }> {
   return withServiceRole(db, async (trx) => {
-    const principal = await trx.insertInto('principals').values({ kind: 'agent' }).returning('id').executeTakeFirstOrThrow()
+    const principal = await trx
+      .insertInto('principals')
+      .values({ kind: 'agent' })
+      .returning('id')
+      .executeTakeFirstOrThrow()
     await trx
       .insertInto('agents')
       .values({

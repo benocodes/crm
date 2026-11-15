@@ -12,10 +12,18 @@ afterEach(() => cleanup())
 function world(o: RunOptions) {
   const r = o.record ?? {}
   const provider = r.provider ?? 'better-auth'
-  const vars: Record<string, string> = { AUTH_PROVIDER: provider === 'none' ? '' : provider, ...(r.baseUrl === null ? {} : { PUBLIC_BASE_URL: r.baseUrl ?? BASE }) }
+  const vars: Record<string, string> = {
+    AUTH_PROVIDER: provider === 'none' ? '' : provider,
+    ...(r.baseUrl === null ? {} : { PUBLIC_BASE_URL: r.baseUrl ?? BASE }),
+  }
   const settings = controlSettings({ vars, ...(r.control === false ? { control_d1: undefined } : {}) })
   const secrets = r.secret === null ? SECRETS_TEXT : `${SECRETS_TEXT}AUTH_SECRET=${r.secret ?? SECRET}\n`
-  return makeWorld({ settings, secretsText: secrets, processEnv: { CONFIRM_REMOTE: '1' }, openD1: async () => ({ d1: o.crm, control: o.control, dispose: async () => {} }) })
+  return makeWorld({
+    settings,
+    secretsText: secrets,
+    processEnv: { CONFIRM_REMOTE: '1' },
+    openD1: async () => ({ d1: o.crm, control: o.control, dispose: async () => {} }),
+  })
 }
 
 const driver: Driver = {
@@ -32,7 +40,14 @@ ownerResetSuite('vibase-server owner-reset', () => driver, { dryRun: true })
 
 describe('vibase-server owner-reset: arguments and exit codes', () => {
   const go = async (argv: string[], env: Record<string, string | undefined> = {}) => {
-    const w = makeWorld({ settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }), secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`, processEnv: env, openD1: async () => { throw new Error('the databases must not be opened') } })
+    const w = makeWorld({
+      settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }),
+      secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`,
+      processEnv: env,
+      openD1: async () => {
+        throw new Error('the databases must not be opened')
+      },
+    })
     const code = await runOwnerReset(argv, w.deps)
     return { code, text: w.all(), w }
   }
@@ -59,18 +74,38 @@ describe('vibase-server owner-reset: arguments and exit codes', () => {
   })
 
   it('a secrets file group- or world-readable is refused (mode 644) and AUTH_SECRET is never printed on any failure', async () => {
-    const w = makeWorld({ settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }), secretsMode: 0o644, secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`, processEnv: { CONFIRM_REMOTE: '1' } })
+    const w = makeWorld({
+      settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }),
+      secretsMode: 0o644,
+      secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`,
+      processEnv: { CONFIRM_REMOTE: '1' },
+    })
     expect(await runOwnerReset(['--env', 'demo'], w.deps)).toBe(2)
     expect(w.all()).not.toContain(SECRET)
   })
 
   it('the databases are opened with the instance settings and the two Cloudflare values only', async () => {
     const opened: unknown[] = []
-    const w = makeWorld({ settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }), secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`, processEnv: { CONFIRM_REMOTE: '1' }, openD1: async (o) => { opened.push(o); throw new Error('stop here') } })
+    const w = makeWorld({
+      settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }),
+      secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`,
+      processEnv: { CONFIRM_REMOTE: '1' },
+      openD1: async (o) => {
+        opened.push(o)
+        throw new Error('stop here')
+      },
+    })
     expect(await runOwnerReset(['--env', 'demo', '--email', 'a@x.test'], w.deps)).toBe(2)
     expect(opened).toHaveLength(1)
     expect(opened[0]).toMatchObject({ remoteBindings: true, persist: false })
-    expect(Object.keys((opened[0] as { env: object }).env).sort()).toEqual(['CI', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'HOME', 'PATH', 'WRANGLER_SEND_METRICS'])
+    expect(Object.keys((opened[0] as { env: object }).env).sort()).toEqual([
+      'CI',
+      'CLOUDFLARE_ACCOUNT_ID',
+      'CLOUDFLARE_API_TOKEN',
+      'HOME',
+      'PATH',
+      'WRANGLER_SEND_METRICS',
+    ])
     expect(w.all()).not.toContain(SECRET)
   })
 })
@@ -81,15 +116,21 @@ describe('6. help and routing', () => {
     expect(INSTANCE_HELP).toMatch(/--dry-run/)
     expect(INSTANCE_HELP).toMatch(/Exit 0[\s\S]*2[\s\S]*3/)
   })
-  it('release:check\'s help assertions pass on the real help text, and each one names what it misses (a help without owner-reset fails)', () => {
+  it("release:check's help assertions pass on the real help text, and each one names what it misses (a help without owner-reset fails)", () => {
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
-    expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server owner-reset --env <name>', 'vibase-server owner-reset'))).toEqual(['owner-reset --env <name>'])
+    expect(
+      serverHelpProblems(INSTANCE_HELP.replace('vibase-server owner-reset --env <name>', 'vibase-server owner-reset')),
+    ).toEqual(['owner-reset --env <name>'])
     expect(serverHelpProblems('')).toHaveLength(4)
   })
   it('runInstance routes owner-reset to the command (a missing --env is its refusal, not "unknown command")', async () => {
     const out: string[] = []
     const err: string[] = []
-    const code = await runInstance(['owner-reset'], { stdout: (t) => void out.push(t), stderr: (t) => void err.push(t), env: {} })
+    const code = await runInstance(['owner-reset'], {
+      stdout: (t) => void out.push(t),
+      stderr: (t) => void err.push(t),
+      env: {},
+    })
     expect(code).toBe(2)
     expect(err.join('')).toContain('vibase-server owner-reset')
     expect(err.join('')).not.toContain('unknown command')

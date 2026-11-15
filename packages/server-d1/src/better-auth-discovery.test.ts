@@ -20,11 +20,26 @@ beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
-  await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE }, { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) })
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
+  await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE },
+    { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) },
+  )
 })
 
-const worker = (over: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, ...over })
+const worker = (over: Partial<D1WorkerEnv> = {}) =>
+  composeD1Worker({
+    DB: w.d1,
+    CONTROL_DB: w.control,
+    AUTH_PROVIDER: 'better-auth',
+    AUTH_SECRET,
+    PUBLIC_BASE_URL: AUTH_BASE,
+    ...over,
+  })
 const get = async (path: string, host = AUTH_BASE, over: Partial<D1WorkerEnv> = {}) => {
   const res = await worker(over).fetch(new Request(host + path))
   return { status: res.status, json: (await res.json()) as any, headers: res.headers }
@@ -62,27 +77,33 @@ describe('GET /.well-known/vibase (P3)', () => {
 })
 
 describe('protected-resource metadata (P3, D23)', () => {
-  it.each([AUTH_BASE, OTHER])('both documents name the issuer and the resource from PUBLIC_BASE_URL (request host %s)', async (host) => {
-    const api = (await get(PRM, host)).json
-    expect(api.authorization_servers).toEqual([`${AUTH_BASE}/auth`])
-    expect(api.resource).toBe(AUTH_BASE)
-    const mcp = (await get(`${PRM}/mcp`, host)).json
-    expect(mcp.authorization_servers).toEqual([`${AUTH_BASE}/auth`])
-    expect(mcp.resource).toBe(`${AUTH_BASE}/mcp`)
-    expect(mcp.scopes_supported).toEqual(grantableScopes(declared))
-  })
+  it.each([AUTH_BASE, OTHER])(
+    'both documents name the issuer and the resource from PUBLIC_BASE_URL (request host %s)',
+    async (host) => {
+      const api = (await get(PRM, host)).json
+      expect(api.authorization_servers).toEqual([`${AUTH_BASE}/auth`])
+      expect(api.resource).toBe(AUTH_BASE)
+      const mcp = (await get(`${PRM}/mcp`, host)).json
+      expect(mcp.authorization_servers).toEqual([`${AUTH_BASE}/auth`])
+      expect(mcp.resource).toBe(`${AUTH_BASE}/mcp`)
+      expect(mcp.scopes_supported).toEqual(grantableScopes(declared))
+    },
+  )
 })
 
 describe('RFC 8414 metadata at the path-insertion URL (D12)', () => {
   const PATH = '/.well-known/oauth-authorization-server/auth'
-  it.each([AUTH_BASE, OTHER])('names the issuer <PUBLIC_BASE_URL>/auth and its endpoints under it, whatever the request host (%s)', async (host) => {
-    const res = await get(PATH, host)
-    expect(res.status).toBe(200)
-    expect(res.json.issuer).toBe(`${AUTH_BASE}/auth`)
-    expect(res.json.registration_endpoint).toBe(`${AUTH_BASE}/auth/oauth2/register`)
-    expect(res.json.device_authorization_endpoint).toBe(`${AUTH_BASE}/auth/device/code`)
-    expect(res.json.token_endpoint).toBe(`${AUTH_BASE}/auth/oauth2/token`)
-  })
+  it.each([AUTH_BASE, OTHER])(
+    'names the issuer <PUBLIC_BASE_URL>/auth and its endpoints under it, whatever the request host (%s)',
+    async (host) => {
+      const res = await get(PATH, host)
+      expect(res.status).toBe(200)
+      expect(res.json.issuer).toBe(`${AUTH_BASE}/auth`)
+      expect(res.json.registration_endpoint).toBe(`${AUTH_BASE}/auth/oauth2/register`)
+      expect(res.json.device_authorization_endpoint).toBe(`${AUTH_BASE}/auth/device/code`)
+      expect(res.json.token_endpoint).toBe(`${AUTH_BASE}/auth/oauth2/token`)
+    },
+  )
 
   it('is no route on the Clerk provider (the Worker answers it only for better-auth)', async () => {
     const res = await composeD1Worker({ DB: w.d1 }).fetch(new Request(AUTH_BASE + PATH))

@@ -24,7 +24,13 @@ export const REQUESTED_SCOPES: readonly string[] = ['openid', 'email', GMAIL_REA
 const ISSUERS = ['https://accounts.google.com', 'accounts.google.com']
 
 /** `access_type=offline` and `prompt=consent` are what make Google return a refresh token on a reconnect too (D1). */
-export function buildAuthorizeUrl(p: { endpoints: GoogleEndpoints; clientId: string; redirectUri: string; state: string; challenge: string }): string {
+export function buildAuthorizeUrl(p: {
+  endpoints: GoogleEndpoints
+  clientId: string
+  redirectUri: string
+  state: string
+  challenge: string
+}): string {
   const url = new URL(p.endpoints.authorizeUrl)
   const q = url.searchParams
   q.set('client_id', p.clientId)
@@ -62,7 +68,14 @@ export async function exchangeCode(p: {
     res = await p.fetch(p.endpoints.tokenUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'authorization_code', code: p.code, client_id: p.clientId, client_secret: p.clientSecret, redirect_uri: p.redirectUri, code_verifier: p.verifier }).toString(),
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: p.code,
+        client_id: p.clientId,
+        client_secret: p.clientSecret,
+        redirect_uri: p.redirectUri,
+        code_verifier: p.verifier,
+      }).toString(),
     })
   } catch {
     throw new GoogleExchangeError('token_endpoint')
@@ -87,13 +100,28 @@ export async function exchangeCode(p: {
  * Verifies the ID token against Google's keys: signature, `iss`, `aud` = the client id, expiry, and `email_verified` ([[CHN5]] D9). The keys
  * are fetched per call (a connect is rare) through the injected `fetch`. Returns the stable `sub` and the email.
  */
-export async function verifyIdToken(idToken: string, p: { endpoints: GoogleEndpoints; clientId: string; fetch: typeof fetch; nowMs: number }): Promise<{ sub: string; email: string }> {
+export async function verifyIdToken(
+  idToken: string,
+  p: { endpoints: GoogleEndpoints; clientId: string; fetch: typeof fetch; nowMs: number },
+): Promise<{ sub: string; email: string }> {
   try {
     const res = await p.fetch(p.endpoints.jwksUrl)
     if (!res.ok) throw new Error('jwks')
     const jwks = createLocalJWKSet((await res.json()) as Parameters<typeof createLocalJWKSet>[0])
-    const { payload } = await jwtVerify(idToken, jwks, { issuer: ISSUERS, audience: p.clientId, currentDate: new Date(p.nowMs), algorithms: ['RS256'] })
-    if (payload.email_verified !== true || typeof payload.email !== 'string' || payload.email === '' || typeof payload.sub !== 'string' || payload.sub === '') throw new Error('claims')
+    const { payload } = await jwtVerify(idToken, jwks, {
+      issuer: ISSUERS,
+      audience: p.clientId,
+      currentDate: new Date(p.nowMs),
+      algorithms: ['RS256'],
+    })
+    if (
+      payload.email_verified !== true ||
+      typeof payload.email !== 'string' ||
+      payload.email === '' ||
+      typeof payload.sub !== 'string' ||
+      payload.sub === ''
+    )
+      throw new Error('claims')
     return { sub: payload.sub, email: payload.email }
   } catch {
     throw new GoogleExchangeError('id_token')
@@ -117,15 +145,27 @@ export class GoogleRefreshError extends Error {
  * `error` is `invalid_grant` is Google's verdict on the grant. Every other failure (another OAuth error, a non-2xx, a network error) is a different
  * code. Nothing returned or thrown carries a response body, the URL, a token or the secret.
  */
-export async function refreshAccessToken(p: { endpoints: GoogleEndpoints; clientId: string; clientSecret: string; refreshToken: string; fetch: typeof fetch;signal?:AbortSignal }): Promise<RefreshedToken> {
+export async function refreshAccessToken(p: {
+  endpoints: GoogleEndpoints
+  clientId: string
+  clientSecret: string
+  refreshToken: string
+  fetch: typeof fetch
+  signal?: AbortSignal
+}): Promise<RefreshedToken> {
   let res: Response
   try {
     p.signal?.throwIfAborted()
     res = await p.fetch(p.endpoints.tokenUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: p.refreshToken, client_id: p.clientId, client_secret: p.clientSecret }).toString(),
-      ...(p.signal?{signal:p.signal}:{}),
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: p.refreshToken,
+        client_id: p.clientId,
+        client_secret: p.clientSecret,
+      }).toString(),
+      ...(p.signal ? { signal: p.signal } : {}),
     })
   } catch {
     throw new GoogleRefreshError('token_endpoint')

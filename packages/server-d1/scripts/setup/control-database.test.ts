@@ -8,7 +8,15 @@ import { readDeployment } from '../../src/init-deployment.js'
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { openControlDb, readControlMarker, writeControlMarker, type D1Like } from '@vibase/storage-d1'
 import { runSetup, type SetupOutcome } from './run.js'
-import { CONTROL_EXPECTED, EXPECTED_MIGRATIONS, FIXTURE_CONFIG_PATH, makeWorld, memoryControl, type World, type WorldOptions } from './test/world.js'
+import {
+  CONTROL_EXPECTED,
+  EXPECTED_MIGRATIONS,
+  FIXTURE_CONFIG_PATH,
+  makeWorld,
+  memoryControl,
+  type World,
+  type WorldOptions,
+} from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const ACME = ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai']
@@ -31,9 +39,11 @@ beforeEach(async () => {
 const world = (o: Partial<WorldOptions> = {}): World => makeWorld({ d1: db.d1, ...o })
 const run = (w: World, argv: string[] = ACME) => runSetup(argv, CONFIRM, w.deps)
 const calls = (w: World) => w.argv.map((c) => c.slice(2).join(' '))
-const creates = (w: World) => w.argv.filter((c) => c.includes('d1') && c.includes('create')).map((c) => c[c.indexOf('create') + 1]!)
+const creates = (w: World) =>
+  w.argv.filter((c) => c.includes('d1') && c.includes('create')).map((c) => c[c.indexOf('create') + 1]!)
 const block = (text: string, env = 'acme') => (parse(text) as { env: Record<string, any> }).env[env]
-const bindingOf = (text: string, binding: string, env = 'acme') => block(text, env).d1_databases.find((d: { binding: string }) => d.binding === binding)
+const bindingOf = (text: string, binding: string, env = 'acme') =>
+  block(text, env).d1_databases.find((d: { binding: string }) => d.binding === binding)
 const rowOf = (o: SetupOutcome, step: string) => o.results.find((r) => r.step === step)!
 
 /** The first run of a new instance: it creates the resources, writes the env block and stops ([[OPS65]] D10). */
@@ -48,15 +58,29 @@ describe('derive, create, record (matrix: no D1 of that name, D1 of that name ex
     await firstRun(w)
     expect(creates(w)).toEqual(['vb-crm-acme', 'vb-control-acme'])
     const control = bindingOf(w.state.configText, 'CONTROL_DB')
-    expect(control).toMatchObject({ database_name: 'vb-control-acme', database_id: CTL_ID, migrations_dir: '../storage-d1/control-migrations', remote: true })
+    expect(control).toMatchObject({
+      database_name: 'vb-control-acme',
+      database_id: CTL_ID,
+      migrations_dir: '../storage-d1/control-migrations',
+      remote: true,
+    })
     expect(bindingOf(w.state.configText, 'DB')).toMatchObject({ database_name: 'vb-crm-acme', database_id: CRM_ID })
   })
 
   it('a D1 of that name on the account is adopted: no create, its id from d1 list', async () => {
-    const w = world({ d1s: [{ uuid: CRM_ID, name: 'vb-crm-acme' }, { uuid: CTL_ID, name: 'vb-control-acme' }], r2s: ['vb-bodies-acme'] })
+    const w = world({
+      d1s: [
+        { uuid: CRM_ID, name: 'vb-crm-acme' },
+        { uuid: CTL_ID, name: 'vb-control-acme' },
+      ],
+      r2s: ['vb-bodies-acme'],
+    })
     await firstRun(w)
     expect(creates(w)).toEqual([])
-    expect(bindingOf(w.state.configText, 'CONTROL_DB')).toMatchObject({ database_name: 'vb-control-acme', database_id: CTL_ID })
+    expect(bindingOf(w.state.configText, 'CONTROL_DB')).toMatchObject({
+      database_name: 'vb-control-acme',
+      database_id: CTL_ID,
+    })
   })
 
   it('recorded: a re-run creates nothing and changes no record', async () => {
@@ -82,9 +106,21 @@ describe('derive, create, record (matrix: no D1 of that name, D1 of that name ex
 
   it.each([
     ['a control name over 63 characters', [...ACME, '--control-d1-name', 'a'.repeat(64)], /63/],
-    ['a derived control name over 63 characters', ['--env', 'a'.repeat(53), '--auth', 'none', '--api-host', 'api.acme.vibase.ai'], /63/],
-    ['a control name equal to the derived CRM name', [...ACME, '--control-d1-name', 'vb-crm-acme'], /own database|differ/],
-    ['both D1 names given and equal', [...ACME, '--d1-name', 'same', '--control-d1-name', 'same'], /own database|differ/],
+    [
+      'a derived control name over 63 characters',
+      ['--env', 'a'.repeat(53), '--auth', 'none', '--api-host', 'api.acme.vibase.ai'],
+      /63/,
+    ],
+    [
+      'a control name equal to the derived CRM name',
+      [...ACME, '--control-d1-name', 'vb-crm-acme'],
+      /own database|differ/,
+    ],
+    [
+      'both D1 names given and equal',
+      [...ACME, '--d1-name', 'same', '--control-d1-name', 'same'],
+      /own database|differ/,
+    ],
   ])('refuses %s before any call', async (_n, argv, message) => {
     const w = world()
     const o = await run(w, argv)
@@ -94,7 +130,7 @@ describe('derive, create, record (matrix: no D1 of that name, D1 of that name ex
     expect(w.fetched).toEqual([])
   })
 
-  it('refuses a record whose CONTROL_DB has the CRM database\'s id, before any call', async () => {
+  it("refuses a record whose CONTROL_DB has the CRM database's id, before any call", async () => {
     const w = world()
     await firstRun(w)
     let text = w.state.configText
@@ -116,22 +152,32 @@ describe('the recorded control name wins, and a disagreeing flag is refused (P3 
 
   it('a re-run with a recorded control database uses it with no --control-d1-name', async () => {
     const text = await recorded()
-    const w = world({ configText: text, d1s: [{ uuid: CRM_ID, name: 'vb-crm-acme' }, { uuid: CTL_ID, name: 'ctl-recorded' }], r2s: ['vb-bodies-acme'] })
+    const w = world({
+      configText: text,
+      d1s: [
+        { uuid: CRM_ID, name: 'vb-crm-acme' },
+        { uuid: CTL_ID, name: 'ctl-recorded' },
+      ],
+      r2s: ['vb-bodies-acme'],
+    })
     const o = await run(w)
     expect(o.exitCode).toBe(0)
     expect(creates(w)).toEqual([])
     expect(w.state.configText).toBe(text)
   })
 
-  it.each([[[]], [['--dry-run']]])('a disagreeing --control-d1-name %j is refused before any wrangler call, naming the recorded value', async (extra) => {
-    const text = await recorded()
-    const w = world({ configText: text })
-    const o = await runSetup([...ACME, '--control-d1-name', 'another', ...extra], extra.length ? {} : CONFIRM, w.deps)
-    expect(o.exitCode).toBe(1)
-    expect(w.logs.join('\n')).toContain('ctl-recorded')
-    expect(w.argv).toEqual([])
-    expect(w.fetched).toEqual([])
-  })
+  it.each([[[]], [['--dry-run']]])(
+    'a disagreeing --control-d1-name %j is refused before any wrangler call, naming the recorded value',
+    async (extra) => {
+      const text = await recorded()
+      const w = world({ configText: text })
+      const o = await runSetup([...ACME, '--control-d1-name', 'another', ...extra], extra.length ? {} : CONFIRM, w.deps)
+      expect(o.exitCode).toBe(1)
+      expect(w.logs.join('\n')).toContain('ctl-recorded')
+      expect(w.argv).toEqual([])
+      expect(w.fetched).toEqual([])
+    },
+  )
 
   it('P4: a recorded vault-<env> CRM database and no control database gets vb-control-<env> created and recorded, every CRM name as recorded', async () => {
     let text = fixture
@@ -141,7 +187,15 @@ describe('the recorded control name wins, and a disagreeing flag is refused (P3 
       preview_urls: false,
       routes: [{ pattern: 'api.acme.vibase.ai', custom_domain: true }],
       observability: { enabled: true },
-      d1_databases: [{ binding: 'DB', database_name: 'vault-acme', database_id: CRM_ID, migrations_dir: '../storage-d1/migrations', remote: true }],
+      d1_databases: [
+        {
+          binding: 'DB',
+          database_name: 'vault-acme',
+          database_id: CRM_ID,
+          migrations_dir: '../storage-d1/migrations',
+          remote: true,
+        },
+      ],
       r2_buckets: [{ binding: 'BODIES', bucket_name: 'vault-acme-bodies' }],
       vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' },
     }
@@ -151,7 +205,10 @@ describe('the recorded control name wins, and a disagreeing flag is refused (P3 
     expect(o.stoppedAfterConfigWrite).toBe(true)
     expect(creates(w)).toEqual(['vb-control-acme'])
     expect(bindingOf(w.state.configText, 'DB')).toMatchObject({ database_name: 'vault-acme', database_id: CRM_ID })
-    expect(bindingOf(w.state.configText, 'CONTROL_DB')).toMatchObject({ database_name: 'vb-control-acme', database_id: '00000000-1111-4222-8333-000000000002' })
+    expect(bindingOf(w.state.configText, 'CONTROL_DB')).toMatchObject({
+      database_name: 'vb-control-acme',
+      database_id: '00000000-1111-4222-8333-000000000002',
+    })
     expect(block(w.state.configText).name).toBe('vault-acme')
     expect(block(w.state.configText).r2_buckets[0].bucket_name).toBe('vault-acme-bodies')
   })
@@ -168,7 +225,9 @@ describe('migrate control first, then CRM (D14)', () => {
     expect(applies(w)).toEqual(['CONTROL_DB', 'DB'])
     const lines = rowOf(o, 'migrate').lines ?? []
     expect(lines.findIndex((l) => l.startsWith('[control]'))).toBeGreaterThanOrEqual(0)
-    expect(lines.findIndex((l) => l.startsWith('[control]'))).toBeLessThan(lines.findIndex((l) => l.startsWith('[crm]')))
+    expect(lines.findIndex((l) => l.startsWith('[control]'))).toBeLessThan(
+      lines.findIndex((l) => l.startsWith('[crm]')),
+    )
     expect(w.state.appliedControl).toEqual(CONTROL_EXPECTED)
     expect(w.state.applied).toEqual(EXPECTED_MIGRATIONS)
   })
@@ -207,20 +266,27 @@ describe('migrate control first, then CRM (D14)', () => {
     expect(row.status).toBe('update')
     const lines = row.lines ?? []
     expect(lines.findIndex((l) => l.startsWith('[control]'))).toBeGreaterThanOrEqual(0)
-    expect(lines.findIndex((l) => l.startsWith('[control]'))).toBeLessThan(lines.findIndex((l) => l.startsWith('[crm]')))
+    expect(lines.findIndex((l) => l.startsWith('[control]'))).toBeLessThan(
+      lines.findIndex((l) => l.startsWith('[crm]')),
+    )
     const reads = calls(w).filter((c) => c.includes('d1_migrations'))
     expect(reads[0]).toContain('CONTROL_DB')
   })
 })
 
 describe('the control marker in the bootstrap step (D7, D9)', () => {
-  const ready = (o: Partial<WorldOptions> = {}) => world({ applied: [...EXPECTED_MIGRATIONS], appliedControl: [...CONTROL_EXPECTED], ...o })
+  const ready = (o: Partial<WorldOptions> = {}) =>
+    world({ applied: [...EXPECTED_MIGRATIONS], appliedControl: [...CONTROL_EXPECTED], ...o })
   const control = (w: World) => openControlDb(w.control)
   const crmOrg = async () => (await readDeployment(db.d1))?.organizationId
 
   it('fresh instance, marker only (--auth none without operator flags): the marker follows the CRM deployment row and names its organisation', async () => {
     const order: string[] = []
-    const w = world({ control: memoryControl(async () => void order.push(`control, crm row ${(await readDeployment(db.d1)) ? 'present' : 'absent'}`)) })
+    const w = world({
+      control: memoryControl(
+        async () => void order.push(`control, crm row ${(await readDeployment(db.d1)) ? 'present' : 'absent'}`),
+      ),
+    })
     await firstRun(w)
     const o = await run(w)
     expect(o.exitCode).toBe(0)
@@ -241,7 +307,13 @@ describe('the control marker in the bootstrap step (D7, D9)', () => {
   it('an instance bootstrapped before this cycle (CRM row present, control marker missing) gets the marker, and a second run is ok with no write', async () => {
     const w = ready()
     await firstRun(w)
-    await bootstrapD1(db.d1, { organizationName: 'acme', authProvider: 'none', authOrgId: 'acme', email: 'owner@example.com', agentName: 'op' })
+    await bootstrapD1(db.d1, {
+      organizationName: 'acme',
+      authProvider: 'none',
+      authOrgId: 'acme',
+      email: 'owner@example.com',
+      agentName: 'op',
+    })
     expect(await readControlMarker(control(w))).toBeNull()
     const o = await run(w)
     expect(o.exitCode).toBe(0)
@@ -257,9 +329,18 @@ describe('the control marker in the bootstrap step (D7, D9)', () => {
     const failing: D1Like = {
       prepare: (q) => {
         const p = db.d1.prepare(q)
-        return /insert into deployment/i.test(q) ? { ...p, bind: () => failing.prepare(q), run: async () => Promise.reject(new Error('crm write failed')) } as ReturnType<D1Like['prepare']> : p
+        return /insert into deployment/i.test(q)
+          ? ({
+              ...p,
+              bind: () => failing.prepare(q),
+              run: async () => Promise.reject(new Error('crm write failed')),
+            } as ReturnType<D1Like['prepare']>)
+          : p
       },
-      batch: async (s) => (s.length > 0 && (await db.d1.prepare('select 1 as x from deployment').first()) === null ? Promise.reject(new Error('crm write failed')) : db.d1.batch(s)),
+      batch: async (s) =>
+        s.length > 0 && (await db.d1.prepare('select 1 as x from deployment').first()) === null
+          ? Promise.reject(new Error('crm write failed'))
+          : db.d1.batch(s),
     }
     const w = world({ d1: failing })
     await firstRun(w)
@@ -283,7 +364,13 @@ describe('the control marker in the bootstrap step (D7, D9)', () => {
   it('a control marker naming another organisation than the CRM row is refused (CRM row present)', async () => {
     const w = ready()
     await firstRun(w)
-    await bootstrapD1(db.d1, { organizationName: 'acme', authProvider: 'none', authOrgId: 'acme', email: 'owner@example.com', agentName: 'op' })
+    await bootstrapD1(db.d1, {
+      organizationName: 'acme',
+      authProvider: 'none',
+      authOrgId: 'acme',
+      email: 'owner@example.com',
+      agentName: 'op',
+    })
     await writeControlMarker(control(w), OTHER)
     const o = await run(w)
     expect(rowOf(o, 'bootstrap').status).toBe('fail')
@@ -293,7 +380,13 @@ describe('the control marker in the bootstrap step (D7, D9)', () => {
   it('--dry-run reports the control marker it would write and writes nothing', async () => {
     const w = ready()
     await firstRun(w)
-    await bootstrapD1(db.d1, { organizationName: 'acme', authProvider: 'none', authOrgId: 'acme', email: 'owner@example.com', agentName: 'op' })
+    await bootstrapD1(db.d1, {
+      organizationName: 'acme',
+      authProvider: 'none',
+      authOrgId: 'acme',
+      email: 'owner@example.com',
+      agentName: 'op',
+    })
     const o = await runSetup([...ACME, '--dry-run'], {}, w.deps)
     expect(rowOf(o, 'bootstrap').status).toBe('create')
     expect(rowOf(o, 'bootstrap').detail).toMatch(/control/)

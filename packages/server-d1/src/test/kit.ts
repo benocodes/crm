@@ -1,7 +1,22 @@
 // Test support for the D1 Worker package (a `test/` directory: the boundary checker treats it as tests).
 import { type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
-import { mintOAuthToken, SECRET_KEY, WEBHOOK_SECRET, API_URL, clerkOrganization, clerkMembership, clerkUser, fakeClerkFetch, testIssuer, type ClerkMembershipJson, type ClerkOrganizationJson, type ClerkUserJson, type FakeFetch, type TestIssuer } from '@vibase/api/test/clerk'
+import {
+  mintOAuthToken,
+  SECRET_KEY,
+  WEBHOOK_SECRET,
+  API_URL,
+  clerkOrganization,
+  clerkMembership,
+  clerkUser,
+  fakeClerkFetch,
+  testIssuer,
+  type ClerkMembershipJson,
+  type ClerkOrganizationJson,
+  type ClerkUserJson,
+  type FakeFetch,
+  type TestIssuer,
+} from '@vibase/api/test/clerk'
 import type { D1WorkerEnv } from '../compose.js'
 
 export { clerkOrganization, clerkMembership, clerkUser, mintOAuthToken }
@@ -42,7 +57,10 @@ export interface SqlLog {
  * A D1Like that records the SQL of every prepared statement and optionally pauses between a unit's plan reads and its
  * commit batch to run a hook (deterministic drift, as `api/src/test/engines.ts` does for the engine harness).
  */
-export function spyD1(real: D1Like, opts: { failSelectOne?: () => boolean } = {}): { d1: D1Like; log: SqlLog; betweenPlanAndCommit(hook: () => Promise<void>): void } {
+export function spyD1(
+  real: D1Like,
+  opts: { failSelectOne?: () => boolean } = {},
+): { d1: D1Like; log: SqlLog; betweenPlanAndCommit(hook: () => Promise<void>): void } {
   const statements: string[] = []
   const pending: { hook: (() => Promise<void>) | null } = { hook: null }
   const sqlOf = new WeakMap<object, string>()
@@ -79,14 +97,21 @@ export function spyD1(real: D1Like, opts: { failSelectOne?: () => boolean } = {}
       return out
     },
   }
-  return { d1, log: { statements, clear: () => void (statements.length = 0) }, betweenPlanAndCommit: (hook) => void (pending.hook = hook) }
+  return {
+    d1,
+    log: { statements, clear: () => void (statements.length = 0) },
+    betweenPlanAndCommit: (hook) => void (pending.hook = hook),
+  }
 }
 
 /**
  * A D1Like that watches the batches sent to `real` ([[CORE288]]): when a batch holds a statement whose SQL matches `match`, `act` runs first, once (`times`, default 1) or on every match
  * (`times: Infinity`). `act` may throw (a failing store) or write through the real database (a change between plan and commit). Reads outside batches pass untouched.
  */
-export function faultD1(real: D1Like, rule: { match: RegExp; act: () => Promise<void>; times?: number }): { d1: D1Like; fired(): number } {
+export function faultD1(
+  real: D1Like,
+  rule: { match: RegExp; act: () => Promise<void>; times?: number },
+): { d1: D1Like; fired(): number } {
   // Each wrapper remembers its SQL and the real statement behind it; `batch` hands the real ones on.
   const info = new WeakMap<object, { sql: string; real: D1PreparedLike }>()
   let fired = 0
@@ -178,7 +203,16 @@ export interface D1Meter {
   take(): InvocationMeasure
 }
 
-const zeroMeasure = (): InvocationMeasure => ({ queries: 0, statements: 0, maxStatementBytes: 0, maxParameters: 0, maxBoundTextBytes: 0, rowsRead: 0, rowsWritten: 0, d1DurationMs: 0 })
+const zeroMeasure = (): InvocationMeasure => ({
+  queries: 0,
+  statements: 0,
+  maxStatementBytes: 0,
+  maxParameters: 0,
+  maxBoundTextBytes: 0,
+  rowsRead: 0,
+  rowsWritten: 0,
+  d1DurationMs: 0,
+})
 
 /** A D1Like that counts what one invocation sends to D1 (CORE47 P6): queries, statement sizes, bound values, and `meta`. */
 export function meterD1(real: D1Like): D1Meter {
@@ -189,7 +223,8 @@ export function meterD1(real: D1Like): D1Meter {
     m.statements++
     m.maxStatementBytes = Math.max(m.maxStatementBytes, enc.encode(sqlText).length)
     m.maxParameters = Math.max(m.maxParameters, params.length)
-    for (const p of params) if (typeof p === 'string') m.maxBoundTextBytes = Math.max(m.maxBoundTextBytes, enc.encode(p).length)
+    for (const p of params)
+      if (typeof p === 'string') m.maxBoundTextBytes = Math.max(m.maxBoundTextBytes, enc.encode(p).length)
   }
   const meta = (r: { meta?: { rows_read?: number; rows_written?: number; duration?: number } } | null | undefined) => {
     m.rowsRead += r?.meta?.rows_read ?? 0

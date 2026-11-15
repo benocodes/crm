@@ -12,7 +12,10 @@ export interface WebhooksRuntime {
 
 const present = (v: string | undefined): v is string => typeof v === 'string' && v.trim() !== ''
 
-export function parseWebhooksConfig(env: Record<string, string | undefined>): { runtime: WebhooksRuntime; problems: string[] } {
+export function parseWebhooksConfig(env: Record<string, string | undefined>): {
+  runtime: WebhooksRuntime
+  problems: string[]
+} {
   const problems: string[] = []
   let bytes: Uint8Array | null = null
   if (present(env.CREDENTIALS_KEY)) {
@@ -33,4 +36,5 @@ export function parseWebhooksConfig(env: Record<string, string | undefined>): { 
 }
 
 /** The startup log line: the names of the malformed variables, never a value. */
-export const webhooksConfigNotice = (problems: readonly string[]): string => `[webhooks] webhook secrets are not available: fix ${problems.join(', ')}`
+export const webhooksConfigNotice = (problems: readonly string[]): string =>
+  `[webhooks] webhook secrets are not available: fix ${problems.join(', ')}`

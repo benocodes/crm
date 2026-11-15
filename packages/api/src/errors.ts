@@ -29,6 +29,7 @@ export function mapStorageError(err: unknown): unknown {
     return new ApiError(409, 'conflict', 'the record changed while the operation was running; retry')
   }
   if (err instanceof SetLimitExceeded) return new ApiError(400, 'set_limit_exceeded', err.message)
-  if (err instanceof ForeignOrganizationError) return new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
+  if (err instanceof ForeignOrganizationError)
+    return new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
   return err
 }

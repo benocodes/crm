@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { extractWWWAuthenticateParams, discoverOAuthProtectedResourceMetadata } from '@modelcontextprotocol/sdk/client/auth.js'
+import {
+  extractWWWAuthenticateParams,
+  discoverOAuthProtectedResourceMetadata,
+} from '@modelcontextprotocol/sdk/client/auth.js'
 import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
@@ -35,17 +38,32 @@ const NAMES = MIGRATIONS.map((m) => m.name)
 const declared = createVibaseRegistry().declaredScopes()
 const grantable = grantableScopes(declared).map(toProviderScope)
 const rootChallenge = (origin: string) => `Bearer resource_metadata="${origin}${PRM}"`
-const mcpChallenge = (origin: string) => `Bearer resource_metadata="${origin}${PRM_MCP}", scope="${grantable.join(' ')}"`
+const mcpChallenge = (origin: string) =>
+  `Bearer resource_metadata="${origin}${PRM_MCP}", scope="${grantable.join(' ')}"`
 
-const worker = (extra: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: 'cli_client_test', ...extra }, { fetch: kit.fetch })
+const worker = (extra: Partial<D1WorkerEnv> = {}) =>
+  composeD1Worker(
+    { DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: 'cli_client_test', ...extra },
+    { fetch: kit.fetch },
+  )
 type Wk = ReturnType<typeof worker>
-const call = (wk: Wk, path: string, init: RequestInit & { base?: string } = {}) => wk.fetch(new Request((init.base ?? BASE) + path, init))
-const boot = () => bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: kit.issuer.issuer }, { now: NOW, newId: () => uuidv7(NOW) })
+const call = (wk: Wk, path: string, init: RequestInit & { base?: string } = {}) =>
+  wk.fetch(new Request((init.base ?? BASE) + path, init))
+const boot = () =>
+  bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', agentName: 'bot', authOrgId: kit.issuer.issuer },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
 const tracker = async (names: readonly string[]) => {
   await createMigrationTracker(w.d1)
   await recordMigrations(w.d1, names)
 }
-const ping = { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }) }
+const ping = {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+}
 
 describe('D13 GET /.well-known/oauth-protected-resource/mcp', () => {
   it('resource is <origin>/mcp, scopes_supported is exactly the agent-grantable set in provider names, no human-only scope', async () => {
@@ -68,7 +86,12 @@ describe('D13 GET /.well-known/oauth-protected-resource/mcp', () => {
 
   it('the root document is unchanged: every declared scope, resource is the origin', async () => {
     const body = (await (await call(worker(), PRM)).json()) as any
-    expect(body).toEqual({ resource: BASE, authorization_servers: [kit.issuer.issuer], scopes_supported: declared.map(toProviderScope), bearer_methods_supported: ['header'] })
+    expect(body).toEqual({
+      resource: BASE,
+      authorization_servers: [kit.issuer.issuer],
+      scopes_supported: declared.map(toProviderScope),
+      bearer_methods_supported: ['header'],
+    })
   })
 
   it('public with headers: Cache-Control and a wildcard origin, no challenge; HEAD answers the same headers with no body', async () => {
@@ -133,7 +156,8 @@ describe('D14 the 401 challenge on /mcp', () => {
     const { key } = await boot()
     await tracker(NAMES)
     const wk = worker()
-    const post = (headers: Record<string, string> = {}, base?: string) => call(wk, '/mcp', { ...ping, headers: { ...ping.headers, ...headers }, base })
+    const post = (headers: Record<string, string> = {}, base?: string) =>
+      call(wk, '/mcp', { ...ping, headers: { ...ping.headers, ...headers }, base })
     const bad = await post({ authorization: 'Bearer a.b.c' })
     const garbage = await post({ authorization: 'Bearer garbage' })
     const none = await post()
@@ -147,11 +171,20 @@ describe('D14 the 401 challenge on /mcp', () => {
     const revoked = await post({ authorization: `Bearer ${key}` })
     expect(revoked.status).toBe(401)
     expect(revoked.headers.get('www-authenticate')).toBe(mcpChallenge(BASE))
-    expect((await post({}, 'http://localhost:8787')).headers.get('www-authenticate')).toBe(mcpChallenge('http://localhost:8787'))
+    expect((await post({}, 'http://localhost:8787')).headers.get('www-authenticate')).toBe(
+      mcpChallenge('http://localhost:8787'),
+    )
     // an expired session token too
     const old = Math.floor(NOW.getTime() / 1000) - 3600
-    const expired = await mintClerkToken(kit.issuer, { sub: 'user_a', extra: { vibase_role: 'owner' }, exp: old, now: new Date(NOW.getTime() - 7200_000) })
-    expect((await post({ authorization: `Bearer ${expired}` })).headers.get('www-authenticate')).toBe(mcpChallenge(BASE))
+    const expired = await mintClerkToken(kit.issuer, {
+      sub: 'user_a',
+      extra: { vibase_role: 'owner' },
+      exp: old,
+      now: new Date(NOW.getTime() - 7200_000),
+    })
+    expect((await post({ authorization: `Bearer ${expired}` })).headers.get('www-authenticate')).toBe(
+      mcpChallenge(BASE),
+    )
   })
 
   it('every other path keeps the root challenge byte for byte; a path under /mcp is not /mcp', async () => {
@@ -182,8 +215,13 @@ describe('D14 the 401 challenge on /mcp', () => {
     expect(parsed.resourceMetadataUrl?.href).toBe(`${BASE}${PRM_MCP}`)
     expect(parsed.scope).toBe(grantable.join(' '))
     expect(parsed.scope?.split(' ')).toEqual(grantable)
-    const fetchFn = ((input: RequestInfo | URL, init?: RequestInit) => wk.fetch(new Request(input, init))) as typeof fetch
-    const meta = await discoverOAuthProtectedResourceMetadata(`${BASE}/mcp`, { resourceMetadataUrl: parsed.resourceMetadataUrl }, fetchFn)
+    const fetchFn = ((input: RequestInfo | URL, init?: RequestInit) =>
+      wk.fetch(new Request(input, init))) as typeof fetch
+    const meta = await discoverOAuthProtectedResourceMetadata(
+      `${BASE}/mcp`,
+      { resourceMetadataUrl: parsed.resourceMetadataUrl },
+      fetchFn,
+    )
     expect(meta?.resource).toBe(`${BASE}/mcp`)
     expect(meta?.scopes_supported).toEqual(grantable)
     // without the hint the SDK builds the path-aware URL itself: D13's path
@@ -202,21 +240,37 @@ describe('D14 the 401 challenge on /mcp', () => {
 })
 
 describe('D16 OPTIONS on the discovery documents', () => {
-  const PREFLIGHT = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, HEAD', 'access-control-allow-headers': '*', 'access-control-max-age': '600' }
+  const PREFLIGHT = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, HEAD',
+    'access-control-allow-headers': '*',
+    'access-control-max-age': '600',
+  }
   const preflight = (wk: Wk, path: string, base?: string) =>
-    call(wk, path, { method: 'OPTIONS', base, headers: { origin: 'https://mcp.client.example', 'access-control-request-method': 'GET', 'access-control-request-headers': 'mcp-protocol-version' } })
+    call(wk, path, {
+      method: 'OPTIONS',
+      base,
+      headers: {
+        origin: 'https://mcp.client.example',
+        'access-control-request-method': 'GET',
+        'access-control-request-headers': 'mcp-protocol-version',
+      },
+    })
 
-  it.each([VIBASE, PRM, PRM_MCP])('%s: 204 with the four headers, before the marker and the migration gate', async (path) => {
-    const wk = worker()
-    const res = await preflight(wk, path)
-    expect(res.status).toBe(204)
-    for (const [name, value] of Object.entries(PREFLIGHT)) expect(res.headers.get(name), name).toBe(value)
-    expect(await res.text()).toBe('')
-    // behind the manifest, where an API route is 503
-    await boot()
-    await tracker(NAMES.slice(0, -1))
-    expect((await preflight(worker(), path)).status).toBe(204)
-  })
+  it.each([VIBASE, PRM, PRM_MCP])(
+    '%s: 204 with the four headers, before the marker and the migration gate',
+    async (path) => {
+      const wk = worker()
+      const res = await preflight(wk, path)
+      expect(res.status).toBe(204)
+      for (const [name, value] of Object.entries(PREFLIGHT)) expect(res.headers.get(name), name).toBe(value)
+      expect(await res.text()).toBe('')
+      // behind the manifest, where an API route is 503
+      await boot()
+      await tracker(NAMES.slice(0, -1))
+      expect((await preflight(worker(), path)).status).toBe(204)
+    },
+  )
 
   it('with no provider the two protected-resource paths are still 204 (the GET then 404s) and the vibase one too', async () => {
     const wk = worker({ AUTH_PROVIDER: undefined })
@@ -248,7 +302,9 @@ describe('D17 mcp in /.well-known/vibase', () => {
   it('is <origin>/mcp with a provider, on the request origin', async () => {
     const wk = worker()
     expect(((await (await call(wk, VIBASE)).json()) as any).mcp).toBe(`${BASE}/mcp`)
-    expect(((await (await call(wk, VIBASE, { base: 'http://localhost:8787' })).json()) as any).mcp).toBe('http://localhost:8787/mcp')
+    expect(((await (await call(wk, VIBASE, { base: 'http://localhost:8787' })).json()) as any).mcp).toBe(
+      'http://localhost:8787/mcp',
+    )
   })
   it('is present without a provider, where auth is null', async () => {
     const body = (await (await call(worker({ AUTH_PROVIDER: undefined }), VIBASE)).json()) as any

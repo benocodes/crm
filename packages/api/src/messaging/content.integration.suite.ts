@@ -35,10 +35,13 @@ export function engineSuite(engineName: EngineName): void {
       store = { ...inner, get: (k) => (gets.push(k), inner.get(k)) }
     })
 
-    const app = () => createApp({ storage: () => e.binding, userAuthenticator: fakeUserAuthenticator(), objects: store })
+    const app = () =>
+      createApp({ storage: () => e.binding, userAuthenticator: fakeUserAuthenticator(), objects: store })
     const call = (path: string, over: { scopes?: string[]; kind?: 'user' | 'agent'; userId?: string } = {}) =>
       app().request(path, {
-        headers: { authorization: `Bearer ${mintTestUserToken({ userId: over.userId ?? e.userId, organizationId: e.organizationId, scopes: over.scopes ?? SCOPES, kind: over.kind })}` },
+        headers: {
+          authorization: `Bearer ${mintTestUserToken({ userId: over.userId ?? e.userId, organizationId: e.organizationId, scopes: over.scopes ?? SCOPES, kind: over.kind })}`,
+        },
       })
     const seed = (opts: Parameters<typeof seedConversation>[1] = {}) => seedConversation((t, r) => e.insert(t, r), opts)
     const err = async (res: Response) => ((await res.json()) as { error: { code: string; message: string } }).error
@@ -104,13 +107,21 @@ export function engineSuite(engineName: EngineName): void {
       expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes)
       expect(res.headers.get('content-type')).toBe('application/pdf')
       expect(res.headers.get('content-length')).toBe('256')
-      expect(res.headers.get('content-disposition')).toBe(`attachment; filename="Jane _CV_.pdf"; filename*=UTF-8''Jane%20%22CV%22.pdf`)
+      expect(res.headers.get('content-disposition')).toBe(
+        `attachment; filename="Jane _CV_.pdf"; filename*=UTF-8''Jane%20%22CV%22.pdf`,
+      )
       expect(res.headers.get('x-content-type-options')).toBe('nosniff')
       expect(res.headers.get('content-security-policy')).toBe('sandbox')
     })
 
     it('an unsafe mime type is served as application/octet-stream', async () => {
-      const file = await e.insert('files', { name: 'x.html', mime_type: 'text/html; charset=utf-8\r\nx: y', size_bytes: 1, sha256: 'a'.repeat(64), storage_key: `orgs/${e.organizationId}/files/${uuidv7()}` })
+      const file = await e.insert('files', {
+        name: 'x.html',
+        mime_type: 'text/html; charset=utf-8\r\nx: y',
+        size_bytes: 1,
+        sha256: 'a'.repeat(64),
+        storage_key: `orgs/${e.organizationId}/files/${uuidv7()}`,
+      })
       await store.put(fileBlobKey(file.storage_key as string), new Uint8Array([1]))
       const res = await call(`/api/v1/files/${file.id}/content`)
       expect(res.status).toBe(200)
@@ -156,20 +167,29 @@ export function engineSuite(engineName: EngineName): void {
       await store.put(messageBodyKey(c.contentKey!, 1), 'x')
       await store.put(fileBlobKey(c.storageKeys[0]!), new Uint8Array([1]))
       const before = (await e.rows('events')).length
-      for (const p of [`/api/v1/messages/${c.messageId}/content`, `/api/v1/files/${c.fileIds[0]}/content`, `/api/v1/files/${uuidv7()}/content`, `/api/v1/messages/abc/content`]) await call(p)
+      for (const p of [
+        `/api/v1/messages/${c.messageId}/content`,
+        `/api/v1/files/${c.fileIds[0]}/content`,
+        `/api/v1/files/${uuidv7()}/content`,
+        `/api/v1/messages/abc/content`,
+      ])
+        await call(p)
       await call(`/api/v1/messages/${c.messageId}/content`, { scopes: [] })
       expect((await e.rows('events')).length).toBe(before)
     })
 
     // A Postgres case (RLS hides the foreign row); on D1 there is only one organisation per database.
-    if (name === 'postgres') it('a foreign organisation is not_found and the store is never read', async () => {
-      const f = await foreignTenant(e)
-      const c = await seedConversation((t, r) => e.insert(t, { ...r, organization_id: f.organizationId, created_by: f.userId }))
-      await store.put(messageBodyKey(c.contentKey!, 1), 'secret')
-      const res = await call(`/api/v1/messages/${c.messageId}/content`)
-      expect(res.status).toBe(404)
-      expect((await err(res)).code).toBe('not_found')
-      expect(gets).toEqual([])
-    })
+    if (name === 'postgres')
+      it('a foreign organisation is not_found and the store is never read', async () => {
+        const f = await foreignTenant(e)
+        const c = await seedConversation((t, r) =>
+          e.insert(t, { ...r, organization_id: f.organizationId, created_by: f.userId }),
+        )
+        await store.put(messageBodyKey(c.contentKey!, 1), 'secret')
+        const res = await call(`/api/v1/messages/${c.messageId}/content`)
+        expect(res.status).toBe(404)
+        expect((await err(res)).code).toBe('not_found')
+        expect(gets).toEqual([])
+      })
   })
 }

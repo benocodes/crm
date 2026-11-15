@@ -27,7 +27,9 @@ describe('test harness', () => {
 
   it('nothing preset', async () => {
     const { rows } = await sql<{ o: string | null; p: string | null }>`
-      SELECT current_setting('app.organization_id', true) AS o, current_setting('app.principal_id', true) AS p`.execute(db)
+      SELECT current_setting('app.organization_id', true) AS o, current_setting('app.principal_id', true) AS p`.execute(
+      db,
+    )
     expect(rows[0]!.o ?? '').toBe('')
     expect(rows[0]!.p ?? '').toBe('')
   })

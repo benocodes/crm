@@ -30,11 +30,17 @@ const me = async (tok: string | null, extra: Record<string, string> = {}) => {
 }
 
 describe('minted in workerd, resolved by the real Worker', () => {
-  it('a session JWT (15 min), a vibase-cli access token (1 h) and another client\'s access token resolve to a user, a user with the token scopes and a delegated agent; a cookie alone is 401', async () => {
+  it("a session JWT (15 min), a vibase-cli access token (1 h) and another client's access token resolve to a user, a user with the token scopes and a delegated agent; a cookie alone is 401", async () => {
     const kit = authKitOver(w.call as never, BASE, declared)
     const { userId, cookie } = await kit.signUp('owner@x.test')
     const human = uuidv7()
-    await seedPrincipal(w.d1, { id: human, kind: 'user', email: 'owner@x.test', authProvider: 'better-auth', authSubject: userId })
+    await seedPrincipal(w.d1, {
+      id: human,
+      kind: 'user',
+      email: 'owner@x.test',
+      authProvider: 'better-auth',
+      authSubject: userId,
+    })
     await seedMembership(w.d1, { organizationId: PAIRED_ORG, userId: human, role: 'owner' })
 
     const session = await kit.sessionJwt(cookie)

@@ -7,13 +7,23 @@ import { dueConnections, type MailSyncInstances, type MailSyncParams } from '../
 import { finishPass } from '../../sync/lease.js'
 import { openD1Engine, type Engine } from '../../test/engines.js'
 import { seedGmailConnection } from '../../test/gmail-sync.js'
-import { PUSH, jwksFetch, newPushKey, pushBody, signPushToken, type PushClaims, type PushKey } from '../../test/push.js'
+import { PUSH, jwksFetch, newPushKey, pushBody, signPushToken, type PushKey } from '../../test/push.js'
 import { fakeUserAuthenticator } from '../../test/user-auth.js'
 
 // [[CHN155]] / [[CHN5]] D87, D88: `POST /gmail/push` on local D1 with locally minted RS256 keys served through the injected `fetch`. Nothing reaches the network.
 const KEY = new Uint8Array(32).fill(3)
-const ENV = { GOOGLE_CLIENT_ID: 'fake-client-id.apps.test', GOOGLE_CLIENT_SECRET: 'fake-client-secret', OAUTH_STATE_SECRET: 'state-secret-for-tests', CREDENTIALS_KEY: Buffer.from(KEY).toString('base64'), PUBLIC_BASE_URL: PUSH.publicBaseUrl }
-const PUSH_ENV = { GMAIL_TOPIC_NAME: PUSH.topicName, GMAIL_PUSH_SUBSCRIPTION: PUSH.subscription, GMAIL_PUSH_SERVICE_ACCOUNT: PUSH.serviceAccount }
+const ENV = {
+  GOOGLE_CLIENT_ID: 'fake-client-id.apps.test',
+  GOOGLE_CLIENT_SECRET: 'fake-client-secret',
+  OAUTH_STATE_SECRET: 'state-secret-for-tests',
+  CREDENTIALS_KEY: Buffer.from(KEY).toString('base64'),
+  PUBLIC_BASE_URL: PUSH.publicBaseUrl,
+}
+const PUSH_ENV = {
+  GMAIL_TOPIC_NAME: PUSH.topicName,
+  GMAIL_PUSH_SUBSCRIPTION: PUSH.subscription,
+  GMAIL_PUSH_SERVICE_ACCOUNT: PUSH.serviceAccount,
+}
 const SEC = 1000
 
 let e: Engine
@@ -36,11 +46,26 @@ beforeEach(async () => {
   created = []
   instances = { create: async (o) => void created.push(o) }
   jwks = jwksFetch([key])
-  connId = await seedGmailConnection(e, { key: KEY, refreshToken: 'rt-1', mailbox: 'owner@vibase.test', lastSyncedAt: '2026-11-05T09:59:00.000Z' })
-  await e.insert('gmail_watches', { connection_id: connId, mailbox: 'owner@vibase.test', expires_at: '2026-11-12T10:00:00.000Z' })
+  connId = await seedGmailConnection(e, {
+    key: KEY,
+    refreshToken: 'rt-1',
+    mailbox: 'owner@vibase.test',
+    lastSyncedAt: '2026-11-05T09:59:00.000Z',
+  })
+  await e.insert('gmail_watches', {
+    connection_id: connId,
+    mailbox: 'owner@vibase.test',
+    expires_at: '2026-11-12T10:00:00.000Z',
+  })
 })
 
-const app = (over: { env?: Record<string, string | undefined>; instances?: MailSyncInstances | null; binding?: Engine['binding'] } = {}) => {
+const app = (
+  over: {
+    env?: Record<string, string | undefined>
+    instances?: MailSyncInstances | null
+    binding?: Engine['binding']
+  } = {},
+) => {
   const env = over.env ?? { ...ENV, ...PUSH_ENV }
   const { config } = parseGmailConfig(env)
   const { config: push, problems } = parsePushConfig(env)
@@ -49,23 +74,49 @@ const app = (over: { env?: Record<string, string | undefined>; instances?: MailS
     userAuthenticator: fakeUserAuthenticator(),
     clock: () => now,
     newId: () => uuidv7(now),
-    gmail: { config, push, pushProblems: problems, fetch: jwks.fetch, ...(over.instances === null ? {} : { instances: over.instances ?? instances }) },
+    gmail: {
+      config,
+      push,
+      pushProblems: problems,
+      fetch: jwks.fetch,
+      ...(over.instances === null ? {} : { instances: over.instances ?? instances }),
+    },
   })
 }
 const post = async (a: ReturnType<typeof app>, o: { token?: string | null; header?: string; body?: string } = {}) => {
   const headers: Record<string, string> = {}
   if (o.header !== undefined) headers.authorization = o.header
   else if (o.token !== null) headers.authorization = `Bearer ${o.token ?? (await signPushToken(key, now))}`
-  const res = await a.request(`${PUSH.publicBaseUrl}/gmail/push`, { method: 'POST', headers, body: o.body ?? pushBody() })
+  const res = await a.request(`${PUSH.publicBaseUrl}/gmail/push`, {
+    method: 'POST',
+    headers,
+    body: o.body ?? pushBody(),
+  })
   const text = await res.text()
   return { status: res.status, body: text ? (JSON.parse(text) as any) : null }
 }
 const state = async () => (await e.rows('mail_sync_state')).find((r) => r.connection_id === connId)!
-const snapshot = async () => JSON.stringify({ state: await e.rows('mail_sync_state'), cursors: await e.rows('mail_sync_cursors'), watches: await e.rows('gmail_watches'), events: (await e.rows('events')).length })
-const raw = (sql: string, ...binds: unknown[]) => e.d1!.prepare(sql).bind(...binds).run()
+const snapshot = async () =>
+  JSON.stringify({
+    state: await e.rows('mail_sync_state'),
+    cursors: await e.rows('mail_sync_cursors'),
+    watches: await e.rows('gmail_watches'),
+    events: (await e.rows('events')).length,
+  })
+const raw = (sql: string, ...binds: unknown[]) =>
+  e
+    .d1!.prepare(sql)
+    .bind(...binds)
+    .run()
 
 describe('the verifier (D87): every refusal is 401 with no write and no instance', () => {
-  const hs256 = async (): Promise<string> => await new SignJWT({ email: PUSH.serviceAccount, email_verified: true }).setProtectedHeader({ alg: 'HS256' }).setIssuer('https://accounts.google.com').setAudience(PUSH.audience).setExpirationTime('1h').sign(new TextEncoder().encode('0123456789abcdef0123456789abcdef'))
+  const hs256 = async (): Promise<string> =>
+    await new SignJWT({ email: PUSH.serviceAccount, email_verified: true })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer('https://accounts.google.com')
+      .setAudience(PUSH.audience)
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode('0123456789abcdef0123456789abcdef'))
   const cases: Array<[string, () => Promise<string>]> = [
     ['a wrong aud', () => signPushToken(key, now, { aud: 'https://vibase.test/gmail/push/' })],
     ['an aud of another origin', () => signPushToken(key, now, { aud: 'https://other.test/gmail/push' })],
@@ -96,10 +147,15 @@ describe('the verifier (D87): every refusal is 401 with no write and no instance
   })
   it('a token within the tolerance (expired 20 s ago), an array-free aud, and the bare accounts.google.com iss all pass', async () => {
     expect((await post(app(), { token: await signPushToken(key, now, { expIn: -20 }) })).status).toBe(204)
-    expect((await post(app(), { token: await signPushToken(key, now, { iss: 'accounts.google.com' }) })).status).toBe(204)
+    expect((await post(app(), { token: await signPushToken(key, now, { iss: 'accounts.google.com' }) })).status).toBe(
+      204,
+    )
   })
   it('the service account is compared case-insensitively', async () => {
-    expect((await post(app(), { token: await signPushToken(key, now, { email: PUSH.serviceAccount.toUpperCase() }) })).status).toBe(204)
+    expect(
+      (await post(app(), { token: await signPushToken(key, now, { email: PUSH.serviceAccount.toUpperCase() }) }))
+        .status,
+    ).toBe(204)
   })
 })
 
@@ -117,7 +173,9 @@ describe('the JWKS is fetched only for a well-formed bearer (D87)', () => {
     expect(jwks.urls).toEqual([])
   })
   it('an HS256 or alg none header is refused before the fetch too (an unauthenticated caller cannot make the Worker call Google)', async () => {
-    const hs = await new SignJWT({}).setProtectedHeader({ alg: 'HS256' }).sign(new TextEncoder().encode('0123456789abcdef0123456789abcdef'))
+    const hs = await new SignJWT({})
+      .setProtectedHeader({ alg: 'HS256' })
+      .sign(new TextEncoder().encode('0123456789abcdef0123456789abcdef'))
     expect((await post(app(), { token: hs })).status).toBe(401)
     expect(jwks.urls).toEqual([])
   })
@@ -127,15 +185,18 @@ describe('the JWKS is fetched only for a well-formed bearer (D87)', () => {
     await post(a)
     expect(jwks.urls).toHaveLength(2)
   })
-  it.each(['status', 'throw', 'bad_json'] as const)('a JWKS fetch that fails (%s) is 503 so Pub/Sub retries, with no write', async (mode) => {
-    jwks.mode = mode
-    const before = await snapshot()
-    const res = await post(app())
-    expect(res.status).toBe(503)
-    expect(res.body.error.code).toBe('jwks_unavailable')
-    expect(await snapshot()).toBe(before)
-    expect(created).toEqual([])
-  })
+  it.each(['status', 'throw', 'bad_json'] as const)(
+    'a JWKS fetch that fails (%s) is 503 so Pub/Sub retries, with no write',
+    async (mode) => {
+      jwks.mode = mode
+      const before = await snapshot()
+      const res = await post(app())
+      expect(res.status).toBe(503)
+      expect(res.body.error.code).toBe('jwks_unavailable')
+      expect(await snapshot()).toBe(before)
+      expect(created).toEqual([])
+    },
+  )
 })
 
 describe('push to sync (D88)', () => {
@@ -156,10 +217,27 @@ describe('push to sync (D88)', () => {
   })
   const cases: Array<[string, () => Promise<void>, string?]> = [
     ['an unknown mailbox', async () => {}, 'nobody@vibase.test'],
-    ['a soft-deleted connection', async () => void (await raw('update channel_connections set deleted_at = ? where id = ?', '2026-11-05T09:00:00.000Z', connId))],
-    ['a reauth_required connection', async () => void (await raw("update channel_connections set status = 'reauth_required' where id = ?", connId))],
-    ['a suspended connection', async () => void (await raw("update channel_connections set status = 'suspended' where id = ?", connId))],
-    ['a connection with no watch row (the empty state)', async () => void (await raw('delete from gmail_watches where connection_id = ?', connId))],
+    [
+      'a soft-deleted connection',
+      async () =>
+        void (await raw(
+          'update channel_connections set deleted_at = ? where id = ?',
+          '2026-11-05T09:00:00.000Z',
+          connId,
+        )),
+    ],
+    [
+      'a reauth_required connection',
+      async () => void (await raw("update channel_connections set status = 'reauth_required' where id = ?", connId)),
+    ],
+    [
+      'a suspended connection',
+      async () => void (await raw("update channel_connections set status = 'suspended' where id = ?", connId)),
+    ],
+    [
+      'a connection with no watch row (the empty state)',
+      async () => void (await raw('delete from gmail_watches where connection_id = ?', connId)),
+    ],
   ]
   it.each(cases)('%s: 204, no instance, no write', async (_n, arrange, mailbox) => {
     await arrange()
@@ -171,9 +249,16 @@ describe('push to sync (D88)', () => {
   })
   it('verified data that does not decode is 204 and a log line without the address, never a 4xx', async () => {
     const warn: string[] = []
-    const spy = (await import('vitest')).vi.spyOn(console, 'warn').mockImplementation((...a) => void warn.push(a.join(' ')))
+    const spy = (await import('vitest')).vi
+      .spyOn(console, 'warn')
+      .mockImplementation((...a) => void warn.push(a.join(' ')))
     try {
-      for (const data of ['!!!not base64!!!', btoa('not json'), btoa(JSON.stringify({ historyId: '1' })), btoa(JSON.stringify({ emailAddress: 42 }))]) {
+      for (const data of [
+        '!!!not base64!!!',
+        btoa('not json'),
+        btoa(JSON.stringify({ historyId: '1' })),
+        btoa(JSON.stringify({ emailAddress: 42 })),
+      ]) {
         const before = await snapshot()
         expect((await post(app(), { body: pushBody({ data }) })).status).toBe(204)
         expect(await snapshot()).toBe(before)
@@ -233,19 +318,39 @@ describe('no amplification (D88)', () => {
   })
   it('with a lease held no instance is created, but sync_requested_at is advanced past the run start so its finish re-passes', async () => {
     const passStart = new Date(now.getTime() - 5 * SEC).toISOString()
-    await raw('update mail_sync_state set lease_until = ?, run_id = ? where connection_id = ?', new Date(now.getTime() + 60 * SEC).toISOString(), 'run-1', connId)
+    await raw(
+      'update mail_sync_state set lease_until = ?, run_id = ? where connection_id = ?',
+      new Date(now.getTime() + 60 * SEC).toISOString(),
+      'run-1',
+      connId,
+    )
     expect((await post(app())).status).toBe(204)
     expect(created).toEqual([])
     expect((await state()).sync_requested_at).toBe(now.toISOString())
     expect(((await state()).sync_requested_at as string) > passStart).toBe(true)
-    const done = await finishPass({ binding: e.binding, organizationId: e.organizationId, clock: () => new Date(now.getTime() + 10 * SEC) }, connId, 'run-1', passStart, true)
+    const done = await finishPass(
+      { binding: e.binding, organizationId: e.organizationId, clock: () => new Date(now.getTime() + 10 * SEC) },
+      connId,
+      'run-1',
+      passStart,
+      true,
+    )
     expect(done.again).toBe(true)
   })
   it('a suppressed request whose instance never came is selected by the cron (dueConnections) once the lease is gone, from this exact row', async () => {
     // Synced a minute ago and not stale: only the recorded request can make it due.
-    await raw('update mail_sync_state set last_success_at = ?, sync_requested_at = null where connection_id = ?', new Date(now.getTime() - 60 * SEC).toISOString(), connId)
+    await raw(
+      'update mail_sync_state set last_success_at = ?, sync_requested_at = null where connection_id = ?',
+      new Date(now.getTime() - 60 * SEC).toISOString(),
+      connId,
+    )
     expect(await dueConnections({ binding: e.binding, organizationId: e.organizationId }, now)).toEqual([])
-    await raw('update mail_sync_state set lease_until = ?, run_id = ? where connection_id = ?', new Date(now.getTime() + 30 * SEC).toISOString(), 'run-1', connId)
+    await raw(
+      'update mail_sync_state set lease_until = ?, run_id = ? where connection_id = ?',
+      new Date(now.getTime() + 30 * SEC).toISOString(),
+      'run-1',
+      connId,
+    )
     await post(app())
     expect(created).toEqual([])
     await raw('update mail_sync_state set lease_until = null, run_id = null where connection_id = ?', connId)
@@ -255,14 +360,21 @@ describe('no amplification (D88)', () => {
 
 describe('failures after the mark (D88)', () => {
   it('an instance that cannot be created is 204 with the request kept, and the cron selects it', async () => {
-    await raw('update mail_sync_state set last_success_at = ? where connection_id = ?', new Date(now.getTime() - 60 * SEC).toISOString(), connId)
+    await raw(
+      'update mail_sync_state set last_success_at = ? where connection_id = ?',
+      new Date(now.getTime() - 60 * SEC).toISOString(),
+      connId,
+    )
     const res = await post(app({ instances: { create: async () => Promise.reject(new Error('workflows down')) } }))
     expect(res.status).toBe(204)
     expect((await state()).sync_requested_at).toBe(now.toISOString())
     expect(await dueConnections({ binding: e.binding, organizationId: e.organizationId }, now)).toEqual([connId])
   })
   it('a D1 failure is 500, so Pub/Sub retries', async () => {
-    const broken = { ...e.binding, runtime: { ...e.binding.runtime, execute: () => Promise.reject(new Error('d1 down')) } } as Engine['binding']
+    const broken = {
+      ...e.binding,
+      runtime: { ...e.binding.runtime, execute: () => Promise.reject(new Error('d1 down')) },
+    } as Engine['binding']
     const res = await post(app({ binding: broken }))
     expect(res.status).toBe(500)
     expect(created).toEqual([])
@@ -270,15 +382,22 @@ describe('failures after the mark (D88)', () => {
 })
 
 describe('push off (D87): the route answers 404', () => {
-  const without = (name: keyof typeof PUSH_ENV): Record<string, string | undefined> => ({ ...ENV, ...PUSH_ENV, [name]: undefined })
-  it.each([['GMAIL_TOPIC_NAME'], ['GMAIL_PUSH_SUBSCRIPTION'], ['GMAIL_PUSH_SERVICE_ACCOUNT']] as const)('without %s', async (name) => {
-    const before = await snapshot()
-    const res = await post(app({ env: without(name) }))
-    expect(res.status).toBe(404)
-    expect(jwks.urls).toEqual([])
-    expect(created).toEqual([])
-    expect(await snapshot()).toBe(before)
+  const without = (name: keyof typeof PUSH_ENV): Record<string, string | undefined> => ({
+    ...ENV,
+    ...PUSH_ENV,
+    [name]: undefined,
   })
+  it.each([['GMAIL_TOPIC_NAME'], ['GMAIL_PUSH_SUBSCRIPTION'], ['GMAIL_PUSH_SERVICE_ACCOUNT']] as const)(
+    'without %s',
+    async (name) => {
+      const before = await snapshot()
+      const res = await post(app({ env: without(name) }))
+      expect(res.status).toBe(404)
+      expect(jwks.urls).toEqual([])
+      expect(created).toEqual([])
+      expect(await snapshot()).toBe(before)
+    },
+  )
   it('without PUBLIC_BASE_URL', async () => {
     expect((await post(app({ env: { ...ENV, ...PUSH_ENV, PUBLIC_BASE_URL: undefined } }))).status).toBe(404)
   })

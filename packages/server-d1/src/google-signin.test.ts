@@ -30,25 +30,75 @@ afterAll(() => w.dispose())
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 const tokenOf = (url: string) => new URL(url).hash.replace(/^#token=/, '')
 const iso = (ms: number) => new Date(ms).toISOString()
-const rows = async (d1: D1Like, text: string, ...binds: unknown[]) => ((await d1.prepare(text).bind(...binds).all()).results ?? []) as Array<Record<string, any>>
+const rows = async (d1: D1Like, text: string, ...binds: unknown[]) =>
+  ((
+    await d1
+      .prepare(text)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as Array<Record<string, any>>
 const crm = (text: string, ...binds: unknown[]) => rows(w.d1, text, ...binds)
 const ctl = (text: string, ...binds: unknown[]) => rows(w.control, text, ...binds)
 const count = async (d1: D1Like, t: string) => Number((await rows(d1, `select count(*) n from "${t}"`))[0]!.n)
-const authCounts = async () => ({ auth_users: await count(w.control, 'auth_users'), auth_accounts: await count(w.control, 'auth_accounts'), auth_sessions: await count(w.control, 'auth_sessions') })
-const vaultCounts = async () => ({ users: await count(w.d1, 'users'), memberships: await count(w.d1, 'memberships'), principals: await count(w.d1, 'principals'), events: await count(w.d1, 'events') })
+const authCounts = async () => ({
+  auth_users: await count(w.control, 'auth_users'),
+  auth_accounts: await count(w.control, 'auth_accounts'),
+  auth_sessions: await count(w.control, 'auth_sessions'),
+})
+const vaultCounts = async () => ({
+  users: await count(w.d1, 'users'),
+  memberships: await count(w.d1, 'memberships'),
+  principals: await count(w.d1, 'principals'),
+  events: await count(w.d1, 'events'),
+})
 
-const worker = (over: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, ...GOOGLE, ...over }, { clock: () => new Date() })
+const worker = (over: Partial<D1WorkerEnv> = {}) =>
+  composeD1Worker(
+    {
+      DB: w.d1,
+      CONTROL_DB: w.control,
+      AUTH_PROVIDER: 'better-auth',
+      AUTH_SECRET,
+      PUBLIC_BASE_URL: AUTH_BASE,
+      ...GOOGLE,
+      ...over,
+    },
+    { clock: () => new Date() },
+  )
 let wk: ReturnType<typeof worker>
-const send = (path: string, init: { method?: string; body?: unknown; cookie?: string; bearer?: string; host?: string; headers?: Record<string, string> } = {}, via: typeof wk = wk) =>
+const send = (
+  path: string,
+  init: {
+    method?: string
+    body?: unknown
+    cookie?: string
+    bearer?: string
+    host?: string
+    headers?: Record<string, string>
+  } = {},
+  via: typeof wk = wk,
+) =>
   via.fetch(
     new Request((init.host ?? AUTH_BASE) + path, {
       method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
-      headers: { origin: AUTH_BASE, 'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}`, ...(init.body === undefined ? {} : { 'content-type': 'application/json' }), ...(init.cookie ? { cookie: init.cookie } : {}), ...(init.bearer ? { authorization: `Bearer ${init.bearer}` } : {}), ...init.headers },
+      headers: {
+        origin: AUTH_BASE,
+        'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}`,
+        ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(init.cookie ? { cookie: init.cookie } : {}),
+        ...(init.bearer ? { authorization: `Bearer ${init.bearer}` } : {}),
+        ...init.headers,
+      },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       redirect: 'manual',
     }),
   )
-const cookieOf = (res: Response) => res.headers.getSetCookie().map((c) => c.split(';')[0]!).filter((c) => !c.endsWith('=') && !c.startsWith('better-auth.state')).join('; ')
+const cookieOf = (res: Response) =>
+  res.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0]!)
+    .filter((c) => !c.endsWith('=') && !c.startsWith('better-auth.state'))
+    .join('; ')
 const me = async (cookie: string) => {
   const jwt = ((await (await send('/auth/token', { cookie })).json()) as { token: string }).token
   const res = await send('/meta/v1/me', { bearer: jwt })
@@ -56,13 +106,31 @@ const me = async (cookie: string) => {
 }
 
 /** A control-plane invitation with a known token (the store only keeps its hash). */
-async function invite(email: string, role: 'owner' | 'member' | 'agent', o: { createdAt?: number; expiresAt?: number; state?: 'revoked' | 'accepted' } = {}) {
+async function invite(
+  email: string,
+  role: 'owner' | 'member' | 'agent',
+  o: { createdAt?: number; expiresAt?: number; state?: 'revoked' | 'accepted' } = {},
+) {
   const t = o.createdAt ?? Date.now()
   const id = uuidv7()
   const token = `token-${id}`
-  expect(await createInvitation(openControlDb(w.control), { id, auditId: uuidv7(), organizationId: orgId, email, role, tokenHash: sha256(token), expiresAt: iso(o.expiresAt ?? t + 7 * DAY), createdBy: systemId, now: iso(t) })).toBe('created')
-  if (o.state === 'revoked') await revokeInvitation(openControlDb(w.control), { id, auditId: uuidv7(), actorId: systemId, now: iso(Date.now()) })
-  if (o.state === 'accepted') await w.control.prepare('update invitations set accepted_at = ? where id = ?').bind(iso(Date.now()), id).run()
+  expect(
+    await createInvitation(openControlDb(w.control), {
+      id,
+      auditId: uuidv7(),
+      organizationId: orgId,
+      email,
+      role,
+      tokenHash: sha256(token),
+      expiresAt: iso(o.expiresAt ?? t + 7 * DAY),
+      createdBy: systemId,
+      now: iso(t),
+    }),
+  ).toBe('created')
+  if (o.state === 'revoked')
+    await revokeInvitation(openControlDb(w.control), { id, auditId: uuidv7(), actorId: systemId, now: iso(Date.now()) })
+  if (o.state === 'accepted')
+    await w.control.prepare('update invitations set accepted_at = ? where id = ?').bind(iso(Date.now()), id).run()
   return { id, token }
 }
 
@@ -73,28 +141,50 @@ interface Profile {
   email_verified: boolean
   sub?: string
 }
-const idToken = (p: Profile) => `${b64({ alg: 'RS256', kid: 'fake' })}.${b64({ iss: 'https://accounts.google.com', aud: CLIENT_ID, sub: p.sub ?? `sub-${p.email}`, email: p.email, email_verified: p.email_verified, name: 'Ann Google' })}.sig`
+const idToken = (p: Profile) =>
+  `${b64({ alg: 'RS256', kid: 'fake' })}.${b64({ iss: 'https://accounts.google.com', aud: CLIENT_ID, sub: p.sub ?? `sub-${p.email}`, email: p.email, email_verified: p.email_verified, name: 'Ann Google' })}.sig`
 let outbound: string[]
 const realFetch = globalThis.fetch
 const fakeGoogle = (profile: Profile) =>
   vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     outbound.push(`${init?.method ?? 'GET'} ${url}`)
-    if (url === 'https://oauth2.googleapis.com/token') return Response.json({ access_token: 'fake-at', id_token: idToken(profile), token_type: 'Bearer', expires_in: 3600, scope: 'openid email profile' })
+    if (url === 'https://oauth2.googleapis.com/token')
+      return Response.json({
+        access_token: 'fake-at',
+        id_token: idToken(profile),
+        token_type: 'Bearer',
+        expires_in: 3600,
+        scope: 'openid email profile',
+      })
     throw new Error(`no network in this test: ${url}`)
   })
 
 /** The button's POST, then Google's redirect back to the callback with the state it was given. `body` adds fields to the button's body. */
 async function google(o: { profile: Profile; token?: string; body?: Record<string, unknown>; cookie?: string }) {
   outbound = []
-  const start = await send('/auth/sign-in/social', { body: { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in', ...(o.token === undefined ? {} : { invitation_token: o.token }), ...o.body } })
+  const start = await send('/auth/sign-in/social', {
+    body: {
+      provider: 'google',
+      callbackURL: '/sign-in',
+      errorCallbackURL: '/sign-in',
+      ...(o.token === undefined ? {} : { invitation_token: o.token }),
+      ...o.body,
+    },
+  })
   expect(start.status, await start.clone().text()).toBe(200)
   const { url } = (await start.json()) as { url: string }
   const state = new URL(url).searchParams.get('state')!
-  const cookies = start.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
+  const cookies = start.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ')
   fakeGoogle(o.profile)
   try {
-    const cb = await send(`/auth/callback/google?code=fake-code&state=${state}`, { cookie: cookies, headers: { origin: '' } })
+    const cb = await send(`/auth/callback/google?code=fake-code&state=${state}`, {
+      cookie: cookies,
+      headers: { origin: '' },
+    })
     return { start, url, cb, location: cb.headers.get('location') ?? '' }
   } finally {
     vi.stubGlobal('fetch', realFetch)
@@ -106,8 +196,21 @@ beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE, ownerEmail: 'owner@x.test' }, { control: openControlDb(w.control) })
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
+  const r = await bootstrapD1(
+    w.d1,
+    {
+      organizationName: 'Acme',
+      authProvider: 'better-auth',
+      authOrgId: 'better-auth',
+      publicBaseUrl: AUTH_BASE,
+      ownerEmail: 'owner@x.test',
+    },
+    { control: openControlDb(w.control) },
+  )
   orgId = r.organizationId
   ownerToken = tokenOf(r.ownerInvitation!.url)
   systemId = (await crm("select id from principals where kind = 'system'"))[0]!.id
@@ -118,32 +221,75 @@ afterEach(() => vi.stubGlobal('fetch', realFetch))
 describe('configuration (D7)', () => {
   const E = (o: Record<string, string | undefined>) => o
   it.each([
-    ['the AUTH pair', E({ AUTH_GOOGLE_CLIENT_ID: 'a-id', AUTH_GOOGLE_CLIENT_SECRET: 'a-secret' }), { clientId: 'a-id', clientSecret: 'a-secret' }],
-    ['the Gmail pair', E({ GOOGLE_CLIENT_ID: 'g-id', GOOGLE_CLIENT_SECRET: 'g-secret' }), { clientId: 'g-id', clientSecret: 'g-secret' }],
-    ['both pairs: the AUTH pair wins', E({ AUTH_GOOGLE_CLIENT_ID: 'a-id', AUTH_GOOGLE_CLIENT_SECRET: 'a-secret', GOOGLE_CLIENT_ID: 'g-id', GOOGLE_CLIENT_SECRET: 'g-secret' }), { clientId: 'a-id', clientSecret: 'a-secret' }],
+    [
+      'the AUTH pair',
+      E({ AUTH_GOOGLE_CLIENT_ID: 'a-id', AUTH_GOOGLE_CLIENT_SECRET: 'a-secret' }),
+      { clientId: 'a-id', clientSecret: 'a-secret' },
+    ],
+    [
+      'the Gmail pair',
+      E({ GOOGLE_CLIENT_ID: 'g-id', GOOGLE_CLIENT_SECRET: 'g-secret' }),
+      { clientId: 'g-id', clientSecret: 'g-secret' },
+    ],
+    [
+      'both pairs: the AUTH pair wins',
+      E({
+        AUTH_GOOGLE_CLIENT_ID: 'a-id',
+        AUTH_GOOGLE_CLIENT_SECRET: 'a-secret',
+        GOOGLE_CLIENT_ID: 'g-id',
+        GOOGLE_CLIENT_SECRET: 'g-secret',
+      }),
+      { clientId: 'a-id', clientSecret: 'a-secret' },
+    ],
     ['half of the Gmail pair: off', E({ GOOGLE_CLIENT_ID: 'g-id' }), undefined],
     ['the other half of the Gmail pair: off', E({ GOOGLE_CLIENT_SECRET: 'g-secret' }), undefined],
-    ['half of the AUTH pair beside a complete Gmail pair is still an error (below); a blank AUTH pair is unset', E({ AUTH_GOOGLE_CLIENT_ID: ' ', AUTH_GOOGLE_CLIENT_SECRET: '', GOOGLE_CLIENT_ID: 'g-id', GOOGLE_CLIENT_SECRET: 'g-secret' }), { clientId: 'g-id', clientSecret: 'g-secret' }],
+    [
+      'half of the AUTH pair beside a complete Gmail pair is still an error (below); a blank AUTH pair is unset',
+      E({
+        AUTH_GOOGLE_CLIENT_ID: ' ',
+        AUTH_GOOGLE_CLIENT_SECRET: '',
+        GOOGLE_CLIENT_ID: 'g-id',
+        GOOGLE_CLIENT_SECRET: 'g-secret',
+      }),
+      { clientId: 'g-id', clientSecret: 'g-secret' },
+    ],
     ['no variable at all: off', E({}), undefined],
   ])('%s', (_n, env, want) => {
     expect(resolveGoogleSignIn(env)).toEqual(want)
   })
 
-  it.each([['AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET'], ['AUTH_GOOGLE_CLIENT_SECRET', 'AUTH_GOOGLE_CLIENT_ID']])('only %s set: the Worker fails closed (500 on every non-health request, /health 200), the log names %s and never the value', async (set, missing) => {
-    const lines: string[] = []
-    for (const level of ['error', 'warn', 'log', 'info'] as const) vi.spyOn(console, level).mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
-    const half = worker({ AUTH_GOOGLE_CLIENT_ID: undefined, AUTH_GOOGLE_CLIENT_SECRET: undefined, GOOGLE_CLIENT_ID: 'g-id', GOOGLE_CLIENT_SECRET: 'g-secret', [set]: 'super-secret-value-xyz' } as Partial<D1WorkerEnv>)
-    expect((await send('/api/v1/contacts', {}, half)).status).toBe(500)
-    expect((await send('/auth/get-session', {}, half)).status).toBe(500)
-    expect((await send('/health', {}, half)).status).toBe(200)
-    vi.restoreAllMocks()
-    const text = lines.join('\n')
-    expect(text).toContain(missing)
-    expect(text).not.toContain('super-secret-value-xyz')
-  })
+  it.each([
+    ['AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET'],
+    ['AUTH_GOOGLE_CLIENT_SECRET', 'AUTH_GOOGLE_CLIENT_ID'],
+  ])(
+    'only %s set: the Worker fails closed (500 on every non-health request, /health 200), the log names %s and never the value',
+    async (set, missing) => {
+      const lines: string[] = []
+      for (const level of ['error', 'warn', 'log', 'info'] as const)
+        vi.spyOn(console, level).mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
+      const half = worker({
+        AUTH_GOOGLE_CLIENT_ID: undefined,
+        AUTH_GOOGLE_CLIENT_SECRET: undefined,
+        GOOGLE_CLIENT_ID: 'g-id',
+        GOOGLE_CLIENT_SECRET: 'g-secret',
+        [set]: 'super-secret-value-xyz',
+      } as Partial<D1WorkerEnv>)
+      expect((await send('/api/v1/contacts', {}, half)).status).toBe(500)
+      expect((await send('/auth/get-session', {}, half)).status).toBe(500)
+      expect((await send('/health', {}, half)).status).toBe(200)
+      vi.restoreAllMocks()
+      const text = lines.join('\n')
+      expect(text).toContain(missing)
+      expect(text).not.toContain('super-secret-value-xyz')
+    },
+  )
 
   it('half of the Gmail pair only leaves Google off: the Worker serves and discovery says password only', async () => {
-    const off = worker({ AUTH_GOOGLE_CLIENT_ID: undefined, AUTH_GOOGLE_CLIENT_SECRET: undefined, GOOGLE_CLIENT_ID: 'g-id' })
+    const off = worker({
+      AUTH_GOOGLE_CLIENT_ID: undefined,
+      AUTH_GOOGLE_CLIENT_SECRET: undefined,
+      GOOGLE_CLIENT_ID: 'g-id',
+    })
     expect((await send('/health', {}, off)).status).toBe(200)
     const doc = (await (await send('/.well-known/vibase', {}, off)).json()) as any
     expect(doc.auth.sign_in_methods).toEqual(['password'])
@@ -154,11 +300,19 @@ describe('discovery and the authorization URL (D7, P2)', () => {
   it('Google on: sign_in_methods is ["password","google"], in the better-auth block only', async () => {
     const doc = (await (await send('/.well-known/vibase')).json()) as any
     expect(doc.auth.sign_in_methods).toEqual(['password', 'google'])
-    expect(Object.keys(doc).filter((k) => k !== 'auth' && JSON.stringify(doc[k]).includes('sign_in_methods'))).toEqual([])
+    expect(Object.keys(doc).filter((k) => k !== 'auth' && JSON.stringify(doc[k]).includes('sign_in_methods'))).toEqual(
+      [],
+    )
   })
 
   it('Google off: ["password"]', async () => {
-    const doc = (await (await send('/.well-known/vibase', {}, worker({ AUTH_GOOGLE_CLIENT_ID: undefined, AUTH_GOOGLE_CLIENT_SECRET: undefined }))).json()) as any
+    const doc = (await (
+      await send(
+        '/.well-known/vibase',
+        {},
+        worker({ AUTH_GOOGLE_CLIENT_ID: undefined, AUTH_GOOGLE_CLIENT_SECRET: undefined }),
+      )
+    ).json()) as any
     expect(doc.auth.sign_in_methods).toEqual(['password'])
   })
 
@@ -169,7 +323,10 @@ describe('discovery and the authorization URL (D7, P2)', () => {
   })
 
   it('the authorization URL is Google, scope `openid email profile`, redirect URI built from PUBLIC_BASE_URL (not the request host)', async () => {
-    const res = await send('/auth/sign-in/social', { body: { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in' }, host: 'https://other.example' })
+    const res = await send('/auth/sign-in/social', {
+      body: { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in' },
+      host: 'https://other.example',
+    })
     expect(res.status, await res.clone().text()).toBe(200)
     const u = new URL(((await res.json()) as { url: string }).url)
     expect(`${u.origin}${u.pathname}`).toBe('https://accounts.google.com/o/oauth2/v2/auth')
@@ -180,7 +337,11 @@ describe('discovery and the authorization URL (D7, P2)', () => {
 
   it('Google off: Better Auth has no provider, refuses the call (404 PROVIDER_NOT_FOUND) and there is no redirect to Google', async () => {
     const off = worker({ AUTH_GOOGLE_CLIENT_ID: undefined, AUTH_GOOGLE_CLIENT_SECRET: undefined })
-    const res = await send('/auth/sign-in/social', { body: { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in' } }, off)
+    const res = await send(
+      '/auth/sign-in/social',
+      { body: { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in' } },
+      off,
+    )
     expect(res.status).toBe(404)
     expect(res.headers.get('location')).toBeNull()
     expect(JSON.stringify(await res.json())).not.toContain('accounts.google.com')
@@ -190,7 +351,10 @@ describe('discovery and the authorization URL (D7, P2)', () => {
 describe('Google sign-up through an invitation (D8, P3-P5)', () => {
   it('from the button body to the callback: auth rows, vault rows with email_verified true, the membership event, the invitation accepted, a session; the token is in no URL or Location', async () => {
     const eventsBefore = await count(w.d1, 'events')
-    const { url, cb, location } = await google({ profile: { email: 'owner@x.test', email_verified: true }, token: ownerToken })
+    const { url, cb, location } = await google({
+      profile: { email: 'owner@x.test', email_verified: true },
+      token: ownerToken,
+    })
     expect(cb.status).toBe(302)
     expect(errorOf(location)).toBeNull()
     expect(new URL(location, AUTH_BASE).pathname).toBe('/sign-in')
@@ -199,7 +363,12 @@ describe('Google sign-up through an invitation (D8, P3-P5)', () => {
     const account = (await ctl('select provider_id, account_id, user_id from auth_accounts'))[0]!
     expect(account).toMatchObject({ provider_id: 'google', account_id: 'sub-owner@x.test' })
     const user = (await crm('select * from users'))[0]!
-    expect(user).toMatchObject({ email: 'owner@x.test', auth_provider: 'better-auth', auth_subject: account.user_id, email_verified: 1 })
+    expect(user).toMatchObject({
+      email: 'owner@x.test',
+      auth_provider: 'better-auth',
+      auth_subject: account.user_id,
+      email_verified: 1,
+    })
     const m = await crm('select * from memberships')
     expect(m).toHaveLength(1)
     expect([m[0]!.role, m[0]!.user_id]).toEqual(['owner', user.id])
@@ -209,12 +378,19 @@ describe('Google sign-up through an invitation (D8, P3-P5)', () => {
     expect((await ctl('select accepted_at from invitations'))[0]!.accepted_at).not.toBeNull()
     expect(await ctl("select id from control_audit where action = 'invitation.accepted'")).toHaveLength(1)
     const got = await me(cookieOf(cb))
-    expect([got.status, got.json.principal.kind, got.json.principal.id, got.json.active_organization.role]).toEqual([200, 'user', user.id, 'owner'])
+    expect([got.status, got.json.principal.kind, got.json.principal.id, got.json.active_organization.role]).toEqual([
+      200,
+      'user',
+      user.id,
+      'owner',
+    ])
     expect(outbound).toEqual(['POST https://oauth2.googleapis.com/token'])
   })
 
   it('P5: a password sign-up still writes email_verified false', async () => {
-    const res = await send('/auth/sign-up/email', { body: { name: 'Ann', email: 'owner@x.test', password: PASSWORD, invitation_token: ownerToken } })
+    const res = await send('/auth/sign-up/email', {
+      body: { name: 'Ann', email: 'owner@x.test', password: PASSWORD, invitation_token: ownerToken },
+    })
     expect(res.status, await res.clone().text()).toBe(200)
     expect((await crm('select email_verified from users'))[0]).toEqual({ email_verified: 0 })
   })
@@ -223,43 +399,84 @@ describe('Google sign-up through an invitation (D8, P3-P5)', () => {
 describe('admission refusals (matrix: cause x outcome, P3, P4)', () => {
   const causes: Array<[string, () => Promise<Parameters<typeof google>[0]>]> = [
     ['no token', async () => ({ profile: { email: 'owner@x.test', email_verified: true } })],
-    ['a token for another email', async () => ({ profile: { email: 'other@x.test', email_verified: true }, token: ownerToken })],
-    ['a live token but the Google email not verified', async () => ({ profile: { email: 'owner@x.test', email_verified: false }, token: ownerToken })],
-    ['an expired invitation', async () => ({ profile: { email: 'late@x.test', email_verified: true }, token: (await invite('late@x.test', 'member', { createdAt: Date.now() - 9 * DAY, expiresAt: Date.now() - 2 * DAY })).token })],
-    ['a revoked invitation', async () => ({ profile: { email: 'gone@x.test', email_verified: true }, token: (await invite('gone@x.test', 'member', { state: 'revoked' })).token })],
-    ['an accepted invitation', async () => ({ profile: { email: 'used@x.test', email_verified: true }, token: (await invite('used@x.test', 'member', { state: 'accepted' })).token })],
-    ['a valid token sent only as client additionalData (top-level state), not in the body field', async () => ({ profile: { email: 'owner@x.test', email_verified: true }, body: { additionalData: { invitation_token: ownerToken, invitationToken: ownerToken } } })],
+    [
+      'a token for another email',
+      async () => ({ profile: { email: 'other@x.test', email_verified: true }, token: ownerToken }),
+    ],
+    [
+      'a live token but the Google email not verified',
+      async () => ({ profile: { email: 'owner@x.test', email_verified: false }, token: ownerToken }),
+    ],
+    [
+      'an expired invitation',
+      async () => ({
+        profile: { email: 'late@x.test', email_verified: true },
+        token: (
+          await invite('late@x.test', 'member', { createdAt: Date.now() - 9 * DAY, expiresAt: Date.now() - 2 * DAY })
+        ).token,
+      }),
+    ],
+    [
+      'a revoked invitation',
+      async () => ({
+        profile: { email: 'gone@x.test', email_verified: true },
+        token: (await invite('gone@x.test', 'member', { state: 'revoked' })).token,
+      }),
+    ],
+    [
+      'an accepted invitation',
+      async () => ({
+        profile: { email: 'used@x.test', email_verified: true },
+        token: (await invite('used@x.test', 'member', { state: 'accepted' })).token,
+      }),
+    ],
+    [
+      'a valid token sent only as client additionalData (top-level state), not in the body field',
+      async () => ({
+        profile: { email: 'owner@x.test', email_verified: true },
+        body: { additionalData: { invitation_token: ownerToken, invitationToken: ownerToken } },
+      }),
+    ],
   ]
-  it.each(causes)('%s: redirect to /sign-in?error=invitation_required, no auth row, no vault row, no event, no session', async (_n, make) => {
-    const args = await make()
-    const auth = await authCounts()
-    const vault = await vaultCounts()
-    const { cb, location } = await google(args)
-    expect(cb.status).toBe(302)
-    expect(new URL(location, AUTH_BASE).pathname).toBe('/sign-in')
-    expect(errorOf(location)).toBe(CODE)
-    expect(cb.headers.getSetCookie().join(';')).not.toMatch(/session_token=[^;]/)
-    expect(await authCounts()).toEqual(auth)
-    expect(await vaultCounts()).toEqual(vault)
-    expect(await ctl("select id from control_audit where action = 'invitation.accepted'")).toEqual([])
-  })
+  it.each(causes)(
+    '%s: redirect to /sign-in?error=invitation_required, no auth row, no vault row, no event, no session',
+    async (_n, make) => {
+      const args = await make()
+      const auth = await authCounts()
+      const vault = await vaultCounts()
+      const { cb, location } = await google(args)
+      expect(cb.status).toBe(302)
+      expect(new URL(location, AUTH_BASE).pathname).toBe('/sign-in')
+      expect(errorOf(location)).toBe(CODE)
+      expect(cb.headers.getSetCookie().join(';')).not.toMatch(/session_token=[^;]/)
+      expect(await authCounts()).toEqual(auth)
+      expect(await vaultCounts()).toEqual(vault)
+      expect(await ctl("select id from control_audit where action = 'invitation.accepted'")).toEqual([])
+    },
+  )
 })
 
 describe('existing accounts (D8 linking)', () => {
   async function passwordAccount() {
-    const res = await send('/auth/sign-up/email', { body: { name: 'Ann Tester', email: 'owner@x.test', password: PASSWORD, invitation_token: ownerToken } })
+    const res = await send('/auth/sign-up/email', {
+      body: { name: 'Ann Tester', email: 'owner@x.test', password: PASSWORD, invitation_token: ownerToken },
+    })
     expect(res.status, await res.clone().text()).toBe(200)
   }
 
   it('no token, an existing password account and a Google-verified equal email: linked to that user and signed in (one user, two accounts), no second vault row', async () => {
     await passwordAccount()
     const vault = await vaultCounts()
-    const { cb, location } = await google({ profile: { email: 'Owner@X.test', email_verified: true, sub: 'sub-owner' } })
+    const { cb, location } = await google({
+      profile: { email: 'Owner@X.test', email_verified: true, sub: 'sub-owner' },
+    })
     expect(cb.status).toBe(302)
     expect(errorOf(location)).toBeNull()
     expect(cb.headers.getSetCookie().join(';')).toContain('session_token')
     expect(await count(w.control, 'auth_users')).toBe(1)
-    expect((await ctl('select provider_id from auth_accounts order by provider_id')).map((r) => r.provider_id)).toEqual(['credential', 'google'])
+    expect((await ctl('select provider_id from auth_accounts order by provider_id')).map((r) => r.provider_id)).toEqual(
+      ['credential', 'google'],
+    )
     expect(await vaultCounts()).toEqual(vault)
     expect(await count(w.d1, 'users')).toBe(1)
     expect((await me(cookieOf(cb))).status).toBe(200)
@@ -295,7 +512,10 @@ describe('re-admission of a removed member through Google (CORE302 P1, P3)', () 
     expect(errorOf(first.location)).toBeNull()
     const user = (await crm('select id from users'))[0]!
     // `memberships.delete` is proven in membership-writes; here the removal's effect on the vault is all that matters.
-    await w.d1.prepare('update memberships set deleted_at = ? where user_id = ?').bind(new Date().toISOString(), user.id).run()
+    await w.d1
+      .prepare('update memberships set deleted_at = ? where user_id = ?')
+      .bind(new Date().toISOString(), user.id)
+      .run()
     return user.id as string
   }
 
@@ -312,7 +532,9 @@ describe('re-admission of a removed member through Google (CORE302 P1, P3)', () 
     expect(await count(w.d1, 'memberships')).toBe(2)
     expect(await vaultCounts()).toEqual({ ...before, memberships: before.memberships + 1, events: before.events + 1 })
     expect((await ctl('select accepted_at from invitations where id = ?', id))[0]!.accepted_at).not.toBeNull()
-    expect(await ctl("select actor_id from control_audit where action = 'invitation.accepted' and target_id = ?", id)).toEqual([{ actor_id: userId }])
+    expect(
+      await ctl("select actor_id from control_audit where action = 'invitation.accepted' and target_id = ?", id),
+    ).toEqual([{ actor_id: userId }])
     const got = await me(cookieOf(cb))
     expect([got.status, got.json.active_organization.role]).toEqual([200, 'member'])
   })

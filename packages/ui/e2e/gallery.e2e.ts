@@ -29,7 +29,9 @@ for (const mode of MODES) {
       const names = await states(page).evaluateAll((els) => els.map((e) => e.getAttribute('data-gallery-state')!))
       expect(names.length).toBeGreaterThanOrEqual(10)
       for (const name of names) {
-        await page.locator(`[data-gallery-state="${name}"]`).screenshot({ path: join(SHOTS, `${mode.name}--${name}.png`) })
+        await page
+          .locator(`[data-gallery-state="${name}"]`)
+          .screenshot({ path: join(SHOTS, `${mode.name}--${name}.png`) })
       }
       const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
       const dark = mode.name.startsWith('dark')
@@ -50,7 +52,13 @@ test('Tab moves focus through the controls in order, each with a visible focus r
       const el = document.activeElement as HTMLElement | null
       if (!el || el === document.body) return null
       const s = getComputedStyle(el)
-      return { tag: el.tagName, text: (el.textContent ?? '').slice(0, 24), outline: s.outlineStyle, width: parseFloat(s.outlineWidth), top: el.getBoundingClientRect().top + window.scrollY }
+      return {
+        tag: el.tagName,
+        text: (el.textContent ?? '').slice(0, 24),
+        outline: s.outlineStyle,
+        width: parseFloat(s.outlineWidth),
+        top: el.getBoundingClientRect().top + window.scrollY,
+      }
     })
     if (!info) break
     expect(info.outline, `focus ring on ${info.tag} ${info.text}`).not.toBe('none')
@@ -66,7 +74,9 @@ test('Tab moves focus through the controls in order, each with a visible focus r
   expect(seen.filter((s) => s.startsWith('INPUT')).length).toBeGreaterThanOrEqual(5)
 })
 
-test('a code input asks the browser for one-time-code input without spellcheck, and normalises a paste', async ({ page }) => {
+test('a code input asks the browser for one-time-code input without spellcheck, and normalises a paste', async ({
+  page,
+}) => {
   await page.goto('/?theme=light')
   const input = page.getByLabel('Device code').first()
   expect(await input.evaluate((e: HTMLInputElement) => e.spellcheck)).toBe(false)

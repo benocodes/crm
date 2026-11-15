@@ -16,18 +16,39 @@ const BASE = 'http://localhost:8787'
 describe('the local wrangler.jsonc composition', () => {
   it('bootstrap seeds vibase-cli into the config CONTROL_DB, twice, and the Worker on those bindings serves the discovery documents', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'wrangler-clients-'))
-    const proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB: D1Like }>({ configPath: CONFIG, persist: { path: dir }, remoteBindings: false })
+    const proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB: D1Like }>({
+      configPath: CONFIG,
+      persist: { path: dir },
+      remoteBindings: false,
+    })
     try {
       await applyMigrations(proxy.env.DB)
       await applyControlMigrations(proxy.env.CONTROL_DB)
-      const opts = { organizationName: 'Local', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: BASE }
+      const opts = {
+        organizationName: 'Local',
+        authProvider: 'better-auth',
+        authOrgId: 'better-auth',
+        publicBaseUrl: BASE,
+      }
       await bootstrapD1(proxy.env.DB, opts, { control: openControlDb(proxy.env.CONTROL_DB) })
       await bootstrapD1(proxy.env.DB, opts, { control: openControlDb(proxy.env.CONTROL_DB) })
-      expect((await proxy.env.CONTROL_DB.prepare("select count(*) n from auth_oauth_clients where client_id = 'vibase-cli'").first())).toEqual({ n: 1 })
+      expect(
+        await proxy.env.CONTROL_DB.prepare(
+          "select count(*) n from auth_oauth_clients where client_id = 'vibase-cli'",
+        ).first(),
+      ).toEqual({ n: 1 })
       await expect(proxy.env.DB.prepare('select * from auth_oauth_clients').all()).rejects.toThrow(/no such table/i)
 
-      const worker = composeD1Worker({ DB: proxy.env.DB, CONTROL_DB: proxy.env.CONTROL_DB, AUTH_PROVIDER: 'better-auth', AUTH_SECRET: 'test-auth-secret-0123456789-abcdefghij-klmnop', PUBLIC_BASE_URL: BASE })
-      const vibase = (await (await worker.fetch(new Request(`${BASE}/.well-known/vibase`))).json()) as { auth: { issuer: string; resource: string } }
+      const worker = composeD1Worker({
+        DB: proxy.env.DB,
+        CONTROL_DB: proxy.env.CONTROL_DB,
+        AUTH_PROVIDER: 'better-auth',
+        AUTH_SECRET: 'test-auth-secret-0123456789-abcdefghij-klmnop',
+        PUBLIC_BASE_URL: BASE,
+      })
+      const vibase = (await (await worker.fetch(new Request(`${BASE}/.well-known/vibase`))).json()) as {
+        auth: { issuer: string; resource: string }
+      }
       expect(vibase.auth).toMatchObject({ issuer: `${BASE}/auth`, resource: BASE })
       const meta = await worker.fetch(new Request(`${BASE}/.well-known/oauth-authorization-server/auth`))
       expect(meta.status).toBe(200)

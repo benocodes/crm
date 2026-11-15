@@ -1,4 +1,13 @@
-import { defineOperation, execute, readMaybe, unit, type PreparedOperation, type QueryContext, type Read, type StorageBinding } from '@vibase/storage'
+import {
+  defineOperation,
+  execute,
+  readMaybe,
+  unit,
+  type PreparedOperation,
+  type QueryContext,
+  type Read,
+  type StorageBinding,
+} from '@vibase/storage'
 import { mapStorageError } from '../errors.js'
 import type { Role } from './roles.js'
 
@@ -8,7 +17,10 @@ const KEY = 'membership:role'
 export const admittedRole = (value: unknown): Role | null => (value === 'owner' || value === 'member' ? value : null)
 
 /** The live-membership read, shared by the principal lookup (every request) and the role re-check: users linked to (provider, subject), their non-deleted membership in `organizationId`. */
-export function membershipRoleRead(qc: QueryContext, a: { provider: string; subject: string; organizationId: string }): Read {
+export function membershipRoleRead(
+  qc: QueryContext,
+  a: { provider: string; subject: string; organizationId: string },
+): Read {
   return readMaybe(
     qc.db
       .selectFrom('memberships')
@@ -26,7 +38,11 @@ export function membershipRoleRead(qc: QueryContext, a: { provider: string; subj
  * deployment's organisation. Read-only, one unit, no cache: removal and a role change apply to the very next request. `null` when the subject has no user, no live membership, or a stored
  * role the workspace does not admit (anything but `owner` and `member`).
  */
-export function membershipRoleOperation(a: { provider: string; subject: string; organizationId: string }): PreparedOperation<Role | null> {
+export function membershipRoleOperation(a: {
+  provider: string
+  subject: string
+  organizationId: string
+}): PreparedOperation<Role | null> {
   return defineOperation<Role | null>({
     name: 'auth.membership_role',
     mutates: false,
@@ -36,11 +52,20 @@ export function membershipRoleOperation(a: { provider: string; subject: string; 
 }
 
 /** `roleOf` for the Gmail callback's and the sync claim's role re-check ([[CHN5]] D33) on the built-in provider: the live membership, read on every call ([[CORE244]] D7). */
-export function membershipRoleReader(storage: StorageBinding, provider: string): (subject: string) => Promise<Role | null> {
+export function membershipRoleReader(
+  storage: StorageBinding,
+  provider: string,
+): (subject: string) => Promise<Role | null> {
   if (storage.kind !== 'd1') throw new Error('the built-in provider serves a D1 deployment only')
   return async (subject) => {
     try {
-      return (await execute(storage, { kind: 'internal', organizationId: null }, membershipRoleOperation({ provider, subject, organizationId: storage.organizationId }))).value
+      return (
+        await execute(
+          storage,
+          { kind: 'internal', organizationId: null },
+          membershipRoleOperation({ provider, subject, organizationId: storage.organizationId }),
+        )
+      ).value
     } catch (err) {
       throw mapStorageError(err)
     }

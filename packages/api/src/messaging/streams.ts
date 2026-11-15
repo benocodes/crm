@@ -17,8 +17,10 @@ export interface StreamGlobals {
 export function workerdStreams(globals: StreamGlobals = globalThis as unknown as StreamGlobals): StreamPrimitives {
   const Digest = globals.crypto?.DigestStream
   const Fixed = globals.FixedLengthStream
-  if (typeof Digest !== 'function') throw new Error('workerdStreams: crypto.DigestStream is not available (this runtime is not workerd)')
-  if (typeof Fixed !== 'function') throw new Error('workerdStreams: FixedLengthStream is not available (this runtime is not workerd)')
+  if (typeof Digest !== 'function')
+    throw new Error('workerdStreams: crypto.DigestStream is not available (this runtime is not workerd)')
+  if (typeof Fixed !== 'function')
+    throw new Error('workerdStreams: FixedLengthStream is not available (this runtime is not workerd)')
   return {
     sha256() {
       const sink = new Digest('SHA-256') as WritableStream<Uint8Array> & { digest: Promise<ArrayBuffer> }

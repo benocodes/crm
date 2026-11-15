@@ -4,7 +4,12 @@ import { captureChunks, captureMeasure, normalizeParticipants } from './capture-
 import type { CaptureMessage, CaptureParticipant } from './capture.js'
 
 const ORG = '0190b2c4-0000-7000-8000-000000000001'
-const p = (role: CaptureParticipant['role'], value: string, name?: string): CaptureParticipant => ({ kind: 'email', value, role, ...(name === undefined ? {} : { name }) })
+const p = (role: CaptureParticipant['role'], value: string, name?: string): CaptureParticipant => ({
+  kind: 'email',
+  value,
+  role,
+  ...(name === undefined ? {} : { name }),
+})
 
 describe('normalizeParticipants', () => {
   it('normalises values and keeps the order', () => {
@@ -36,8 +41,15 @@ describe('normalizeParticipants', () => {
   })
 
   it('dedupes per role and keeps the first name', () => {
-    const r = normalizeParticipants([p('from', 'f@x.test'), p('to', 'A@x.test', 'A'), p('to', 'a@x.test', 'a'), p('cc', 'a@x.test')])
-    expect(r.participants.filter((x) => x.role === 'to')).toEqual([{ kind: 'email', value: 'a@x.test', role: 'to', name: 'A' }])
+    const r = normalizeParticipants([
+      p('from', 'f@x.test'),
+      p('to', 'A@x.test', 'A'),
+      p('to', 'a@x.test', 'a'),
+      p('cc', 'a@x.test'),
+    ])
+    expect(r.participants.filter((x) => x.role === 'to')).toEqual([
+      { kind: 'email', value: 'a@x.test', role: 'to', name: 'A' },
+    ])
     expect(r.participants.filter((x) => x.role === 'cc')).toHaveLength(1)
     expect(r.participants).toHaveLength(3)
   })
@@ -49,7 +61,13 @@ describe('captureChunks', () => {
       participants: addresses.map((a, i) => p(i === 0 ? 'from' : 'to', a)),
       attachments: [
         ...captureMessage(ORG, { attachments: stored }).attachments,
-        ...Array.from({ length: failed }, (_, i) => ({ ...captureMessage(ORG, { attachments: 1 }).attachments[0]!, position: stored + i, fetch_status: 'failed' as const, fetch_error: 'x', file: null })),
+        ...Array.from({ length: failed }, (_, i) => ({
+          ...captureMessage(ORG, { attachments: 1 }).attachments[0]!,
+          position: stored + i,
+          fetch_status: 'failed' as const,
+          fetch_error: 'x',
+          file: null,
+        })),
       ],
     })
   const ids = (chunks: CaptureMessage[][]) => chunks.map((c) => c.map((m) => m.external_id))

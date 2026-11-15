@@ -48,7 +48,11 @@ describe('task preparation is pure and keeps the old validation', () => {
   it('update: an empty patch stays empty, a same-value patch stays a patch, null clears', () => {
     expect(prepareUpdate(tasks, user, {})).toEqual({})
     expect(prepareUpdate(tasks, user, { title: 'same' })).toEqual({ title: 'same' })
-    expect(prepareUpdate(tasks, user, { notes: null, due_at: null, assignee_id: null })).toEqual({ notes: null, due_at: null, assignee_id: null })
+    expect(prepareUpdate(tasks, user, { notes: null, due_at: null, assignee_id: null })).toEqual({
+      notes: null,
+      due_at: null,
+      assignee_id: null,
+    })
   })
 
   it('update refuses unknown fields exactly like before', () => {
@@ -70,12 +74,21 @@ describe('task preparation is pure and keeps the old validation', () => {
     [{ filters: { colour: 'x' } }, 'unknown filter: colour'],
     [{ filters: { status: 'blocked' } }, 'filter status: Invalid option: expected one of "open"|"done"'],
   ])('list query %j is refused with the old message', (query, message) => {
-    expect(refused(() => prepareListQuery(tasks, query))).toMatchObject({ status: 400, code: 'validation_error', message })
+    expect(refused(() => prepareListQuery(tasks, query))).toMatchObject({
+      status: 400,
+      code: 'validation_error',
+      message,
+    })
   })
 
   it('list query defaults to 50, lowercases the cursor and filter ids', () => {
     expect(prepareListQuery(tasks, {})).toEqual({ after: null, limit: 50, filters: {}, sort: null })
-    expect(prepareListQuery(tasks, { after: '0190B2C4-0000-7000-8000-00000000B002', filters: { assignee_id: '0190B2C4-0000-7000-8000-00000000B002' } })).toEqual({
+    expect(
+      prepareListQuery(tasks, {
+        after: '0190B2C4-0000-7000-8000-00000000B002',
+        filters: { assignee_id: '0190B2C4-0000-7000-8000-00000000B002' },
+      }),
+    ).toEqual({
       after: '0190b2c4-0000-7000-8000-00000000b002',
       limit: 50,
       // CORE201: assignee_id is a column filter, so it parses to an eq condition.

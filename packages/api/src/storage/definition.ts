@@ -1,7 +1,21 @@
 import type { Expression, ExpressionBuilder, SelectType, SqlBool } from 'kysely'
 import type { z } from 'zod'
 import { COLUMN_KINDS, checkEmbed, type EmbedSpec } from '@vibase/storage'
-import type { ColumnOf, PreparedOperation, PublicColumn, PhysicalTable, QueryContext, Read, RowOf, Step, StorageDatabase, SyncHook, Table, ValueOf, Row } from '@vibase/storage'
+import type {
+  ColumnOf,
+  PreparedOperation,
+  PublicColumn,
+  PhysicalTable,
+  QueryContext,
+  Read,
+  RowOf,
+  Step,
+  StorageDatabase,
+  SyncHook,
+  Table,
+  ValueOf,
+  Row,
+} from '@vibase/storage'
 import type { Actor } from '../auth/types.js'
 import type { Surface } from '../surfaces.js'
 import type { CrudAction, Filter } from '../resources/define.js'
@@ -37,7 +51,10 @@ export type WriteMeta = { readonly op: 'create' | 'update'; readonly now: Date }
  * read (`400 invalid_reference`) and the commit-time guard use ONE predicate: `id = v`, plus `organization_id = the
  * unit's organisation` when the target table has that column, plus `deleted_at IS NULL` when `live`.
  */
-export type ReferenceTarget = { readonly table: 'principals' | 'companies' | 'contacts' | 'files' | 'pipelines' | 'pipeline_stages'; readonly live?: boolean }
+export type ReferenceTarget = {
+  readonly table: 'principals' | 'companies' | 'contacts' | 'files' | 'pipelines' | 'pipeline_stages'
+  readonly live?: boolean
+}
 
 /** A refusal decided from a plan read (a domain or an address already taken): the core runs `read`, then `refuse(row | null)`. */
 export interface Conflict {
@@ -47,7 +64,9 @@ export interface Conflict {
 export type Values = Record<string, unknown>
 
 /** A computed column's value: a literal of the column's type or an expression producing it. */
-type ComputedValue<T extends Table, C extends ColumnOf<T>> = ValueOf<T, C> | Expression<ValueOf<T, C> | SelectType<StorageDatabase[T][C & keyof StorageDatabase[T]]>>
+type ComputedValue<T extends Table, C extends ColumnOf<T>> =
+  | ValueOf<T, C>
+  | Expression<ValueOf<T, C> | SelectType<StorageDatabase[T][C & keyof StorageDatabase[T]]>>
 type Computed<T extends Table> = { [C in ColumnOf<T>]?: ComputedValue<T, C> }
 type Stored<T extends Table> = { [C in ColumnOf<T>]?: ValueOf<T, C> }
 
@@ -102,18 +121,18 @@ export type RecordShape<T extends Table, S, E extends EmbedMap = {}, D extends D
         : never
       : never
     : K extends EmbedKeys<E>
-    ? S[K] extends z.ZodType<infer O>
-      ? [O] extends [readonly unknown[]]
-        ? S[K]
-        : never
-      : never
-    : K extends PublicColumn<T>
       ? S[K] extends z.ZodType<infer O>
-        ? [O] extends [RowOf<T>[K]]
+        ? [O] extends [readonly unknown[]]
           ? S[K]
           : never
         : never
-      : never
+      : K extends PublicColumn<T>
+        ? S[K] extends z.ZodType<infer O>
+          ? [O] extends [RowOf<T>[K]]
+            ? S[K]
+            : never
+          : never
+        : never
 }
 
 /**
@@ -202,14 +221,24 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    * the stage's kind): typed expressions per column, evaluated at commit with the reference guards, so no plan read can go stale.
    * Synchronous and DB-free; the values are `stored` (prepared) input.
    */
-  readonly createComputed?: (c: { eb: ExpressionBuilder<StorageDatabase, T>; qc: QueryContext; env: PreparedEnv; values: Values }) => Computed<T>
+  readonly createComputed?: (c: {
+    eb: ExpressionBuilder<StorageDatabase, T>
+    qc: QueryContext
+    env: PreparedEnv
+    values: Values
+  }) => Computed<T>
   /** Extension 1: pure normalization of a validated write; returns the column values to store. */
   readonly prepare?: SyncHook<{ values: Values; meta: WriteMeta }, Stored<T>>
   /**
    * Extension 2 (with `computed`): typed values or expressions for columns derived from the STORED row at commit
    * time (the task completion CASE). Keys are columns of the table, values are checked against the column type.
    */
-  readonly computed?: (c: { eb: ExpressionBuilder<StorageDatabase, T>; qc: QueryContext; values: Values; now: Date }) => Computed<T>
+  readonly computed?: (c: {
+    eb: ExpressionBuilder<StorageDatabase, T>
+    qc: QueryContext
+    values: Values
+    now: Date
+  }) => Computed<T>
   /** Extension 2: extra typed predicates ANDed into update and delete. */
   readonly guards?: (eb: ExpressionBuilder<StorageDatabase, T>, env: PreparedEnv) => Expression<SqlBool>[]
   /** Extension 3: extra statements after the main write (cascades, tombstones). Synchronous. */
@@ -223,14 +252,29 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    * Extension 5: refusals decided from extra plan reads, after the reference checks (a company domain or an identity
    * address already taken). Synchronous and DB-free: it returns typed queries. `values` are the prepared (normalised) values.
    */
-  readonly conflicts?: (c: { qc: QueryContext; env: PreparedEnv; op: 'create' | 'update'; id: string | null; values: Values }) => readonly Conflict[]
+  readonly conflicts?: (c: {
+    qc: QueryContext
+    env: PreparedEnv
+    op: 'create' | 'update'
+    id: string | null
+    values: Values
+  }) => readonly Conflict[]
 }
 
 type Output<S extends z.ZodRawShape> = z.output<z.ZodObject<S>> extends infer O extends { id: string } ? O : never
 
 /** Validates a definition. The record's shape is checked against the table at the call site (`RecordShape`). */
-export function definePreparedResource<T extends Table, S extends z.ZodRawShape & RecordShape<T, S, E, D> & { id: z.ZodType<string> }, E extends EmbedMap = {}, D extends DerivedMap = {}>(
-  def: Omit<PreparedResource<T, Output<S>>, 'record' | 'embed' | 'derived'> & { readonly record: z.ZodObject<S>; readonly embed?: EmbedInput<E>; readonly derived?: DerivedInput<D> },
+export function definePreparedResource<
+  T extends Table,
+  S extends z.ZodRawShape & RecordShape<T, S, E, D> & { id: z.ZodType<string> },
+  E extends EmbedMap = {},
+  D extends DerivedMap = {},
+>(
+  def: Omit<PreparedResource<T, Output<S>>, 'record' | 'embed' | 'derived'> & {
+    readonly record: z.ZodObject<S>
+    readonly embed?: EmbedInput<E>
+    readonly derived?: DerivedInput<D>
+  },
 ): PreparedResource<T, Output<S>> {
   // The ONE reviewed cast of the definition layer: zod's conditional output type cannot be related to `Output<S>`
   // inside the generic body. Call sites are checked by `RecordShape` and proven by definition.typecheck.ts.
@@ -240,18 +284,22 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
   if (!(full.table in COLUMN_KINDS)) throw new Error(`table "${full.table}" has no physical schema yet (${full.name})`)
   // A table without `deleted_at` is hard-lived (agents, api_keys): it has no delete, and the generic core adds no live-row condition (CORE40 P4).
   if (!softDeletes(full)) {
-    if (full.operations?.includes('delete')) throw new Error(`${full.name}: delete needs a deleted_at column on "${full.table}"`)
-    if (!full.operations) (full as { operations?: readonly CrudAction[] }).operations = ['list', 'get', 'create', 'update']
+    if (full.operations?.includes('delete'))
+      throw new Error(`${full.name}: delete needs a deleted_at column on "${full.table}"`)
+    if (!full.operations)
+      (full as { operations?: readonly CrudAction[] }).operations = ['list', 'get', 'create', 'update']
   }
   for (const [column, ref] of Object.entries(full.references ?? {}) as Array<[string, ReferenceTarget | undefined]>) {
     if (!ref) continue
     const kinds = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[ref.table]
     if (!kinds) throw new Error(`reference ${column} names table "${ref.table}" with no physical schema (${full.name})`)
-    if (ref.live && !('deleted_at' in kinds)) throw new Error(`reference ${column} is live but "${ref.table}" has no deleted_at (${full.name})`)
+    if (ref.live && !('deleted_at' in kinds))
+      throw new Error(`reference ${column} is live but "${ref.table}" has no deleted_at (${full.name})`)
   }
   const kindsOfTable = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[full.table]!
   for (const key of Object.keys(full.customFilters ?? {})) {
-    if (key in kindsOfTable) throw new Error(`customFilters key "${key}" is a column of ${full.table}: declare it in filters (${full.name})`)
+    if (key in kindsOfTable)
+      throw new Error(`customFilters key "${key}" is a column of ${full.table}: declare it in filters (${full.name})`)
     if (key in (full.filters ?? {})) throw new Error(`customFilters key "${key}" is also in filters (${full.name})`)
   }
   for (const [field, spec] of Object.entries(full.embed ?? {})) {
@@ -267,36 +315,44 @@ export function definePreparedResource<T extends Table, S extends z.ZodRawShape 
     if (field in kindsOfTable) throw new Error(`derived "${field}" is a column of ${full.table} (${full.name})`)
     if (field in (full.embed ?? {})) throw new Error(`derived "${field}" is also an embed (${full.name})`)
     // [[CORE130]] D8: the derived field may be filtered by a custom filter of its own name (`?status=`) - that is what `filters` declares - but a column filter may not take it.
-    if (field in (full.filters ?? {}) || (field in (full.customFilters ?? {}) && !(spec.filters ?? []).includes(field))) throw new Error(`derived "${field}" is also a filter key (${full.name})`)
+    if (field in (full.filters ?? {}) || (field in (full.customFilters ?? {}) && !(spec.filters ?? []).includes(field)))
+      throw new Error(`derived "${field}" is also a filter key (${full.name})`)
     if (!(field in full.record.shape)) throw new Error(`derived "${field}" is not a field of the record (${full.name})`)
-    for (const f of spec.filters ?? []) if (!(f in (full.customFilters ?? {}))) throw new Error(`derived "${field}" names filter "${f}", which is not a custom filter (${full.name})`)
+    for (const f of spec.filters ?? [])
+      if (!(f in (full.customFilters ?? {})))
+        throw new Error(`derived "${field}" names filter "${f}", which is not a custom filter (${full.name})`)
   }
   const sorts = full.sorts ?? []
   sorts.forEach((field, i) => {
-    const d = (full.derived ?? {})[field]
+    const d = full.derived?.[field]
     if (!d) throw new Error(`sorts "${field}" is not a derived field of ${full.name}`)
-    if (d.kind === 'boolean') throw new Error(`sorts "${field}" is a boolean derived field, which has no order (${full.name})`)
+    if (d.kind === 'boolean')
+      throw new Error(`sorts "${field}" is a boolean derived field, which has no order (${full.name})`)
     if (sorts.indexOf(field) !== i) throw new Error(`sorts "${field}" is listed twice (${full.name})`)
   })
   if (sorts.length > 0) {
     for (const key of ['sort', 'order']) {
-      if (key in (full.filters ?? {}) || key in (full.customFilters ?? {})) throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${full.name})`)
+      if (key in (full.filters ?? {}) || key in (full.customFilters ?? {}))
+        throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${full.name})`)
     }
   }
   if (full.associable) {
     const kinds = (COLUMN_KINDS as Record<string, Record<string, unknown>>)[full.table]!
     if (!('id' in kinds)) throw new Error(`${full.name}: an associable table needs an id column`)
-    if (!/^[a-z][a-z0-9_]*$/.test(full.table)) throw new Error(`${full.name}: an associable table name must be a lowercase identifier`)
+    if (!/^[a-z][a-z0-9_]*$/.test(full.table))
+      throw new Error(`${full.name}: an associable table name must be a lowercase identifier`)
   }
   if (full.agentWritable) {
     const known = new Set([...Object.keys(full.create?.shape ?? {}), ...Object.keys(full.update?.shape ?? {})])
-    for (const f of full.agentWritable) if (!known.has(f)) throw new Error(`agentWritable names unknown field "${f}" (${full.name})`)
+    for (const f of full.agentWritable)
+      if (!known.has(f)) throw new Error(`agentWritable names unknown field "${f}" (${full.name})`)
   }
   return full
 }
 
 /** Whether rows of the definition's table are soft-deleted: it has a `deleted_at` column (CORE40 P4). */
-export const softDeletes = (def: { table: Table }): boolean => 'deleted_at' in (COLUMN_KINDS as Record<string, Record<string, unknown>>)[def.table]!
+export const softDeletes = (def: { table: Table }): boolean =>
+  'deleted_at' in (COLUMN_KINDS as Record<string, Record<string, unknown>>)[def.table]!
 
 /** The definition's table as a physical table: `definePreparedResource` rejected any other at creation. */
 export const physicalTable = (def: { table: Table }): PhysicalTable => def.table as PhysicalTable

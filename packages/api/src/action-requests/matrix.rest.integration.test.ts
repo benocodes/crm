@@ -12,7 +12,7 @@ const registry = createVibaseRegistry()
 const ops = eligible(registry)
 let k: ActionKit
 beforeAll(async () => {
-  k = await openActionKit({objects:memoryObjectStore()})
+  k = await openActionKit({ objects: memoryObjectStore() })
 })
 afterAll(() => k.close())
 beforeEach(() => k.reset())
@@ -48,20 +48,32 @@ describe.each(ops.map((o) => [o.name, o] as const))('%s', (name, op) => {
         expect([d.status, d.body.error.code], `${name} direct as ${variant}`).toEqual([403, 'insufficient_scope'])
         expect(d.body.error.message).toContain(`requires ${r}:write`)
         // The hint only for the one holder of request_approval that can follow it.
-        expect(d.body.error.message.includes(`action_requests.create with operation=${name}`), `${name} hint as ${variant}`).toBe(variant === 'proposal')
+        expect(
+          d.body.error.message.includes(`action_requests.create with operation=${name}`),
+          `${name} hint as ${variant}`,
+        ).toBe(variant === 'proposal')
       }
 
       // The request: request_approval (write contains it).
       const args = await next()
       const before = (await k.events()).length
-      const c = await k.call(who, 'POST', '/api/v1/action-requests', { operation: name, arguments: args, reason: 'matrix' })
+      const c = await k.call(who, 'POST', '/api/v1/action-requests', {
+        operation: name,
+        arguments: args,
+        reason: 'matrix',
+      })
       if (variant === 'none' || variant === 'read') {
         expect([c.status, c.body.error.code], `${name} create as ${variant}`).toEqual([403, 'insufficient_scope'])
         expect(c.body.error.message).toContain(`${r}:request_approval`)
         continue
       }
       expect(c.status, `${name} create as ${variant}: ${JSON.stringify(c.body)}`).toBe(201)
-      expect(c.body).toMatchObject({ operation: name, status: 'pending', arguments: name==='messages.send'?{...args,body:await describeSendBody(args.body as string)}:args, created_by: who.id })
+      expect(c.body).toMatchObject({
+        operation: name,
+        status: 'pending',
+        arguments: name === 'messages.send' ? { ...args, body: await describeSendBody(args.body as string) } : args,
+        created_by: who.id,
+      })
       // Nothing but the request's own event was written: the target is untouched.
       expect((await k.events()).slice(before).map((e) => e.type)).toEqual(['action_request.created'])
 
@@ -74,26 +86,41 @@ describe.each(ops.map((o) => [o.name, o] as const))('%s', (name, op) => {
         expect((await k.rows('action_requests', 'id = ?', c.body.id))[0]!.status).toBe('pending')
       } else {
         expect(a.status, `${name} approve as write: ${JSON.stringify(a.body)}`).toBe(200)
-        expect(a.body).toMatchObject({ status: op.execution?'approved':'executed', decided_by: who.id })
+        expect(a.body).toMatchObject({ status: op.execution ? 'approved' : 'executed', decided_by: who.id })
       }
     }
     // Approve with no scopes and with read only is refused too (a request made by the owner).
     for (const variant of ['none', 'read'] as const) {
       const who = await k.actor(`${variant}`, 'agent', variants[variant])
-      const c = await k.call(k.owner, 'POST', '/api/v1/action-requests', { operation: name, arguments: await next(), reason: 'matrix' })
+      const c = await k.call(k.owner, 'POST', '/api/v1/action-requests', {
+        operation: name,
+        arguments: await next(),
+        reason: 'matrix',
+      })
       expect(c.status).toBe(201)
-      const a = await k.call(k.as(who, [...variants[variant], 'action_requests:read']), 'POST', `/api/v1/action-requests/${c.body.id}/approve`)
+      const a = await k.call(
+        k.as(who, [...variants[variant], 'action_requests:read']),
+        'POST',
+        `/api/v1/action-requests/${c.body.id}/approve`,
+      )
       expect([a.status, a.body.error.code], `${name} approve as ${variant}`).toEqual([403, 'insufficient_scope'])
       // Without the queue read it is the 404 of a missing id (D58).
       const blind = await k.call(who, 'POST', `/api/v1/action-requests/${c.body.id}/approve`)
-      expect([blind.status, blind.body.error.code], `${name} approve as ${variant}, no queue read`).toEqual([404, 'not_found'])
+      expect([blind.status, blind.body.error.code], `${name} approve as ${variant}, no queue read`).toEqual([
+        404,
+        'not_found',
+      ])
     }
   })
 })
 
 describe('what is not an eligible operation is refused', () => {
   it('an unknown name and an ineligible one are 400 operation_not_proposable, the ineligible one with its reason', async () => {
-    const unknown = await k.call(k.owner, 'POST', '/api/v1/action-requests', { operation: 'tasks.nothing', arguments: {}, reason: 'x' })
+    const unknown = await k.call(k.owner, 'POST', '/api/v1/action-requests', {
+      operation: 'tasks.nothing',
+      arguments: {},
+      reason: 'x',
+    })
     expect([unknown.status, unknown.body.error.code]).toEqual([400, 'operation_not_proposable'])
     for (const [name, reason] of [
       ['agents.create', 'access administration'],
@@ -102,7 +129,11 @@ describe('what is not an eligible operation is refused', () => {
       ['tasks.list', 'read-only'],
       ['action_requests.approve', 'never proposed'],
     ] as const) {
-      const r = await k.call(k.owner, 'POST', '/api/v1/action-requests', { operation: name, arguments: {}, reason: 'x' })
+      const r = await k.call(k.owner, 'POST', '/api/v1/action-requests', {
+        operation: name,
+        arguments: {},
+        reason: 'x',
+      })
       expect([r.status, r.body.error.code], name).toEqual([400, 'operation_not_proposable'])
       expect(r.body.error.message, name).toContain(reason)
     }
@@ -110,7 +141,11 @@ describe('what is not an eligible operation is refused', () => {
 
   it('a missing target record is 404 as a direct call would say, and writes nothing', async () => {
     const count = Number((await k.rows('action_requests')).length)
-    const r = await k.call(k.owner, 'POST', '/api/v1/action-requests', { operation: 'tasks.update', arguments: { id: '0190b2c4-0000-7000-8000-00000000dead', title: 'x' }, reason: 'x' })
+    const r = await k.call(k.owner, 'POST', '/api/v1/action-requests', {
+      operation: 'tasks.update',
+      arguments: { id: '0190b2c4-0000-7000-8000-00000000dead', title: 'x' },
+      reason: 'x',
+    })
     expect([r.status, r.body.error.code]).toEqual([404, 'not_found'])
     expect((await k.rows('action_requests')).length).toBe(count)
     expect(await k.events()).toEqual([])

@@ -41,7 +41,17 @@ export interface AdminKit {
   /** One request with an API key. */
   keyCall(path: string, key: string, init?: CallInit): Promise<Response>
   /** Events of the test, in write order (never by id: api-routes). */
-  events(): Promise<Array<{ id: string; type: string; actor_id: string; organization_id: string; resource_id: string; before: any; after: any }>>
+  events(): Promise<
+    Array<{
+      id: string
+      type: string
+      actor_id: string
+      organization_id: string
+      resource_id: string
+      before: any
+      after: any
+    }>
+  >
   /** A Clerk profile for `sub`; returns the email. */
   profile(sub: string, opts?: { verified?: boolean; email?: string }): string
   /** A signed delivery to `/webhooks/clerk`. `raw` replaces the body; `headers` are merged over the signed ones. */
@@ -83,7 +93,10 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
     const request = (path: string, token: string, init: CallInit = {}) =>
       k.app.request(path, {
         method: init.method ?? 'GET',
-        headers: { authorization: `Bearer ${token}`, ...(init.header !== undefined ? { 'x-organization-id': init.header } : {}) },
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(init.header !== undefined ? { 'x-organization-id': init.header } : {}),
+        },
         body: init.body === undefined ? undefined : JSON.stringify(init.body),
       })
     // P7: the organisation claim comes from the copy: the organisation's external id and the caller's live role.
@@ -106,7 +119,10 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
     }
     k.call = async (path, sub, init = {}) => {
       const claim = init.claim ?? (init.org ? await claimFor(sub, init.org) : undefined)
-      const token = await mintClerkToken(kit.issuer, { sub, ...(claim ? { extra: orgClaim(claim.id, claim.rol) } : {}) })
+      const token = await mintClerkToken(kit.issuer, {
+        sub,
+        ...(claim ? { extra: orgClaim(claim.id, claim.rol) } : {}),
+      })
       return request(path, token, init)
     }
     k.keyCall = async (path, key, init) => request(path, key, init)
@@ -122,7 +138,9 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
     k.systemId = async () =>
       (await k.owner.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirstOrThrow()).id
     k.events = async () =>
-      (await k.owner.selectFrom('events').selectAll().orderBy(sql`ctid`).execute()) as unknown as Awaited<ReturnType<AdminKit['events']>>
+      (await k.owner.selectFrom('events').selectAll().orderBy(sql`ctid`).execute()) as unknown as Awaited<
+        ReturnType<AdminKit['events']>
+      >
     k.profile = (sub, o = {}) => {
       const email = o.email ?? `${sub}@x.test`
       k.profiles.set(sub, clerkUser({ id: sub, email, verified: o.verified ?? true, first: 'Ada', last: 'L' }))
@@ -134,8 +152,20 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
       const org = await seedOrganization(k.db, { name: orgName, authOrgId: externalId })
       const o = subs.owner ?? 'o'
       const m = subs.member ?? 'm'
-      const owner = await seedUser(k.db, { organizationId: org.id, role: 'owner', authSubject: o, emailVerified: true, email: `${o}@x.test` })
-      const member = await seedUser(k.db, { organizationId: org.id, role: 'member', authSubject: m, emailVerified: true, email: `${m}@x.test` })
+      const owner = await seedUser(k.db, {
+        organizationId: org.id,
+        role: 'owner',
+        authSubject: o,
+        emailVerified: true,
+        email: `${o}@x.test`,
+      })
+      const member = await seedUser(k.db, {
+        organizationId: org.id,
+        role: 'member',
+        authSubject: m,
+        emailVerified: true,
+        email: `${m}@x.test`,
+      })
       kit.organizations.set(externalId, clerkOrganization({ id: externalId, name: orgName }))
       kit.members.set(externalId, [
         clerkMembership({ organizationId: externalId, userId: o, role: 'org:admin' }),
@@ -148,7 +178,8 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
       const key = await seedApiKey(k.db, { organizationId, agentId: agent.id, createdBy })
       return { agentId: agent.id, key: key.key }
     }
-    k.userId = async (sub) => (await k.owner.selectFrom('users').select('id').where('auth_subject', '=', sub).executeTakeFirstOrThrow()).id
+    k.userId = async (sub) =>
+      (await k.owner.selectFrom('users').select('id').where('auth_subject', '=', sub).executeTakeFirstOrThrow()).id
   })
   return k
 }

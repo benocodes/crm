@@ -62,10 +62,12 @@ export class FakeVibase {
     const body = init?.body ? JSON.parse(String(init.body)) : undefined
     this.requests.push({ method, path: url.pathname + url.search, authorization: headers.get('authorization'), body })
     const json = (status: number, value: unknown) => Response.json(value, { status })
-    if (headers.get('authorization') !== `Bearer ${this.apiKey}`) return json(401, { error: { code: 'unauthorized', message: 'bad key' } })
+    if (headers.get('authorization') !== `Bearer ${this.apiKey}`)
+      return json(401, { error: { code: 'unauthorized', message: 'bad key' } })
     for (const [route, answer] of this.refuse) {
       const [m, prefix] = route.split(' ')
-      if (m === method && url.pathname.startsWith(prefix!)) return json(answer.status, { error: { code: answer.code, message: `refused ${route}` } })
+      if (m === method && url.pathname.startsWith(prefix!))
+        return json(answer.status, { error: { code: answer.code, message: `refused ${route}` } })
     }
     const idOf = (rest: string) => rest.split('/')[0]!
     let m: RegExpExecArray | null
@@ -75,20 +77,29 @@ export class FakeVibase {
     }
     if ((m = /^\/api\/v1\/messages\/([^/]+)\/content$/.exec(url.pathname))) {
       const content = this.contents.get(m[1]!)
-      return content === undefined ? json(404, { error: { code: 'content_unavailable', message: 'none' } }) : json(200, { content_type: 'text/markdown', content, version: 1 })
+      return content === undefined
+        ? json(404, { error: { code: 'content_unavailable', message: 'none' } })
+        : json(200, { content_type: 'text/markdown', content, version: 1 })
     }
     if ((m = /^\/api\/v1\/messages\/([^/]+)$/.exec(url.pathname))) {
       const row = this.messages.get(m[1]!)
       return row ? json(200, row) : json(404, { error: { code: 'not_found', message: 'message not found' } })
     }
-    if (url.pathname === '/meta/v1/connections' && method === 'GET') return json(200, { data: this.connections, next_cursor: null })
+    if (url.pathname === '/meta/v1/connections' && method === 'GET')
+      return json(200, { data: this.connections, next_cursor: null })
     if (url.pathname === '/api/v1/action-requests' && method === 'GET') {
       const interactionId = url.searchParams.get('interaction_id')
       const data = this.actionRequests.filter((r) => interactionId === null || r.interaction_id === interactionId)
       return json(200, { data, next_cursor: null })
     }
     if (url.pathname === '/api/v1/action-requests' && method === 'POST') {
-      const row = { id: `0192f4a0-0000-7000-9000-${String(this.actionRequests.length + 1).padStart(12, '0')}`, status: 'pending', created_by: IDS.agent, interaction_id: body.interaction_id ?? null, ...body }
+      const row = {
+        id: `0192f4a0-0000-7000-9000-${String(this.actionRequests.length + 1).padStart(12, '0')}`,
+        status: 'pending',
+        created_by: IDS.agent,
+        interaction_id: body.interaction_id ?? null,
+        ...body,
+      }
       this.actionRequests.push(row)
       return json(201, row)
     }

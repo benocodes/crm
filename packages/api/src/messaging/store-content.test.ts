@@ -24,7 +24,14 @@ function setup(scripts: FakeMessageScript[], channel: FakeChannel = new FakeChan
   const objects = recordingObjectStore(memoryObjectStore())
   const ctx = { organizationId: ORG, objects, streams: nodeStreams(), newId: () => uuidv7() }
   const read = async (id: string) => (await channel.readMessage(CONN, id)) as ChannelMessage
-  return { channel, objects, ctx, read, store: (id: string, over: Partial<typeof ctx & { attachmentMaxBytes: number }> = {}) => read(id).then((m) => storeMessageContent({ ...ctx, ...over }, channel, CONN, m)) }
+  return {
+    channel,
+    objects,
+    ctx,
+    read,
+    store: (id: string, over: Partial<typeof ctx & { attachmentMaxBytes: number }> = {}) =>
+      read(id).then((m) => storeMessageContent({ ...ctx, ...over }, channel, CONN, m)),
+  }
 }
 const S = standardScripts()
 
@@ -36,7 +43,9 @@ describe('storeMessageContent (D6)', () => {
     const prefix = await messageContentPrefix(ORG, 'email', m.facts.external_id)
     expect(out.content_key).toBe(prefix)
     expect(prefix).toMatch(new RegExp(`^orgs/${ORG}/messages/email/[0-9a-f]{64}$`))
-    expect(new TextDecoder().decode((await text(t.objects, `${prefix}/v1/body.md`))!)).toBe(stringifyMarkdown(m.message.formatted))
+    expect(new TextDecoder().decode((await text(t.objects, `${prefix}/v1/body.md`))!)).toBe(
+      stringifyMarkdown(m.message.formatted),
+    )
     expect((await t.objects.get(`${prefix}/v1/body.md`))!.contentType).toBe('text/markdown')
     const original = await t.objects.get(`${prefix}/v1/original.eml`)
     expect(original!.contentType).toBe('message/rfc822')
@@ -67,7 +76,18 @@ describe('storeMessageContent (D6)', () => {
     const t = setup([S.withAttachment!])
     const out = await t.store('with-attachment')
     const [a] = out.attachments
-    expect(a).toMatchObject({ position: 0, type: 'file', name: 'a.pdf', mime_type: 'application/pdf', size_bytes: 300, inline: false, content_id: null, fetch_status: 'stored', fetch_error: null, fetch_metadata: { key: 'with-attachment:0' } })
+    expect(a).toMatchObject({
+      position: 0,
+      type: 'file',
+      name: 'a.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 300,
+      inline: false,
+      content_id: null,
+      fetch_status: 'stored',
+      fetch_error: null,
+      fetch_metadata: { key: 'with-attachment:0' },
+    })
     expect(a!.file).toMatchObject({ sha256: sha(bytes), size_bytes: 300, name: 'a.pdf', mime_type: 'application/pdf' })
     expect(a!.file!.storage_key).toMatch(new RegExp(`^orgs/${ORG}/files/[0-9a-f-]{36}$`))
     expect([...(await text(t.objects, `${a!.file!.storage_key}/blob`))!]).toEqual([...bytes])
@@ -86,7 +106,12 @@ describe('storeMessageContent (D6)', () => {
   it('skips by declared size without fetching', async () => {
     const t = setup([S.hugeAttachment!])
     const out = await t.store('huge-attachment')
-    expect(out.attachments[0]).toMatchObject({ fetch_status: 'skipped', file: null, size_bytes: 60 * MiB, fetch_metadata: { key: 'huge-attachment:0' } })
+    expect(out.attachments[0]).toMatchObject({
+      fetch_status: 'skipped',
+      file: null,
+      size_bytes: 60 * MiB,
+      fetch_metadata: { key: 'huge-attachment:0' },
+    })
     expect(t.channel.fetches).toEqual([])
     expect(t.objects.writes.some((w) => w.key.includes('/files/'))).toBe(false)
   })
@@ -104,7 +129,18 @@ describe('storeMessageContent (D6)', () => {
       override async fetchAttachment(conn: ConnectionRef, metadata: Record<string, string>) {
         const got = await super.fetchAttachment(conn, metadata)
         const reader = got.body.getReader()
-        return { size: got.size, body: new ReadableStream<Uint8Array>({ pull: async (c) => { const r = await reader.read(); r.done ? c.close() : c.enqueue(r.value) }, cancel: () => { cancelled = true } }) }
+        return {
+          size: got.size,
+          body: new ReadableStream<Uint8Array>({
+            pull: async (c) => {
+              const r = await reader.read()
+              r.done ? c.close() : c.enqueue(r.value)
+            },
+            cancel: () => {
+              cancelled = true
+            },
+          }),
+        }
       }
     }
     const t = setup([S.hugeFetched!], new Spy())
@@ -133,7 +169,16 @@ describe('storeMessageContent (D6)', () => {
     class Broken extends FakeChannel {
       override async fetchAttachment() {
         let sent = false
-        return { size: 100, body: new ReadableStream<Uint8Array>({ pull(c) { if (sent) return c.error(new Error('reset by peer')); sent = true; c.enqueue(bytesOf(10)) } }) }
+        return {
+          size: 100,
+          body: new ReadableStream<Uint8Array>({
+            pull(c) {
+              if (sent) return c.error(new Error('reset by peer'))
+              sent = true
+              c.enqueue(bytesOf(10))
+            },
+          }),
+        }
       }
     }
     const t = setup([{ providerMessageId: 'cut', attachments: [{ bytes: bytesOf(100) }] }], new Broken())
@@ -143,7 +188,10 @@ describe('storeMessageContent (D6)', () => {
 
   it.each([
     ['fewer bytes than reported', S.mismatch!],
-    ['more bytes than reported', { providerMessageId: 'long', attachments: [{ bytes: bytesOf(100), reportedSize: 60 }] }],
+    [
+      'more bytes than reported',
+      { providerMessageId: 'long', attachments: [{ bytes: bytesOf(100), reportedSize: 60 }] },
+    ],
   ])('length_mismatch (%s): failed and the fresh object is deleted', async (_n, script) => {
     const t = setup([script])
     const out = await t.store(script.providerMessageId)
@@ -184,7 +232,15 @@ describe('storeMessageContent (D6)', () => {
   })
 
   it('attachments are stored in position order and the keys are deterministic across retries', async () => {
-    const t = setup([{ providerMessageId: 'two', attachments: [{ name: 'b', bytes: bytesOf(3, 1) }, { name: 'c', bytes: bytesOf(4, 2) }] }])
+    const t = setup([
+      {
+        providerMessageId: 'two',
+        attachments: [
+          { name: 'b', bytes: bytesOf(3, 1) },
+          { name: 'c', bytes: bytesOf(4, 2) },
+        ],
+      },
+    ])
     const first = await t.store('two')
     const second = await t.store('two')
     expect(first.attachments.map((a) => a.name)).toEqual(['b', 'c'])

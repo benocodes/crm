@@ -24,14 +24,20 @@ describe('the written block under wrangler', () => {
     const db = await openWorkerD1()
     try {
       const w = makeWorld({ d1: db.d1, configText: REAL })
-      const o = await runSetup(['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai'], { CONFIRM_REMOTE: '1' }, w.deps)
+      const o = await runSetup(
+        ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai'],
+        { CONFIRM_REMOTE: '1' },
+        w.deps,
+      )
       expect(o.exitCode).toBe(0)
       const path = join(tmp, 'wrangler.jsonc')
       writeFileSync(path, w.state.configText)
       const cfg = unstable_readConfig({ config: path, env: 'acme' })
       expect(cfg.name).toBe('vb-acme')
       expect(cfg.d1_databases.find((d: { binding: string }) => d.binding === 'DB')!.database_name).toBe('vb-crm-acme')
-      expect(cfg.r2_buckets.find((b: { binding: string }) => b.binding === 'BODIES')!.bucket_name).toBe('vb-bodies-acme')
+      expect(cfg.r2_buckets.find((b: { binding: string }) => b.binding === 'BODIES')!.bucket_name).toBe(
+        'vb-bodies-acme',
+      )
       for (const env of ['smoked1', 'hq']) expect(blockText(w.state.configText, env)).toBe(blockText(REAL, env))
     } finally {
       await db.dispose()

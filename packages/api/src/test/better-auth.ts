@@ -46,13 +46,30 @@ export async function mintBaToken(issuer: BaIssuer, o: BaMint = {}): Promise<str
     kind === 'session'
       ? { vibase_token: 'session', sid: 'sess-1' }
       : kind === 'oauth'
-        ? { client_id: o.clientId ?? 'client-a', azp: o.clientId ?? 'client-a', scope: o.scope ?? 'openid contacts:read', jti: 'jti-1' }
+        ? {
+            client_id: o.clientId ?? 'client-a',
+            azp: o.clientId ?? 'client-a',
+            scope: o.scope ?? 'openid contacts:read',
+            jti: 'jti-1',
+          }
         : { acr: '0', at_hash: 'x', azp: o.clientId ?? 'client-a' }
   Object.assign(payload, o.extra)
-  const claims: Record<string, unknown> = { ...payload, sub: o.sub ?? 'subject-1', iat: now, exp: now + (o.ttl ?? (kind === 'session' ? 900 : 3600)), iss: o.iss ?? BA_ISSUER, aud: o.aud ?? (kind === 'id' ? (o.clientId ?? 'client-a') : BA_BASE) }
+  const claims: Record<string, unknown> = {
+    ...payload,
+    sub: o.sub ?? 'subject-1',
+    iat: now,
+    exp: now + (o.ttl ?? (kind === 'session' ? 900 : 3600)),
+    iss: o.iss ?? BA_ISSUER,
+    aud: o.aud ?? (kind === 'id' ? (o.clientId ?? 'client-a') : BA_BASE),
+  }
   for (const name of o.omit ?? []) delete claims[name]
-  const header = { alg: o.alg ?? 'EdDSA', ...(o.kid === null ? {} : { kid: o.kid ?? issuer.kid }), ...(kind === 'oauth' ? { typ: 'at+jwt' } : {}) }
+  const header = {
+    alg: o.alg ?? 'EdDSA',
+    ...(o.kid === null ? {} : { kid: o.kid ?? issuer.kid }),
+    ...(kind === 'oauth' ? { typ: 'at+jwt' } : {}),
+  }
   if (o.alg === 'none') return `${b64(header)}.${b64(claims)}.`
-  const key = o.alg === 'HS256' ? new TextEncoder().encode('a-symmetric-secret-of-32-bytes!!!') : (o.key ?? issuer.privateKey)
+  const key =
+    o.alg === 'HS256' ? new TextEncoder().encode('a-symmetric-secret-of-32-bytes!!!') : (o.key ?? issuer.privateKey)
   return new SignJWT(claims).setProtectedHeader(header).sign(key)
 }

@@ -1,13 +1,23 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
-import { RemoteRefusal, formatMigrationDiff, parseTrackerOutput, statusExitCode, statusOf, trackerReadCommand } from './remote.js'
+import {
+  RemoteRefusal,
+  formatMigrationDiff,
+  parseTrackerOutput,
+  statusExitCode,
+  statusOf,
+  trackerReadCommand,
+} from './remote.js'
 import { EXPECTED, runStatus, type StatusDeps } from './status-remote.js'
 import { controlStdout, countsFacts, crmStdout, isReadOnlySql, sweepReadOf } from './sweep-counts-kit.js'
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf-8')
 const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
-const config = { name: 'vault-smoked1', d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }] }
+const config = {
+  name: 'vault-smoked1',
+  d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }],
+}
 
 function deps(stdout: string, calls: string[] = []): StatusDeps & { out: string[] } {
   const out: string[] = []
@@ -26,7 +36,9 @@ function deps(stdout: string, calls: string[] = []): StatusDeps & { out: string[
 describe('db:status:remote guards (same as db:migrate:remote)', () => {
   it('refuses without CONFIRM_REMOTE, before any command', () => {
     const calls: string[] = []
-    expect(() => runStatus(['--env', 'smoked1'], {}, deps(fixture('d1-execute-migrations.json'), calls))).toThrow('set CONFIRM_REMOTE=1')
+    expect(() => runStatus(['--env', 'smoked1'], {}, deps(fixture('d1-execute-migrations.json'), calls))).toThrow(
+      'set CONFIRM_REMOTE=1',
+    )
     expect(calls).toEqual([])
   })
   it('refuses without --env', () => {
@@ -53,7 +65,8 @@ describe('parseTrackerOutput (recorded wrangler d1 execute --json output)', () =
   })
   it('any other error or shape throws', () => {
     // a real remote: the SQLite message is in `notes`, the `text` is the API wrapper (first hq run)
-    const real = '{"error":{"text":"A request to the Cloudflare API (/accounts/a/d1/database/b/query) failed.","notes":[{"text":"no such table: d1_migrations: SQLITE_ERROR [code: 7500]"}],"code":7500}}'
+    const real =
+      '{"error":{"text":"A request to the Cloudflare API (/accounts/a/d1/database/b/query) failed.","notes":[{"text":"no such table: d1_migrations: SQLITE_ERROR [code: 7500]"}],"code":7500}}'
     expect(parseTrackerOutput(real)).toBeNull()
     expect(() => parseTrackerOutput('{"error":{"text":"auth failed"}}')).toThrow('auth failed')
     expect(() => parseTrackerOutput('not json')).toThrow()
@@ -112,7 +125,13 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
   const run = (control: keyof typeof controlOutput, crm: keyof typeof crmOutput) => {
     const calls: string[] = []
     const out: string[] = []
-    const withControl = { ...config, d1_databases: [...config.d1_databases, { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true }] }
+    const withControl = {
+      ...config,
+      d1_databases: [
+        ...config.d1_databases,
+        { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true },
+      ],
+    }
     const d: StatusDeps = {
       loadEnv: () => {},
       readConfig: () => (control === 'none' ? config : withControl),
@@ -125,7 +144,9 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
     const code = runStatus(['--env', 'smoked1'], { CONFIRM_REMOTE: '1' }, d)
     return { code, out: out.join('\n'), calls }
   }
-  const cases = (['none', 'unknown', 'behind', 'current', 'ahead'] as const).flatMap((c) => (['current', 'behind'] as const).map((m) => [c, m] as const))
+  const cases = (['none', 'unknown', 'behind', 'current', 'ahead'] as const).flatMap((c) =>
+    (['current', 'behind'] as const).map((m) => [c, m] as const),
+  )
   it.each(cases)('control %s x crm %s', (control, crm) => {
     const r = run(control, crm)
     const ok = (control === 'none' || control === 'current') && crm === 'current'
@@ -137,7 +158,9 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
       expect(r.calls.some((c) => c.includes('CONTROL_DB'))).toBe(false)
     } else {
       expect(r.out).toContain(`[control] migrations: ${control}`)
-      expect(r.calls.some((c) => c.includes('CONTROL_DB') && c.includes('--remote') && c.includes('--env smoked1'))).toBe(true)
+      expect(
+        r.calls.some((c) => c.includes('CONTROL_DB') && c.includes('--remote') && c.includes('--env smoked1')),
+      ).toBe(true)
     }
   })
   it('the control database with no d1_migrations table is unknown, not current (the empty state)', () => {
@@ -155,7 +178,13 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
 // [[CORE289]] P6 on db:status:remote: the sweep's pending counts after the control database's migration diff, `[control] ` prefixed, read-only, never changing the exit code.
 describe('db:status:remote sweep counts (CORE289 P6)', () => {
   const CONTROL_UUID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
-  const withControl = { ...config, d1_databases: [...config.d1_databases, { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true }] }
+  const withControl = {
+    ...config,
+    d1_databases: [
+      ...config.d1_databases,
+      { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true },
+    ],
+  }
   const rows = (names: string[]) => JSON.stringify([{ results: names.map((name) => ({ name })), success: true }])
   const f = countsFacts()
   const run = (o: { crmBehind?: boolean; control?: boolean; fail?: 'control' | 'crm' | 'status' } = {}) => {
@@ -168,9 +197,24 @@ describe('db:status:remote sweep counts (CORE289 P6)', () => {
         const command = cmd.args[cmd.args.indexOf('--command') + 1]!
         sql.push(command)
         const kind = sweepReadOf(cmd.args)
-        if (kind === 'control') return o.fail === 'control' ? { status: 1, stdout: '{"error":{"text":"no such table: invitations"}}' } : o.fail === 'status' ? { status: 1, stdout: '' } : { status: 0, stdout: controlStdout(f.control) }
-        if (kind === 'crm') return o.fail === 'crm' ? { status: 1, stdout: 'wrangler exploded' } : { status: 0, stdout: crmStdout(f.crm) }
-        return { status: 0, stdout: rows(cmd.args.includes('CONTROL_DB') ? CONTROL_MIGRATIONS.map((m) => m.name) : o.crmBehind ? EXPECTED.slice(0, -1) : EXPECTED) }
+        if (kind === 'control')
+          return o.fail === 'control'
+            ? { status: 1, stdout: '{"error":{"text":"no such table: invitations"}}' }
+            : o.fail === 'status'
+              ? { status: 1, stdout: '' }
+              : { status: 0, stdout: controlStdout(f.control) }
+        if (kind === 'crm')
+          return o.fail === 'crm' ? { status: 1, stdout: 'wrangler exploded' } : { status: 0, stdout: crmStdout(f.crm) }
+        return {
+          status: 0,
+          stdout: rows(
+            cmd.args.includes('CONTROL_DB')
+              ? CONTROL_MIGRATIONS.map((m) => m.name)
+              : o.crmBehind
+                ? EXPECTED.slice(0, -1)
+                : EXPECTED,
+          ),
+        }
       },
       log: (l) => void out.push(l),
     }
@@ -181,8 +225,13 @@ describe('db:status:remote sweep counts (CORE289 P6)', () => {
     const r = run()
     expect(r.code).toBe(0)
     const i = r.out.findIndex((l) => l.startsWith('[control] migrations:'))
-    expect(r.out.slice(i + 1).filter((l) => l.startsWith('[control] sweep:'))).toEqual(['[control] sweep: 1 subject(s) pending revocation', '[control] sweep: 1 orphan account(s) pending deletion'])
-    expect(r.out.findIndex((l) => l.startsWith('[control] sweep:'))).toBeLessThan(r.out.findIndex((l) => l.startsWith('target: env smoked1, database')))
+    expect(r.out.slice(i + 1).filter((l) => l.startsWith('[control] sweep:'))).toEqual([
+      '[control] sweep: 1 subject(s) pending revocation',
+      '[control] sweep: 1 orphan account(s) pending deletion',
+    ])
+    expect(r.out.findIndex((l) => l.startsWith('[control] sweep:'))).toBeLessThan(
+      r.out.findIndex((l) => l.startsWith('target: env smoked1, database')),
+    )
     expect(run({ crmBehind: true }).code).toBe(1)
   })
   it('every command issued is a read', () => {
@@ -190,12 +239,15 @@ describe('db:status:remote sweep counts (CORE289 P6)', () => {
     expect(r.sql.length).toBeGreaterThanOrEqual(4)
     for (const s of r.sql) expect(isReadOnlySql(s), s).toBe(true)
   })
-  it.each(['control', 'crm', 'status'] as const)('an unreadable count (%s read failed) prints unavailable and leaves the exit code unchanged', (fail) => {
-    const r = run({ fail })
-    expect(r.code).toBe(0)
-    expect(r.out).toContain('[control] sweep: counts unavailable')
-    expect(run({ fail, crmBehind: true }).code).toBe(1)
-  })
+  it.each(['control', 'crm', 'status'] as const)(
+    'an unreadable count (%s read failed) prints unavailable and leaves the exit code unchanged',
+    (fail) => {
+      const r = run({ fail })
+      expect(r.code).toBe(0)
+      expect(r.out).toContain('[control] sweep: counts unavailable')
+      expect(run({ fail, crmBehind: true }).code).toBe(1)
+    },
+  )
   it('no control database configured: no count line and no count read', () => {
     const r = run({ control: false })
     expect(r.out.some((l) => /sweep:/.test(l))).toBe(false)

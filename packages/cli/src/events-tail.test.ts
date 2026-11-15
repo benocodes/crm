@@ -16,7 +16,11 @@ const id = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')
 const ev = (n: number, type = 'task.created') => ({ id: id(n), type, resource_type: 'task', resource_id: id(1000 + n) })
 
 let apiDocPromise: Promise<any> | undefined
-const apiDoc = () => (apiDocPromise ??= (async () => (await createApp({ storage: coldStorage(), registry: createVibaseRegistry() }).request('/api/v1/openapi.json')).json())())
+const apiDoc = () =>
+  (apiDocPromise ??= (async () =>
+    (
+      await createApp({ storage: coldStorage(), registry: createVibaseRegistry() }).request('/api/v1/openapi.json')
+    ).json())())
 
 interface Feed {
   events: ReturnType<typeof ev>[]
@@ -28,7 +32,8 @@ interface Feed {
 /** The feed: pages of `limit` (default 2) after the id in `after`. An unknown `after` is `invalid_cursor`. */
 async function setup(feed: Feed, opts: { withoutEvents?: boolean } = {}) {
   const api = structuredClone(await apiDoc())
-  if (opts.withoutEvents) for (const p of Object.keys(api.paths)) if (p.startsWith('/api/v1/events')) delete api.paths[p]
+  if (opts.withoutEvents)
+    for (const p of Object.keys(api.paths)) if (p.startsWith('/api/v1/events')) delete api.paths[p]
   const instance = fakeInstance({
     api,
     routes: (req) => {
@@ -97,9 +102,25 @@ describe('catch-up', () => {
   it('the filters and --limit reach the query string unchanged', async () => {
     const feed = newFeed(0)
     const { r } = await setup(feed)
-    const res = await r.run(['events', 'tail', '--type', 'task.updated', '--resource-type', 'task', '--resource-id', id(7), '--limit', '5'])
+    const res = await r.run([
+      'events',
+      'tail',
+      '--type',
+      'task.updated',
+      '--resource-type',
+      'task',
+      '--resource-id',
+      id(7),
+      '--limit',
+      '5',
+    ])
     expect(res.code, res.stderr).toBe(0)
-    expect(Object.fromEntries(feed.requests[0]!.searchParams)).toEqual({ type: 'task.updated', resource_type: 'task', resource_id: id(7), limit: '5' })
+    expect(Object.fromEntries(feed.requests[0]!.searchParams)).toEqual({
+      type: 'task.updated',
+      resource_type: 'task',
+      resource_id: id(7),
+      limit: '5',
+    })
   })
 
   it('sends the bearer credential on the same request path as every command', async () => {
@@ -216,7 +237,10 @@ describe('--follow', () => {
   it('--interval sets the sleep', async () => {
     const { r } = await setup(newFeed(0))
     const ac = new AbortController()
-    const res = await r.run(['events', 'tail', '--follow', '--interval', '1.5'], { signal: ac.signal, sleep: async () => ac.abort() })
+    const res = await r.run(['events', 'tail', '--follow', '--interval', '1.5'], {
+      signal: ac.signal,
+      sleep: async () => ac.abort(),
+    })
     expect(res.code).toBe(0)
     expect(r.sleeps).toEqual([1500])
   })
@@ -269,7 +293,9 @@ describe('errors and usage', () => {
     writeFileSync(file, id(99) + '\n')
     const res = await r.run(['events', 'tail', '--cursor-file', file])
     expect(res.code).toBe(1)
-    expect(JSON.parse(res.stderr)).toEqual({ error: { code: 'invalid_cursor', message: 'the cursor does not name an event' } })
+    expect(JSON.parse(res.stderr)).toEqual({
+      error: { code: 'invalid_cursor', message: 'the cursor does not name an event' },
+    })
     expect(readFileSync(file, 'utf8')).toBe(id(99) + '\n')
   })
 

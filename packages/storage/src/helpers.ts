@@ -15,7 +15,11 @@ export function selectColumns<T extends Table, C extends ColumnOf<T>>(
   table: T,
   columns: readonly C[],
 ): SelectQueryBuilder<StorageDatabase, T, Pick<RowOf<T>, C>> {
-  return (qc.db as unknown as Loose).selectFrom(table).select(columns) as SelectQueryBuilder<StorageDatabase, T, Pick<RowOf<T>, C>>
+  return (qc.db as unknown as Loose).selectFrom(table).select(columns) as SelectQueryBuilder<
+    StorageDatabase,
+    T,
+    Pick<RowOf<T>, C>
+  >
 }
 
 /** Like `selectColumns`, but secret columns are a compile error: for public (record) projections. */
@@ -44,7 +48,9 @@ export function eq<T extends Table, C extends ColumnOf<T>>(
  * Asserts a select's output satisfies the record `R` the caller will decode it as. `projectAs<R>()(query)`:
  * an incompatible or incomplete projection is a compile error at the call.
  */
-export function projectAs<R extends object>(): <T extends Table, O extends R>(query: SelectQueryBuilder<StorageDatabase, T, O>) => SelectQueryBuilder<StorageDatabase, T, O> {
+export function projectAs<R extends object>(): <T extends Table, O extends R>(
+  query: SelectQueryBuilder<StorageDatabase, T, O>,
+) => SelectQueryBuilder<StorageDatabase, T, O> {
   return (query) => query
 }
 

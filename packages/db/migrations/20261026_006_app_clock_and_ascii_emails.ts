@@ -3,7 +3,17 @@ import { sql, type Kysely } from 'kysely'
 // [[CORE36]] D2, D7. The application owns every timestamp it writes (one injected clock per unit, on both
 // engines), so the `updated_at` trigger goes from every table that has it, together with its function.
 // Emails are lowercase ASCII on Postgres exactly as on D1 (citext stays for case-insensitive comparison).
-const WITH_UPDATED_AT = ['organizations', 'users', 'memberships', 'agents', 'api_keys', 'tasks', 'companies', 'contacts', 'identities']
+const WITH_UPDATED_AT = [
+  'organizations',
+  'users',
+  'memberships',
+  'agents',
+  'api_keys',
+  'tasks',
+  'companies',
+  'contacts',
+  'identities',
+]
 
 export async function up(db: Kysely<any>): Promise<void> {
   for (const t of WITH_UPDATED_AT) await sql`DROP TRIGGER IF EXISTS set_updated_at ON ${sql.table(t)}`.execute(db)

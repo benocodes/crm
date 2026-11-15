@@ -36,7 +36,10 @@ export class Found {
   static from(input: FoundInput): Found {
     return new Found(
       Object.fromEntries(
-        Object.entries(input).map(([k, v]) => [k, v === null ? [] : Array.isArray(v) ? (v as readonly Row[]) : [v as Row]]),
+        Object.entries(input).map(([k, v]) => [
+          k,
+          v === null ? [] : Array.isArray(v) ? (v as readonly Row[]) : [v as Row],
+        ]),
       ),
     )
   }
@@ -90,11 +93,17 @@ export function unit<T>(u: Unit<T>): Unit<T> {
   for (const s of u.steps) {
     const rank = s.label ? (RANK[s.label] ?? -1) : -1
     if (rank < 0) continue
-    if (rank < last) throw new StorageError(`statement order: "${s.label}" may not follow a later stage (mutation, then event, then result)`)
+    if (rank < last)
+      throw new StorageError(
+        `statement order: "${s.label}" may not follow a later stage (mutation, then event, then result)`,
+      )
     last = rank
   }
   const resultAt = u.steps.findIndex((s) => s.label === 'result')
-  if (resultAt >= 0 && u.steps.slice(resultAt + 1).some((s) => s.label === 'first-mutation' || s.label === 'first-event')) {
+  if (
+    resultAt >= 0 &&
+    u.steps.slice(resultAt + 1).some((s) => s.label === 'first-mutation' || s.label === 'first-event')
+  ) {
     throw new StorageError('statement order: nothing but a fault may follow the result')
   }
   return u
@@ -130,10 +139,22 @@ export async function planUnit<T>(
 const refOf = (path: string) => sql.ref(path)
 
 /** Binds `value` with the cast Postgres needs for an otherwise untyped parameter in INSERT...SELECT; D1 binds it plain. */
-export function bind(qc: QueryContext, kind: ColumnKind, value: string | boolean | number | readonly string[] | null): RawBuilder<string> {
+export function bind(
+  qc: QueryContext,
+  kind: ColumnKind,
+  value: string | boolean | number | readonly string[] | null,
+): RawBuilder<string> {
   // A string array is bound as ONE parameter; the D1 runtime encodes it as JSON text (the column's only array form).
   if (qc.dialect === 'd1') return sql<string>`${value}`
-  const type = { uuid: 'uuid', text: 'text', timestamp: 'timestamptz', json: 'jsonb', boolean: 'boolean', string_array: 'text[]', integer: 'bigint' }[kind]
+  const type = {
+    uuid: 'uuid',
+    text: 'text',
+    timestamp: 'timestamptz',
+    json: 'jsonb',
+    boolean: 'boolean',
+    string_array: 'text[]',
+    integer: 'bigint',
+  }[kind]
   return sql<string>`cast(${value} as ${sql.raw(type)})`
 }
 
@@ -143,10 +164,14 @@ const PG_EXACT = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
 export const ts = {
   /** The timestamp as ISO text with milliseconds (the public record form, identical on both engines). */
   iso: (qc: QueryContext, ref: string): RawBuilder<string> =>
-    qc.dialect === 'postgres' ? sql<string>`to_char(${refOf(ref)} at time zone 'UTC', ${sql.lit(PG_ISO)})` : sql<string>`${refOf(ref)}`,
+    qc.dialect === 'postgres'
+      ? sql<string>`to_char(${refOf(ref)} at time zone 'UTC', ${sql.lit(PG_ISO)})`
+      : sql<string>`${refOf(ref)}`,
   /** The timestamp at full stored precision (microseconds on Postgres): for drift guards, never for records. */
   exact: (qc: QueryContext, ref: string): RawBuilder<string> =>
-    qc.dialect === 'postgres' ? sql<string>`to_char(${refOf(ref)} at time zone 'UTC', ${sql.lit(PG_EXACT)})` : sql<string>`${refOf(ref)}`,
+    qc.dialect === 'postgres'
+      ? sql<string>`to_char(${refOf(ref)} at time zone 'UTC', ${sql.lit(PG_EXACT)})`
+      : sql<string>`${refOf(ref)}`,
 }
 
 /** SQL for "the previous statement of this unit changed a row" (D1); Postgres checks affected rows in the runtime instead. */
@@ -158,7 +183,12 @@ export function appliedPrev(qc: QueryContext): Expression<SqlBool> {
  * The record of a stored row as JSON text/jsonb, built in SQL from the stored columns so that an event's
  * `after` is the stored row, not a recomputation (timestamps in the public ISO form).
  */
-export function recordJson(qc: QueryContext, table: PhysicalTable, columns: readonly string[], embeds: Readonly<Record<string, EmbedSpec>> = {}): RawBuilder<string> {
+export function recordJson(
+  qc: QueryContext,
+  table: PhysicalTable,
+  columns: readonly string[],
+  embeds: Readonly<Record<string, EmbedSpec>> = {},
+): RawBuilder<string> {
   const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
   const pairs = columns.map((c) => {
     const ref = `${table}.${c}`
@@ -174,14 +204,20 @@ export function recordJson(qc: QueryContext, table: PhysicalTable, columns: read
               : sql`${refOf(ref)}`
     return sql`${sql.lit(c)}, ${value}`
   })
-  for (const [field, spec] of Object.entries(embeds)) pairs.push(sql`${sql.lit(field)}, ${embedJson(qc, table, spec, 'json')}`)
+  for (const [field, spec] of Object.entries(embeds))
+    pairs.push(sql`${sql.lit(field)}, ${embedJson(qc, table, spec, 'json')}`)
   return qc.dialect === 'postgres'
     ? sql<string>`jsonb_build_object(${sql.join(pairs)})`
     : sql<string>`json_object(${sql.join(pairs)})`
 }
 
 /** Selects a record's columns with timestamps rendered as public ISO text (same on both engines); `prefix` aliases them for a joined record. */
-export function recordColumns(qc: QueryContext, table: PhysicalTable, columns: readonly string[], prefix = ''): AliasedExpression<unknown, string>[] {
+export function recordColumns(
+  qc: QueryContext,
+  table: PhysicalTable,
+  columns: readonly string[],
+  prefix = '',
+): AliasedExpression<unknown, string>[] {
   const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
   return columns.map((c) => {
     const ref = `${table}.${c}`

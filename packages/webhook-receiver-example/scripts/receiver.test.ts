@@ -10,13 +10,31 @@ const setup = () => {
 
 describe('receiver: verification gates everything (D7, D21)', () => {
   it.each([
-    ['a tampered body', async () => { const r = await signedRequest(); return new Request(r.url, { method: 'POST', headers: r.headers, body: JSON.stringify(eventRecord({ resource_id: '0192f4a0-0000-7000-8000-0000000000ff' })) }) }],
+    [
+      'a tampered body',
+      async () => {
+        const r = await signedRequest()
+        return new Request(r.url, {
+          method: 'POST',
+          headers: r.headers,
+          body: JSON.stringify(eventRecord({ resource_id: '0192f4a0-0000-7000-8000-0000000000ff' })),
+        })
+      },
+    ],
     ['a wrong secret', () => signedRequest({ secrets: [OTHER_SECRET] })],
     ['a stale timestamp', () => signedRequest({ timestamp: Math.floor(NOW_MS / 1000) - 360 })],
     ['a future timestamp', () => signedRequest({ timestamp: Math.floor(NOW_MS / 1000) + 360 })],
     ['a missing signature', () => signedRequest({ omit: ['webhook-signature'] })],
     ['a missing id', () => signedRequest({ omit: ['webhook-id'] })],
-    ['only unknown versions', async () => { const r = await signedRequest(); const h = new Headers(r.headers); h.set('webhook-signature', h.get('webhook-signature')!.replace('v1,', 'v9,')); return new Request(r.url, { method: 'POST', headers: h, body: await r.text() }) }],
+    [
+      'only unknown versions',
+      async () => {
+        const r = await signedRequest()
+        const h = new Headers(r.headers)
+        h.set('webhook-signature', h.get('webhook-signature')!.replace('v1,', 'v9,'))
+        return new Request(r.url, { method: 'POST', headers: h, body: await r.text() })
+      },
+    ],
   ])('%s is 401 and creates nothing', async (_name, make) => {
     const { wf, call } = setup()
     const res = await call(await make())
@@ -51,7 +69,11 @@ describe('receiver: start and acknowledge (D15, D21)', () => {
     expect(wf.instances.size).toBe(1)
   })
   it('an already-exists error is recognised by the message in each shape the platform may use', async () => {
-    for (const message of ['instance.already_exists', 'Workflow instance already exists', 'InstanceAlreadyExists: already_exists']) {
+    for (const message of [
+      'instance.already_exists',
+      'Workflow instance already exists',
+      'InstanceAlreadyExists: already_exists',
+    ]) {
       const { wf, call } = setup()
       wf.failWith = new Error(message)
       expect((await call(await signedRequest())).status, message).toBe(200)

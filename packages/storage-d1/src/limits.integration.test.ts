@@ -13,19 +13,30 @@ beforeAll(async () => {
 })
 afterAll(() => local.dispose())
 
-const works = async (fn: () => Promise<unknown>): Promise<boolean> => fn().then(() => true, () => false)
+const works = async (fn: () => Promise<unknown>): Promise<boolean> =>
+  fn().then(
+    () => true,
+    () => false,
+  )
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `0190b2c4-0000-7000-8000-${String(i).padStart(12, '0')}`)
 
 describe('measured D1 limits (local binding)', () => {
   it('bound parameters per statement: 100 pass, 101 fail (the reason a set is bound as ONE parameter, D19)', async () => {
-    const at = (n: number) => d1.prepare(`select ${Array.from({ length: n }, () => '?').join(' + ')} as v`).bind(...Array(n).fill(1)).first()
+    const at = (n: number) =>
+      d1
+        .prepare(`select ${Array.from({ length: n }, () => '?').join(' + ')} as v`)
+        .bind(...Array(n).fill(1))
+        .first()
     expect(await works(() => at(100))).toBe(true)
     expect(await works(() => at(101))).toBe(false)
   })
 
   it('a set of any size up to the cap travels as one json_each parameter', async () => {
     for (const n of [0, 1, 100, 500, 5000]) {
-      const r = await d1.prepare('select count(*) as n from json_each(?)').bind(JSON.stringify(ids(n))).first()
+      const r = await d1
+        .prepare('select count(*) as n from json_each(?)')
+        .bind(JSON.stringify(ids(n)))
+        .first()
       expect(r!.n).toBe(n)
     }
   })

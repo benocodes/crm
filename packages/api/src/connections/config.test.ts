@@ -3,28 +3,52 @@ import { gmailConfigNotice, parseGmailConfig, parsePushConfig } from './config.j
 
 // CHN140 D58: the Gmail surface is configured when the four required values are set and the key decodes to 32 bytes.
 const KEY = Buffer.alloc(32, 7).toString('base64')
-const FULL = { GOOGLE_CLIENT_ID: 'id.apps.test', GOOGLE_CLIENT_SECRET: 'sekret-value-1', OAUTH_STATE_SECRET: 'state-secret-value-2', CREDENTIALS_KEY: KEY }
+const FULL = {
+  GOOGLE_CLIENT_ID: 'id.apps.test',
+  GOOGLE_CLIENT_SECRET: 'sekret-value-1',
+  OAUTH_STATE_SECRET: 'state-secret-value-2',
+  CREDENTIALS_KEY: KEY,
+}
 
 describe('parseGmailConfig (D58)', () => {
   it('reads the four values, defaults the key version to 1 and leaves the optional URLs null', () => {
     const { config, problems } = parseGmailConfig(FULL)
     expect(problems).toEqual([])
-    expect(config).toMatchObject({ clientId: 'id.apps.test', clientSecret: 'sekret-value-1', stateSecret: 'state-secret-value-2', keyVersion: 1, publicBaseUrl: null, returnUrl: null })
+    expect(config).toMatchObject({
+      clientId: 'id.apps.test',
+      clientSecret: 'sekret-value-1',
+      stateSecret: 'state-secret-value-2',
+      keyVersion: 1,
+      publicBaseUrl: null,
+      returnUrl: null,
+    })
     expect(config!.credentialsKey).toHaveLength(32)
   })
 
   it('reads CREDENTIALS_KEY_VERSION, PUBLIC_BASE_URL (no trailing slash) and CONNECT_RETURN_URL', () => {
-    const { config } = parseGmailConfig({ ...FULL, CREDENTIALS_KEY_VERSION: '4', PUBLIC_BASE_URL: 'https://api.example.test/', CONNECT_RETURN_URL: 'https://app.example.test/connected' })
-    expect(config).toMatchObject({ keyVersion: 4, publicBaseUrl: 'https://api.example.test', returnUrl: 'https://app.example.test/connected' })
+    const { config } = parseGmailConfig({
+      ...FULL,
+      CREDENTIALS_KEY_VERSION: '4',
+      PUBLIC_BASE_URL: 'https://api.example.test/',
+      CONNECT_RETURN_URL: 'https://app.example.test/connected',
+    })
+    expect(config).toMatchObject({
+      keyVersion: 4,
+      publicBaseUrl: 'https://api.example.test',
+      returnUrl: 'https://app.example.test/connected',
+    })
   })
 
-  it.each(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'] as const)('without %s the surface is unconfigured and the problem names only that variable', (name) => {
-    const env: Record<string, string | undefined> = { ...FULL }
-    delete env[name]
-    const { config, problems } = parseGmailConfig(env)
-    expect(config).toBeNull()
-    expect(problems).toEqual([name])
-  })
+  it.each(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'] as const)(
+    'without %s the surface is unconfigured and the problem names only that variable',
+    (name) => {
+      const env: Record<string, string | undefined> = { ...FULL }
+      delete env[name]
+      const { config, problems } = parseGmailConfig(env)
+      expect(config).toBeNull()
+      expect(problems).toEqual([name])
+    },
+  )
 
   it('a blank value counts as missing', () => {
     expect(parseGmailConfig({ ...FULL, GOOGLE_CLIENT_SECRET: '   ' }).problems).toEqual(['GOOGLE_CLIENT_SECRET'])
@@ -45,11 +69,16 @@ describe('parseGmailConfig (D58)', () => {
   })
 
   it('the notice names the variables and carries no value', () => {
-    const { problems } = parseGmailConfig({ ...FULL, GOOGLE_CLIENT_SECRET: undefined, CREDENTIALS_KEY: 'bad-key-value-zzz' })
+    const { problems } = parseGmailConfig({
+      ...FULL,
+      GOOGLE_CLIENT_SECRET: undefined,
+      CREDENTIALS_KEY: 'bad-key-value-zzz',
+    })
     const notice = gmailConfigNotice(problems)
     expect(notice).toContain('GOOGLE_CLIENT_SECRET')
     expect(notice).toContain('CREDENTIALS_KEY')
-    for (const value of [FULL.GOOGLE_CLIENT_ID, FULL.OAUTH_STATE_SECRET, 'bad-key-value-zzz']) expect(notice).not.toContain(value)
+    for (const value of [FULL.GOOGLE_CLIENT_ID, FULL.OAUTH_STATE_SECRET, 'bad-key-value-zzz'])
+      expect(notice).not.toContain(value)
   })
 })
 
@@ -59,7 +88,9 @@ describe('GMAIL_BACKFILL_DAYS and ATTACHMENT_MAX_BYTES (D71)', () => {
     expect(parseGmailConfig(FULL).config).toMatchObject({ backfillDays: 30, attachmentMaxBytes: 50 * 1024 * 1024 })
   })
   it('read both values', () => {
-    expect(parseGmailConfig({ ...FULL, GMAIL_BACKFILL_DAYS: '7', ATTACHMENT_MAX_BYTES: '1048576' }).config).toMatchObject({ backfillDays: 7, attachmentMaxBytes: 1048576 })
+    expect(
+      parseGmailConfig({ ...FULL, GMAIL_BACKFILL_DAYS: '7', ATTACHMENT_MAX_BYTES: '1048576' }).config,
+    ).toMatchObject({ backfillDays: 7, attachmentMaxBytes: 1048576 })
   })
   it.each([
     ['GMAIL_BACKFILL_DAYS', '0'],
@@ -82,17 +113,32 @@ describe('GMAIL_BACKFILL_DAYS and ATTACHMENT_MAX_BYTES (D71)', () => {
 })
 
 // [[CHN155]] / [[CHN5]] D87: push is judged by one parser, shared with `setup:remote`.
-const PUSH = { GMAIL_TOPIC_NAME: 'projects/p/topics/t', GMAIL_PUSH_SUBSCRIPTION: 'projects/p/subscriptions/s', GMAIL_PUSH_SERVICE_ACCOUNT: 'Push@p.iam.gserviceaccount.com', PUBLIC_BASE_URL: 'https://api.example.test/' }
+const PUSH = {
+  GMAIL_TOPIC_NAME: 'projects/p/topics/t',
+  GMAIL_PUSH_SUBSCRIPTION: 'projects/p/subscriptions/s',
+  GMAIL_PUSH_SERVICE_ACCOUNT: 'Push@p.iam.gserviceaccount.com',
+  PUBLIC_BASE_URL: 'https://api.example.test/',
+}
 describe('parsePushConfig (D87)', () => {
   it('reads the four values: the service account lowercased, the base URL without a trailing slash, the audience the endpoint', () => {
     const { config, problems, configured } = parsePushConfig(PUSH)
     expect(problems).toEqual([])
     expect(configured).toBe(true)
-    expect(config).toEqual({ topicName: 'projects/p/topics/t', subscription: 'projects/p/subscriptions/s', serviceAccount: 'push@p.iam.gserviceaccount.com', publicBaseUrl: 'https://api.example.test', audience: 'https://api.example.test/gmail/push' })
+    expect(config).toEqual({
+      topicName: 'projects/p/topics/t',
+      subscription: 'projects/p/subscriptions/s',
+      serviceAccount: 'push@p.iam.gserviceaccount.com',
+      publicBaseUrl: 'https://api.example.test',
+      audience: 'https://api.example.test/gmail/push',
+    })
   })
   it('nothing set is off without a problem (push simply is not configured)', () => {
     expect(parsePushConfig({})).toEqual({ config: null, configured: false, problems: [] })
-    expect(parsePushConfig({ PUBLIC_BASE_URL: 'https://api.example.test' })).toEqual({ config: null, configured: false, problems: [] })
+    expect(parsePushConfig({ PUBLIC_BASE_URL: 'https://api.example.test' })).toEqual({
+      config: null,
+      configured: false,
+      problems: [],
+    })
   })
   it.each(Object.keys(PUSH))('without %s the set is partial: off, and the problem names only that variable', (name) => {
     const env: Record<string, string | undefined> = { ...PUSH }
@@ -122,7 +168,9 @@ describe('parsePushConfig (D87)', () => {
     expect(JSON.stringify(out)).not.toContain(value)
   })
   it('http://localhost is accepted for local development, with or without a port', () => {
-    expect(parsePushConfig({ ...PUSH, PUBLIC_BASE_URL: 'http://localhost:8787' }).config?.audience).toBe('http://localhost:8787/gmail/push')
+    expect(parsePushConfig({ ...PUSH, PUBLIC_BASE_URL: 'http://localhost:8787' }).config?.audience).toBe(
+      'http://localhost:8787/gmail/push',
+    )
     expect(parsePushConfig({ ...PUSH, PUBLIC_BASE_URL: 'http://localhost' }).problems).toEqual([])
   })
   it('a blank value counts as missing', () => {

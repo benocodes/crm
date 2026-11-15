@@ -16,7 +16,10 @@ export const API_KEY_PREFIX = 'vk_'
 
 // Web Crypto only (no node:crypto), so the same code runs in workerd.
 const base64url = (bytes: Uint8Array): string =>
-  btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+  btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '')
 
 /** SHA-256, lowercase hex. High-entropy keys need no slow hash. */
 export async function hashApiKey(key: string): Promise<string> {
@@ -25,7 +28,9 @@ export async function hashApiKey(key: string): Promise<string> {
 }
 
 /** The random source is injected (CORE40 P8) so golden runs can record a key; real code passes `crypto.getRandomValues`. */
-export async function generateApiKey(randomBytes: (n: number) => Uint8Array): Promise<{ key: string; hash: string; prefix: string }> {
+export async function generateApiKey(
+  randomBytes: (n: number) => Uint8Array,
+): Promise<{ key: string; hash: string; prefix: string }> {
   const key = API_KEY_PREFIX + base64url(randomBytes(32))
   return { key, hash: await hashApiKey(key), prefix: key.slice(0, 11) }
 }
@@ -98,7 +103,11 @@ export function apiKeyAuthOperation(keyHash: string, now: Date): PreparedOperati
  * Looks the key up and (at most once a minute per key) records its use, in one internal unit. Unknown, revoked,
  * expired and disabled-agent keys are all `null`. The key is hashed BEFORE the unit (D10); only the hash is a parameter.
  */
-export async function authenticateApiKey(storage: StorageBinding, key: string, env: InternalEnv): Promise<Principal | null> {
+export async function authenticateApiKey(
+  storage: StorageBinding,
+  key: string,
+  env: InternalEnv,
+): Promise<Principal | null> {
   const hash = await hashApiKey(key)
   return (await execute(storage, { kind: 'internal', organizationId: null }, apiKeyAuthOperation(hash, env.now))).value
 }

@@ -17,7 +17,8 @@ import { createOperation, deleteOperation } from './crud.js'
 const at = (n: number) => new Date(BASE + n * 60_000)
 const iso = (n: number) => at(n).toISOString()
 const TABLES = ['companies', 'contacts', 'identities', 'events'] as const
-const snapshot = async (e: Engine) => Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const)))
+const snapshot = async (e: Engine) =>
+  Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const)))
 
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
@@ -80,7 +81,9 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('resolve, ensure-own and merge', async () => {
-        const out = await k.run((env) => resolveOperation(env, [{ kind: 'email', value: 'r@b.com', name: 'R' }]), { now: at(1) })
+        const out = await k.run((env) => resolveOperation(env, [{ kind: 'email', value: 'r@b.com', name: 'R' }]), {
+          now: at(1),
+        })
         expect(out[0]!.identity).toMatchObject({ created_at: iso(1), updated_at: iso(1) })
         expect(out[0]!.contact).toMatchObject({ created_at: iso(1), updated_at: iso(1) })
         const stored = await k.row('identities', out[0]!.identity.id)
@@ -98,7 +101,11 @@ export function engineSuite(engineName: EngineName): void {
         const survivor = await k.run((env) => mergeOperation(env, s.id, r.id), { now: at(5) })
         expect(survivor).toMatchObject({ name: 'Rita', updated_at: iso(5) })
         expect(await k.row('identities', i.id)).toMatchObject({ contact_id: s.id, updated_at: iso(5) })
-        expect(await k.row('contacts', r.id)).toMatchObject({ deleted_at: iso(5), updated_at: iso(5), merged_into_id: s.id })
+        expect(await k.row('contacts', r.id)).toMatchObject({
+          deleted_at: iso(5),
+          updated_at: iso(5),
+          merged_into_id: s.id,
+        })
         const ev = await eventsAt(5)
         expect(ev.map((x) => x.type)).toEqual(['identity.updated', 'contact.updated', 'contact.merged'])
         expect(ev[2]!.after).toMatchObject({ updated_at: iso(5), merged_into_id: s.id })
@@ -113,7 +120,8 @@ export function engineSuite(engineName: EngineName): void {
         return res
       }
       afterAll(() => {
-        for (const [label, [one, ten]] of Object.entries(counts)) console.log(`[statements] ${name} ${label}: set of 1 -> ${one}, set of 10 -> ${ten}`)
+        for (const [label, [one, ten]] of Object.entries(counts))
+          console.log(`[statements] ${name} ${label}: set of 1 -> ${one}, set of 10 -> ${ten}`)
       })
 
       const setup = {
@@ -137,14 +145,16 @@ export function engineSuite(engineName: EngineName): void {
           const c = await k.contact({})
           for (let i = 0; i < n; i++) await k.identity({ kind: 'email', value: `dl${i}@b.com`, contact_id: c.id })
           const { fileIds } = await seedConversation((t, r) => e.insert(t, r), { attachments: n })
-          for (const f of fileIds) await k.run((env) => createOperation(contactFiles, env, { contact_id: c.id, file_id: f }))
+          for (const f of fileIds)
+            await k.run((env) => createOperation(contactFiles, env, { contact_id: c.id, file_id: f }))
           return () => e.run(deleteContactOperation(k.env(), c.id))
         },
         'company delete with links': async (n: number) => {
           const co = await k.company({ name: 'C' })
           for (let i = 0; i < n; i++) await k.contact({ company_id: co.id })
           const { fileIds } = await seedConversation((t, r) => e.insert(t, r), { attachments: n })
-          for (const f of fileIds) await k.run((env) => createOperation(companyFiles, env, { company_id: co.id, file_id: f }))
+          for (const f of fileIds)
+            await k.run((env) => createOperation(companyFiles, env, { company_id: co.id, file_id: f }))
           return () => e.run(deleteCompanyOperation(k.env(), co.id))
         },
         'merge with links': async (n: number) => {
@@ -152,23 +162,33 @@ export function engineSuite(engineName: EngineName): void {
           const r = await k.contact({ name: 'R' })
           for (let i = 0; i < n; i++) await k.identity({ kind: 'email', value: `ml${i}@b.com`, contact_id: r.id })
           const { fileIds } = await seedConversation((t, row) => e.insert(t, row), { attachments: n })
-          for (const f of fileIds) await k.run((env) => createOperation(contactFiles, env, { contact_id: r.id, file_id: f }))
-          for (const f of fileIds.slice(0, Math.floor(n / 2))) await k.run((env) => createOperation(contactFiles, env, { contact_id: s.id, file_id: f })) // half duplicate the source's
+          for (const f of fileIds)
+            await k.run((env) => createOperation(contactFiles, env, { contact_id: r.id, file_id: f }))
+          for (const f of fileIds.slice(0, Math.floor(n / 2)))
+            await k.run((env) => createOperation(contactFiles, env, { contact_id: s.id, file_id: f })) // half duplicate the source's
           return () => e.run(mergeOperation(k.env(), s.id, r.id))
         },
-        resolve: async (n: number) =>
-          () => e.run(resolveOperation(k.env(), Array.from({ length: n }, (_, i) => ({ kind: 'email' as const, value: `n${i}@b.com`, name: `N${i}` })))),
+        resolve: async (n: number) => () =>
+          e.run(
+            resolveOperation(
+              k.env(),
+              Array.from({ length: n }, (_, i) => ({ kind: 'email' as const, value: `n${i}@b.com`, name: `N${i}` })),
+            ),
+          ),
       }
-      it.each(Object.keys(setup) as Array<keyof typeof setup>)('%s costs the same statements for a set of 1 and a set of 10', async (label) => {
-        for (const size of [1, 10]) {
-          await e.reset()
-          k = identityKit(e)
-          const run = await setup[label](size)
-          await measure(label, size, run)
-        }
-        expect(counts[label]![0]).toBeGreaterThan(0)
-        expect(counts[label]![1]).toBe(counts[label]![0])
-      })
+      it.each(Object.keys(setup) as Array<keyof typeof setup>)(
+        '%s costs the same statements for a set of 1 and a set of 10',
+        async (label) => {
+          for (const size of [1, 10]) {
+            await e.reset()
+            k = identityKit(e)
+            const run = await setup[label](size)
+            await measure(label, size, run)
+          }
+          expect(counts[label]![0]).toBeGreaterThan(0)
+          expect(counts[label]![1]).toBe(counts[label]![0])
+        },
+      )
     })
 
     describe('atomicity: a failure at the first mutation, first event or result rolls everything back', () => {
@@ -196,7 +216,10 @@ export function engineSuite(engineName: EngineName): void {
         it.each(labels)(`${label}: a real constraint fault after %s changes nothing`, async (after) => {
           const make = await prepare()
           const before = await snapshot(e)
-          const err = await e.run(withFault(make(), { after })).then(() => null, (x: unknown) => x)
+          const err = await e.run(withFault(make(), { after })).then(
+            () => null,
+            (x: unknown) => x,
+          )
           expect(err).toBeInstanceOf(StatementFailed)
           expect(await snapshot(e)).toEqual(before)
         })
@@ -205,7 +228,8 @@ export function engineSuite(engineName: EngineName): void {
 
     if (name === 'd1') {
       describe('D1 drift: what changed between the plan and the commit batch aborts the unit (D4, issue #18)', () => {
-        const live = async (contactId: string) => (await e.rows('identities')).filter((i) => i.contact_id === contactId && i.deleted_at === null)
+        const live = async (contactId: string) =>
+          (await e.rows('identities')).filter((i) => i.contact_id === contactId && i.deleted_at === null)
 
         it('an identity create racing a merge of its contact: 409 conflict, nothing live on the tombstone, the retry is invalid_reference', async () => {
           const s = await k.contact({})
@@ -213,10 +237,14 @@ export function engineSuite(engineName: EngineName): void {
           e.betweenPlanAndCommit(async () => {
             await e.run(mergeOperation(k.env(), s.id, r.id))
           })
-          const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'late@b.com', contact_id: r.id }))
+          const err = await k.fail((env) =>
+            createOperation(identities, env, { kind: 'email', value: 'late@b.com', contact_id: r.id }),
+          )
           expect([err.status, err.code]).toEqual([409, 'conflict'])
           expect(await live(r.id)).toHaveLength(0)
-          const retry = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'late@b.com', contact_id: r.id }))
+          const retry = await k.fail((env) =>
+            createOperation(identities, env, { kind: 'email', value: 'late@b.com', contact_id: r.id }),
+          )
           expect(retry.code).toBe('invalid_reference')
         })
 
@@ -297,9 +325,13 @@ export function engineSuite(engineName: EngineName): void {
           e.betweenPlanAndCommit(async () => {
             await e.insert('identities', { kind: 'email', value: 'x@y.com', contact_id: other.id, own: false })
           })
-          const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'x@y.com', contact_id: c.id }))
+          const err = await k.fail((env) =>
+            createOperation(identities, env, { kind: 'email', value: 'x@y.com', contact_id: c.id }),
+          )
           expect([err.status, err.code]).toEqual([409, 'conflict'])
-          const retry = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'x@y.com', contact_id: c.id }))
+          const retry = await k.fail((env) =>
+            createOperation(identities, env, { kind: 'email', value: 'x@y.com', contact_id: c.id }),
+          )
           expect(retry.code).toBe('identity_exists')
         })
       })
@@ -339,7 +371,11 @@ export function engineSuite(engineName: EngineName): void {
         for (let i = 0; i < 4; i++) await k.identity({ kind: 'email', value: `m${i}@b.com`, contact_id: r.id })
         return () => mergeOperation(k.env(), s.id, r.id)
       },
-      'resolve (4 new addresses)': async (_e, k) => () => resolveOperation(k.env(), Array.from({ length: 4 }, (_, i) => ({ kind: 'email' as const, value: `n${i}@b.com` }))),
+      'resolve (4 new addresses)': async (_e, k) => () =>
+        resolveOperation(
+          k.env(),
+          Array.from({ length: 4 }, (_, i) => ({ kind: 'email' as const, value: `n${i}@b.com` })),
+        ),
     }
     for (const [label, prepare] of Object.entries(cases)) {
       it(`${label}: 400 set_limit_exceeded at cap 3 changes nothing; the same program passes at cap 10`, async () => {
@@ -363,12 +399,16 @@ export function engineSuite(engineName: EngineName): void {
   describe.each([engineName])('merge and delete with file links on %s', (name) => {
     let e: Engine
     let k: IdentityKit
-    const seedFiles = async (n: number) => (await seedConversation((t, r) => e.insert(t, r), { attachments: n })).fileIds
-    const link = (contactId: string, fileId: string) => k.run((env) => createOperation(contactFiles, env, { contact_id: contactId, file_id: fileId }))
-    const companyLink = (companyId: string, fileId: string) => k.run((env) => createOperation(companyFiles, env, { company_id: companyId, file_id: fileId }))
+    const seedFiles = async (n: number) =>
+      (await seedConversation((t, r) => e.insert(t, r), { attachments: n })).fileIds
+    const link = (contactId: string, fileId: string) =>
+      k.run((env) => createOperation(contactFiles, env, { contact_id: contactId, file_id: fileId }))
+    const companyLink = (companyId: string, fileId: string) =>
+      k.run((env) => createOperation(companyFiles, env, { company_id: companyId, file_id: fileId }))
     const mergeAt = (s: string, r: string, n: number) => k.run((env) => mergeOperation(env, s, r), { now: at(n) })
     const evAfter = async (count: number) => (await e.rows('events')).slice(count)
-    const linkRows = async (contactId: string) => (await e.rows('contact_files')).filter((x) => x.contact_id === contactId)
+    const linkRows = async (contactId: string) =>
+      (await e.rows('contact_files')).filter((x) => x.contact_id === contactId)
     beforeAll(() => {
       e = engines.find((x) => x.name === name)!
     })
@@ -390,10 +430,23 @@ export function engineSuite(engineName: EngineName): void {
       const live = (await linkRows(S.id)).filter((x) => x.deleted_at === null)
       expect(live.map((x) => x.file_id).sort()).toEqual([F1, F2].sort())
       const rowF2 = (await e.rows('contact_files')).find((x) => x.id === rF2.id)!
-      expect(rowF2).toMatchObject({ contact_id: R.id, deleted_at: at(50).toISOString(), updated_at: at(50).toISOString() })
-      expect((await e.rows('contact_files')).find((x) => x.id === rF1.id)).toMatchObject({ contact_id: S.id, updated_at: at(50).toISOString(), deleted_at: null })
+      expect(rowF2).toMatchObject({
+        contact_id: R.id,
+        deleted_at: at(50).toISOString(),
+        updated_at: at(50).toISOString(),
+      })
+      expect((await e.rows('contact_files')).find((x) => x.id === rF1.id)).toMatchObject({
+        contact_id: S.id,
+        updated_at: at(50).toISOString(),
+        deleted_at: null,
+      })
       const evs = await evAfter(count)
-      expect(evs.map((x) => x.type)).toEqual(['identity.updated', 'contact_file.deleted', 'contact_file.updated', 'contact.merged'])
+      expect(evs.map((x) => x.type)).toEqual([
+        'identity.updated',
+        'contact_file.deleted',
+        'contact_file.updated',
+        'contact.merged',
+      ])
       expect(evs[0]).toMatchObject({ resource_id: i.id })
       expect(evs[1]).toMatchObject({ resource_id: rF2.id, after: null, before: rF2 })
       expect(evs[2]).toMatchObject({ resource_id: rF1.id, before: rF1 })
@@ -432,7 +485,12 @@ export function engineSuite(engineName: EngineName): void {
       const live = await link(K.id, F2!)
       const count = (await e.rows('events')).length
       await k.deleteContact(K.id, { now: at(61) })
-      expect((await evAfter(count)).map((x) => x.type)).toEqual(['contact.deleted', 'identity.deleted', 'identity.deleted', 'contact_file.deleted'])
+      expect((await evAfter(count)).map((x) => x.type)).toEqual([
+        'contact.deleted',
+        'identity.deleted',
+        'identity.deleted',
+        'contact_file.deleted',
+      ])
       const rows = await e.rows('contact_files')
       expect(rows.find((x) => x.id === old.id)!.deleted_at).toBe(at(60).toISOString())
       expect(rows.find((x) => x.id === live.id)!.deleted_at).toBe(at(61).toISOString())
@@ -447,7 +505,13 @@ export function engineSuite(engineName: EngineName): void {
       await companyLink(Co.id, F2!)
       const count = (await e.rows('events')).length
       await k.deleteCompany(Co.id, { now: at(62) })
-      expect((await evAfter(count)).map((x) => x.type)).toEqual(['company.deleted', 'contact.updated', 'contact.updated', 'company_file.deleted', 'company_file.deleted'])
+      expect((await evAfter(count)).map((x) => x.type)).toEqual([
+        'company.deleted',
+        'contact.updated',
+        'contact.updated',
+        'company_file.deleted',
+        'company_file.deleted',
+      ])
       expect((await e.rows('company_files')).every((x) => x.deleted_at === at(62).toISOString())).toBe(true)
     })
 
@@ -458,14 +522,16 @@ export function engineSuite(engineName: EngineName): void {
           const S = await k.contact({})
           const R = await k.contact({})
           await link(R.id, F1!)
-          const before = Object.fromEntries(await Promise.all(['contact_files', 'events', 'contacts'].map(async (t) => [t, await e.rows(t)] as const)))
+          const before = Object.fromEntries(
+            await Promise.all(['contact_files', 'events', 'contacts'].map(async (t) => [t, await e.rows(t)] as const)),
+          )
           e.betweenPlanAndCommit(async () => {
             await e.insert('contact_files', { contact_id: S.id, file_id: F1 })
           })
           const err = await k.fail((env) => mergeOperation(env, S.id, R.id))
           expect([err.status, err.code]).toEqual([409, 'conflict'])
-          expect((await e.rows('events'))).toEqual(before.events)
-          expect((await e.rows('contacts'))).toEqual(before.contacts)
+          expect(await e.rows('events')).toEqual(before.events)
+          expect(await e.rows('contacts')).toEqual(before.contacts)
           expect((await e.rows('contact_files')).length).toBe(before.contact_files!.length + 1)
         })
         it('merge: the source gains a link', async () => {
@@ -480,7 +546,7 @@ export function engineSuite(engineName: EngineName): void {
           const err = await k.fail((env) => mergeOperation(env, S.id, R.id))
           expect([err.status, err.code]).toEqual([409, 'conflict'])
           expect((await e.rows('contacts')).find((x) => x.id === R.id)!.deleted_at).toBeNull()
-          expect((await linkRows(S.id))).toHaveLength(0)
+          expect(await linkRows(S.id)).toHaveLength(0)
           expect((await e.rows('events')).length).toBe(events)
         })
         it('merge: a swap that keeps the count (one link soft-deleted, another inserted)', async () => {
@@ -490,7 +556,10 @@ export function engineSuite(engineName: EngineName): void {
           const l1 = await link(R.id, F1!)
           const events = (await e.rows('events')).length
           e.betweenPlanAndCommit(async () => {
-            await e.update('contact_files', l1.id, { deleted_at: '2026-10-22T09:00:00.000Z', updated_at: '2026-10-22T09:00:00.000Z' })
+            await e.update('contact_files', l1.id, {
+              deleted_at: '2026-10-22T09:00:00.000Z',
+              updated_at: '2026-10-22T09:00:00.000Z',
+            })
             await e.insert('contact_files', { contact_id: R.id, file_id: F3 })
           })
           const err = await k.fail((env) => mergeOperation(env, S.id, R.id))

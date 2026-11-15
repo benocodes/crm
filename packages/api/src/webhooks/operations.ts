@@ -1,6 +1,20 @@
 import { sql, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import { UnitDriftError, appliedPrev, bind, codecs, defineOperation, readAll, readMaybe, recordColumns, step, ts, unit, type PreparedOperation, type QueryContext } from '@vibase/storage'
+import {
+  UnitDriftError,
+  appliedPrev,
+  bind,
+  codecs,
+  defineOperation,
+  readAll,
+  readMaybe,
+  recordColumns,
+  step,
+  ts,
+  unit,
+  type PreparedOperation,
+  type QueryContext,
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { feedVisibility } from '../events/operations.js'
 import { eventStatement } from '../outbox.js'
@@ -28,10 +42,14 @@ const SCOPE_STRING = /^[a-z][a-z0-9_]*:(read|request_approval|write)$/
 export const webhookRecord = z.object({
   id: z.uuid(),
   organization_id: z.uuid(),
-  agent_id: z.uuid().describe('The agent that owns the subscription: it receives only event types it could read itself.'),
+  agent_id: z
+    .uuid()
+    .describe('The agent that owns the subscription: it receives only event types it could read itself.'),
   url: z.string().describe('Where events are POSTed: https, a public host.'),
   event_types: z.array(z.string()).describe('The exact event types delivered, for example task.created.'),
-  status: z.enum(['active', 'paused', 'disabled']).describe('paused by a caller; disabled by Vibase after sustained failure.'),
+  status: z
+    .enum(['active', 'paused', 'disabled'])
+    .describe('paused by a caller; disabled by Vibase after sustained failure.'),
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -61,8 +79,15 @@ const createBody = z.strictObject({
     .min(1)
     .max(20)
     .optional()
-    .describe('Exact event types, 1 to 20. Omitted: ["interaction.created"]. Each must be a type the owning agent could read through the feed.'),
-  agent_id: z.uuid().optional().describe('The agent that owns the subscription. An agent caller may omit it (it owns its own); a person must name one.'),
+    .describe(
+      'Exact event types, 1 to 20. Omitted: ["interaction.created"]. Each must be a type the owning agent could read through the feed.',
+    ),
+  agent_id: z
+    .uuid()
+    .optional()
+    .describe(
+      'The agent that owns the subscription. An agent caller may omit it (it owns its own); a person must name one.',
+    ),
 })
 const updateBody = z.strictObject({
   url: z.string().optional(),
@@ -72,13 +97,24 @@ const updateBody = z.strictObject({
     .max(20)
     .optional()
     .describe('Replaces the list; omitted leaves it as it is. Takes effect from the current position, with no rewind.'),
-  status: z.enum(['active', 'paused']).optional().describe('paused stops delivery and keeps the position; active resumes (and re-enables a subscription Vibase disabled).'),
+  status: z
+    .enum(['active', 'paused'])
+    .optional()
+    .describe(
+      'paused stops delivery and keeps the position; active resumes (and re-enables a subscription Vibase disabled).',
+    ),
 })
 const idParams = z.object({ id: z.uuid() })
 const listQuery = z.object({
-  after: z.uuid().optional().describe('The id of the last subscription you have seen (the previous page\'s next_cursor).'),
+  after: z
+    .uuid()
+    .optional()
+    .describe("The id of the last subscription you have seen (the previous page's next_cursor)."),
   limit: z.coerce.number().int().min(1).max(200).optional(),
-  agent_id: z.uuid().optional().describe('Only this agent\'s subscriptions (an agent sees only its own whatever it asks).'),
+  agent_id: z
+    .uuid()
+    .optional()
+    .describe("Only this agent's subscriptions (an agent sees only its own whatever it asks)."),
 })
 /** [[API7]] D14: a delivery as `webhooks.deliveries` shows it: no lease columns, no organisation, no creator. */
 export const deliveryRecord = z.object({
@@ -86,61 +122,122 @@ export const deliveryRecord = z.object({
   subscription_id: z.uuid(),
   event_id: z.uuid().describe('The event this delivery carries; it is the webhook-id header of the POST.'),
   event_type: z.string(),
-  status: z.enum(['pending', 'delivered', 'dead', 'cancelled']).describe('pending: waiting or between attempts; delivered: a 2xx answered; dead: every attempt failed; cancelled: the subscription was deleted or its agent lost the read scope.'),
+  status: z
+    .enum(['pending', 'delivered', 'dead', 'cancelled'])
+    .describe(
+      'pending: waiting or between attempts; delivered: a 2xx answered; dead: every attempt failed; cancelled: the subscription was deleted or its agent lost the read scope.',
+    ),
   attempts: z.number().int(),
   next_attempt_at: z.string(),
   last_attempt_at: z.string().nullable(),
   last_status_code: z.number().int().nullable(),
-  last_error: z.string().nullable().describe('timeout, connection_failed, http_status, redirect, sender_failed, cancelled_subscription or cancelled_scope. A response body is never kept.'),
+  last_error: z
+    .string()
+    .nullable()
+    .describe(
+      'timeout, connection_failed, http_status, redirect, sender_failed, cancelled_subscription or cancelled_scope. A response body is never kept.',
+    ),
   delivered_at: z.string().nullable(),
   created_at: z.string(),
 })
-const DELIVERY_COLUMNS = ['id', 'subscription_id', 'event_id', 'event_type', 'status', 'attempts', 'next_attempt_at', 'last_attempt_at', 'last_status_code', 'last_error', 'delivered_at', 'created_at'] as const
+const DELIVERY_COLUMNS = [
+  'id',
+  'subscription_id',
+  'event_id',
+  'event_type',
+  'status',
+  'attempts',
+  'next_attempt_at',
+  'last_attempt_at',
+  'last_status_code',
+  'last_error',
+  'delivered_at',
+  'created_at',
+] as const
 const deliveriesQuery = z.object({
   status: z.enum(['pending', 'delivered', 'dead', 'cancelled']).optional().describe('Only deliveries in this status.'),
-  after: z.uuid().optional().describe('The id of the last delivery you have seen (the previous page\'s next_cursor).'),
+  after: z.uuid().optional().describe("The id of the last delivery you have seen (the previous page's next_cursor)."),
   limit: z.coerce.number().int().min(1).max(200).optional(),
 })
-const created = webhookRecord.extend({ secret: z.string().describe('The signing secret, whsec_ + base64. Shown only here and in rotate_secret: store it now.') })
+const created = webhookRecord.extend({
+  secret: z
+    .string()
+    .describe('The signing secret, whsec_ + base64. Shown only here and in rotate_secret: store it now.'),
+})
 const rotated = z.object({
   secret: z.string().describe('The new signing secret, shown only here.'),
-  previous_valid_until: z.string().describe('The previous secret still signs deliveries until this time (24 hours); a receiver may accept both meanwhile.'),
+  previous_valid_until: z
+    .string()
+    .describe(
+      'The previous secret still signs deliveries until this time (24 hours); a receiver may accept both meanwhile.',
+    ),
 })
 
 const notFound = () => new ApiError(404, 'not_found', 'webhook not found')
 const invalidReference = () => new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
-const notConfigured = () => new ApiError(501, 'webhooks_not_configured', 'webhooks are not configured on this deployment: set CREDENTIALS_KEY (base64 of 32 bytes)')
+const notConfigured = () =>
+  new ApiError(
+    501,
+    'webhooks_not_configured',
+    'webhooks are not configured on this deployment: set CREDENTIALS_KEY (base64 of 32 bytes)',
+  )
 const lower = (s: string) => s.toLowerCase()
 const SUB = (column: string) => sql.ref(`webhook_subscriptions.${column}`)
 
 /** D1: an agent caller sees only its own subscriptions; a user (the scope is the owner's) any. */
-const ownership = (env: PreparedEnv) => (env.actor.kind === 'agent' ? sql<SqlBool>`${SUB('agent_id')} = ${env.actor.id}` : sql<SqlBool>`1 = 1`)
+const ownership = (env: PreparedEnv) =>
+  env.actor.kind === 'agent' ? sql<SqlBool>`${SUB('agent_id')} = ${env.actor.id}` : sql<SqlBool>`1 = 1`
 
 const unique = (types: readonly string[]) => [...new Set(types)]
 
 /** The agent whose visibility judges the types, as the plan reads it. */
 type AgentRow = { disabled_at: string | null; delegated_by: string | null; scopes: string[] }
 const agentRead = (qc: QueryContext, env: PreparedEnv, agentId: string) =>
-  readMaybe(qc.db.selectFrom('agents').select(['agents.id', 'agents.scopes', 'agents.disabled_at', 'agents.delegated_by']).where('agents.id', '=', agentId).where('agents.organization_id', '=', env.organizationId))
+  readMaybe(
+    qc.db
+      .selectFrom('agents')
+      .select(['agents.id', 'agents.scopes', 'agents.disabled_at', 'agents.delegated_by'])
+      .where('agents.id', '=', agentId)
+      .where('agents.organization_id', '=', env.organizationId),
+  )
 const agentOf = (row: Record<string, unknown> | null): AgentRow | null =>
-  row ? { disabled_at: (row.disabled_at as string | null) ?? null, delegated_by: (row.delegated_by as string | null) ?? null, scopes: codecs.stringArray.read(row.scopes) } : null
+  row
+    ? {
+        disabled_at: (row.disabled_at as string | null) ?? null,
+        delegated_by: (row.delegated_by as string | null) ?? null,
+        scopes: codecs.stringArray.read(row.scopes),
+      }
+    : null
 
 /**
  * D3: every type must name a resource type the registry's event-type map knows (`unknown_event_type`) and the agent must be able to see it through the feed (`event_type_not_readable`):
  * the agent's own read scopes and identity (D19's owner predicate), never the caller's. A type with no entry, or an `invisible` one, is not readable (`action_request.*` today).
  */
-export function checkEventTypes(registry: Registry, agent: { id: string; scopes: readonly string[] }, types: readonly string[]): void {
+export function checkEventTypes(
+  registry: Registry,
+  agent: { id: string; scopes: readonly string[] },
+  types: readonly string[],
+): void {
   const map = registry.eventTypes()
   const resourceOf = (type: string) => type.slice(0, type.indexOf('.'))
   for (const type of types) {
-    if (!map.has(resourceOf(type))) throw new ApiError(400, 'unknown_event_type', `unknown event type ${type}: no resource type ${resourceOf(type)}`)
+    if (!map.has(resourceOf(type)))
+      throw new ApiError(400, 'unknown_event_type', `unknown event type ${type}: no resource type ${resourceOf(type)}`)
   }
-  const vis = feedVisibility(registry, { scopes: ScopeSet.parse(agent.scopes.filter((s) => SCOPE_STRING.test(s))), actor: { id: agent.id, kind: 'agent' } })
+  const vis = feedVisibility(registry, {
+    scopes: ScopeSet.parse(agent.scopes.filter((s) => SCOPE_STRING.test(s))),
+    actor: { id: agent.id, kind: 'agent' },
+  })
   const readable = new Set(vis.readable)
   for (const o of vis.owned ?? []) readable.add(o.resourceType)
   if (vis.edge && vis.edge.endpointTypes.length > 0) readable.add(vis.edge.resourceType)
   for (const type of types) {
-    if (!readable.has(resourceOf(type))) throw new ApiError(400, 'event_type_not_readable', `the agent cannot read ${type} events: it lacks the read scope of that resource, or the type is not available to subscriptions`)
+    if (!readable.has(resourceOf(type)))
+      throw new ApiError(
+        400,
+        'event_type_not_readable',
+        `the agent cannot read ${type} events: it lacks the read scope of that resource, or the type is not available to subscriptions`,
+      )
   }
 }
 
@@ -195,7 +292,11 @@ function getOperation(env: PreparedEnv, rawId: string): PreparedOperation<unknow
 }
 
 /** D14: a subscription's deliveries, oldest id first (the order the dispatcher inserted them), the subscription found by the same ownership and liveness as `webhooks.get`. */
-function deliveriesOperation(env: PreparedEnv, rawId: string, q: z.infer<typeof deliveriesQuery>): PreparedOperation<unknown> {
+function deliveriesOperation(
+  env: PreparedEnv,
+  rawId: string,
+  q: z.infer<typeof deliveriesQuery>,
+): PreparedOperation<unknown> {
   const id = lower(rawId)
   const limit = q.limit ?? 50
   return defineOperation({
@@ -208,8 +309,12 @@ function deliveriesOperation(env: PreparedEnv, rawId: string, q: z.infer<typeof 
         .where('webhook_deliveries.organization_id', '=', env.organizationId)
         .where('webhook_deliveries.subscription_id', '=', id)
       if (q.status !== undefined) page = page.where('webhook_deliveries.status', '=', q.status)
-      if (q.after !== undefined) page = page.where(sql<SqlBool>`${sql.ref('webhook_deliveries.id')} > ${lower(q.after)}`)
-      return { sub: readMaybe(selectRecord(webhooks, qc, env, id).where(ownership(env))), page: readAll(page.orderBy('webhook_deliveries.id').limit(limit + 1)) }
+      if (q.after !== undefined)
+        page = page.where(sql<SqlBool>`${sql.ref('webhook_deliveries.id')} > ${lower(q.after)}`)
+      return {
+        sub: readMaybe(selectRecord(webhooks, qc, env, id).where(ownership(env))),
+        page: readAll(page.orderBy('webhook_deliveries.id').limit(limit + 1)),
+      }
     },
     build: (found) =>
       unit({
@@ -226,14 +331,26 @@ function deliveriesOperation(env: PreparedEnv, rawId: string, q: z.infer<typeof 
 }
 
 /** The subscription as an event's `before` and as the unit's guard: the record and its exact stored `updated_at`. */
-const beforeOf = (qc: QueryContext, env: PreparedEnv, id: string) => readMaybe(selectRecord(webhooks, qc, env, id, { derived: false }).where(ownership(env)).select(ts.exact(qc, 'webhook_subscriptions.updated_at').as('__stamp')))
+const beforeOf = (qc: QueryContext, env: PreparedEnv, id: string) =>
+  readMaybe(
+    selectRecord(webhooks, qc, env, id, { derived: false })
+      .where(ownership(env))
+      .select(ts.exact(qc, 'webhook_subscriptions.updated_at').as('__stamp')),
+  )
 
 // ---- writes --------------------------------------------------------------------------------------------
 
-function createOperation(env: PreparedEnv, runtime: WebhooksRuntime, registry: Registry, body: z.infer<typeof createBody>, minted: { secret: string; sealed: string }): PreparedOperation<unknown> {
+function createOperation(
+  env: PreparedEnv,
+  runtime: WebhooksRuntime,
+  registry: Registry,
+  body: z.infer<typeof createBody>,
+  minted: { secret: string; sealed: string },
+): PreparedOperation<unknown> {
   const own = env.actor.kind === 'agent'
   if (own && body.agent_id !== undefined && lower(body.agent_id) !== env.actor.id) throw invalidReference()
-  if (!own && body.agent_id === undefined) throw new ApiError(400, 'validation_error', 'agent_id is required: a subscription belongs to an agent')
+  if (!own && body.agent_id === undefined)
+    throw new ApiError(400, 'validation_error', 'agent_id is required: a subscription belongs to an agent')
   const agentId = own ? env.actor.id : lower(body.agent_id!)
   const types = unique(body.event_types ?? DEFAULT_EVENT_TYPES)
   const id = env.newId()
@@ -245,20 +362,48 @@ function createOperation(env: PreparedEnv, runtime: WebhooksRuntime, registry: R
     mutates: true,
     reads: (qc) => ({
       agent: agentRead(qc, env, agentId),
-      live: readMaybe(qc.db.selectFrom('webhook_subscriptions').select(sql<number>`count(*)`.as('n')).where('webhook_subscriptions.organization_id', '=', env.organizationId).where('webhook_subscriptions.agent_id', '=', agentId).where('webhook_subscriptions.deleted_at', 'is', null)),
+      live: readMaybe(
+        qc.db
+          .selectFrom('webhook_subscriptions')
+          .select(sql<number>`count(*)`.as('n'))
+          .where('webhook_subscriptions.organization_id', '=', env.organizationId)
+          .where('webhook_subscriptions.agent_id', '=', agentId)
+          .where('webhook_subscriptions.deleted_at', 'is', null),
+      ),
     }),
     build: (found, qc) => {
       const agent = agentOf(found.maybe('agent'))
       if (!agent || agent.disabled_at !== null) throw invalidReference()
-      if (agent.delegated_by !== null) throw new ApiError(400, 'agent_not_eligible', 'a delegated agent (an OAuth client acting for a person) cannot own a webhook subscription')
+      if (agent.delegated_by !== null)
+        throw new ApiError(
+          400,
+          'agent_not_eligible',
+          'a delegated agent (an OAuth client acting for a person) cannot own a webhook subscription',
+        )
       checkEventTypes(registry, { id: agentId, scopes: agent.scopes }, types)
-      if (Number(found.maybe('live')?.n ?? 0) >= MAX_SUBSCRIPTIONS_PER_AGENT) throw new ApiError(409, 'webhook_limit', `an agent may have ${MAX_SUBSCRIPTIONS_PER_AGENT} webhook subscriptions`)
+      if (Number(found.maybe('live')?.n ?? 0) >= MAX_SUBSCRIPTIONS_PER_AGENT)
+        throw new ApiError(
+          409,
+          'webhook_limit',
+          `an agent may have ${MAX_SUBSCRIPTIONS_PER_AGENT} webhook subscriptions`,
+        )
       // The commit-time form of the plan's checks: the agent is still live and eligible and the limit still holds, else nothing is written (the unit drifts, is planned again and refused above).
       const eligible = sql<SqlBool>`exists (select 1 from "agents" where "agents"."id" = ${agentId} and "agents"."organization_id" = ${env.organizationId} and "agents"."disabled_at" is null and "agents"."delegated_by" is null)`
       const underLimit = sql<SqlBool>`(select count(*) from "webhook_subscriptions" where "webhook_subscriptions"."organization_id" = ${env.organizationId} and "webhook_subscriptions"."agent_id" = ${agentId} and "webhook_subscriptions"."deleted_at" is null) < ${MAX_SUBSCRIPTIONS_PER_AGENT}`
       const insertSubscription = qc.db
         .insertInto('webhook_subscriptions')
-        .columns(['id', 'created_at', 'updated_at', 'organization_id', 'created_by', 'agent_id', 'url', 'event_types', 'status', 'deleted_at'])
+        .columns([
+          'id',
+          'created_at',
+          'updated_at',
+          'organization_id',
+          'created_by',
+          'agent_id',
+          'url',
+          'event_types',
+          'status',
+          'deleted_at',
+        ])
         .expression(
           qc.db
             .selectNoFrom([
@@ -296,7 +441,15 @@ function createOperation(env: PreparedEnv, runtime: WebhooksRuntime, registry: R
       // D5: the horizon is the newest event once this unit's own `webhook.created` is in, which is that event: nothing committed before creation is delivered, nothing after is lost.
       const insertState = qc.db
         .insertInto('webhook_dispatch_state')
-        .columns(['subscription_id', 'created_at', 'organization_id', 'created_by', 'cursor_event_id', 'last_dispatched_at', 'last_success_at'])
+        .columns([
+          'subscription_id',
+          'created_at',
+          'organization_id',
+          'created_by',
+          'cursor_event_id',
+          'last_dispatched_at',
+          'last_success_at',
+        ])
         .expression(
           qc.db
             .selectNoFrom([
@@ -315,7 +468,17 @@ function createOperation(env: PreparedEnv, runtime: WebhooksRuntime, registry: R
           step(insertSubscription, 'first-mutation', { expect: 'affected' }),
           step(insertSecret),
           step(
-            eventStatement(qc, { id: eventId, at, organizationId: env.organizationId, actorId: env.actor.id, type: 'webhook.created', resourceType: 'webhook', resourceId: id, before: null, after: afterOf(webhooks) }),
+            eventStatement(qc, {
+              id: eventId,
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'webhook.created',
+              resourceType: 'webhook',
+              resourceId: id,
+              before: null,
+              after: afterOf(webhooks),
+            }),
             'first-event',
           ),
           step(insertState),
@@ -331,7 +494,12 @@ function createOperation(env: PreparedEnv, runtime: WebhooksRuntime, registry: R
   })
 }
 
-function updateOperation(env: PreparedEnv, registry: Registry, rawId: string, body: z.infer<typeof updateBody>): PreparedOperation<unknown> {
+function updateOperation(
+  env: PreparedEnv,
+  registry: Registry,
+  rawId: string,
+  body: z.infer<typeof updateBody>,
+): PreparedOperation<unknown> {
   const id = lower(rawId)
   const types = body.event_types === undefined ? undefined : unique(body.event_types)
   const eventId = env.newId()
@@ -356,11 +524,21 @@ function updateOperation(env: PreparedEnv, registry: Registry, rawId: string, bo
       if (!row) throw notFound()
       const { __stamp, ...rest } = row as Record<string, unknown>
       const before = toRecord(webhooks, rest as never)
-      if (types !== undefined) checkEventTypes(registry, { id: String(found.maybe('agent')?.id ?? ''), scopes: agentOf(found.maybe('agent'))?.scopes ?? [] }, types)
+      if (types !== undefined)
+        checkEventTypes(
+          registry,
+          { id: String(found.maybe('agent')?.id ?? ''), scopes: agentOf(found.maybe('agent'))?.scopes ?? [] },
+          types,
+        )
       if (empty) return unit({ steps: [], events: [], decode: () => before })
       const update = qc.db
         .updateTable('webhook_subscriptions')
-        .set({ updated_at: at, ...(body.url !== undefined ? { url: body.url } : {}), ...(types !== undefined ? { event_types: types } : {}), ...(body.status !== undefined ? { status: body.status } : {}) })
+        .set({
+          updated_at: at,
+          ...(body.url !== undefined ? { url: body.url } : {}),
+          ...(types !== undefined ? { event_types: types } : {}),
+          ...(body.status !== undefined ? { status: body.status } : {}),
+        })
         .where(sql<SqlBool>`${SUB('id')} = ${id}`)
         .where(sql<SqlBool>`${SUB('organization_id')} = ${env.organizationId}`)
         .where(sql<SqlBool>`${SUB('deleted_at')} is null`)
@@ -369,7 +547,17 @@ function updateOperation(env: PreparedEnv, registry: Registry, rawId: string, bo
         steps: [
           step(update, 'first-mutation', { expect: 'affected' }),
           step(
-            eventStatement(qc, { id: eventId, at, organizationId: env.organizationId, actorId: env.actor.id, type: 'webhook.updated', resourceType: 'webhook', resourceId: id, before, after: afterOf(webhooks) }),
+            eventStatement(qc, {
+              id: eventId,
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'webhook.updated',
+              resourceType: 'webhook',
+              resourceId: id,
+              before,
+              after: afterOf(webhooks),
+            }),
             'first-event',
           ),
           resultStep(webhooks, qc, env, id, eventId),
@@ -407,8 +595,26 @@ function deleteOperation(env: PreparedEnv, rawId: string): PreparedOperation<voi
       return unit({
         steps: [
           step(update, 'first-mutation', { expect: 'affected' }),
-          step(eventStatement(qc, { id: eventId, at, organizationId: env.organizationId, actorId: env.actor.id, type: 'webhook.deleted', resourceType: 'webhook', resourceId: id, before, after: null }), 'first-event'),
-          step(qc.db.selectNoFrom(sql<number>`1`.as('applied')).where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`), 'result'),
+          step(
+            eventStatement(qc, {
+              id: eventId,
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'webhook.deleted',
+              resourceType: 'webhook',
+              resourceId: id,
+              before,
+              after: null,
+            }),
+            'first-event',
+          ),
+          step(
+            qc.db
+              .selectNoFrom(sql<number>`1`.as('applied'))
+              .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`),
+            'result',
+          ),
         ],
         events: [receipt(webhooks, eventId, 'deleted', id)],
         decode: (rows) => {
@@ -419,7 +625,12 @@ function deleteOperation(env: PreparedEnv, rawId: string): PreparedOperation<voi
   })
 }
 
-function rotateOperation(env: PreparedEnv, runtime: WebhooksRuntime, rawId: string, minted: { secret: string; sealed: string }): PreparedOperation<unknown> {
+function rotateOperation(
+  env: PreparedEnv,
+  runtime: WebhooksRuntime,
+  rawId: string,
+  minted: { secret: string; sealed: string },
+): PreparedOperation<unknown> {
   const id = lower(rawId)
   const secretId = env.newId()
   const eventId = env.newId()
@@ -456,7 +667,20 @@ function rotateOperation(env: PreparedEnv, runtime: WebhooksRuntime, rawId: stri
         steps: [
           step(insertSecret, 'first-mutation', { expect: 'affected' }),
           // The record, never the secret: before and after are the same row.
-          step(eventStatement(qc, { id: eventId, at, organizationId: env.organizationId, actorId: env.actor.id, type: 'webhook.secret_rotated', resourceType: 'webhook', resourceId: id, before, after: afterOf(webhooks) }), 'first-event'),
+          step(
+            eventStatement(qc, {
+              id: eventId,
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'webhook.secret_rotated',
+              resourceType: 'webhook',
+              resourceId: id,
+              before,
+              after: afterOf(webhooks),
+            }),
+            'first-event',
+          ),
           resultStep(webhooks, qc, env, id, eventId),
         ],
         events: [receipt(webhooks, eventId, 'secret_rotated', id)],
@@ -471,7 +695,8 @@ function rotateOperation(env: PreparedEnv, runtime: WebhooksRuntime, rawId: stri
 
 // ---- the operations ------------------------------------------------------------------------------------
 
-const WRITE_NOT_PROPOSABLE = 'webhook subscriptions carry a signing secret shown once and are administered directly, never proposed'
+const WRITE_NOT_PROPOSABLE =
+  'webhook subscriptions carry a signing secret shown once and are administered directly, never proposed'
 
 /**
  * `webhooks.list`, `get`, `deliveries`, `create`, `update`, `delete` and `rotate_secret` ([[API7]] D14, D22): `/meta/v1`, `d1Only`, scopes `webhooks:read` and `webhooks:write`. The registry carries them
@@ -479,7 +704,14 @@ const WRITE_NOT_PROPOSABLE = 'webhook subscriptions carry a signing secret shown
  * on `create` and `rotate_secret` only (D12). `registry` is read at call time, for the feed's event-type map.
  */
 export function webhookOperations(runtime: WebhooksRuntime | null, registry: () => Registry): TenantOperation[] {
-  const base = { kind: 'tenant' as const, surface: 'meta' as const, tags: ['webhooks'], validation: 'adapter' as const, d1Only: true, replanOnDrift: true }
+  const base = {
+    kind: 'tenant' as const,
+    surface: 'meta' as const,
+    tags: ['webhooks'],
+    validation: 'adapter' as const,
+    d1Only: true,
+    replanOnDrift: true,
+  }
   const readScope = { resource: 'webhooks', action: 'read' as const }
   const writeScope = { resource: 'webhooks', action: 'write' as const }
   const proposal = { eligible: false as const, reason: WRITE_NOT_PROPOSABLE }
@@ -492,7 +724,8 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       ...base,
       name: 'webhooks.list',
       summary: 'List webhook subscriptions',
-      description: 'An agent sees its own subscriptions; an owner sees all. Never carries a secret. Page with after (the previous page\'s next_cursor).',
+      description:
+        "An agent sees its own subscriptions; an owner sees all. Never carries a secret. Page with after (the previous page's next_cursor).",
       method: 'get',
       path: '/webhooks',
       scope: readScope,
@@ -518,13 +751,18 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       summary: "List a webhook subscription's deliveries",
       description:
         'One row per event the subscription was dispatched, oldest first: pending (waiting or between attempts), delivered, dead (every attempt failed) or cancelled, with the attempts made and the last failure (a code and an HTTP status, never a response body). ' +
-        'Filter with status; page with after (the previous page\'s next_cursor). Answers why a hook did or did not fire. A subscription that belongs to another agent is 404 for an agent caller. Read only: there is no redelivery, recovery is the event feed.',
+        "Filter with status; page with after (the previous page's next_cursor). Answers why a hook did or did not fire. A subscription that belongs to another agent is 404 for an agent caller. Read only: there is no redelivery, recovery is the event feed.",
       method: 'get',
       path: '/webhooks/{id}/deliveries',
       scope: readScope,
       request: { params: idParams, query: deliveriesQuery },
       response: { status: 200, schema: z.object({ data: z.array(deliveryRecord), next_cursor: z.uuid().nullable() }) },
-      prepare: (env, input) => deliveriesOperation(env, String((input.params as { id: string }).id), input.query as z.infer<typeof deliveriesQuery>),
+      prepare: (env, input) =>
+        deliveriesOperation(
+          env,
+          String((input.params as { id: string }).id),
+          input.query as z.infer<typeof deliveriesQuery>,
+        ),
     },
     {
       ...base,
@@ -549,7 +787,8 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       ...base,
       name: 'webhooks.update',
       summary: 'Change a webhook subscription: its URL, its event types, or pause and resume it',
-      description: 'Changes take effect at the next dispatch from the current position (nothing is replayed). status may be active or paused; Vibase itself sets disabled. Changed event types are checked like create.',
+      description:
+        'Changes take effect at the next dispatch from the current position (nothing is replayed). status may be active or paused; Vibase itself sets disabled. Changed event types are checked like create.',
       method: 'patch',
       path: '/webhooks/{id}',
       scope: writeScope,
@@ -579,7 +818,8 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       ...base,
       name: 'webhooks.rotate_secret',
       summary: 'Rotate the signing secret of a webhook subscription',
-      description: 'Answers the new secret, shown only now. The previous secret keeps signing alongside it until previous_valid_until (24 hours), so a receiver can switch without dropping deliveries.',
+      description:
+        'Answers the new secret, shown only now. The previous secret keeps signing alongside it until previous_valid_until (24 hours), so a receiver can switch without dropping deliveries.',
       method: 'post',
       path: '/webhooks/{id}/rotate-secret',
       scope: writeScope,
@@ -588,7 +828,12 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       response: { status: 200, schema: rotated },
       prepare: async (env, input) => {
         const config = keyed()
-        return rotateOperation(env, config, String((input.params as { id: string }).id), await mintSecret(env.randomBytes, config.key.bytes))
+        return rotateOperation(
+          env,
+          config,
+          String((input.params as { id: string }).id),
+          await mintSecret(env.randomBytes, config.key.bytes),
+        )
       },
     },
   ]

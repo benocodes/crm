@@ -20,7 +20,8 @@ const C1 = { id: '0190b2c4-0000-7000-8000-0000000000c1', mailbox: MAILBOX }
 const C2 = { id: '0190b2c4-0000-7000-8000-0000000000c2', mailbox: 'second@vibase.test' }
 const sha = (b: Uint8Array): string => createHash('sha256').update(b).digest('hex')
 const same = (a: Uint8Array, b: Uint8Array): boolean => Buffer.from(a).equals(Buffer.from(b))
-const readAll = async (s: ReadableStream<Uint8Array>): Promise<Uint8Array> => new Uint8Array(await new Response(s).arrayBuffer())
+const readAll = async (s: ReadableStream<Uint8Array>): Promise<Uint8Array> =>
+  new Uint8Array(await new Response(s).arrayBuffer())
 
 describe('Gmail capture through the pipeline (D1)', () => {
   let engines: Engine[]
@@ -64,7 +65,13 @@ describe('Gmail capture through the pipeline (D1)', () => {
     const att = fx('attachment')
     const t = setup([att, fx('htmlOnly')])
     const result = await t.run(['with-attachment', 'html-only'])
-    expect(result).toEqual({ captured: 2, existing: 0, skipped: {}, attachments: { stored: 1, failed: 0, skipped: 0 }, orphaned_objects: 0 })
+    expect(result).toEqual({
+      captured: 2,
+      existing: 0,
+      skipped: {},
+      attachments: { stored: 1, failed: 0, skipped: 0 },
+      orphaned_objects: 0,
+    })
 
     expect(await e.rows('threads')).toHaveLength(2)
     const messages = await e.rows('messages')
@@ -75,8 +82,14 @@ describe('Gmail capture through the pipeline (D1)', () => {
     expect(interactions).toHaveLength(2)
     expect(interactions.find((r) => r.message_id === m.id)).toMatchObject({ direction: 'inbound', channel: 'email' })
     expect((await e.rows('interaction_participants')).length).toBeGreaterThanOrEqual(4)
-    expect((await e.rows('message_sources')).map((r) => r.provider_message_id).sort()).toEqual(['html-only', 'with-attachment'])
-    expect((await e.rows('thread_sources')).map((r) => r.provider_thread_id).sort()).toEqual(['t-html-only', 't-with-attachment'])
+    expect((await e.rows('message_sources')).map((r) => r.provider_message_id).sort()).toEqual([
+      'html-only',
+      'with-attachment',
+    ])
+    expect((await e.rows('thread_sources')).map((r) => r.provider_thread_id).sort()).toEqual([
+      't-html-only',
+      't-with-attachment',
+    ])
 
     const body = await t.objects.get(`${m.content_key}/v1/body.md`)
     expect(new TextDecoder().decode(await readAll(body!.body))).toBe('Report attached\n')
@@ -92,7 +105,12 @@ describe('Gmail capture through the pipeline (D1)', () => {
   })
 
   it('a reply lands in its parent thread through the References hints', async () => {
-    const parent = fx('plain', (s) => ({ ...s, headers: s.headers.map(([k, v]) => [k, k === 'Message-ID' ? '<c@acme.test>' : v]), id: 'parent', threadId: 't-parent' }))
+    const parent = fx('plain', (s) => ({
+      ...s,
+      headers: s.headers.map(([k, v]) => [k, k === 'Message-ID' ? '<c@acme.test>' : v]),
+      id: 'parent',
+      threadId: 't-parent',
+    }))
     const t = setup([fx('reply'), parent])
     await t.run(['reply', 'parent'])
     expect(new Set((await e.rows('messages')).map((r) => r.thread_id)).size).toBe(1)
@@ -150,14 +168,23 @@ describe('Gmail capture through the pipeline (D1)', () => {
       expect(file).toMatchObject({ sha256: sha(att.attachments.get('att-pdf')!), size_bytes: 300 })
       const blob = await t.objects.get(`${file!.storage_key}/blob`)
       expect(same(await readAll(blob!.body), att.attachments.get('att-pdf')!)).toBe(true)
-      expect(await e.rows('message_attachments')).toMatchObject([{ position: 0, fetch_status: 'stored', name: 'report.pdf', mime_type: 'application/pdf' }])
+      expect(await e.rows('message_attachments')).toMatchObject([
+        { position: 0, fetch_status: 'stored', name: 'report.pdf', mime_type: 'application/pdf' },
+      ])
     })
 
     it('a declared size that differs from the decoded bytes: link failed (length_mismatch), no object, message captured', async () => {
-      const t = setup([fx('attachment', (s) => ({ ...s, payload: { ...s.payload, parts: s.payload.parts!.map((p) => (p.bytes ? { ...p, declaredSize: 400 } : p)) } }))])
+      const t = setup([
+        fx('attachment', (s) => ({
+          ...s,
+          payload: { ...s.payload, parts: s.payload.parts!.map((p) => (p.bytes ? { ...p, declaredSize: 400 } : p)) },
+        })),
+      ])
       const result = await t.run(['with-attachment'])
       expect(result).toMatchObject({ captured: 1, attachments: { stored: 0, failed: 1, skipped: 0 } })
-      expect((await e.rows('message_attachments')).map((r) => [r.fetch_status, r.fetch_error, r.file_id])).toEqual([['failed', 'length_mismatch', null]])
+      expect((await e.rows('message_attachments')).map((r) => [r.fetch_status, r.fetch_error, r.file_id])).toEqual([
+        ['failed', 'length_mismatch', null],
+      ])
       expect(await e.rows('files')).toHaveLength(0)
       expect(t.objects.writes.filter((w) => w.key.endsWith('/blob'))).toHaveLength(1) // written, then deleted
       expect(t.objects.deletes.filter((k) => k.endsWith('/blob'))).toHaveLength(1)
@@ -168,7 +195,9 @@ describe('Gmail capture through the pipeline (D1)', () => {
       t.gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 500, reason: 'backendError' }))
       const result = await t.run(['with-attachment'])
       expect(result).toMatchObject({ captured: 1, attachments: { stored: 0, failed: 1, skipped: 0 } })
-      expect((await e.rows('message_attachments')).map((r) => [r.fetch_status, r.fetch_error])).toEqual([['failed', 'http_500']])
+      expect((await e.rows('message_attachments')).map((r) => [r.fetch_status, r.fetch_error])).toEqual([
+        ['failed', 'http_500'],
+      ])
       expect(await e.rows('files')).toHaveLength(0)
     })
 

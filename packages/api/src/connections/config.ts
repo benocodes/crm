@@ -37,7 +37,10 @@ export function decodeBase64(text: string): Uint8Array | null {
 }
 
 /** Reads the Gmail configuration from the Worker's variables. `config` is null unless every required value is set and well formed. */
-export function parseGmailConfig(env: Record<string, string | undefined>): { config: GmailConfig | null; problems: string[] } {
+export function parseGmailConfig(env: Record<string, string | undefined>): {
+  config: GmailConfig | null
+  problems: string[]
+} {
   const problems: string[] = REQUIRED.filter((name) => !present(env[name]))
   let key: Uint8Array | null = null
   if (present(env.CREDENTIALS_KEY)) {
@@ -85,7 +88,8 @@ export function gmailConfigNotice(problems: readonly string[]): string {
 }
 
 /** True when none of the required values is set at all: Gmail is simply off, which is not worth a log line. */
-export const gmailUnconfigured = (problems: readonly string[]): boolean => REQUIRED.every((name) => problems.includes(name))
+export const gmailUnconfigured = (problems: readonly string[]): boolean =>
+  REQUIRED.every((name) => problems.includes(name))
 
 /** What push needs beyond Gmail itself ([[CHN5]] D87). */
 export interface PushConfig {
@@ -98,7 +102,12 @@ export interface PushConfig {
   /** The OIDC `aud` Pub/Sub puts in its token: `<publicBaseUrl>/gmail/push`. */
   audience: string
 }
-export const PUSH_VARS = ['GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'PUBLIC_BASE_URL'] as const
+export const PUSH_VARS = [
+  'GMAIL_TOPIC_NAME',
+  'GMAIL_PUSH_SUBSCRIPTION',
+  'GMAIL_PUSH_SERVICE_ACCOUNT',
+  'PUBLIC_BASE_URL',
+] as const
 
 const PUSH_RULES: Record<(typeof PUSH_VARS)[number], (v: string) => boolean> = {
   GMAIL_TOPIC_NAME: (v) => /^projects\/[^/\s]+\/topics\/[^/\s]+$/.test(v),
@@ -108,7 +117,12 @@ const PUSH_RULES: Record<(typeof PUSH_VARS)[number], (v: string) => boolean> = {
   PUBLIC_BASE_URL: (v) => {
     try {
       const u = new URL(v)
-      const originOnly = u.pathname.replace(/\/+$/, '') === '' && u.search === '' && u.hash === '' && u.username === '' && u.password === ''
+      const originOnly =
+        u.pathname.replace(/\/+$/, '') === '' &&
+        u.search === '' &&
+        u.hash === '' &&
+        u.username === '' &&
+        u.password === ''
       return originOnly && (u.protocol === 'https:' || (u.protocol === 'http:' && u.hostname === 'localhost'))
     } catch {
       return false
@@ -116,21 +130,32 @@ const PUSH_RULES: Record<(typeof PUSH_VARS)[number], (v: string) => boolean> = {
   },
 }
 /** Whether one push variable's value is well formed: the one rule `parsePushConfig` and `setup:remote` share ([[CHN5]] D87, D71's rule). */
-export const isValidPushVar = (name: (typeof PUSH_VARS)[number], value: string): boolean => PUSH_RULES[name](value.trim())
+export const isValidPushVar = (name: (typeof PUSH_VARS)[number], value: string): boolean =>
+  PUSH_RULES[name](value.trim())
 
 /**
  * Reads the push configuration ([[CHN5]] D87). Push is *configured* when any of the three `GMAIL_*` values is set (`PUBLIC_BASE_URL` alone is the redirect
  * base, not push). A configured set with a value missing or malformed is a problem NAMED here, never a value; `config` is non-null only for a complete,
  * well formed set. Whether push is *on* also needs Gmail itself and the `MAIL_SYNC` binding: the composition decides that.
  */
-export function parsePushConfig(env: Record<string, string | undefined>): { config: PushConfig | null; configured: boolean; problems: string[] } {
+export function parsePushConfig(env: Record<string, string | undefined>): {
+  config: PushConfig | null
+  configured: boolean
+  problems: string[]
+} {
   const configured = PUSH_VARS.slice(0, 3).some((n) => present(env[n]))
   if (!configured) return { config: null, configured: false, problems: [] }
   const problems = PUSH_VARS.filter((n) => !present(env[n]) || !isValidPushVar(n, env[n]!))
   if (problems.length > 0) return { config: null, configured: true, problems }
   const base = env.PUBLIC_BASE_URL!.trim().replace(/\/+$/, '')
   return {
-    config: { topicName: env.GMAIL_TOPIC_NAME!.trim(), subscription: env.GMAIL_PUSH_SUBSCRIPTION!.trim(), serviceAccount: env.GMAIL_PUSH_SERVICE_ACCOUNT!.trim().toLowerCase(), publicBaseUrl: base, audience: `${base}/gmail/push` },
+    config: {
+      topicName: env.GMAIL_TOPIC_NAME!.trim(),
+      subscription: env.GMAIL_PUSH_SUBSCRIPTION!.trim(),
+      serviceAccount: env.GMAIL_PUSH_SERVICE_ACCOUNT!.trim().toLowerCase(),
+      publicBaseUrl: base,
+      audience: `${base}/gmail/push`,
+    },
     configured: true,
     problems: [],
   }

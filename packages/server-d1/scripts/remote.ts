@@ -82,22 +82,35 @@ export function resolveTarget(config: ConfigLike, envName: string): Target {
   const db = config.d1_databases?.find((d) => d.binding === 'DB')
   if (!db) throw new RemoteRefusal(`env ${envName} has no DB binding`)
   if (db.database_id === PLACEHOLDER_DATABASE_ID) {
-    throw new RemoteRefusal(`env ${envName} still has the placeholder database_id: create the database and commit its id first`)
+    throw new RemoteRefusal(
+      `env ${envName} still has the placeholder database_id: create the database and commit its id first`,
+    )
   }
   const control = config.d1_databases?.find((d) => d.binding === 'CONTROL_DB')
-  if (control && (control.database_id === PLACEHOLDER_DATABASE_ID || control.database_id === CONTROL_PLACEHOLDER_DATABASE_ID)) {
-    throw new RemoteRefusal(`env ${envName}'s CONTROL_DB still has a placeholder database_id: create the control database and commit its id first`)
+  if (
+    control &&
+    (control.database_id === PLACEHOLDER_DATABASE_ID || control.database_id === CONTROL_PLACEHOLDER_DATABASE_ID)
+  ) {
+    throw new RemoteRefusal(
+      `env ${envName}'s CONTROL_DB still has a placeholder database_id: create the control database and commit its id first`,
+    )
   }
   if (db.remote !== true || (db.preview_database_id !== undefined && db.preview_database_id !== db.database_id)) {
     throw new RemoteRefusal(`env ${envName}'s DB binding must be remote: true with no preview_database_id`)
   }
-  const target: Target = { env: envName, workerName: config.name ?? '', databaseName: db.database_name ?? '', databaseId: db.database_id ?? '' }
+  const target: Target = {
+    env: envName,
+    workerName: config.name ?? '',
+    databaseName: db.database_name ?? '',
+    databaseId: db.database_id ?? '',
+  }
   if (control) target.control = { databaseName: control.database_name ?? '', databaseId: control.database_id ?? '' }
   return target
 }
 
 /** The line both db scripts print for an env whose config has no `CONTROL_DB` entry ([[OPS260]] P1; [[CORE261]] turns it into a refusal). */
-export const controlNotConfigured = (envName: string): string => `control plane: not configured for env ${envName} (CRM only)`
+export const controlNotConfigured = (envName: string): string =>
+  `control plane: not configured for env ${envName} (CRM only)`
 
 /** `migrations list` then `apply`, for the control database first when the env has one, then the CRM database ([[OPS260]] D14). */
 export function migrateCommands(envName: string, opts: { control?: boolean } = {}): Cmd[] {
@@ -116,13 +129,31 @@ export function deployCommands(envName: string, sha: string): Cmd[] {
     { command: 'pnpm', args: ['-C', 'packages/server-d1', 'build'] },
     { command: 'pnpm', args: ['-C', 'packages/server-d1', 'typecheck'] },
     { command: 'pnpm', args: ['-C', 'packages/server-d1', 'test'] },
-    { command: 'pnpm', args: ['exec', 'wrangler', 'deploy', '--env', envName, '--var', `VERSION:${sha}`, '--var', `COMMIT:${sha}`] },
+    {
+      command: 'pnpm',
+      args: ['exec', 'wrangler', 'deploy', '--env', envName, '--var', `VERSION:${sha}`, '--var', `COMMIT:${sha}`],
+    },
   ]
 }
 
 /** The read of wrangler's tracker on a deployed instance ([[CORE61]] D7): same `--remote --env` addressing as `migrations apply`. */
 export function trackerReadCommand(envName: string, binding: 'DB' | 'CONTROL_DB' = 'DB'): Cmd {
-  return { command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'execute', binding, '--remote', '--env', envName, '--json', '--command', 'select name from d1_migrations'] }
+  return {
+    command: 'pnpm',
+    args: [
+      'exec',
+      'wrangler',
+      'd1',
+      'execute',
+      binding,
+      '--remote',
+      '--env',
+      envName,
+      '--json',
+      '--command',
+      'select name from d1_migrations',
+    ],
+  }
 }
 
 /**
@@ -140,7 +171,9 @@ export function parseTrackerOutput(stdout: string): string[] | null {
   if (error) {
     const text = typeof error.text === 'string' ? error.text : ''
     // wrangler puts the SQLite message in `notes` on a real remote; `text` is only the API wrapper.
-    const notes = Array.isArray(error.notes) ? error.notes.map((n) => (typeof n?.text === 'string' ? n.text : '')).join(' ') : ''
+    const notes = Array.isArray(error.notes)
+      ? error.notes.map((n) => (typeof n?.text === 'string' ? n.text : '')).join(' ')
+      : ''
     if (/no such table/i.test(`${text} ${notes}`)) return null
     throw new Error(`wrangler d1 execute failed: ${text || 'unknown error'}`)
   }

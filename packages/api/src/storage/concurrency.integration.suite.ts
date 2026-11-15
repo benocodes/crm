@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { uuidv7 } from '@vibase/storage'
 import { tasks } from '../resources/tasks.js'
 import { companies } from '../resources/companies.js'
 import { identities } from '../resources/identities.js'
@@ -38,7 +37,8 @@ function assertChain(events: RawRow[], stored: RawRow | undefined, id: string): 
   expect(own[0]!.type).toBe('task.created')
   for (let i = 1; i < own.length; i++) expect(own[i]!.before).toEqual(own[i - 1]!.after)
   const last = own.at(-1)!.after
-  if (last !== null) expect(last).toMatchObject({ id, title: stored!.title, status: stored!.status, notes: stored!.notes })
+  if (last !== null)
+    expect(last).toMatchObject({ id, title: stored!.title, status: stored!.status, notes: stored!.notes })
   else expect(stored!.deleted_at).not.toBeNull()
 }
 
@@ -88,13 +88,16 @@ export function engineSuite(engineName: EngineName): void {
           tally.both++
         } else {
           // A double submit on D1: the loser's drift guard makes its unit a no-op (a retryable 409); never a lost update.
-          for (const r of settled) if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
+          for (const r of settled)
+            if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
           expect(ok).toBeGreaterThanOrEqual(1)
           if (ok === 2) expect(stored).toMatchObject({ title: 'T', notes: 'N' })
           ok === 2 ? tally.both++ : tally.one++
         }
       }
-      console.log(`[concurrency] ${name} disjoint fields: both landed ${tally.both}, one conflicted ${tally.one} of ${TRIALS}`)
+      console.log(
+        `[concurrency] ${name} disjoint fields: both landed ${tally.both}, one conflicted ${tally.one} of ${TRIALS}`,
+      )
     })
 
     it(`two competing status changes with distinct injected times (${TRIALS} trials)`, async () => {
@@ -104,9 +107,11 @@ export function engineSuite(engineName: EngineName): void {
         const id = await fresh()
         const settled = await together([
           () => mapped(e.run(updateOperation(tasks, e.env({ now: T(5) }), id, { status: 'done' }))),
-          () => mapped(e.run(updateOperation(tasks, e.env({ now: T(6), as: 'agent' }), id, { status: 'open' }), 'agent')),
+          () =>
+            mapped(e.run(updateOperation(tasks, e.env({ now: T(6), as: 'agent' }), id, { status: 'open' }), 'agent')),
         ])
-        for (const r of settled) if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
+        for (const r of settled)
+          if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
         const [stored] = await e.tasks()
         assertChain(await e.events(), stored, id)
         // completed_at is consistent with the final status whoever won.
@@ -132,7 +137,8 @@ export function engineSuite(engineName: EngineName): void {
           () => mapped(e.run(updateOperation(tasks, e.env({ now: T(1) }), id, { assignee_id: e.user2Id }))),
           () => mapped(e.run(deleteOperation(tasks, e.env({ now: T(2) }), id))),
         ])
-        for (const r of settled) if (r.status === 'rejected') expect(['not_found', 'conflict']).toContain((r.reason as ApiError).code)
+        for (const r of settled)
+          if (r.status === 'rejected') expect(['not_found', 'conflict']).toContain((r.reason as ApiError).code)
         const [stored] = await e.tasks()
         // Postgres serialises the units, so the delete always lands; on D1 a delete that drifted is a retryable 409 and the row stays live.
         if (name === 'postgres' || settled[1]!.status === 'fulfilled') expect(stored!.deleted_at).not.toBeNull()
@@ -141,7 +147,9 @@ export function engineSuite(engineName: EngineName): void {
         const types = (await e.events()).map((ev) => ev.type)
         types.includes('task.updated') ? tally.updatedThenDeleted++ : tally.deletedFirst++
       }
-      console.log(`[concurrency] ${name} update vs delete: update landed first ${tally.updatedThenDeleted}, delete only ${tally.deletedFirst} of ${TRIALS}`)
+      console.log(
+        `[concurrency] ${name} update vs delete: update landed first ${tally.updatedThenDeleted}, delete only ${tally.deletedFirst} of ${TRIALS}`,
+      )
     })
   })
 
@@ -161,7 +169,10 @@ export function engineSuite(engineName: EngineName): void {
         const k = identityKit(e)
         const settled = await together([
           () => mapped(e.run(createOperation(companies, k.env(), { name: 'A', domain: 'race.com' }))),
-          () => mapped(e.run(createOperation(companies, k.env({ as: 'agent' }), { name: 'B', domain: 'race.com' }), 'agent')),
+          () =>
+            mapped(
+              e.run(createOperation(companies, k.env({ as: 'agent' }), { name: 'B', domain: 'race.com' }), 'agent'),
+            ),
         ])
         const ok = settled.filter((r) => r.status === 'fulfilled').length
         expect(ok).toBe(1)
@@ -169,10 +180,14 @@ export function engineSuite(engineName: EngineName): void {
         if (name === 'postgres') expect(code(lost)).toBe('domain_exists')
         else expect(['domain_exists', 'conflict']).toContain(code(lost))
         code(lost) === 'domain_exists' ? tally.domainExists++ : tally.conflict++
-        expect((await e.rows('companies')).filter((c) => c.domain === 'race.com' && c.deleted_at === null)).toHaveLength(1)
+        expect(
+          (await e.rows('companies')).filter((c) => c.domain === 'race.com' && c.deleted_at === null),
+        ).toHaveLength(1)
         expect((await e.rows('events')).filter((x) => x.type === 'company.created')).toHaveLength(1)
       }
-      console.log(`[concurrency] ${name} same domain: domain_exists ${tally.domainExists}, conflict ${tally.conflict} of ${TRIALS}`)
+      console.log(
+        `[concurrency] ${name} same domain: domain_exists ${tally.domainExists}, conflict ${tally.conflict} of ${TRIALS}`,
+      )
     })
 
     it(`two resolves with overlapping addresses: one identity per address, no contact without an identity (${TRIALS} trials)`, async () => {
@@ -194,10 +209,16 @@ export function engineSuite(engineName: EngineName): void {
         const values = ids.map((x) => x.value)
         expect(new Set(values).size).toBe(values.length)
         const cs = await e.rows('contacts')
-        for (const c of cs) expect(ids.some((x) => x.contact_id === c.id), `contact ${c.id} has an identity`).toBe(true)
+        for (const c of cs)
+          expect(
+            ids.some((x) => x.contact_id === c.id),
+            `contact ${c.id} has an identity`,
+          ).toBe(true)
         expect(cs).toHaveLength(ids.length)
       }
-      console.log(`[concurrency] ${name} overlapping resolves: both landed ${tally.both}, one conflicted ${tally.one} of ${TRIALS}`)
+      console.log(
+        `[concurrency] ${name} overlapping resolves: both landed ${tally.both}, one conflicted ${tally.one} of ${TRIALS}`,
+      )
     })
 
     it(`a merge racing an identity create on the source: a serial outcome, never a live identity on a tombstone (${TRIALS} trials)`, async () => {
@@ -208,10 +229,14 @@ export function engineSuite(engineName: EngineName): void {
         const s = await k.contact({})
         const r = await k.contact({})
         const settled = await together([
-          () => mapped(e.run(createOperation(identities, k.env(), { kind: 'email', value: 'race@race.com', contact_id: r.id }))),
+          () =>
+            mapped(
+              e.run(createOperation(identities, k.env(), { kind: 'email', value: 'race@race.com', contact_id: r.id })),
+            ),
           () => mapped(e.run(mergeOperation(k.env({ as: 'agent' }), s.id, r.id), 'agent')),
         ])
-        for (const x of settled) if (x.status === 'rejected') expect(['invalid_reference', 'conflict']).toContain(code(x))
+        for (const x of settled)
+          if (x.status === 'rejected') expect(['invalid_reference', 'conflict']).toContain(code(x))
         const live = (await e.rows('identities')).filter((x) => x.deleted_at === null)
         const tomb = (await e.rows('contacts')).filter((c) => c.deleted_at !== null).map((c) => c.id)
         for (const idn of live) expect(tomb, 'no live identity on a tombstone').not.toContain(idn.contact_id)
@@ -231,7 +256,9 @@ export function engineSuite(engineName: EngineName): void {
           else tally.mergeThenRefused++
         }
       }
-      console.log(`[concurrency] ${name} merge vs identity create: create then merge ${tally.createThenMerge}, merge then create refused ${tally.mergeThenRefused}, conflict ${tally.conflict} of ${TRIALS}`)
+      console.log(
+        `[concurrency] ${name} merge vs identity create: create then merge ${tally.createThenMerge}, merge then create refused ${tally.mergeThenRefused}, conflict ${tally.conflict} of ${TRIALS}`,
+      )
     })
   })
 
@@ -248,12 +275,15 @@ export function engineSuite(engineName: EngineName): void {
       for (let i = 0; i < TRIALS; i++) {
         await e.reset()
         const env = e.env({ now: T(0) })
-        const key = (await e.run(issueApiKeyOperation(env, { agent_id: e.agentId }, await generateApiKey(env.randomBytes)))).value
+        const key = (
+          await e.run(issueApiKeyOperation(env, { agent_id: e.agentId }, await generateApiKey(env.randomBytes)))
+        ).value
         const settled = await together([
           () => mapped(e.run(revokeApiKeyOperation(e.env({ now: T(1) }), key.id))),
           () => mapped(e.run(revokeApiKeyOperation(e.env({ now: T(2) }), key.id))),
         ])
-        for (const r of settled) if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
+        for (const r of settled)
+          if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
         const ok = settled.filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
         expect(ok.length).toBeGreaterThanOrEqual(1)
         const revoked = (await e.rows('events')).filter((x) => x.type === 'api_key.revoked')
@@ -271,7 +301,9 @@ export function engineSuite(engineName: EngineName): void {
         }
         ok.length === 2 ? tally.bothOk++ : tally.conflict++
       }
-      console.log(`[concurrency] ${name} double revoke: both 200 ${tally.bothOk}, one conflicted ${tally.conflict} of ${TRIALS}`)
+      console.log(
+        `[concurrency] ${name} double revoke: both 200 ${tally.bothOk}, one conflicted ${tally.conflict} of ${TRIALS}`,
+      )
     })
   })
 
@@ -283,7 +315,12 @@ export function engineSuite(engineName: EngineName): void {
       e = engines.find((x) => x.name === name)!
     })
 
-    const orgRoles = (rows: RawRow[], org: string) => Object.fromEntries(rows.filter((m) => m.organization_id === org && m.deleted_at === null).map((m) => [m.user_id as string, m.role as string]))
+    const orgRoles = (rows: RawRow[], org: string) =>
+      Object.fromEntries(
+        rows
+          .filter((m) => m.organization_id === org && m.deleted_at === null)
+          .map((m) => [m.user_id as string, m.role as string]),
+      )
 
     it(`two first sights of one subject leave one principal and one user, and both callers get the same login (${TRIALS} trials)`, async () => {
       const tally = { sameLogin: 0 }
@@ -328,18 +365,25 @@ export function engineSuite(engineName: EngineName): void {
           () => mapped(reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())),
           () => mapped(reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())),
         ])
-        for (const r of settled) if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
+        for (const r of settled)
+          if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
         const ok = settled.filter((r) => r.status === 'fulfilled').length
         expect(ok).toBeGreaterThanOrEqual(1)
         if (name === 'postgres') expect(ok).toBe(2) // the writer lock serialises the units: the second finds nothing to change
         const newUser = (await e.rows('users')).find((u) => u.auth_subject === 'user_new')!
-        expect(orgRoles(await e.rows('memberships'), e.organizationId)).toEqual({ [e.userId]: 'owner', [e.user2Id]: 'owner', [newUser.id as string]: 'member' })
+        expect(orgRoles(await e.rows('memberships'), e.organizationId)).toEqual({
+          [e.userId]: 'owner',
+          [e.user2Id]: 'owner',
+          [newUser.id as string]: 'member',
+        })
         const types = (await e.rows('events')).map((x) => x.type as string)
         expect(types.filter((t) => t === 'membership.created')).toHaveLength(1)
         expect(types.filter((t) => t === 'membership.updated')).toHaveLength(1)
         ok === 2 ? tally.bothOk++ : tally.conflict++
       }
-      console.log(`[concurrency] ${name} double reconcile: both ok ${tally.bothOk}, one conflicted ${tally.conflict} of ${TRIALS}`)
+      console.log(
+        `[concurrency] ${name} double reconcile: both ok ${tally.bothOk}, one conflicted ${tally.conflict} of ${TRIALS}`,
+      )
     })
 
     it(`two repairs of one new organisation create it once, apply both memberships and surface no conflict (${TRIALS} trials)`, async () => {
@@ -350,14 +394,23 @@ export function engineSuite(engineName: EngineName): void {
         if (name === 'd1') {
           // D1 serves one organisation: the new one is the deployment's own, whose row does not exist yet.
           await clearD1(e.d1!)
-          await seedDeployment(e.d1!, { organizationId: e.organizationId, externalId: e.authOrgId, organization: false })
+          await seedDeployment(e.d1!, {
+            organizationId: e.organizationId,
+            externalId: e.authOrgId,
+            organization: false,
+          })
           await seedPrincipal(e.d1!, { id: e.userId, kind: 'user', authSubject: e.userSubject })
           await seedPrincipal(e.d1!, { id: e.user2Id, kind: 'user', authSubject: e.user2Subject })
           ext = e.authOrgId
         }
         const kit = await openAuthKit(e)
         kit.clerk.organizations.set(ext, clerkOrganization({ id: ext, name: 'Fresh org' }))
-        const args = (userId: string) => ({ userId, externalId: ext, role: 'member' as const, known: { organizationId: null } })
+        const args = (userId: string) => ({
+          userId,
+          externalId: ext,
+          role: 'member' as const,
+          known: { organizationId: null },
+        })
         const settled = await together([
           () => mapped(repairMembership(kit.binding, kit.clerk.adapter, args(e.userId), kit.env())),
           () => mapped(repairMembership(kit.binding, kit.clerk.adapter, args(e.user2Id), kit.env())),

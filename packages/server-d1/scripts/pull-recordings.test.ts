@@ -4,16 +4,21 @@ import { join } from 'node:path'
 import { parse } from 'jsonc-parser'
 import { describe, expect, it } from 'vitest'
 import { parseRecordingSwitch } from '@vibase/api'
-import { PULL_DIR, PULL_VERBS, bucketOf, getCommand, parseIndex, runPull, safeKey, type PullDeps } from './pull-recordings.js'
+import { PULL_DIR, PULL_VERBS, bucketOf, parseIndex, runPull, safeKey, type PullDeps } from './pull-recordings.js'
 import { REPO_ROOT, RemoteRefusal, type Cmd, type ConfigLike } from './remote.js'
 
 // [[CHN5]] D78 ([[CHN153]]): the user-run pull of an env's recordings. Read-only by construction.
 const CONFIG: ConfigLike & { r2_buckets?: Array<{ binding: string; bucket_name: string }> } = {
   name: 'vault-hq',
-  d1_databases: [{ binding: 'DB', database_name: 'vault-hq', database_id: '23fda5fd-1508-462a-b700-53ad047472e3', remote: true }],
+  d1_databases: [
+    { binding: 'DB', database_name: 'vault-hq', database_id: '23fda5fd-1508-462a-b700-53ad047472e3', remote: true },
+  ],
   r2_buckets: [{ binding: 'BODIES', bucket_name: 'vault-hq-bodies' }],
 }
-const KEYS = ['_recordings/20261106T100000Z-inst-1/001-profile-200-abcdef.json', '_recordings/20261106T100000Z-inst-1/002-message_raw-200-012345.json']
+const KEYS = [
+  '_recordings/20261106T100000Z-inst-1/001-profile-200-abcdef.json',
+  '_recordings/20261106T100000Z-inst-1/002-message_raw-200-012345.json',
+]
 const INDEX = JSON.stringify({ version: 1, objects: KEYS.map((key) => ({ key, kind: 'profile', status: 200 })) })
 
 function rig(overrides: Partial<PullDeps> = {}, config = CONFIG) {
@@ -55,7 +60,17 @@ describe('the pull', () => {
     const r = rig()
     expect(runPull(['--env', 'hq'], { CONFIRM_REMOTE: '1' }, r.deps)).toBe(0)
     expect(r.cmds).toHaveLength(1 + KEYS.length)
-    expect(r.cmds[0]!.args).toEqual(expect.arrayContaining(['r2', 'object', 'get', 'vault-hq-bodies/_recordings/index.json', '--remote', '--env', 'hq']))
+    expect(r.cmds[0]!.args).toEqual(
+      expect.arrayContaining([
+        'r2',
+        'object',
+        'get',
+        'vault-hq-bodies/_recordings/index.json',
+        '--remote',
+        '--env',
+        'hq',
+      ]),
+    )
     for (const [i, key] of KEYS.entries()) {
       const a = r.cmds[i + 1]!.args
       expect(a).toContain(`vault-hq-bodies/${key}`)
@@ -72,10 +87,20 @@ describe('the pull', () => {
       expect(c.args).toContain('--remote')
       expect(c.args.some((a) => ['put', 'delete', 'create', 'bucket'].includes(a))).toBe(false)
     }
-    expect(readFileSync(new URL('./pull-recordings.ts', import.meta.url), 'utf8')).not.toMatch(/object['"]?,\s*['"](put|delete)|\bwrangler r2 object (put|delete)/)
+    expect(readFileSync(new URL('./pull-recordings.ts', import.meta.url), 'utf8')).not.toMatch(
+      /object['"]?,\s*['"](put|delete)|\bwrangler r2 object (put|delete)/,
+    )
   })
   it('refuses an index that lists a key outside _recordings/ or with a path trick, and runs no get for it', () => {
-    for (const bad of ['../etc/passwd', '/abs', '_recordings/../x', '_recordings/a b', 'other/key', '_recordings/a;rm -rf', '_recordings//x']) {
+    for (const bad of [
+      '../etc/passwd',
+      '/abs',
+      '_recordings/../x',
+      '_recordings/a b',
+      'other/key',
+      '_recordings/a;rm -rf',
+      '_recordings//x',
+    ]) {
       expect(safeKey(bad)).toBe(false)
       expect(() => parseIndex(JSON.stringify({ version: 1, objects: [{ key: bad }] }))).toThrow()
     }
@@ -98,7 +123,10 @@ describe('the output folder', () => {
 })
 
 describe('where the switch may be set', () => {
-  const config = parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as { vars?: Record<string, unknown>; env?: Record<string, { vars?: Record<string, unknown> }> }
+  const config = parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as {
+    vars?: Record<string, unknown>
+    env?: Record<string, { vars?: Record<string, unknown> }>
+  }
   it('env.hq.vars may carry it, and then it is an ISO-8601 UTC instant ending in Z that parses as a valid switch', () => {
     const v = config.env?.hq?.vars?.GOOGLE_RECORDING_UNTIL
     if (v === undefined) return // removed after the run: the normal state
@@ -110,9 +138,11 @@ describe('where the switch may be set', () => {
   })
   it('the top level and every other env (smoked1 included) never carry it', () => {
     expect(config.vars ?? {}).not.toHaveProperty('GOOGLE_RECORDING_UNTIL')
-    for (const [name, e] of Object.entries(config.env ?? {})) if (name !== 'hq') expect(e.vars ?? {}).not.toHaveProperty('GOOGLE_RECORDING_UNTIL')
+    for (const [name, e] of Object.entries(config.env ?? {}))
+      if (name !== 'hq') expect(e.vars ?? {}).not.toHaveProperty('GOOGLE_RECORDING_UNTIL')
   })
   it('setup:remote never writes it', () => {
-    for (const f of ['gmail.ts', 'config-editor.ts', 'run.ts', 'steps.ts', 'commands.ts']) expect(readFileSync(new URL(`./setup/${f}`, import.meta.url), 'utf8')).not.toContain('GOOGLE_RECORDING_UNTIL')
+    for (const f of ['gmail.ts', 'config-editor.ts', 'run.ts', 'steps.ts', 'commands.ts'])
+      expect(readFileSync(new URL(`./setup/${f}`, import.meta.url), 'utf8')).not.toContain('GOOGLE_RECORDING_UNTIL')
   })
 })

@@ -26,7 +26,9 @@ const base = (over: Record<string, unknown> = {}) =>
 
 describe('definePreparedResource guards', () => {
   it('agentWritable must name fields of the create or update schema', () => {
-    expect(() => definePreparedResource(base({ agentWritable: ['nope'] }))).toThrow('agentWritable names unknown field "nope" (widgets)')
+    expect(() => definePreparedResource(base({ agentWritable: ['nope'] }))).toThrow(
+      'agentWritable names unknown field "nope" (widgets)',
+    )
     expect(() => definePreparedResource(base({ agentWritable: ['title'] }))).not.toThrow()
   })
   it('the name has a shape', () => {
@@ -36,7 +38,9 @@ describe('definePreparedResource guards', () => {
     expect(() => definePreparedResource(base({ table: 'nope' }))).toThrow('has no physical schema')
   })
   it('delete needs a deleted_at column', () => {
-    expect(() => definePreparedResource(base({ table: 'agents', operations: ['list', 'get', 'delete'] }))).toThrow('delete needs a deleted_at column on "agents"')
+    expect(() => definePreparedResource(base({ table: 'agents', operations: ['list', 'get', 'delete'] }))).toThrow(
+      'delete needs a deleted_at column on "agents"',
+    )
   })
 })
 
@@ -45,7 +49,10 @@ describe('the agent-field rule of the prepared write', () => {
   const agent = { id: 'a', kind: 'agent' as const }
   const user = { id: 'u', kind: 'user' as const }
   it('refuses an agent write outside agentWritable on create and update', () => {
-    for (const fn of [() => prepareCreate(restricted, agent, { title: 'a', notes: 'n' }), () => prepareUpdate(restricted, agent, { notes: 'n' })]) {
+    for (const fn of [
+      () => prepareCreate(restricted, agent, { title: 'a', notes: 'n' }),
+      () => prepareUpdate(restricted, agent, { notes: 'n' }),
+    ]) {
       try {
         fn()
         throw new Error('did not throw')
@@ -63,7 +70,9 @@ describe('the agent-field rule of the prepared write', () => {
     expect(prepareUpdate(restricted, user, { notes: 'n' })).toEqual({ notes: 'n' })
   })
   it('a definition without write schemas refuses to prepare a write', () => {
-    const readOnly = definePreparedResource(base({ name: 'ro', operations: ['list', 'get'], create: undefined, update: undefined }))
+    const readOnly = definePreparedResource(
+      base({ name: 'ro', operations: ['list', 'get'], create: undefined, update: undefined }),
+    )
     expect(() => prepareCreate(readOnly, user, { title: 'x' })).toThrow('ro has no create schema')
     expect(() => prepareUpdate(readOnly, user, { title: 'x' })).toThrow('ro has no update schema')
   })
@@ -81,47 +90,92 @@ describe('the column projection: only the record columns are selected, so a narr
     create: tasks.create!.omit({ notes: true }),
     update: tasks.update!.omit({ notes: true }),
   } as never)
-  const env = { actor: { id: 'u', kind: 'user' as const }, organizationId: '0190b2c4-0000-7000-8000-000000000001', scopes: undefined as never, now: new Date(0), newId: () => 'x', randomBytes: () => new Uint8Array(0) }
+  const env = {
+    actor: { id: 'u', kind: 'user' as const },
+    organizationId: '0190b2c4-0000-7000-8000-000000000001',
+    scopes: undefined as never,
+    now: new Date(0),
+    newId: () => 'x',
+    randomBytes: () => new Uint8Array(0),
+  }
   const id = '0190b2c4-0000-7000-8000-000000000002'
-  it.each(['postgres', 'd1'] as const satisfies readonly Dialect[])('list and get never mention a column outside the record (%s)', (dialect) => {
-    const list = compileOperation(listOperation(narrow, env, {}), dialect)
-    const get = compileOperation(getOperation(narrow, env, id), dialect)
-    for (const c of [list, get]) {
-      const text = JSON.stringify(c.reads)
-      expect(text).not.toContain('notes')
-      expect(text).not.toContain('deleted_at" as') // deleted_at is a condition, never a selected column
-      expect(text).toContain('title')
-    }
-    // the unrestricted definition does select it
-    expect(JSON.stringify(compileOperation(getOperation(tasks, env, id), dialect).reads)).toContain('notes')
-  })
+  it.each(['postgres', 'd1'] as const satisfies readonly Dialect[])(
+    'list and get never mention a column outside the record (%s)',
+    (dialect) => {
+      const list = compileOperation(listOperation(narrow, env, {}), dialect)
+      const get = compileOperation(getOperation(narrow, env, id), dialect)
+      for (const c of [list, get]) {
+        const text = JSON.stringify(c.reads)
+        expect(text).not.toContain('notes')
+        expect(text).not.toContain('deleted_at" as') // deleted_at is a condition, never a selected column
+        expect(text).toContain('title')
+      }
+      // the unrestricted definition does select it
+      expect(JSON.stringify(compileOperation(getOperation(tasks, env, id), dialect).reads)).toContain('notes')
+    },
+  )
 })
 
 describe('CORE25 load-time checks (embeds, custom filters, the files reference)', () => {
   const idOnly = z.object({ id: z.uuid(), thread_id: z.uuid().nullable() })
   const interaction = (over: Record<string, unknown> = {}) =>
-    ({ name: 'interactions', eventName: 'interaction', table: 'interactions' as const, record: idOnly, operations: ['list', 'get'], ...over }) as never
+    ({
+      name: 'interactions',
+      eventName: 'interaction',
+      table: 'interactions' as const,
+      record: idOnly,
+      operations: ['list', 'get'],
+      ...over,
+    }) as never
   const jf = { schema: z.uuid(), where: () => undefined as never }
 
   it('a customFilters key that is a column of the table is refused', () => {
-    expect(() => definePreparedResource(interaction({ customFilters: { thread_id: jf } }))).toThrow(/customFilters key "thread_id" is a column of interactions/)
+    expect(() => definePreparedResource(interaction({ customFilters: { thread_id: jf } }))).toThrow(
+      /customFilters key "thread_id" is a column of interactions/,
+    )
     expect(() => definePreparedResource(interaction({ customFilters: { identity_id: jf } }))).not.toThrow()
   })
   it('a customFilters key that is also in filters is refused', () => {
-    expect(() => definePreparedResource(interaction({ filters: { identity_id: { schema: z.string() } }, customFilters: { identity_id: jf } }))).toThrow(/customFilters key "identity_id" is also in filters/)
+    expect(() =>
+      definePreparedResource(
+        interaction({ filters: { identity_id: { schema: z.string() } }, customFilters: { identity_id: jf } }),
+      ),
+    ).toThrow(/customFilters key "identity_id" is also in filters/)
   })
   it('an embed on an unknown child table, key or column is refused naming the embed', () => {
-    const embed = (over: Record<string, unknown>) => ({ participants: { table: 'interaction_participants', key: 'interaction_id', columns: ['identity_id', 'role'], orderBy: ['role'], ...over } })
+    const embed = (over: Record<string, unknown>) => ({
+      participants: {
+        table: 'interaction_participants',
+        key: 'interaction_id',
+        columns: ['identity_id', 'role'],
+        orderBy: ['role'],
+        ...over,
+      },
+    })
     const rec = z.object({ id: z.uuid(), participants: z.array(z.unknown()) })
     expect(() => definePreparedResource(interaction({ record: rec, embed: embed({}) }))).not.toThrow()
-    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ table: 'bogus' }) }))).toThrow(/participants/)
-    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ key: 'bogus' }) }))).toThrow(/participants/)
-    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ columns: ['bogus'] }) }))).toThrow(/participants/)
-    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ orderBy: ['bogus'] }) }))).toThrow(/participants/)
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ table: 'bogus' }) }))).toThrow(
+      /participants/,
+    )
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ key: 'bogus' }) }))).toThrow(
+      /participants/,
+    )
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ columns: ['bogus'] }) }))).toThrow(
+      /participants/,
+    )
+    expect(() => definePreparedResource(interaction({ record: rec, embed: embed({ orderBy: ['bogus'] }) }))).toThrow(
+      /participants/,
+    )
   })
   it('a live reference to files is refused: files has no deleted_at', () => {
     const link = (live: boolean) =>
-      ({ name: 'contact_files', eventName: 'contact_file', table: 'contact_files' as const, record: z.object({ id: z.uuid(), file_id: z.uuid() }), references: { file_id: { table: 'files', live } } }) as never
+      ({
+        name: 'contact_files',
+        eventName: 'contact_file',
+        table: 'contact_files' as const,
+        record: z.object({ id: z.uuid(), file_id: z.uuid() }),
+        references: { file_id: { table: 'files', live } },
+      }) as never
     expect(() => definePreparedResource(link(true))).toThrow(/deleted_at/)
     expect(() => definePreparedResource(link(false))).not.toThrow()
   })

@@ -36,12 +36,18 @@ const sqlstate = (fn: (c: pg.PoolClient) => Promise<unknown>): Promise<string | 
     }
   })
 
-const org = async (c: pg.PoolClient) => (await c.query(`INSERT INTO organizations (name) VALUES ('o') RETURNING id`)).rows[0].id as string
-const principal = async (c: pg.PoolClient, kind = 'user') => (await c.query(`INSERT INTO principals (kind) VALUES ($1) RETURNING id`, [kind])).rows[0].id as string
+const org = async (c: pg.PoolClient) =>
+  (await c.query(`INSERT INTO organizations (name) VALUES ('o') RETURNING id`)).rows[0].id as string
+const principal = async (c: pg.PoolClient, kind = 'user') =>
+  (await c.query(`INSERT INTO principals (kind) VALUES ($1) RETURNING id`, [kind])).rows[0].id as string
 
 describe('migration 006: the application owns updated_at', () => {
   it('no table has a set_updated_at trigger', async () => {
-    expect(await q(`SELECT tgrelid::regclass::text AS t FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'set_updated_at'`)).toEqual([])
+    expect(
+      await q(
+        `SELECT tgrelid::regclass::text AS t FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'set_updated_at'`,
+      ),
+    ).toEqual([])
   })
   it('the trigger function is gone', async () => {
     expect((await q(`SELECT to_regprocedure('app.set_updated_at()') AS f`))[0]!.f).toBeNull()
@@ -61,7 +67,12 @@ describe('migration 006: the application owns updated_at', () => {
         )
       ).rows[0].id
       await c.query(`UPDATE tasks SET title = 'u' WHERE id = $1`, [ids.task])
-      const r = (await c.query(`SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS u FROM tasks WHERE id = $1`, [ids.task])).rows[0]
+      const r = (
+        await c.query(
+          `SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS u FROM tasks WHERE id = $1`,
+          [ids.task],
+        )
+      ).rows[0]
       expect(r.u).toBe('2020-01-01T00:00:00Z')
     } finally {
       if (ids.task) await c.query(`DELETE FROM tasks WHERE id = $1`, [ids.task])
@@ -77,25 +88,50 @@ describe('migration 006: the application owns updated_at', () => {
 
 describe('migration 006: emails are lowercase ASCII (D7)', () => {
   const identity = (c: pg.PoolClient, o: string, p: string, kind: string, value: string) =>
-    c.query(`INSERT INTO identities (organization_id, created_by, kind, value, own) VALUES ($1, $2, $3, $4, true)`, [o, p, kind, value])
+    c.query(`INSERT INTO identities (organization_id, created_by, kind, value, own) VALUES ($1, $2, $3, $4, true)`, [
+      o,
+      p,
+      kind,
+      value,
+    ])
 
   it('refuses an upper-case email identity', async () => {
-    expect(await sqlstate(async (c) => identity(c, await org(c), await principal(c), 'email', 'Ori@x.com'))).toBe('23514')
+    expect(await sqlstate(async (c) => identity(c, await org(c), await principal(c), 'email', 'Ori@x.com'))).toBe(
+      '23514',
+    )
   })
   it('refuses a non-ASCII email identity', async () => {
-    expect(await sqlstate(async (c) => identity(c, await org(c), await principal(c), 'email', 'jürgen@x.com'))).toBe('23514')
+    expect(await sqlstate(async (c) => identity(c, await org(c), await principal(c), 'email', 'jürgen@x.com'))).toBe(
+      '23514',
+    )
   })
   it('accepts a lowercase ASCII email identity and leaves phone identities alone', async () => {
-    expect(await sqlstate(async (c) => identity(c, await org(c), await principal(c), 'email', 'ori@x.com'))).toBeUndefined()
-    expect(await sqlstate(async (c) => identity(c, await org(c), await principal(c), 'phone', '+14155550100'))).toBeUndefined()
+    expect(
+      await sqlstate(async (c) => identity(c, await org(c), await principal(c), 'email', 'ori@x.com')),
+    ).toBeUndefined()
+    expect(
+      await sqlstate(async (c) => identity(c, await org(c), await principal(c), 'phone', '+14155550100')),
+    ).toBeUndefined()
   })
   it('refuses an upper-case user email even though the column is citext (the check casts to text)', async () => {
-    expect(await sqlstate(async (c) => c.query(`INSERT INTO users (id, email) VALUES ($1, 'Ori@x.com')`, [await principal(c)]))).toBe('23514')
+    expect(
+      await sqlstate(async (c) =>
+        c.query(`INSERT INTO users (id, email) VALUES ($1, 'Ori@x.com')`, [await principal(c)]),
+      ),
+    ).toBe('23514')
   })
   it('refuses a non-ASCII user email', async () => {
-    expect(await sqlstate(async (c) => c.query(`INSERT INTO users (id, email) VALUES ($1, 'jürgen@x.com')`, [await principal(c)]))).toBe('23514')
+    expect(
+      await sqlstate(async (c) =>
+        c.query(`INSERT INTO users (id, email) VALUES ($1, 'jürgen@x.com')`, [await principal(c)]),
+      ),
+    ).toBe('23514')
   })
   it('accepts a lowercase ASCII user email', async () => {
-    expect(await sqlstate(async (c) => c.query(`INSERT INTO users (id, email) VALUES ($1, 'ori@x.com')`, [await principal(c)]))).toBeUndefined()
+    expect(
+      await sqlstate(async (c) =>
+        c.query(`INSERT INTO users (id, email) VALUES ($1, 'ori@x.com')`, [await principal(c)]),
+      ),
+    ).toBeUndefined()
   })
 })

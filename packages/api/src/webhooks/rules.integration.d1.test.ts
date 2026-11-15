@@ -12,13 +12,25 @@ beforeEach(() => k.reset())
 const BASE = '/meta/v1/webhooks'
 const TASKS = ['tasks:read']
 const rows = () => k.all('select * from webhook_subscriptions order by id')
-const refused = (r: { status: number; body: any }, status: number, code: string) => expect([r.status, r.body?.error?.code]).toEqual([status, code])
-const post = (agent: string, over: Record<string, unknown> = {}) => k.owner('POST', BASE, { url: URL_OK, agent_id: agent, ...over })
+const refused = (r: { status: number; body: any }, status: number, code: string) =>
+  expect([r.status, r.body?.error?.code]).toEqual([status, code])
+const post = (agent: string, over: Record<string, unknown> = {}) =>
+  k.owner('POST', BASE, { url: URL_OK, agent_id: agent, ...over })
 
 describe('event types at create (D3)', () => {
   it('a pattern violation, none and 21 types: 400 validation_error and nothing written; 20 is accepted', async () => {
     const a = await k.seedAgent(TASKS)
-    for (const bad of ['Task.created', 'task', 'task.created.extra', '1task.created', 'task.', '.created', 'task created', 'task.Created', '*']) {
+    for (const bad of [
+      'Task.created',
+      'task',
+      'task.created.extra',
+      '1task.created',
+      'task.',
+      '.created',
+      'task created',
+      'task.Created',
+      '*',
+    ]) {
       refused(await post(a, { event_types: [bad] }), 400, 'validation_error')
     }
     refused(await post(a, { event_types: [] }), 400, 'validation_error')
@@ -99,7 +111,11 @@ describe('update (D3, D18)', () => {
     const a = await k.seedAgent(TASKS)
     const made = await k.create(a)
     await k.grant(a, [])
-    refused(await k.owner('PATCH', `${BASE}/${made.id}`, { event_types: ['task.updated'] }), 400, 'event_type_not_readable')
+    refused(
+      await k.owner('PATCH', `${BASE}/${made.id}`, { event_types: ['task.updated'] }),
+      400,
+      'event_type_not_readable',
+    )
   })
 
   it('refuses a bad url with invalid_url and an unknown field with validation_error', async () => {
@@ -126,7 +142,11 @@ describe('update (D3, D18)', () => {
     const r = await k.owner('PATCH', `${BASE}/${made.id}`, {})
     expect([r.status, r.body.id]).toEqual([200, made.id])
     expect(await k.all("select count(*) as n from events where type = 'webhook.updated'")).toEqual(before)
-    refused(await k.owner('PATCH', `${BASE}/0190b2c4-0000-7000-8000-00000000dead`, { status: 'paused' }), 404, 'not_found')
+    refused(
+      await k.owner('PATCH', `${BASE}/0190b2c4-0000-7000-8000-00000000dead`, { status: 'paused' }),
+      404,
+      'not_found',
+    )
   })
 })
 
@@ -138,7 +158,12 @@ describe('delete (soft)', () => {
     const stored = await rows()
     expect(stored).toHaveLength(1)
     expect(stored[0]!.deleted_at).not.toBeNull()
-    for (const [method, p] of [['GET', path], ['PATCH', path], ['DELETE', path], ['POST', `${path}/rotate-secret`]] as const) {
+    for (const [method, p] of [
+      ['GET', path],
+      ['PATCH', path],
+      ['DELETE', path],
+      ['POST', `${path}/rotate-secret`],
+    ] as const) {
       refused(await k.owner(method, p, method === 'PATCH' ? { status: 'paused' } : undefined), 404, 'not_found')
     }
     expect((await k.owner('GET', BASE)).body.data).toEqual([])
@@ -172,8 +197,10 @@ describe('the limit (D16)', () => {
     for (let i = 0; i < 9; i++) await k.create(a)
     k.e.betweenPlanAndCommit(async () => {
       const at = '2026-11-12T09:00:00.000Z'
-      await k
-        .e.d1!.prepare("INSERT INTO webhook_subscriptions (id, created_at, updated_at, organization_id, created_by, agent_id, url, event_types, status) VALUES (?, ?, ?, ?, ?, ?, ?, '[\"task.created\"]', 'active')")
+      await k.e
+        .d1!.prepare(
+          "INSERT INTO webhook_subscriptions (id, created_at, updated_at, organization_id, created_by, agent_id, url, event_types, status) VALUES (?, ?, ?, ?, ?, ?, ?, '[\"task.created\"]', 'active')",
+        )
         .bind('0190b2c4-0000-7000-8000-0000000000aa', at, at, k.e.organizationId, k.e.userId, a, URL_OK)
         .run()
     })

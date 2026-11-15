@@ -65,7 +65,10 @@ export function visible(d: FeedVisibility) {
       sql`(resource_type = ${d.edge.resourceType} and json_extract(${rec}, '$.a_type') in (${sql.join(d.edge.endpointTypes)}) and json_extract(${rec}, '$.b_type') in (${sql.join(d.edge.endpointTypes)}))`,
     )
   }
-  for (const o of d.owned ?? []) parts.push(sql`(resource_type = ${o.resourceType} and json_extract(coalesce("after", "before"), ${o.path}) = ${o.equals})`)
+  for (const o of d.owned ?? [])
+    parts.push(
+      sql`(resource_type = ${o.resourceType} and json_extract(coalesce("after", "before"), ${o.path}) = ${o.equals})`,
+    )
   return parts.length > 0 ? sql`(${sql.join(parts, sql` or `)})` : null
 }
 
@@ -81,7 +84,8 @@ export const toEvent = (r: Record<string, unknown>): FeedEvent => ({
 })
 
 export function readStableFeed(d: StableFeedInput): PreparedOperation<StableFeed> {
-  if (!Number.isInteger(d.limit) || d.limit < 1) throw new RangeError('readStableFeed: limit must be a positive integer')
+  if (!Number.isInteger(d.limit) || d.limit < 1)
+    throw new RangeError('readStableFeed: limit must be a positive integer')
   const nothing = visible(d) === null || (d.types !== undefined && d.types.length === 0)
   return defineOperation<StableFeed>({
     name: 'events.feed',
@@ -95,10 +99,15 @@ export function readStableFeed(d: StableFeedInput): PreparedOperation<StableFeed
         if (d.resourceType !== undefined) filters.push(sql`resource_type = ${d.resourceType}`)
         if (d.resourceId !== undefined) filters.push(sql`resource_id = ${d.resourceId}`)
         if (d.after !== null) filters.push(sql`seq > (select seq from events where id = ${d.after})`)
-        reads.page = readAll(sql`select ${COLUMNS} from events where ${sql.join(filters, sql` and `)} order by seq limit ${d.limit + 1}`.compile(qc.db))
+        reads.page = readAll(
+          sql`select ${COLUMNS} from events where ${sql.join(filters, sql` and `)} order by seq limit ${d.limit + 1}`.compile(
+            qc.db,
+          ),
+        )
       }
       // The cursor check rides in the same read batch as the page: one snapshot, so a cursor that exists is never reported unknown. It ignores visibility (D2).
-      if (d.after !== null) reads.cursor = readAll(sql`select 1 as found from events where id = ${d.after}`.compile(qc.db))
+      if (d.after !== null)
+        reads.cursor = readAll(sql`select 1 as found from events where id = ${d.after}`.compile(qc.db))
       return reads
     },
     build: (found) =>
@@ -123,7 +132,8 @@ export function readFeedEvent(d: FeedVisibility & { id: string }): PreparedOpera
     reads: (qc) => {
       const seen = visible(d)
       const reads: Record<string, ReturnType<typeof readAll>> = {}
-      if (seen !== null) reads.event = readAll(sql`select ${COLUMNS} from events where id = ${d.id} and ${seen}`.compile(qc.db))
+      if (seen !== null)
+        reads.event = readAll(sql`select ${COLUMNS} from events where id = ${d.id} and ${seen}`.compile(qc.db))
       return reads
     },
     build: (found) =>

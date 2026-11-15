@@ -33,11 +33,18 @@ async function readCursor(path: string): Promise<string | undefined> {
     text = await readFile(path, 'utf8')
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-    throw usage(`cannot read the cursor file ${path}: ${e instanceof Error ? e.message : 'error'}`, 'cursor_file_invalid')
+    throw usage(
+      `cannot read the cursor file ${path}: ${e instanceof Error ? e.message : 'error'}`,
+      'cursor_file_invalid',
+    )
   }
   if (text.trim() === '') return undefined
   const lines = text.split('\n').filter((l) => l.trim() !== '')
-  if (lines.length !== 1 || !UUID.test(lines[0]!.trim())) throw usage(`the cursor file ${path} must hold one event id and nothing else: fix it or delete it to start from the beginning`, 'cursor_file_invalid')
+  if (lines.length !== 1 || !UUID.test(lines[0]!.trim()))
+    throw usage(
+      `the cursor file ${path} must hold one event id and nothing else: fix it or delete it to start from the beginning`,
+      'cursor_file_invalid',
+    )
   return lines[0]!.trim()
 }
 
@@ -49,7 +56,11 @@ async function writeCursor(path: string, id: string): Promise<void> {
     await rename(tmp, path)
   } catch (e) {
     await rm(tmp, { force: true }).catch(() => undefined)
-    throw new CliError(1, 'cursor_file_failed', `cannot write the cursor file ${path}: ${e instanceof Error ? e.message : 'error'}`)
+    throw new CliError(
+      1,
+      'cursor_file_failed',
+      `cannot write the cursor file ${path}: ${e instanceof Error ? e.message : 'error'}`,
+    )
   }
 }
 
@@ -90,11 +101,13 @@ export async function tail(list: Command, args: string[], credential: Credential
     if (!follow) throw usage('--interval applies with --follow only')
     const raw = values.interval as string
     intervalSeconds = Number(raw)
-    if (raw.trim() === '' || !Number.isFinite(intervalSeconds) || intervalSeconds < 1) throw usage('--interval takes a number of seconds, at least 1')
+    if (raw.trim() === '' || !Number.isFinite(intervalSeconds) || intervalSeconds < 1)
+      throw usage('--interval takes a number of seconds, at least 1')
   }
   // The filters go through the derived command, so they are typed and checked exactly as `events list` checks them.
   const filterArgs: string[] = []
-  for (const name of ['type', 'resource-type', 'resource-id', 'limit']) if (typeof values[name] === 'string') filterArgs.push(`--${name}`, values[name] as string)
+  for (const name of ['type', 'resource-type', 'resource-id', 'limit'])
+    if (typeof values[name] === 'string') filterArgs.push(`--${name}`, values[name] as string)
   const inv = await parseInvocation(list, filterArgs, { readFile: async () => '', readStdin: async () => '' })
   const baseQuery = inv.query.filter(([k]) => k !== 'after')
 
@@ -114,7 +127,8 @@ export async function tail(list: Command, args: string[], credential: Credential
     }
     if (!res.ok) throw await apiError(res)
     const body = (await res.json().catch(() => undefined)) as { data?: unknown[]; next_cursor?: unknown } | undefined
-    if (!body || !Array.isArray(body.data)) throw new CliError(1, 'invalid_response', 'a list response had no data array')
+    if (!body || !Array.isArray(body.data))
+      throw new CliError(1, 'invalid_response', 'a list response had no data array')
     return body as { data: { id?: unknown }[]; next_cursor?: unknown }
   }
 
@@ -130,7 +144,8 @@ export async function tail(list: Command, args: string[], credential: Credential
         if (cursorFile !== undefined) await writeCursor(cursorFile, event.id)
       }
       next = body.next_cursor
-      if (typeof next === 'string' && next !== '' && next === sent) throw new CliError(1, 'invalid_response', 'the server repeated a cursor; stopping')
+      if (typeof next === 'string' && next !== '' && next === sent)
+        throw new CliError(1, 'invalid_response', 'the server repeated a cursor; stopping')
     } while (typeof next === 'string' && next !== '')
     if (!follow || deps.signal?.aborted) return 0
     await deps.sleep(intervalSeconds * 1000)

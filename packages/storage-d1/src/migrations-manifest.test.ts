@@ -10,18 +10,23 @@ type Entry = { readonly name: string; readonly sha256: string }
 
 /** Every way the manifest and the migration files can disagree ([[CORE61]] D5); empty means they agree. */
 function manifestProblems(manifest: readonly Entry[], dir: string): string[] {
-  const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
   const problems: string[] = []
   for (const e of manifest) {
     if (!files.includes(e.name)) {
       problems.push(`manifest entry without a file: ${e.name}`)
       continue
     }
-    const actual = createHash('sha256').update(readFileSync(join(dir, e.name))).digest('hex')
+    const actual = createHash('sha256')
+      .update(readFileSync(join(dir, e.name)))
+      .digest('hex')
     if (actual !== e.sha256) problems.push(`hash mismatch: ${e.name}`)
   }
   for (const f of files) if (!manifest.some((e) => e.name === f)) problems.push(`file without a manifest entry: ${f}`)
-  if (problems.length === 0 && manifest.map((e) => e.name).join() !== files.join()) problems.push('order differs from the sorted file names')
+  if (problems.length === 0 && manifest.map((e) => e.name).join() !== files.join())
+    problems.push('order differs from the sorted file names')
   return problems
 }
 
@@ -39,15 +44,40 @@ afterEach(() => {
 describe('migrations manifest (D5)', () => {
   it('matches the real migrations/ directory', () => {
     expect(manifestProblems(MIGRATIONS, MIGRATIONS_DIR)).toEqual([])
-    expect(MIGRATIONS.map((e) => e.name)).toEqual(['0001_typed_storage_core.sql', '0002_identity_model.sql', '0003_administration.sql', '0004_messaging_model.sql', '0005_associations.sql', '0006_notes.sql', '0007_agent_principals.sql', '0008_tags.sql', '0009_deals.sql', '0010_gmail_capture.sql', '0011_action_requests.sql', '0012_action_executions.sql', '0013_send_connection.sql', '0014_search_indexes.sql', '0015_event_sequence.sql', '0016_webhooks.sql', '0017_webhook_deliveries.sql', '0018_auth_tables.sql', '0019_drop_auth_tables.sql'])
+    expect(MIGRATIONS.map((e) => e.name)).toEqual([
+      '0001_typed_storage_core.sql',
+      '0002_identity_model.sql',
+      '0003_administration.sql',
+      '0004_messaging_model.sql',
+      '0005_associations.sql',
+      '0006_notes.sql',
+      '0007_agent_principals.sql',
+      '0008_tags.sql',
+      '0009_deals.sql',
+      '0010_gmail_capture.sql',
+      '0011_action_requests.sql',
+      '0012_action_executions.sql',
+      '0013_send_connection.sql',
+      '0014_search_indexes.sql',
+      '0015_event_sequence.sql',
+      '0016_webhooks.sql',
+      '0017_webhook_deliveries.sql',
+      '0018_auth_tables.sql',
+      '0019_drop_auth_tables.sql',
+    ])
   })
   it('catches one edited byte', () => {
     const dir = copyOfTree()
-    writeFileSync(join(dir, '0002_identity_model.sql'), readFileSync(join(dir, '0002_identity_model.sql'), 'utf-8') + ' ')
+    writeFileSync(
+      join(dir, '0002_identity_model.sql'),
+      readFileSync(join(dir, '0002_identity_model.sql'), 'utf-8') + ' ',
+    )
     expect(manifestProblems(MIGRATIONS, dir)).toEqual(['hash mismatch: 0002_identity_model.sql'])
   })
   it('catches a dropped manifest entry', () => {
-    expect(manifestProblems(MIGRATIONS.slice(1), copyOfTree())).toEqual(['file without a manifest entry: 0001_typed_storage_core.sql'])
+    expect(manifestProblems(MIGRATIONS.slice(1), copyOfTree())).toEqual([
+      'file without a manifest entry: 0001_typed_storage_core.sql',
+    ])
   })
   it('catches an unlisted file', () => {
     const dir = copyOfTree()

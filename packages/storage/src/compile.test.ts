@@ -99,6 +99,8 @@ describe('compileOperation', () => {
   it.each(dialects)('refuses to run a cold builder on %s', async (dialect) => {
     const query = selectColumns(queryContext(dialect), 'tasks', ['id'])
     await expect(query.execute()).rejects.toBeInstanceOf(ColdExecutionError)
-    await expect(coldDb(dialect).selectFrom('tasks').selectAll().executeTakeFirst()).rejects.toBeInstanceOf(ColdExecutionError)
+    await expect(coldDb(dialect).selectFrom('tasks').selectAll().executeTakeFirst()).rejects.toBeInstanceOf(
+      ColdExecutionError,
+    )
   })
 })

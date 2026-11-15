@@ -13,5 +13,8 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   // Chromium by default; `E2E_BROWSER_CHANNEL=chrome` uses an installed Google Chrome where the Chromium download is not possible.
-  use: { baseURL: 'http://127.0.0.1:4173', ...(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {}) },
+  use: {
+    baseURL: 'http://127.0.0.1:4173',
+    ...(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {}),
+  },
 })

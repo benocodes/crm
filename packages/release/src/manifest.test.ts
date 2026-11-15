@@ -8,7 +8,9 @@ import { assertRelease, listFiles, sha256, verifyRelease } from './manifest.js'
 import { stageServer } from './stage.js'
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
 function stage() {
   const s = sources()
   const outDir = mkdtempSync(join(tmpdir(), 'ops210-out-'))
@@ -20,10 +22,30 @@ function stage() {
 describe('D4 release.json', () => {
   it('has every field, and files covers every file but release.json and package.json', () => {
     const { outDir, manifest, s } = stage()
-    expect(Object.keys(manifest).sort()).toEqual(['built_at', 'commit', 'compatibility_date', 'control_migrations', 'files', 'migrations', 'name', 'node', 'version', 'wrangler'])
-    expect(manifest).toMatchObject({ name: '@vibase/server-d1', version: '0.1.0', commit: 'abc1234', wrangler: '4.149.0', compatibility_date: '2026-07-30', node: '>=22' })
+    expect(Object.keys(manifest).sort()).toEqual([
+      'built_at',
+      'commit',
+      'compatibility_date',
+      'control_migrations',
+      'files',
+      'migrations',
+      'name',
+      'node',
+      'version',
+      'wrangler',
+    ])
+    expect(manifest).toMatchObject({
+      name: '@vibase/server-d1',
+      version: '0.1.0',
+      commit: 'abc1234',
+      wrangler: '4.149.0',
+      compatibility_date: '2026-07-30',
+      node: '>=22',
+    })
     expect(JSON.parse(readFileSync(join(outDir, 'release.json'), 'utf8'))).toEqual(manifest)
-    expect(Object.keys(manifest.files).sort()).toEqual(listFiles(outDir).filter((f) => f !== 'release.json' && f !== 'package.json'))
+    expect(Object.keys(manifest.files).sort()).toEqual(
+      listFiles(outDir).filter((f) => f !== 'release.json' && f !== 'package.json'),
+    )
     expect(manifest.files['worker/worker.js']).toBe(sha256(readFileSync(s.workerEntry)))
     expect(manifest.migrations).toEqual(s.migrations)
   })
@@ -51,25 +73,34 @@ describe('D4 verify refusals', () => {
   it('a clean stage verifies', () => {
     expect(verifyRelease(stage().outDir)).toEqual([])
   })
-  it.each(['worker/worker.js', 'assets/connect/index.html', 'migrations/0001_a.sql', 'cli/server.js'])('a changed byte in %s names the path', (f) => {
-    const { outDir } = stage()
-    writeFileSync(join(outDir, f), readFileSync(join(outDir, f), 'utf8') + ' ')
-    expect(verifyRelease(outDir)).toEqual([{ path: f, kind: 'mismatch' }])
-    expect(() => assertRelease(outDir)).toThrow(f)
-  })
-  it.each(['worker/worker.js', 'assets/connect/connect.js', 'migrations/0002_b.sql'])('a missing %s names the path', (f) => {
-    const { outDir } = stage()
-    unlinkSync(join(outDir, f))
-    expect(verifyRelease(outDir)).toContainEqual({ path: f, kind: 'missing' })
-    expect(() => assertRelease(outDir)).toThrow(f)
-  })
-  it.each(['worker/extra.js', 'assets/connect/extra.js', 'migrations/0003_c.sql'])('an extra %s names the path', (f) => {
-    const { outDir } = stage()
-    mkdirSync(join(outDir, f, '..'), { recursive: true })
-    writeFileSync(join(outDir, f), 'x')
-    expect(verifyRelease(outDir)).toEqual([{ path: f, kind: 'extra' }])
-    expect(() => assertRelease(outDir)).toThrow(f)
-  })
+  it.each(['worker/worker.js', 'assets/connect/index.html', 'migrations/0001_a.sql', 'cli/server.js'])(
+    'a changed byte in %s names the path',
+    (f) => {
+      const { outDir } = stage()
+      writeFileSync(join(outDir, f), readFileSync(join(outDir, f), 'utf8') + ' ')
+      expect(verifyRelease(outDir)).toEqual([{ path: f, kind: 'mismatch' }])
+      expect(() => assertRelease(outDir)).toThrow(f)
+    },
+  )
+  it.each(['worker/worker.js', 'assets/connect/connect.js', 'migrations/0002_b.sql'])(
+    'a missing %s names the path',
+    (f) => {
+      const { outDir } = stage()
+      unlinkSync(join(outDir, f))
+      expect(verifyRelease(outDir)).toContainEqual({ path: f, kind: 'missing' })
+      expect(() => assertRelease(outDir)).toThrow(f)
+    },
+  )
+  it.each(['worker/extra.js', 'assets/connect/extra.js', 'migrations/0003_c.sql'])(
+    'an extra %s names the path',
+    (f) => {
+      const { outDir } = stage()
+      mkdirSync(join(outDir, f, '..'), { recursive: true })
+      writeFileSync(join(outDir, f), 'x')
+      expect(verifyRelease(outDir)).toEqual([{ path: f, kind: 'extra' }])
+      expect(() => assertRelease(outDir)).toThrow(f)
+    },
+  )
   it('a migrations entry whose hash differs from the file is refused', () => {
     const { outDir } = stage()
     const p = join(outDir, 'release.json')
@@ -84,8 +115,12 @@ describe('OPS260 D14: the control migrations are shipped, listed and verified li
   it('release.json lists them with their hashes, and the files are covered', () => {
     const { outDir, manifest, s } = stage()
     expect(manifest.control_migrations).toEqual(s.controlMigrations)
-    expect(Object.keys(manifest.files)).toEqual(expect.arrayContaining(['control-migrations/0001_c.sql', 'control-migrations/0002_d.sql']))
-    expect(listFiles(outDir)).toEqual(expect.arrayContaining(['control-migrations/0001_c.sql', 'control-migrations/0002_d.sql']))
+    expect(Object.keys(manifest.files)).toEqual(
+      expect.arrayContaining(['control-migrations/0001_c.sql', 'control-migrations/0002_d.sql']),
+    )
+    expect(listFiles(outDir)).toEqual(
+      expect.arrayContaining(['control-migrations/0001_c.sql', 'control-migrations/0002_d.sql']),
+    )
     expect(verifyRelease(outDir)).toEqual([])
   })
   it('the real control directory and its manifest verify (the files CONTROL_MIGRATIONS names)', () => {

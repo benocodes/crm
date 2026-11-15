@@ -22,7 +22,11 @@ export interface ToolEntry {
 
 type Json = Record<string, unknown>
 const toJson = (schema: z.ZodType, io: 'input' | 'output'): Json => {
-  const { $schema: _drop, ...rest } = z.toJSONSchema(schema, { io, unrepresentable: 'any', target: 'draft-2020-12' }) as Json
+  const { $schema: _drop, ...rest } = z.toJSONSchema(schema, {
+    io,
+    unrepresentable: 'any',
+    target: 'draft-2020-12',
+  }) as Json
   return rest
 }
 
@@ -31,12 +35,20 @@ export function describeOperation(op: Operation): string {
   const lines = [op.summary]
   if (op.description) lines.push(op.description)
   if (op.kind === 'tenant') {
-    const needs = op.scope ? formatScope(op.scope) : op.authority === 'read' ? 'the read scope of the execution\'s operation (for example messages:read)' : op.authority === 'write' ? '<resource>:write on the target operation\'s resource' : '<resource>:request_approval (or write) on the target operation\'s resource'
+    const needs = op.scope
+      ? formatScope(op.scope)
+      : op.authority === 'read'
+        ? "the read scope of the execution's operation (for example messages:read)"
+        : op.authority === 'write'
+          ? "<resource>:write on the target operation's resource"
+          : "<resource>:request_approval (or write) on the target operation's resource"
     lines.push(`Requires ${needs} (${op.surface === 'api' ? 'records' : 'configuration'} surface).`)
     const p = proposalMeta(op)
-    if (p.eligible) lines.push(`Proposable: ${p.request_scope} lets a caller propose this through action_requests.create (operation=${op.name})${p.also_requires ? `; also needs ${p.also_requires}` : ''}.`)
-  }
-  else if (op.kind === 'control') lines.push(`Requires ${formatScope(op.scope)} (configuration surface).`)
+    if (p.eligible)
+      lines.push(
+        `Proposable: ${p.request_scope} lets a caller propose this through action_requests.create (operation=${op.name})${p.also_requires ? `; also needs ${p.also_requires}` : ''}.`,
+      )
+  } else if (op.kind === 'control') lines.push(`Requires ${formatScope(op.scope)} (configuration surface).`)
   else if (!op.agents) lines.push('Requires a signed-in user.')
   return lines.join('\n')
 }
@@ -46,7 +58,10 @@ function inputSchemaOf(op: Operation): Json {
   const required: string[] = []
   const add = (from: string, schema: Json) => {
     for (const [k, v] of Object.entries((schema.properties ?? {}) as Json)) {
-      if (k in properties) throw new Error(`operation ${op.name}: argument "${k}" appears in more than one of params, query and body (${from})`)
+      if (k in properties)
+        throw new Error(
+          `operation ${op.name}: argument "${k}" appears in more than one of params, query and body (${from})`,
+        )
       properties[k] = v
     }
     required.push(...((schema.required ?? []) as string[]))
@@ -104,14 +119,19 @@ export function isVisible(op: Operation, principal: Principal, workspace: boolea
   return principal.scopes.toStrings().some((s) => s.endsWith(action))
 }
 
-const asString = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v))
+const asString = (v: unknown): string =>
+  typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v)
 
 /**
  * D9: the flat arguments back into params, query and body. Params and query values go over as strings, as the REST router hands
  * them over, so validation and coercion are the REST ones. Any other name is a body field (a strict body schema refuses it);
  * an operation with no body field to put it in refuses it as a validation error, never drops it.
  */
-export function splitArguments(op: Operation, args: Record<string, unknown>, opts: { keepNull?: boolean } = {}): OperationInput {
+export function splitArguments(
+  op: Operation,
+  args: Record<string, unknown>,
+  opts: { keepNull?: boolean } = {},
+): OperationInput {
   const paramKeys = op.request?.params?.shape ?? {}
   const queryKeys = op.request?.query?.shape ?? {}
   const bodySchema = op.request?.body
@@ -131,6 +151,11 @@ export function splitArguments(op: Operation, args: Record<string, unknown>, opt
     else if (bodySchema && k === 'body') whole = v
     else unknown.push(k)
   }
-  if (unknown.length > 0) throw new ApiError(400, 'validation_error', `unknown argument${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}`)
+  if (unknown.length > 0)
+    throw new ApiError(
+      400,
+      'validation_error',
+      `unknown argument${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}`,
+    )
   return { params, query, body: objectBody ? bodyFields : whole }
 }

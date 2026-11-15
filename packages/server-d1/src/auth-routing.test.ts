@@ -73,11 +73,20 @@ describe('/auth by provider (D1)', () => {
 describe('the shipped composition admits an account only through an invitation ([[CORE287]], replaces the foundation refuse-all), and registration is policy-bound ([[CORE283]] P6)', () => {
   it('refuses a sign-up with no invitation (403 invitation_required) and writes no user; an unauthenticated public registration is the one thing it writes (a client, no secret)', async () => {
     const w = await start(BETTER)
-    const up = await w.call('/auth/sign-up/email', { body: { name: 'Nobody', email: 'nobody@auth.test', password: PASSWORD } })
+    const up = await w.call('/auth/sign-up/email', {
+      body: { name: 'Nobody', email: 'nobody@auth.test', password: PASSWORD },
+    })
     expect(up.status).toBe(403)
     expect(await up.json()).toMatchObject({ code: 'invitation_required' })
     const reg = await w.call('/auth/oauth2/register', {
-      body: { client_name: 'Nobody', token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'], scope: 'openid', redirect_uris: ['https://client.test/callback'] },
+      body: {
+        client_name: 'Nobody',
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+        scope: 'openid',
+        redirect_uris: ['https://client.test/callback'],
+      },
     })
     expect(reg.status).toBe(201)
     expect(((await reg.json()) as Record<string, unknown>).client_secret).toBeUndefined()
@@ -89,16 +98,31 @@ describe('the shipped composition admits an account only through an invitation (
 
   it('in workerd, the owner invitation from bootstrap admits exactly one sign-up: the token for its email creates the account, the vault rows and the audit row; the same token then refuses', async () => {
     const w = await start(BETTER, { paired: false })
-    const out = await bootstrapD1(w.d1 as never, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: BASE, ownerEmail: 'owner@auth.test' }, { control: openControlDb(w.control as never) })
+    const out = await bootstrapD1(
+      w.d1 as never,
+      {
+        organizationName: 'Acme',
+        authProvider: 'better-auth',
+        authOrgId: 'better-auth',
+        publicBaseUrl: BASE,
+        ownerEmail: 'owner@auth.test',
+      },
+      { control: openControlDb(w.control as never) },
+    )
     const token = new URL(out.ownerInvitation!.url).hash.replace(/^#token=/, '')
-    const body = (email: string, invitation_token?: string) => ({ body: { name: 'Owner', email, password: PASSWORD, invitation_token }, headers: { 'cf-connecting-ip': `203.0.113.${Math.floor(Math.random() * 200) + 1}` } })
+    const body = (email: string, invitation_token?: string) => ({
+      body: { name: 'Owner', email, password: PASSWORD, invitation_token },
+      headers: { 'cf-connecting-ip': `203.0.113.${Math.floor(Math.random() * 200) + 1}` },
+    })
     const wrong = await w.call('/auth/sign-up/email', body('other@auth.test', token))
     expect([wrong.status, ((await wrong.json()) as { code: string }).code]).toEqual([403, 'invitation_required'])
     expect(await w.controlRows('select * from auth_users')).toEqual([])
     const ok = await w.call('/auth/sign-up/email', body('Owner@Auth.test', token))
     expect(ok.status, await ok.clone().text()).toBe(200)
-    expect(await w.rows("select role from memberships")).toEqual([{ role: 'owner' }])
-    expect((await w.controlRows("select action from control_audit where action = 'invitation.accepted'")).length).toBe(1)
+    expect(await w.rows('select role from memberships')).toEqual([{ role: 'owner' }])
+    expect((await w.controlRows("select action from control_audit where action = 'invitation.accepted'")).length).toBe(
+      1,
+    )
     const again = await w.call('/auth/sign-up/email', body('Owner@Auth.test', token))
     expect([again.status, ((await again.json()) as { code: string }).code]).toEqual([403, 'invitation_required'])
   })
@@ -107,7 +131,22 @@ describe('the shipped composition admits an account only through an invitation (
 // [[CORE259]] D3, D8: Better Auth is composed on CONTROL_DB. A request that makes it read and write rows (the signing key, created on first use, and the rate limiter's counters; sign-up
 // is still refused, P1) lands them in the control database and leaves every CRM auth_* table empty.
 describe('Better Auth uses the control database, never the CRM one (D3)', () => {
-  const AUTH_TABLES_IN_CRM = ['auth_users', 'auth_sessions', 'auth_accounts', 'auth_verifications', 'auth_jwks', 'auth_oauth_clients', 'auth_oauth_resources', 'auth_oauth_client_resources', 'auth_oauth_refresh_tokens', 'auth_oauth_access_tokens', 'auth_oauth_consents', 'auth_oauth_client_assertions', 'auth_device_codes', 'auth_rate_limits']
+  const AUTH_TABLES_IN_CRM = [
+    'auth_users',
+    'auth_sessions',
+    'auth_accounts',
+    'auth_verifications',
+    'auth_jwks',
+    'auth_oauth_clients',
+    'auth_oauth_resources',
+    'auth_oauth_client_resources',
+    'auth_oauth_refresh_tokens',
+    'auth_oauth_access_tokens',
+    'auth_oauth_consents',
+    'auth_oauth_client_assertions',
+    'auth_device_codes',
+    'auth_rate_limits',
+  ]
 
   it('/auth/jwks writes the signing key into CONTROL_DB and no CRM auth_* table gains a row', async () => {
     const w = await start(BETTER)
@@ -116,8 +155,13 @@ describe('Better Auth uses the control database, never the CRM one (D3)', () => 
     expect(((await res.json()) as { keys: unknown[] }).keys.length).toBeGreaterThan(0)
     expect((await w.controlRows<{ id: string }>('select id from auth_jwks')).length).toBeGreaterThan(0)
     // [[OPS260]] 0019 dropped the dormant CRM copies: the tables are gone, so nothing can gain a row.
-    const present = await w.rows<{ name: string }>(`select name from sqlite_master where type = 'table' and name like 'auth\\_%' escape '\\'`)
-    expect(present.filter((r) => AUTH_TABLES_IN_CRM.includes(r.name)), 'CRM auth_* tables').toEqual([])
+    const present = await w.rows<{ name: string }>(
+      `select name from sqlite_master where type = 'table' and name like 'auth\\_%' escape '\\'`,
+    )
+    expect(
+      present.filter((r) => AUTH_TABLES_IN_CRM.includes(r.name)),
+      'CRM auth_* tables',
+    ).toEqual([])
   })
 
   it('the Worker with no CONTROL_DB binding refuses (500, the log names CONTROL_DB) and /health stays 200', async () => {

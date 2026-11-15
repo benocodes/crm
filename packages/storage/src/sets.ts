@@ -42,5 +42,7 @@ export function jsonRows(
     }
   }
   const cols = names.map((c) => sql`${cast(c, columns[c]!)} as ${sql.id(c)}`)
-  return sql`(select ${sql.join(cols)}, ${sql.id('ord')} from jsonb_array_elements(cast(${payload} as jsonb)) with ordinality as t(e, ord))`.as(alias)
+  return sql`(select ${sql.join(cols)}, ${sql.id('ord')} from jsonb_array_elements(cast(${payload} as jsonb)) with ordinality as t(e, ord))`.as(
+    alias,
+  )
 }

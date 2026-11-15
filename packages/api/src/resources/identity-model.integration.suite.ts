@@ -33,7 +33,12 @@ export function engineSuite(engineName: EngineName): void {
     describe('companies', () => {
       it('create normalises the domain and emits company.created', async () => {
         const c = await k.company({ name: 'Acme', domain: ' Acme.COM ' })
-        expect(c).toMatchObject({ name: 'Acme', domain: 'acme.com', organization_id: e.organizationId, created_by: e.userId })
+        expect(c).toMatchObject({
+          name: 'Acme',
+          domain: 'acme.com',
+          organization_id: e.organizationId,
+          created_by: e.userId,
+        })
         const ev = await k.events()
         expect(ev.map((x) => x.type)).toEqual(['company.created'])
         expect(ev[0]).toMatchObject({ actor_id: e.userId, before: null, after: c })
@@ -42,7 +47,11 @@ export function engineSuite(engineName: EngineName): void {
       it('a duplicate domain on create is domain_exists with the other company id, no row, no event', async () => {
         const first = await k.company({ name: 'A', domain: 'acme.com' })
         const err = await k.fail((env) => createOperation(companies, env, { name: 'X', domain: 'ACME.com' }))
-        expect(k.shape(err)).toEqual([409, 'domain_exists', `a company with domain acme.com already exists (${first.id})`])
+        expect(k.shape(err)).toEqual([
+          409,
+          'domain_exists',
+          `a company with domain acme.com already exists (${first.id})`,
+        ])
         expect(await k.count('companies')).toBe(1)
         expect(await k.events()).toHaveLength(1)
       })
@@ -104,7 +113,9 @@ export function engineSuite(engineName: EngineName): void {
         it('the same domain in another organisation is fine', async () => {
           await k.company({ name: 'A', domain: 'acme.com' })
           const other = await foreignTenant(e)
-          await expect(other.run(createOperation(companies, other.env(), { name: 'B', domain: 'acme.com' }))).resolves.toMatchObject({ domain: 'acme.com' })
+          await expect(
+            other.run(createOperation(companies, other.env(), { name: 'B', domain: 'acme.com' })),
+          ).resolves.toMatchObject({ domain: 'acme.com' })
         })
       }
     })
@@ -115,7 +126,9 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('a missing company is invalid_reference and writes nothing', async () => {
-        const err = await k.fail((env) => createOperation(contacts, env, { company_id: '0190b2c4-0000-7000-8000-00000000dead' }))
+        const err = await k.fail((env) =>
+          createOperation(contacts, env, { company_id: '0190b2c4-0000-7000-8000-00000000dead' }),
+        )
         expect(k.shape(err)).toEqual([400, 'invalid_reference', 'a referenced record does not exist'])
         expect(await k.count('contacts')).toBe(0)
         expect(await k.events()).toHaveLength(0)
@@ -143,14 +156,21 @@ export function engineSuite(engineName: EngineName): void {
         const mark = (await k.events()).length
         await k.deleteContact(c.id)
         const ev = (await k.events()).slice(mark)
-        expect(ev.map((x) => x.type)).toEqual(['contact.deleted', 'identity.deleted', 'identity.deleted', 'identity.deleted'])
+        expect(ev.map((x) => x.type)).toEqual([
+          'contact.deleted',
+          'identity.deleted',
+          'identity.deleted',
+          'identity.deleted',
+        ])
         expect(ev.slice(1).map((x) => x.resource_id)).toEqual([i1.id, i2.id, gone.id].sort())
         for (const x of ev.slice(1)) {
           expect(x.before.id).toBe(x.resource_id)
           expect(x.after).toBeNull()
           expect(x.actor_id).toBe(e.userId)
         }
-        expect((await e.rows('identities')).every((r) => r.deleted_at !== null && r.updated_at === r.deleted_at)).toBe(true)
+        expect((await e.rows('identities')).every((r) => r.deleted_at !== null && r.updated_at === r.deleted_at)).toBe(
+          true,
+        )
         const other = await k.contact({})
         await expect(k.identity({ kind: 'email', value: 'x@y.com', contact_id: other.id })).resolves.toBeDefined()
       })
@@ -174,11 +194,18 @@ export function engineSuite(engineName: EngineName): void {
     describe('identities', () => {
       it('create normalises the value', async () => {
         const c = await k.contact({})
-        expect(await k.identity({ kind: 'email', value: ' Ori@Example.com ', contact_id: c.id })).toMatchObject({ value: 'ori@example.com', own: false, contact_id: c.id })
+        expect(await k.identity({ kind: 'email', value: ' Ori@Example.com ', contact_id: c.id })).toMatchObject({
+          value: 'ori@example.com',
+          own: false,
+          contact_id: c.id,
+        })
       })
 
       it('create own', async () => {
-        expect(await k.identity({ kind: 'email', value: 'me@us.com', own: true })).toMatchObject({ contact_id: null, own: true })
+        expect(await k.identity({ kind: 'email', value: 'me@us.com', own: true })).toMatchObject({
+          contact_id: null,
+          own: true,
+        })
       })
 
       it('enforces the owner rule', async () => {
@@ -194,13 +221,17 @@ export function engineSuite(engineName: EngineName): void {
 
       it('an invalid value is invalid_identity', async () => {
         const c = await k.contact({})
-        const err = await k.fail((env) => createOperation(identities, env, { kind: 'phone', value: '020 7946 0958', contact_id: c.id }))
+        const err = await k.fail((env) =>
+          createOperation(identities, env, { kind: 'phone', value: '020 7946 0958', contact_id: c.id }),
+        )
         expect([err.status, err.code]).toEqual([400, 'invalid_identity'])
       })
 
       it('a non-ASCII email is invalid_identity with the D7 message, never a database error', async () => {
         const c = await k.contact({})
-        const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'jürgen@example.com', contact_id: c.id }))
+        const err = await k.fail((env) =>
+          createOperation(identities, env, { kind: 'email', value: 'jürgen@example.com', contact_id: c.id }),
+        )
         expect(k.shape(err)).toEqual([400, 'invalid_identity', 'non-ASCII email addresses are not supported'])
         expect(await k.count('identities')).toBe(0)
       })
@@ -209,7 +240,11 @@ export function engineSuite(engineName: EngineName): void {
         const c = await k.contact({})
         await k.identity({ kind: 'email', value: 'taken@example.com', contact_id: c.id })
         const err = await k.fail((env) =>
-          createOperation(identities, env, { kind: 'email', value: 'taken@example.com', contact_id: '0190b2c4-0000-7000-8000-00000000dead' }),
+          createOperation(identities, env, {
+            kind: 'email',
+            value: 'taken@example.com',
+            contact_id: '0190b2c4-0000-7000-8000-00000000dead',
+          }),
         )
         expect(err.code).toBe('invalid_reference')
       })
@@ -219,7 +254,9 @@ export function engineSuite(engineName: EngineName): void {
         const y = await k.contact({})
         await k.identity({ kind: 'email', value: 'ori@example.com', contact_id: x.id })
         const mark = (await k.events()).length
-        const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'ORI@example.com', contact_id: y.id }))
+        const err = await k.fail((env) =>
+          createOperation(identities, env, { kind: 'email', value: 'ORI@example.com', contact_id: y.id }),
+        )
         expect(k.shape(err)).toEqual([409, 'identity_exists', `the address already belongs to contact ${x.id}`])
         expect(await k.count('identities')).toBe(1)
         expect(await k.events()).toHaveLength(mark)
@@ -228,7 +265,9 @@ export function engineSuite(engineName: EngineName): void {
       it('identity_exists for an own address', async () => {
         const y = await k.contact({})
         await k.identity({ kind: 'email', value: 'me@us.com', own: true })
-        const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'me@us.com', contact_id: y.id }))
+        const err = await k.fail((env) =>
+          createOperation(identities, env, { kind: 'email', value: 'me@us.com', contact_id: y.id }),
+        )
         expect(k.shape(err)).toEqual([409, 'identity_exists', 'the address is already an own identity'])
       })
 
@@ -279,7 +318,9 @@ export function engineSuite(engineName: EngineName): void {
         expect(await ids({ contact_id: x.id })).toEqual([on.id])
         const noKind = await k.fail((env) => listOperation(identities, env, { filters: { value: 'ori@example.com' } }))
         expect(k.shape(noKind)).toEqual([400, 'validation_error', 'filter value requires kind'])
-        const invalid = await k.fail((env) => listOperation(identities, env, { filters: { kind: 'phone', value: 'abc' } }))
+        const invalid = await k.fail((env) =>
+          listOperation(identities, env, { filters: { kind: 'phone', value: 'abc' } }),
+        )
         expect([invalid.status, invalid.code]).toEqual([400, 'invalid_identity'])
       })
 
@@ -293,7 +334,9 @@ export function engineSuite(engineName: EngineName): void {
         it("another organisation's contact is invalid_reference", async () => {
           const other = await foreignTenant(e)
           const theirs = await other.run(createOperation(contacts, other.env(), {}))
-          const err = await k.fail((env) => createOperation(identities, env, { kind: 'email', value: 'a@b.com', contact_id: theirs.id }))
+          const err = await k.fail((env) =>
+            createOperation(identities, env, { kind: 'email', value: 'a@b.com', contact_id: theirs.id }),
+          )
           expect(err.code).toBe('invalid_reference')
         })
       }

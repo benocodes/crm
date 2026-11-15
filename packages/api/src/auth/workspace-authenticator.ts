@@ -102,12 +102,29 @@ export function createWorkspaceAuthenticator(opts: {
     if (storage.kind !== 'd1') throw new Error('the workspace authenticator serves a D1 deployment only')
     const organizationId = storage.organizationId
     const delegating = clientId !== null && clientId !== cliClientId
-    const found = await lookupPrincipal(storage, { provider, subject, clientId: delegating ? clientId : null, organizationId })
-    const wrongOrganization = organizationHeader !== undefined && organizationHeader.toLowerCase() !== organizationId.toLowerCase()
+    const found = await lookupPrincipal(storage, {
+      provider,
+      subject,
+      clientId: delegating ? clientId : null,
+      organizationId,
+    })
+    const wrongOrganization =
+      organizationHeader !== undefined && organizationHeader.toLowerCase() !== organizationId.toLowerCase()
     const agentPrincipal = (agentId: string, scopes: string[]): Principal =>
       wrongOrganization
-        ? { actor: { id: agentId, kind: 'agent' }, organizationId: null, scopes: ScopeSet.parse([]), organizationForbidden: true, ...(clientId ? { clientId } : {}) }
-        : { actor: { id: agentId, kind: 'agent' }, organizationId, scopes: ScopeSet.parse(scopes), ...(clientId ? { clientId } : {}) }
+        ? {
+            actor: { id: agentId, kind: 'agent' },
+            organizationId: null,
+            scopes: ScopeSet.parse([]),
+            organizationForbidden: true,
+            ...(clientId ? { clientId } : {}),
+          }
+        : {
+            actor: { id: agentId, kind: 'agent' },
+            organizationId,
+            scopes: ScopeSet.parse(scopes),
+            ...(clientId ? { clientId } : {}),
+          }
 
     if (found.account !== null) {
       if (found.userId !== null) {
@@ -127,9 +144,22 @@ export function createWorkspaceAuthenticator(opts: {
       // A session JWT, or the first-party CLI acting as the person (D16).
       const actor = { id: found.userId, kind: 'user' as const }
       const resolved = resolveActiveOrganization({ organizationId, role }, organizationHeader)
-      if (resolved.organizationId === null) return { actor, organizationId: null, scopes: ScopeSet.parse([]), organizationForbidden: true, ...(clientId ? { clientId } : {}) }
+      if (resolved.organizationId === null)
+        return {
+          actor,
+          organizationId: null,
+          scopes: ScopeSet.parse([]),
+          organizationForbidden: true,
+          ...(clientId ? { clientId } : {}),
+        }
       const roleScopes = scopesForRole(resolved.role, declaredScopes, policy).toStrings()
-      return { actor, organizationId: resolved.organizationId, scopes: ScopeSet.parse(tokenScopes ? meet(roleScopes, tokenScopes) : roleScopes), role: resolved.role, ...(clientId ? { clientId } : {}) }
+      return {
+        actor,
+        organizationId: resolved.organizationId,
+        scopes: ScopeSet.parse(tokenScopes ? meet(roleScopes, tokenScopes) : roleScopes),
+        role: resolved.role,
+        ...(clientId ? { clientId } : {}),
+      }
     }
 
     // Any other OAuth client: the person's delegated agent for this client (D15), created on first sight.
@@ -148,7 +178,16 @@ export function createWorkspaceAuthenticator(opts: {
       }
       const clientName = await adapter.fetchOAuthClientName(clientId!).catch(() => null)
       const name = `${clientName ?? clientId} (${p.email ?? subject})`
-      delegated = await provisionAgent(storage, env, { provider, subject, clientId, kind: 'delegated', name, scopes: grantable, humanId: found.userId, organizationId })
+      delegated = await provisionAgent(storage, env, {
+        provider,
+        subject,
+        clientId,
+        kind: 'delegated',
+        name,
+        scopes: grantable,
+        humanId: found.userId,
+        organizationId,
+      })
     }
     if (delegated.disabled) throw new AuthFailure('disabled')
     const roleScopes = scopesForRole(role, declaredScopes, policy).toStrings()
@@ -167,7 +206,16 @@ export function createWorkspaceAuthenticator(opts: {
       const clientId = verified.kind === 'oauth' ? verified.clientId : null
 
       if (adapter.roleSource === 'membership') {
-        return authenticateByMembership({ storage, organizationHeader, env, provider, nowMs, subject: verified.subject, clientId, tokenScopes })
+        return authenticateByMembership({
+          storage,
+          organizationHeader,
+          env,
+          provider,
+          nowMs,
+          subject: verified.subject,
+          clientId,
+          tokenScopes,
+        })
       }
 
       // The role: the claim of a session token, the profile's metadata for an OAuth token (D12).
@@ -206,15 +254,31 @@ export function createWorkspaceAuthenticator(opts: {
       }
 
       const delegating = oauth && clientId !== cliClientId
-      const found = await lookupPrincipal(storage, { provider, subject: verified.subject, clientId: delegating ? clientId : null })
+      const found = await lookupPrincipal(storage, {
+        provider,
+        subject: verified.subject,
+        clientId: delegating ? clientId : null,
+      })
 
       // Every principal lives in the deployment's organisation; a header naming another is a cross-check failure ([[CORE3]] D7).
       const organizationId = storage.organizationId
-      const wrongOrganization = organizationHeader !== undefined && organizationHeader.toLowerCase() !== organizationId.toLowerCase()
+      const wrongOrganization =
+        organizationHeader !== undefined && organizationHeader.toLowerCase() !== organizationId.toLowerCase()
       const agentPrincipal = (agentId: string, scopes: string[]): Principal =>
         wrongOrganization
-          ? { actor: { id: agentId, kind: 'agent' }, organizationId: null, scopes: ScopeSet.parse([]), organizationForbidden: true, ...(clientId ? { clientId } : {}) }
-          : { actor: { id: agentId, kind: 'agent' }, organizationId, scopes: ScopeSet.parse(scopes), ...(clientId ? { clientId } : {}) }
+          ? {
+              actor: { id: agentId, kind: 'agent' },
+              organizationId: null,
+              scopes: ScopeSet.parse([]),
+              organizationForbidden: true,
+              ...(clientId ? { clientId } : {}),
+            }
+          : {
+              actor: { id: agentId, kind: 'agent' },
+              organizationId,
+              scopes: ScopeSet.parse(scopes),
+              ...(clientId ? { clientId } : {}),
+            }
 
       if (isAgentAccount) {
         if (found.userId !== null) {
@@ -225,8 +289,19 @@ export function createWorkspaceAuthenticator(opts: {
           found.account ??
           (await refuseRemoved(async () => {
             const p = await profileForFirstSight(verified.subject)
-            const name = [p.name, p.email, verified.subject].find((n): n is string => typeof n === 'string' && n.trim() !== '')!.trim()
-            return provisionAgent(storage, env, { provider, subject: verified.subject, clientId: null, kind: 'account', name, scopes: [], humanId: null, organizationId })
+            const name = [p.name, p.email, verified.subject]
+              .find((n): n is string => typeof n === 'string' && n.trim() !== '')!
+              .trim()
+            return provisionAgent(storage, env, {
+              provider,
+              subject: verified.subject,
+              clientId: null,
+              kind: 'account',
+              name,
+              scopes: [],
+              humanId: null,
+              organizationId,
+            })
           }))
         if (account.disabled) throw new AuthFailure('disabled')
         // D17: the grants, narrowed by an OAuth token's scopes; never a human-only scope.
@@ -247,7 +322,14 @@ export function createWorkspaceAuthenticator(opts: {
         // A session token, or the first-party CLI acting as the person (D16).
         const actor = { id: login.userId, kind: 'user' as const }
         const resolved = resolveActiveOrganization({ organizationId, role: humanRole }, organizationHeader)
-        if (resolved.organizationId === null) return { actor, organizationId: null, scopes: ScopeSet.parse([]), organizationForbidden: true, ...(clientId ? { clientId } : {}) }
+        if (resolved.organizationId === null)
+          return {
+            actor,
+            organizationId: null,
+            scopes: ScopeSet.parse([]),
+            organizationForbidden: true,
+            ...(clientId ? { clientId } : {}),
+          }
         const roleScopes = scopesForRole(resolved.role, declaredScopes, policy).toStrings()
         return {
           actor,
@@ -264,7 +346,16 @@ export function createWorkspaceAuthenticator(opts: {
         const p = await profileForFirstSight(verified.subject)
         const clientName = await adapter.fetchOAuthClientName(clientId!).catch(() => null)
         const name = `${clientName ?? clientId} (${p.email ?? verified.subject})`
-        delegated = await provisionAgent(storage, env, { provider, subject: verified.subject, clientId, kind: 'delegated', name, scopes: grantable, humanId: login.userId, organizationId })
+        delegated = await provisionAgent(storage, env, {
+          provider,
+          subject: verified.subject,
+          clientId,
+          kind: 'delegated',
+          name,
+          scopes: grantable,
+          humanId: login.userId,
+          organizationId,
+        })
       }
       if (delegated.disabled) throw new AuthFailure('disabled')
       const roleScopes = scopesForRole(humanRole, declaredScopes, policy).toStrings()

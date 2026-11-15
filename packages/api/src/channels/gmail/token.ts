@@ -3,7 +3,12 @@
 // one unit) when Google returns a new refresh token. Errors carry a short code only: never a token, the key or provider text.
 import { defineOperation, execute, readMaybe, step, unit, type StorageBinding } from '@vibase/storage'
 import { sealToken, openToken } from '../../connections/credentials.js'
-import { GoogleRefreshError, refreshAccessToken, GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../../connections/google.js'
+import {
+  GoogleRefreshError,
+  refreshAccessToken,
+  GOOGLE_ENDPOINTS,
+  type GoogleEndpoints,
+} from '../../connections/google.js'
 
 /** A resolver failure that is not Google's verdict on the grant (that is a `GoogleRefreshError`). */
 export class GmailCredentialError extends Error {
@@ -46,7 +51,11 @@ async function resolve(d: TokenResolverDeps): Promise<string> {
       credential: readMaybe(
         qc.db
           .selectFrom('channel_credentials')
-          .select(['channel_credentials.id', 'channel_credentials.refresh_token_ciphertext', 'channel_credentials.key_version'])
+          .select([
+            'channel_credentials.id',
+            'channel_credentials.refresh_token_ciphertext',
+            'channel_credentials.key_version',
+          ])
           .where('channel_credentials.connection_id', '=', d.connectionId)
           .where('channel_credentials.organization_id', '=', d.organizationId)
           .orderBy('channel_credentials.created_at', 'desc')
@@ -60,7 +69,13 @@ async function resolve(d: TokenResolverDeps): Promise<string> {
         events: [],
         decode: () => {
           const row = found.maybe('credential')
-          return row ? { id: String(row.id), refresh_token_ciphertext: String(row.refresh_token_ciphertext), key_version: Number(row.key_version) } : null
+          return row
+            ? {
+                id: String(row.id),
+                refresh_token_ciphertext: String(row.refresh_token_ciphertext),
+                key_version: Number(row.key_version),
+              }
+            : null
         },
       }),
   })
@@ -74,7 +89,14 @@ async function resolve(d: TokenResolverDeps): Promise<string> {
     throw new GmailCredentialError('credential_unreadable')
   }
   d.signal?.throwIfAborted()
-  const refreshed = await refreshAccessToken({ endpoints: d.endpoints ?? GOOGLE_ENDPOINTS, clientId: d.clientId, clientSecret: d.clientSecret, refreshToken, fetch: d.fetch ?? ((i, n) => fetch(i, n)),...(d.signal?{signal:d.signal}:{}) })
+  const refreshed = await refreshAccessToken({
+    endpoints: d.endpoints ?? GOOGLE_ENDPOINTS,
+    clientId: d.clientId,
+    clientSecret: d.clientSecret,
+    refreshToken,
+    fetch: d.fetch ?? ((i, n) => fetch(i, n)),
+    ...(d.signal ? { signal: d.signal } : {}),
+  })
   d.signal?.throwIfAborted()
   if (refreshed.refreshToken !== null && refreshed.refreshToken !== refreshToken) {
     const ciphertext = await sealToken(d.credentialsKey, refreshed.refreshToken, d.randomBytes(12))
@@ -87,8 +109,24 @@ async function resolve(d: TokenResolverDeps): Promise<string> {
       build: (_found, qc) =>
         unit({
           steps: [
-            step(qc.db.insertInto('channel_credentials').values({ id: newId, organization_id: d.organizationId, created_by: d.ownerId, created_at: at, connection_id: d.connectionId, refresh_token_ciphertext: ciphertext, key_version: d.keyVersion })),
-            step(qc.db.deleteFrom('channel_credentials').where('connection_id', '=', d.connectionId).where('organization_id', '=', d.organizationId).where('id', '!=', newId)),
+            step(
+              qc.db.insertInto('channel_credentials').values({
+                id: newId,
+                organization_id: d.organizationId,
+                created_by: d.ownerId,
+                created_at: at,
+                connection_id: d.connectionId,
+                refresh_token_ciphertext: ciphertext,
+                key_version: d.keyVersion,
+              }),
+            ),
+            step(
+              qc.db
+                .deleteFrom('channel_credentials')
+                .where('connection_id', '=', d.connectionId)
+                .where('organization_id', '=', d.organizationId)
+                .where('id', '!=', newId),
+            ),
           ],
           events: [],
           decode: () => undefined,

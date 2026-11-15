@@ -82,20 +82,30 @@ export function verifyRelease(dir: string): Problem[] {
     if (!present.has(path)) problems.push({ path, kind: 'missing' })
     else if (sha256(readFileSync(join(dir, path))) !== hash) problems.push({ path, kind: 'mismatch' })
   }
-  for (const path of present) if (!UNHASHED.has(path) && !(path in manifest.files)) problems.push({ path, kind: 'extra' })
+  for (const path of present)
+    if (!UNHASHED.has(path) && !(path in manifest.files)) problems.push({ path, kind: 'extra' })
   // The migration lists the compatibility gates compare must agree with the files they name: the CRM list and the control list ([[OPS260]] D14), each its own directory.
-  for (const [dirName, list] of [['migrations', manifest.migrations ?? []], ['control-migrations', manifest.control_migrations ?? []]] as const) {
+  for (const [dirName, list] of [
+    ['migrations', manifest.migrations ?? []],
+    ['control-migrations', manifest.control_migrations ?? []],
+  ] as const) {
     for (const m of list) {
       const p = `${dirName}/${m.name}`
       if (p in manifest.files && manifest.files[p] !== m.sha256) problems.push({ path: p, kind: 'mismatch' })
-      else if (!(p in manifest.files) && !problems.some((x) => x.path === p)) problems.push({ path: p, kind: 'missing' })
+      else if (!(p in manifest.files) && !problems.some((x) => x.path === p))
+        problems.push({ path: p, kind: 'missing' })
     }
     const listed = new Set(list.map((m) => `${dirName}/${m.name}`))
-    for (const p of Object.keys(manifest.files)) if (p.startsWith(`${dirName}/`) && !listed.has(p)) problems.push({ path: p, kind: 'extra' })
+    for (const p of Object.keys(manifest.files))
+      if (p.startsWith(`${dirName}/`) && !listed.has(p)) problems.push({ path: p, kind: 'extra' })
   }
   // The control set is applied in order: a list out of order is refused, naming the first file that sorts before its predecessor.
   const control = (manifest.control_migrations ?? []).map((m) => m.name)
-  for (let i = 1; i < control.length; i++) if (control[i]! < control[i - 1]!) { problems.push({ path: `control-migrations/${control[i]}`, kind: 'reordered' }); break }
+  for (let i = 1; i < control.length; i++)
+    if (control[i]! < control[i - 1]!) {
+      problems.push({ path: `control-migrations/${control[i]}`, kind: 'reordered' })
+      break
+    }
   const seen = new Set<string>()
   return problems.filter((p) => !seen.has(`${p.kind}:${p.path}`) && seen.add(`${p.kind}:${p.path}`))
 }
@@ -103,5 +113,7 @@ export function verifyRelease(dir: string): Problem[] {
 export function assertRelease(dir: string): void {
   const problems = verifyRelease(dir)
   if (problems.length === 0) return
-  throw new ReleaseRefusal(`release.json does not match ${dir}: ${problems.map((p) => `${p.path} (${p.kind})`).join(', ')}`)
+  throw new ReleaseRefusal(
+    `release.json does not match ${dir}: ${problems.map((p) => `${p.path} (${p.kind})`).join(', ')}`,
+  )
 }

@@ -3,12 +3,31 @@ import { join } from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { runStatus } from './status.js'
 import { controlStdout, countsFacts, crmStdout, isReadOnlySql, sweepReadOf } from '../sweep-counts-kit.js'
-import { ACCOUNT, bindingOf, captureHealthBody, CONTROL_ALL, controlSettings, cleanup, makeWorld, mkTmp, NO_TRACKER_JSON, packageLine, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
+import {
+  ACCOUNT,
+  bindingOf,
+  captureHealthBody,
+  CONTROL_ALL,
+  controlSettings,
+  cleanup,
+  makeWorld,
+  mkTmp,
+  NO_TRACKER_JSON,
+  packageLine,
+  TOKEN,
+  trackerJson,
+  validSettings,
+  type World,
+  type WorldOptions,
+} from './test-kit.js'
 
 afterEach(cleanup)
 let HEALTH: Record<string, any>
-beforeAll(async () => { HEALTH = await captureHealthBody() }, 60_000)
-const healthRes = (version: string) => () => new Response(JSON.stringify({ ...HEALTH, version }), { status: 200, headers: { 'content-type': 'application/json' } })
+beforeAll(async () => {
+  HEALTH = await captureHealthBody()
+}, 60_000)
+const healthRes = (version: string) => () =>
+  new Response(JSON.stringify({ ...HEALTH, version }), { status: 200, headers: { 'content-type': 'application/json' } })
 const status = async (o: WorldOptions & { version?: string; argv?: string[] } = {}) => {
   const w = makeWorld({ health: healthRes(o.version ?? '0.1.0'), ...o })
   return { w, code: await runStatus(o.argv ?? ['--env', 'demo'], w.deps) }
@@ -45,7 +64,10 @@ describe('D15 status', () => {
   })
 
   it('an older live version prints the plan (both versions, the pending names in order) and exits 1', async () => {
-    const { w, code } = await status({ version: '0.0.9', runner: () => ({ status: 0, stdout: trackerJson([]), stderr: '' }) })
+    const { w, code } = await status({
+      version: '0.0.9',
+      runner: () => ({ status: 0, stdout: trackerJson([]), stderr: '' }),
+    })
     expect(code).toBe(1)
     const out = w.out.join('\n')
     expect(out).toMatch(/0\.0\.9/)
@@ -100,7 +122,9 @@ describe('D15 status', () => {
     // the default location is moved away: only the flags can find the files
     const moved = { ...w.deps, env: { ...w.deps.env, XDG_CONFIG_HOME: '/nonexistent' } }
     expect(await runStatus(['--env', 'demo'], moved)).toBe(2)
-    expect(await runStatus(['--env', 'demo', '--settings', w.settingsPath, '--secrets-file', w.secretsPath], moved)).toBe(0)
+    expect(
+      await runStatus(['--env', 'demo', '--settings', w.settingsPath, '--secrets-file', w.secretsPath], moved),
+    ).toBe(0)
   })
 })
 
@@ -121,7 +145,14 @@ describe('D10 secrets are never printed', () => {
     const env = w.wrangler[0]!.env
     expect(env.CLOUDFLARE_API_TOKEN).toBe(TOKEN)
     expect(env.CLOUDFLARE_ACCOUNT_ID).toBe(ACCOUNT)
-    expect(Object.keys(env).sort()).toEqual(['CI', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'HOME', 'PATH', 'WRANGLER_SEND_METRICS'])
+    expect(Object.keys(env).sort()).toEqual([
+      'CI',
+      'CLOUDFLARE_ACCOUNT_ID',
+      'CLOUDFLARE_API_TOKEN',
+      'HOME',
+      'PATH',
+      'WRANGLER_SEND_METRICS',
+    ])
     leaks(w)
   })
   it('process env wins for the two names', async () => {
@@ -131,7 +162,13 @@ describe('D10 secrets are never printed', () => {
     expect(w.wrangler[0]!.env.CLOUDFLARE_ACCOUNT_ID).toBe(ACCOUNT)
   })
   it('a wrangler failure that echoes its whole environment prints no secret', async () => {
-    const { w, code } = await status({ runner: (_a, env) => ({ status: 1, stdout: JSON.stringify(env), stderr: `failed with env ${JSON.stringify(env)} token=${env.CLOUDFLARE_API_TOKEN}` }) })
+    const { w, code } = await status({
+      runner: (_a, env) => ({
+        status: 1,
+        stdout: JSON.stringify(env),
+        stderr: `failed with env ${JSON.stringify(env)} token=${env.CLOUDFLARE_API_TOKEN}`,
+      }),
+    })
     expect(code).toBe(2)
     expect(w.err.join('\n')).toMatch(/wrangler d1 execute failed/)
     leaks(w)
@@ -161,7 +198,10 @@ describe('P4 refusal mapping', () => {
     const home = mkTmp('ops234-home-')
     mkdirSync(join(home, '.wrangler', 'config'), { recursive: true })
     writeFileSync(join(home, '.wrangler', 'config', 'default.toml'), 'oauth_token = "stored-login-token"\n')
-    for (const secretsText of ['CLOUDFLARE_ACCOUNT_ID=e2e-acct-0000\n', 'CLOUDFLARE_API_TOKEN=e2e-token-SECRET-0000\n']) {
+    for (const secretsText of [
+      'CLOUDFLARE_ACCOUNT_ID=e2e-acct-0000\n',
+      'CLOUDFLARE_API_TOKEN=e2e-token-SECRET-0000\n',
+    ]) {
       const { w, code } = await status({ secretsText, processEnv: { HOME: home } })
       expect(code).toBe(2)
       expect(w.err.join('\n')).toMatch(/CLOUDFLARE_(ACCOUNT_ID|API_TOKEN) is not set/)
@@ -178,8 +218,12 @@ describe('CORE289 sweep counts', () => {
       ...(o.control === false ? {} : { settings: controlSettings() }),
       runner: (args) => {
         const kind = sweepReadOf(args)
-        if (kind) return o.fail ? { status: 1, stdout: '', stderr: 'wrangler exploded' } : { status: 0, stdout: kind === 'control' ? controlStdout(f.control) : crmStdout(f.crm), stderr: '' }
-        const names = bindingOf(args) === 'CONTROL_DB' ? CONTROL_ALL : o.behind ? ['0001_a.sql'] : ['0001_a.sql', '0002_b.sql']
+        if (kind)
+          return o.fail
+            ? { status: 1, stdout: '', stderr: 'wrangler exploded' }
+            : { status: 0, stdout: kind === 'control' ? controlStdout(f.control) : crmStdout(f.crm), stderr: '' }
+        const names =
+          bindingOf(args) === 'CONTROL_DB' ? CONTROL_ALL : o.behind ? ['0001_a.sql'] : ['0001_a.sql', '0002_b.sql']
         return { status: 0, stdout: trackerJson(names), stderr: '' }
       },
     })
@@ -189,7 +233,10 @@ describe('CORE289 sweep counts', () => {
     const { w, code } = await run()
     expect(code).toBe(0)
     const lines = w.out.filter((l) => l.startsWith('[control] sweep:'))
-    expect(lines).toEqual(['[control] sweep: 1 subject(s) pending revocation', '[control] sweep: 1 orphan account(s) pending deletion'])
+    expect(lines).toEqual([
+      '[control] sweep: 1 subject(s) pending revocation',
+      '[control] sweep: 1 orphan account(s) pending deletion',
+    ])
     const at = (l: string) => w.out.findIndex((x) => x.startsWith(l))
     expect(at('[control] sweep:')).toBeGreaterThan(at('[control] migrations:'))
     expect(at('[control] sweep:')).toBeLessThan(at('[crm] migrations:'))
@@ -197,7 +244,8 @@ describe('CORE289 sweep counts', () => {
   })
   it('every command issued is a read', async () => {
     const { w } = await run()
-    for (const c of w.wrangler) expect(isReadOnlySql(c.args[c.args.indexOf('--command') + 1]!), c.args.join(' ')).toBe(true)
+    for (const c of w.wrangler)
+      expect(isReadOnlySql(c.args[c.args.indexOf('--command') + 1]!), c.args.join(' ')).toBe(true)
   })
   it('an unreadable count prints unavailable with the exit code unchanged', async () => {
     const { w, code } = await run({ fail: true })

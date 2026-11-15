@@ -29,7 +29,11 @@ export function documentOperation(app: OpenAPIHono<AppEnv>, op: Operation): void
     responses: {
       [response.status]: {
         description: response.status === 204 ? 'No content' : 'Success',
-        ...(op.output === 'binary' ? { content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } } } : response.schema ? json(response.schema) : {}),
+        ...(op.output === 'binary'
+          ? { content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } } }
+          : response.schema
+            ? json(response.schema)
+            : {}),
       },
     },
   } as never)

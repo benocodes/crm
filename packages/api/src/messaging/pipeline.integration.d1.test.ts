@@ -1,6 +1,15 @@
 import { sql } from 'kysely'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { CommitOutcomeUnknown, readSet, step, UnitDriftError, uuidv7, unit, type PreparedOperation, type StatementLabel } from '@vibase/storage'
+import {
+  CommitOutcomeUnknown,
+  readSet,
+  step,
+  UnitDriftError,
+  uuidv7,
+  unit,
+  type PreparedOperation,
+  type StatementLabel,
+} from '@vibase/storage'
 import { withFault } from '@vibase/storage/test'
 import type { Program } from '../identity/program.js'
 import { memoryObjectStore } from '../objects/store.js'
@@ -17,7 +26,18 @@ const NOW = '2026-10-22T10:00:00.000Z'
 const C1 = { id: '0190b2c4-0000-7000-8000-0000000000c1' }
 const C2 = { id: '0190b2c4-0000-7000-8000-0000000000c2' }
 const S = standardScripts()
-const TABLES = ['threads', 'messages', 'files', 'message_attachments', 'interactions', 'interaction_participants', 'message_sources', 'thread_sources', 'events', 'tasks'] as const
+const TABLES = [
+  'threads',
+  'messages',
+  'files',
+  'message_attachments',
+  'interactions',
+  'interaction_participants',
+  'message_sources',
+  'thread_sources',
+  'events',
+  'tasks',
+] as const
 
 interface Faults {
   /** Throw `UnitDriftError` from the capture unit's build on these 1-based executions. */
@@ -72,10 +92,19 @@ function engineSuite(): void {
         return e.binding.runtime.execute(identity, prepared)
       }) as typeof e.binding.runtime.execute,
     }
-    return { binding: { ...e.binding, runtime } as typeof e.binding, log, captureUnits: () => log.filter((l) => l.name === 'capture.record') }
+    return {
+      binding: { ...e.binding, runtime } as typeof e.binding,
+      log,
+      captureUnits: () => log.filter((l) => l.name === 'capture.record'),
+    }
   }
 
-  function setup(scripts: FakeMessageScript[], faults: Faults = {}, over: Partial<PipelineContext> = {}, totalCaptureUnits = 0) {
+  function setup(
+    scripts: FakeMessageScript[],
+    faults: Faults = {},
+    over: Partial<PipelineContext> = {},
+    totalCaptureUnits = 0,
+  ) {
     const channel = new FakeChannel(scripts)
     const objects = recordingObjectStore(memoryObjectStore())
     const probe = instrument(faults, totalCaptureUnits)
@@ -92,21 +121,43 @@ function engineSuite(): void {
     }
     const run = async (ids: string[], opts: { final?: Program<unknown>; conn?: { id: string } } = {}) => {
       await ensureConnection(e.binding, e, (opts.conn ?? C1).id)
-      return captureMessages(ctx, channel, opts.conn ?? C1, ids, opts.final === undefined ? undefined : { final: opts.final })
+      return captureMessages(
+        ctx,
+        channel,
+        opts.conn ?? C1,
+        ids,
+        opts.final === undefined ? undefined : { final: opts.final },
+      )
     }
     return { channel, objects, ctx, probe, run }
   }
   /** Messages with their own two addresses each, so with `cap: 2` every message is a chunk of its own. */
-  const solo = (i: number): FakeMessageScript => ({ providerMessageId: `solo-${i}`, from: `from${i}@solo.test`, to: [`to${i}@solo.test`] })
-  const counts = async () => Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, (await e.rows(t)).length] as const)))
+  const solo = (i: number): FakeMessageScript => ({
+    providerMessageId: `solo-${i}`,
+    from: `from${i}@solo.test`,
+    to: [`to${i}@solo.test`],
+  })
+  const counts = async () =>
+    Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, (await e.rows(t)).length] as const)))
 
   /** A stand-in for a caller's own bookkeeping (CHN5's cursor): inserts one task. Labels are given so the composition must strip them. */
   const finalInsert = (title = 'final ran', reads: Record<string, string> = {}): Program<unknown> => ({
-    reads: (qc) => Object.fromEntries(Object.entries({ 'final:count': 'select count(*) as n from "tasks"', ...reads }).map(([k, q]) => [k, readSet(sql.raw(q).compile(qc.db))])),
+    reads: (qc) =>
+      Object.fromEntries(
+        Object.entries({ 'final:count': 'select count(*) as n from "tasks"', ...reads }).map(([k, q]) => [
+          k,
+          readSet(sql.raw(q).compile(qc.db)),
+        ]),
+      ),
     build: (_found, qc) =>
       unit({
         steps: [
-          step(sql`insert into "tasks" ("id", "organization_id", "title", "status", "created_by", "created_at", "updated_at") values (${uuidv7()}, ${e.organizationId}, ${title}, 'open', ${e.userId}, ${NOW}, ${NOW})`.compile(qc.db), 'first-mutation'),
+          step(
+            sql`insert into "tasks" ("id", "organization_id", "title", "status", "created_by", "created_at", "updated_at") values (${uuidv7()}, ${e.organizationId}, ${title}, 'open', ${e.userId}, ${NOW}, ${NOW})`.compile(
+              qc.db,
+            ),
+            'first-mutation',
+          ),
           step(sql`select 1 as one`.compile(qc.db), 'result'),
         ],
         events: [],
@@ -118,9 +169,22 @@ function engineSuite(): void {
     it('captures messages with rows and events, content in the store, and a plain-count result', async () => {
       const t = setup([S.plain!, S.withAttachment!, S.reaction!])
       const result = await t.run(['plain', 'with-attachment', 'reaction'])
-      expect(result).toEqual({ captured: 3, existing: 0, skipped: {}, attachments: { stored: 1, failed: 0, skipped: 0 }, orphaned_objects: 0 })
+      expect(result).toEqual({
+        captured: 3,
+        existing: 0,
+        skipped: {},
+        attachments: { stored: 1, failed: 0, skipped: 0 },
+        orphaned_objects: 0,
+      })
       const c = await counts()
-      expect(c).toMatchObject({ messages: 3, interactions: 3, files: 1, message_attachments: 1, message_sources: 3, threads: 2 })  // the reaction joins `plain`'s thread
+      expect(c).toMatchObject({
+        messages: 3,
+        interactions: 3,
+        files: 1,
+        message_attachments: 1,
+        message_sources: 3,
+        threads: 2,
+      }) // the reaction joins `plain`'s thread
       const types = (await e.rows('events')).map((r) => r.type as string)
       expect(types.filter((x) => x === 'message.created')).toHaveLength(3)
       expect(types.filter((x) => x === 'file.created')).toHaveLength(1)
@@ -136,11 +200,26 @@ function engineSuite(): void {
     })
 
     it('records attachment outcomes: stored, failed (code only) and skipped', async () => {
-      const t = setup([{ providerMessageId: 'mix', attachments: [S.withAttachment!.attachments![0]!, S.failingAttachment!.attachments![0]!, S.hugeAttachment!.attachments![0]!, S.mismatch!.attachments![0]!] }])
+      const t = setup([
+        {
+          providerMessageId: 'mix',
+          attachments: [
+            S.withAttachment!.attachments![0]!,
+            S.failingAttachment!.attachments![0]!,
+            S.hugeAttachment!.attachments![0]!,
+            S.mismatch!.attachments![0]!,
+          ],
+        },
+      ])
       const result = await t.run(['mix'])
       expect(result.attachments).toEqual({ stored: 1, failed: 2, skipped: 1 })
       const rows = await e.rows('message_attachments')
-      expect(rows.map((r) => [r.position, r.fetch_status, r.fetch_error])).toEqual([[0, 'stored', null], [1, 'failed', 'not_found'], [2, 'skipped', null], [3, 'failed', 'length_mismatch']])
+      expect(rows.map((r) => [r.position, r.fetch_status, r.fetch_error])).toEqual([
+        [0, 'stored', null],
+        [1, 'failed', 'not_found'],
+        [2, 'skipped', null],
+        [3, 'failed', 'length_mismatch'],
+      ])
     })
 
     it('a reply that arrives before its parent lands in the parent thread', async () => {
@@ -169,7 +248,10 @@ function engineSuite(): void {
     })
 
     it('a message with more stored attachments than the cap is skipped as too_many_attachments, before anything is stored', async () => {
-      const three = { providerMessageId: 'three', attachments: [0, 1, 2].map((i) => ({ name: `f${i}`, bytes: bytesOf(5, i) })) }
+      const three = {
+        providerMessageId: 'three',
+        attachments: [0, 1, 2].map((i) => ({ name: `f${i}`, bytes: bytesOf(5, i) })),
+      }
       const t = setup([three, S.plain!], {}, { cap: 2 })
       const result = await t.run(['three', 'plain'])
       expect(result.skipped).toEqual({ too_many_attachments: 1 })
@@ -178,8 +260,14 @@ function engineSuite(): void {
     })
 
     it('chunks by stored attachments, and an existing message contributes none', async () => {
-      const two = { providerMessageId: 'two', attachments: [0, 1].map((i) => ({ name: `f${i}`, bytes: bytesOf(5, i) })) }
-      const more = { providerMessageId: 'more', attachments: [0, 1].map((i) => ({ name: `g${i}`, bytes: bytesOf(6, i + 10) })) }
+      const two = {
+        providerMessageId: 'two',
+        attachments: [0, 1].map((i) => ({ name: `f${i}`, bytes: bytesOf(5, i) })),
+      }
+      const more = {
+        providerMessageId: 'more',
+        attachments: [0, 1].map((i) => ({ name: `g${i}`, bytes: bytesOf(6, i + 10) })),
+      }
       const t = setup([two, more, S.plain!], {}, { cap: 2 })
       await t.run(['two'])
       expect(t.probe.captureUnits()).toHaveLength(1)
@@ -199,7 +287,12 @@ function engineSuite(): void {
     it('a second capture of the same batch opens no raw, fetches no attachment, writes no object and no row', async () => {
       const t = setup([S.withAttachment!, S.plain!])
       await t.run(['with-attachment', 'plain'])
-      const before = { opens: [...t.channel.opens], fetches: t.channel.fetches.length, writes: t.objects.writes.length, counts: await counts() }
+      const before = {
+        opens: [...t.channel.opens],
+        fetches: t.channel.fetches.length,
+        writes: t.objects.writes.length,
+        counts: await counts(),
+      }
       const result = await t.run(['with-attachment', 'plain'])
       expect(result).toMatchObject({ captured: 0, existing: 2, attachments: { stored: 0, failed: 0, skipped: 0 } })
       expect(t.channel.opens).toEqual(before.opens)
@@ -217,7 +310,11 @@ function engineSuite(): void {
       const writesBefore = t.objects.writes.length
       await t.run(['with-attachment', 'plain'], { conn: C2 })
       const after = await counts()
-      expect(after).toEqual({ ...before, message_sources: before.message_sources! + 2, thread_sources: before.thread_sources! + 2 })
+      expect(after).toEqual({
+        ...before,
+        message_sources: before.message_sources! + 2,
+        thread_sources: before.thread_sources! + 2,
+      })
       expect(t.channel.fetches).toHaveLength(fetchesBefore)
       expect(t.channel.opens).toHaveLength(opensBefore)
       expect(t.objects.writes).toHaveLength(writesBefore)
@@ -269,7 +366,10 @@ function engineSuite(): void {
     })
 
     it('an empty final does not change the unit shape', async () => {
-      const empty: Program<unknown> = { reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => null }) }
+      const empty: Program<unknown> = {
+        reads: () => ({}),
+        build: () => unit({ steps: [], events: [], decode: () => null }),
+      }
       const a = setup([S.plain!])
       await a.run(['plain'], { final: empty })
       await e.reset()
@@ -278,15 +378,21 @@ function engineSuite(): void {
       expect(a.probe.captureUnits()[0]!.steps).toBe(b.probe.captureUnits()[0]!.steps)
     })
 
-    it.each(['capture:existing', 'capture:files', 'resolve:known'])('a read key that collides (%s) throws before anything runs', async (key) => {
-      const t = setup([S.withAttachment!])
-      const clash: Program<unknown> = { reads: (qc) => ({ [key]: readSet(sql`select 1 as one`.compile(qc.db)) }), build: () => unit({ steps: [], events: [], decode: () => null }) }
-      await expect(t.run(['with-attachment'], { final: clash })).rejects.toThrow(/collid/)
-      expect(t.objects.writes).toEqual([])
-      expect(t.channel.fetches).toEqual([])
-      expect(t.probe.log).toEqual([])
-      expect(await counts()).toMatchObject({ messages: 0, events: 0 })
-    })
+    it.each(['capture:existing', 'capture:files', 'resolve:known'])(
+      'a read key that collides (%s) throws before anything runs',
+      async (key) => {
+        const t = setup([S.withAttachment!])
+        const clash: Program<unknown> = {
+          reads: (qc) => ({ [key]: readSet(sql`select 1 as one`.compile(qc.db)) }),
+          build: () => unit({ steps: [], events: [], decode: () => null }),
+        }
+        await expect(t.run(['with-attachment'], { final: clash })).rejects.toThrow(/collid/)
+        expect(t.objects.writes).toEqual([])
+        expect(t.channel.fetches).toEqual([])
+        expect(t.probe.log).toEqual([])
+        expect(await counts()).toMatchObject({ messages: 0, events: 0 })
+      },
+    )
   })
 
   describe('drift', () => {
@@ -319,7 +425,15 @@ function engineSuite(): void {
       const t = setup([S.withAttachment!])
       const external = '<with-attachment@fake.test>'
       e.betweenPlanAndCommit(async () => {
-        await runCapture(e, { connection_id: C2.id, messages: [captureMessage(e.organizationId, { external_id: external, attachments: [storedAttachment(e.organizationId, 0)] })] })
+        await runCapture(e, {
+          connection_id: C2.id,
+          messages: [
+            captureMessage(e.organizationId, {
+              external_id: external,
+              attachments: [storedAttachment(e.organizationId, 0)],
+            }),
+          ],
+        })
       })
       const result = await t.run(['with-attachment'])
       expect(result).toMatchObject({ captured: 0, existing: 1 })
@@ -333,7 +447,10 @@ function engineSuite(): void {
   })
 
   describe('duplicate objects', () => {
-    const same = (id: string): FakeMessageScript => ({ providerMessageId: id, attachments: [{ name: 'same.bin', bytes: bytesOf(64, 9) }] })
+    const same = (id: string): FakeMessageScript => ({
+      providerMessageId: id,
+      attachments: [{ name: 'same.bin', bytes: bytesOf(64, 9) }],
+    })
 
     it('deletes the second copy of identical bytes after the unit', async () => {
       const t = setup([same('d1'), same('d2')])
@@ -373,7 +490,16 @@ function engineSuite(): void {
       expect(structuredClone(result)).toEqual(result)
       expect(Object.keys(result).sort()).toEqual(['attachments', 'captured', 'existing', 'orphaned_objects', 'skipped'])
       const text = JSON.stringify(result)
-      for (const secret of ['acme.test', 'vibase.test', 'fake.test', 'Hello', 'secret-token', 'bücher', e.organizationId]) expect(text).not.toContain(secret)
+      for (const secret of [
+        'acme.test',
+        'vibase.test',
+        'fake.test',
+        'Hello',
+        'secret-token',
+        'bücher',
+        e.organizationId,
+      ])
+        expect(text).not.toContain(secret)
       expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/)
     })
 

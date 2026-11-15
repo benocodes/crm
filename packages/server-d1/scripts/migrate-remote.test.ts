@@ -6,8 +6,17 @@ import { runMigrate, type MigrateDeps } from './migrate-remote.js'
 // [[OPS260]] D14: the wrangler exec is faked; nothing here reaches a remote database.
 const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
 const CONTROL_UUID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
-const crmOnly = { name: 'vault-smoked1', d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }] }
-const both = { ...crmOnly, d1_databases: [...crmOnly.d1_databases, { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true }] }
+const crmOnly = {
+  name: 'vault-smoked1',
+  d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }],
+}
+const both = {
+  ...crmOnly,
+  d1_databases: [
+    ...crmOnly.d1_databases,
+    { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true },
+  ],
+}
 const MISSING = JSON.stringify({ error: { text: 'x', notes: [{ text: 'no such table: d1_migrations' }] } })
 
 function fake(config: object, failOn?: (args: string) => boolean) {
@@ -68,7 +77,16 @@ describe('db:migrate:remote (OPS260 D14)', () => {
     expect(r.out).toContain('control plane: not configured for env smoked1 (CRM only)')
   })
   it('a placeholder id is refused before any exec', () => {
-    for (const cfg of [{ ...crmOnly, d1_databases: [{ ...crmOnly.d1_databases[0]!, database_id: PLACEHOLDER_DATABASE_ID }] }, { ...both, d1_databases: [both.d1_databases[0]!, { ...both.d1_databases[1]!, database_id: '00000000-0000-0000-0000-000000000001' }] }]) {
+    for (const cfg of [
+      { ...crmOnly, d1_databases: [{ ...crmOnly.d1_databases[0]!, database_id: PLACEHOLDER_DATABASE_ID }] },
+      {
+        ...both,
+        d1_databases: [
+          both.d1_databases[0]!,
+          { ...both.d1_databases[1]!, database_id: '00000000-0000-0000-0000-000000000001' },
+        ],
+      },
+    ]) {
       const f = fake(cfg)
       expect(() => runMigrate(['--env', 'smoked1'], { CONFIRM_REMOTE: '1' }, f.deps)).toThrow(RemoteRefusal)
       expect(f.calls.filter((c) => c !== 'loadEnv')).toEqual([])

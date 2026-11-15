@@ -10,7 +10,9 @@ describe('r2 keys (CORE25 D23)', () => {
   })
   it('hashes the UTF-8 bytes', async () => {
     const hex = createHash('sha256').update(Buffer.from('é@x', 'utf8')).digest('hex')
-    expect((await messageContentPrefix('0190b2c4-0000-7000-8000-00000000a001', 'email', 'é@x')).endsWith(`/${hex}`)).toBe(true)
+    expect(
+      (await messageContentPrefix('0190b2c4-0000-7000-8000-00000000a001', 'email', 'é@x')).endsWith(`/${hex}`),
+    ).toBe(true)
   })
   it('body and original keys', () => {
     expect(messageBodyKey('p/q', 2)).toBe('p/q/v2/body.md')

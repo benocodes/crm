@@ -3,297 +3,296 @@
  * Please do not edit it manually.
  */
 
-import type { ColumnType } from "kysely";
+import type { ColumnType } from 'kysely'
 
-export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
-  ? ColumnType<S, I | undefined, U>
-  : ColumnType<T, T | undefined, T>;
+export type Generated<T> =
+  T extends ColumnType<infer S, infer I, infer U> ? ColumnType<S, I | undefined, U> : ColumnType<T, T | undefined, T>
 
-export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>
 
-export type Json = JsonValue;
+export type Json = JsonValue
 
-export type JsonArray = JsonValue[];
+export type JsonArray = JsonValue[]
 
 export type JsonObject = {
-  [x: string]: JsonValue | undefined;
-};
+  [x: string]: JsonValue | undefined
+}
 
-export type JsonPrimitive = boolean | number | string | null;
+export type JsonPrimitive = boolean | number | string | null
 
-export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
+export type JsonValue = JsonArray | JsonObject | JsonPrimitive
 
-export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+export type Timestamp = ColumnType<Date, Date | string, Date | string>
 
 export interface Agents {
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  disabled_at: Timestamp | null;
-  id: string;
-  name: string;
-  organization_id: string;
-  scopes: Generated<string[]>;
-  updated_at: Generated<Timestamp>;
+  created_at: Generated<Timestamp>
+  created_by: string
+  disabled_at: Timestamp | null
+  id: string
+  name: string
+  organization_id: string
+  scopes: Generated<string[]>
+  updated_at: Generated<Timestamp>
 }
 
 export interface ApiKeys {
-  agent_id: string;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  expires_at: Timestamp | null;
-  id: Generated<string>;
-  key_hash: string;
-  last_used_at: Timestamp | null;
-  organization_id: string;
-  prefix: string;
-  revoked_at: Timestamp | null;
-  updated_at: Generated<Timestamp>;
+  agent_id: string
+  created_at: Generated<Timestamp>
+  created_by: string
+  expires_at: Timestamp | null
+  id: Generated<string>
+  key_hash: string
+  last_used_at: Timestamp | null
+  organization_id: string
+  prefix: string
+  revoked_at: Timestamp | null
+  updated_at: Generated<Timestamp>
 }
 
 export interface Companies {
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  deleted_at: Timestamp | null;
-  domain: string | null;
-  id: Generated<string>;
-  name: string;
-  organization_id: string;
-  updated_at: Generated<Timestamp>;
+  created_at: Generated<Timestamp>
+  created_by: string
+  deleted_at: Timestamp | null
+  domain: string | null
+  id: Generated<string>
+  name: string
+  organization_id: string
+  updated_at: Generated<Timestamp>
 }
 
 export interface CompanyFiles {
-  company_id: string;
-  created_at: Timestamp;
-  created_by: string;
-  deleted_at: Timestamp | null;
-  file_id: string;
-  id: Generated<string>;
-  organization_id: string;
-  updated_at: Timestamp;
+  company_id: string
+  created_at: Timestamp
+  created_by: string
+  deleted_at: Timestamp | null
+  file_id: string
+  id: Generated<string>
+  organization_id: string
+  updated_at: Timestamp
 }
 
 export interface ContactFiles {
-  contact_id: string;
-  created_at: Timestamp;
-  created_by: string;
-  deleted_at: Timestamp | null;
-  file_id: string;
-  id: Generated<string>;
-  organization_id: string;
-  updated_at: Timestamp;
+  contact_id: string
+  created_at: Timestamp
+  created_by: string
+  deleted_at: Timestamp | null
+  file_id: string
+  id: Generated<string>
+  organization_id: string
+  updated_at: Timestamp
 }
 
 export interface Contacts {
-  company_id: string | null;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  deleted_at: Timestamp | null;
-  id: Generated<string>;
-  merged_into_id: string | null;
-  name: string | null;
-  organization_id: string;
-  updated_at: Generated<Timestamp>;
+  company_id: string | null
+  created_at: Generated<Timestamp>
+  created_by: string
+  deleted_at: Timestamp | null
+  id: Generated<string>
+  merged_into_id: string | null
+  name: string | null
+  organization_id: string
+  updated_at: Generated<Timestamp>
 }
 
 export interface Events {
-  actor_id: string;
-  after: Json | null;
-  before: Json | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  organization_id: string;
-  resource_id: string;
-  resource_type: string;
-  type: string;
+  actor_id: string
+  after: Json | null
+  before: Json | null
+  created_at: Generated<Timestamp>
+  id: Generated<string>
+  organization_id: string
+  resource_id: string
+  resource_type: string
+  type: string
 }
 
 export interface Files {
-  created_at: Timestamp;
-  created_by: string;
-  id: Generated<string>;
-  mime_type: string;
-  name: string;
-  organization_id: string;
-  sha256: string;
-  size_bytes: Int8;
-  storage_key: string;
+  created_at: Timestamp
+  created_by: string
+  id: Generated<string>
+  mime_type: string
+  name: string
+  organization_id: string
+  sha256: string
+  size_bytes: Int8
+  storage_key: string
 }
 
 export interface Identities {
-  contact_id: string | null;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  deleted_at: Timestamp | null;
-  id: Generated<string>;
-  kind: string;
-  organization_id: string;
-  own: Generated<boolean>;
-  updated_at: Generated<Timestamp>;
-  value: string;
+  contact_id: string | null
+  created_at: Generated<Timestamp>
+  created_by: string
+  deleted_at: Timestamp | null
+  id: Generated<string>
+  kind: string
+  organization_id: string
+  own: Generated<boolean>
+  updated_at: Generated<Timestamp>
+  value: string
 }
 
 export interface InteractionParticipants {
-  created_at: Timestamp;
-  created_by: string;
-  id: Generated<string>;
-  identity_id: string;
-  interaction_id: string;
-  organization_id: string;
-  role: string;
+  created_at: Timestamp
+  created_by: string
+  id: Generated<string>
+  identity_id: string
+  interaction_id: string
+  organization_id: string
+  role: string
 }
 
 export interface Interactions {
-  channel: string;
-  created_at: Timestamp;
-  created_by: string;
-  direction: string;
-  id: Generated<string>;
-  kind: string;
-  message_id: string | null;
-  occurred_at: Timestamp;
-  organization_id: string;
-  thread_id: string | null;
+  channel: string
+  created_at: Timestamp
+  created_by: string
+  direction: string
+  id: Generated<string>
+  kind: string
+  message_id: string | null
+  occurred_at: Timestamp
+  organization_id: string
+  thread_id: string | null
 }
 
 export interface Memberships {
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  deleted_at: Timestamp | null;
-  id: Generated<string>;
-  organization_id: string;
-  role: string;
-  updated_at: Generated<Timestamp>;
-  user_id: string;
+  created_at: Generated<Timestamp>
+  created_by: string
+  deleted_at: Timestamp | null
+  id: Generated<string>
+  organization_id: string
+  role: string
+  updated_at: Generated<Timestamp>
+  user_id: string
 }
 
 export interface MessageAttachments {
-  content_id: string | null;
-  created_at: Timestamp;
-  created_by: string;
-  fetch_error: string | null;
-  fetch_metadata: Json | null;
-  fetch_status: string;
-  file_id: string | null;
-  id: Generated<string>;
-  inline: boolean;
-  message_id: string;
-  mime_type: string | null;
-  name: string | null;
-  organization_id: string;
-  position: number;
-  size_bytes: Int8 | null;
-  type: string;
+  content_id: string | null
+  created_at: Timestamp
+  created_by: string
+  fetch_error: string | null
+  fetch_metadata: Json | null
+  fetch_status: string
+  file_id: string | null
+  id: Generated<string>
+  inline: boolean
+  message_id: string
+  mime_type: string | null
+  name: string | null
+  organization_id: string
+  position: number
+  size_bytes: Int8 | null
+  type: string
 }
 
 export interface Messages {
-  author: Json;
-  channel: string;
-  content_key: string | null;
-  created_at: Timestamp;
-  created_by: string;
-  external_id: string;
-  id: Generated<string>;
-  in_reply_to: string | null;
-  kind: string;
-  occurred_at: Timestamp;
-  organization_id: string;
-  preview: string;
-  retracted_at: Timestamp | null;
-  thread_id: string;
-  version: number;
+  author: Json
+  channel: string
+  content_key: string | null
+  created_at: Timestamp
+  created_by: string
+  external_id: string
+  id: Generated<string>
+  in_reply_to: string | null
+  kind: string
+  occurred_at: Timestamp
+  organization_id: string
+  preview: string
+  retracted_at: Timestamp | null
+  thread_id: string
+  version: number
 }
 
 export interface MessageSources {
-  connection_id: string;
-  created_at: Timestamp;
-  created_by: string;
-  id: Generated<string>;
-  message_id: string;
-  organization_id: string;
-  provider_message_id: string;
-  provider_thread_id: string;
+  connection_id: string
+  created_at: Timestamp
+  created_by: string
+  id: Generated<string>
+  message_id: string
+  organization_id: string
+  provider_message_id: string
+  provider_thread_id: string
 }
 
 export interface Organizations {
-  auth_org_id: string | null;
-  auth_provider: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  name: string;
-  updated_at: Generated<Timestamp>;
+  auth_org_id: string | null
+  auth_provider: string | null
+  created_at: Generated<Timestamp>
+  id: Generated<string>
+  name: string
+  updated_at: Generated<Timestamp>
 }
 
 export interface Principals {
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  kind: string;
+  created_at: Generated<Timestamp>
+  id: Generated<string>
+  kind: string
 }
 
 export interface Tasks {
-  assignee_id: string | null;
-  completed_at: Timestamp | null;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  deleted_at: Timestamp | null;
-  due_at: Timestamp | null;
-  id: Generated<string>;
-  notes: string | null;
-  organization_id: string;
-  status: Generated<string>;
-  title: string;
-  updated_at: Generated<Timestamp>;
+  assignee_id: string | null
+  completed_at: Timestamp | null
+  created_at: Generated<Timestamp>
+  created_by: string
+  deleted_at: Timestamp | null
+  due_at: Timestamp | null
+  id: Generated<string>
+  notes: string | null
+  organization_id: string
+  status: Generated<string>
+  title: string
+  updated_at: Generated<Timestamp>
 }
 
 export interface Threads {
-  channel: string;
-  created_at: Timestamp;
-  created_by: string;
-  id: Generated<string>;
-  organization_id: string;
-  subject: string | null;
+  channel: string
+  created_at: Timestamp
+  created_by: string
+  id: Generated<string>
+  organization_id: string
+  subject: string | null
 }
 
 export interface ThreadSources {
-  connection_id: string;
-  created_at: Timestamp;
-  created_by: string;
-  id: Generated<string>;
-  organization_id: string;
-  provider_thread_id: string;
-  thread_id: string;
+  connection_id: string
+  created_at: Timestamp
+  created_by: string
+  id: Generated<string>
+  organization_id: string
+  provider_thread_id: string
+  thread_id: string
 }
 
 export interface Users {
-  auth_provider: string | null;
-  auth_subject: string | null;
-  created_at: Generated<Timestamp>;
-  email: string;
-  email_verified: Generated<boolean>;
-  id: string;
-  name: string | null;
-  updated_at: Generated<Timestamp>;
+  auth_provider: string | null
+  auth_subject: string | null
+  created_at: Generated<Timestamp>
+  email: string
+  email_verified: Generated<boolean>
+  id: string
+  name: string | null
+  updated_at: Generated<Timestamp>
 }
 
 export interface DB {
-  agents: Agents;
-  api_keys: ApiKeys;
-  companies: Companies;
-  company_files: CompanyFiles;
-  contact_files: ContactFiles;
-  contacts: Contacts;
-  events: Events;
-  files: Files;
-  identities: Identities;
-  interaction_participants: InteractionParticipants;
-  interactions: Interactions;
-  memberships: Memberships;
-  message_attachments: MessageAttachments;
-  message_sources: MessageSources;
-  messages: Messages;
-  organizations: Organizations;
-  principals: Principals;
-  tasks: Tasks;
-  thread_sources: ThreadSources;
-  threads: Threads;
-  users: Users;
+  agents: Agents
+  api_keys: ApiKeys
+  companies: Companies
+  company_files: CompanyFiles
+  contact_files: ContactFiles
+  contacts: Contacts
+  events: Events
+  files: Files
+  identities: Identities
+  interaction_participants: InteractionParticipants
+  interactions: Interactions
+  memberships: Memberships
+  message_attachments: MessageAttachments
+  message_sources: MessageSources
+  messages: Messages
+  organizations: Organizations
+  principals: Principals
+  tasks: Tasks
+  thread_sources: ThreadSources
+  threads: Threads
+  users: Users
 }

@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS, type D1Like } from '@vibase/storage-d1'
-import { createMigrationTracker, forgetMigrations, openLocalD1, recordMigrations, type LocalD1 } from '@vibase/storage-d1/test'
+import {
+  createMigrationTracker,
+  forgetMigrations,
+  openLocalD1,
+  recordMigrations,
+  type LocalD1,
+} from '@vibase/storage-d1/test'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { NOW, openWorkerD1, spyD1, type WorkerD1 } from './test/kit.js'
@@ -21,8 +27,14 @@ beforeEach(async () => {
   await w.d1.prepare('drop table if exists d1_migrations').run()
 })
 
-const get = (worker: { fetch(r: Request): Promise<Response> }, path: string, headers: Record<string, string> = {}) => worker.fetch(new Request(BASE + path, { headers }))
-const boot = () => bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW) })
+const get = (worker: { fetch(r: Request): Promise<Response> }, path: string, headers: Record<string, string> = {}) =>
+  worker.fetch(new Request(BASE + path, { headers }))
+const boot = () =>
+  bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
 const env = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({ DB: w.d1, AUTH_PROVIDER: '', ...extra })
 const tracker = async (names: readonly string[]) => {
   await createMigrationTracker(w.d1)
@@ -37,23 +49,53 @@ describe('/health.migrations (D3)', () => {
   it('unknown: no tracker, applied 0, latest_applied null', async () => {
     const { status, body } = await health(composeD1Worker(env()))
     expect(status).toBe(200)
-    expect(body.migrations).toEqual({ status: 'unknown', applied: 0, expected: NAMES.length, latest_applied: null, latest_expected: LAST })
+    expect(body.migrations).toEqual({
+      status: 'unknown',
+      applied: 0,
+      expected: NAMES.length,
+      latest_applied: null,
+      latest_expected: LAST,
+    })
   })
   it('current', async () => {
     await tracker(NAMES)
     const { body } = await health(composeD1Worker(env()))
-    expect(body.migrations).toEqual({ status: 'current', applied: NAMES.length, expected: NAMES.length, latest_applied: LAST, latest_expected: LAST })
-    expect(Object.keys(body.migrations as object).sort()).toEqual(['applied', 'expected', 'latest_applied', 'latest_expected', 'status'])
+    expect(body.migrations).toEqual({
+      status: 'current',
+      applied: NAMES.length,
+      expected: NAMES.length,
+      latest_applied: LAST,
+      latest_expected: LAST,
+    })
+    expect(Object.keys(body.migrations as object).sort()).toEqual([
+      'applied',
+      'expected',
+      'latest_applied',
+      'latest_expected',
+      'status',
+    ])
   })
   it('behind', async () => {
     await tracker(NAMES.slice(0, -1))
     const { body } = await health(composeD1Worker(env()))
-    expect(body.migrations).toEqual({ status: 'behind', applied: NAMES.length - 1, expected: NAMES.length, latest_applied: NAMES[NAMES.length - 2], latest_expected: LAST })
+    expect(body.migrations).toEqual({
+      status: 'behind',
+      applied: NAMES.length - 1,
+      expected: NAMES.length,
+      latest_applied: NAMES[NAMES.length - 2],
+      latest_expected: LAST,
+    })
   })
   it('ahead', async () => {
     await tracker([...NAMES, '9999_future.sql'])
     const { body } = await health(composeD1Worker(env()))
-    expect(body.migrations).toEqual({ status: 'ahead', applied: NAMES.length + 1, expected: NAMES.length, latest_applied: '9999_future.sql', latest_expected: LAST })
+    expect(body.migrations).toEqual({
+      status: 'ahead',
+      applied: NAMES.length + 1,
+      expected: NAMES.length,
+      latest_applied: '9999_future.sql',
+      latest_expected: LAST,
+    })
   })
   it('keeps the existing keys', async () => {
     await tracker(NAMES)
@@ -86,8 +128,18 @@ describe('the behind gate (D4)', () => {
     await tracker(NAMES.slice(0, -1))
     const spy = spyD1(w.d1)
     const worker = composeD1Worker(env({ DB: spy.d1 }))
-    for (const [method, path] of [['GET', '/api/v1/tasks'], ['POST', '/api/v1/tasks'], ['POST', '/webhooks/clerk']] as const) {
-      const res = await worker.fetch(new Request(BASE + path, { method, headers: { authorization: `Bearer ${r.key}` }, body: method === 'POST' ? '{}' : undefined }))
+    for (const [method, path] of [
+      ['GET', '/api/v1/tasks'],
+      ['POST', '/api/v1/tasks'],
+      ['POST', '/webhooks/clerk'],
+    ] as const) {
+      const res = await worker.fetch(
+        new Request(BASE + path, {
+          method,
+          headers: { authorization: `Bearer ${r.key}` },
+          body: method === 'POST' ? '{}' : undefined,
+        }),
+      )
       expect(res.status).toBe(503)
       expect(await res.json()).toEqual(PENDING)
     }
@@ -120,7 +172,10 @@ describe('the behind gate (D4)', () => {
     const root = await get(worker, '/openapi.json')
     expect(root.status).toBe(404)
     expect(((await root.json()) as { error: { code: string } }).error.code).toBe('not_found')
-    for (const [path, title] of [['/api/v1/openapi.json', 'Vibase records API'], ['/meta/v1/openapi.json', 'Vibase meta API']] as const) {
+    for (const [path, title] of [
+      ['/api/v1/openapi.json', 'Vibase records API'],
+      ['/meta/v1/openapi.json', 'Vibase meta API'],
+    ] as const) {
       const doc = await get(worker, path)
       expect(doc.status).toBe(200)
       expect(((await doc.json()) as { info: { title: string } }).info.title).toBe(title)
@@ -140,7 +195,19 @@ describe('a database with no marker table and no tracker (edge)', () => {
   it('/health is 200 initialised false and unknown', async () => {
     const { status, body } = await health(composeD1Worker({ DB: d1, AUTH_PROVIDER: '' }))
     expect(status).toBe(200)
-    expect(body).toEqual({ status: 'ok', initialised: false, version: 'dev', commit: 'dev', migrations: { status: 'unknown', applied: 0, expected: NAMES.length, latest_applied: null, latest_expected: LAST } })
+    expect(body).toEqual({
+      status: 'ok',
+      initialised: false,
+      version: 'dev',
+      commit: 'dev',
+      migrations: {
+        status: 'unknown',
+        applied: 0,
+        expected: NAMES.length,
+        latest_applied: null,
+        latest_expected: LAST,
+      },
+    })
   })
   it('other routes are 503 not_initialised, openapi still served', async () => {
     const worker = composeD1Worker({ DB: d1, AUTH_PROVIDER: '' })

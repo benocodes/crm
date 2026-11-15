@@ -1,12 +1,29 @@
 import { readFile } from 'node:fs/promises'
 import { parseArgs } from 'node:util'
-import { cacheDirPath, configPath, loadConfig, profileName, resolveConnection, saveConfig, serverOrigin, type Config } from './config.js'
+import {
+  cacheDirPath,
+  configPath,
+  loadConfig,
+  profileName,
+  resolveConnection,
+  saveConfig,
+  serverOrigin,
+  type Config,
+} from './config.js'
 import { deriveCommands } from './derive.js'
 import { discover } from './discovery.js'
 import { CliError, usage } from './errors.js'
 import { commandHelp, resourceHelp, topHelp } from './help.js'
 import { apiError, execute, json } from './http.js'
-import { deviceGrant, ensureFresh, fetchAuthServer, getJson, refreshProfile, revokeRefreshToken, withLock } from './oauth.js'
+import {
+  deviceGrant,
+  ensureFresh,
+  fetchAuthServer,
+  getJson,
+  refreshProfile,
+  revokeRefreshToken,
+  withLock,
+} from './oauth.js'
 import { GLOBAL_VALUE_FLAGS, parseInvocation } from './invoke.js'
 import { tail, TAIL_HELP, type Credential } from './tail.js'
 import type { Command, Deps } from './types.js'
@@ -42,15 +59,29 @@ function globals(argv: string[]) {
     args: argv,
     strict: false,
     allowPositionals: true,
-    options: { server: { type: 'string' }, profile: { type: 'string' }, refresh: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' } },
+    options: {
+      server: { type: 'string' },
+      profile: { type: 'string' },
+      refresh: { type: 'boolean' },
+      help: { type: 'boolean', short: 'h' },
+      version: { type: 'boolean' },
+    },
   })
   const s = (v: unknown) => (typeof v === 'string' ? v : undefined)
-  return { server: s(values.server), profile: s(values.profile), refresh: values.refresh === true, help: values.help === true, version: values.version === true }
+  return {
+    server: s(values.server),
+    profile: s(values.profile),
+    refresh: values.refresh === true,
+    help: values.help === true,
+    version: values.version === true,
+  }
 }
 
 /** `vibase instance …` ([[OPS240]] D12): the instance commands live in `@vibase/server-d1` (`vibase-server`); the client only says where. Touches nothing. */
 async function instanceMoved(deps: Deps): Promise<number> {
-  await deps.stderr.write(`instance commands moved to the server package: npx @vibase/server-d1@${deps.version} <command> …\n`)
+  await deps.stderr.write(
+    `instance commands moved to the server package: npx @vibase/server-d1@${deps.version} <command> …\n`,
+  )
   return 2
 }
 
@@ -63,7 +94,9 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
       await json(deps, 'stderr', { error: { code: e.code, message: e.message } })
       return e.exit
     }
-    await json(deps, 'stderr', { error: { code: 'internal', message: e instanceof Error ? e.message : 'unexpected failure' } })
+    await json(deps, 'stderr', {
+      error: { code: 'internal', message: e instanceof Error ? e.message : 'unexpected failure' },
+    })
     return 1
   }
 }
@@ -102,7 +135,8 @@ async function main(argv: string[], deps: Deps): Promise<number> {
   }
   const cacheDir = cacheDirPath(deps)
   let found = await discover(conn.server, deps, { cacheDir, refresh: g.refresh })
-  const lookup = (cmds: Command[]) => cmds.find((c) => c.resource === words[0]!.replace(/_/g, '-') && c.action === (words[1] ?? '').replace(/_/g, '-'))
+  const lookup = (cmds: Command[]) =>
+    cmds.find((c) => c.resource === words[0]!.replace(/_/g, '-') && c.action === (words[1] ?? '').replace(/_/g, '-'))
   let commands = deriveCommands(found.ops)
 
   if (words.length === 0) {
@@ -122,12 +156,20 @@ async function main(argv: string[], deps: Deps): Promise<number> {
       commands = deriveCommands(found.ops)
       list = find(commands)
     }
-    if (!list) throw usage(`${conn.server} has no events.list operation, which \`events tail\` reads: this instance does not serve the event feed`)
+    if (!list)
+      throw usage(
+        `${conn.server} has no events.list operation, which \`events tail\` reads: this instance does not serve the event feed`,
+      )
     const credential: Credential = async () => {
       const withKey = resolveConnection(cfg, g, deps.env, { needKey: true })
       if (!withKey.oauth) return { server: withKey.server, key: withKey.key! }
       const fresh = await ensureFresh(deps, withKey.profile, withKey.oauth)
-      return { server: withKey.server, key: fresh.access_token, refresh: async (rejected: string) => (await refreshProfile(deps, withKey.profile, { kind: 'rejected', stale: rejected })).access_token }
+      return {
+        server: withKey.server,
+        key: fresh.access_token,
+        refresh: async (rejected: string) =>
+          (await refreshProfile(deps, withKey.profile, { kind: 'rejected', stale: rejected })).access_token,
+      }
     }
     return tail(list, rest, credential, deps)
   }
@@ -163,7 +205,8 @@ async function main(argv: string[], deps: Deps): Promise<number> {
     commands = deriveCommands(found.ops)
     cmd = lookup(commands)
   }
-  if (!cmd) throw usage(`unknown command "${words.join(' ')}" on ${conn.server}: run \`vibase --help\` to list the commands`)
+  if (!cmd)
+    throw usage(`unknown command "${words.join(' ')}" on ${conn.server}: run \`vibase --help\` to list the commands`)
 
   // Memoised: the retry below re-parses, and stdin can be consumed once.
   let stdin: Promise<string> | undefined
@@ -185,16 +228,27 @@ async function main(argv: string[], deps: Deps): Promise<number> {
   if (!withKey.oauth) return execute(cmd, inv, { server: withKey.server, key: withKey.key! }, deps)
   // An OAuth grant: refreshed ahead of expiry, and once more when the server answers 401 (D20).
   const fresh = await ensureFresh(deps, withKey.profile, withKey.oauth)
-  const refresh = async (rejected: string) => (await refreshProfile(deps, withKey.profile, { kind: 'rejected', stale: rejected })).access_token
+  const refresh = async (rejected: string) =>
+    (await refreshProfile(deps, withKey.profile, { kind: 'rejected', stale: rejected })).access_token
   return execute(cmd, inv, { server: withKey.server, key: fresh.access_token, refresh }, deps)
 }
 
-const SECRET_ARG = 'login reads the key from stdin only: `printf %s "$KEY" | vibase login --api-key --server <url> [--profile <name>]`'
+const SECRET_ARG =
+  'login reads the key from stdin only: `printf %s "$KEY" | vibase login --api-key --server <url> [--profile <name>]`'
 
 async function login(args: string[], deps: Deps): Promise<number> {
   let values: { 'api-key'?: boolean; server?: string; profile?: string; scope?: string }
   try {
-    const parsed = parseArgs({ args, options: { 'api-key': { type: 'boolean' }, server: { type: 'string' }, profile: { type: 'string' }, scope: { type: 'string' } }, allowPositionals: true })
+    const parsed = parseArgs({
+      args,
+      options: {
+        'api-key': { type: 'boolean' },
+        server: { type: 'string' },
+        profile: { type: 'string' },
+        scope: { type: 'string' },
+      },
+      allowPositionals: true,
+    })
     // Anything else on the line might be the key: refuse without echoing it.
     if (parsed.positionals.length > 0) throw new Error('positional')
     values = parsed.values
@@ -227,24 +281,40 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
   loadConfig(path) // a malformed or world-readable config is refused before the user is asked to approve anything
   const wkUrl = `${server}/.well-known/vibase`
   const wk = await getJson(wkUrl, deps)
-  if (wk.status !== 200 || typeof wk.body !== 'object' || wk.body === null) throw usage(`${wkUrl} answered ${wk.status}: this does not look like a Vibase instance`, 'discovery_failed')
+  if (wk.status !== 200 || typeof wk.body !== 'object' || wk.body === null)
+    throw usage(`${wkUrl} answered ${wk.status}: this does not look like a Vibase instance`, 'discovery_failed')
   const auth = wk.body.auth
   if (!auth || typeof auth !== 'object' || !nonEmpty(auth.cli_client_id) || !nonEmpty(auth.issuer)) {
-    throw usage(`this instance accepts API keys only (no sign-in is configured for the CLI): use \`vibase login --api-key --server ${server}\``, 'api_keys_only')
+    throw usage(
+      `this instance accepts API keys only (no sign-in is configured for the CLI): use \`vibase login --api-key --server ${server}\``,
+      'api_keys_only',
+    )
   }
   const prUrl: unknown = auth.protected_resource_metadata ?? `${server}/.well-known/oauth-protected-resource`
-  if (!nonEmpty(prUrl) || new URL(prUrl, server).origin !== server) throw usage(`${wkUrl} names the protected-resource metadata at ${String(prUrl).slice(0, 200)}, which is not on ${server}: refusing to continue`, 'origin_mismatch')
+  if (!nonEmpty(prUrl) || new URL(prUrl, server).origin !== server)
+    throw usage(
+      `${wkUrl} names the protected-resource metadata at ${String(prUrl).slice(0, 200)}, which is not on ${server}: refusing to continue`,
+      'origin_mismatch',
+    )
   const pr = await getJson(prUrl, deps)
-  if (pr.status !== 200 || !Array.isArray(pr.body?.scopes_supported) || !pr.body.scopes_supported.every(nonEmpty)) throw usage(`${prUrl} has no scopes_supported list`, 'discovery_failed')
+  if (pr.status !== 200 || !Array.isArray(pr.body?.scopes_supported) || !pr.body.scopes_supported.every(nonEmpty))
+    throw usage(`${prUrl} has no scopes_supported list`, 'discovery_failed')
   const supported: string[] = pr.body.scopes_supported
   const as = await fetchAuthServer(auth.issuer, deps)
 
   let scopes = supported
   if (scopeFlag !== undefined) {
-    scopes = scopeFlag.split(',').map((s) => s.trim()).filter((s) => s !== '')
+    scopes = scopeFlag
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s !== '')
     if (scopes.length === 0) throw usage('--scope needs at least one scope (a,b,...)', 'unknown_scope')
     const unknown = scopes.filter((s) => s !== 'offline_access' && !supported.includes(s))
-    if (unknown.length > 0) throw usage(`${server} does not support the scope ${unknown.join(', ')} (supported: ${supported.join(', ')})`, 'unknown_scope')
+    if (unknown.length > 0)
+      throw usage(
+        `${server} does not support the scope ${unknown.join(', ')} (supported: ${supported.join(', ')})`,
+        'unknown_scope',
+      )
   }
   const requested = [...new Set([...scopes, 'offline_access'])].join(' ')
   const resource = nonEmpty(auth.resource) ? auth.resource : undefined
@@ -252,23 +322,47 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
 
   // Reload: another process may have written the config while the person was approving. Replaces any credential of the profile.
   const cfg = loadConfig(path)
-  cfg.profiles[name] = { kind: 'oauth', server, issuer: auth.issuer, client_id: auth.cli_client_id, ...grant, ...(resource ? { resource } : {}) }
+  cfg.profiles[name] = {
+    kind: 'oauth',
+    server,
+    issuer: auth.issuer,
+    client_id: auth.cli_client_id,
+    ...grant,
+    ...(resource ? { resource } : {}),
+  }
   cfg.default_profile ??= name
   saveConfig(path, cfg)
 
   let res: Response
   try {
-    res = await deps.fetch(`${server}/meta/v1/me`, { headers: { authorization: `Bearer ${grant.access_token}`, accept: 'application/json', 'user-agent': `vibase-cli/${deps.version}` }, redirect: 'error' })
+    res = await deps.fetch(`${server}/meta/v1/me`, {
+      headers: {
+        authorization: `Bearer ${grant.access_token}`,
+        accept: 'application/json',
+        'user-agent': `vibase-cli/${deps.version}`,
+      },
+      redirect: 'error',
+    })
   } catch (e) {
-    throw new CliError(1, 'network_error', `signed in, but could not reach ${server}/meta/v1/me: ${e instanceof Error ? e.message : 'request failed'}`)
+    throw new CliError(
+      1,
+      'network_error',
+      `signed in, but could not reach ${server}/meta/v1/me: ${e instanceof Error ? e.message : 'request failed'}`,
+    )
   }
   if (!res.ok) throw await apiError(res)
   const me = (await res.json().catch(() => undefined)) as any
   if (me === undefined) throw new CliError(1, 'invalid_response', 'the response of /meta/v1/me was not JSON')
   await json(deps, 'stdout', me)
-  if (me.principal?.kind === 'agent' && Array.isArray(me.active_organization?.scopes) && me.active_organization.scopes.length === 0) {
+  if (
+    me.principal?.kind === 'agent' &&
+    Array.isArray(me.active_organization?.scopes) &&
+    me.active_organization.scopes.length === 0
+  ) {
     const id = String(me.principal.id)
-    await deps.stderr.write(`Signed in as the agent account ${id}, which has no scopes yet: an owner must grant them, for example\n  vibase agents update ${id} --data '{"scopes":["contacts:read","contacts:write"]}'\n`)
+    await deps.stderr.write(
+      `Signed in as the agent account ${id}, which has no scopes yet: an owner must grant them, for example\n  vibase agents update ${id} --data '{"scopes":["contacts:read","contacts:write"]}'\n`,
+    )
   }
   return 0
 }
@@ -306,7 +400,11 @@ async function oauthLogout(name: string, deps: Deps): Promise<number> {
         state.outcome = await revokeRefreshToken(p, deps)
       } catch (e) {
         if (!(e instanceof CliError)) throw e
-        state.outcome = new CliError(1, e.code, `could not revoke the grant (the local credential is removed anyway; it may stay valid until it expires): ${e.message}`)
+        state.outcome = new CliError(
+          1,
+          e.code,
+          `could not revoke the grant (the local credential is removed anyway; it may stay valid until it expires): ${e.message}`,
+        )
       }
     }
     delete cfg.profiles[name]
@@ -319,28 +417,40 @@ async function oauthLogout(name: string, deps: Deps): Promise<number> {
     await json(deps, 'stderr', { error: { code: outcome.code, message: outcome.message } })
     return outcome.exit
   }
-  if (outcome === 'unsupported') await deps.stderr.write('note: the issuer advertises no revocation endpoint, so the grant was not revoked; it lives until it expires\n')
+  if (outcome === 'unsupported')
+    await deps.stderr.write(
+      'note: the issuer advertises no revocation endpoint, so the grant was not revoked; it lives until it expires\n',
+    )
   return 0
 }
 
 async function configCommand(action: string | undefined, rest: string[], deps: Deps): Promise<number> {
-  if (action !== 'get' && action !== 'set') throw usage('usage: vibase config get <key> | vibase config set <key> <value>')
+  if (action !== 'get' && action !== 'set')
+    throw usage('usage: vibase config get <key> | vibase config set <key> <value>')
   const [key, value, ...more] = rest
-  if (!key || more.length > 0 || (action === 'get' && value !== undefined) || (action === 'set' && value === undefined)) throw usage(`usage: vibase config ${action === 'get' ? 'get <key>' : 'set <key> <value>'}`)
-  if (/api_key|secret|token/i.test(key)) throw usage('credentials are not readable or settable through config: use `vibase login`')
+  if (!key || more.length > 0 || (action === 'get' && value !== undefined) || (action === 'set' && value === undefined))
+    throw usage(`usage: vibase config ${action === 'get' ? 'get <key>' : 'set <key> <value>'}`)
+  if (/api_key|secret|token/i.test(key))
+    throw usage('credentials are not readable or settable through config: use `vibase login`')
   const path = configPath(deps)
   const cfg: Config = loadConfig(path)
   const m = /^profiles\.([^.]+)\.(server|kind)$/.exec(key)
-  if (key !== 'default_profile' && !m) throw usage(`unknown key "${key}": default_profile, profiles.<name>.server, profiles.<name>.kind`)
+  if (key !== 'default_profile' && !m)
+    throw usage(`unknown key "${key}": default_profile, profiles.<name>.server, profiles.<name>.kind`)
   const profile = m ? (Object.hasOwn(cfg.profiles, m[1]!) ? cfg.profiles[m[1]!] : undefined) : undefined
   if (action === 'get') {
-    await json(deps, 'stdout', m ? (profile ? profile[m[2] as 'server' | 'kind'] : null) : (cfg.default_profile ?? null))
+    await json(
+      deps,
+      'stdout',
+      m ? (profile ? profile[m[2] as 'server' | 'kind'] : null) : (cfg.default_profile ?? null),
+    )
     return 0
   }
   if (m) {
     if (m[2] === 'kind') throw usage('profiles.<name>.kind is read-only')
     if (!profile) throw usage(`no profile named "${m[1]}"`, 'no_profile')
-    if (profile.kind === 'oauth') throw usage('an OAuth profile is bound to the server it signed in to: run `vibase login --server <url>` instead')
+    if (profile.kind === 'oauth')
+      throw usage('an OAuth profile is bound to the server it signed in to: run `vibase login --server <url>` instead')
     profile.server = serverOrigin(value!)
   } else {
     const name = profileName(value!)

@@ -19,21 +19,41 @@ const ENTERPRISE = ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/ser
 
 export const RULES: readonly Rule[] = [
   // The portable core: no driver, no enterprise code, no runtime, no API.
-  { dir: 'storage/src', forbid: [...ENTERPRISE, '@vibase/storage-d1'], allow: { 'import-boundary.test.ts': 'holds forbidden imports as test data' } },
+  {
+    dir: 'storage/src',
+    forbid: [...ENTERPRISE, '@vibase/storage-d1'],
+    allow: { 'import-boundary.test.ts': 'holds forbidden imports as test data' },
+  },
   // The D1 runtime is open: no `pg`, no enterprise runtime, no Postgres tenancy package, no API barrel.
   { dir: 'storage-d1/src', forbid: ENTERPRISE },
   // The domain programs (open): production code and scripts never import enterprise code or `pg`, and the rules have no allow-list
   // ([[CORE36]] D22): the Postgres composition lives in @vibase/server-postgres. `api/scripts` is empty and the rule guards it.
-  { dir: 'api/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
+  {
+    dir: 'api/src',
+    forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'],
+    skipTests: true,
+  },
   { dir: 'api/scripts', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] },
   // The built-in auth provider ([[CORE243]] D21): open, never imports enterprise code or `pg`; no allow-list.
-  { dir: 'auth/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
+  {
+    dir: 'auth/src',
+    forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'],
+    skipTests: true,
+  },
   { dir: 'auth/scripts', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] },
   // The open D1 Worker composition ([[CORE38]] D1): it composes @vibase/api (allowed) and never the enterprise runtime or `pg`.
-  { dir: 'server-d1/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
+  {
+    dir: 'server-d1/src',
+    forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'],
+    skipTests: true,
+  },
   { dir: 'server-d1/scripts', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] },
   // The shared UI layer ([[UI254]] D8, invariant 10): `.tsx` sources included, no allow-list.
-  { dir: 'ui/src', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'], skipTests: true },
+  {
+    dir: 'ui/src',
+    forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'],
+    skipTests: true,
+  },
 ]
 
 const SPECIFIER = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g
@@ -76,7 +96,8 @@ export function checkBoundary(packagesRoot: string, rules: readonly Rule[] = RUL
       if (rule.skipTests && isTest(file)) continue
       const text = readFileSync(file, 'utf-8')
       for (const m of text.matchAll(SPECIFIER)) {
-        if (forbidden(m[1]!, rule.forbid)) out.push({ file: relative(packagesRoot, file), specifier: m[1]!, rule: rule.dir })
+        if (forbidden(m[1]!, rule.forbid))
+          out.push({ file: relative(packagesRoot, file), specifier: m[1]!, rule: rule.dir })
       }
     }
   }
@@ -84,7 +105,9 @@ export function checkBoundary(packagesRoot: string, rules: readonly Rule[] = RUL
 }
 
 /** Test files that hold forbidden imports as data (strings), each with the reason. */
-const NAMING_EXEMPT: Readonly<Record<string, string>> = { 'storage/src/import-boundary.test.ts': 'holds forbidden imports as test data' }
+const NAMING_EXEMPT: Readonly<Record<string, string>> = {
+  'storage/src/import-boundary.test.ts': 'holds forbidden imports as test data',
+}
 export const POSTGRES_INTEGRATION = '<integration test in a Postgres package>'
 const POSTGRES_CODE = ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres']
 const TYPE_ONLY_IMPORT = /\bimport\s+type\b[^;'"]*?\bfrom\s+['"][^'"]+['"]/gs
@@ -101,7 +124,8 @@ export function checkEngineNaming(packagesRoot: string): Violation[] {
     const rel = relative(packagesRoot, file)
     if (rel in NAMING_EXEMPT) continue
     // Inside the Postgres packages an `.integration.` test is database-backed by definition, whatever it imports (relative helpers hide it).
-    if (/\.integration\.test\.ts$/.test(file) && /^(db|storage-postgres)[\\/]/.test(rel)) out.push({ file: rel, specifier: POSTGRES_INTEGRATION, rule: 'engine-naming' })
+    if (/\.integration\.test\.ts$/.test(file) && /^(db|storage-postgres)[\\/]/.test(rel))
+      out.push({ file: rel, specifier: POSTGRES_INTEGRATION, rule: 'engine-naming' })
     const text = readFileSync(file, 'utf-8').replace(TYPE_ONLY_IMPORT, '')
     for (const m of text.matchAll(SPECIFIER)) {
       if (forbidden(m[1]!, POSTGRES_CODE)) out.push({ file: rel, specifier: m[1]!, rule: 'engine-naming' })

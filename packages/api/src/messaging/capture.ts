@@ -87,13 +87,18 @@ export interface CaptureInput {
 }
 export interface CaptureResult {
   /** In sorted order. */
-  captured: Array<{ external_id: string; message_id: string; thread_id: string; interaction_id: string; new_thread: boolean }>
+  captured: Array<{
+    external_id: string
+    message_id: string
+    thread_id: string
+    interaction_id: string
+    new_thread: boolean
+  }>
   /** In input order of first occurrence. */
   existing: Array<{ external_id: string; message_id: string }>
   /** `storage_key` prefixes the caller deletes (`<key>/blob`) after commit. */
   duplicate_objects: string[]
 }
-
 
 const KEY = (p: { kind: string; value: string }) => `${p.kind}:${p.value}`
 const EMAIL = sql.lit('email')
@@ -105,7 +110,8 @@ function validate(input: CaptureInput): void {
     if (m.kind === 'message' && m.content_key === null) throw new Error('a message needs a content_key')
     if (m.kind === 'reaction' && m.content_key !== null) throw new Error('a reaction has no content_key')
     for (const a of m.attachments) {
-      if ((a.fetch_status === 'stored') !== (a.file !== null)) throw new Error('an attachment has a file if and only if it is stored')
+      if ((a.fetch_status === 'stored') !== (a.file !== null))
+        throw new Error('an attachment has a file if and only if it is stored')
     }
     if (!m.participants.some((p) => p.role === 'from')) throw new Error('a message needs a from participant')
     for (const p of m.participants) {
@@ -139,7 +145,10 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
 
   const sorted = input.messages
     .map((m, index) => ({ m, index, occurred: codecs.timestamp.write(m.occurred_at) }))
-    .sort((a, b) => compareText(a.occurred, b.occurred) || compareText(a.m.external_id, b.m.external_id) || a.index - b.index)
+    .sort(
+      (a, b) =>
+        compareText(a.occurred, b.occurred) || compareText(a.m.external_id, b.m.external_id) || a.index - b.index,
+    )
 
   // The chunk's distinct addresses in first-occurrence order (the first non-blank name wins), and its stored files.
   const addresses = new Map<string, ResolveEntry>()
@@ -152,11 +161,19 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
     }
   }
   const resolve = resolveProgram(env, [...addresses.values()])
-  const storedShas = input.messages.flatMap((m) => m.attachments.filter((a) => a.file !== null).map((a) => a.file!.sha256))
+  const storedShas = input.messages.flatMap((m) =>
+    m.attachments.filter((a) => a.file !== null).map((a) => a.file!.sha256),
+  )
   const keys = input.messages.map((m) => m.external_id)
   const providerThreads = [...new Set(input.messages.map((m) => m.provider_thread_id))]
 
-  const READ = { existing: 'capture:existing', aliases: 'capture:aliases', ancestors: 'capture:ancestors', files: 'capture:files', identities: 'capture:identities' } as const
+  const READ = {
+    existing: 'capture:existing',
+    aliases: 'capture:aliases',
+    ancestors: 'capture:ancestors',
+    files: 'capture:files',
+    identities: 'capture:identities',
+  } as const
 
   return {
     reads(qc: QueryContext): Readonly<Record<string, Read>> {
@@ -167,10 +184,14 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
       const hints = jsonRows(qc, 'h', { msg: 'text', rk: 'integer', hint: 'text' }, hintRows)
       const existing = sql`
         select "messages"."id" as "id", "messages"."thread_id" as "thread_id", "messages"."external_id" as "external_id" from "messages"
-        where "messages"."organization_id" = ${org} and "messages"."channel" = ${EMAIL} and ${memberOf(qc, 'messages', 'external_id', keys)}`.compile(qc.db)
+        where "messages"."organization_id" = ${org} and "messages"."channel" = ${EMAIL} and ${memberOf(qc, 'messages', 'external_id', keys)}`.compile(
+        qc.db,
+      )
       const aliases = sql`
         select "thread_sources"."thread_id" as "thread_id", "thread_sources"."provider_thread_id" as "provider_thread_id" from "thread_sources"
-        where "thread_sources"."organization_id" = ${org} and "thread_sources"."connection_id" = ${connection} and ${memberOf(qc, 'thread_sources', 'provider_thread_id', providerThreads)}`.compile(qc.db)
+        where "thread_sources"."organization_id" = ${org} and "thread_sources"."connection_id" = ${connection} and ${memberOf(qc, 'thread_sources', 'provider_thread_id', providerThreads)}`.compile(
+        qc.db,
+      )
       // Per message the nearest hint that exists (lowest rank): a window function, portable to both dialects.
       const ancestors = sql`
         select "t"."msg" as "msg", "t"."rk" as "rk", "t"."thread_id" as "thread_id" from (
@@ -185,7 +206,12 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
         group by "files"."sha256"`.compile(qc.db)
       const identities = sql`
         select "identities"."id" as "id", "identities"."kind" as "kind", "identities"."value" as "value", "identities"."own" as "own" from "identities"
-        where "identities"."organization_id" = ${org} and "identities"."deleted_at" is null and ${memberOf(qc, 'identities', 'value', [...addresses.values()].map((a) => a.value))}`.compile(qc.db)
+        where "identities"."organization_id" = ${org} and "identities"."deleted_at" is null and ${memberOf(
+          qc,
+          'identities',
+          'value',
+          [...addresses.values()].map((a) => a.value),
+        )}`.compile(qc.db)
       return {
         ...resolve.reads(qc),
         [READ.existing]: readSet(existing),
@@ -202,39 +228,82 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
       const resolveSteps: Step[] = resolved.steps.filter((s) => s.label !== 'result')
 
       const dbMessages = new Map<string, { id: string; thread_id: string }>()
-      for (const r of found.all(READ.existing)) dbMessages.set(r.external_id as string, { id: r.id as string, thread_id: r.thread_id as string })
+      for (const r of found.all(READ.existing))
+        dbMessages.set(r.external_id as string, { id: r.id as string, thread_id: r.thread_id as string })
       const dbAliases = new Map<string, string>()
       for (const r of found.all(READ.aliases)) dbAliases.set(r.provider_thread_id as string, r.thread_id as string)
       const dbAncestors = new Map<string, { rank: number; thread_id: string }>()
-      for (const r of found.all(READ.ancestors)) dbAncestors.set(r.msg as string, { rank: Number(r.rk), thread_id: r.thread_id as string })
+      for (const r of found.all(READ.ancestors))
+        dbAncestors.set(r.msg as string, { rank: Number(r.rk), thread_id: r.thread_id as string })
       const dbFiles = new Map<string, string>()
       for (const r of found.all(READ.files)) dbFiles.set(r.sha256 as string, r.storage_key as string)
       const dbIdentities = new Map<string, { id: string; own: boolean }>()
-      for (const r of found.all(READ.identities)) dbIdentities.set(KEY({ kind: r.kind as string, value: r.value as string }), { id: r.id as string, own: r.own === true || r.own === 1 })
+      for (const r of found.all(READ.identities))
+        dbIdentities.set(KEY({ kind: r.kind as string, value: r.value as string }), {
+          id: r.id as string,
+          own: r.own === true || r.own === 1,
+        })
 
       // Threads (D3).
       const resolution = resolveThreads(
-        sorted.map(({ m }) => ({ external_id: m.external_id, in_reply_to: m.in_reply_to, thread_hints: m.thread_hints, provider_thread_id: m.provider_thread_id, subject: m.subject })),
-        { existing: new Map([...dbMessages].map(([k, v]) => [k, v.thread_id])), aliases: dbAliases, ancestors: dbAncestors },
+        sorted.map(({ m }) => ({
+          external_id: m.external_id,
+          in_reply_to: m.in_reply_to,
+          thread_hints: m.thread_hints,
+          provider_thread_id: m.provider_thread_id,
+          subject: m.subject,
+        })),
+        {
+          existing: new Map([...dbMessages].map(([k, v]) => [k, v.thread_id])),
+          aliases: dbAliases,
+          ancestors: dbAncestors,
+        },
         () => env.newId(),
       )
 
       // Ids, messages and blobs, in sorted order.
-      type Row_ = { m: CaptureMessage; occurred: string; index: number; thread_id: string; outcome: string; message_id: string; isNew: boolean; interaction_id: string }
+      type Row_ = {
+        m: CaptureMessage
+        occurred: string
+        index: number
+        thread_id: string
+        outcome: string
+        message_id: string
+        isNew: boolean
+        interaction_id: string
+      }
       const chunkMessageIds = new Map<string, string>()
       const rows: Row_[] = sorted.map((s, i) => {
         const d = resolution.decisions[i]!
         const isNew = d.outcome !== 'existing'
-        const message_id = isNew ? env.newId() : (dbMessages.get(s.m.external_id)?.id ?? chunkMessageIds.get(s.m.external_id)!)
+        const message_id = isNew
+          ? env.newId()
+          : (dbMessages.get(s.m.external_id)?.id ?? chunkMessageIds.get(s.m.external_id)!)
         if (isNew) chunkMessageIds.set(s.m.external_id, message_id)
-        return { m: s.m, occurred: s.occurred, index: s.index, thread_id: d.thread_id, outcome: d.outcome, message_id, isNew, interaction_id: isNew ? env.newId() : '' }
+        return {
+          m: s.m,
+          occurred: s.occurred,
+          index: s.index,
+          thread_id: d.thread_id,
+          outcome: d.outcome,
+          message_id,
+          isNew,
+          interaction_id: isNew ? env.newId() : '',
+        }
       })
       const fresh = rows.filter((r) => r.isNew)
 
       const duplicateObjects: string[] = []
       const assigned = new Map<string, string>() // sha256 -> the key this chunk's earlier file rows carry
       const newBlobShas: string[] = []
-      const fileRows: Array<{ id: string; name: string; mime_type: string; size_bytes: number; sha256: string; storage_key: string }> = []
+      const fileRows: Array<{
+        id: string
+        name: string
+        mime_type: string
+        size_bytes: number
+        sha256: string
+        storage_key: string
+      }> = []
       const attachmentRows: Array<Record<string, unknown>> = []
       for (const r of rows) {
         const atts = [...r.m.attachments].sort((a, b) => a.position - b.position)
@@ -255,7 +324,14 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
               newBlobShas.push(a.file.sha256)
             }
             fileId = env.newId()
-            fileRows.push({ id: fileId, name: a.file.name, mime_type: a.file.mime_type, size_bytes: a.file.size_bytes, sha256: a.file.sha256, storage_key: key })
+            fileRows.push({
+              id: fileId,
+              name: a.file.name,
+              mime_type: a.file.mime_type,
+              size_bytes: a.file.size_bytes,
+              sha256: a.file.sha256,
+              storage_key: key,
+            })
           }
           attachmentRows.push({
             id: env.newId(),
@@ -295,11 +371,24 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
         return out
       })
 
-      const messageSourceRows = rows.map((r) => ({ id: env.newId(), message_id: r.message_id, pm: r.m.provider_message_id, pt: r.m.provider_thread_id }))
-      const threadSourceRows = resolution.aliases_to_add.map((a) => ({ id: env.newId(), thread_id: a.thread_id, pt: a.provider_thread_id }))
+      const messageSourceRows = rows.map((r) => ({
+        id: env.newId(),
+        message_id: r.message_id,
+        pm: r.m.provider_message_id,
+        pt: r.m.provider_thread_id,
+      }))
+      const threadSourceRows = resolution.aliases_to_add.map((a) => ({
+        id: env.newId(),
+        thread_id: a.thread_id,
+        pt: a.provider_thread_id,
+      }))
 
       // Event ids, in the type order of the unit: thread, message, file, interaction (D16).
-      const threadEvents = resolution.new_threads.map((t) => ({ eventId: env.newId(), resourceId: t.thread_id, before: null }))
+      const threadEvents = resolution.new_threads.map((t) => ({
+        eventId: env.newId(),
+        resourceId: t.thread_id,
+        before: null,
+      }))
       const messageEvents = fresh.map((r) => ({ eventId: env.newId(), resourceId: r.message_id, before: null }))
       const fileEvents = fileRows.map((f) => ({ eventId: env.newId(), resourceId: f.id, before: null }))
       const interactionEvents = fresh.map((r) => ({ eventId: env.newId(), resourceId: r.interaction_id, before: null }))
@@ -310,10 +399,19 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
       const actorP = () => T('uuid', actor)
 
       // P10: the one commit-time assertion, before our first INSERT, holding every clause the plan relied on.
-      const noneStillPresent = (table: 'messages' | 'files', column: 'external_id' | 'sha256', values: readonly string[]) =>
+      const noneStillPresent = (
+        table: 'messages' | 'files',
+        column: 'external_id' | 'sha256',
+        values: readonly string[],
+      ) =>
         sql<SqlBool>`not exists (select 1 from ${sql.table(table)} where ${sql.ref(`${table}.organization_id`)} = ${org} and ${table === 'messages' ? sql`${sql.ref('messages.channel')} = ${EMAIL} and ` : sql``}${memberOf(qc, table, column as never, values)})`
       const aliasesAsPlanned = sql<SqlBool>`not exists (
-        select 1 from ${jsonRows(qc, 'a', { pt: 'text', thread_id: 'text' }, providerThreads.map((pt) => ({ pt, thread_id: dbAliases.get(pt) ?? null })))}
+        select 1 from ${jsonRows(
+          qc,
+          'a',
+          { pt: 'text', thread_id: 'text' },
+          providerThreads.map((pt) => ({ pt, thread_id: dbAliases.get(pt) ?? null })),
+        )}
         where coalesce((select cast("thread_sources"."thread_id" as text) from "thread_sources"
           where "thread_sources"."organization_id" = ${org} and "thread_sources"."connection_id" = ${connection} and "thread_sources"."provider_thread_id" = "a"."pt"), '') <> coalesce("a"."thread_id", ''))`
       const plannedIdentities = [...dbIdentities.values()]
@@ -327,28 +425,96 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
       const firstMutation = resolveSteps.length === 0 ? ('first-mutation' as const) : undefined
       const firstEvent = resolveSteps.length === 0 ? ('first-event' as const) : undefined
 
-      const threadSet = jsonRows(qc, 'r', { id: 'uuid', subject: 'text' }, resolution.new_threads.map((t) => ({ id: t.thread_id, subject: t.subject })))
-      const fileSet = jsonRows(qc, 'r', { id: 'uuid', name: 'text', mime_type: 'text', size_bytes: 'integer', sha256: 'text', storage_key: 'text' }, fileRows)
+      const threadSet = jsonRows(
+        qc,
+        'r',
+        { id: 'uuid', subject: 'text' },
+        resolution.new_threads.map((t) => ({ id: t.thread_id, subject: t.subject })),
+      )
+      const fileSet = jsonRows(
+        qc,
+        'r',
+        { id: 'uuid', name: 'text', mime_type: 'text', size_bytes: 'integer', sha256: 'text', storage_key: 'text' },
+        fileRows,
+      )
       const messageSet = jsonRows(
         qc,
         'r',
-        { id: 'uuid', thread_id: 'uuid', kind: 'text', external_id: 'text', in_reply_to: 'text', author: 'json', occurred_at: 'timestamp', preview: 'text', content_key: 'text' },
-        fresh.map((r) => ({ id: r.message_id, thread_id: r.thread_id, kind: r.m.kind, external_id: r.m.external_id, in_reply_to: r.m.in_reply_to, author: r.m.author, occurred_at: r.occurred, preview: r.m.preview, content_key: r.m.content_key })),
+        {
+          id: 'uuid',
+          thread_id: 'uuid',
+          kind: 'text',
+          external_id: 'text',
+          in_reply_to: 'text',
+          author: 'json',
+          occurred_at: 'timestamp',
+          preview: 'text',
+          content_key: 'text',
+        },
+        fresh.map((r) => ({
+          id: r.message_id,
+          thread_id: r.thread_id,
+          kind: r.m.kind,
+          external_id: r.m.external_id,
+          in_reply_to: r.m.in_reply_to,
+          author: r.m.author,
+          occurred_at: r.occurred,
+          preview: r.m.preview,
+          content_key: r.m.content_key,
+        })),
       )
       const attachmentSet = jsonRows(
         qc,
         'r',
-        { id: 'uuid', message_id: 'uuid', position: 'integer', file_id: 'uuid', type: 'text', name: 'text', mime_type: 'text', size_bytes: 'integer', inline: 'boolean', content_id: 'text', fetch_status: 'text', fetch_metadata: 'json', fetch_error: 'text' },
+        {
+          id: 'uuid',
+          message_id: 'uuid',
+          position: 'integer',
+          file_id: 'uuid',
+          type: 'text',
+          name: 'text',
+          mime_type: 'text',
+          size_bytes: 'integer',
+          inline: 'boolean',
+          content_id: 'text',
+          fetch_status: 'text',
+          fetch_metadata: 'json',
+          fetch_error: 'text',
+        },
         attachmentRows,
       )
       const interactionSet = jsonRows(
         qc,
         'r',
-        { id: 'uuid', kind: 'text', direction: 'text', occurred_at: 'timestamp', thread_id: 'uuid', message_id: 'uuid' },
-        fresh.map((r) => ({ id: r.interaction_id, kind: r.m.kind, direction: direction(r.m), occurred_at: r.occurred, thread_id: r.thread_id, message_id: r.message_id })),
+        {
+          id: 'uuid',
+          kind: 'text',
+          direction: 'text',
+          occurred_at: 'timestamp',
+          thread_id: 'uuid',
+          message_id: 'uuid',
+        },
+        fresh.map((r) => ({
+          id: r.interaction_id,
+          kind: r.m.kind,
+          direction: direction(r.m),
+          occurred_at: r.occurred,
+          thread_id: r.thread_id,
+          message_id: r.message_id,
+        })),
       )
-      const participantSet = jsonRows(qc, 'r', { id: 'uuid', interaction_id: 'uuid', role: 'text', kind: 'text', value: 'text' }, participantRows)
-      const messageSourceSet = jsonRows(qc, 'r', { id: 'uuid', message_id: 'uuid', pm: 'text', pt: 'text' }, messageSourceRows)
+      const participantSet = jsonRows(
+        qc,
+        'r',
+        { id: 'uuid', interaction_id: 'uuid', role: 'text', kind: 'text', value: 'text' },
+        participantRows,
+      )
+      const messageSourceSet = jsonRows(
+        qc,
+        'r',
+        { id: 'uuid', message_id: 'uuid', pm: 'text', pt: 'text' },
+        messageSourceRows,
+      )
       const threadSourceSet = jsonRows(qc, 'r', { id: 'uuid', thread_id: 'uuid', pt: 'text' }, threadSourceRows)
       const R = (c: string) => sql.ref(`r.${c}`)
 
@@ -357,12 +523,16 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
         assertion,
         step(
           sql`insert into "threads" ("id", "created_at", "organization_id", "created_by", "channel", "subject")
-            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${EMAIL}, ${R('subject')} from ${threadSet} order by ${R('ord')}`.compile(qc.db),
+            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${EMAIL}, ${R('subject')} from ${threadSet} order by ${R('ord')}`.compile(
+            qc.db,
+          ),
           firstMutation,
         ),
         step(
           sql`insert into "files" ("id", "created_at", "organization_id", "created_by", "name", "mime_type", "size_bytes", "sha256", "storage_key")
-            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('name')}, ${R('mime_type')}, ${R('size_bytes')}, ${R('sha256')}, ${R('storage_key')} from ${fileSet} order by ${R('ord')}`.compile(qc.db),
+            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('name')}, ${R('mime_type')}, ${R('size_bytes')}, ${R('sha256')}, ${R('storage_key')} from ${fileSet} order by ${R('ord')}`.compile(
+            qc.db,
+          ),
         ),
         ...exactly(
           qc,
@@ -415,12 +585,26 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
             ['interaction', interactions, interactionEvents, undefined],
           ] as const
         ).map(([eventName, def, rowsOf, label]) =>
-          step(eventSetStatement(qc, { at, organizationId: org, actorId: actor, type: `${eventName}.created`, resourceType: eventName, after: afterOf(def), rows: rowsOf }), label),
+          step(
+            eventSetStatement(qc, {
+              at,
+              organizationId: org,
+              actorId: actor,
+              type: `${eventName}.created`,
+              resourceType: eventName,
+              after: afterOf(def),
+              rows: rowsOf,
+            }),
+            label,
+          ),
         ),
       ]
 
-      const receipts = (type: string, resourceType: string, rowsOf: readonly { eventId: string; resourceId: string }[]): EventReceipt[] =>
-        rowsOf.map((r) => ({ id: r.eventId, type, resourceType, resourceId: r.resourceId }))
+      const receipts = (
+        type: string,
+        resourceType: string,
+        rowsOf: readonly { eventId: string; resourceId: string }[],
+      ): EventReceipt[] => rowsOf.map((r) => ({ id: r.eventId, type, resourceType, resourceId: r.resourceId }))
       const events: EventReceipt[] = [
         ...resolved.events,
         ...receipts('thread.created', 'thread', threadEvents),
@@ -440,7 +624,13 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
           existing.push({ external_id: r.m.external_id, message_id: r.message_id })
         }
         return {
-          captured: fresh.map((r) => ({ external_id: r.m.external_id, message_id: r.message_id, thread_id: r.thread_id, interaction_id: r.interaction_id, new_thread: r.outcome === 'new' })),
+          captured: fresh.map((r) => ({
+            external_id: r.m.external_id,
+            message_id: r.message_id,
+            thread_id: r.thread_id,
+            interaction_id: r.interaction_id,
+            new_thread: r.outcome === 'new',
+          })),
           existing,
           duplicate_objects: duplicateObjects,
         }

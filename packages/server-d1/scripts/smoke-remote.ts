@@ -5,7 +5,14 @@
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { RemoteRefusal, loadRootEnv } from './remote.js'
-import { JWT_SHAPE_CHECK, MALFORMED_KEY_CHECK, NO_AUTH_CHECK, ROOT_DOC_CHECK, afterHealthOk, errCode } from './smoke-checks.js'
+import {
+  JWT_SHAPE_CHECK,
+  MALFORMED_KEY_CHECK,
+  NO_AUTH_CHECK,
+  ROOT_DOC_CHECK,
+  afterHealthOk,
+  errCode,
+} from './smoke-checks.js'
 
 export { afterHealthOk }
 
@@ -50,25 +57,54 @@ async function call(base: string, method: string, path: string, key?: string | n
 
 async function before(base: string, version: string): Promise<void> {
   const h = await call(base, 'GET', '/health')
-  check('health -> 200 ok, initialised false, version', h.status === 200 && h.json?.status === 'ok' && h.json?.initialised === false && h.json?.version === version, { status: h.status, initialised: h.json?.initialised, version: h.json?.version })
+  check(
+    'health -> 200 ok, initialised false, version',
+    h.status === 200 && h.json?.status === 'ok' && h.json?.initialised === false && h.json?.version === version,
+    { status: h.status, initialised: h.json?.initialised, version: h.json?.version },
+  )
   const t = await call(base, 'GET', '/api/v1/tasks')
-  check('GET /api/v1/tasks (no auth) -> 503 not_initialised', t.status === 503 && errCode(t.json) === 'not_initialised', { status: t.status, code: errCode(t.json) })
-  for (const [path, title] of [['/api/v1/openapi.json', 'Vibase records API'], ['/meta/v1/openapi.json', 'Vibase meta API']] as const) {
+  check(
+    'GET /api/v1/tasks (no auth) -> 503 not_initialised',
+    t.status === 503 && errCode(t.json) === 'not_initialised',
+    { status: t.status, code: errCode(t.json) },
+  )
+  for (const [path, title] of [
+    ['/api/v1/openapi.json', 'Vibase records API'],
+    ['/meta/v1/openapi.json', 'Vibase meta API'],
+  ] as const) {
     const o = await call(base, 'GET', path)
-    check(`GET ${path} -> 200, openapi 3.1.0, ${title}`, o.status === 200 && o.json?.openapi === '3.1.0' && (o.json?.info as Json | undefined)?.title === title, { status: o.status })
+    check(
+      `GET ${path} -> 200, openapi 3.1.0, ${title}`,
+      o.status === 200 && o.json?.openapi === '3.1.0' && (o.json?.info as Json | undefined)?.title === title,
+      { status: o.status },
+    )
   }
   // The old root document is not exempt: uninitialised, it is refused like any other route ([[API32]] D5).
   const root = await call(base, 'GET', '/openapi.json')
-  check('GET /openapi.json -> 503 not_initialised (no root document, not exempt)', root.status === 503 && errCode(root.json) === 'not_initialised', { status: root.status, code: errCode(root.json) })
+  check(
+    'GET /openapi.json -> 503 not_initialised (no root document, not exempt)',
+    root.status === 503 && errCode(root.json) === 'not_initialised',
+    { status: root.status, code: errCode(root.json) },
+  )
 }
 
 async function after(base: string, version: string, key: string): Promise<void> {
   const h = await call(base, 'GET', '/health')
-  check('health -> 200 ok, initialised true, version, migrations current', afterHealthOk(h.status, h.json, version), { status: h.status, initialised: h.json?.initialised, version: h.json?.version, migrations: h.json?.migrations })
+  check('health -> 200 ok, initialised true, version, migrations current', afterHealthOk(h.status, h.json, version), {
+    status: h.status,
+    initialised: h.json?.initialised,
+    version: h.json?.version,
+    migrations: h.json?.migrations,
+  })
   const root = await call(base, 'GET', ROOT_DOC_CHECK.path)
-  check(ROOT_DOC_CHECK.name, ROOT_DOC_CHECK.ok(root.status, root.json), { status: root.status, code: errCode(root.json) })
+  check(ROOT_DOC_CHECK.name, ROOT_DOC_CHECK.ok(root.status, root.json), {
+    status: root.status,
+    code: errCode(root.json),
+  })
   const list = await call(base, 'GET', '/api/v1/tasks', key)
-  check('GET /api/v1/tasks with the key -> 200, data array', list.status === 200 && Array.isArray(list.json?.data), { status: list.status })
+  check('GET /api/v1/tasks with the key -> 200, data array', list.status === 200 && Array.isArray(list.json?.data), {
+    status: list.status,
+  })
   for (const c of [NO_AUTH_CHECK, MALFORMED_KEY_CHECK, JWT_SHAPE_CHECK]) {
     const r = await call(base, 'GET', c.path, null, undefined, c.authorization)
     check(c.name, c.ok(r.status, r.json), { status: r.status })
@@ -80,11 +116,17 @@ async function after(base: string, version: string, key: string): Promise<void> 
   check('POST /api/v1/tasks -> 201', created.status === 201 && id !== '', { status: created.status })
   if (id) {
     const got = await call(base, 'GET', `/api/v1/tasks/${id}`, key)
-    check('GET /api/v1/tasks/<id> -> 200 with the title', got.status === 200 && got.json?.title === title, { status: got.status })
+    check('GET /api/v1/tasks/<id> -> 200 with the title', got.status === 200 && got.json?.title === title, {
+      status: got.status,
+    })
     const del = await call(base, 'DELETE', `/api/v1/tasks/${id}`, key)
     check('DELETE /api/v1/tasks/<id> -> 204', del.status === 204, { status: del.status })
     const gone = await call(base, 'GET', `/api/v1/tasks/${id}`, key)
-    check('GET /api/v1/tasks/<id> after delete -> 404 not_found', gone.status === 404 && errCode(gone.json) === 'not_found', { status: gone.status, code: errCode(gone.json) })
+    check(
+      'GET /api/v1/tasks/<id> after delete -> 404 not_found',
+      gone.status === 404 && errCode(gone.json) === 'not_found',
+      { status: gone.status, code: errCode(gone.json) },
+    )
   }
 
   const total = 200
@@ -110,8 +152,14 @@ async function after(base: string, version: string, key: string): Promise<void> 
     }),
   )
   times.sort((a, b) => a - b)
-  check(`load: ${total} GET /api/v1/tasks at concurrency ${concurrency}: zero non-2xx, zero errors`, bad === 0 && errors === 0, { non2xx: bad, errors })
-  console.log(`load: p50=${percentile(times, 50).toFixed(0)}ms p95=${percentile(times, 95).toFixed(0)}ms max=${times[times.length - 1]!.toFixed(0)}ms`)
+  check(
+    `load: ${total} GET /api/v1/tasks at concurrency ${concurrency}: zero non-2xx, zero errors`,
+    bad === 0 && errors === 0,
+    { non2xx: bad, errors },
+  )
+  console.log(
+    `load: p50=${percentile(times, 50).toFixed(0)}ms p95=${percentile(times, 95).toFixed(0)}ms max=${times[times.length - 1]!.toFixed(0)}ms`,
+  )
 }
 
 /** The operator key of the smoked1 instance, from the environment ([[OPS265]] D15). */

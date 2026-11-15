@@ -14,29 +14,39 @@ export const AUTH_SECRET_MIN_LENGTH = 32
  * set; else none. Half of the AUTH pair throws (naming the missing variable, never a value), like an incomplete `AUTH_SECRET`; half of the Gmail pair only leaves Google sign-in off (the Gmail surface keeps
  * its own rules, [[CHN5]] D58). A blank value counts as unset.
  */
-export function resolveGoogleSignIn(env: Record<string, string | undefined>): { clientId: string; clientSecret: string } | undefined {
+export function resolveGoogleSignIn(
+  env: Record<string, string | undefined>,
+): { clientId: string; clientSecret: string } | undefined {
   const get = (name: string): string | undefined => {
     const v = env[name]?.trim()
     return v === undefined || v === '' ? undefined : v
   }
   const authId = get('AUTH_GOOGLE_CLIENT_ID')
   const authSecret = get('AUTH_GOOGLE_CLIENT_SECRET')
-  if (authId !== undefined && authSecret === undefined) throw new Error('AUTH_GOOGLE_CLIENT_ID is set but AUTH_GOOGLE_CLIENT_SECRET is not: set both or neither')
-  if (authSecret !== undefined && authId === undefined) throw new Error('AUTH_GOOGLE_CLIENT_SECRET is set but AUTH_GOOGLE_CLIENT_ID is not: set both or neither')
+  if (authId !== undefined && authSecret === undefined)
+    throw new Error('AUTH_GOOGLE_CLIENT_ID is set but AUTH_GOOGLE_CLIENT_SECRET is not: set both or neither')
+  if (authSecret !== undefined && authId === undefined)
+    throw new Error('AUTH_GOOGLE_CLIENT_SECRET is set but AUTH_GOOGLE_CLIENT_ID is not: set both or neither')
   if (authId !== undefined && authSecret !== undefined) return { clientId: authId, clientSecret: authSecret }
   const gmailId = get('GOOGLE_CLIENT_ID')
   const gmailSecret = get('GOOGLE_CLIENT_SECRET')
-  return gmailId !== undefined && gmailSecret !== undefined ? { clientId: gmailId, clientSecret: gmailSecret } : undefined
+  return gmailId !== undefined && gmailSecret !== undefined
+    ? { clientId: gmailId, clientSecret: gmailSecret }
+    : undefined
 }
 
 export function parseBuiltInAuthConfig(env: Record<string, string | undefined>): AuthRuntimeConfig {
   const secret = env.AUTH_SECRET
   if (secret === undefined || secret === '') throw new Error('AUTH_PROVIDER=better-auth requires AUTH_SECRET')
   if (secret !== secret.trim()) throw new Error('AUTH_SECRET must not have leading or trailing whitespace')
-  if (secret.length < AUTH_SECRET_MIN_LENGTH) throw new Error(`AUTH_SECRET must be at least ${AUTH_SECRET_MIN_LENGTH} characters`)
+  if (secret.length < AUTH_SECRET_MIN_LENGTH)
+    throw new Error(`AUTH_SECRET must be at least ${AUTH_SECRET_MIN_LENGTH} characters`)
   const base = env.PUBLIC_BASE_URL
   if (base === undefined || base.trim() === '') throw new Error('AUTH_PROVIDER=better-auth requires PUBLIC_BASE_URL')
-  if (!isValidPushVar('PUBLIC_BASE_URL', base)) throw new Error('PUBLIC_BASE_URL must be an origin without a path: https, or http://localhost for local development')
+  if (!isValidPushVar('PUBLIC_BASE_URL', base))
+    throw new Error(
+      'PUBLIC_BASE_URL must be an origin without a path: https, or http://localhost for local development',
+    )
   const google = resolveGoogleSignIn(env)
   return { secret, baseURL: new URL(base.trim()).origin, ...(google ? { google } : {}) }
 }

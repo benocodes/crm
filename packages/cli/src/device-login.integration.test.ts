@@ -22,10 +22,12 @@ const sessions: { r: ReturnType<typeof rig>; iss: ReturnType<typeof fakeIssuer> 
 afterEach(() => {
   // The shared assertion, automatic: nothing the authorization server issued is in any run's stdout or stderr.
   try {
-    for (const s of sessions) for (const o of s.r.outputs) for (const t of s.iss.secrets()) {
-      expect(o.stdout, `stdout of vibase ${o.argv.join(' ')}`).not.toContain(t)
-      expect(o.stderr, `stderr of vibase ${o.argv.join(' ')}`).not.toContain(t)
-    }
+    for (const s of sessions)
+      for (const o of s.r.outputs)
+        for (const t of s.iss.secrets()) {
+          expect(o.stdout, `stdout of vibase ${o.argv.join(' ')}`).not.toContain(t)
+          expect(o.stderr, `stderr of vibase ${o.argv.join(' ')}`).not.toContain(t)
+        }
   } finally {
     sessions.length = 0
     while (rigs.length) rigs.pop()!.dispose()
@@ -37,7 +39,10 @@ beforeEach(async () => {
   kit.profiles.clear()
   await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'clerk', authOrgId: kit.issuer.issuer })
   kit.profiles.set('user_o', clerkUser({ id: 'user_o', email: 'o@x.test', verified: true, role: 'owner' }))
-  kit.profiles.set('user_g', clerkUser({ id: 'user_g', email: 'g@x.test', verified: true, role: 'agent', first: 'Robo', last: 'Tron' }))
+  kit.profiles.set(
+    'user_g',
+    clerkUser({ id: 'user_g', email: 'g@x.test', verified: true, role: 'agent', first: 'Robo', last: 'Tron' }),
+  )
 })
 
 function session(subject: string) {
@@ -47,7 +52,10 @@ function session(subject: string) {
     subject,
     mint: ({ sub, scope }) => mintOAuthToken(kit.issuer, { sub, clientId: CLI, scope }),
   })
-  const worker = composeD1Worker({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: CLI }, { fetch: kit.fetch })
+  const worker = composeD1Worker(
+    { DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: CLI },
+    { fetch: kit.fetch },
+  )
   const net = network({ [SERVER]: (req) => worker.fetch(req), [iss.origin]: iss.handler })
   const r = rig({ fetch: net.fetch })
   rigs.push(r)
@@ -56,10 +64,11 @@ function session(subject: string) {
   return s
 }
 const clean = (s: ReturnType<typeof session>, ...res: { stdout: string; stderr: string }[]) => {
-  for (const x of res) for (const t of s.iss.secrets()) {
-    expect(x.stdout).not.toContain(t)
-    expect(x.stderr).not.toContain(t)
-  }
+  for (const x of res)
+    for (const t of s.iss.secrets()) {
+      expect(x.stdout).not.toContain(t)
+      expect(x.stderr).not.toContain(t)
+    }
 }
 
 describe('who signs in (D14, D17)', () => {
@@ -73,7 +82,9 @@ describe('who signs in (D14, D17)', () => {
     expect(me.active_organization.scopes.length).toBeGreaterThan(0)
     expect(res.stderr).not.toContain('vibase agents update')
     // the default scopes came from the real protected-resource document: every declared scope
-    const asked = new URLSearchParams(s.net.at(kit.issuer.issuer, '/oauth/device_authorization')[0]!.body).get('scope')!.split(' ')
+    const asked = new URLSearchParams(s.net.at(kit.issuer.issuer, '/oauth/device_authorization')[0]!.body)
+      .get('scope')!
+      .split(' ')
     expect(asked).toContain('offline_access')
     expect(asked).toContain('contacts:read')
     expect(asked.length).toBeGreaterThan(10)

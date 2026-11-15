@@ -18,7 +18,13 @@ import { redirectUriOf } from './operations.js'
 import { pkceVerifier, verifyState } from './state.js'
 import { requestSync, type MailSyncInstances } from '../sync/request.js'
 
-export type ConnectError = 'state_invalid' | 'consent_denied' | 'scope_missing' | 'not_a_member' | 'exchange_failed' | 'temporarily_unavailable'
+export type ConnectError =
+  | 'state_invalid'
+  | 'consent_denied'
+  | 'scope_missing'
+  | 'not_a_member'
+  | 'exchange_failed'
+  | 'temporarily_unavailable'
 
 /** The fixed text of each code, shown on the built-in page. Never provider text. */
 const TEXT: Record<ConnectError, string> = {
@@ -29,7 +35,14 @@ const TEXT: Record<ConnectError, string> = {
   exchange_failed: 'Google did not complete the connection. Start again.',
   temporarily_unavailable: 'The connection could not be completed right now. Try again in a minute.',
 }
-const STATUS: Record<ConnectError, number> = { state_invalid: 400, consent_denied: 400, scope_missing: 400, not_a_member: 403, exchange_failed: 400, temporarily_unavailable: 503 }
+const STATUS: Record<ConnectError, number> = {
+  state_invalid: 400,
+  consent_denied: 400,
+  scope_missing: 400,
+  not_a_member: 403,
+  exchange_failed: 400,
+  temporarily_unavailable: 503,
+}
 /** Own addresses of one connection: the profile address plus verified aliases, bounded so the connect unit stays one small batch. */
 export const MAX_OWN_ADDRESSES = 25
 
@@ -54,7 +67,8 @@ export interface CallbackDeps {
   randomBytes?: (n: number) => Uint8Array
 }
 
-const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+const escapeHtml = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 const HEADERS = {
   'content-type': 'text/html; charset=utf-8',
   'cache-control': 'no-store',
@@ -73,8 +87,18 @@ export function userSubjectOperation(userId: string): PreparedOperation<string |
   return defineOperation<string | null>({
     name: 'connections.callback_subject',
     mutates: false,
-    reads: (qc) => ({ user: { query: qc.db.selectFrom('users').select('users.auth_subject').where('users.id', '=', userId), mode: 'maybe' as const } }),
-    build: (found) => unit({ steps: [], events: [], decode: () => (found.maybe('user')?.auth_subject as string | null | undefined) ?? null }),
+    reads: (qc) => ({
+      user: {
+        query: qc.db.selectFrom('users').select('users.auth_subject').where('users.id', '=', userId),
+        mode: 'maybe' as const,
+      },
+    }),
+    build: (found) =>
+      unit({
+        steps: [],
+        events: [],
+        decode: () => (found.maybe('user')?.auth_subject as string | null | undefined) ?? null,
+      }),
   })
 }
 
@@ -83,7 +107,11 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
   return async (c) => {
     if (!config) return c.json({ error: { code: 'not_found', message: 'no such route' } }, 404)
     const storage = deps.storage(c)
-    if (storage.kind !== 'd1') return c.json({ error: { code: 'not_implemented', message: 'Gmail connections are implemented for D1 only' } }, 501)
+    if (storage.kind !== 'd1')
+      return c.json(
+        { error: { code: 'not_implemented', message: 'Gmail connections are implemented for D1 only' } },
+        501,
+      )
     const url = new URL(c.req.url)
     const clock = deps.clock ?? (() => new Date())
     const now = clock()
@@ -110,15 +138,34 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     let profile: Awaited<ReturnType<HttpGmailClient['getProfile']>>
     let sendAs: Awaited<ReturnType<HttpGmailClient['listSendAs']>>
     try {
-      tokens = await exchangeCode({ endpoints: deps.endpoints, clientId: config.clientId, clientSecret: config.clientSecret, redirectUri, code, verifier: await pkceVerifier(config.stateSecret, claims.nonce), fetch: deps.fetch })
+      tokens = await exchangeCode({
+        endpoints: deps.endpoints,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        redirectUri,
+        code,
+        verifier: await pkceVerifier(config.stateSecret, claims.nonce),
+        fetch: deps.fetch,
+      })
       if (!tokens.scopes.includes(GMAIL_READONLY)) return refuse('scope_missing')
-      identity = await verifyIdToken(tokens.idToken, { endpoints: deps.endpoints, clientId: config.clientId, fetch: deps.fetch, nowMs: now.getTime() })
-      gmail = new HttpGmailClient({ accessToken: async () => tokens.accessToken, fetch: deps.fetch, ...(deps.gmailBaseUrl ? { baseUrl: deps.gmailBaseUrl } : {}) })
+      identity = await verifyIdToken(tokens.idToken, {
+        endpoints: deps.endpoints,
+        clientId: config.clientId,
+        fetch: deps.fetch,
+        nowMs: now.getTime(),
+      })
+      gmail = new HttpGmailClient({
+        accessToken: async () => tokens.accessToken,
+        fetch: deps.fetch,
+        ...(deps.gmailBaseUrl ? { baseUrl: deps.gmailBaseUrl } : {}),
+      })
       profile = await gmail.getProfile()
       sendAs = await gmail.listSendAs()
     } catch (err) {
       // The kind only: a Google error carries no token, but nothing of it is worth a line either.
-      console.warn(`[gmail] connect exchange failed: ${err instanceof GoogleExchangeError ? err.code : err instanceof GmailApiError ? `gmail_${err.status}` : 'error'}`)
+      console.warn(
+        `[gmail] connect exchange failed: ${err instanceof GoogleExchangeError ? err.code : err instanceof GmailApiError ? `gmail_${err.status}` : 'error'}`,
+      )
       return refuse('exchange_failed')
     }
 
@@ -145,7 +192,13 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     const organizationId = binding.organizationId
     let subject: string | null
     try {
-      subject = (await execute(binding, { kind: 'tenant', actorId: claims.user_id, organizationId }, userSubjectOperation(claims.user_id))).value
+      subject = (
+        await execute(
+          binding,
+          { kind: 'tenant', actorId: claims.user_id, organizationId },
+          userSubjectOperation(claims.user_id),
+        )
+      ).value
     } catch {
       return refuse('temporarily_unavailable')
     }
@@ -156,7 +209,11 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     } catch {
       return refuse('temporarily_unavailable')
     }
-    if (role === null || !scopesForRole(role, deps.declaredScopes, deps.policy).has({ resource: 'connections', action: 'write' })) return refuse('not_a_member')
+    if (
+      role === null ||
+      !scopesForRole(role, deps.declaredScopes, deps.policy).has({ resource: 'connections', action: 'write' })
+    )
+      return refuse('not_a_member')
 
     // The watch ([[CHN5]] D89), after the person is admitted and before the unit: a failure never refuses the connect. The connection commits without a row and the
     // next cron tick registers it. The log names the class and Google's status, never the address, the topic or a token.
@@ -182,13 +239,25 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
         await execute(
           binding,
           { kind: 'tenant', actorId: claims.user_id, organizationId },
-          connectOperation(env, { google_sub: identity.sub, mailbox, own_addresses: [...own], granted_scopes: tokens.scopes, ciphertext, key_version: config.keyVersion, history_id: profile.historyId, ...(watchExpiresAt ? { watch_expires_at: watchExpiresAt } : {}) }),
+          connectOperation(env, {
+            google_sub: identity.sub,
+            mailbox,
+            own_addresses: [...own],
+            granted_scopes: tokens.scopes,
+            ciphertext,
+            key_version: config.keyVersion,
+            history_id: profile.historyId,
+            ...(watchExpiresAt ? { watch_expires_at: watchExpiresAt } : {}),
+          }),
         )
       ).value
       // After the unit has committed (D9): a request before it could name a connection that never existed. A failure here never undoes the connect; the cron serves it.
       if (deps.instances) {
         try {
-          await requestSync({ binding, organizationId, clock: () => now, newId: env.newId, instances: deps.instances }, result.connection_id)
+          await requestSync(
+            { binding, organizationId, clock: () => now, newId: env.newId, instances: deps.instances },
+            result.connection_id,
+          )
         } catch (err) {
           console.error(`[gmail] sync request failed after connect: ${err instanceof Error ? err.name : 'error'}`)
         }
@@ -207,5 +276,8 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
 function redirectTo(base: string, params: Record<string, string>): Response {
   const target = new URL(base)
   for (const [k, v] of Object.entries(params)) target.searchParams.set(k, v)
-  return new Response(null, { status: 302, headers: { location: target.toString(), 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } })
+  return new Response(null, {
+    status: 302,
+    headers: { location: target.toString(), 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
+  })
 }

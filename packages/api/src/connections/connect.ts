@@ -4,7 +4,21 @@
 // connection statement (insert, or the reconnect update, stamp-guarded), then the machinery rows. Assertions abort the whole batch as
 // drift when an expected event is missing, so a stale plan never leaves half a connect behind.
 import { sql, type SqlBool } from 'kysely'
-import { Found, UnitDriftError, assertStep, codecs, defineOperation, readMaybe, step, ts, unit, type EventReceipt, type PreparedOperation, type Row, type Step } from '@vibase/storage'
+import {
+  Found,
+  UnitDriftError,
+  assertStep,
+  codecs,
+  defineOperation,
+  readMaybe,
+  step,
+  ts,
+  unit,
+  type EventReceipt,
+  type PreparedOperation,
+  type Row,
+  type Step,
+} from '@vibase/storage'
 import { eventStatement } from '../outbox.js'
 import { watchUpsertStep } from '../channels/gmail/watch.js'
 import { ensureOwnProgram } from '../identity/resolve.js'
@@ -64,7 +78,10 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
           .where(sql<SqlBool>`${sql.ref('channel_connections.account_id')} = ${input.google_sub}`)
           .select(ts.exact(qc, 'channel_connections.updated_at').as('__stamp')),
       ),
-      ...Object.assign({}, ...programs.map((p, i) => Object.fromEntries(Object.entries(p.reads(qc)).map(([k, v]) => [sub(i, k), v])))),
+      ...Object.assign(
+        {},
+        ...programs.map((p, i) => Object.fromEntries(Object.entries(p.reads(qc)).map(([k, v]) => [sub(i, k), v]))),
+      ),
     }),
     build: (found, qc) => {
       const row = found.maybe(EXISTING)
@@ -102,7 +119,20 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
             }),
             'first-mutation',
           ),
-          step(eventStatement(qc, { id: eventId, at, organizationId: org, actorId: actor, type: 'connection.created', resourceType: 'connection', resourceId: newConnectionId, before: null, after: afterOf(connections) }), 'first-event'),
+          step(
+            eventStatement(qc, {
+              id: eventId,
+              at,
+              organizationId: org,
+              actorId: actor,
+              type: 'connection.created',
+              resourceType: 'connection',
+              resourceId: newConnectionId,
+              before: null,
+              after: afterOf(connections),
+            }),
+            'first-event',
+          ),
         )
       } else {
         const { __stamp, ...rest } = row as Record<string, unknown>
@@ -112,7 +142,14 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
           step(
             qc.db
               .updateTable('channel_connections')
-              .set({ owner_id: actor, status: 'active', granted_scopes: scopes, connected_at: at, updated_at: at, identity_id: identityOfMailbox as never })
+              .set({
+                owner_id: actor,
+                status: 'active',
+                granted_scopes: scopes,
+                connected_at: at,
+                updated_at: at,
+                identity_id: identityOfMailbox as never,
+              })
               .where('channel_connections.id', '=', before.id)
               .where('channel_connections.organization_id', '=', org)
               .where('channel_connections.deleted_at', 'is', null)
@@ -120,25 +157,122 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
             'first-mutation',
             { expect: 'affected' },
           ),
-          step(eventStatement(qc, { id: eventId, at, organizationId: org, actorId: actor, type: 'connection.updated', resourceType: 'connection', resourceId: before.id, before, after: afterOf(connections) }), 'first-event'),
+          step(
+            eventStatement(qc, {
+              id: eventId,
+              at,
+              organizationId: org,
+              actorId: actor,
+              type: 'connection.updated',
+              resourceType: 'connection',
+              resourceId: before.id,
+              before,
+              after: afterOf(connections),
+            }),
+            'first-event',
+          ),
         )
       }
       const id = existingId ?? newConnectionId
-      events.push({ id: eventId, type: existingId ? 'connection.updated' : 'connection.created', resourceType: 'connection', resourceId: id })
+      events.push({
+        id: eventId,
+        type: existingId ? 'connection.updated' : 'connection.created',
+        resourceType: 'connection',
+        resourceId: id,
+      })
       steps.push(assertStep(qc, eventExists(eventId)))
       // 3. The machinery (D26): the credential (insert-only; a live reconnect replaces the older rows), the cursor (kept on a reconnect: a new
       //    history id would open a gap), and the sync state (an old error is cleared on a reconnect).
-      steps.push(bare(step(qc.db.insertInto('channel_credentials').values({ id: credentialId, organization_id: org, created_by: actor, created_at: at, connection_id: id, refresh_token_ciphertext: input.ciphertext, key_version: input.key_version }))))
-      if (existingId) steps.push(bare(step(qc.db.deleteFrom('channel_credentials').where('connection_id', '=', id).where('organization_id', '=', org).where('id', '!=', credentialId))))
       steps.push(
-        bare(step(qc.db.insertInto('mail_sync_cursors').values({ connection_id: id, organization_id: org, created_by: actor, created_at: at, history_id: input.history_id, page_token: null, last_synced_at: null }).onConflict((oc) => oc.column('connection_id').doNothing()))),
-        bare(step(qc.db.insertInto('mail_sync_state').values({ connection_id: id, organization_id: org, created_by: actor, created_at: at }).onConflict((oc) => oc.column('connection_id').doNothing()))),
+        bare(
+          step(
+            qc.db.insertInto('channel_credentials').values({
+              id: credentialId,
+              organization_id: org,
+              created_by: actor,
+              created_at: at,
+              connection_id: id,
+              refresh_token_ciphertext: input.ciphertext,
+              key_version: input.key_version,
+            }),
+          ),
+        ),
       )
-      if (existingId) steps.push(bare(step(qc.db.updateTable('mail_sync_state').set({ last_error_code: null, last_error_at: null }).where('connection_id', '=', id).where('organization_id', '=', org))))
+      if (existingId)
+        steps.push(
+          bare(
+            step(
+              qc.db
+                .deleteFrom('channel_credentials')
+                .where('connection_id', '=', id)
+                .where('organization_id', '=', org)
+                .where('id', '!=', credentialId),
+            ),
+          ),
+        )
+      steps.push(
+        bare(
+          step(
+            qc.db
+              .insertInto('mail_sync_cursors')
+              .values({
+                connection_id: id,
+                organization_id: org,
+                created_by: actor,
+                created_at: at,
+                history_id: input.history_id,
+                page_token: null,
+                last_synced_at: null,
+              })
+              .onConflict((oc) => oc.column('connection_id').doNothing()),
+          ),
+        ),
+        bare(
+          step(
+            qc.db
+              .insertInto('mail_sync_state')
+              .values({ connection_id: id, organization_id: org, created_by: actor, created_at: at })
+              .onConflict((oc) => oc.column('connection_id').doNothing()),
+          ),
+        ),
+      )
+      if (existingId)
+        steps.push(
+          bare(
+            step(
+              qc.db
+                .updateTable('mail_sync_state')
+                .set({ last_error_code: null, last_error_at: null })
+                .where('connection_id', '=', id)
+                .where('organization_id', '=', org),
+            ),
+          ),
+        )
       // 3b. The watch row ([[CHN5]] D89), when the callback registered one: an upsert, so a live reconnect refreshes the row it had.
-      if (input.watch_expires_at) steps.push(bare(watchUpsertStep(qc, { connectionId: id, organizationId: org, ownerId: actor, mailbox, at, expiresAt: input.watch_expires_at })))
+      if (input.watch_expires_at)
+        steps.push(
+          bare(
+            watchUpsertStep(qc, {
+              connectionId: id,
+              organizationId: org,
+              ownerId: actor,
+              mailbox,
+              at,
+              expiresAt: input.watch_expires_at,
+            }),
+          ),
+        )
       // 4. The result: the connection, proven by its event.
-      steps.push(step(qc.db.selectFrom('channel_connections').select('channel_connections.id').where('channel_connections.id', '=', id).where(eventExists(eventId)), 'result'))
+      steps.push(
+        step(
+          qc.db
+            .selectFrom('channel_connections')
+            .select('channel_connections.id')
+            .where('channel_connections.id', '=', id)
+            .where(eventExists(eventId)),
+          'result',
+        ),
+      )
       return unit({
         steps,
         events,

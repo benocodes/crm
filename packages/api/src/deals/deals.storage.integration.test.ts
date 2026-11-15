@@ -24,8 +24,10 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
 const pipeline = (name = 'Sales', opts?: Opts): Promise<Rec> => a.call('pipelines.create', { body: { name } }, opts)
 const stage = (p: Rec, name: string, kind = 'open', position = 10, opts?: Opts): Promise<Rec> =>
   a.call('pipeline_stages.create', { body: { pipeline_id: p.id, name, kind, position } }, opts)
-const deal = (s: Rec, over: Rec = {}, opts?: Opts): Promise<Rec> => a.call('deals.create', { body: { name: 'Acme - pilot', stage_id: s.id, ...over } }, opts)
-const move = (d: Rec, s: Rec | string, opts?: Opts): Promise<Rec> => a.call('deals.move_stage', { params: { id: d.id }, body: { stage_id: typeof s === 'string' ? s : s.id } }, opts)
+const deal = (s: Rec, over: Rec = {}, opts?: Opts): Promise<Rec> =>
+  a.call('deals.create', { body: { name: 'Acme - pilot', stage_id: s.id, ...over } }, opts)
+const move = (d: Rec, s: Rec | string, opts?: Opts): Promise<Rec> =>
+  a.call('deals.move_stage', { params: { id: d.id }, body: { stage_id: typeof s === 'string' ? s : s.id } }, opts)
 const fail = async (name: string, input: Parameters<AssocKit['fail']>[1], opts?: Parameters<AssocKit['fail']>[2]) => {
   const err = await a.fail(name, input, opts)
   return [err.status, err.code, err.message] as const
@@ -33,9 +35,18 @@ const fail = async (name: string, input: Parameters<AssocKit['fail']>[1], opts?:
 /** The setup most cases need: a pipeline with Researched/Contacted (open), Won and Lost. */
 const world = async () => {
   const p = await pipeline()
-  return { p, researched: await stage(p, 'Researched', 'open', 10), contacted: await stage(p, 'Contacted', 'open', 20), won: await stage(p, 'Won', 'won', 90), lost: await stage(p, 'Lost', 'lost', 100) }
+  return {
+    p,
+    researched: await stage(p, 'Researched', 'open', 10),
+    contacted: await stage(p, 'Contacted', 'open', 20),
+    won: await stage(p, 'Won', 'won', 90),
+    lost: await stage(p, 'Lost', 'lost', 100),
+  }
 }
-const events = async (prefix: string) => (await e.rows('events')).filter((x) => String(x.type).startsWith(prefix)).sort((x, y) => String(x.id).localeCompare(String(y.id)))
+const events = async (prefix: string) =>
+  (await e.rows('events'))
+    .filter((x) => String(x.type).startsWith(prefix))
+    .sort((x, y) => String(x.id).localeCompare(String(y.id)))
 const ids = (page: { data: Rec[] }) => page.data.map((r) => r.id as string).sort()
 const live = async (table: string) => (await e.rows(table)).filter((r) => r.deleted_at === null)
 
@@ -46,7 +57,17 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
     expect(Object.keys(p).sort()).toEqual(['created_at', 'created_by', 'id', 'name', 'organization_id', 'updated_at'])
     const s = await stage(p, '  Researched ', 'open', 10)
     expect(s).toMatchObject({ pipeline_id: p.id, name: 'Researched', kind: 'open', position: 10, created_by: e.userId })
-    expect(Object.keys(s).sort()).toEqual(['created_at', 'created_by', 'id', 'kind', 'name', 'organization_id', 'pipeline_id', 'position', 'updated_at'])
+    expect(Object.keys(s).sort()).toEqual([
+      'created_at',
+      'created_by',
+      'id',
+      'kind',
+      'name',
+      'organization_id',
+      'pipeline_id',
+      'position',
+      'updated_at',
+    ])
   })
 
   it.each([
@@ -77,7 +98,9 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
       const err = await a.fail('pipeline_stages.create', { body: { pipeline_id: p.id, ...body } })
       expect([err.status, err.code], JSON.stringify(body)).toEqual([400, 'validation_error'])
     }
-    expect((await a.fail('pipeline_stages.create', { body: { name: 'S', kind: 'open', position: 1 } })).code).toBe('validation_error') // no pipeline_id
+    expect((await a.fail('pipeline_stages.create', { body: { name: 'S', kind: 'open', position: 1 } })).code).toBe(
+      'validation_error',
+    ) // no pipeline_id
     expect(await e.rows('pipeline_stages')).toEqual([])
     expect((await stage(p, 'x'.repeat(100), 'open', 0)).position).toBe(0) // the bounds themselves
   })
@@ -87,7 +110,9 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
     const gone = await pipeline('Gone')
     await a.call('pipelines.delete', { params: { id: gone.id } })
     for (const pipeline_id of [uuidv7(), gone.id]) {
-      const err = await a.fail('pipeline_stages.create', { body: { pipeline_id, name: 'S', kind: 'open', position: 1 } })
+      const err = await a.fail('pipeline_stages.create', {
+        body: { pipeline_id, name: 'S', kind: 'open', position: 1 },
+      })
       expect([err.status, err.code]).toEqual([400, 'invalid_reference'])
     }
     expect(await live('pipeline_stages')).toEqual([])
@@ -98,14 +123,21 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
   it('update takes name and position only; kind and pipeline_id are create-only (D3)', async () => {
     const w = await world()
     const other = await pipeline('Other')
-    const renamed = await a.call('pipeline_stages.update', { params: { id: w.researched.id }, body: { name: 'Sourced', position: 5 } })
+    const renamed = await a.call('pipeline_stages.update', {
+      params: { id: w.researched.id },
+      body: { name: 'Sourced', position: 5 },
+    })
     expect(renamed).toMatchObject({ name: 'Sourced', position: 5, kind: 'open', pipeline_id: w.p.id })
     for (const body of [{ kind: 'won' }, { pipeline_id: other.id }, { name: 'ok', kind: 'lost' }]) {
       const err = await a.fail('pipeline_stages.update', { params: { id: w.researched.id }, body })
       expect([err.status, err.code], JSON.stringify(body)).toEqual([400, 'validation_error'])
       expect(err.message).toMatch(/^(kind|pipeline_id) cannot be changed after creation/) // the shared create-only mechanism, not the schema's unrecognized-key text
     }
-    expect(await a.call('pipeline_stages.get', { params: { id: w.researched.id } })).toMatchObject({ kind: 'open', pipeline_id: w.p.id, name: 'Sourced' })
+    expect(await a.call('pipeline_stages.get', { params: { id: w.researched.id } })).toMatchObject({
+      kind: 'open',
+      pipeline_id: w.p.id,
+      name: 'Sourced',
+    })
   })
 
   it('positions are not unique: two stages may share one (a reorder is one update per moved stage)', async () => {
@@ -128,7 +160,10 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
     expect(await e.rows('pipelines')).toHaveLength(1)
     expect((await e.rows('events')).length).toBe(mark)
     const second = await pipeline('Other')
-    const [status, code, message] = await fail('pipelines.update', { params: { id: second.id }, body: { name: 'sales' } })
+    const [status, code, message] = await fail('pipelines.update', {
+      params: { id: second.id },
+      body: { name: 'sales' },
+    })
     expect([status, code]).toEqual([409, 'pipeline_exists'])
     expect(message).toContain(first.id)
     expect((await a.call('pipelines.update', { params: { id: first.id }, body: { name: 'SALES' } })).name).toBe('SALES') // its own name, another case
@@ -138,7 +173,9 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
     const p = await pipeline('A')
     const q = await pipeline('B')
     const first = await stage(p, 'Won', 'won', 90)
-    const [status, code, message] = await fail('pipeline_stages.create', { body: { pipeline_id: p.id, name: 'won', kind: 'won', position: 91 } })
+    const [status, code, message] = await fail('pipeline_stages.create', {
+      body: { pipeline_id: p.id, name: 'won', kind: 'won', position: 91 },
+    })
     expect([status, code]).toEqual([409, 'stage_exists'])
     expect(message).toContain(first.id)
     expect((await stage(q, 'WON', 'won', 90)).pipeline_id).toBe(q.id)
@@ -146,7 +183,9 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
     const upd = await fail('pipeline_stages.update', { params: { id: other.id }, body: { name: 'WON' } })
     expect([upd[0], upd[1]]).toEqual([409, 'stage_exists'])
     expect(upd[2]).toContain(first.id)
-    expect((await a.call('pipeline_stages.update', { params: { id: first.id }, body: { name: 'WON' } })).name).toBe('WON')
+    expect((await a.call('pipeline_stages.update', { params: { id: first.id }, body: { name: 'WON' } })).name).toBe(
+      'WON',
+    )
   })
 
   it('a deleted name is reusable: with no live row to compare the create succeeds (empty state)', async () => {
@@ -164,25 +203,66 @@ describe('pipelines and stages: validation, names and create-only fields (D3, D4
     expect(await e.rows('pipelines')).toHaveLength(1)
     const p = await pipeline('P')
     e.betweenPlanAndCommit(async () => void (await stage(p, 'Raced stage')))
-    expect((await fail('pipeline_stages.create', { body: { pipeline_id: p.id, name: 'raced STAGE', kind: 'open', position: 1 } })).slice(0, 2)).toEqual([409, 'conflict'])
+    expect(
+      (
+        await fail('pipeline_stages.create', {
+          body: { pipeline_id: p.id, name: 'raced STAGE', kind: 'open', position: 1 },
+        })
+      ).slice(0, 2),
+    ).toEqual([409, 'conflict'])
     expect(await e.rows('pipeline_stages')).toHaveLength(1)
   })
 })
 
 describe('deal validation (D7, D9)', () => {
-  it('creates a deal in the record shape: pipeline_id is the stage\'s, status is the stage kind, closed_at null', async () => {
+  it("creates a deal in the record shape: pipeline_id is the stage's, status is the stage kind, closed_at null", async () => {
     const w = await world()
-    const d = await deal(w.researched, { amount_minor: 125000, currency: 'usd', expected_close_date: '2026-12-31', owner_id: e.agentId })
-    expect(d).toMatchObject({
-      organization_id: e.organizationId, name: 'Acme - pilot', pipeline_id: w.p.id, stage_id: w.researched.id, status: 'open',
-      amount_minor: 125000, currency: 'USD', expected_close_date: '2026-12-31', owner_id: e.agentId, closed_at: null, created_by: e.userId,
+    const d = await deal(w.researched, {
+      amount_minor: 125000,
+      currency: 'usd',
+      expected_close_date: '2026-12-31',
+      owner_id: e.agentId,
     })
-    expect(Object.keys(d).sort()).toEqual(['amount_minor', 'closed_at', 'created_at', 'created_by', 'currency', 'expected_close_date', 'id', 'name', 'organization_id', 'owner_id', 'pipeline_id', 'stage_id', 'status', 'updated_at'])
+    expect(d).toMatchObject({
+      organization_id: e.organizationId,
+      name: 'Acme - pilot',
+      pipeline_id: w.p.id,
+      stage_id: w.researched.id,
+      status: 'open',
+      amount_minor: 125000,
+      currency: 'USD',
+      expected_close_date: '2026-12-31',
+      owner_id: e.agentId,
+      closed_at: null,
+      created_by: e.userId,
+    })
+    expect(Object.keys(d).sort()).toEqual([
+      'amount_minor',
+      'closed_at',
+      'created_at',
+      'created_by',
+      'currency',
+      'expected_close_date',
+      'id',
+      'name',
+      'organization_id',
+      'owner_id',
+      'pipeline_id',
+      'stage_id',
+      'status',
+      'updated_at',
+    ])
     const bare = await deal(w.researched, { name: '  Bare ' })
-    expect(bare).toMatchObject({ name: 'Bare', amount_minor: null, currency: null, expected_close_date: null, owner_id: null })
+    expect(bare).toMatchObject({
+      name: 'Bare',
+      amount_minor: null,
+      currency: null,
+      expected_close_date: null,
+      owner_id: null,
+    })
   })
 
-  it('pipeline_id is the stage\'s pipeline whichever pipeline it is, and pipeline_id in create input is 400', async () => {
+  it("pipeline_id is the stage's pipeline whichever pipeline it is, and pipeline_id in create input is 400", async () => {
     const w = await world()
     const q = await pipeline('Other')
     const qs = await stage(q, 'Start', 'open', 1)
@@ -254,17 +334,32 @@ describe('deal validation (D7, D9)', () => {
     await bad('deals.update', { params: { id: plain.id }, body: { amount_minor: 5 } }) // sets only the amount on a row with no currency
     const priced = await deal(w.researched, { name: 'Priced', amount_minor: 5, currency: 'USD' })
     await bad('deals.update', { params: { id: priced.id }, body: { currency: null } }) // clears the currency under an amount
-    expect(await a.call('deals.update', { params: { id: priced.id }, body: { amount_minor: 7 } })).toMatchObject({ amount_minor: 7, currency: 'USD' })
-    expect(await a.call('deals.update', { params: { id: priced.id }, body: { amount_minor: null, currency: null } })).toMatchObject({ amount_minor: null, currency: null })
-    expect(await a.call('deals.update', { params: { id: plain.id }, body: { amount_minor: 9, currency: 'gbp' } })).toMatchObject({ amount_minor: 9, currency: 'GBP' })
-    expect(await a.call('deals.get', { params: { id: priced.id } })).toMatchObject({ amount_minor: null, currency: null })
+    expect(await a.call('deals.update', { params: { id: priced.id }, body: { amount_minor: 7 } })).toMatchObject({
+      amount_minor: 7,
+      currency: 'USD',
+    })
+    expect(
+      await a.call('deals.update', { params: { id: priced.id }, body: { amount_minor: null, currency: null } }),
+    ).toMatchObject({ amount_minor: null, currency: null })
+    expect(
+      await a.call('deals.update', { params: { id: plain.id }, body: { amount_minor: 9, currency: 'gbp' } }),
+    ).toMatchObject({ amount_minor: 9, currency: 'GBP' })
+    expect(await a.call('deals.get', { params: { id: priced.id } })).toMatchObject({
+      amount_minor: null,
+      currency: null,
+    })
   })
 
   it('currency is upper-cased; usd1, ab, a digit, a bad date, a negative, a fraction and 2^53 are refused', async () => {
     const w = await world()
     expect((await deal(w.researched, { amount_minor: 1, currency: 'jpy' })).currency).toBe('JPY')
-    expect((await deal(w.researched, { amount_minor: Number.MAX_SAFE_INTEGER, currency: 'JPY' })).amount_minor).toBe(Number.MAX_SAFE_INTEGER)
-    expect((await deal(w.researched, { amount_minor: 0, currency: 'JPY', expected_close_date: '2028-02-29' })).expected_close_date).toBe('2028-02-29')
+    expect((await deal(w.researched, { amount_minor: Number.MAX_SAFE_INTEGER, currency: 'JPY' })).amount_minor).toBe(
+      Number.MAX_SAFE_INTEGER,
+    )
+    expect(
+      (await deal(w.researched, { amount_minor: 0, currency: 'JPY', expected_close_date: '2028-02-29' }))
+        .expected_close_date,
+    ).toBe('2028-02-29')
     const mark = (await live('deals')).length
     for (const over of [
       { amount_minor: 1, currency: 'usd1' },
@@ -291,16 +386,32 @@ describe('deal validation (D7, D9)', () => {
   it('unknown keys are 400 on create and update: closed_at, status, pipeline_id and anything else', async () => {
     const w = await world()
     const d = await deal(w.researched)
-    for (const extra of [{ closed_at: '2026-01-01T00:00:00.000Z' }, { status: 'won' }, { pipeline_id: w.p.id }, { colour: 'red' }, { created_by: uuidv7() }]) {
-      expect((await a.fail('deals.create', { body: { name: 'D', stage_id: w.researched.id, ...extra } })).code, JSON.stringify(extra)).toBe('validation_error')
-      if (!('pipeline_id' in extra)) expect((await a.fail('deals.update', { params: { id: d.id }, body: extra })).code, JSON.stringify(extra)).toBe('validation_error')
+    for (const extra of [
+      { closed_at: '2026-01-01T00:00:00.000Z' },
+      { status: 'won' },
+      { pipeline_id: w.p.id },
+      { colour: 'red' },
+      { created_by: uuidv7() },
+    ]) {
+      expect(
+        (await a.fail('deals.create', { body: { name: 'D', stage_id: w.researched.id, ...extra } })).code,
+        JSON.stringify(extra),
+      ).toBe('validation_error')
+      if (!('pipeline_id' in extra))
+        expect((await a.fail('deals.update', { params: { id: d.id }, body: extra })).code, JSON.stringify(extra)).toBe(
+          'validation_error',
+        )
     }
   })
 
   it('create-only fields on update: stage_id and pipeline_id are 400 and the message names deals.move_stage', async () => {
     const w = await world()
     const d = await deal(w.researched)
-    for (const body of [{ stage_id: w.contacted.id }, { pipeline_id: w.p.id }, { name: 'ok', stage_id: w.contacted.id }]) {
+    for (const body of [
+      { stage_id: w.contacted.id },
+      { pipeline_id: w.p.id },
+      { name: 'ok', stage_id: w.contacted.id },
+    ]) {
       const err = await a.fail('deals.update', { params: { id: d.id }, body })
       expect([err.status, err.code], JSON.stringify(body)).toEqual([400, 'validation_error'])
       expect(err.message).toContain('deals.move_stage')
@@ -313,8 +424,12 @@ describe('deal validation (D7, D9)', () => {
     const w = await world()
     const d = await deal(w.researched)
     const s = (await a.call('pipeline_stages.get', { params: { id: w.researched.id } })) as Rec
-    expect((await a.fail('pipeline_stages.update', { params: { id: s.id }, body: { kind: 'lost' } })).message).toContain('cannot be changed after creation')
-    expect((await a.fail('deals.update', { params: { id: d.id }, body: { stage_id: w.won.id } })).message).toContain('cannot be changed after creation')
+    expect(
+      (await a.fail('pipeline_stages.update', { params: { id: s.id }, body: { kind: 'lost' } })).message,
+    ).toContain('cannot be changed after creation')
+    expect((await a.fail('deals.update', { params: { id: d.id }, body: { stage_id: w.won.id } })).message).toContain(
+      'cannot be changed after creation',
+    )
     expect((await a.call('pipeline_stages.update', { params: { id: s.id }, body: { name: 'Fine' } })).name).toBe('Fine')
     expect((await a.call('deals.update', { params: { id: d.id }, body: { name: 'Fine' } })).name).toBe('Fine')
   })
@@ -399,20 +514,30 @@ describe('deals.move_stage and closed_at (D10, D11)', () => {
 
   it('an unknown or deleted deal is 404', async () => {
     const w = await world()
-    expect((await a.fail('deals.move_stage', { params: { id: uuidv7() }, body: { stage_id: w.won.id } })).code).toBe('not_found')
+    expect((await a.fail('deals.move_stage', { params: { id: uuidv7() }, body: { stage_id: w.won.id } })).code).toBe(
+      'not_found',
+    )
     const d = await deal(w.researched)
     await a.call('deals.delete', { params: { id: d.id } })
-    expect((await a.fail('deals.move_stage', { params: { id: d.id }, body: { stage_id: w.won.id } })).code).toBe('not_found')
+    expect((await a.fail('deals.move_stage', { params: { id: d.id }, body: { stage_id: w.won.id } })).code).toBe(
+      'not_found',
+    )
   })
 
   it('a concurrent edit makes the move drift (409 conflict) like an update, and nothing is written', async () => {
     const w = await world()
     const d = await deal(w.researched)
     const mark = (await e.rows('events')).length
-    e.betweenPlanAndCommit(async () => void (await a.call('deals.update', { params: { id: d.id }, body: { name: 'Edited meanwhile' } })))
+    e.betweenPlanAndCommit(
+      async () => void (await a.call('deals.update', { params: { id: d.id }, body: { name: 'Edited meanwhile' } })),
+    )
     const err = await a.fail('deals.move_stage', { params: { id: d.id }, body: { stage_id: w.won.id } })
     expect([err.status, err.code]).toEqual([409, 'conflict'])
-    expect(await a.call('deals.get', { params: { id: d.id } })).toMatchObject({ name: 'Edited meanwhile', stage_id: w.researched.id, closed_at: null })
+    expect(await a.call('deals.get', { params: { id: d.id } })).toMatchObject({
+      name: 'Edited meanwhile',
+      stage_id: w.researched.id,
+      closed_at: null,
+    })
     expect(await e.rows('events')).toHaveLength(mark + 1) // the concurrent update's own event only
   })
 
@@ -421,7 +546,10 @@ describe('deals.move_stage and closed_at (D10, D11)', () => {
     const d = await deal(w.researched)
     await move(d, w.won)
     const closed = await a.call('deals.get', { params: { id: d.id } })
-    const renamed = await a.call('deals.update', { params: { id: d.id }, body: { name: 'Renamed', amount_minor: 10, currency: 'USD' } })
+    const renamed = await a.call('deals.update', {
+      params: { id: d.id },
+      body: { name: 'Renamed', amount_minor: 10, currency: 'USD' },
+    })
     expect(renamed).toMatchObject({ closed_at: closed.closed_at, stage_id: w.won.id, status: 'won', name: 'Renamed' })
   })
 })
@@ -449,7 +577,17 @@ describe('events (D12)', () => {
       ['pipeline_stage.deleted', e.userId],
       ['pipeline.deleted', e.userId],
     ])
-    expect(evs.map((x) => x.resource_type)).toEqual(['pipeline', 'pipeline_stage', 'deal', 'pipeline', 'pipeline_stage', 'deal', 'deal', 'pipeline_stage', 'pipeline'])
+    expect(evs.map((x) => x.resource_type)).toEqual([
+      'pipeline',
+      'pipeline_stage',
+      'deal',
+      'pipeline',
+      'pipeline_stage',
+      'deal',
+      'deal',
+      'pipeline_stage',
+      'pipeline',
+    ])
     expect(evs[0]!.after).toMatchObject({ id: p.id, name: 'Sales' })
     expect(evs[8]!.after).toBeNull()
     expect(evs[8]!.before).toMatchObject({ id: p.id, name: 'Sales 2' })
@@ -476,8 +614,19 @@ describe('events (D12)', () => {
     const base = (await e.rows('events')).length
     await a.call('pipelines.delete', { params: { id: w.p.id } })
     const fresh = (await e.rows('events')).slice(base).sort((x, y) => String(x.id).localeCompare(String(y.id)))
-    expect(fresh.map((x) => x.type)).toEqual(['pipeline_stage.deleted', 'pipeline_stage.deleted', 'pipeline_stage.deleted', 'pipeline_stage.deleted', 'pipeline.deleted'])
-    expect(fresh.slice(0, 4).map((x) => x.resource_id).sort()).toEqual([w.researched.id, w.contacted.id, w.won.id, w.lost.id].sort())
+    expect(fresh.map((x) => x.type)).toEqual([
+      'pipeline_stage.deleted',
+      'pipeline_stage.deleted',
+      'pipeline_stage.deleted',
+      'pipeline_stage.deleted',
+      'pipeline.deleted',
+    ])
+    expect(
+      fresh
+        .slice(0, 4)
+        .map((x) => x.resource_id)
+        .sort(),
+    ).toEqual([w.researched.id, w.contacted.id, w.won.id, w.lost.id].sort())
     expect(fresh[4]!.resource_id).toBe(w.p.id)
     expect(fresh.every((x) => x.actor_id === e.userId)).toBe(true)
   })
@@ -491,7 +640,10 @@ describe('status is derived and never in events (D8)', () => {
   it('status follows the stage kind on get and list after each move', async () => {
     const w = await world()
     const d = await deal(w.researched)
-    const statusOf = async () => [(await a.call('deals.get', { params: { id: d.id } })).status, (await a.call('deals.list', { query: {} })).data[0].status]
+    const statusOf = async () => [
+      (await a.call('deals.get', { params: { id: d.id } })).status,
+      (await a.call('deals.list', { query: {} })).data[0].status,
+    ]
     expect(await statusOf()).toEqual(['open', 'open'])
     await move(d, w.won)
     expect(await statusOf()).toEqual(['won', 'won'])
@@ -537,7 +689,8 @@ describe('status is derived and never in events (D8)', () => {
     expect(await by('open')).toEqual([o1.id, o2.id].sort())
     expect(await by('won')).toEqual([w1.id])
     expect(await by('lost')).toEqual([l1.id, moved.id].sort())
-    for (const bad of ['closed', 'OPEN', '']) expect((await a.fail('deals.list', { query: { status: bad } })).code, bad).toBe('validation_error')
+    for (const bad of ['closed', 'OPEN', ''])
+      expect((await a.fail('deals.list', { query: { status: bad } })).code, bad).toBe('validation_error')
   })
 })
 
@@ -668,7 +821,10 @@ describe('the set limit on a pipeline delete (D13)', () => {
     try {
       const k = assocKit(limited)
       const p = await k.call('pipelines.create', { body: { name: 'Big' } })
-      for (let i = 0; i < 4; i++) await k.call('pipeline_stages.create', { body: { pipeline_id: p.id, name: `S${i}`, kind: 'open', position: i } })
+      for (let i = 0; i < 4; i++)
+        await k.call('pipeline_stages.create', {
+          body: { pipeline_id: p.id, name: `S${i}`, kind: 'open', position: i },
+        })
       const mark = (await limited.rows('events')).length
       const err = await k.fail('pipelines.delete', { params: { id: p.id } })
       expect([err.status, err.code]).toEqual([400, 'set_limit_exceeded'])
@@ -696,7 +852,9 @@ describe('list filters (D15 column part)', () => {
       let after: string | null = null
       let pages = 0
       do {
-        const page: { data: Rec[]; next_cursor: string | null } = await a.call('deals.list', { query: { ...query, limit: 2, ...(after ? { after } : {}) } })
+        const page: { data: Rec[]; next_cursor: string | null } = await a.call('deals.list', {
+          query: { ...query, limit: 2, ...(after ? { after } : {}) },
+        })
         out.push(...page.data.map((r) => r.id as string))
         after = page.next_cursor
         pages++
@@ -718,7 +876,12 @@ describe('list filters (D15 column part)', () => {
   it('an id matching nothing is an empty page, not an error', async () => {
     const w = await world()
     await deal(w.researched)
-    for (const query of [{ pipeline_id: uuidv7() }, { stage_id: uuidv7() }, { owner_id: uuidv7() }, { created_by: uuidv7() }]) {
+    for (const query of [
+      { pipeline_id: uuidv7() },
+      { stage_id: uuidv7() },
+      { owner_id: uuidv7() },
+      { created_by: uuidv7() },
+    ]) {
       expect(await a.call('deals.list', { query })).toEqual({ data: [], next_cursor: null })
     }
     expect((await a.fail('deals.list', { query: { stage_id: 'nope' } })).code).toBe('validation_error')
@@ -733,7 +896,9 @@ describe('list filters (D15 column part)', () => {
     expect(ids(await a.call('pipelines.list', { query: { name: 'RENEWALS' } }))).toEqual([q.id])
     expect(ids(await a.call('pipelines.list', { query: { name: 'nothing' } }))).toEqual([])
     expect(ids(await a.call('pipelines.list', { query: {} }))).toEqual([w.p.id, q.id].sort())
-    expect(ids(await a.call('pipeline_stages.list', { query: { pipeline_id: w.p.id } }))).toEqual([w.researched.id, w.contacted.id, w.won.id, w.lost.id].sort())
+    expect(ids(await a.call('pipeline_stages.list', { query: { pipeline_id: w.p.id } }))).toEqual(
+      [w.researched.id, w.contacted.id, w.won.id, w.lost.id].sort(),
+    )
     expect(ids(await a.call('pipeline_stages.list', { query: { kind: 'won' } }))).toEqual([w.won.id, qs.id].sort())
     expect(ids(await a.call('pipeline_stages.list', { query: { pipeline_id: q.id, kind: 'lost' } }))).toEqual([])
     expect(ids(await a.call('pipeline_stages.list', { query: { pipeline_id: uuidv7() } }))).toEqual([])

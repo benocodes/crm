@@ -39,7 +39,8 @@ export const realSetupDeps: SetupDeps = {
     return { d1: proxy.env.DB, control: proxy.env.CONTROL_DB, dispose: () => proxy.dispose() }
   },
   probeEnvFile: (arg, envName) => probeEnvFile(arg, envName, REPO_ROOT, ROOT_ENV_PATH),
-  appendEnvFileVar: (arg, envName, name, value) => appendEnvFileVar(arg, envName, name, value, REPO_ROOT, ROOT_ENV_PATH),
+  appendEnvFileVar: (arg, envName, name, value) =>
+    appendEnvFileVar(arg, envName, name, value, REPO_ROOT, ROOT_ENV_PATH),
   readEnvText: () => {
     try {
       return readFileSync(ROOT_ENV_PATH, 'utf8')

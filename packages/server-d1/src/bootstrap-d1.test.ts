@@ -15,11 +15,24 @@ afterAll(() => w.dispose())
 beforeEach(() => w.reset())
 
 /** The human bootstrap is the `none` path now ([[CORE64]] D11); the Clerk path is covered in workspace-auth.test.ts. */
-const base = { organizationName: 'Acme', email: 'Owner@X.test', agentName: 'bot', authOrgId: 'org_acme', authProvider: 'none' }
+const base = {
+  organizationName: 'Acme',
+  email: 'Owner@X.test',
+  agentName: 'bot',
+  authOrgId: 'org_acme',
+  authProvider: 'none',
+}
 const env = () => ({ now: NOW, newId: () => uuidv7(NOW) })
-const all = async (table: string) => (await w.d1.prepare(`select * from "${table}"`).all()).results as Array<Record<string, unknown>>
+const all = async (table: string) =>
+  (await w.d1.prepare(`select * from "${table}"`).all()).results as Array<Record<string, unknown>>
 const counts = async () =>
-  Object.fromEntries(await Promise.all(['deployment', 'organizations', 'users', 'principals', 'memberships', 'agents', 'api_keys', 'events'].map(async (t) => [t, (await all(t)).length])))
+  Object.fromEntries(
+    await Promise.all(
+      ['deployment', 'organizations', 'users', 'principals', 'memberships', 'agents', 'api_keys', 'events'].map(
+        async (t) => [t, (await all(t)).length],
+      ),
+    ),
+  )
 
 describe('bootstrapD1 (P7)', () => {
   it('a fresh bootstrap writes the marker, the organisation, the owner, the agent and a key, with no events', async () => {
@@ -31,7 +44,9 @@ describe('bootstrapD1 (P7)', () => {
     expect(org).toMatchObject({ id: r.organizationId, name: 'Acme', auth_provider: 'none', auth_org_id: 'org_acme' })
     const [user] = await all('users')
     expect(user).toMatchObject({ id: r.userId, email: 'owner@x.test' })
-    expect(await all('memberships')).toMatchObject([{ user_id: r.userId, organization_id: r.organizationId, role: 'owner' }])
+    expect(await all('memberships')).toMatchObject([
+      { user_id: r.userId, organization_id: r.organizationId, role: 'owner' },
+    ])
     expect(await all('agents')).toMatchObject([{ id: r.agentId, organization_id: r.organizationId }])
     const [key] = await all('api_keys')
     expect(key).toMatchObject({ id: r.apiKeyId, agent_id: r.agentId })
@@ -51,13 +66,19 @@ describe('bootstrapD1 (P7)', () => {
   it('a second run is refused and writes nothing', async () => {
     const r = await bootstrapD1(w.d1, base, env())
     const before = await counts()
-    await expect(bootstrapD1(w.d1, base, env())).rejects.toThrow(`organization ${r.organizationId} is already initialised`)
+    await expect(bootstrapD1(w.d1, base, env())).rejects.toThrow(
+      `organization ${r.organizationId} is already initialised`,
+    )
     expect(await counts()).toEqual(before)
   })
 
   it('resumes after a marker-only crash', async () => {
     const link = { organizationId: uuidv7(NOW), authProvider: 'none', authOrgId: 'org_acme' }
-    await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+    await execute(
+      d1Binding(w.d1, link),
+      { kind: 'internal', organizationId: link.organizationId },
+      initDeploymentOperation(link),
+    )
     const r = await bootstrapD1(w.d1, base, env())
     expect(r.deployment).toBe('existing')
     expect(r.organizationId).toBe(link.organizationId)
@@ -66,14 +87,22 @@ describe('bootstrapD1 (P7)', () => {
 
   it('refuses a conflicting link and writes nothing', async () => {
     const link = { organizationId: uuidv7(NOW), authProvider: 'none', authOrgId: 'org_a' }
-    await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+    await execute(
+      d1Binding(w.d1, link),
+      { kind: 'internal', organizationId: link.organizationId },
+      initDeploymentOperation(link),
+    )
     const before = await counts()
-    await expect(bootstrapD1(w.d1, { ...base, authOrgId: 'org_b' }, env())).rejects.toThrow(`deployment is already initialised for organization ${link.organizationId} (none:org_a)`)
+    await expect(bootstrapD1(w.d1, { ...base, authOrgId: 'org_b' }, env())).rejects.toThrow(
+      `deployment is already initialised for organization ${link.organizationId} (none:org_a)`,
+    )
     expect(await counts()).toEqual(before)
   })
 
   it('never logs the plaintext key or its hash', async () => {
-    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) =>
+      vi.spyOn(console, m).mockImplementation(() => {}),
+    )
     const r = await bootstrapD1(w.d1, base, env())
     const hash = await hashApiKey(r.key)
     const text = JSON.stringify(spies.flatMap((s) => s.mock.calls))
@@ -86,20 +115,25 @@ describe('bootstrapD1 (P7)', () => {
 describe('probeBatchAtomicity (C8)', () => {
   const link = () => ({ organizationId: uuidv7(NOW), authProvider: 'none', authOrgId: 'smoked1' })
   /** The failure mode: a batch that runs statement by statement, so a later failure leaves the earlier ones written. */
-  const perStatement = (real: typeof w.d1): typeof w.d1 => ({
-    prepare: (q: string) => real.prepare(q),
-    batch: async (stmts: Parameters<typeof w.d1.batch>[0]) => {
-      const out = []
-      for (const s of stmts) out.push(await s.run())
-      return out
-    },
-  }) as typeof w.d1
+  const perStatement = (real: typeof w.d1): typeof w.d1 =>
+    ({
+      prepare: (q: string) => real.prepare(q),
+      batch: async (stmts: Parameters<typeof w.d1.batch>[0]) => {
+        const out = []
+        for (const s of stmts) out.push(await s.run())
+        return out
+      },
+    }) as typeof w.d1
 
   it('is atomic on Miniflare D1, leaves no marker, and bootstrap then succeeds', async () => {
     const l = link()
     expect(await probeBatchAtomicity(w.d1, l)).toBe('atomic')
     expect(await readDeployment(w.d1)).toBeNull()
-    const r = await bootstrapD1(w.d1, { ...base, authProvider: l.authProvider, authOrgId: l.authOrgId, organizationId: l.organizationId }, env())
+    const r = await bootstrapD1(
+      w.d1,
+      { ...base, authProvider: l.authProvider, authOrgId: l.authOrgId, organizationId: l.organizationId },
+      env(),
+    )
     expect(r.deployment).toBe('created')
   })
 
@@ -120,7 +154,11 @@ describe('probeBatchAtomicity (C8)', () => {
   it('a leaked probe row is adopted by a resumed bootstrap', async () => {
     const l = link()
     await probeBatchAtomicity(perStatement(w.d1), l)
-    const r = await bootstrapD1(w.d1, { ...base, authProvider: l.authProvider, authOrgId: l.authOrgId, organizationId: l.organizationId }, env())
+    const r = await bootstrapD1(
+      w.d1,
+      { ...base, authProvider: l.authProvider, authOrgId: l.authOrgId, organizationId: l.organizationId },
+      env(),
+    )
     expect(r.deployment).toBe('existing')
     expect(r.organizationId).toBe(l.organizationId)
     expect(await all('organizations')).toHaveLength(1)
@@ -143,13 +181,19 @@ describe('bootstrapD1 pairs the control database (CORE259 D7)', () => {
   it('a re-run changes nothing in the control database and is refused for the organisation (as today), not for the marker', async () => {
     const r = await bootstrapD1(w.d1, base, { ...env(), control: control() })
     const before = JSON.stringify((await w.control.prepare('select * from control_deployment').all()).results)
-    await expect(bootstrapD1(w.d1, base, { ...env(), control: control() })).rejects.toThrow(`organization ${r.organizationId} is already initialised`)
+    await expect(bootstrapD1(w.d1, base, { ...env(), control: control() })).rejects.toThrow(
+      `organization ${r.organizationId} is already initialised`,
+    )
     expect(JSON.stringify((await w.control.prepare('select * from control_deployment').all()).results)).toBe(before)
   })
 
   it('resumes after a crash between the CRM marker and the control marker: the marker is written, idempotently', async () => {
     const link = { organizationId: uuidv7(NOW), authProvider: 'none', authOrgId: 'org_acme' }
-    await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+    await execute(
+      d1Binding(w.d1, link),
+      { kind: 'internal', organizationId: link.organizationId },
+      initDeploymentOperation(link),
+    )
     expect(await readControlMarker(control())).toBeNull()
     const r = await bootstrapD1(w.d1, base, { ...env(), control: control() })
     expect(r.deployment).toBe('existing')
@@ -166,7 +210,9 @@ describe('bootstrapD1 pairs the control database (CORE259 D7)', () => {
   it('an unmigrated control database is refused with the migrate command, before anything is written', async () => {
     const bare = await openLocalD1(['B'], { migrate: false })
     try {
-      await expect(bootstrapD1(w.d1, base, { ...env(), control: openControlDb(bare.bindings.B!) })).rejects.toThrow(/migrations apply CONTROL_DB --local/)
+      await expect(bootstrapD1(w.d1, base, { ...env(), control: openControlDb(bare.bindings.B!) })).rejects.toThrow(
+        /migrations apply CONTROL_DB --local/,
+      )
       expect(await all('deployment')).toEqual([])
     } finally {
       await bare.dispose()

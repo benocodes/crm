@@ -23,7 +23,11 @@ let bundle: Bundle
 let w: Workerd
 beforeAll(async () => {
   bundle = await bundleWorker(ENTRY)
-  w = await startWorkerd({ bundle, bindings: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE, OPEN_ADMISSION: '1' }, paired: true })
+  w = await startWorkerd({
+    bundle,
+    bindings: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE, OPEN_ADMISSION: '1' },
+    paired: true,
+  })
   await seedFirstPartyClient(w.control as never, { baseURL: BASE })
 }, 180_000)
 afterAll(async () => {
@@ -31,23 +35,30 @@ afterAll(async () => {
   bundle?.dispose()
 })
 
-const call = (path: string, init: { body?: unknown; form?: boolean; cookie?: string; method?: string } = {}) => w.call(path, { ...init, headers: ip() })
+const call = (path: string, init: { body?: unknown; form?: boolean; cookie?: string; method?: string } = {}) =>
+  w.call(path, { ...init, headers: ip() })
 const signUp = (email: string) => authKitOver(call as never, BASE, declared).signUp(email)
 /**
  * Where an authorize request sends the browser. Better Auth answers a navigation with a `302` and a `fetch` with `{ redirect: true, url }` (the library decides from the request's headers, which
  * workerd's dispatch does not set the way a browser does); both carry the same URL, so a test reads either.
  */
 async function authorizeRedirect(path: string, cookie?: string): Promise<URL> {
-  const res = (await w.mf.dispatchFetch(BASE + path, { redirect: 'manual', headers: { origin: BASE, ...ip(), ...(cookie ? { cookie } : {}) } })) as unknown as Response
-  const raw = res.status === 302 ? res.headers.get('location') : ((await res.json()) as { redirect?: boolean; url?: string }).url
+  const res = (await w.mf.dispatchFetch(BASE + path, {
+    redirect: 'manual',
+    headers: { origin: BASE, ...ip(), ...(cookie ? { cookie } : {}) },
+  })) as unknown as Response
+  const raw =
+    res.status === 302 ? res.headers.get('location') : ((await res.json()) as { redirect?: boolean; url?: string }).url
   expect(raw, `authorize answered ${res.status}`).toBeTruthy()
   return new URL(raw!, BASE)
 }
 
-describe('device: the /device page\'s calls', () => {
+describe("device: the /device page's calls", () => {
   it('a code issued for vibase-cli names the page, is claimed unseparated by a signed-in person, approved, and redeemed', async () => {
     const { cookie } = await signUp('device@x.test')
-    const issued = await call('/auth/device/code', { body: { client_id: 'vibase-cli', scope: 'openid contacts:read', resource: BASE } })
+    const issued = await call('/auth/device/code', {
+      body: { client_id: 'vibase-cli', scope: 'openid contacts:read', resource: BASE },
+    })
     expect(issued.status, await issued.clone().text()).toBe(200)
     const codes = (await issued.json()) as Record<string, any>
     expect(codes.user_code).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/)
@@ -59,10 +70,17 @@ describe('device: the /device page\'s calls', () => {
     expect(((await name.json()) as any).client_name).toBe('Vibase CLI')
     const claim = await call(`/auth/device?user_code=${codes.user_code}`, { cookie })
     expect(claim.status).toBe(200)
-    expect(await claim.json()).toMatchObject({ status: 'pending', client_id: 'vibase-cli', scope: 'openid contacts:read' })
+    expect(await claim.json()).toMatchObject({
+      status: 'pending',
+      client_id: 'vibase-cli',
+      scope: 'openid contacts:read',
+    })
     expect((await call('/auth/device/approve', { cookie, body: { userCode: codes.user_code } })).status).toBe(200)
 
-    const tok = await call('/auth/oauth2/token', { form: true, body: { grant_type: DEVICE, device_code: codes.device_code, client_id: 'vibase-cli', resource: BASE } })
+    const tok = await call('/auth/oauth2/token', {
+      form: true,
+      body: { grant_type: DEVICE, device_code: codes.device_code, client_id: 'vibase-cli', resource: BASE },
+    })
     expect(tok.status, await tok.clone().text()).toBe(200)
     expect(decode(((await tok.json()) as any).access_token).scope).toContain('contacts:read')
   })
@@ -70,19 +88,30 @@ describe('device: the /device page\'s calls', () => {
   it('a person who did not claim the code gets no client_id, and cannot approve it', async () => {
     const a = await signUp('claimer@x.test')
     const b = await signUp('other@x.test')
-    const codes = (await (await call('/auth/device/code', { body: { client_id: 'vibase-cli', scope: 'openid', resource: BASE } })).json()) as { user_code: string }
+    const codes = (await (
+      await call('/auth/device/code', { body: { client_id: 'vibase-cli', scope: 'openid', resource: BASE } })
+    ).json()) as { user_code: string }
     expect((await call(`/auth/device?user_code=${codes.user_code}`, { cookie: a.cookie })).status).toBe(200)
-    const other = (await (await call(`/auth/device?user_code=${codes.user_code}`, { cookie: b.cookie })).json()) as Record<string, unknown>
+    const other = (await (
+      await call(`/auth/device?user_code=${codes.user_code}`, { cookie: b.cookie })
+    ).json()) as Record<string, unknown>
     expect(other.client_id).toBeUndefined()
-    expect((await call('/auth/device/approve', { cookie: b.cookie, body: { userCode: codes.user_code } })).status).toBeGreaterThanOrEqual(400)
+    expect(
+      (await call('/auth/device/approve', { cookie: b.cookie, body: { userCode: codes.user_code } })).status,
+    ).toBeGreaterThanOrEqual(400)
   })
 
   it('a deny is answered 200 and the grant is then refused to the CLI', async () => {
     const { cookie } = await signUp('denier@x.test')
-    const codes = (await (await call('/auth/device/code', { body: { client_id: 'vibase-cli', scope: 'openid', resource: BASE } })).json()) as { user_code: string; device_code: string }
+    const codes = (await (
+      await call('/auth/device/code', { body: { client_id: 'vibase-cli', scope: 'openid', resource: BASE } })
+    ).json()) as { user_code: string; device_code: string }
     await call(`/auth/device?user_code=${codes.user_code}`, { cookie })
     expect((await call('/auth/device/deny', { cookie, body: { userCode: codes.user_code } })).status).toBe(200)
-    const tok = await call('/auth/oauth2/token', { form: true, body: { grant_type: DEVICE, device_code: codes.device_code, client_id: 'vibase-cli', resource: BASE } })
+    const tok = await call('/auth/oauth2/token', {
+      form: true,
+      body: { grant_type: DEVICE, device_code: codes.device_code, client_id: 'vibase-cli', resource: BASE },
+    })
     expect(((await tok.json()) as any).error).toBe('access_denied')
   })
 })
@@ -91,7 +120,14 @@ describe('authorization code: /sign-in then /consent', () => {
   const verifier = 'v'.repeat(60)
   const register = async () => {
     const res = await call('/auth/oauth2/register', {
-      body: { client_name: 'Claude Desktop', token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], redirect_uris: [REDIRECT], scope: 'openid offline_access contacts:read' },
+      body: {
+        client_name: 'Claude Desktop',
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        redirect_uris: [REDIRECT],
+        scope: 'openid offline_access contacts:read',
+      },
     })
     expect(res.status, await res.clone().text()).toBe(201)
     return ((await res.json()) as { client_id: string }).client_id
@@ -99,7 +135,7 @@ describe('authorization code: /sign-in then /consent', () => {
   const authorize = (clientId: string) =>
     `/auth/oauth2/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: REDIRECT, scope: 'openid contacts:read', state: 'st 1&x', code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256', resource: MCP }).toString()}`
 
-  it('a signed-in person is sent to /consent; the page\'s exact consent call redirects to the client with a code that exchanges for tokens', async () => {
+  it("a signed-in person is sent to /consent; the page's exact consent call redirects to the client with a code that exchanges for tokens", async () => {
     const id = await register()
     const { cookie } = await signUp('consent@x.test')
     const loc = await authorizeRedirect(authorize(id), cookie)
@@ -116,7 +152,17 @@ describe('authorization code: /sign-in then /consent', () => {
     const code = back.searchParams.get('code')!
     expect(code).toBeTruthy()
 
-    const tok = await call('/auth/oauth2/token', { form: true, body: { grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: REDIRECT, client_id: id, resource: MCP } })
+    const tok = await call('/auth/oauth2/token', {
+      form: true,
+      body: {
+        grant_type: 'authorization_code',
+        code,
+        code_verifier: verifier,
+        redirect_uri: REDIRECT,
+        client_id: id,
+        resource: MCP,
+      },
+    })
     expect(tok.status, await tok.clone().text()).toBe(200)
     const body = (await tok.json()) as { access_token: string }
     expect(decode(body.access_token).scope).toContain('contacts:read')
@@ -136,7 +182,10 @@ describe('authorization code: /sign-in then /consent', () => {
     const id = await register()
     const { cookie } = await signUp('tamper@x.test')
     const oauthQuery = (await authorizeRedirect(authorize(id), cookie)).search.slice(1)
-    const res = await call('/auth/oauth2/consent', { cookie, body: { accept: true, oauth_query: oauthQuery.replace('contacts%3Aread', 'agents%3Awrite') } })
+    const res = await call('/auth/oauth2/consent', {
+      cookie,
+      body: { accept: true, oauth_query: oauthQuery.replace('contacts%3Aread', 'agents%3Awrite') },
+    })
     expect(res.status).toBeGreaterThanOrEqual(400)
     expect(((await res.json()) as any).error).toBe('invalid_signature')
   })
@@ -149,7 +198,9 @@ describe('authorization code: /sign-in then /consent', () => {
     expect(loc.searchParams.get('sig')).toBeTruthy()
     const oauthQuery = loc.search.slice(1)
 
-    const signedIn = await call('/auth/sign-in/email', { body: { email: 'resume@x.test', password: PASSWORD, oauth_query: oauthQuery } })
+    const signedIn = await call('/auth/sign-in/email', {
+      body: { email: 'resume@x.test', password: PASSWORD, oauth_query: oauthQuery },
+    })
     expect(signedIn.status, await signedIn.clone().text()).toBe(200)
     const answer = (await signedIn.json()) as { redirect?: boolean; url?: string }
     expect(answer.redirect).toBe(true)

@@ -27,7 +27,8 @@ describe('assertStep (CORE36 C1, D4)', () => {
 })
 
 describe('exactly', () => {
-  const update = (qc: ReturnType<typeof queryContext>) => step(qc.db.updateTable('tasks').set({ title: 'x' }), 'first-mutation')
+  const update = (qc: ReturnType<typeof queryContext>) =>
+    step(qc.db.updateTable('tasks').set({ title: 'x' }), 'first-mutation')
 
   it('on postgres is the same step expecting exactly n rows', () => {
     const qc = queryContext('postgres')

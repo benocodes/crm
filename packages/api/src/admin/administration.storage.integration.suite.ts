@@ -18,7 +18,8 @@ const registry = createVibaseRegistry()
 const at = (n: number) => new Date(BASE + n * 60_000)
 const iso = (n: number) => at(n).toISOString()
 const TABLES = ['principals', 'agents', 'api_keys', 'events'] as const
-const snapshot = async (e: Engine) => Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const)))
+const snapshot = async (e: Engine) =>
+  Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const)))
 const UNKNOWN = '0190b2c4-0000-7000-8000-00000000dead'
 
 type Call = { params?: Record<string, unknown>; query?: Record<string, unknown>; body?: unknown }
@@ -48,7 +49,12 @@ export function engineSuite(engineName: EngineName): void {
     /** One registry operation exactly as the REST adapter runs it: async prepare, then execute, storage errors mapped. */
     const prepareOp = async (op: string, call: Call, opts: Opts = {}): Promise<PreparedOperation<unknown>> => {
       const operation = registry.get(op) as TenantOperation
-      return operation.prepare(e.env({ now: opts.now ?? at(++tick), ...(opts.as ? { as: opts.as } : {}) }), { params: {}, query: {}, body: undefined, ...call })
+      return operation.prepare(e.env({ now: opts.now ?? at(++tick), ...(opts.as ? { as: opts.as } : {}) }), {
+        params: {},
+        query: {},
+        body: undefined,
+        ...call,
+      })
     }
     const run = async (op: string, call: Call = {}, opts: Opts = {}): Promise<ExecutionResult<any>> => {
       try {
@@ -59,14 +65,20 @@ export function engineSuite(engineName: EngineName): void {
     }
     const call = async (op: string, c: Call = {}, opts: Opts = {}): Promise<any> => (await run(op, c, opts)).value
     const fail = async (op: string, c: Call = {}, opts: Opts = {}): Promise<readonly [number, string, string]> => {
-      const err = await run(op, c, opts).then(() => undefined, (x: unknown) => x)
+      const err = await run(op, c, opts).then(
+        () => undefined,
+        (x: unknown) => x,
+      )
       expect(err, `expected ${op} to fail`).toBeInstanceOf(ApiError)
       const a = err as ApiError
       return [a.status, a.code, a.message]
     }
-    const events = async (prefix?: string) => (await e.rows('events')).filter((x) => (prefix ? String(x.type).startsWith(prefix) : true))
-    const newAgent = (body: Record<string, unknown> = {}, opts?: Opts) => call('agents.create', { body: { name: 'bot', scopes: ['tasks:read'], ...body } }, opts)
-    const newKey = (agentId: string, opts?: Opts, extra: Record<string, unknown> = {}) => call('api_keys.create', { body: { agent_id: agentId, ...extra } }, opts)
+    const events = async (prefix?: string) =>
+      (await e.rows('events')).filter((x) => (prefix ? String(x.type).startsWith(prefix) : true))
+    const newAgent = (body: Record<string, unknown> = {}, opts?: Opts) =>
+      call('agents.create', { body: { name: 'bot', scopes: ['tasks:read'], ...body } }, opts)
+    const newKey = (agentId: string, opts?: Opts, extra: Record<string, unknown> = {}) =>
+      call('api_keys.create', { body: { agent_id: agentId, ...extra } }, opts)
     const row = async (table: 'agents' | 'api_keys' | 'memberships' | 'principals', id: string) => {
       const r = (await e.rows(table)).find((x) => x.id === id)
       expect(r, `${table} row ${id}`).toBeDefined()
@@ -76,7 +88,10 @@ export function engineSuite(engineName: EngineName): void {
     describe('agents', () => {
       it('create stores the principal and the agent row with one id, normalised scopes, one event, stamps = now', async () => {
         const principalsBefore = (await e.rows('principals')).length
-        const a = await newAgent({ name: '  Bot  ', scopes: ['tasks:write', 'tasks:read', 'tasks:write'] }, { now: at(1) })
+        const a = await newAgent(
+          { name: '  Bot  ', scopes: ['tasks:write', 'tasks:read', 'tasks:write'] },
+          { now: at(1) },
+        )
         expect(a).toEqual({
           id: a.id,
           organization_id: e.organizationId,
@@ -93,10 +108,26 @@ export function engineSuite(engineName: EngineName): void {
         })
         expect(await row('principals', a.id)).toMatchObject({ kind: 'agent', created_at: iso(1) })
         expect((await e.rows('principals')).length).toBe(principalsBefore + 1)
-        expect(await row('agents', a.id)).toMatchObject({ name: 'Bot', scopes: ['tasks:read', 'tasks:write'], disabled_at: null, created_by: e.userId, created_at: iso(1), updated_at: iso(1) })
+        expect(await row('agents', a.id)).toMatchObject({
+          name: 'Bot',
+          scopes: ['tasks:read', 'tasks:write'],
+          disabled_at: null,
+          created_by: e.userId,
+          created_at: iso(1),
+          updated_at: iso(1),
+        })
         const ev = await events('agent.')
         expect(ev).toHaveLength(1)
-        expect(ev[0]).toMatchObject({ type: 'agent.created', resource_type: 'agent', resource_id: a.id, actor_id: e.userId, organization_id: e.organizationId, created_at: iso(1), before: null, after: a })
+        expect(ev[0]).toMatchObject({
+          type: 'agent.created',
+          resource_type: 'agent',
+          resource_id: a.id,
+          actor_id: e.userId,
+          organization_id: e.organizationId,
+          created_at: iso(1),
+          before: null,
+          after: a,
+        })
       })
 
       it('create with no scopes stores an empty list', async () => {
@@ -106,8 +137,16 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it.each([
-        ['an unknown scope', { name: 'x', scopes: ['tasks:read', 'zz:read'] }, [400, 'unknown_scope', 'unknown scope: zz:read']],
-        ['a human-only scope', { name: 'x', scopes: ['members:read'] }, [400, 'scope_not_grantable', 'scope not grantable to an agent: members:read']],
+        [
+          'an unknown scope',
+          { name: 'x', scopes: ['tasks:read', 'zz:read'] },
+          [400, 'unknown_scope', 'unknown scope: zz:read'],
+        ],
+        [
+          'a human-only scope',
+          { name: 'x', scopes: ['members:read'] },
+          [400, 'scope_not_grantable', 'scope not grantable to an agent: members:read'],
+        ],
       ] as const)('create refuses %s and writes nothing', async (_n, body, expected) => {
         const before = await snapshot(e)
         expect(await fail('agents.create', { body })).toEqual(expected)
@@ -124,10 +163,23 @@ export function engineSuite(engineName: EngineName): void {
       it('update renames, changes scopes at once, stamps updated_at and emits one event each', async () => {
         const a = await newAgent({}, { now: at(1) })
         const renamed = await call('agents.update', { params: { id: a.id }, body: { name: 'renamed' } }, { now: at(2) })
-        expect(renamed).toMatchObject({ name: 'renamed', created_at: iso(1), updated_at: iso(2), scopes: ['tasks:read'] })
-        const scoped = await call('agents.update', { params: { id: a.id }, body: { scopes: ['tasks:write', 'tasks:read'] } }, { now: at(3) })
+        expect(renamed).toMatchObject({
+          name: 'renamed',
+          created_at: iso(1),
+          updated_at: iso(2),
+          scopes: ['tasks:read'],
+        })
+        const scoped = await call(
+          'agents.update',
+          { params: { id: a.id }, body: { scopes: ['tasks:write', 'tasks:read'] } },
+          { now: at(3) },
+        )
         expect(scoped).toMatchObject({ scopes: ['tasks:read', 'tasks:write'], updated_at: iso(3) })
-        expect(await row('agents', a.id)).toMatchObject({ name: 'renamed', scopes: ['tasks:read', 'tasks:write'], updated_at: iso(3) })
+        expect(await row('agents', a.id)).toMatchObject({
+          name: 'renamed',
+          scopes: ['tasks:read', 'tasks:write'],
+          updated_at: iso(3),
+        })
         const ev = (await events('agent.updated')).map((x) => [x.created_at, x.before.name, x.after.name])
         expect(ev).toEqual([
           [iso(2), 'bot', 'renamed'],
@@ -139,7 +191,11 @@ export function engineSuite(engineName: EngineName): void {
       it('update refuses a bad scope with nothing written', async () => {
         const a = await newAgent()
         const before = await snapshot(e)
-        expect(await fail('agents.update', { params: { id: a.id }, body: { scopes: ['agents:write'] } })).toEqual([400, 'scope_not_grantable', 'scope not grantable to an agent: agents:write'])
+        expect(await fail('agents.update', { params: { id: a.id }, body: { scopes: ['agents:write'] } })).toEqual([
+          400,
+          'scope_not_grantable',
+          'scope not grantable to an agent: agents:write',
+        ])
         expect(await snapshot(e)).toEqual(before)
       })
 
@@ -169,8 +225,10 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       describe('scope deltas ([[AGT186]])', () => {
-        const update = (id: string, body: Record<string, unknown>, opts?: Opts) => call('agents.update', { params: { id }, body }, opts)
-        const failUpdate = (id: string, body: Record<string, unknown>) => fail('agents.update', { params: { id }, body })
+        const update = (id: string, body: Record<string, unknown>, opts?: Opts) =>
+          call('agents.update', { params: { id }, body }, opts)
+        const failUpdate = (id: string, body: Record<string, unknown>) =>
+          fail('agents.update', { params: { id }, body })
         const STORED = ['tasks:read', 'tasks:write']
         const agentEvents = () => events('agent.updated')
         const twoScopes = () => newAgent({ scopes: STORED }, { now: at(1) })
@@ -178,29 +236,52 @@ export function engineSuite(engineName: EngineName): void {
         it.each([
           ['add only', { add_scopes: ['contacts:read'] }, ['contacts:read', 'tasks:read', 'tasks:write']],
           ['remove only', { remove_scopes: ['tasks:write'] }, ['tasks:read']],
-          ['add and remove', { add_scopes: ['contacts:read'], remove_scopes: ['tasks:write'] }, ['contacts:read', 'tasks:read']],
-          ['a duplicate within add_scopes', { add_scopes: ['contacts:read', 'contacts:read'] }, ['contacts:read', 'tasks:read', 'tasks:write']],
-          ['an unsorted add', { add_scopes: ['tasks:request_approval', 'contacts:read'] }, ['contacts:read', 'tasks:read', 'tasks:request_approval', 'tasks:write']],
+          [
+            'add and remove',
+            { add_scopes: ['contacts:read'], remove_scopes: ['tasks:write'] },
+            ['contacts:read', 'tasks:read'],
+          ],
+          [
+            'a duplicate within add_scopes',
+            { add_scopes: ['contacts:read', 'contacts:read'] },
+            ['contacts:read', 'tasks:read', 'tasks:write'],
+          ],
+          [
+            'an unsorted add',
+            { add_scopes: ['tasks:request_approval', 'contacts:read'] },
+            ['contacts:read', 'tasks:read', 'tasks:request_approval', 'tasks:write'],
+          ],
           ['remove of every scope', { remove_scopes: ['tasks:write', 'tasks:read'] }, []],
-        ] as const)('%s: stores the merged sorted list, answers with the record and emits one agent.updated with no delta fields', async (_n, body, expected) => {
-          const a = await twoScopes()
-          const result = await update(a.id, { ...body }, { now: at(2) })
-          expect(result).toEqual({ ...a, scopes: expected, updated_at: iso(2) })
-          expect(await row('agents', a.id)).toMatchObject({ scopes: expected, updated_at: iso(2) })
-          const ev = await agentEvents()
-          expect(ev).toHaveLength(1)
-          expect(ev[0]!.before).toEqual(a)
-          expect(ev[0]!.after).toEqual(result)
-          expect(Object.keys(ev[0]!.after).sort()).toEqual(Object.keys(a).sort())
-          expect(Object.keys(ev[0]!.before).sort()).toEqual(Object.keys(a).sort())
-        })
+        ] as const)(
+          '%s: stores the merged sorted list, answers with the record and emits one agent.updated with no delta fields',
+          async (_n, body, expected) => {
+            const a = await twoScopes()
+            const result = await update(a.id, { ...body }, { now: at(2) })
+            expect(result).toEqual({ ...a, scopes: expected, updated_at: iso(2) })
+            expect(await row('agents', a.id)).toMatchObject({ scopes: expected, updated_at: iso(2) })
+            const ev = await agentEvents()
+            expect(ev).toHaveLength(1)
+            expect(ev[0]!.before).toEqual(a)
+            expect(ev[0]!.after).toEqual(result)
+            expect(Object.keys(ev[0]!.after).sort()).toEqual(Object.keys(a).sort())
+            expect(Object.keys(ev[0]!.before).sort()).toEqual(Object.keys(a).sort())
+          },
+        )
 
         it('a delta combines with name and with disabled in one update and one event', async () => {
           const a = await twoScopes()
           const named = await update(a.id, { name: 'renamed', add_scopes: ['contacts:read'] }, { now: at(2) })
-          expect(named).toMatchObject({ name: 'renamed', scopes: ['contacts:read', 'tasks:read', 'tasks:write'], updated_at: iso(2) })
+          expect(named).toMatchObject({
+            name: 'renamed',
+            scopes: ['contacts:read', 'tasks:read', 'tasks:write'],
+            updated_at: iso(2),
+          })
           const off = await update(a.id, { disabled: true, remove_scopes: ['tasks:write'] }, { now: at(3) })
-          expect(off).toMatchObject({ disabled_at: iso(3), scopes: ['contacts:read', 'tasks:read'], updated_at: iso(3) })
+          expect(off).toMatchObject({
+            disabled_at: iso(3),
+            scopes: ['contacts:read', 'tasks:read'],
+            updated_at: iso(3),
+          })
           expect(await agentEvents()).toHaveLength(2)
         })
 
@@ -209,7 +290,8 @@ export function engineSuite(engineName: EngineName): void {
           const kit = await openAuthKit(e)
           const { key, hash, prefix } = await generateApiKey(() => crypto.getRandomValues(new Uint8Array(32)))
           await e.insert('api_keys', { agent_id: a.id, key_hash: hash, prefix })
-          const post = async () => (await kit.keyCall('/api/v1/tasks', key, { method: 'POST', body: { title: 'x' } })).status
+          const post = async () =>
+            (await kit.keyCall('/api/v1/tasks', key, { method: 'POST', body: { title: 'x' } })).status
           expect(await post()).toBe(201)
           await update(a.id, { remove_scopes: ['tasks:write'] }, { now: at(2) })
           const res = await kit.keyCall('/api/v1/tasks', key, { method: 'POST', body: { title: 'y' } })
@@ -218,9 +300,21 @@ export function engineSuite(engineName: EngineName): void {
 
         describe('refusals write nothing', () => {
           it.each([
-            ['scopes with add_scopes', { scopes: ['tasks:read'], add_scopes: ['contacts:read'] }, ['scopes', 'add_scopes']],
-            ['scopes with remove_scopes', { scopes: ['tasks:read'], remove_scopes: ['tasks:write'] }, ['scopes', 'remove_scopes']],
-            ['scopes with both deltas', { scopes: [], add_scopes: [], remove_scopes: [] }, ['scopes', 'add_scopes', 'remove_scopes']],
+            [
+              'scopes with add_scopes',
+              { scopes: ['tasks:read'], add_scopes: ['contacts:read'] },
+              ['scopes', 'add_scopes'],
+            ],
+            [
+              'scopes with remove_scopes',
+              { scopes: ['tasks:read'], remove_scopes: ['tasks:write'] },
+              ['scopes', 'remove_scopes'],
+            ],
+            [
+              'scopes with both deltas',
+              { scopes: [], add_scopes: [], remove_scopes: [] },
+              ['scopes', 'add_scopes', 'remove_scopes'],
+            ],
           ] as const)('D1: %s is 400 validation_error naming the fields', async (_n, body, named) => {
             const a = await twoScopes()
             const before = await snapshot(e)
@@ -233,7 +327,10 @@ export function engineSuite(engineName: EngineName): void {
           it('D2: a scope in both deltas is 400 naming the first overlap in add_scopes order', async () => {
             const a = await twoScopes()
             const before = await snapshot(e)
-            const [status, code, message] = await failUpdate(a.id, { add_scopes: ['contacts:read', 'tasks:write', 'tasks:read'], remove_scopes: ['tasks:read', 'tasks:write'] })
+            const [status, code, message] = await failUpdate(a.id, {
+              add_scopes: ['contacts:read', 'tasks:write', 'tasks:read'],
+              remove_scopes: ['tasks:read', 'tasks:write'],
+            })
             expect([status, code]).toEqual([400, 'validation_error'])
             expect(message).toContain('tasks:write')
             expect(message).not.toContain('tasks:read')
@@ -248,7 +345,10 @@ export function engineSuite(engineName: EngineName): void {
 
           it('validation order: an overlap that also has an unknown add reports the overlap (D2 before D3)', async () => {
             const a = await twoScopes()
-            const [status, code, message] = await failUpdate(a.id, { add_scopes: ['nope:read', 'tasks:read'], remove_scopes: ['tasks:read'] })
+            const [status, code, message] = await failUpdate(a.id, {
+              add_scopes: ['nope:read', 'tasks:read'],
+              remove_scopes: ['tasks:read'],
+            })
             expect([status, code]).toEqual([400, 'validation_error'])
             expect(message).toContain('tasks:read')
           })
@@ -256,8 +356,16 @@ export function engineSuite(engineName: EngineName): void {
           it('validation order: scopes with a delta for an unknown agent id is 400, not 404; a valid body for it is 404', async () => {
             expect((await failUpdate(UNKNOWN, { scopes: [], add_scopes: [] }))[0]).toBe(400)
             expect((await failUpdate(UNKNOWN, { add_scopes: ['nope:read'] }))[1]).toBe('unknown_scope')
-            expect(await failUpdate(UNKNOWN, { add_scopes: ['contacts:read'] })).toEqual([404, 'not_found', 'agent not found'])
-            expect(await failUpdate(UNKNOWN, { remove_scopes: ['tasks:read'] })).toEqual([404, 'not_found', 'agent not found'])
+            expect(await failUpdate(UNKNOWN, { add_scopes: ['contacts:read'] })).toEqual([
+              404,
+              'not_found',
+              'agent not found',
+            ])
+            expect(await failUpdate(UNKNOWN, { remove_scopes: ['tasks:read'] })).toEqual([
+              404,
+              'not_found',
+              'agent not found',
+            ])
           })
 
           it.each([
@@ -278,15 +386,31 @@ export function engineSuite(engineName: EngineName): void {
           it('an unknown add is unknown_scope and a non-grantable add is scope_not_grantable, nothing written', async () => {
             const a = await twoScopes()
             const before = await snapshot(e)
-            expect(await failUpdate(a.id, { add_scopes: ['nope:read'] })).toEqual([400, 'unknown_scope', 'unknown scope: nope:read'])
-            expect(await failUpdate(a.id, { add_scopes: ['agents:write'] })).toEqual([400, 'scope_not_grantable', 'scope not grantable to an agent: agents:write'])
+            expect(await failUpdate(a.id, { add_scopes: ['nope:read'] })).toEqual([
+              400,
+              'unknown_scope',
+              'unknown scope: nope:read',
+            ])
+            expect(await failUpdate(a.id, { add_scopes: ['agents:write'] })).toEqual([
+              400,
+              'scope_not_grantable',
+              'scope not grantable to an agent: agents:write',
+            ])
             expect(await snapshot(e)).toEqual(before)
           })
 
           it('the first offender in input order decides, in both orders', async () => {
             const a = await twoScopes()
-            expect(await failUpdate(a.id, { add_scopes: ['contacts:read', 'nope:read', 'agents:write'] })).toEqual([400, 'unknown_scope', 'unknown scope: nope:read'])
-            expect(await failUpdate(a.id, { add_scopes: ['agents:write', 'nope:read'] })).toEqual([400, 'scope_not_grantable', 'scope not grantable to an agent: agents:write'])
+            expect(await failUpdate(a.id, { add_scopes: ['contacts:read', 'nope:read', 'agents:write'] })).toEqual([
+              400,
+              'unknown_scope',
+              'unknown scope: nope:read',
+            ])
+            expect(await failUpdate(a.id, { add_scopes: ['agents:write', 'nope:read'] })).toEqual([
+              400,
+              'scope_not_grantable',
+              'scope not grantable to an agent: agents:write',
+            ])
           })
 
           it('a stored scope the policy no longer declares does not block an unrelated add, and survives the merge', async () => {
@@ -338,14 +462,25 @@ export function engineSuite(engineName: EngineName): void {
           it('an invalid no-op is still refused (an unknown add that is also stored is not a stored scope check)', async () => {
             const a = await twoScopes()
             await e.update('agents', a.id, { scopes: ['legacy:read'] })
-            expect(await failUpdate(a.id, { add_scopes: ['legacy:read'] })).toEqual([400, 'unknown_scope', 'unknown scope: legacy:read'])
+            expect(await failUpdate(a.id, { add_scopes: ['legacy:read'] })).toEqual([
+              400,
+              'unknown_scope',
+              'unknown scope: legacy:read',
+            ])
           })
         })
 
         it('the generic path is unchanged: replace scopes, name, disabled and {} still behave as before', async () => {
           const a = await twoScopes()
-          expect(await update(a.id, { scopes: ['contacts:read'] }, { now: at(2) })).toMatchObject({ scopes: ['contacts:read'], updated_at: iso(2) })
-          expect(await update(a.id, { name: 'n' }, { now: at(3) })).toMatchObject({ name: 'n', scopes: ['contacts:read'], updated_at: iso(3) })
+          expect(await update(a.id, { scopes: ['contacts:read'] }, { now: at(2) })).toMatchObject({
+            scopes: ['contacts:read'],
+            updated_at: iso(2),
+          })
+          expect(await update(a.id, { name: 'n' }, { now: at(3) })).toMatchObject({
+            name: 'n',
+            scopes: ['contacts:read'],
+            updated_at: iso(3),
+          })
           expect(await agentEvents()).toHaveLength(2)
           const noop = await run('agents.update', { params: { id: a.id }, body: {} }, { now: at(4) })
           expect(noop.events).toEqual([])
@@ -353,7 +488,11 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('an unknown or foreign-shaped id is a 404', async () => {
-        expect(await fail('agents.update', { params: { id: UNKNOWN }, body: { name: 'x' } })).toEqual([404, 'not_found', 'agent not found'])
+        expect(await fail('agents.update', { params: { id: UNKNOWN }, body: { name: 'x' } })).toEqual([
+          404,
+          'not_found',
+          'agent not found',
+        ])
         expect(await fail('agents.get', { params: { id: 'nope' } })).toEqual([404, 'not_found', 'agent not found'])
       })
 
@@ -362,7 +501,7 @@ export function engineSuite(engineName: EngineName): void {
         expect(registry.get('api_keys.delete')).toBeUndefined()
       })
 
-      it('list and get read the organisation\'s agents', async () => {
+      it("list and get read the organisation's agents", async () => {
         const a = await newAgent()
         const list = await call('agents.list', { query: {} })
         expect(list.data.map((x: any) => x.id)).toEqual(expect.arrayContaining([a.id, e.agentId]))
@@ -390,10 +529,21 @@ export function engineSuite(engineName: EngineName): void {
           created_at: iso(5),
           updated_at: iso(5),
         })
-        expect(await row('api_keys', k.id)).toMatchObject({ key_hash: await hashApiKey(key), created_at: iso(5), updated_at: iso(5) })
+        expect(await row('api_keys', k.id)).toMatchObject({
+          key_hash: await hashApiKey(key),
+          created_at: iso(5),
+          updated_at: iso(5),
+        })
         const ev = await events('api_key.')
         expect(ev).toHaveLength(1)
-        expect(ev[0]).toMatchObject({ type: 'api_key.created', resource_id: k.id, actor_id: e.userId, created_at: iso(5), before: null, after: record })
+        expect(ev[0]).toMatchObject({
+          type: 'api_key.created',
+          resource_id: k.id,
+          actor_id: e.userId,
+          created_at: iso(5),
+          before: null,
+          after: record,
+        })
         expect(JSON.stringify(ev)).not.toContain(key)
         expect(JSON.stringify(ev)).not.toContain('key_hash')
       })
@@ -409,23 +559,39 @@ export function engineSuite(engineName: EngineName): void {
 
       it('refuses an unknown agent, a past expiry and an expiry equal to now, writing nothing', async () => {
         const before = await snapshot(e)
-        expect(await fail('api_keys.create', { body: { agent_id: UNKNOWN } })).toEqual([400, 'invalid_reference', 'a referenced record does not exist'])
+        expect(await fail('api_keys.create', { body: { agent_id: UNKNOWN } })).toEqual([
+          400,
+          'invalid_reference',
+          'a referenced record does not exist',
+        ])
         expect(await snapshot(e)).toEqual(before)
         const now = at(9)
         const a = await newAgent()
         const mid = await snapshot(e)
-        expect(await fail('api_keys.create', { body: { agent_id: a.id, expires_at: iso(8) } }, { now })).toEqual([400, 'validation_error', 'expires_at must be in the future'])
-        expect(await fail('api_keys.create', { body: { agent_id: a.id, expires_at: iso(9) } }, { now })).toEqual([400, 'validation_error', 'expires_at must be in the future'])
+        expect(await fail('api_keys.create', { body: { agent_id: a.id, expires_at: iso(8) } }, { now })).toEqual([
+          400,
+          'validation_error',
+          'expires_at must be in the future',
+        ])
+        expect(await fail('api_keys.create', { body: { agent_id: a.id, expires_at: iso(9) } }, { now })).toEqual([
+          400,
+          'validation_error',
+          'expires_at must be in the future',
+        ])
         expect(await snapshot(e)).toEqual(mid)
       })
 
       if (name === 'postgres') {
-        it('refuses another organisation\'s agent: invalid_reference, no row, no event', async () => {
+        it("refuses another organisation's agent: invalid_reference, no row, no event", async () => {
           const org = await seedOrganization(e.app!, { name: 'Foreign' })
           const owner = await seedUser(e.app!, { organizationId: org.id, role: 'owner' })
           const foreign = await seedAgent(e.app!, { organizationId: org.id, createdBy: owner.id })
           const before = await snapshot(e)
-          expect(await fail('api_keys.create', { body: { agent_id: foreign.id } })).toEqual([400, 'invalid_reference', 'a referenced record does not exist'])
+          expect(await fail('api_keys.create', { body: { agent_id: foreign.id } })).toEqual([
+            400,
+            'invalid_reference',
+            'a referenced record does not exist',
+          ])
           expect(await snapshot(e)).toEqual(before)
         })
       }
@@ -455,18 +621,30 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('revoke of an unknown id and of an id that is not a UUID is 404', async () => {
-        expect(await fail('api_keys.revoke', { params: { id: UNKNOWN } })).toEqual([404, 'not_found', 'api_key not found'])
-        expect(await fail('api_keys.revoke', { params: { id: 'nope' } })).toEqual([404, 'not_found', 'api_key not found'])
+        expect(await fail('api_keys.revoke', { params: { id: UNKNOWN } })).toEqual([
+          404,
+          'not_found',
+          'api_key not found',
+        ])
+        expect(await fail('api_keys.revoke', { params: { id: 'nope' } })).toEqual([
+          404,
+          'not_found',
+          'api_key not found',
+        ])
       })
 
       if (name === 'postgres') {
-        it('revoke of another organisation\'s key is 404 and changes nothing', async () => {
+        it("revoke of another organisation's key is 404 and changes nothing", async () => {
           const org = await seedOrganization(e.app!, { name: 'Foreign' })
           const owner = await seedUser(e.app!, { organizationId: org.id, role: 'owner' })
           const foreign = await seedAgent(e.app!, { organizationId: org.id, createdBy: owner.id })
           const key = await seedApiKey(e.app!, { organizationId: org.id, agentId: foreign.id, createdBy: owner.id })
           const before = await snapshot(e)
-          expect(await fail('api_keys.revoke', { params: { id: key.id } })).toEqual([404, 'not_found', 'api_key not found'])
+          expect(await fail('api_keys.revoke', { params: { id: key.id } })).toEqual([
+            404,
+            'not_found',
+            'api_key not found',
+          ])
           expect(await snapshot(e)).toEqual(before)
         })
       }
@@ -501,7 +679,8 @@ export function engineSuite(engineName: EngineName): void {
         expect(text).not.toContain(k.key)
         expect(text).not.toContain(hash)
         expect(text).not.toContain('key_hash')
-        for (const ev of await e.rows('events')) expect(Object.keys((ev.after ?? {}) as object)).not.toContain('key_hash')
+        for (const ev of await e.rows('events'))
+          expect(Object.keys((ev.after ?? {}) as object)).not.toContain('key_hash')
       })
     })
 
@@ -514,13 +693,23 @@ export function engineSuite(engineName: EngineName): void {
             [e.user2Id, 'member'],
           ].sort(),
         )
-        expect((await call('memberships.list', { query: { role: 'owner' } })).data.map((m: any) => m.user_id)).toEqual([e.userId])
-        expect((await call('memberships.list', { query: { user_id: e.user2Id } })).data.map((m: any) => m.user_id)).toEqual([e.user2Id])
+        expect((await call('memberships.list', { query: { role: 'owner' } })).data.map((m: any) => m.user_id)).toEqual([
+          e.userId,
+        ])
+        expect(
+          (await call('memberships.list', { query: { user_id: e.user2Id } })).data.map((m: any) => m.user_id),
+        ).toEqual([e.user2Id])
         const extra = await e.seedMember('member')
         expect((await call('memberships.get', { params: { id: extra.membershipId } })).user_id).toBe(extra.userId)
         await e.update('memberships', extra.membershipId, { deleted_at: iso(1), updated_at: iso(1) })
-        expect((await call('memberships.list', { query: {} })).data.map((m: any) => m.id)).not.toContain(extra.membershipId)
-        expect(await fail('memberships.get', { params: { id: extra.membershipId } })).toEqual([404, 'not_found', 'membership not found'])
+        expect((await call('memberships.list', { query: {} })).data.map((m: any) => m.id)).not.toContain(
+          extra.membershipId,
+        )
+        expect(await fail('memberships.get', { params: { id: extra.membershipId } })).toEqual([
+          404,
+          'not_found',
+          'membership not found',
+        ])
       })
 
       // [[CORE288]]: a role change and a removal exist ([[CORE41]]'s directory sync stays the writer on Clerk); there is still no create (a membership is made by accepting an invitation).
@@ -549,7 +738,9 @@ export function engineSuite(engineName: EngineName): void {
         expect(all.data.map((u: any) => u.id)).toEqual(expected)
         expect(Object.keys(all.data[0]).sort()).toEqual(['created_at', 'email', 'id', 'name', 'updated_at'])
         await e.update('memberships', extra.membershipId, { deleted_at: iso(1), updated_at: iso(1) })
-        expect((await call('users.list', { query: {} })).data.map((u: any) => u.id)).toEqual([e.userId, e.user2Id].sort())
+        expect((await call('users.list', { query: {} })).data.map((u: any) => u.id)).toEqual(
+          [e.userId, e.user2Id].sort(),
+        )
       })
 
       it('get finds a live member and a removed member, and 404s a user with no membership here', async () => {
@@ -569,7 +760,7 @@ export function engineSuite(engineName: EngineName): void {
           expect((await call('users.list', { query: {} })).data.map((u: any) => u.id)).not.toContain(loner)
         })
       } else {
-        it('users.get: another organisation\'s user is 404 and absent from the list', async () => {
+        it("users.get: another organisation's user is 404 and absent from the list", async () => {
           const org = await seedOrganization(e.app!, { name: 'Foreign' })
           const foreign = await seedUser(e.app!, { organizationId: org.id, role: 'owner' })
           expect(await fail('users.get', { params: { id: foreign.id } })).toEqual([404, 'not_found', 'user not found'])
@@ -583,14 +774,22 @@ export function engineSuite(engineName: EngineName): void {
         const a = await newAgent({}, { now: at(1) })
         expect(a).toMatchObject({ created_at: iso(1), updated_at: iso(1) })
         expect(await row('principals', a.id)).toMatchObject({ created_at: iso(1) })
-        const u = await call('agents.update', { params: { id: a.id }, body: { disabled: true, name: 'n' } }, { now: at(2) })
+        const u = await call(
+          'agents.update',
+          { params: { id: a.id }, body: { disabled: true, name: 'n' } },
+          { now: at(2) },
+        )
         expect(u).toMatchObject({ updated_at: iso(2), disabled_at: iso(2) })
         expect(await row('agents', a.id)).toMatchObject({ updated_at: iso(2), disabled_at: iso(2) })
         const k = await newKey(a.id, { now: at(3) })
         expect(k).toMatchObject({ created_at: iso(3), updated_at: iso(3) })
         const r = await call('api_keys.revoke', { params: { id: k.id } }, { now: at(4) })
         expect(r).toMatchObject({ revoked_at: iso(4), updated_at: iso(4), created_at: iso(3) })
-        expect(await row('api_keys', k.id)).toMatchObject({ revoked_at: iso(4), updated_at: iso(4), created_at: iso(3) })
+        expect(await row('api_keys', k.id)).toMatchObject({
+          revoked_at: iso(4),
+          updated_at: iso(4),
+          created_at: iso(3),
+        })
         const ev = (await e.rows('events')).filter((x) => x.type.startsWith('agent.') || x.type.startsWith('api_key.'))
         expect(ev.map((x) => [x.type, x.created_at])).toEqual([
           ['agent.created', iso(1)],
@@ -610,7 +809,13 @@ export function engineSuite(engineName: EngineName): void {
         const k = await run('api_keys.create', { body: { agent_id: a.value.id } })
         const r = await run('api_keys.revoke', { params: { id: k.value.id } })
         const l = await run('users.list', { query: {} })
-        const counts = { 'agent create': a.stats.statements, 'agent update': b.stats.statements, 'key issue': k.stats.statements, 'key revoke': r.stats.statements, 'users.list': l.stats.statements }
+        const counts = {
+          'agent create': a.stats.statements,
+          'agent update': b.stats.statements,
+          'key issue': k.stats.statements,
+          'key revoke': r.stats.statements,
+          'users.list': l.stats.statements,
+        }
         console.log(`[statements] ${name} ${JSON.stringify(counts)}`)
         for (const n of Object.values(counts)) expect(n).toBeGreaterThan(0)
         // a second agent create costs exactly the same (no per-row work)
@@ -641,7 +846,10 @@ export function engineSuite(engineName: EngineName): void {
         it.each(labels)(`${label}: a real constraint fault after %s changes nothing`, async (after) => {
           const make = await prepare()
           const before = await snapshot(e)
-          const err = await e.run(withFault(await make(), { after })).then(() => null, (x: unknown) => x)
+          const err = await e.run(withFault(await make(), { after })).then(
+            () => null,
+            (x: unknown) => x,
+          )
           expect(err).toBeInstanceOf(StatementFailed)
           expect(await snapshot(e)).toEqual(before)
         })
@@ -662,7 +870,11 @@ export function engineSuite(engineName: EngineName): void {
           e.betweenPlanAndCommit(async () => {
             await e.update('api_keys', k.id, { revoked_at: iso(5), updated_at: iso(5) })
           })
-          expect(await fail('api_keys.revoke', { params: { id: k.id } }, { now: at(6) })).toEqual([409, 'conflict', 'the record changed while the operation was running; retry'])
+          expect(await fail('api_keys.revoke', { params: { id: k.id } }, { now: at(6) })).toEqual([
+            409,
+            'conflict',
+            'the record changed while the operation was running; retry',
+          ])
           expect(await revokeEvents()).toHaveLength(0)
           expect(await row('api_keys', k.id)).toMatchObject({ revoked_at: iso(5), updated_at: iso(5) })
           const retry = await run('api_keys.revoke', { params: { id: k.id } }, { now: at(7) })
@@ -696,7 +908,9 @@ export function engineSuite(engineName: EngineName): void {
           e.betweenPlanAndCommit(async () => {
             await e.update('agents', a.id, { name: 'direct', updated_at: iso(5) })
           })
-          expect((await fail('agents.update', { params: { id: a.id }, body: { name: 'planned' } }, { now: at(6) }))[1]).toBe('conflict')
+          expect(
+            (await fail('agents.update', { params: { id: a.id }, body: { name: 'planned' } }, { now: at(6) }))[1],
+          ).toBe('conflict')
           expect(await row('agents', a.id)).toMatchObject({ name: 'direct' })
           expect((await events('agent.updated')).length).toBe(0)
         })
@@ -706,10 +920,20 @@ export function engineSuite(engineName: EngineName): void {
           e.betweenPlanAndCommit(async () => {
             await e.update('agents', a.id, { scopes: ['contacts:read'], updated_at: iso(5) })
           })
-          expect(await fail('agents.update', { params: { id: a.id }, body: { add_scopes: ['tasks:write'] } }, { now: at(6) })).toEqual([409, 'conflict', 'the record changed while the operation was running; retry'])
+          expect(
+            await fail(
+              'agents.update',
+              { params: { id: a.id }, body: { add_scopes: ['tasks:write'] } },
+              { now: at(6) },
+            ),
+          ).toEqual([409, 'conflict', 'the record changed while the operation was running; retry'])
           expect(await row('agents', a.id)).toMatchObject({ scopes: ['contacts:read'], updated_at: iso(5) })
           expect((await events('agent.updated')).length).toBe(0)
-          const retry = await call('agents.update', { params: { id: a.id }, body: { add_scopes: ['tasks:write'] } }, { now: at(7) })
+          const retry = await call(
+            'agents.update',
+            { params: { id: a.id }, body: { add_scopes: ['tasks:write'] } },
+            { now: at(7) },
+          )
           expect(retry.scopes).toEqual(['contacts:read', 'tasks:write'])
         })
 

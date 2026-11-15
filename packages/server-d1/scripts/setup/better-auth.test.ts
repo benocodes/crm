@@ -34,13 +34,24 @@ beforeEach(async () => {
   await pair.reset()
 })
 
-const world = (o: Partial<WorldOptions> = {}): World => makeWorld({ d1: pair.d1, control: pair.control, clerkEnvText: null, ...o })
+const world = (o: Partial<WorldOptions> = {}): World =>
+  makeWorld({ d1: pair.d1, control: pair.control, clerkEnvText: null, ...o })
 const run = (w: World, argv: string[] = ACME) => runSetup(argv, CONFIRM, w.deps)
 const dry = (w: World, argv: string[] = ACME) => runSetup([...argv, '--dry-run'], {}, w.deps)
-const rows = async (d1: WorkerPair['d1'], q: string) => ((await d1.prepare(q).all()).results ?? []) as Record<string, any>[]
+const rows = async (d1: WorkerPair['d1'], q: string) =>
+  ((await d1.prepare(q).all()).results ?? []) as Record<string, any>[]
 const step = (o: Awaited<ReturnType<typeof runSetup>>, name: string) => o.results.find((r) => r.step === name)!
 const header = (w: World) => /, auth (\S+),/.exec(w.logs.find((l) => l.startsWith('setup:remote env')) ?? '')?.[1]
-const withRecord = (vars: Record<string, string>) => applyEdits(fixture, modify(fixture, ['env', 'acme'], { name: 'vb-acme', vars }, { formattingOptions: { insertSpaces: true, tabSize: 2 } }))
+const withRecord = (vars: Record<string, string>) =>
+  applyEdits(
+    fixture,
+    modify(
+      fixture,
+      ['env', 'acme'],
+      { name: 'vb-acme', vars },
+      { formattingOptions: { insertSpaces: true, tabSize: 2 } },
+    ),
+  )
 const tokenOf = (logs: string[]) => /\/invite#token=([A-Za-z0-9_-]+)/.exec(logs.join('\n'))?.[1]
 const urlLines = (logs: string[]) => logs.filter((l) => l.includes('/invite#token='))
 
@@ -86,23 +97,26 @@ describe('1. the provider rule (D1): matrix over a new instance and a recorded o
       await dry(w, [...ACME, '--auth', recorded])
       expect(header(w), w.logs.join('\n')).toBe(recorded)
     })
-    it.each(ALL.filter((p) => p !== recorded))('--auth %s differs: refused before any wrangler or Cloudflare call, exit 1, naming the record and OPS250', async (flag) => {
-      const w = mk()
-      const o = await dry(w, [...ACME, '--auth', flag])
-      expect(o.exitCode).toBe(1)
-      expect(o.results).toEqual([])
-      expect(w.argv).toEqual([])
-      expect(w.fetched).toEqual([])
-      const said = w.logs.join('\n')
-      expect(said).toContain(`--auth ${flag}`)
-      expect(said).toContain(recorded)
-      expect(said).toContain('OPS250')
-    })
+    it.each(ALL.filter((p) => p !== recorded))(
+      '--auth %s differs: refused before any wrangler or Cloudflare call, exit 1, naming the record and OPS250',
+      async (flag) => {
+        const w = mk()
+        const o = await dry(w, [...ACME, '--auth', flag])
+        expect(o.exitCode).toBe(1)
+        expect(o.results).toEqual([])
+        expect(w.argv).toEqual([])
+        expect(w.fetched).toEqual([])
+        const said = w.logs.join('\n')
+        expect(said).toContain(`--auth ${flag}`)
+        expect(said).toContain(recorded)
+        expect(said).toContain('OPS250')
+      },
+    )
   })
 })
 
 describe('2. vars and refusals on better-auth (D2)', () => {
-  it('the env block holds AUTH_PROVIDER and PUBLIC_BASE_URL and no Clerk variable, read back from the config editor\'s text', async () => {
+  it("the env block holds AUTH_PROVIDER and PUBLIC_BASE_URL and no Clerk variable, read back from the config editor's text", async () => {
     const w = world()
     await firstRun(w)
     const block = (parse(w.state.configText) as { env: Record<string, any> }).env.acme
@@ -115,16 +129,20 @@ describe('2. vars and refusals on better-auth (D2)', () => {
     expect(step(again, 'config:write').status).toBe('ok')
   })
 
-  it.each([['--clerk-publishable-key', 'pk_test_x'], ['--clerk-production'], ['--no-dcr']])('%s is refused with better-auth, before any step', async (...flag) => {
-    const w = world()
-    const o = await run(w, [...ACME, ...flag])
-    expect(o.exitCode).toBe(1)
-    expect(w.logs.join('\n')).toContain('--auth clerk')
-    expect(w.argv).toEqual([])
-    expect(w.fetched).toEqual([])
-  })
+  it.each([['--clerk-publishable-key', 'pk_test_x'], ['--clerk-production'], ['--no-dcr']])(
+    '%s is refused with better-auth, before any step',
+    async (...flag) => {
+      const w = world()
+      const o = await run(w, [...ACME, ...flag])
+      expect(o.exitCode).toBe(1)
+      expect(w.logs.join('\n')).toContain('--auth clerk')
+      expect(w.argv).toEqual([])
+      expect(w.fetched).toEqual([])
+    },
+  )
 
-  const gmail = (base?: string) => `GOOGLE_CLIENT_ID=gid.apps.googleusercontent.com\nGOOGLE_CLIENT_SECRET=gsecret-0123456789\nOAUTH_STATE_SECRET=state-0123456789\nCREDENTIALS_KEY=${Buffer.alloc(32, 7).toString('base64')}\n${base ? `PUBLIC_BASE_URL=${base}\n` : ''}`
+  const gmail = (base?: string) =>
+    `GOOGLE_CLIENT_ID=gid.apps.googleusercontent.com\nGOOGLE_CLIENT_SECRET=gsecret-0123456789\nOAUTH_STATE_SECRET=state-0123456789\nCREDENTIALS_KEY=${Buffer.alloc(32, 7).toString('base64')}\n${base ? `PUBLIC_BASE_URL=${base}\n` : ''}`
   it('a Gmail-group PUBLIC_BASE_URL that differs from the derived one is refused before any step', async () => {
     const w = world({ clerkEnvText: gmail('https://other.example.com') })
     const o = await run(w)
@@ -180,7 +198,7 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     expect(w.state.envFileText).toBe(`AUTH_SECRET=${stored}\n`)
   })
 
-  it('(b) file only: the file\'s value is put; nothing is generated or written', async () => {
+  it("(b) file only: the file's value is put; nothing is generated or written", async () => {
     const w = world({ clerkEnvText: `AUTH_SECRET=${SECRET_43}\n` })
     await firstRun(w)
     const o = await secretsRun(w)
@@ -210,7 +228,9 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     expect(w.state.envFileText).toBeNull()
     const s = step(o, 'secrets')
     expect(s.status).toBe('manual')
-    expect(s.detail).toBe('AUTH_SECRET is set on the Worker but not in .env.acme: owner-reset needs it; copy it in if you have it')
+    expect(s.detail).toBe(
+      'AUTH_SECRET is set on the Worker but not in .env.acme: owner-reset needs it; copy it in if you have it',
+    )
     expect(w.logs.join('\n')).toMatch(/manual:\n\s+secrets: AUTH_SECRET is set on the Worker/)
   })
 
@@ -241,7 +261,9 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     const repo = mkdtempSync(join(tmpdir(), 'ops249-repo-'))
     spawnSync('git', ['init', '-q'], { cwd: repo })
     writeFileSync(join(repo, '.gitignore'), '.env.*\n')
-    expect(() => appendEnvFileVar('plain.txt', 'acme', 'AUTH_SECRET', 'v', repo, join(repo, '.env'))).toThrow(/not ignored/)
+    expect(() => appendEnvFileVar('plain.txt', 'acme', 'AUTH_SECRET', 'v', repo, join(repo, '.env'))).toThrow(
+      /not ignored/,
+    )
     expect(existsSync(join(repo, 'plain.txt'))).toBe(false)
     appendEnvFileVar(undefined, 'acme', 'AUTH_SECRET', 'v', repo, join(repo, '.env'))
     expect(readFileSync(join(repo, '.env.acme'), 'utf8')).toBe('AUTH_SECRET=v\n')
@@ -270,14 +292,23 @@ describe('3. AUTH_SECRET (D3), four states', () => {
 describe('4. the Google pair (D4)', () => {
   const ONLY = [...ACME, '--only', 'secrets']
   it('both values are put as Worker secrets, beside AUTH_SECRET', async () => {
-    const w = world({ clerkEnvText: `AUTH_SECRET=${SECRET_43}\nAUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gsecret-CANARY-0123\n` })
+    const w = world({
+      clerkEnvText: `AUTH_SECRET=${SECRET_43}\nAUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gsecret-CANARY-0123\n`,
+    })
     await firstRun(w)
     const o = await run(w, ONLY)
     expect(o.exitCode, w.logs.join('\n')).toBe(0)
-    expect(JSON.parse(w.secretInputs[0]!)).toEqual({ AUTH_SECRET: SECRET_43, AUTH_GOOGLE_CLIENT_ID: 'gid-1.apps.googleusercontent.com', AUTH_GOOGLE_CLIENT_SECRET: 'gsecret-CANARY-0123' })
+    expect(JSON.parse(w.secretInputs[0]!)).toEqual({
+      AUTH_SECRET: SECRET_43,
+      AUTH_GOOGLE_CLIENT_ID: 'gid-1.apps.googleusercontent.com',
+      AUTH_GOOGLE_CLIENT_SECRET: 'gsecret-CANARY-0123',
+    })
     expect(w.surface()).not.toContain('gsecret-CANARY-0123')
   })
-  it.each([['AUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com', 'AUTH_GOOGLE_CLIENT_SECRET'], ['AUTH_GOOGLE_CLIENT_SECRET=gsecret-0123456789', 'AUTH_GOOGLE_CLIENT_ID']])('%s alone is refused before any step, naming %s', async (half, missing) => {
+  it.each([
+    ['AUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com', 'AUTH_GOOGLE_CLIENT_SECRET'],
+    ['AUTH_GOOGLE_CLIENT_SECRET=gsecret-0123456789', 'AUTH_GOOGLE_CLIENT_ID'],
+  ])('%s alone is refused before any step, naming %s', async (half, missing) => {
     const w = world({ clerkEnvText: `${half}\n` })
     const o = await run(w)
     expect(o.exitCode).toBe(1)
@@ -303,8 +334,17 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     const [dep] = await rows(pair.d1, 'select organization_id, auth_provider, auth_org_id from deployment')
     expect(dep).toMatchObject({ auth_provider: 'better-auth', auth_org_id: 'acme' })
     expect((await readControlMarker(openControlDb(pair.control)))?.organizationId).toBe(dep!.organization_id)
-    expect(await rows(pair.control, "select client_id from auth_oauth_clients where client_id = 'vibase-cli'")).toHaveLength(1)
-    expect((await rows(pair.control, "select resource_id from auth_oauth_client_resources where client_id = 'vibase-cli' order by resource_id")).map((r) => r.resource_id)).toEqual([BASE, `${BASE}/mcp`])
+    expect(
+      await rows(pair.control, "select client_id from auth_oauth_clients where client_id = 'vibase-cli'"),
+    ).toHaveLength(1)
+    expect(
+      (
+        await rows(
+          pair.control,
+          "select resource_id from auth_oauth_client_resources where client_id = 'vibase-cli' order by resource_id",
+        )
+      ).map((r) => r.resource_id),
+    ).toEqual([BASE, `${BASE}/mcp`])
     const invitations = await rows(pair.control, 'select email, role, accepted_at, revoked_at from invitations')
     expect(invitations).toEqual([{ email: OWNER, role: 'owner', accepted_at: null, revoked_at: null }])
     expect(await rows(pair.d1, 'select * from users')).toEqual([])
@@ -316,7 +356,9 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     const [inv] = await rows(pair.control, 'select created_at from invitations')
     const [org] = await rows(pair.d1, 'select created_at from organizations')
     expect(inv!.created_at >= org!.created_at).toBe(true)
-    expect(await rows(pair.control, "select action from control_audit where action = 'invitation.created'")).toHaveLength(1)
+    expect(
+      await rows(pair.control, "select action from control_audit where action = 'invitation.created'"),
+    ).toHaveLength(1)
   })
 
   it('a new instance without --owner-email is refused before any step', async () => {
@@ -368,7 +410,7 @@ describe('6. re-runs and the one-time link (D7)', () => {
   const invitationRows = () => rows(pair.control, 'select * from invitations')
   const auditRows = () => rows(pair.control, "select * from control_audit where action like 'invitation.%'")
 
-  it('none: the run issues one invitation and prints its URL once, in the bootstrap step\'s lines', async () => {
+  it("none: the run issues one invitation and prints its URL once, in the bootstrap step's lines", async () => {
     const w = world()
     const o = await fullRun(w)
     expect(urlLines(w.logs)).toHaveLength(1)
@@ -388,11 +430,14 @@ describe('6. re-runs and the one-time link (D7)', () => {
     const b = step(o, 'bootstrap')
     expect(b.status).toBe('ok')
     expect(b.detail).toContain(`owner invitation pending for ${OWNER} (expires ${before!.expires_at})`)
-    expect(b.detail).toContain(`a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env acme --owner-reset --email ${OWNER}`)
+    expect(b.detail).toContain(
+      `a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env acme --owner-reset --email ${OWNER}`,
+    )
     expect(await invitationRows()).toEqual([before])
     expect(await auditRows()).toHaveLength(audits)
     expect(urlLines(w.logs)).toEqual([])
-    for (const text of [w.logs.join('\n'), w.surface(), w.state.configText, w.state.envFileText ?? '', w.state.envText]) expect(text).not.toContain(token)
+    for (const text of [w.logs.join('\n'), w.surface(), w.state.configText, w.state.envFileText ?? '', w.state.envText])
+      expect(text).not.toContain(token)
   })
 
   it('owner exists: ok, nothing is issued, no row changes', async () => {
@@ -443,7 +488,9 @@ describe('6. re-runs and the one-time link (D7)', () => {
       w.logs.length = 0
       const o = await dry(w)
       expect(step(o, 'bootstrap').detail).toContain(`owner invitation pending for ${OWNER}`)
-      expect(step(o, 'bootstrap').detail).toContain(`a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env acme --owner-reset --email ${OWNER}`)
+      expect(step(o, 'bootstrap').detail).toContain(
+        `a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env acme --owner-reset --email ${OWNER}`,
+      )
       expect(await invitationRows()).toEqual(rowsBefore)
     })
     it('owner exists: reports it and issues nothing', async () => {

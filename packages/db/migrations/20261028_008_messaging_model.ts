@@ -10,7 +10,16 @@ import { sql, type Kysely } from 'kysely'
 // (deleted_at, updated_at) - and of contact_id on contact_files, because merge re-points a link to the survivor (D35).
 // vault_service gets SELECT only. Nobody gets DELETE.
 
-const CAPTURE = ['threads', 'messages', 'interactions', 'files', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources']
+const CAPTURE = [
+  'threads',
+  'messages',
+  'interactions',
+  'files',
+  'interaction_participants',
+  'message_attachments',
+  'message_sources',
+  'thread_sources',
+]
 const LINKS = ['contact_files', 'company_files']
 const ALL = [...CAPTURE, ...LINKS]
 
@@ -100,8 +109,12 @@ export async function up(db: Kysely<any>): Promise<void> {
       CONSTRAINT interaction_participants_interaction_fk FOREIGN KEY (organization_id, interaction_id) REFERENCES interactions (organization_id, id),
       CONSTRAINT interaction_participants_identity_fk FOREIGN KEY (organization_id, identity_id) REFERENCES identities (organization_id, id)
     )`)
-  await run(`CREATE UNIQUE INDEX idx_interaction_participants_unique ON interaction_participants (organization_id, interaction_id, role, identity_id)`)
-  await run(`CREATE INDEX idx_interaction_participants_identity ON interaction_participants (organization_id, identity_id, interaction_id)`)
+  await run(
+    `CREATE UNIQUE INDEX idx_interaction_participants_unique ON interaction_participants (organization_id, interaction_id, role, identity_id)`,
+  )
+  await run(
+    `CREATE INDEX idx_interaction_participants_identity ON interaction_participants (organization_id, identity_id, interaction_id)`,
+  )
 
   await run(`
     CREATE TABLE message_attachments (${base},
@@ -125,7 +138,9 @@ export async function up(db: Kysely<any>): Promise<void> {
       CONSTRAINT message_attachments_message_fk FOREIGN KEY (organization_id, message_id) REFERENCES messages (organization_id, id),
       CONSTRAINT message_attachments_file_fk FOREIGN KEY (organization_id, file_id) REFERENCES files (organization_id, id)
     )`)
-  await run(`CREATE UNIQUE INDEX idx_message_attachments_position_unique ON message_attachments (organization_id, message_id, position)`)
+  await run(
+    `CREATE UNIQUE INDEX idx_message_attachments_position_unique ON message_attachments (organization_id, message_id, position)`,
+  )
   await run(`CREATE INDEX idx_message_attachments_file ON message_attachments (organization_id, file_id)`)
 
   // Provider source tables are machinery (D17): connection_id has no foreign key yet (D19: channel_connections arrive with CHN).
@@ -137,7 +152,9 @@ export async function up(db: Kysely<any>): Promise<void> {
       provider_thread_id text NOT NULL,
       CONSTRAINT message_sources_message_fk FOREIGN KEY (organization_id, message_id) REFERENCES messages (organization_id, id)
     )`)
-  await run(`CREATE UNIQUE INDEX idx_message_sources_provider_unique ON message_sources (organization_id, connection_id, provider_message_id)`)
+  await run(
+    `CREATE UNIQUE INDEX idx_message_sources_provider_unique ON message_sources (organization_id, connection_id, provider_message_id)`,
+  )
   await run(`CREATE INDEX idx_message_sources_message ON message_sources (organization_id, message_id)`)
 
   await run(`
@@ -147,10 +164,15 @@ export async function up(db: Kysely<any>): Promise<void> {
       provider_thread_id text NOT NULL,
       CONSTRAINT thread_sources_thread_fk FOREIGN KEY (organization_id, thread_id) REFERENCES threads (organization_id, id)
     )`)
-  await run(`CREATE UNIQUE INDEX idx_thread_sources_provider_unique ON thread_sources (organization_id, connection_id, provider_thread_id)`)
+  await run(
+    `CREATE UNIQUE INDEX idx_thread_sources_provider_unique ON thread_sources (organization_id, connection_id, provider_thread_id)`,
+  )
   await run(`CREATE INDEX idx_thread_sources_thread ON thread_sources (organization_id, thread_id)`)
 
-  for (const [table, parent, parentTable] of [['contact_files', 'contact', 'contacts'], ['company_files', 'company', 'companies']] as const) {
+  for (const [table, parent, parentTable] of [
+    ['contact_files', 'contact', 'contacts'],
+    ['company_files', 'company', 'companies'],
+  ] as const) {
     await run(`
       CREATE TABLE ${table} (${base},
         ${parent}_id uuid NOT NULL,
@@ -160,7 +182,9 @@ export async function up(db: Kysely<any>): Promise<void> {
         CONSTRAINT ${table}_${parent}_fk FOREIGN KEY (organization_id, ${parent}_id) REFERENCES ${parentTable} (organization_id, id),
         CONSTRAINT ${table}_file_fk FOREIGN KEY (organization_id, file_id) REFERENCES files (organization_id, id)
       )`)
-    await run(`CREATE UNIQUE INDEX idx_${table}_live_unique ON ${table} (organization_id, ${parent}_id, file_id) WHERE deleted_at IS NULL`)
+    await run(
+      `CREATE UNIQUE INDEX idx_${table}_live_unique ON ${table} (organization_id, ${parent}_id, file_id) WHERE deleted_at IS NULL`,
+    )
     await run(`CREATE INDEX idx_${table}_file ON ${table} (organization_id, file_id)`)
   }
 

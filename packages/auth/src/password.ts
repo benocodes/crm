@@ -27,8 +27,16 @@ const fromB64url = (text: string): Uint8Array => {
 }
 
 async function derive(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey('raw', encoder.encode(password.normalize('NFKC')), 'PBKDF2', false, ['deriveBits'])
-  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations }, key, KEY_BITS))
+  const key = await crypto.subtle.importKey('raw', encoder.encode(password.normalize('NFKC')), 'PBKDF2', false, [
+    'deriveBits',
+  ])
+  return new Uint8Array(
+    await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations },
+      key,
+      KEY_BITS,
+    ),
+  )
 }
 
 export async function hashPassword(password: string, opts: { iterations?: number } = {}): Promise<string> {

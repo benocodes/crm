@@ -15,7 +15,10 @@ export type DispatchOutcome =
   | { kind: 'not_sent'; code: PermanentCode; message?: string }
   /** May have been delivered: the response was lost. */
   | { kind: 'unknown'; message?: string }
-export type ReconcileOutcome = { kind: 'found'; result: Record<string, unknown> } | { kind: 'not_found' } | { kind: 'unknown' }
+export type ReconcileOutcome =
+  | { kind: 'found'; result: Record<string, unknown> }
+  | { kind: 'not_found' }
+  | { kind: 'unknown' }
 
 /** What a transport is given: fixed at authorisation, so `clientRef` is identical on every attempt. */
 export interface TransportCall {

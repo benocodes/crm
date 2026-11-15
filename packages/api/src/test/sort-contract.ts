@@ -14,7 +14,10 @@ export interface ContractDef {
   readonly derived?: Readonly<Record<string, { readonly kind: string }>>
 }
 /** A registry list: `def` is its generic prepared-resource definition, `null` when the list is hand-written. */
-export interface ContractList { readonly name: string; readonly def: ContractDef | null }
+export interface ContractList {
+  readonly name: string
+  readonly def: ContractDef | null
+}
 export interface ContractInput {
   readonly lists: readonly ContractList[]
   readonly columns: Readonly<Record<string, Readonly<Record<string, ColumnKind>>>>
@@ -24,16 +27,34 @@ export interface ContractInput {
   readonly exemptions: readonly SortExemption[]
 }
 export type ContractCheck =
-  | 'no-sorts' | 'convention' | 'unknown-field' | 'unsortable-kind' | 'kind-mismatch' | 'no-plan'
-  | 'missing-cost' | 'obsolete-cost' | 'unknown-cost' | 'duplicate-cost' | 'cost-reason'
-  | 'missing-exemption' | 'bad-exemption' | 'duplicate-exemption' | 'exemption-reason'
-export interface ContractViolation { readonly check: ContractCheck; readonly list: string; readonly sort?: string; readonly message: string }
+  | 'no-sorts'
+  | 'convention'
+  | 'unknown-field'
+  | 'unsortable-kind'
+  | 'kind-mismatch'
+  | 'no-plan'
+  | 'missing-cost'
+  | 'obsolete-cost'
+  | 'unknown-cost'
+  | 'duplicate-cost'
+  | 'cost-reason'
+  | 'missing-exemption'
+  | 'bad-exemption'
+  | 'duplicate-exemption'
+  | 'exemption-reason'
+export interface ContractViolation {
+  readonly check: ContractCheck
+  readonly list: string
+  readonly sort?: string
+  readonly message: string
+}
 
 const SORTABLE = new Set(['timestamp', 'uuid', 'text', 'integer'])
 
 export function checkSortContract(input: ContractInput): ContractViolation[] {
   const out: ContractViolation[] = []
-  const add = (check: ContractCheck, list: string, sort: string | undefined, message: string) => out.push({ check, list, ...(sort === undefined ? {} : { sort }), message })
+  const add = (check: ContractCheck, list: string, sort: string | undefined, message: string) =>
+    out.push({ check, list, ...(sort === undefined ? {} : { sort }), message })
   const accepted = new Set<string>()
   const costKeys = new Set(input.costs.map((c) => `${c.list}.${c.sort}`))
 
@@ -47,24 +68,33 @@ export function checkSortContract(input: ContractInput): ContractViolation[] {
       continue
     }
     for (const c of ['id', 'created_at', 'updated_at']) {
-      if ((c === 'id' || c in table) && !sorts.includes(c)) add('convention', l.name, c, `${l.name} lacks the convention sort ${c}`)
+      if ((c === 'id' || c in table) && !sorts.includes(c))
+        add('convention', l.name, c, `${l.name} lacks the convention sort ${c}`)
     }
     for (const s of sorts) {
       accepted.add(`${l.name}.${s}`)
       const kind = s in table ? table[s] : def.derived?.[s]?.kind
       if (kind === undefined || !(s in def.record.shape)) {
-        add('unknown-field', l.name, s, `${l.name} declares ${s}, which is not a field of its record backed by a column or a derived field`)
+        add(
+          'unknown-field',
+          l.name,
+          s,
+          `${l.name} declares ${s}, which is not a field of its record backed by a column or a derived field`,
+        )
         continue
       }
       if (!SORTABLE.has(kind)) {
         add('unsortable-kind', l.name, s, `${l.name}.${s} is ${kind}, which has no order`)
         continue
       }
-      if (def.sortKinds?.[s] !== kind) add('kind-mismatch', l.name, s, `${l.name}.${s} resolved as ${def.sortKinds?.[s]}, metadata says ${kind}`)
+      if (def.sortKinds?.[s] !== kind)
+        add('kind-mismatch', l.name, s, `${l.name}.${s} resolved as ${def.sortKinds?.[s]}, metadata says ${kind}`)
       const plan = input.plans[`${l.name}.${s}`]
       if (!plan) add('no-plan', l.name, s, `no D1 plan fact for ${l.name}.${s}`)
-      else if (plan.temp && !costKeys.has(`${l.name}.${s}`)) add('missing-cost', l.name, s, `${l.name}.${s} desc needs a temporary sort and has no stated cost`)
-      else if (!plan.temp && costKeys.has(`${l.name}.${s}`)) add('obsolete-cost', l.name, s, `${l.name}.${s} is indexed, its stated cost is obsolete`)
+      else if (plan.temp && !costKeys.has(`${l.name}.${s}`))
+        add('missing-cost', l.name, s, `${l.name}.${s} desc needs a temporary sort and has no stated cost`)
+      else if (!plan.temp && costKeys.has(`${l.name}.${s}`))
+        add('obsolete-cost', l.name, s, `${l.name}.${s} is indexed, its stated cost is obsolete`)
     }
   }
 
@@ -85,6 +115,8 @@ export function checkSortContract(input: ContractInput): ContractViolation[] {
     exempt.add(x.list)
     if (x.reason.trim() === '') add('exemption-reason', x.list, undefined, `${x.list} has no reason`)
   }
-  for (const name of hand) if (!exempt.has(name)) add('missing-exemption', name, undefined, `${name} is hand-written and not in the exemption list`)
+  for (const name of hand)
+    if (!exempt.has(name))
+      add('missing-exemption', name, undefined, `${name} is hand-written and not in the exemption list`)
   return out
 }

@@ -24,7 +24,9 @@ describe('the control store marker (CORE259 D7)', () => {
     expect(await readControlMarker(c)).toEqual({ organizationId: ORG })
   })
   it('hands the auth provider a database that reaches the control tables', async () => {
-    const auth = controlAuthDatabase(openControlDb(local.bindings.C!)) as { prepare(q: string): { first(): Promise<unknown> } }
+    const auth = controlAuthDatabase(openControlDb(local.bindings.C!)) as {
+      prepare(q: string): { first(): Promise<unknown> }
+    }
     expect(await auth.prepare('select count(*) as n from auth_users').first()).toEqual({ n: 0 })
   })
 })

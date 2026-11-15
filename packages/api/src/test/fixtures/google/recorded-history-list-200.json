@@ -7,20 +7,7 @@
       "method": "GET",
       "host": "gmail.googleapis.com",
       "path": "/gmail/v1/users/me/history",
-      "query": [
-        [
-          "startHistoryId",
-          "3760184"
-        ],
-        [
-          "maxResults",
-          "25"
-        ],
-        [
-          "historyTypes",
-          "messageAdded"
-        ]
-      ],
+      "query": [["startHistoryId", "3760184"], ["maxResults", "25"], ["historyTypes", "messageAdded"]],
       "form": null
     },
     "response": {
@@ -43,11 +30,7 @@
                 "message": {
                   "id": "8w9iz08863ge5z9l",
                   "threadId": "8w9iz08863ge5z9l",
-                  "labelIds": [
-                    "CATEGORY_PROMOTIONS",
-                    "UNREAD",
-                    "INBOX"
-                  ]
+                  "labelIds": ["CATEGORY_PROMOTIONS", "UNREAD", "INBOX"]
                 }
               }
             ]
@@ -65,12 +48,7 @@
                 "message": {
                   "id": "0x2eoj8e428b6363",
                   "threadId": "0x2eoj8e428b6363",
-                  "labelIds": [
-                    "UNREAD",
-                    "IMPORTANT",
-                    "CATEGORY_UPDATES",
-                    "INBOX"
-                  ]
+                  "labelIds": ["UNREAD", "IMPORTANT", "CATEGORY_UPDATES", "INBOX"]
                 }
               }
             ]
@@ -88,11 +66,7 @@
                 "message": {
                   "id": "5t7ms2200o23ddpo",
                   "threadId": "5t7ms2200o23ddpo",
-                  "labelIds": [
-                    "UNREAD",
-                    "CATEGORY_PERSONAL",
-                    "SPAM"
-                  ]
+                  "labelIds": ["UNREAD", "CATEGORY_PERSONAL", "SPAM"]
                 }
               }
             ]
@@ -110,11 +84,7 @@
                 "message": {
                   "id": "9u0lv94233r2x0cr",
                   "threadId": "9u0lv94233r2x0cr",
-                  "labelIds": [
-                    "UNREAD",
-                    "CATEGORY_UPDATES",
-                    "INBOX"
-                  ]
+                  "labelIds": ["UNREAD", "CATEGORY_UPDATES", "INBOX"]
                 }
               }
             ]
@@ -132,12 +102,7 @@
                 "message": {
                   "id": "2t2fod2w0359qiio",
                   "threadId": "2t2fod2w0359qiio",
-                  "labelIds": [
-                    "UNREAD",
-                    "IMPORTANT",
-                    "CATEGORY_UPDATES",
-                    "INBOX"
-                  ]
+                  "labelIds": ["UNREAD", "IMPORTANT", "CATEGORY_UPDATES", "INBOX"]
                 }
               }
             ]
@@ -155,11 +120,7 @@
                 "message": {
                   "id": "7t3gdc128jjq9co2",
                   "threadId": "7t3gdc128jjq9co2",
-                  "labelIds": [
-                    "CATEGORY_PROMOTIONS",
-                    "UNREAD",
-                    "INBOX"
-                  ]
+                  "labelIds": ["CATEGORY_PROMOTIONS", "UNREAD", "INBOX"]
                 }
               }
             ]
@@ -177,9 +138,7 @@
                 "message": {
                   "id": "9h2wsk7880f41y9q",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -197,9 +156,7 @@
                 "message": {
                   "id": "0l5kov0e01jcr468",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -217,9 +174,7 @@
                 "message": {
                   "id": "3i1adze7jj232s6a",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -237,9 +192,7 @@
                 "message": {
                   "id": "0t1kfaz9dn1g562r",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -257,9 +210,7 @@
                 "message": {
                   "id": "5p3xudm616c3gx22",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -277,9 +228,7 @@
                 "message": {
                   "id": "7t3pmhrl3350z55v",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -297,9 +246,7 @@
                 "message": {
                   "id": "3z9vqchb4g6362z3",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -317,9 +264,7 @@
                 "message": {
                   "id": "7m0bgczj88o1272c",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -337,9 +282,7 @@
                 "message": {
                   "id": "8r2lkfp89vz22u12",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -357,9 +300,7 @@
                 "message": {
                   "id": "0e0erdht15h79787",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -377,9 +318,7 @@
                 "message": {
                   "id": "3q3pbpbo0c75g577",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "DRAFT"
-                  ]
+                  "labelIds": ["DRAFT"]
                 }
               }
             ]
@@ -397,9 +336,7 @@
                 "message": {
                   "id": "0a6sksv7bx2z754m",
                   "threadId": "9h2wsk7880f41y9q",
-                  "labelIds": [
-                    "SENT"
-                  ]
+                  "labelIds": ["SENT"]
                 }
               }
             ]
@@ -417,11 +354,7 @@
                 "message": {
                   "id": "2j0t3362xgos22j4",
                   "threadId": "2j0t3362xgos22j4",
-                  "labelIds": [
-                    "UNREAD",
-                    "CATEGORY_UPDATES",
-                    "INBOX"
-                  ]
+                  "labelIds": ["UNREAD", "CATEGORY_UPDATES", "INBOX"]
                 }
               }
             ]
@@ -439,11 +372,7 @@
                 "message": {
                   "id": "7i9w854mo7576gxt",
                   "threadId": "2j0t3362xgos22j4",
-                  "labelIds": [
-                    "UNREAD",
-                    "CATEGORY_UPDATES",
-                    "INBOX"
-                  ]
+                  "labelIds": ["UNREAD", "CATEGORY_UPDATES", "INBOX"]
                 }
               }
             ]
@@ -460,11 +389,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "CATEGORY_PROMOTIONS",
-                  "UNREAD",
-                  "INBOX"
-                ]
+                "labelIds": ["CATEGORY_PROMOTIONS", "UNREAD", "INBOX"]
               }
             }
           ]
@@ -473,12 +398,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "UNREAD",
-                  "IMPORTANT",
-                  "CATEGORY_UPDATES",
-                  "INBOX"
-                ]
+                "labelIds": ["UNREAD", "IMPORTANT", "CATEGORY_UPDATES", "INBOX"]
               }
             }
           ]
@@ -487,11 +407,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "UNREAD",
-                  "CATEGORY_PERSONAL",
-                  "SPAM"
-                ]
+                "labelIds": ["UNREAD", "CATEGORY_PERSONAL", "SPAM"]
               }
             }
           ]
@@ -500,11 +416,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "UNREAD",
-                  "CATEGORY_UPDATES",
-                  "INBOX"
-                ]
+                "labelIds": ["UNREAD", "CATEGORY_UPDATES", "INBOX"]
               }
             }
           ]
@@ -513,12 +425,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "UNREAD",
-                  "IMPORTANT",
-                  "CATEGORY_UPDATES",
-                  "INBOX"
-                ]
+                "labelIds": ["UNREAD", "IMPORTANT", "CATEGORY_UPDATES", "INBOX"]
               }
             }
           ]
@@ -527,11 +434,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "CATEGORY_PROMOTIONS",
-                  "UNREAD",
-                  "INBOX"
-                ]
+                "labelIds": ["CATEGORY_PROMOTIONS", "UNREAD", "INBOX"]
               }
             }
           ]
@@ -540,9 +443,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -551,9 +452,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -562,9 +461,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -573,9 +470,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -584,9 +479,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -595,9 +488,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -606,9 +497,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -617,9 +506,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -628,9 +515,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -639,9 +524,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -650,9 +533,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "DRAFT"
-                ]
+                "labelIds": ["DRAFT"]
               }
             }
           ]
@@ -661,9 +542,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "SENT"
-                ]
+                "labelIds": ["SENT"]
               }
             }
           ]
@@ -672,11 +551,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "UNREAD",
-                  "CATEGORY_UPDATES",
-                  "INBOX"
-                ]
+                "labelIds": ["UNREAD", "CATEGORY_UPDATES", "INBOX"]
               }
             }
           ]
@@ -685,11 +560,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "UNREAD",
-                  "CATEGORY_UPDATES",
-                  "INBOX"
-                ]
+                "labelIds": ["UNREAD", "CATEGORY_UPDATES", "INBOX"]
               }
             }
           ]

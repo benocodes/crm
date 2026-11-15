@@ -87,13 +87,20 @@ export async function openSenderKit(): Promise<SenderKit> {
     },
     async subscribe(over: { url?: string; scopes?: string[]; event_types?: string[] } = {}) {
       const agent = await k.seedAgent(over.scopes ?? READ_SCOPES)
-      const sub = await k.create(agent, { url: over.url ?? 'https://receiver.example/hook', event_types: over.event_types ?? ['task.created'] })
+      const sub = await k.create(agent, {
+        url: over.url ?? 'https://receiver.example/hook',
+        event_types: over.event_types ?? ['task.created'],
+      })
       return { agent, sub }
     },
     async due(subscriptionId: string, title = 'a task') {
       const event = await k.task(title)
       await k.dispatch()
-      const rows = await k.all('select id from webhook_deliveries where subscription_id = ? and event_id = ?', subscriptionId, event)
+      const rows = await k.all(
+        'select id from webhook_deliveries where subscription_id = ? and event_id = ?',
+        subscriptionId,
+        event,
+      )
       return { delivery: rows[0]!.id as string, event }
     },
     async row(deliveryId: string) {

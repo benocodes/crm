@@ -36,7 +36,9 @@ export function identityOperations(): TenantOperation[] {
       response: {
         status: 200,
         schema: z.object({
-          data: z.array(z.object({ identity: identities.record, contact: contacts.record.nullable(), created: z.boolean() })),
+          data: z.array(
+            z.object({ identity: identities.record, contact: contacts.record.nullable(), created: z.boolean() }),
+          ),
         }),
       },
       prepare: (env, input) => {
@@ -60,11 +62,15 @@ export function identityOperations(): TenantOperation[] {
       method: 'post',
       path: '/contacts/{id}/merge',
       scope: { resource: 'contacts', action: 'write' },
-      proposal: { eligible: true, target: { table: 'contacts', idArg: 'id', notFound: 'contact not found', live: true } },
+      proposal: {
+        eligible: true,
+        target: { table: 'contacts', idArg: 'id', notFound: 'contact not found', live: true },
+      },
       validation: 'adapter',
       request: { params: z.object({ id: z.uuid() }), body: z.strictObject({ source_id: z.uuid() }) },
       response: { status: 200, schema: contacts.record },
-      prepare: (env, input) => mergeOperation(env, input.params.id as string, (input.body as { source_id: string }).source_id),
+      prepare: (env, input) =>
+        mergeOperation(env, input.params.id as string, (input.body as { source_id: string }).source_id),
     },
   ]
 }

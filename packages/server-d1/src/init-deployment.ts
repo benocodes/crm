@@ -6,7 +6,9 @@ import type { D1Like, D1PreparedLike } from '@vibase/storage-d1'
 export type DeploymentLink = { organizationId: string; authProvider: string; authOrgId: string }
 
 const conflict = (existing: DeploymentLink) =>
-  new Error(`deployment is already initialised for organization ${existing.organizationId} (${existing.authProvider}:${existing.authOrgId})`)
+  new Error(
+    `deployment is already initialised for organization ${existing.organizationId} (${existing.authProvider}:${existing.authOrgId})`,
+  )
 
 const toLink = (row: Record<string, unknown>): DeploymentLink => ({
   organizationId: row.organization_id as string,
@@ -19,7 +21,9 @@ const toLink = (row: Record<string, unknown>): DeploymentLink => ({
  * no prepared operation selects it for the app (the Worker, the CLI and `initDeploymentOperation`'s own plan read use this shape).
  */
 export async function readDeployment(d1: D1Like): Promise<DeploymentLink | null> {
-  const row = await d1.prepare('select organization_id, auth_provider, auth_org_id from deployment where singleton = 1').first()
+  const row = await d1
+    .prepare('select organization_id, auth_provider, auth_org_id from deployment where singleton = 1')
+    .first()
   return row ? toLink(row) : null
 }
 
@@ -34,18 +38,32 @@ export function initDeploymentOperation(link: DeploymentLink): PreparedOperation
     name: 'ops.init_deployment',
     mutates: true,
     reads: (qc) => ({
-      marker: readMaybe(sql`select organization_id, auth_provider, auth_org_id from deployment where singleton = 1`.compile(qc.db)),
+      marker: readMaybe(
+        sql`select organization_id, auth_provider, auth_org_id from deployment where singleton = 1`.compile(qc.db),
+      ),
     }),
     build: (found, qc) => {
       const row = found.maybe('marker')
       if (row) {
         const existing = toLink(row)
-        if (existing.organizationId !== link.organizationId || existing.authProvider !== link.authProvider || existing.authOrgId !== link.authOrgId) throw conflict(existing)
+        if (
+          existing.organizationId !== link.organizationId ||
+          existing.authProvider !== link.authProvider ||
+          existing.authOrgId !== link.authOrgId
+        )
+          throw conflict(existing)
         return unit({ steps: [], events: [], decode: () => 'existing' as const })
       }
-      const insert = sql`insert into deployment (singleton, organization_id, auth_provider, auth_org_id) values (1, ${link.organizationId}, ${link.authProvider}, ${link.authOrgId}) on conflict do nothing`.compile(qc.db)
+      const insert =
+        sql`insert into deployment (singleton, organization_id, auth_provider, auth_org_id) values (1, ${link.organizationId}, ${link.authProvider}, ${link.authOrgId}) on conflict do nothing`.compile(
+          qc.db,
+        )
       const holds = sql<SqlBool>`exists (select 1 from deployment where singleton = 1 and organization_id = ${link.organizationId} and auth_provider = ${link.authProvider} and auth_org_id = ${link.authOrgId})`
-      return unit({ steps: [step(insert, 'first-mutation'), assertStep(qc, holds)], events: [], decode: () => 'created' as const })
+      return unit({
+        steps: [step(insert, 'first-mutation'), assertStep(qc, holds)],
+        events: [],
+        decode: () => 'created' as const,
+      })
     },
   })
 }
@@ -53,6 +71,8 @@ export function initDeploymentOperation(link: DeploymentLink): PreparedOperation
 /** The marker insert as a raw prepared statement (the SQL `initDeploymentOperation` compiles), for the atomicity probe. */
 export function markerInsert(d1: D1Like, link: DeploymentLink): D1PreparedLike {
   return d1
-    .prepare('insert into deployment (singleton, organization_id, auth_provider, auth_org_id) values (1, ?, ?, ?) on conflict do nothing')
+    .prepare(
+      'insert into deployment (singleton, organization_id, auth_provider, auth_org_id) values (1, ?, ?, ?) on conflict do nothing',
+    )
     .bind(link.organizationId, link.authProvider, link.authOrgId)
 }

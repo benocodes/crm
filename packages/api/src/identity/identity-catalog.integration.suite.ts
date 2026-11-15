@@ -38,10 +38,24 @@ export function engineSuite(engineName: EngineName): void {
   }
 
   async function d1Catalog(): Promise<string[]> {
-    const tables = ((await d1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all()).results as Array<{ name: string }>).map((t) => t.name)
+    const tables = (
+      (
+        await d1
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
+          )
+          .all()
+      ).results as Array<{ name: string }>
+    ).map((t) => t.name)
     const out: string[] = []
     for (const t of tables) {
-      const fks = (await d1.prepare(`SELECT "from" AS col FROM pragma_foreign_key_list('${t}') WHERE "table" = 'identities' AND "from" <> 'organization_id'`).all()).results as Array<{ col: string }>
+      const fks = (
+        await d1
+          .prepare(
+            `SELECT "from" AS col FROM pragma_foreign_key_list('${t}') WHERE "table" = 'identities' AND "from" <> 'organization_id'`,
+          )
+          .all()
+      ).results as Array<{ col: string }>
       for (const f of fks) out.push(`${t}.${f.col}`)
     }
     return out.sort()
@@ -53,8 +67,16 @@ export function engineSuite(engineName: EngineName): void {
   const catalog = (): Promise<string[]> => (engineName === 'postgres' ? postgresCatalog() : d1Catalog())
   const columnsOf = async (table: string): Promise<string[]> =>
     engineName === 'postgres'
-      ? (await sql<{ column_name: string }>`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=${table}`.execute(owner)).rows.map((x) => x.column_name)
-      : ((await d1.prepare(`SELECT name FROM pragma_table_info('${table}')`).all()).results as Array<{ name: string }>).map((x) => x.name)
+      ? (
+          await sql<{
+            column_name: string
+          }>`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=${table}`.execute(
+            owner,
+          )
+        ).rows.map((x) => x.column_name)
+      : (
+          (await d1.prepare(`SELECT name FROM pragma_table_info('${table}')`).all()).results as Array<{ name: string }>
+        ).map((x) => x.name)
 
   describe('IDENTITY_REFERENCES catalog guard', () => {
     it(`every foreign key onto identities is listed (${label})`, async () => {
@@ -74,7 +96,10 @@ export function engineSuite(engineName: EngineName): void {
     // (D9: addresses owned by a contact), which keeps them out of the polymorphic list; the list itself is guarded in merge-catalog.
     describe('polymorphic references to identities (CORE62)', () => {
       it('identities are not an associable type, and the non-FK list is not empty', () => {
-        const associable = createVibaseRegistry().resources().filter((d) => d.associable).map((d) => d.table)
+        const associable = createVibaseRegistry()
+          .resources()
+          .filter((d) => d.associable)
+          .map((d) => d.table)
         expect(associable.length).toBeGreaterThan(0)
         expect(associable).not.toContain('identities')
         expect(CONTACT_NON_FK_REFERENCES.map((r) => r.table)).toContain('associations')

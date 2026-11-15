@@ -56,9 +56,12 @@ beforeAll(async () => {
   e = await openD1Engine()
   app = createApp({ registry, storage: () => e.binding, userAuthenticator: fakeUserAuthenticator() })
 })
-afterAll(async () => { await e?.close() })
+afterAll(async () => {
+  await e?.close()
+})
 
-const token = (scopes: string[]) => mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
+const token = (scopes: string[]) =>
+  mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
 async function call(path: string, scopes: string[] = ALL) {
   const res = await app.request(path, { headers: { authorization: `Bearer ${token(scopes)}` } })
   return { status: res.status, body: (await res.json()) as any }
@@ -66,19 +69,33 @@ async function call(path: string, scopes: string[] = ALL) {
 const pathOf = (list: string) => fullPath(registry.get(`${list}.list`) as { surface: Surface; path: string })
 const stamped = (table: string, i: number, row: Record<string, unknown>) => {
   const kinds = kindsOf(table)
-  return { ...row, ...('created_at' in kinds ? { created_at: CT[i] } : {}), ...('updated_at' in kinds ? { updated_at: UT[i] } : {}) }
+  return {
+    ...row,
+    ...('created_at' in kinds ? { created_at: CT[i] } : {}),
+    ...('updated_at' in kinds ? { updated_at: UT[i] } : {}),
+  }
 }
 async function insertAll(table: string, make: (i: number) => Record<string, unknown>) {
   for (const i of ROWS) await e.insert(table, stamped(table, i, { id: id(100 + i), ...make(i) }))
 }
 
-interface ListSpec { name: string; seed: () => Promise<void>; unique?: string[]; nullable: string[] }
+interface ListSpec {
+  name: string
+  seed: () => Promise<void>
+  unique?: string[]
+  nullable: string[]
+}
 const specs: ListSpec[] = [
-  { name: 'threads', nullable: ['subject'], seed: () => insertAll('threads', (i) => ({ channel: 'email', subject: S[i] })) },
+  {
+    name: 'threads',
+    nullable: ['subject'],
+    seed: () => insertAll('threads', (i) => ({ channel: 'email', subject: S[i] })),
+  },
   { name: 'contacts', nullable: ['name'], seed: () => insertAll('contacts', (i) => ({ name: S[i] })) },
   { name: 'companies', nullable: [], seed: () => insertAll('companies', (i) => ({ name: N[i] })) },
   {
-    name: 'deals', nullable: [],
+    name: 'deals',
+    nullable: [],
     seed: async () => {
       await e.insert('pipelines', { id: id(1), name: 'P' })
       await e.insert('pipeline_stages', { id: id(2), pipeline_id: id(1), name: 'S', kind: 'open', position: 0 })
@@ -87,35 +104,93 @@ const specs: ListSpec[] = [
   },
   { name: 'tasks', nullable: ['due_at'], seed: () => insertAll('tasks', (i) => ({ title: N[i], due_at: D[i] })) },
   { name: 'notes', nullable: ['title'], seed: () => insertAll('notes', (i) => ({ title: S[i], content: 'c' })) },
-  { name: 'tags', unique: ['name'], nullable: [], seed: () => insertAll('tags', (i) => ({ name: ['b', 'a', 'C', 'd', 'E', 'f'][i] })) },
-  { name: 'pipelines', unique: ['name'], nullable: [], seed: () => insertAll('pipelines', (i) => ({ name: ['b', 'a', 'C', 'd', 'E', 'f'][i] })) },
   {
-    name: 'pipeline_stages', unique: ['name'], nullable: [],
+    name: 'tags',
+    unique: ['name'],
+    nullable: [],
+    seed: () => insertAll('tags', (i) => ({ name: ['b', 'a', 'C', 'd', 'E', 'f'][i] })),
+  },
+  {
+    name: 'pipelines',
+    unique: ['name'],
+    nullable: [],
+    seed: () => insertAll('pipelines', (i) => ({ name: ['b', 'a', 'C', 'd', 'E', 'f'][i] })),
+  },
+  {
+    name: 'pipeline_stages',
+    unique: ['name'],
+    nullable: [],
     seed: async () => {
       await e.insert('pipelines', { id: id(1), name: 'P' })
-      await insertAll('pipeline_stages', (i) => ({ pipeline_id: id(1), name: ['b', 'a', 'C', 'd', 'E', 'f'][i], kind: 'open', position: [0, 1, 1, 2, 2, 3][i] }))
+      await insertAll('pipeline_stages', (i) => ({
+        pipeline_id: id(1),
+        name: ['b', 'a', 'C', 'd', 'E', 'f'][i],
+        kind: 'open',
+        position: [0, 1, 1, 2, 2, 3][i],
+      }))
     },
   },
-  { name: 'identities', unique: ['value'], nullable: [], seed: () => insertAll('identities', (i) => ({ kind: 'email', value: `${['b', 'a', 'c', 'e', 'd', 'f'][i]}@sort.test`, contact_id: null, own: true })) },
-  { name: 'files', nullable: [], seed: () => insertAll('files', (i) => ({ name: N[i], mime_type: 'text/plain', size_bytes: 1, sha256: 'a'.repeat(64), storage_key: `files/${i}` })) },
   {
-    name: 'contact_files', nullable: [],
+    name: 'identities',
+    unique: ['value'],
+    nullable: [],
+    seed: () =>
+      insertAll('identities', (i) => ({
+        kind: 'email',
+        value: `${['b', 'a', 'c', 'e', 'd', 'f'][i]}@sort.test`,
+        contact_id: null,
+        own: true,
+      })),
+  },
+  {
+    name: 'files',
+    nullable: [],
+    seed: () =>
+      insertAll('files', (i) => ({
+        name: N[i],
+        mime_type: 'text/plain',
+        size_bytes: 1,
+        sha256: 'a'.repeat(64),
+        storage_key: `files/${i}`,
+      })),
+  },
+  {
+    name: 'contact_files',
+    nullable: [],
     seed: async () => {
       await e.insert('contacts', { id: id(1), name: 'c' })
-      for (const i of ROWS) await e.insert('files', { id: id(200 + i), name: `f${i}`, mime_type: 'text/plain', size_bytes: 1, sha256: 'a'.repeat(64), storage_key: `cf/${i}` })
+      for (const i of ROWS)
+        await e.insert('files', {
+          id: id(200 + i),
+          name: `f${i}`,
+          mime_type: 'text/plain',
+          size_bytes: 1,
+          sha256: 'a'.repeat(64),
+          storage_key: `cf/${i}`,
+        })
       await insertAll('contact_files', (i) => ({ contact_id: id(1), file_id: id(200 + i) }))
     },
   },
   {
-    name: 'company_files', nullable: [],
+    name: 'company_files',
+    nullable: [],
     seed: async () => {
       await e.insert('companies', { id: id(1), name: 'c' })
-      for (const i of ROWS) await e.insert('files', { id: id(200 + i), name: `f${i}`, mime_type: 'text/plain', size_bytes: 1, sha256: 'a'.repeat(64), storage_key: `cf/${i}` })
+      for (const i of ROWS)
+        await e.insert('files', {
+          id: id(200 + i),
+          name: `f${i}`,
+          mime_type: 'text/plain',
+          size_bytes: 1,
+          sha256: 'a'.repeat(64),
+          storage_key: `cf/${i}`,
+        })
       await insertAll('company_files', (i) => ({ company_id: id(1), file_id: id(200 + i) }))
     },
   },
   {
-    name: 'memberships', nullable: [],
+    name: 'memberships',
+    nullable: [],
     seed: async () => {
       for (const i of [0, 1, 2, 3]) {
         const m = await e.seedMember('member', { subject: `user_sort_${i}`, email: `sort${i}@sort.test` })
@@ -124,7 +199,8 @@ const specs: ListSpec[] = [
     },
   },
   {
-    name: 'agents', nullable: [],
+    name: 'agents',
+    nullable: [],
     seed: async () => {
       for (const i of ROWS) {
         await e.insert('principals', { id: id(100 + i), kind: 'agent' })
@@ -132,22 +208,40 @@ const specs: ListSpec[] = [
       }
     },
   },
-  { name: 'api_keys', nullable: ['last_used_at', 'expires_at'], seed: () => insertAll('api_keys', (i) => ({ agent_id: e.agentId, key_hash: `hash-${i}`, prefix: 'vk_sort', last_used_at: D[i], expires_at: [null, T3, T3, T1, null, T1][i] })) },
   {
-    name: 'connections', nullable: ['last_synced_at'],
+    name: 'api_keys',
+    nullable: ['last_used_at', 'expires_at'],
+    seed: () =>
+      insertAll('api_keys', (i) => ({
+        agent_id: e.agentId,
+        key_hash: `hash-${i}`,
+        prefix: 'vk_sort',
+        last_used_at: D[i],
+        expires_at: [null, T3, T3, T1, null, T1][i],
+      })),
+  },
+  {
+    name: 'connections',
+    nullable: ['last_synced_at'],
     seed: async () => {
       for (const i of ROWS) {
         await ensureConnection(e.binding, e, id(100 + i))
         await e.update('channel_connections', id(100 + i), { created_at: CT[i], updated_at: UT[i] })
         // `last_synced_at` is derived: the mailbox's cursor row, absent until a sync has run (null).
-        if (D[i] !== null) await e.insert('mail_sync_cursors', { connection_id: id(100 + i), history_id: String(i + 1), last_synced_at: D[i] })
+        if (D[i] !== null)
+          await e.insert('mail_sync_cursors', {
+            connection_id: id(100 + i),
+            history_id: String(i + 1),
+            last_synced_at: D[i],
+          })
       }
     },
   },
 ]
 
 type Row = Record<string, any>
-const cmp = (a: unknown, b: unknown) => (a === b ? 0 : a === null ? -1 : b === null ? 1 : (a as any) < (b as any) ? -1 : 1)
+const cmp = (a: unknown, b: unknown) =>
+  a === b ? 0 : a === null ? -1 : b === null ? 1 : (a as any) < (b as any) ? -1 : 1
 const reference = (rows: Row[], sort: string, order: string) =>
   [...rows].sort((a, b) => (cmp(a[sort], b[sort]) || cmp(a.id, b.id)) * (order === 'desc' ? -1 : 1)).map((r) => r.id)
 async function page(path: string, query: string, scopes: string[] = ALL) {
@@ -188,9 +282,10 @@ for (const spec of specs) {
       await e.reset()
       const baseline = (await unsortedRows(path)).length
       if (baseline > 0) return // lists with seeded system rows (memberships) are covered by the populated walks
-      for (const sort of storedSorts(spec.name)) for (const order of ['asc', 'desc']) {
-        expect(await page(path, `sort=${sort}&order=${order}&limit=1`)).toEqual({ data: [], next_cursor: null })
-      }
+      for (const sort of storedSorts(spec.name))
+        for (const order of ['asc', 'desc']) {
+          expect(await page(path, `sort=${sort}&order=${order}&limit=1`)).toEqual({ data: [], next_cursor: null })
+        }
     })
     it('seeds enough rows with the ties and nulls the column allows', async () => {
       await spec.seed()
@@ -198,18 +293,24 @@ for (const spec of specs) {
       expect(rows.length).toBeGreaterThanOrEqual(5)
       for (const sort of storedSorts(spec.name).filter((s) => s !== 'id')) {
         const values = rows.map((r) => r[sort])
-        if (!(spec.unique ?? []).includes(sort)) expect(new Set(values).size, `${sort} has ties`).toBeLessThan(values.length)
+        if (!(spec.unique ?? []).includes(sort))
+          expect(new Set(values).size, `${sort} has ties`).toBeLessThan(values.length)
         if (spec.nullable.includes(sort)) expect(values.includes(null), `${sort} has nulls`).toBe(true)
         expect(new Set(values).size, `${sort} is not constant`).toBeGreaterThan(1)
       }
     })
-    for (const sort of storedSorts(spec.name)) for (const order of ['asc', 'desc']) {
-      it(`${sort} ${order}: pages of 1 and 2 equal the reference order, no gaps or repeats`, async () => {
-        const expected = reference(rows, sort, order)
-        for (const limit of [1, 2]) expect((await walk(path, `sort=${sort}&order=${order}`, limit)).map((r) => r.id), `page size ${limit}`).toEqual(expected)
-        expect((await page(path, `sort=${sort}&order=${order}`)).data.map((r: Row) => r.id)).toEqual(expected)
-      })
-    }
+    for (const sort of storedSorts(spec.name))
+      for (const order of ['asc', 'desc']) {
+        it(`${sort} ${order}: pages of 1 and 2 equal the reference order, no gaps or repeats`, async () => {
+          const expected = reference(rows, sort, order)
+          for (const limit of [1, 2])
+            expect(
+              (await walk(path, `sort=${sort}&order=${order}`, limit)).map((r) => r.id),
+              `page size ${limit}`,
+            ).toEqual(expected)
+          expect((await page(path, `sort=${sort}&order=${order}`)).data.map((r: Row) => r.id)).toEqual(expected)
+        })
+      }
     it('unsorted keeps ascending id and UUID cursors', async () => {
       const first = await page(path, 'limit=1')
       expect(first.data[0].id).toBe([...rows].map((r) => r.id).sort()[0])
@@ -228,7 +329,11 @@ describe('action_requests list sort matrix through its kit (CORE175 D1)', () => 
     const out: Row[] = []
     let after: string | null = null
     for (let guard = 0; guard < 30; guard++) {
-      const r = await k.call(owner, 'GET', `${AR}?${query}&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}`)
+      const r = await k.call(
+        owner,
+        'GET',
+        `${AR}?${query}&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}`,
+      )
       expect(r.status, JSON.stringify(r.body)).toBe(200)
       out.push(...r.body.data)
       if (r.body.next_cursor === null) return out
@@ -244,21 +349,34 @@ describe('action_requests list sort matrix through its kit (CORE175 D1)', () => 
   })
   afterAll(() => k?.close())
   it('is empty first', async () => {
-    for (const sort of EXPECTED.action_requests!) for (const order of ['asc', 'desc']) {
-      const r = await k.call(owner, 'GET', `${AR}?sort=${sort}&order=${order}&limit=1`)
-      expect([r.status, r.body]).toEqual([200, { data: [], next_cursor: null }])
-    }
+    for (const sort of EXPECTED.action_requests!)
+      for (const order of ['asc', 'desc']) {
+        const r = await k.call(owner, 'GET', `${AR}?sort=${sort}&order=${order}&limit=1`)
+        expect([r.status, r.body]).toEqual([200, { data: [], next_cursor: null }])
+      }
   })
   it('seeds proposals through the kit: clocks forcing ties, and decided and undecided rows', async () => {
-    const proposer = await k.actor('proposer', 'agent', ['tasks:read', 'tasks:request_approval', 'action_requests:read'])
+    const proposer = await k.actor('proposer', 'agent', [
+      'tasks:read',
+      'tasks:request_approval',
+      'action_requests:read',
+    ])
     const ids: string[] = []
     for (const [n, at] of [T1, T1, T2, T2, T3, T3].entries()) {
       k.setNow(new Date(at))
-      const created = await k.call(proposer, 'POST', AR, { operation: 'tasks.create', arguments: { title: `t${n}` }, reason: 'sort fixture' })
+      const created = await k.call(proposer, 'POST', AR, {
+        operation: 'tasks.create',
+        arguments: { title: `t${n}` },
+        reason: 'sort fixture',
+      })
       expect(created.status, JSON.stringify(created.body)).toBe(201)
       ids.push(created.body.id)
     }
-    for (const [n, at] of [[0, T3], [2, T3], [3, T2]] as const) {
+    for (const [n, at] of [
+      [0, T3],
+      [2, T3],
+      [3, T2],
+    ] as const) {
       k.setNow(new Date(at))
       expect((await k.call(owner, 'POST', `${AR}/${ids[n]}/reject`, { decision_reason: 'no' })).status).toBe(200)
     }
@@ -270,21 +388,42 @@ describe('action_requests list sort matrix through its kit (CORE175 D1)', () => 
       expect(new Set(values).size, `${sort} has ties`).toBeLessThan(values.length)
       expect(new Set(values).size, `${sort} varies`).toBeGreaterThan(1)
     }
-    expect(rows.some((x) => x.decided_at === null), 'decided_at has nulls').toBe(true)
+    expect(
+      rows.some((x) => x.decided_at === null),
+      'decided_at has nulls',
+    ).toBe(true)
   })
-  for (const sort of EXPECTED.action_requests!) for (const order of ['asc', 'desc']) {
-    it(`${sort} ${order}: pages of 1 and 2 equal the reference order`, async () => {
-      for (const limit of [1, 2]) expect((await walkKit(`sort=${sort}&order=${order}`, limit)).map((r) => r.id), `page size ${limit}`).toEqual(reference(rows, sort, order))
-    })
-  }
+  for (const sort of EXPECTED.action_requests!)
+    for (const order of ['asc', 'desc']) {
+      it(`${sort} ${order}: pages of 1 and 2 equal the reference order`, async () => {
+        for (const limit of [1, 2])
+          expect(
+            (await walkKit(`sort=${sort}&order=${order}`, limit)).map((r) => r.id),
+            `page size ${limit}`,
+          ).toEqual(reference(rows, sort, order))
+      })
+    }
 })
 
 describe('advertised contracts of every adopted list (CORE175 D2, D5)', () => {
   const guidance = (text: string) => {
-    for (const pattern of [/sort=created_at&order=desc/, /not a snapshot/, /complete walk uses the default order/, /incremental/, /ascending id/]) expect(text).toMatch(pattern)
+    for (const pattern of [
+      /sort=created_at&order=desc/,
+      /not a snapshot/,
+      /complete walk uses the default order/,
+      /incremental/,
+      /ascending id/,
+    ])
+      expect(text).toMatch(pattern)
   }
   const rpc = async (method: string, params: unknown) =>
-    (await (await app.request('/mcp', { method: 'POST', headers: { authorization: `Bearer ${token(ALL)}`, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json()) as any
+    (await (
+      await app.request('/mcp', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token(ALL)}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+      })
+    ).json()) as any
   it('REST and MCP advertise exactly the D1 sorts, asc/desc, and opaque string cursors for all twenty prepared lists', async () => {
     const doc = (await (await app.request('/api/v1/openapi.json')).json()) as any
     const meta = (await (await app.request('/meta/v1/openapi.json')).json()) as any
@@ -342,11 +481,15 @@ describe('authority, errors and compatibility of newly adopted sorts (CORE175 D5
     await e.reset()
     await insertAll('contacts', (i) => ({ name: S[i] }))
     const rows = await unsortedRows('/api/v1/contacts')
-    expect((await page('/api/v1/contacts', 'sort=name', ['contacts:read'])).data.map((r: Row) => r.id)).toEqual(reference(rows, 'name', 'asc'))
+    expect((await page('/api/v1/contacts', 'sort=name', ['contacts:read'])).data.map((r: Row) => r.id)).toEqual(
+      reference(rows, 'name', 'asc'),
+    )
     for (const sort of ['last_contacted_at', 'last_interacted_at']) {
       const denied = await call(`/api/v1/contacts?sort=${sort}`, ['contacts:read'])
       expect([denied.status, denied.body.error.code], sort).toEqual([403, 'insufficient_scope'])
-      expect((await call(`/api/v1/contacts?sort=${sort}`, ['contacts:read', 'interactions:read'])).status, sort).toBe(200)
+      expect((await call(`/api/v1/contacts?sort=${sort}`, ['contacts:read', 'interactions:read'])).status, sort).toBe(
+        200,
+      )
     }
   })
   it('a malformed cursor is 400 validation_error: integer sort, sort=id, and a cursor of another sort', async () => {
@@ -356,15 +499,24 @@ describe('authority, errors and compatibility of newly adopted sorts (CORE175 D5
     const envelope = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url')
     const first = await page('/meta/v1/pipeline-stages', 'sort=position&limit=1')
     const bad = [
-      'sort=position&after=!!!', `sort=position&after=${envelope(['position', 'asc', 'two', id(100)])}`, `sort=position&after=${envelope(['position', 'asc', 1.5, id(100)])}`,
-      `sort=name&after=${first.next_cursor}`, `sort=position&order=desc&after=${first.next_cursor}`, `after=${first.next_cursor}`,
-      'sort=id&after=not-a-uuid', `sort=id&after=${envelope(['id', 'asc', 'not-a-uuid', 'not-a-uuid'])}`, `sort=id&after=${envelope(['id', 'asc', id(101), id(100)])}`, 'order=desc',
+      'sort=position&after=!!!',
+      `sort=position&after=${envelope(['position', 'asc', 'two', id(100)])}`,
+      `sort=position&after=${envelope(['position', 'asc', 1.5, id(100)])}`,
+      `sort=name&after=${first.next_cursor}`,
+      `sort=position&order=desc&after=${first.next_cursor}`,
+      `after=${first.next_cursor}`,
+      'sort=id&after=not-a-uuid',
+      `sort=id&after=${envelope(['id', 'asc', 'not-a-uuid', 'not-a-uuid'])}`,
+      `sort=id&after=${envelope(['id', 'asc', id(101), id(100)])}`,
+      'order=desc',
     ]
     for (const q of bad) {
       const r = await call(`/meta/v1/pipeline-stages?${q}`)
       expect([r.status, r.body.error?.code], q).toEqual([400, 'validation_error'])
     }
-    expect((await page('/meta/v1/pipeline-stages', `sort=position&after=${first.next_cursor}&limit=1`)).data).toHaveLength(1)
+    expect(
+      (await page('/meta/v1/pipeline-stages', `sort=position&after=${first.next_cursor}&limit=1`)).data,
+    ).toHaveLength(1)
   })
   it('sorted reads emit no events and unsorted UUID walks are unchanged', async () => {
     await e.reset()

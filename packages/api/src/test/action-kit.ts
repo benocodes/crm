@@ -46,14 +46,26 @@ export interface ActionKit {
 export const ALL_DECLARED = createVibaseRegistry().declaredScopes()
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 
-export async function openActionKit(opts: { now?: Date; registry?: Registry; executions?: AppOptions['executions']; objects?: AppOptions['objects'] } = {}): Promise<ActionKit> {
+export async function openActionKit(
+  opts: {
+    now?: Date
+    registry?: Registry
+    executions?: AppOptions['executions']
+    objects?: AppOptions['objects']
+  } = {},
+): Promise<ActionKit> {
   const local: LocalD1 = await openLocalD1(['ACTION'])
   const raw = local.bindings.ACTION!
   const pending: { hook: (() => Promise<void>) | null } = { hook: null }
   const d1 = interceptD1(raw, pending)
   const registry = opts.registry ?? createVibaseRegistry()
   let clock = opts.now ?? new Date('2026-11-06T10:00:00.000Z')
-  const kit = { binding: undefined as unknown as D1Binding, organizationId: '', owner: { id: '', kind: 'user', scopes: ALL_DECLARED } as Actor, app: undefined as unknown as OpenAPIHono<AppEnv> }
+  const kit = {
+    binding: undefined as unknown as D1Binding,
+    organizationId: '',
+    owner: { id: '', kind: 'user', scopes: ALL_DECLARED } as Actor,
+    app: undefined as unknown as OpenAPIHono<AppEnv>,
+  }
   const known = new Map<string, Actor>()
   const k: ActionKit = {
     get app() {
@@ -84,14 +96,31 @@ export async function openActionKit(opts: { now?: Date; registry?: Registry; exe
     },
     as: (actor, scopes) => ({ ...actor, scopes }),
     async call(actor, method, path, body) {
-      const token = mintTestUserToken({ userId: actor.id, organizationId: kit.organizationId, scopes: actor.scopes, kind: actor.kind })
-      const res = await kit.app.request(path, { method, headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) })
+      const token = mintTestUserToken({
+        userId: actor.id,
+        organizationId: kit.organizationId,
+        scopes: actor.scopes,
+        kind: actor.kind,
+      })
+      const res = await kit.app.request(path, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
       const text = res.status === 204 ? '' : await res.text()
       return { status: res.status, body: text ? JSON.parse(text) : null }
     },
     async rows(table, where, ...binds) {
-      const r = await raw.prepare(`select * from "${table}"${where ? ` where ${where}` : ''} order by rowid`).bind(...binds).all()
-      return (r.results as RawRow[]).map((row) => (table in { events: 1 } ? { ...row, before: parse(row.before), after: parse(row.after) } : decodeRow(table, row)))
+      const r = await raw
+        .prepare(`select * from "${table}"${where ? ` where ${where}` : ''} order by rowid`)
+        .bind(...binds)
+        .all()
+      return (r.results as RawRow[]).map((row) =>
+        table in { events: 1 } ? { ...row, before: parse(row.before), after: parse(row.after) } : decodeRow(table, row),
+      )
     },
     async events(type) {
       return k.rows('events', type ? 'type = ?' : undefined, ...(type ? [type] : []))
@@ -113,9 +142,20 @@ export async function openActionKit(opts: { now?: Date; registry?: Registry; exe
       await seedMembership(raw, { organizationId: ids.organizationId, userId: ids.userId, role: 'owner' })
       kit.organizationId = ids.organizationId
       kit.owner = { id: ids.userId, kind: 'user', scopes: ALL_DECLARED }
-      const binding = d1Binding(d1, { organizationId: ids.organizationId, authProvider: 'clerk', authOrgId: 'org_action' })
+      const binding = d1Binding(d1, {
+        organizationId: ids.organizationId,
+        authProvider: 'clerk',
+        authOrgId: 'org_action',
+      })
       kit.binding = binding
-      kit.app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding, clock: () => clock, ...(opts.executions ? { executions: opts.executions } : {}), ...(opts.objects ? { objects:opts.objects } : {}) })
+      kit.app = createApp({
+        registry,
+        userAuthenticator: fakeUserAuthenticator(),
+        storage: () => binding,
+        clock: () => clock,
+        ...(opts.executions ? { executions: opts.executions } : {}),
+        ...(opts.objects ? { objects: opts.objects } : {}),
+      })
     },
     close: () => local.dispose(),
   }

@@ -26,7 +26,8 @@ const KINDS = COLUMN_KINDS.action_executions as Record<string, ColumnKind>
 const DEFAULT_CLIENT_REF_DOMAIN = 'vibase.invalid'
 export const DEADLINE_MS = 10 * 60_000
 
-export const clientRefOf = (id: string, domain: string | undefined): string => `${id}@${domain ?? DEFAULT_CLIENT_REF_DOMAIN}`
+export const clientRefOf = (id: string, domain: string | undefined): string =>
+  `${id}@${domain ?? DEFAULT_CLIENT_REF_DOMAIN}`
 
 export function executionColumns(e: NewExecution): Record<string, string | number | null> {
   return {
@@ -63,10 +64,17 @@ export function executionColumns(e: NewExecution): Record<string, string | numbe
  * `INSERT INTO action_executions (...) SELECT <bound values> WHERE <guards>`; with `onConflictNothing` a duplicate idempotency key or request link writes
  * nothing (a concurrent same-key call: invariant 3, never a caught 23505). The WHERE is always present (a SELECT without a FROM and a bare ON CONFLICT).
  */
-export function insertExecution(qc: QueryContext, e: NewExecution, guards: Expression<SqlBool>[], opts: { onConflictNothing: boolean }) {
+export function insertExecution(
+  qc: QueryContext,
+  e: NewExecution,
+  guards: Expression<SqlBool>[],
+  opts: { onConflictNothing: boolean },
+) {
   const L = qc.db as unknown as Kysely<Record<string, Record<string, unknown>>>
   const values = executionColumns(e)
-  let select = L.selectNoFrom(Object.entries(values).map(([c, v]) => bind(qc, KINDS[c]!, v as never).as(c))).where(sql<SqlBool>`1 = 1`)
+  let select = L.selectNoFrom(Object.entries(values).map(([c, v]) => bind(qc, KINDS[c]!, v as never).as(c))).where(
+    sql<SqlBool>`1 = 1`,
+  )
   for (const g of guards) select = select.where(g)
   const insert = L.insertInto('action_executions').columns(Object.keys(values)).expression(select)
   return opts.onConflictNothing ? insert.onConflict((oc) => oc.doNothing()) : insert

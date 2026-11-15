@@ -4,7 +4,11 @@ import { bytesOf } from './channels.js'
 import { buildGmailMessage, type BuiltGmailMessage, type MessageSpec } from './gmail.js'
 
 export const MAILBOX = 'owner@vibase.test'
-const base = (id: string, extra: Partial<MessageSpec> & Pick<MessageSpec, 'payload'>, headers: Array<[string, string]> = []): MessageSpec => ({
+const base = (
+  id: string,
+  extra: Partial<MessageSpec> & Pick<MessageSpec, 'payload'>,
+  headers: Array<[string, string]> = [],
+): MessageSpec => ({
   id,
   headers: [
     ['From', 'Jane Roe <jane@acme.test>'],
@@ -17,23 +21,42 @@ const base = (id: string, extra: Partial<MessageSpec> & Pick<MessageSpec, 'paylo
   ...extra,
 })
 
-const TABLE_HTML = '<html><head><style>p { color: red }</style></head><body><h1>Quarterly</h1><table><thead><tr><th>Item</th><th>Qty</th></tr></thead><tbody><tr><td>Widgets</td><td>3</td></tr><tr><td>Gadgets</td><td>5</td></tr></tbody></table><p>Thanks, <strong>Jane</strong></p></body></html>'
+const TABLE_HTML =
+  '<html><head><style>p { color: red }</style></head><body><h1>Quarterly</h1><table><thead><tr><th>Item</th><th>Qty</th></tr></thead><tbody><tr><td>Widgets</td><td>3</td></tr><tr><td>Gadgets</td><td>5</td></tr></tbody></table><p>Thanks, <strong>Jane</strong></p></body></html>'
 
 export function gmailSpecs(): Record<string, MessageSpec> {
   return {
     plain: base('plain', { payload: { mimeType: 'text/plain', text: 'Hello Owner,\n\nPlease see below.\nThanks' } }),
     htmlOnly: base('html-only', {
-      payload: { mimeType: 'text/html', text: '<html><head><style>p{}</style></head><body><h1>Title</h1><p>Some <em>emphasis</em> and <strong>strong</strong> with <a href="https://example.test/x">a link</a>.</p><blockquote>quoted</blockquote></body></html>' },
+      payload: {
+        mimeType: 'text/html',
+        text: '<html><head><style>p{}</style></head><body><h1>Title</h1><p>Some <em>emphasis</em> and <strong>strong</strong> with <a href="https://example.test/x">a link</a>.</p><blockquote>quoted</blockquote></body></html>',
+      },
     }),
     alternativeTable: base('alt-table', {
-      payload: { mimeType: 'multipart/alternative', parts: [{ mimeType: 'text/plain', text: 'PLAIN VERSION must not be used' }, { mimeType: 'text/html', text: TABLE_HTML }] },
+      payload: {
+        mimeType: 'multipart/alternative',
+        parts: [
+          { mimeType: 'text/plain', text: 'PLAIN VERSION must not be used' },
+          { mimeType: 'text/html', text: TABLE_HTML },
+        ],
+      },
     }),
     inlineImage: base('inline-image', {
       payload: {
         mimeType: 'multipart/related',
         parts: [
           { mimeType: 'text/html', text: '<p>Logo: <img src="cid:logo1@acme.test" alt="logo"></p>' },
-          { mimeType: 'image/png', filename: 'logo.png', attachmentId: 'att-logo', bytes: bytesOf(40, 3), headers: [['Content-Disposition', 'inline; filename="logo.png"'], ['Content-ID', '<logo1@acme.test>']] },
+          {
+            mimeType: 'image/png',
+            filename: 'logo.png',
+            attachmentId: 'att-logo',
+            bytes: bytesOf(40, 3),
+            headers: [
+              ['Content-Disposition', 'inline; filename="logo.png"'],
+              ['Content-ID', '<logo1@acme.test>'],
+            ],
+          },
         ],
       },
     }),
@@ -42,24 +65,35 @@ export function gmailSpecs(): Record<string, MessageSpec> {
         mimeType: 'multipart/mixed',
         parts: [
           { mimeType: 'text/plain', text: 'Report attached' },
-          { mimeType: 'application/pdf', filename: 'report.pdf', attachmentId: 'att-pdf', bytes: bytesOf(300, 5), headers: [['Content-Disposition', 'attachment; filename="report.pdf"']] },
+          {
+            mimeType: 'application/pdf',
+            filename: 'report.pdf',
+            attachmentId: 'att-pdf',
+            bytes: bytesOf(300, 5),
+            headers: [['Content-Disposition', 'attachment; filename="report.pdf"']],
+          },
         ],
       },
     }),
-    nonAscii: base(
-      'non-ascii',
-      { payload: { mimeType: 'text/plain', text: 'Grüße ✓' } },
-    ),
+    nonAscii: base('non-ascii', { payload: { mimeType: 'text/plain', text: 'Grüße ✓' } }),
     noMessageId: {
       id: 'no-message-id',
-      headers: [['From', 'Jane Roe <jane@acme.test>'], ['To', MAILBOX], ['Subject', 'No id'], ['Date', 'Thu, 22 Oct 2026 09:00:00 +0000']],
+      headers: [
+        ['From', 'Jane Roe <jane@acme.test>'],
+        ['To', MAILBOX],
+        ['Subject', 'No id'],
+        ['Date', 'Thu, 22 Oct 2026 09:00:00 +0000'],
+      ],
       payload: { mimeType: 'text/plain', text: 'body without a Message-ID' },
     },
     selfAddressed: base('self', {
       labels: ['INBOX', 'SENT'],
       payload: { mimeType: 'text/plain', text: 'a note to myself' },
     }),
-    reply: base('reply', { payload: { mimeType: 'text/plain', text: 'Re: hello' } }, [['In-Reply-To', '<c@acme.test>'], ['References', '<a@acme.test> <b@acme.test>\r\n <c@acme.test>']]),
+    reply: base('reply', { payload: { mimeType: 'text/plain', text: 'Re: hello' } }, [
+      ['In-Reply-To', '<c@acme.test>'],
+      ['References', '<a@acme.test> <b@acme.test>\r\n <c@acme.test>'],
+    ]),
   }
 }
 
@@ -81,11 +115,25 @@ export function nonAsciiSpec(): MessageSpec {
   }
 }
 
-export const FIXTURE_NAMES = ['plain', 'htmlOnly', 'alternativeTable', 'inlineImage', 'attachment', 'nonAscii', 'noMessageId', 'selfAddressed', 'reply'] as const
+export const FIXTURE_NAMES = [
+  'plain',
+  'htmlOnly',
+  'alternativeTable',
+  'inlineImage',
+  'attachment',
+  'nonAscii',
+  'noMessageId',
+  'selfAddressed',
+  'reply',
+] as const
 export type FixtureName = (typeof FIXTURE_NAMES)[number]
 
-export function gmailFixture(name: FixtureName, adjust: (spec: MessageSpec) => MessageSpec = (s) => s): BuiltGmailMessage {
+export function gmailFixture(
+  name: FixtureName,
+  adjust: (spec: MessageSpec) => MessageSpec = (s) => s,
+): BuiltGmailMessage {
   const spec = name === 'nonAscii' ? nonAsciiSpec() : gmailSpecs()[name]!
   return buildGmailMessage(adjust(spec))
 }
-export const allGmailFixtures = (): Record<FixtureName, BuiltGmailMessage> => Object.fromEntries(FIXTURE_NAMES.map((n) => [n, gmailFixture(n)])) as Record<FixtureName, BuiltGmailMessage>
+export const allGmailFixtures = (): Record<FixtureName, BuiltGmailMessage> =>
+  Object.fromEntries(FIXTURE_NAMES.map((n) => [n, gmailFixture(n)])) as Record<FixtureName, BuiltGmailMessage>

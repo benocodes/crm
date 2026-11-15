@@ -9,7 +9,11 @@ import { fakeInstance, json, rig } from './test/harness.js'
 
 const SERVER = 'https://vibase.test'
 const RESOURCE = SERVER
-const ME = { principal: { id: 'p1', kind: 'user' }, user: { id: 'p1' }, active_organization: { id: 'o1', role: 'owner', scopes: ['contacts:read'] } }
+const ME = {
+  principal: { id: 'p1', kind: 'user' },
+  user: { id: 'p1' },
+  active_organization: { id: 'o1', role: 'owner', scopes: ['contacts:read'] },
+}
 const rigs: ReturnType<typeof rig>[] = []
 afterEach(() => {
   while (rigs.length) rigs.pop()!.dispose()
@@ -30,7 +34,13 @@ function world(o: { issuer?: FakeIssuerOptions; resource?: string | null; clerkS
       }),
     routes: (req) => {
       const u = new URL(req.url)
-      if (u.pathname === '/.well-known/oauth-protected-resource') return json({ resource: u.origin, authorization_servers: [iss.issuer], scopes_supported: ['contacts:read'], bearer_methods_supported: ['header'] })
+      if (u.pathname === '/.well-known/oauth-protected-resource')
+        return json({
+          resource: u.origin,
+          authorization_servers: [iss.issuer],
+          scopes_supported: ['contacts:read'],
+          bearer_methods_supported: ['header'],
+        })
       if (u.pathname === '/meta/v1/me') return json(ME)
       return undefined
     },
@@ -39,7 +49,11 @@ function world(o: { issuer?: FakeIssuerOptions; resource?: string | null; clerkS
   const net = network({
     [SERVER]: async (req) => {
       const p = new URL(req.url).pathname
-      return p.startsWith('/.well-known/oauth-authorization-server') || p.startsWith('/auth/') || p.startsWith('/oauth/') ? iss.handler(req) : inst.fetch(req)
+      return p.startsWith('/.well-known/oauth-authorization-server') ||
+        p.startsWith('/auth/') ||
+        p.startsWith('/oauth/')
+        ? iss.handler(req)
+        : inst.fetch(req)
     },
   })
   const r = rig({ fetch: net.fetch })
@@ -49,7 +63,8 @@ function world(o: { issuer?: FakeIssuerOptions; resource?: string | null; clerkS
 type W = ReturnType<typeof world>
 const login = (w: W) => w.r.run(['login', '--server', SERVER])
 const form = (body: string) => Object.fromEntries(new URLSearchParams(body))
-const metadataGets = (w: W) => w.net.traffic.filter((t) => t.path.includes('/.well-known/oauth-authorization-server')).map((t) => t.path)
+const metadataGets = (w: W) =>
+  w.net.traffic.filter((t) => t.path.includes('/.well-known/oauth-authorization-server')).map((t) => t.path)
 
 describe('issuer discovery (D12)', () => {
   it('a path issuer is fetched by RFC 8414 path insertion first: one request when it answers', async () => {
@@ -61,11 +76,16 @@ describe('issuer discovery (D12)', () => {
   it('the appended form is tried only after the insertion URL answers a non-200', async () => {
     const w = world({ issuer: { issuerPath: '/auth', serves: ['appended'] } })
     expect((await login(w)).code).toBe(0)
-    expect(metadataGets(w)).toEqual(['/.well-known/oauth-authorization-server/auth', '/auth/.well-known/oauth-authorization-server'])
+    expect(metadataGets(w)).toEqual([
+      '/.well-known/oauth-authorization-server/auth',
+      '/auth/.well-known/oauth-authorization-server',
+    ])
   })
 
   it('a 200 at the insertion URL naming another issuer is refused, and the appended form is never tried', async () => {
-    const w = world({ issuer: { issuerPath: '/auth', serves: ['insertion', 'appended'], insertionIssuer: 'https://other.test/auth' } })
+    const w = world({
+      issuer: { issuerPath: '/auth', serves: ['insertion', 'appended'], insertionIssuer: 'https://other.test/auth' },
+    })
     const res = await login(w)
     expect(res.code).toBe(2)
     expect(res.stderr).toContain('issuer_mismatch')
@@ -77,7 +97,10 @@ describe('issuer discovery (D12)', () => {
     const res = await login(w)
     expect(res.code).toBe(2)
     expect(res.stderr).toContain('discovery_failed')
-    expect(metadataGets(w)).toEqual(['/.well-known/oauth-authorization-server/auth', '/auth/.well-known/oauth-authorization-server'])
+    expect(metadataGets(w)).toEqual([
+      '/.well-known/oauth-authorization-server/auth',
+      '/auth/.well-known/oauth-authorization-server',
+    ])
   })
 
   it('a root issuer makes exactly one request, as before', async () => {
@@ -88,7 +111,8 @@ describe('issuer discovery (D12)', () => {
 })
 
 describe('resource (P4)', () => {
-  const posts = (w: W, path: string) => w.net.traffic.filter((t) => t.method === 'POST' && t.path === path).map((t) => form(t.body))
+  const posts = (w: W, path: string) =>
+    w.net.traffic.filter((t) => t.method === 'POST' && t.path === path).map((t) => form(t.body))
 
   it('device authorization, every poll and a refresh carry resource when discovery names one', async () => {
     const w = world({ resource: RESOURCE, issuer: { script: ['pending', 'ok'] } })
@@ -111,8 +135,11 @@ describe('resource (P4)', () => {
     expect('resource' in stored).toBe(false)
     w.r.advance(stored.expires_at - w.r.now() - 1000)
     expect((await w.r.run(['me', 'get'])).code).toBe(0)
-    for (const path of ['/oauth/device_authorization', '/oauth/token']) for (const f of posts(w, path)) expect(Object.keys(f), path).not.toContain('resource')
+    for (const path of ['/oauth/device_authorization', '/oauth/token'])
+      for (const f of posts(w, path)) expect(Object.keys(f), path).not.toContain('resource')
     // byte-identical device request body
-    expect(w.net.traffic.find((t) => t.path === '/oauth/device_authorization')!.body).toBe('client_id=client_cli&scope=contacts%3Aread+offline_access')
+    expect(w.net.traffic.find((t) => t.path === '/oauth/device_authorization')!.body).toBe(
+      'client_id=client_cli&scope=contacts%3Aread+offline_access',
+    )
   })
 })

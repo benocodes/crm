@@ -32,13 +32,22 @@ const whoamiRegistry = () =>
     method: 'get',
     path: '/probe/whoami',
     scope: parseScope('tasks:read'),
-    response: { status: 200, schema: z.object({ actor_id: z.string(), kind: z.string(), organization_id: z.string() }) },
-    prepare: (env) => probeUnit({ actor_id: env.actor.id, kind: env.actor.kind, organization_id: env.organizationId }, 'probe.whoami'),
+    response: {
+      status: 200,
+      schema: z.object({ actor_id: z.string(), kind: z.string(), organization_id: z.string() }),
+    },
+    prepare: (env) =>
+      probeUnit({ actor_id: env.actor.id, kind: env.actor.kind, organization_id: env.organizationId }, 'probe.whoami'),
   })
 
 const mkApp = (withAuth = true) =>
-  createApp({ registry: whoamiRegistry(), userAuthenticator: withAuth ? { authenticate } : undefined, storage: pgStorage(db) })
-const get = (app: ReturnType<typeof mkApp>, path: string, headers: Record<string, string> = {}) => app.request(path, { headers })
+  createApp({
+    registry: whoamiRegistry(),
+    userAuthenticator: withAuth ? { authenticate } : undefined,
+    storage: pgStorage(db),
+  })
+const get = (app: ReturnType<typeof mkApp>, path: string, headers: Record<string, string> = {}) =>
+  app.request(path, { headers })
 const bearer = (key: string, extra: Record<string, string> = {}) => ({ authorization: `Bearer ${key}`, ...extra })
 
 async function newAgentKey(t: Tenant, scopes: string[], opts: { expiresAt?: Date; revoked?: boolean } = {}) {
@@ -100,21 +109,34 @@ describe('api key auth', () => {
   })
 
   it('a disabled agent is 401', async () => {
-    await withServiceRole(db, (trx) => trx.updateTable('agents').set({ disabled_at: new Date() }).where('id', '=', agentA.id).execute())
+    await withServiceRole(db, (trx) =>
+      trx.updateTable('agents').set({ disabled_at: new Date() }).where('id', '=', agentA.id).execute(),
+    )
     expect((await get(mkApp(), '/api/v1/tasks', bearer(agentA.key))).status).toBe(401)
   })
 
   it('scopes come from the agent', async () => {
     const k = await newAgentKey(A, ['tasks:read'])
     const app = mkApp()
-    const post = await app.request('/api/v1/tasks', { method: 'POST', headers: bearer(k.key), body: JSON.stringify({ title: 'x' }) })
+    const post = await app.request('/api/v1/tasks', {
+      method: 'POST',
+      headers: bearer(k.key),
+      body: JSON.stringify({ title: 'x' }),
+    })
     expect(post.status).toBe(403)
     expect(await post.json()).toEqual({ error: { code: 'insufficient_scope', message: 'requires tasks:write' } })
     expect((await get(app, '/api/v1/tasks', bearer(k.key))).status).toBe(200)
   })
 
   it('last_used_at is set once a minute', async () => {
-    const read = async () => (await owner.selectFrom('api_keys').select('last_used_at').where('id', '=', agentA.keyId).executeTakeFirstOrThrow()).last_used_at
+    const read = async () =>
+      (
+        await owner
+          .selectFrom('api_keys')
+          .select('last_used_at')
+          .where('id', '=', agentA.keyId)
+          .executeTakeFirstOrThrow()
+      ).last_used_at
     expect(await read()).toBeNull()
     const app = mkApp()
     await get(app, '/api/v1/tasks', bearer(agentA.key))
@@ -126,7 +148,9 @@ describe('api key auth', () => {
 
   it('checks the agent X-Organization-Id header', async () => {
     const app = mkApp()
-    expect((await get(app, '/api/v1/tasks', bearer(agentA.key, { 'x-organization-id': A.organizationId }))).status).toBe(200)
+    expect(
+      (await get(app, '/api/v1/tasks', bearer(agentA.key, { 'x-organization-id': A.organizationId }))).status,
+    ).toBe(200)
     for (const v of [B.organizationId, 'not-a-uuid']) {
       const res = await get(app, '/api/v1/tasks', bearer(agentA.key, { 'x-organization-id': v }))
       expect(res.status).toBe(403)
@@ -147,7 +171,11 @@ describe('credential dispatch', () => {
     expect(res.status).toBe(200)
     expect((await res.json()).kind).toBe('user')
     expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(authenticate).toHaveBeenCalledWith('a.b.c', { storage: expect.objectContaining({ kind: 'postgres' }), organizationHeader: A.organizationId, env: expect.objectContaining({ now: expect.any(Date), newId: expect.any(Function) }) })
+    expect(authenticate).toHaveBeenCalledWith('a.b.c', {
+      storage: expect.objectContaining({ kind: 'postgres' }),
+      organizationHeader: A.organizationId,
+      env: expect.objectContaining({ now: expect.any(Date), newId: expect.any(Function) }),
+    })
   })
 
   it('a key-shaped token never reaches the authenticator', async () => {
@@ -191,7 +219,9 @@ describe('logging and plain routes', () => {
 
 describe('bearer scheme ([[CORE3]] C11)', () => {
   it.each([['bearer'], ['BEARER'], ['Bearer  ']])('scheme %j is accepted', async (scheme) => {
-    const res = await get(mkApp(), '/api/v1/tasks', { authorization: `${scheme}${scheme.endsWith(' ') ? '' : ' '}${agentA.key}` })
+    const res = await get(mkApp(), '/api/v1/tasks', {
+      authorization: `${scheme}${scheme.endsWith(' ') ? '' : ' '}${agentA.key}`,
+    })
     expect(res.status).toBe(200)
   })
 
@@ -206,7 +236,11 @@ describe('bearer scheme ([[CORE3]] C11)', () => {
   })
 
   it('an agent X-Organization-Id compares case-insensitively', async () => {
-    const res = await get(mkApp(), '/api/v1/tasks', bearer(agentA.key, { 'x-organization-id': A.organizationId.toUpperCase() }))
+    const res = await get(
+      mkApp(),
+      '/api/v1/tasks',
+      bearer(agentA.key, { 'x-organization-id': A.organizationId.toUpperCase() }),
+    )
     expect(res.status).toBe(200)
   })
 })
@@ -233,13 +267,20 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 
-  const forbidden: Principal = { actor: { id: '', kind: 'user' }, organizationId: null, scopes: ScopeSet.parse([]), organizationForbidden: true }
+  const forbidden: Principal = {
+    actor: { id: '', kind: 'user' },
+    organizationId: null,
+    scopes: ScopeSet.parse([]),
+    organizationForbidden: true,
+  }
 
   it('the forbidden flag is 403 on a tenant route', async () => {
     authenticate.mockResolvedValue({ ...forbidden, actor: { id: A.userId, kind: 'user' } })
     const res = await get(mkApp(), '/api/v1/tasks', bearer('a.b.c'))
     expect(res.status).toBe(403)
-    expect(await res.json()).toEqual({ error: { code: 'organization_forbidden', message: 'not a member of that organisation' } })
+    expect(await res.json()).toEqual({
+      error: { code: 'organization_forbidden', message: 'not a member of that organisation' },
+    })
   })
 
   it('the forbidden flag is ignored on an account route', async () => {
@@ -252,7 +293,13 @@ describe('user authenticator failures ([[CORE3]] C11)', () => {
       method: 'get',
       path: '/probe/acct',
       response: { status: 200, schema: z.object({ ok: z.boolean() }) },
-      prepare: () => defineOperation({ name: 'probe.acct', mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => ({ ok: true }) }) }),
+      prepare: () =>
+        defineOperation({
+          name: 'probe.acct',
+          mutates: false,
+          reads: () => ({}),
+          build: () => unit({ steps: [], events: [], decode: () => ({ ok: true }) }),
+        }),
     })
     const app = createApp({ registry, userAuthenticator: { authenticate }, storage: pgStorage(db) })
     expect((await get(app, '/meta/v1/probe/acct', bearer('a.b.c'))).status).toBe(200)

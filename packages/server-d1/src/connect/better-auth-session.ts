@@ -11,7 +11,11 @@ export function betterAuthSession(deps: { fetch?: typeof fetch; navigate?: (url:
 
   /** R1: a non-2xx or a network failure rejects; a 200 with a null body is "signed out". */
   async function readSession(): Promise<boolean> {
-    const res = await doFetch('/auth/get-session', { method: 'GET', credentials: 'same-origin', headers: { accept: 'application/json' } })
+    const res = await doFetch('/auth/get-session', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { accept: 'application/json' },
+    })
     if (!res.ok) throw new Error(`the session could not be read (${res.status})`)
     const text = await res.text()
     if (text.trim() === '') return false
@@ -25,7 +29,11 @@ export function betterAuthSession(deps: { fetch?: typeof fetch; navigate?: (url:
     isSignedIn: () => signedIn,
     // R2: fresh on every call, never cached; `401` is "no session".
     async getToken() {
-      const res = await doFetch('/auth/token', { method: 'GET', credentials: 'same-origin', headers: { accept: 'application/json' } })
+      const res = await doFetch('/auth/token', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { accept: 'application/json' },
+      })
       if (res.status === 401) return null
       if (!res.ok) throw new Error(`the session token could not be read (${res.status})`)
       const body = (await res.json()) as { token?: unknown } | null
@@ -41,7 +49,12 @@ export function betterAuthSession(deps: { fetch?: typeof fetch; navigate?: (url:
     },
     // R4: Better Auth's handler wants a JSON body and the page origin (the browser sends it).
     async signOut() {
-      const res = await doFetch('/auth/sign-out', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: '{}' })
+      const res = await doFetch('/auth/sign-out', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: '{}',
+      })
       if (!res.ok) throw new Error(`sign-out was refused (${res.status})`)
       signedIn = false
     },

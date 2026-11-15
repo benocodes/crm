@@ -7,7 +7,11 @@ import { clerkMembership, clerkUser, clerkWebhook } from '../test/clerk.js'
 
 const k = useAdminKit()
 const membershipEvent = (type: string, externalId: string, userId = 'x') =>
-  clerkWebhook(type, { id: `orgmem_${userId}`, organization: { id: externalId }, public_user_data: { user_id: userId } })
+  clerkWebhook(type, {
+    id: `orgmem_${userId}`,
+    organization: { id: externalId },
+    public_user_data: { user_id: userId },
+  })
 const liveSubs = async (organizationId: string) =>
   (
     await k.owner
@@ -21,7 +25,9 @@ const liveSubs = async (organizationId: string) =>
   ).map((r) => r.auth_subject)
 const addB = (t: { externalId: string }) => {
   k.profile('b')
-  k.clerk.members.get(t.externalId)!.push(clerkMembership({ organizationId: t.externalId, userId: 'b', role: 'org:member' }))
+  k.clerk.members
+    .get(t.externalId)!
+    .push(clerkMembership({ organizationId: t.externalId, userId: 'b', role: 'org:member' }))
 }
 
 describe('POST /webhooks/clerk', () => {
@@ -36,7 +42,10 @@ describe('POST /webhooks/clerk', () => {
 
   it('applies a removal', async () => {
     const t = await k.seedOrg()
-    k.clerk.members.set(t.externalId, k.clerk.members.get(t.externalId)!.filter((m) => m.public_user_data.user_id !== 'm'))
+    k.clerk.members.set(
+      t.externalId,
+      k.clerk.members.get(t.externalId)!.filter((m) => m.public_user_data.user_id !== 'm'),
+    )
     expect((await k.webhook(membershipEvent('organizationMembership.deleted', t.externalId, 'm'))).status).toBe(200)
     expect(await liveSubs(t.organizationId)).toEqual(['o'])
   })
@@ -64,7 +73,11 @@ describe('POST /webhooks/clerk', () => {
     k.profiles.set('o', clerkUser({ id: 'o', email: 'new-o@x.test', verified: true, first: 'Ada', last: 'L' }))
     const res = await k.webhook(clerkWebhook('user.updated', { id: 'o' }))
     expect(res.status).toBe(200)
-    const row = await k.owner.selectFrom('users').select('email').where('auth_subject', '=', 'o').executeTakeFirstOrThrow()
+    const row = await k.owner
+      .selectFrom('users')
+      .select('email')
+      .where('auth_subject', '=', 'o')
+      .executeTakeFirstOrThrow()
     expect(row.email).toBe('new-o@x.test')
   })
 

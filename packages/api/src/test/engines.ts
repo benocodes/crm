@@ -2,7 +2,15 @@
 // runs on Postgres (`vault_app`, no presets: invariant 2) and on a local D1 binding, with the same raw reads.
 import type { Kysely } from 'kysely'
 import type { Database } from '@vibase/db'
-import { COLUMN_KINDS, uuidv7, type ColumnKind, type ExecutionResult, type PreparedOperation, type StorageBinding, type StorageIdentity } from '@vibase/storage'
+import {
+  COLUMN_KINDS,
+  uuidv7,
+  type ColumnKind,
+  type ExecutionResult,
+  type PreparedOperation,
+  type StorageBinding,
+  type StorageIdentity,
+} from '@vibase/storage'
 import { d1Binding, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedAgent as seedD1Agent, seedDeployment, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
@@ -39,7 +47,13 @@ export interface Engine {
   tasks(): Promise<RawRow[]>
   events(): Promise<RawRow[]>
   /** Inserts a task row directly (fixture setup, bypassing the program under test). */
-  insertTask(row: { id: string; title: string; status?: 'open' | 'done'; completed_at?: string | null; at?: string }): Promise<void>
+  insertTask(row: {
+    id: string
+    title: string
+    status?: 'open' | 'done'
+    completed_at?: string | null
+    at?: string
+  }): Promise<void>
   /** Raw rows of a modelled table in write order (`ctid` on Postgres, `rowid` on D1); booleans and JSON decoded, timestamps as ISO text. */
   rows(table: string): Promise<RawRow[]>
   /**
@@ -51,7 +65,10 @@ export interface Engine {
    * Seeds a user with a live membership in the engine's organisation (setup only). Postgres: `seedUser`; D1: principal,
    * user and membership rows. `subject` links the login (provider `clerk`). Returns both ids.
    */
-  seedMember(role?: 'owner' | 'member', opts?: { subject?: string; email?: string }): Promise<{ userId: string; membershipId: string }>
+  seedMember(
+    role?: 'owner' | 'member',
+    opts?: { subject?: string; email?: string },
+  ): Promise<{ userId: string; membershipId: string }>
   /** Updates a row directly by id (setup only, bypassing the program under test): the device for a concurrent writer. */
   update(table: string, id: string, patch: Record<string, unknown>): Promise<void>
   /** D1 only: `hook` runs once, after the next unit's plan reads and before its commit batch (deterministic drift). */
@@ -59,7 +76,12 @@ export interface Engine {
 }
 
 export const SEED_AT = '2026-10-22T08:00:00.000Z'
-export const LINK = { authProvider: 'clerk', authOrgId: 'org_engine', userSubject: 'user_engine_1', user2Subject: 'user_engine_2' } as const
+export const LINK = {
+  authProvider: 'clerk',
+  authOrgId: 'org_engine',
+  userSubject: 'user_engine_1',
+  user2Subject: 'user_engine_2',
+} as const
 export const kindsOf = (table: string): Record<string, ColumnKind> => {
   const kinds = (COLUMN_KINDS as Record<string, Record<string, ColumnKind>>)[table]
   if (!kinds) throw new Error(`no modelled table "${table}"`)
@@ -93,15 +115,42 @@ export function withDefaults(e: Engine, table: string, row: Record<string, unkno
 
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 const scopes = () =>
-  ScopeSet.parse(['tasks:read', 'tasks:write', 'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'agents:read', 'agents:write', 'members:read', 'messages:read', 'interactions:read', 'files:read', 'associations:read', 'associations:write', 'notes:read', 'notes:write', 'tags:read', 'tags:write', 'deals:read', 'deals:write', 'pipelines:read', 'pipelines:write'])
+  ScopeSet.parse([
+    'tasks:read',
+    'tasks:write',
+    'companies:read',
+    'companies:write',
+    'contacts:read',
+    'contacts:write',
+    'agents:read',
+    'agents:write',
+    'members:read',
+    'messages:read',
+    'interactions:read',
+    'files:read',
+    'associations:read',
+    'associations:write',
+    'notes:read',
+    'notes:write',
+    'tags:read',
+    'tags:write',
+    'deals:read',
+    'deals:write',
+    'pipelines:read',
+    'pipelines:write',
+  ])
 
 /**
  * Opens the named engines (a both-engine suite's entry file names its own: `*.d1.test.ts` or `*.postgres.test.ts`). The Postgres
  * harness is loaded only when asked for, so a D1 run never touches the Postgres pools.
  */
-export async function openEngines(names: readonly EngineName[], opts: { maxConnections?: number; maxSetSize?: number } = {}): Promise<Engine[]> {
+export async function openEngines(
+  names: readonly EngineName[],
+  opts: { maxConnections?: number; maxSetSize?: number } = {},
+): Promise<Engine[]> {
   const out: Engine[] = []
-  for (const name of names) out.push(name === 'postgres' ? await (await import('./engine-postgres.js')).openPostgres(opts) : await openD1(opts))
+  for (const name of names)
+    out.push(name === 'postgres' ? await (await import('./engine-postgres.js')).openPostgres(opts) : await openD1(opts))
   return out
 }
 
@@ -166,14 +215,25 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
     async reset() {
       await clearD1(d1)
       const ids = { organizationId: uuidv7(), userId: uuidv7(), user2Id: uuidv7(), agentId: uuidv7() }
-      await seedDeployment(d1, { organizationId: ids.organizationId, provider: LINK.authProvider, externalId: LINK.authOrgId })
+      await seedDeployment(d1, {
+        organizationId: ids.organizationId,
+        provider: LINK.authProvider,
+        externalId: LINK.authOrgId,
+      })
       await seedPrincipal(d1, { id: ids.userId, kind: 'user', authSubject: LINK.userSubject })
       await seedPrincipal(d1, { id: ids.user2Id, kind: 'user', authSubject: LINK.user2Subject })
       await seedMembership(d1, { organizationId: ids.organizationId, userId: ids.userId, role: 'owner' })
       await seedMembership(d1, { organizationId: ids.organizationId, userId: ids.user2Id, role: 'member' })
       await seedD1Agent(d1, { id: ids.agentId, organizationId: ids.organizationId, createdBy: ids.userId })
       pending.hook = null
-      Object.assign(e, ids, { binding: d1Binding(interceptD1(d1, pending), { organizationId: ids.organizationId, authProvider: LINK.authProvider, authOrgId: LINK.authOrgId, ...(opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize }) }) })
+      Object.assign(e, ids, {
+        binding: d1Binding(interceptD1(d1, pending), {
+          organizationId: ids.organizationId,
+          authProvider: LINK.authProvider,
+          authOrgId: LINK.authOrgId,
+          ...(opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize }),
+        }),
+      })
     },
     close: () => local.dispose(),
     ...shared(() => e),
@@ -181,28 +241,47 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
       return (await d1.prepare('select * from tasks order by rowid').all()).results as RawRow[]
     },
     async events() {
-      return ((await d1.prepare('select * from events order by seq').all()).results as RawRow[]).map((r) => ({ ...r, before: parse(r.before), after: parse(r.after) }))
+      return ((await d1.prepare('select * from events order by seq').all()).results as RawRow[]).map((r) => ({
+        ...r,
+        before: parse(r.before),
+        after: parse(r.after),
+      }))
     },
     async insertTask(row) {
       const at = row.at ?? '2026-10-22T08:00:00.000Z'
-      await d1.prepare('insert into tasks (id, organization_id, title, status, completed_at, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)')
+      await d1
+        .prepare(
+          'insert into tasks (id, organization_id, title, status, completed_at, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)',
+        )
         .bind(row.id, e.organizationId, row.title, row.status ?? 'open', row.completed_at ?? null, e.userId, at, at)
         .run()
     },
     async rows(table) {
       kindsOf(table)
-      return ((await d1.prepare(`select * from "${table}" order by rowid`).all()).results as RawRow[]).map((r) => decodeRow(table, r))
+      return ((await d1.prepare(`select * from "${table}" order by rowid`).all()).results as RawRow[]).map((r) =>
+        decodeRow(table, r),
+      )
     },
     async insert(table, row) {
       const full = withDefaults(e, table, row)
       const cols = Object.keys(full)
       const values = cols.map((c) => d1Value(full[c]))
-      await d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...values).run()
+      await d1
+        .prepare(
+          `insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`,
+        )
+        .bind(...values)
+        .run()
       return decodeRow(table, full as RawRow)
     },
     async seedMember(role = 'member', opts = {}) {
       const userId = uuidv7()
-      await seedPrincipal(d1, { id: userId, kind: 'user', ...(opts.subject ? { authSubject: opts.subject } : {}), ...(opts.email ? { email: opts.email } : {}) })
+      await seedPrincipal(d1, {
+        id: userId,
+        kind: 'user',
+        ...(opts.subject ? { authSubject: opts.subject } : {}),
+        ...(opts.email ? { email: opts.email } : {}),
+      })
       const membershipId = await seedMembership(d1, { organizationId: e.organizationId, userId, role })
       return { userId, membershipId }
     },
@@ -210,7 +289,10 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
       kindsOf(table)
       const cols = Object.keys(patch)
       const values = cols.map((c) => d1Value(patch[c]))
-      await d1.prepare(`update "${table}" set ${cols.map((c) => `"${c}" = ?`).join(', ')} where id = ?`).bind(...values, id).run()
+      await d1
+        .prepare(`update "${table}" set ${cols.map((c) => `"${c}" = ?`).join(', ')} where id = ?`)
+        .bind(...values, id)
+        .run()
     },
     betweenPlanAndCommit(hook) {
       pending.hook = hook
@@ -238,7 +320,11 @@ export function shared(self: () => Engine): Pick<Engine, 'env' | 'run' | 'runAs'
     },
     run(op, as = 'user') {
       const e = self()
-      return execute(e.binding, { kind: 'tenant', actorId: as === 'agent' ? e.agentId : e.userId, organizationId: e.organizationId }, op)
+      return execute(
+        e.binding,
+        { kind: 'tenant', actorId: as === 'agent' ? e.agentId : e.userId, organizationId: e.organizationId },
+        op,
+      )
     },
     runAs(identity, op) {
       return execute(self().binding, identity, op)

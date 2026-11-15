@@ -55,7 +55,9 @@ const keyRow = (over: Record<string, unknown> = {}) => ({
 
 describe('api_keys.create (issueApiKeyOperation)', () => {
   it('refuses an expiry in the past before any read', () => {
-    const err = refusal(() => issueApiKeyOperation(env, { agent_id: AGENT, expires_at: new Date(NOW.getTime() - 1000).toISOString() }, secret))
+    const err = refusal(() =>
+      issueApiKeyOperation(env, { agent_id: AGENT, expires_at: new Date(NOW.getTime() - 1000).toISOString() }, secret),
+    )
     expect(err).toMatchObject({ status: 400, code: 'validation_error', message: 'expires_at must be in the future' })
   })
 
@@ -102,36 +104,59 @@ describe('api_keys.revoke (revokeApiKeyOperation)', () => {
 
   it('a missing key is a 404', () => {
     const op = revokeApiKeyOperation(env, KEY)
-    expect(refusal(() => op.build(Found.from({ before: null }), queryContext('d1')))).toMatchObject({ status: 404, code: 'not_found', message: 'api_key not found' })
+    expect(refusal(() => op.build(Found.from({ before: null }), queryContext('d1')))).toMatchObject({
+      status: 404,
+      code: 'not_found',
+      message: 'api_key not found',
+    })
   })
 
   it('an id that is not a UUID is a 404 before anything is built', () => {
-    expect(refusal(() => revokeApiKeyOperation(env, 'nope'))).toMatchObject({ status: 404, code: 'not_found', message: 'api_key not found' })
+    expect(refusal(() => revokeApiKeyOperation(env, 'nope'))).toMatchObject({
+      status: 404,
+      code: 'not_found',
+      message: 'api_key not found',
+    })
   })
 })
 
 describe('users.get (getUserOperation)', () => {
   it('an id that is not a UUID is a 404', () => {
-    expect(refusal(() => getUserOperation(env, 'nope'))).toMatchObject({ status: 404, code: 'not_found', message: 'user not found' })
+    expect(refusal(() => getUserOperation(env, 'nope'))).toMatchObject({
+      status: 404,
+      code: 'not_found',
+      message: 'user not found',
+    })
   })
 })
 
 describe('agents.create (createAgentOperation)', () => {
-  it.each(dialects)('is a principal, an agent row, an event and a result on %s; the principal insert has no RETURNING', (dialect) => {
-    const compiled = compileOperation(createAgentOperation(env, { name: 'a' }), dialect)
-    expect(compiled.statements).toHaveLength(4)
-    expect(compiled.statements.map((s) => s.label)).toEqual(['first-mutation', undefined, 'first-event', 'result'])
-    expect(compiled.statements[0]!.sql).toMatch(/^insert into "principals"/i)
-    expect(compiled.statements[0]!.sql).not.toMatch(/returning/i)
-    expect(compiled.statements[1]!.sql).toMatch(/^insert into "agents"/i)
-    expect(compiled.events.map((e) => e.type)).toEqual(['agent.created'])
-  })
+  it.each(dialects)(
+    'is a principal, an agent row, an event and a result on %s; the principal insert has no RETURNING',
+    (dialect) => {
+      const compiled = compileOperation(createAgentOperation(env, { name: 'a' }), dialect)
+      expect(compiled.statements).toHaveLength(4)
+      expect(compiled.statements.map((s) => s.label)).toEqual(['first-mutation', undefined, 'first-event', 'result'])
+      expect(compiled.statements[0]!.sql).toMatch(/^insert into "principals"/i)
+      expect(compiled.statements[0]!.sql).not.toMatch(/returning/i)
+      expect(compiled.statements[1]!.sql).toMatch(/^insert into "agents"/i)
+      expect(compiled.events.map((e) => e.type)).toEqual(['agent.created'])
+    },
+  )
 
   const build = (scopes: string[]): PreparedOperation<unknown> => createAgentOperation(env, { name: 'a', scopes })
 
   it('names the first offending scope, in input order', () => {
-    expect(refusal(() => build(['tasks:read', 'zz:read']))).toMatchObject({ status: 400, code: 'unknown_scope', message: 'unknown scope: zz:read' })
-    expect(refusal(() => build(['members:read']))).toMatchObject({ status: 400, code: 'scope_not_grantable', message: 'scope not grantable to an agent: members:read' })
+    expect(refusal(() => build(['tasks:read', 'zz:read']))).toMatchObject({
+      status: 400,
+      code: 'unknown_scope',
+      message: 'unknown scope: zz:read',
+    })
+    expect(refusal(() => build(['members:read']))).toMatchObject({
+      status: 400,
+      code: 'scope_not_grantable',
+      message: 'scope not grantable to an agent: members:read',
+    })
   })
 
   it.each(dialects)('stores scopes deduplicated and sorted on %s', (dialect) => {

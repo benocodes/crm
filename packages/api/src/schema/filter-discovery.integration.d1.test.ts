@@ -21,7 +21,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await e?.close()
 })
-const token = (scopes: string[]) => mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
+const token = (scopes: string[]) =>
+  mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
 const rest = async () => {
   const res = await app.request('/meta/v1/schema', { headers: { authorization: `Bearer ${token(['schema:read'])}` } })
   return { status: res.status, body: (await res.json()) as any }
@@ -43,18 +44,22 @@ async function advertised(list: string): Promise<string[]> {
   const doc = (await (await app.request('/api/v1/openapi.json')).json()) as any
   const meta = (await (await app.request('/meta/v1/openapi.json')).json()) as any
   const get = (doc.paths[pathOf(list)] ?? meta.paths[pathOf(list)]).get
-  return (get.parameters as any[]).map((p) => p.name as string).filter((n) => !['after', 'limit', 'sort', 'order'].includes(n))
+  return (get.parameters as any[])
+    .map((p) => p.name as string)
+    .filter((n) => !['after', 'limit', 'sort', 'order'].includes(n))
 }
 
 describe('filters agree with the list, for every resource (CORE201 D11)', () => {
-  it('the document still parses, and every resource that has a list carries filters equal, as a set, to the list\'s parameters', async () => {
+  it("the document still parses, and every resource that has a list carries filters equal, as a set, to the list's parameters", async () => {
     const doc = (await rest()).body
     expect(() => schemaDocument.parse(doc)).not.toThrow()
     let checked = 0
     for (const t of resourceTables(doc)) {
       if (!registry.get(`${t.resource.name}.list`)) continue
       expect(Array.isArray(t.resource.filters), `${t.name}.resource.filters`).toBe(true)
-      expect(t.resource.filters.map((f: any) => f.name).sort(), t.resource.name).toEqual((await advertised(t.resource.name)).sort())
+      expect(t.resource.filters.map((f: any) => f.name).sort(), t.resource.name).toEqual(
+        (await advertised(t.resource.name)).sort(),
+      )
       checked++
     }
     expect(checked).toBeGreaterThanOrEqual(21)
@@ -66,23 +71,39 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
       if (!registry.get(`${t.resource.name}.list`)) continue
       const fs = t.resource.filters as any[]
       const firstCustom = fs.findIndex((f) => f.custom)
-      expect(fs.slice(firstCustom === -1 ? fs.length : firstCustom).every((f) => f.custom), `${t.name} custom last`).toBe(true)
+      expect(
+        fs.slice(firstCustom === -1 ? fs.length : firstCustom).every((f) => f.custom),
+        `${t.name} custom last`,
+      ).toBe(true)
       const fields = Object.keys(registry.resources().find((d) => d.name === t.resource.name)!.record.shape)
       const own = fs.filter((f) => !f.custom)
-      expect(own.map((f) => f.name), `${t.name} record order`).toEqual(fields.filter((n: string) => own.some((f) => f.name === n)))
+      expect(
+        own.map((f) => f.name),
+        `${t.name} record order`,
+      ).toEqual(fields.filter((n: string) => own.some((f) => f.name === n)))
       for (const f of fs) {
         expect(typeof f.description, `${t.name}.${f.name}`).toBe('string')
         expect(f.description.length, `${t.name}.${f.name}`).toBeGreaterThan(10)
         if (f.custom) {
-          expect({ kind: f.kind, operators: f.operators, indexed: f.indexed }, `${t.name}.${f.name}`).toEqual({ kind: null, operators: [], indexed: null })
+          expect({ kind: f.kind, operators: f.operators, indexed: f.indexed }, `${t.name}.${f.name}`).toEqual({
+            kind: null,
+            operators: [],
+            indexed: null,
+          })
           continue
         }
         columns++
         const col = t.columns.find((c: any) => c.name === f.name)
         expect(f.kind, `${t.name}.${f.name}`).toBe(col.kind)
         // D3: nullability is the record field's (a field that accepts null), not the column's.
-        const nullable = (registry.resources().find((d) => d.name === t.resource.name)!.record.shape[f.name] as { safeParse(v: unknown): { success: boolean } }).safeParse(null).success
-        expect([...f.operators].sort(), `${t.name}.${f.name}`).toEqual([...expectedOperators(col.kind, nullable)].sort())
+        const nullable = (
+          registry.resources().find((d) => d.name === t.resource.name)!.record.shape[f.name] as {
+            safeParse(v: unknown): { success: boolean }
+          }
+        ).safeParse(null).success
+        expect([...f.operators].sort(), `${t.name}.${f.name}`).toEqual(
+          [...expectedOperators(col.kind, nullable)].sort(),
+        )
         expect(f.indexed, `${t.name}.${f.name}`).toBe(!stated(t.resource.name, f.name))
       }
     }
@@ -96,19 +117,49 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
       ['title', 'text', ['eq', 'gt', 'gte', 'ilike', 'in', 'like', 'lt', 'lte', 'neq'], false],
       ['notes', 'text', ['eq', 'gt', 'gte', 'ilike', 'in', 'is', 'like', 'lt', 'lte', 'neq'], false],
     ])
-    expect(tasksFilters.map((f: any) => f.name)).toEqual(['id', 'title', 'notes', 'status', 'due_at', 'completed_at', 'assignee_id', 'created_by', 'created_at', 'updated_at', 'tag_id', 'tag'])
+    expect(tasksFilters.map((f: any) => f.name)).toEqual([
+      'id',
+      'title',
+      'notes',
+      'status',
+      'due_at',
+      'completed_at',
+      'assignee_id',
+      'created_by',
+      'created_at',
+      'updated_at',
+      'tag_id',
+      'tag',
+    ])
     expect(tasksFilters.find((f: any) => f.name === 'id').indexed).toBe(true)
     expect(tasksFilters.find((f: any) => f.name === 'title').indexed).toBe(false)
-    expect(tableOf(doc, 'deals').resource.filters.filter((f: any) => f.custom).map((f: any) => f.name)).toEqual(['status', 'tag_id', 'tag', 'company_id', 'contact_id'])
-    const contacts = tableOf(doc, 'contacts').resource.filters.filter((f: any) => f.custom).map((f: any) => f.name)
-    expect(contacts.slice(-6)).toEqual(['contacted_since', 'not_contacted_since', 'never_contacted', 'interacted_since', 'not_interacted_since', 'never_interacted'])
+    expect(
+      tableOf(doc, 'deals')
+        .resource.filters.filter((f: any) => f.custom)
+        .map((f: any) => f.name),
+    ).toEqual(['status', 'tag_id', 'tag', 'company_id', 'contact_id'])
+    const contacts = tableOf(doc, 'contacts')
+      .resource.filters.filter((f: any) => f.custom)
+      .map((f: any) => f.name)
+    expect(contacts.slice(-6)).toEqual([
+      'contacted_since',
+      'not_contacted_since',
+      'never_contacted',
+      'interacted_since',
+      'not_interacted_since',
+      'never_interacted',
+    ])
     expect(contacts).toContain('tag')
   })
   it('exempt hand-written lists carry no resource object, so no filters; derived fields keep their filters list', async () => {
     const doc = (await rest()).body
     expect(resourceTables(doc).map((t: any) => t.resource.name)).not.toContain('associations')
     expect(resourceTables(doc).map((t: any) => t.resource.name)).not.toContain('users')
-    expect(tableOf(doc, 'contacts').derived.find((d: any) => d.name === 'last_contacted_at').filters).toEqual(['contacted_since', 'not_contacted_since', 'never_contacted'])
+    expect(tableOf(doc, 'contacts').derived.find((d: any) => d.name === 'last_contacted_at').filters).toEqual([
+      'contacted_since',
+      'not_contacted_since',
+      'never_contacted',
+    ])
     expect(tableOf(doc, 'deals').derived.find((d: any) => d.name === 'status').filters).toEqual(['status'])
   })
 })
@@ -116,7 +167,10 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
 describe('indexed follows STATED_FILTER_COSTS (D12), as a pure builder', () => {
   const column = { table_name: 'tasks', cid: 0, name: 'id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 1 }
   const build = (statedFilterCosts: { list: string; filter: string }[]) =>
-    tableOf(buildSchemaDocument({ columns: [column], foreignKeys: [], resources: [tasks as never], statedFilterCosts }), 'tasks').resource.filters as Array<{ name: string; indexed: boolean | null }>
+    tableOf(
+      buildSchemaDocument({ columns: [column], foreignKeys: [], resources: [tasks as never], statedFilterCosts }),
+      'tasks',
+    ).resource.filters as Array<{ name: string; indexed: boolean | null }>
   it('a listed filter is not indexed, an unlisted one is, and dropping the entry flips it', () => {
     const listed = build([{ list: 'tasks', filter: 'title' }])
     expect(listed.find((f) => f.name === 'title')!.indexed).toBe(false)

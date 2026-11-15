@@ -53,9 +53,15 @@ const eventExists = (eventId: string) => sql<SqlBool>`exists (select 1 from "eve
 function splitRow(row: Row): { identity: IdentityRecord; contact: ContactRecord | null } {
   const contact: Record<string, unknown> = {}
   for (const c of contactColumns) contact[c] = row[`${C}${c}`]
-  return { identity: toRecord(identities, row), contact: contact.id === null || contact.id === undefined ? null : toRecord(contacts, contact as Row) }
+  return {
+    identity: toRecord(identities, row),
+    contact: contact.id === null || contact.id === undefined ? null : toRecord(contacts, contact as Row),
+  }
 }
-const joinedColumns = (qc: QueryContext) => [...recordColumns(qc, 'identities', identityColumns), ...recordColumns(qc, 'contacts', contactColumns, C)]
+const joinedColumns = (qc: QueryContext) => [
+  ...recordColumns(qc, 'identities', identityColumns),
+  ...recordColumns(qc, 'contacts', contactColumns, C),
+]
 
 /**
  * `identities.resolve` as a plan/build pair ([[CORE36]] C6, D15). Every entry is normalised first (errors carry the
@@ -78,12 +84,17 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
   return {
     reads(qc): Readonly<Record<string, Read>> {
       if (normalized.length === 0) return {}
-      boundIds(qc, normalized.map((e) => e.value))
+      boundIds(
+        qc,
+        normalized.map((e) => e.value),
+      )
       const values = [...new Set(normalized.map((e) => e.value))]
       const known = sql`
         select ${sql.join(joinedColumns(qc))} from "identities"
         left join "contacts" on "contacts"."id" = "identities"."contact_id" and "contacts"."organization_id" = "identities"."organization_id"
-        where "identities"."organization_id" = ${env.organizationId} and "identities"."deleted_at" is null and ${memberOf(qc, 'identities', 'value', values)}`.compile(qc.db)
+        where "identities"."organization_id" = ${env.organizationId} and "identities"."deleted_at" is null and ${memberOf(qc, 'identities', 'value', values)}`.compile(
+        qc.db,
+      )
       return { [KNOWN]: readSet(known) }
     },
     build(found, qc): Unit<ResolveResult[]> {
@@ -94,18 +105,36 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
         known.set(key(r.identity), r)
       }
       // One new contact + identity per distinct unknown address, in first-occurrence order.
-      const fresh: Array<{ kind: IdentityKind; value: string; name: string | null; contactId: string; identityId: string; contactEvent: string; identityEvent: string }> = []
+      const fresh: Array<{
+        kind: IdentityKind
+        value: string
+        name: string | null
+        contactId: string
+        identityId: string
+        contactEvent: string
+        identityEvent: string
+      }> = []
       const seen = new Set<string>()
       for (const e of normalized) {
         const k = key(e)
         if (known.has(k) || seen.has(k)) continue
         seen.add(k)
-        fresh.push({ kind: e.kind, value: e.value, name: cleanName(e.name) ?? null, contactId: env.newId(), identityId: env.newId(), contactEvent: '', identityEvent: '' })
+        fresh.push({
+          kind: e.kind,
+          value: e.value,
+          name: cleanName(e.name) ?? null,
+          contactId: env.newId(),
+          identityId: env.newId(),
+          contactEvent: '',
+          identityEvent: '',
+        })
       }
       for (const f of fresh) f.contactEvent = env.newId()
       for (const f of fresh) f.identityEvent = env.newId()
 
-      const finish = (created: Map<string, { identity: IdentityRecord; contact: ContactRecord | null }>): ResolveResult[] => {
+      const finish = (
+        created: Map<string, { identity: IdentityRecord; contact: ContactRecord | null }>,
+      ): ResolveResult[] => {
         const first = new Set<string>()
         return normalized.map((e) => {
           const k = key(e)
@@ -122,9 +151,24 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
 
       const actor = env.actor.id
       const org = env.organizationId
-      const contactSet = jsonRows(qc, 'r', { id: 'uuid', name: 'text' }, fresh.map((f) => ({ id: f.contactId, name: f.name })))
-      const identitySet = jsonRows(qc, 'r', { id: 'uuid', kind: 'text', value: 'text', contact_id: 'uuid' }, fresh.map((f) => ({ id: f.identityId, kind: f.kind, value: f.value, contact_id: f.contactId })))
-      const resultSet = jsonRows(qc, 'r', { id: 'uuid' }, fresh.map((f) => ({ id: f.identityId })))
+      const contactSet = jsonRows(
+        qc,
+        'r',
+        { id: 'uuid', name: 'text' },
+        fresh.map((f) => ({ id: f.contactId, name: f.name })),
+      )
+      const identitySet = jsonRows(
+        qc,
+        'r',
+        { id: 'uuid', kind: 'text', value: 'text', contact_id: 'uuid' },
+        fresh.map((f) => ({ id: f.identityId, kind: f.kind, value: f.value, contact_id: f.contactId })),
+      )
+      const resultSet = jsonRows(
+        qc,
+        'r',
+        { id: 'uuid' },
+        fresh.map((f) => ({ id: f.identityId })),
+      )
       const steps: Step[] = [
         step(
           sql`insert into "contacts" ("id", "created_at", "updated_at", "organization_id", "created_by", "name")
@@ -170,8 +214,18 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
         ),
       ]
       const events: EventReceipt[] = [
-        ...fresh.map((f) => ({ id: f.contactEvent, type: 'contact.created', resourceType: 'contact', resourceId: f.contactId })),
-        ...fresh.map((f) => ({ id: f.identityEvent, type: 'identity.created', resourceType: 'identity', resourceId: f.identityId })),
+        ...fresh.map((f) => ({
+          id: f.contactEvent,
+          type: 'contact.created',
+          resourceType: 'contact',
+          resourceId: f.contactId,
+        })),
+        ...fresh.map((f) => ({
+          id: f.identityEvent,
+          type: 'identity.created',
+          resourceType: 'identity',
+          resourceId: f.identityId,
+        })),
       ]
       return unit({
         steps,
@@ -189,7 +243,10 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
   }
 }
 
-export function resolveOperation(env: PreparedEnv, entries: readonly ResolveEntry[]): PreparedOperation<ResolveResult[]> {
+export function resolveOperation(
+  env: PreparedEnv,
+  entries: readonly ResolveEntry[],
+): PreparedOperation<ResolveResult[]> {
   return operationOf('identities.resolve', resolveProgram(env, entries))
 }
 
@@ -198,7 +255,10 @@ export function resolveOperation(env: PreparedEnv, entries: readonly ResolveEntr
  * [[CORE25]]'s capture unit composes. None -> insert an own identity; already own -> nothing; on a contact -> the
  * identity moves to own (the contact stays live).
  */
-export function ensureOwnProgram(env: PreparedEnv, address: { kind: IdentityKind; value: string }): Program<EnsureOwnResult> {
+export function ensureOwnProgram(
+  env: PreparedEnv,
+  address: { kind: IdentityKind; value: string },
+): Program<EnsureOwnResult> {
   const value = normalizeIdentityValue(address.kind, address.value)
   const at = codecs.timestamp.write(env.now)
   const newId = env.newId()
@@ -214,7 +274,8 @@ export function ensureOwnProgram(env: PreparedEnv, address: { kind: IdentityKind
     }),
     build(found, qc): Unit<EnsureOwnResult> {
       const row = found.maybe(OWN)
-      const resultOf = (id: string): Step => step(selectRecord(identities, qc, env, id).where(eventExists(eventId)), 'result')
+      const resultOf = (id: string): Step =>
+        step(selectRecord(identities, qc, env, id).where(eventExists(eventId)), 'result')
       const eventFor = (type: 'created' | 'updated', id: string, before: IdentityRecord | null): Step =>
         step(
           eventStatement(qc, {
@@ -230,11 +291,24 @@ export function ensureOwnProgram(env: PreparedEnv, address: { kind: IdentityKind
           }),
           'first-event',
         )
-      const receiptOf = (type: 'created' | 'updated', id: string): EventReceipt => ({ id: eventId, type: `identity.${type}`, resourceType: 'identity', resourceId: id })
+      const receiptOf = (type: 'created' | 'updated', id: string): EventReceipt => ({
+        id: eventId,
+        type: `identity.${type}`,
+        resourceType: 'identity',
+        resourceId: id,
+      })
       if (!row) {
-        const insert = loose(qc)
-          .insertInto('identities')
-          .values({ id: newId, created_at: at, updated_at: at, organization_id: env.organizationId, created_by: env.actor.id, kind: address.kind, value, contact_id: null, own: true })
+        const insert = loose(qc).insertInto('identities').values({
+          id: newId,
+          created_at: at,
+          updated_at: at,
+          organization_id: env.organizationId,
+          created_by: env.actor.id,
+          kind: address.kind,
+          value,
+          contact_id: null,
+          own: true,
+        })
         return unit({
           steps: [step(insert, 'first-mutation'), eventFor('created', newId, null), resultOf(newId)],
           events: [receiptOf('created', newId)],
@@ -246,7 +320,8 @@ export function ensureOwnProgram(env: PreparedEnv, address: { kind: IdentityKind
       }
       const { __stamp, ...rest } = row as Record<string, unknown>
       const existing = toRecord(identities, rest as Row)
-      if (existing.own) return unit({ steps: [], events: [], decode: () => ({ identity: existing, outcome: 'unchanged' }) })
+      if (existing.own)
+        return unit({ steps: [], events: [], decode: () => ({ identity: existing, outcome: 'unchanged' }) })
       const move = loose(qc)
         .updateTable('identities')
         .set({ contact_id: null, own: true, updated_at: at })
@@ -255,7 +330,11 @@ export function ensureOwnProgram(env: PreparedEnv, address: { kind: IdentityKind
         .where(sql<SqlBool>`${sql.ref('identities.deleted_at')} is null`)
         .where(sql<SqlBool>`${ts.exact(qc, 'identities.updated_at')} = ${String(__stamp)}`)
       return unit({
-        steps: [step(move, 'first-mutation', { expect: 'affected' }), eventFor('updated', existing.id, existing), resultOf(existing.id)],
+        steps: [
+          step(move, 'first-mutation', { expect: 'affected' }),
+          eventFor('updated', existing.id, existing),
+          resultOf(existing.id),
+        ],
         events: [receiptOf('updated', existing.id)],
         decode: (rows) => {
           if (rows.length === 0) throw new UnitDriftError('identities.ensure_own')
@@ -266,6 +345,9 @@ export function ensureOwnProgram(env: PreparedEnv, address: { kind: IdentityKind
   }
 }
 
-export function ensureOwnIdentity(env: PreparedEnv, address: { kind: IdentityKind; value: string }): PreparedOperation<EnsureOwnResult> {
+export function ensureOwnIdentity(
+  env: PreparedEnv,
+  address: { kind: IdentityKind; value: string },
+): PreparedOperation<EnsureOwnResult> {
   return operationOf('identities.ensure_own', ensureOwnProgram(env, address))
 }

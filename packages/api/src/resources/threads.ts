@@ -8,20 +8,25 @@ import { withColumnFilters } from '../storage/column-filters.js'
  * no `deleted_at` (D45), so the generic core adds no live-row condition and generates no delete. Its scope is
  * `messages:read` (D25: threads are part of content).
  */
-export const threads = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'api',
-  name: 'threads',
-  eventName: 'thread',
-  table: 'threads',
-  associable: true,
-  scopeResource: 'messages',
-  operations: ['list', 'get'],
-  record: z.object({
-    id: z.uuid(),
-    channel: z.enum(['email']),
-    subject: z.string().nullable(),
-    created_by: z.uuid(),
-    created_at: z.string(),
-  }),
-  filters: { channel: { schema: z.enum(['email']) } },
-}), ['subject']))
+export const threads = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'api',
+      name: 'threads',
+      eventName: 'thread',
+      table: 'threads',
+      associable: true,
+      scopeResource: 'messages',
+      operations: ['list', 'get'],
+      record: z.object({
+        id: z.uuid(),
+        channel: z.enum(['email']),
+        subject: z.string().nullable(),
+        created_by: z.uuid(),
+        created_at: z.string(),
+      }),
+      filters: { channel: { schema: z.enum(['email']) } },
+    }),
+    ['subject'],
+  ),
+)

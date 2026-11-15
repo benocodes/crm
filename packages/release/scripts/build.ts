@@ -27,9 +27,16 @@ const SERVER_D1 = join(REPO, 'packages', 'server-d1')
 export const DIST = join(PKG, 'dist')
 
 /** A minimal environment for wrangler's offline dry run: no Cloudflare credential, no repo variable. */
-export const wranglerEnv = (): NodeJS.ProcessEnv => ({ PATH: process.env.PATH, HOME: process.env.HOME, CI: '1', WRANGLER_SEND_METRICS: 'false' })
+export const wranglerEnv = (): NodeJS.ProcessEnv => ({
+  PATH: process.env.PATH,
+  HOME: process.env.HOME,
+  CI: '1',
+  WRANGLER_SEND_METRICS: 'false',
+})
 
-export async function buildRelease(opts: { allowDirty?: boolean } = {}): Promise<{ client: string; server: string; sums: string; version: string; commit: string }> {
+export async function buildRelease(
+  opts: { allowDirty?: boolean } = {},
+): Promise<{ client: string; server: string; sums: string; version: string; commit: string }> {
   const version = readReleaseVersion(REPO)
   const commit = releaseCommit({ cwd: REPO, allowDirty: opts.allowDirty })
   const wranglerVersion = readWranglerVersion(join(SERVER_D1, 'package.json'))
@@ -46,9 +53,23 @@ export async function buildRelease(opts: { allowDirty?: boolean } = {}): Promise
     const migrationsDir = join(REPO, 'packages', 'storage-d1', 'migrations')
     const controlMigrationsDir = join(REPO, 'packages', 'storage-d1', 'control-migrations')
     const buildConfig = join(work, 'wrangler.build.jsonc')
-    writeFileSync(buildConfig, JSON.stringify(deriveBaseConfig(sourceConfig, { main: join(SERVER_D1, 'src', 'worker.ts'), assetsDirectory: assets, migrationsDir, controlMigrationsDir })))
+    writeFileSync(
+      buildConfig,
+      JSON.stringify(
+        deriveBaseConfig(sourceConfig, {
+          main: join(SERVER_D1, 'src', 'worker.ts'),
+          assetsDirectory: assets,
+          migrationsDir,
+          controlMigrationsDir,
+        }),
+      ),
+    )
     const wrangler = join(SERVER_D1, 'node_modules', '.bin', 'wrangler')
-    execFileSync(wrangler, ['deploy', '--dry-run', '--outdir', join(work, 'wout'), '-c', buildConfig], { cwd: work, env: wranglerEnv(), stdio: ['ignore', 'ignore', 'inherit'] })
+    execFileSync(wrangler, ['deploy', '--dry-run', '--outdir', join(work, 'wout'), '-c', buildConfig], {
+      cwd: work,
+      env: wranglerEnv(),
+      stdio: ['ignore', 'ignore', 'inherit'],
+    })
     const common = {
       version,
       commit,
@@ -89,6 +110,8 @@ export async function buildRelease(opts: { allowDirty?: boolean } = {}): Promise
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const { client, server, sums, version, commit } = await buildRelease({ allowDirty: process.argv.includes('--allow-dirty') })
+  const { client, server, sums, version, commit } = await buildRelease({
+    allowDirty: process.argv.includes('--allow-dirty'),
+  })
   console.log(`built ${client}\nbuilt ${server}\nwrote ${sums}\nversion ${version}, commit ${commit}`)
 }

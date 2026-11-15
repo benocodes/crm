@@ -2,7 +2,17 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CONTROL_PLACEHOLDER_DATABASE_ID, PLACEHOLDER_DATABASE_ID, RemoteRefusal, deployCommands, loadRootEnv, migrateCommands, parseEnvFlag, requireConfirm, resolveTarget } from './remote.js'
+import {
+  CONTROL_PLACEHOLDER_DATABASE_ID,
+  PLACEHOLDER_DATABASE_ID,
+  RemoteRefusal,
+  deployCommands,
+  loadRootEnv,
+  migrateCommands,
+  parseEnvFlag,
+  requireConfirm,
+  resolveTarget,
+} from './remote.js'
 
 const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
 const OTHER = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
@@ -14,7 +24,10 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
 })
 
-const good = { name: 'vault-smoked1', d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }] }
+const good = {
+  name: 'vault-smoked1',
+  d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }],
+}
 const refusal = (fn: () => unknown, message: string) => {
   expect(fn).toThrow(RemoteRefusal)
   expect(fn).toThrow(message)
@@ -24,7 +37,13 @@ describe('the control placeholder ([[CORE259]])', () => {
   it('is its own id, and an env whose CONTROL_DB still holds either placeholder is refused', () => {
     expect(CONTROL_PLACEHOLDER_DATABASE_ID).not.toBe(PLACEHOLDER_DATABASE_ID)
     for (const id of [PLACEHOLDER_DATABASE_ID, CONTROL_PLACEHOLDER_DATABASE_ID]) {
-      const config = { ...good, d1_databases: [...good.d1_databases, { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: id, remote: true }] }
+      const config = {
+        ...good,
+        d1_databases: [
+          ...good.d1_databases,
+          { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: id, remote: true },
+        ],
+      }
       refusal(() => resolveTarget(config, 'smoked1'), 'CONTROL_DB still has a placeholder database_id')
     }
   })
@@ -52,25 +71,49 @@ describe('requireConfirm (C3)', () => {
 
 describe('resolveTarget (C4)', () => {
   it('refuses the top level (an unknown env)', () => {
-    refusal(() => resolveTarget({ name: 'vb', d1_databases: [{ binding: 'DB', database_id: PLACEHOLDER_DATABASE_ID }] }, 'nope'), 'unknown env nope')
+    refusal(
+      () =>
+        resolveTarget({ name: 'vb', d1_databases: [{ binding: 'DB', database_id: PLACEHOLDER_DATABASE_ID }] }, 'nope'),
+      'unknown env nope',
+    )
   })
   it('refuses an env with no DB binding', () => {
     refusal(() => resolveTarget({ name: 'vibase-x', d1_databases: [] }, 'x'), 'env x has no DB binding')
   })
   it('refuses the placeholder id', () => {
-    const c = { name: 'vault-smoked1', d1_databases: [{ binding: 'DB', database_id: PLACEHOLDER_DATABASE_ID, remote: true }] }
-    refusal(() => resolveTarget(c, 'smoked1'), 'env smoked1 still has the placeholder database_id: create the database and commit its id first')
+    const c = {
+      name: 'vault-smoked1',
+      d1_databases: [{ binding: 'DB', database_id: PLACEHOLDER_DATABASE_ID, remote: true }],
+    }
+    refusal(
+      () => resolveTarget(c, 'smoked1'),
+      'env smoked1 still has the placeholder database_id: create the database and commit its id first',
+    )
   })
   it('refuses a binding that is not remote', () => {
     const c = { name: 'vault-smoked1', d1_databases: [{ binding: 'DB', database_id: UUID }] }
-    refusal(() => resolveTarget(c, 'smoked1'), "env smoked1's DB binding must be remote: true with no preview_database_id")
+    refusal(
+      () => resolveTarget(c, 'smoked1'),
+      "env smoked1's DB binding must be remote: true with no preview_database_id",
+    )
   })
   it('refuses a differing preview_database_id', () => {
-    const c = { name: 'vault-smoked1', d1_databases: [{ binding: 'DB', database_id: UUID, remote: true, preview_database_id: OTHER }] }
-    refusal(() => resolveTarget(c, 'smoked1'), "env smoked1's DB binding must be remote: true with no preview_database_id")
+    const c = {
+      name: 'vault-smoked1',
+      d1_databases: [{ binding: 'DB', database_id: UUID, remote: true, preview_database_id: OTHER }],
+    }
+    refusal(
+      () => resolveTarget(c, 'smoked1'),
+      "env smoked1's DB binding must be remote: true with no preview_database_id",
+    )
   })
   it('resolves a good target', () => {
-    expect(resolveTarget(good, 'smoked1')).toEqual({ env: 'smoked1', workerName: 'vault-smoked1', databaseName: 'vault-smoked1', databaseId: UUID })
+    expect(resolveTarget(good, 'smoked1')).toEqual({
+      env: 'smoked1',
+      workerName: 'vault-smoked1',
+      databaseName: 'vault-smoked1',
+      databaseId: UUID,
+    })
   })
 })
 
@@ -78,7 +121,10 @@ describe('commands (C5, C6)', () => {
   it('migrate: list, then apply, remote, for the env', () => {
     expect(migrateCommands('smoked1')).toEqual([
       { command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'migrations', 'list', 'DB', '--remote', '--env', 'smoked1'] },
-      { command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--remote', '--env', 'smoked1'] },
+      {
+        command: 'pnpm',
+        args: ['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--remote', '--env', 'smoked1'],
+      },
     ])
   })
   it('deploy: build the page, typecheck, test, then deploy with the version and the commit', () => {
@@ -86,7 +132,10 @@ describe('commands (C5, C6)', () => {
       { command: 'pnpm', args: ['-C', 'packages/server-d1', 'build'] },
       { command: 'pnpm', args: ['-C', 'packages/server-d1', 'typecheck'] },
       { command: 'pnpm', args: ['-C', 'packages/server-d1', 'test'] },
-      { command: 'pnpm', args: ['exec', 'wrangler', 'deploy', '--env', 'smoked1', '--var', 'VERSION:abc123', '--var', 'COMMIT:abc123'] },
+      {
+        command: 'pnpm',
+        args: ['exec', 'wrangler', 'deploy', '--env', 'smoked1', '--var', 'VERSION:abc123', '--var', 'COMMIT:abc123'],
+      },
     ])
   })
 })

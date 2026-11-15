@@ -19,7 +19,17 @@ const states = (o: SetupOutcome) => o.results.map((r) => `${r.step}:${r.status}`
 const KEY32 = Buffer.alloc(32, 7).toString('base64')
 
 const SECRETS = ['GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'] as const
-const VARS = ['GOOGLE_CLIENT_ID', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'CREDENTIALS_KEY_VERSION', 'GMAIL_BACKFILL_DAYS', 'ATTACHMENT_MAX_BYTES'] as const
+const VARS = [
+  'GOOGLE_CLIENT_ID',
+  'GMAIL_TOPIC_NAME',
+  'GMAIL_PUSH_SUBSCRIPTION',
+  'GMAIL_PUSH_SERVICE_ACCOUNT',
+  'PUBLIC_BASE_URL',
+  'CONNECT_RETURN_URL',
+  'CREDENTIALS_KEY_VERSION',
+  'GMAIL_BACKFILL_DAYS',
+  'ATTACHMENT_MAX_BYTES',
+] as const
 const CORE = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY']
 
 /** Twelve fake values, each unmistakable in any output. */
@@ -56,9 +66,16 @@ beforeEach(async () => {
   await db.reset()
 })
 
-const D1S = [{ uuid: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', name: 'vb-crm-acme' }, { uuid: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', name: 'vb-control-acme' }]
+const D1S = [
+  { uuid: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', name: 'vb-crm-acme' },
+  { uuid: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', name: 'vb-control-acme' },
+]
 const R2S = ['vb-bodies-acme']
-function setup(gmail: Record<string, string | undefined> | null, o: Partial<WorldOptions> = {}, clerk = false): { w: World; clerk: FakeClerk } {
+function setup(
+  gmail: Record<string, string | undefined> | null,
+  o: Partial<WorldOptions> = {},
+  clerk = false,
+): { w: World; clerk: FakeClerk } {
   const fake = makeClerk()
   const text = gmail === null ? (clerk ? clerkPair : null) : `${clerk ? clerkPair : ''}${file(gmail)}`
   return { clerk: fake, w: makeWorld({ d1: db.d1, d1s: D1S, r2s: R2S, clerk: fake, clerkEnvText: text, ...o }) }
@@ -66,12 +83,27 @@ function setup(gmail: Record<string, string | undefined> | null, o: Partial<Worl
 /** `env.acme` as a clerk first run writes it (so `config:write` has the CLI client id without the clerk step). */
 const clerkConfig = () =>
   reconcileEnvBlock(realConfig, {
-    env: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', d1Id: D1S[0]!.uuid, controlD1Name: 'vb-control-acme', controlD1Id: D1S[1]!.uuid, r2Name: 'vb-bodies-acme', apiHost: 'api.acme.vibase.ai', corsOrigins: '',
-    authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: PK_TEST, CLERK_AUTHORIZED_PARTIES: 'https://api.acme.vibase.ai', AUTH_CLI_CLIENT_ID: 'client_1' },
+    env: 'acme',
+    workerName: 'vb-acme',
+    d1Name: 'vb-crm-acme',
+    d1Id: D1S[0]!.uuid,
+    controlD1Name: 'vb-control-acme',
+    controlD1Id: D1S[1]!.uuid,
+    r2Name: 'vb-bodies-acme',
+    apiHost: 'api.acme.vibase.ai',
+    corsOrigins: '',
+    authVars: {
+      AUTH_PROVIDER: 'clerk',
+      CLERK_ISSUER: ISSUER,
+      CLERK_PUBLISHABLE_KEY: PK_TEST,
+      CLERK_AUTHORIZED_PARTIES: 'https://api.acme.vibase.ai',
+      AUTH_CLI_CLIENT_ID: 'client_1',
+    },
   }).text
 const ARGS = { none: NONE, clerk: CLERK } as const
 const STEPS_ONLY = ['--only', 'config:write,secrets']
-const configVars = (w: World) => (parse(w.state.configText) as { env: { acme: { vars: Record<string, string> } } }).env.acme.vars
+const configVars = (w: World) =>
+  (parse(w.state.configText) as { env: { acme: { vars: Record<string, string> } } }).env.acme.vars
 const bulkPayloads = (w: World) => w.secretInputs.map((s) => JSON.parse(s) as Record<string, string>)
 /** A real run, then its re-run after the config write stopped the first ([[OPS65]] D10). */
 async function twice(w: World, args: string[]): Promise<SetupOutcome> {
@@ -110,9 +142,17 @@ describe('group absent: skipped', () => {
 
 describe('partial core set: refused before any command', () => {
   const partials: [string, Record<string, string>, string[]][] = [
-    ['only the client id', { GOOGLE_CLIENT_ID: FULL.GOOGLE_CLIENT_ID! }, ['GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY']],
+    [
+      'only the client id',
+      { GOOGLE_CLIENT_ID: FULL.GOOGLE_CLIENT_ID! },
+      ['GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'],
+    ],
     ['everything but the key', without('CREDENTIALS_KEY'), ['CREDENTIALS_KEY']],
-    ['optional vars but no core name but one', { GOOGLE_CLIENT_SECRET: FULL.GOOGLE_CLIENT_SECRET!, GMAIL_BACKFILL_DAYS: '30' }, ['GOOGLE_CLIENT_ID', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY']],
+    [
+      'optional vars but no core name but one',
+      { GOOGLE_CLIENT_SECRET: FULL.GOOGLE_CLIENT_SECRET!, GMAIL_BACKFILL_DAYS: '30' },
+      ['GOOGLE_CLIENT_ID', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'],
+    ],
   ]
   for (const mode of ['none', 'clerk'] as const)
     for (const dry of [false, true])
@@ -136,7 +176,10 @@ describe('validation: each rule refuses its bad case, by variable name, before a
     ['CREDENTIALS_KEY of 31 bytes', { CREDENTIALS_KEY: Buffer.alloc(31, 7).toString('base64') }],
     ['CREDENTIALS_KEY of 33 bytes', { CREDENTIALS_KEY: Buffer.alloc(33, 7).toString('base64') }],
     ['CREDENTIALS_KEY unpadded (43 characters)', { CREDENTIALS_KEY: KEY32.replace(/=+$/, '') }],
-    ['CREDENTIALS_KEY in the URL-safe alphabet', { CREDENTIALS_KEY: Buffer.alloc(32, 0xfb).toString('base64').replace(/\+/g, '-').replace(/\//g, '_') }],
+    [
+      'CREDENTIALS_KEY in the URL-safe alphabet',
+      { CREDENTIALS_KEY: Buffer.alloc(32, 0xfb).toString('base64').replace(/\+/g, '-').replace(/\//g, '_') },
+    ],
     ['CREDENTIALS_KEY_VERSION of 10 digits', { CREDENTIALS_KEY_VERSION: '1234567890' }],
     ['CREDENTIALS_KEY that is not base64', { CREDENTIALS_KEY: 'not base64 at all !!!' }],
     ['CREDENTIALS_KEY_VERSION zero', { CREDENTIALS_KEY_VERSION: '0' }],
@@ -152,8 +195,14 @@ describe('validation: each rule refuses its bad case, by variable name, before a
     ['CONNECT_RETURN_URL over http', { CONNECT_RETURN_URL: 'http://sentinel-return.example.test' }],
     ['CONNECT_RETURN_URL not a URL', { CONNECT_RETURN_URL: 'sentinel return' }],
     ['GMAIL_TOPIC_NAME without the topics path', { GMAIL_TOPIC_NAME: 'sentinel-proj/sentinel-topic' }],
-    ['GMAIL_TOPIC_NAME that is a subscription path', { GMAIL_TOPIC_NAME: 'projects/sentinel-proj/subscriptions/sentinel-sub' }],
-    ['GMAIL_PUSH_SUBSCRIPTION that is a topic path', { GMAIL_PUSH_SUBSCRIPTION: 'projects/sentinel-proj/topics/sentinel-topic' }],
+    [
+      'GMAIL_TOPIC_NAME that is a subscription path',
+      { GMAIL_TOPIC_NAME: 'projects/sentinel-proj/subscriptions/sentinel-sub' },
+    ],
+    [
+      'GMAIL_PUSH_SUBSCRIPTION that is a topic path',
+      { GMAIL_PUSH_SUBSCRIPTION: 'projects/sentinel-proj/topics/sentinel-topic' },
+    ],
     ['GMAIL_PUSH_SERVICE_ACCOUNT not an email', { GMAIL_PUSH_SERVICE_ACCOUNT: 'sentinel-not-an-email' }],
   ]
   for (const mode of ['none', 'clerk'] as const)
@@ -176,7 +225,9 @@ describe('validation: each rule refuses its bad case, by variable name, before a
   })
 
   it('an unset optional var is not an error', async () => {
-    const { w } = setup(without('GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'CONNECT_RETURN_URL', 'GMAIL_BACKFILL_DAYS'))
+    const { w } = setup(
+      without('GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'CONNECT_RETURN_URL', 'GMAIL_BACKFILL_DAYS'),
+    )
     expect((await runSetup([...NONE, '--only', 'config:write', '--dry-run'], {}, w.deps)).exitCode).toBe(0)
   })
 })
@@ -184,7 +235,12 @@ describe('validation: each rule refuses its bad case, by variable name, before a
 // [[CHN155]] / [[CHN5]] D87, D71's rule: the four push values are judged by the Worker's own parser, so setup can never accept what the Worker rejects.
 // (Setup is stricter in one place the Worker is not: a remote PUBLIC_BASE_URL is https, never http://localhost.)
 describe('push values: setup and the Worker see the same verdict (one parser)', () => {
-  const GOOD = { GMAIL_TOPIC_NAME: FULL.GMAIL_TOPIC_NAME!, GMAIL_PUSH_SUBSCRIPTION: FULL.GMAIL_PUSH_SUBSCRIPTION!, GMAIL_PUSH_SERVICE_ACCOUNT: FULL.GMAIL_PUSH_SERVICE_ACCOUNT!, PUBLIC_BASE_URL: FULL.PUBLIC_BASE_URL! }
+  const GOOD = {
+    GMAIL_TOPIC_NAME: FULL.GMAIL_TOPIC_NAME!,
+    GMAIL_PUSH_SUBSCRIPTION: FULL.GMAIL_PUSH_SUBSCRIPTION!,
+    GMAIL_PUSH_SERVICE_ACCOUNT: FULL.GMAIL_PUSH_SERVICE_ACCOUNT!,
+    PUBLIC_BASE_URL: FULL.PUBLIC_BASE_URL!,
+  }
   const pairs: Array<[keyof typeof GOOD, string]> = [
     ['GMAIL_TOPIC_NAME', 'projects/p/topics/t'],
     ['GMAIL_TOPIC_NAME', 'projects/p/topics/gmail.watch'],
@@ -220,7 +276,13 @@ describe('full set, real run: secrets by one bulk, vars by config:write', () => 
     const o = await twice(w, NONE)
     expect(o.exitCode).toBe(0)
     expect(states(o)).toEqual(['secrets:create'])
-    expect(bulkPayloads(w)).toEqual([{ GOOGLE_CLIENT_SECRET: FULL.GOOGLE_CLIENT_SECRET, OAUTH_STATE_SECRET: FULL.OAUTH_STATE_SECRET, CREDENTIALS_KEY: FULL.CREDENTIALS_KEY }])
+    expect(bulkPayloads(w)).toEqual([
+      {
+        GOOGLE_CLIENT_SECRET: FULL.GOOGLE_CLIENT_SECRET,
+        OAUTH_STATE_SECRET: FULL.OAUTH_STATE_SECRET,
+        CREDENTIALS_KEY: FULL.CREDENTIALS_KEY,
+      },
+    ])
     const vars = configVars(w)
     expect(Object.fromEntries(VARS.map((k) => [k, vars[k]]))).toEqual(Object.fromEntries(VARS.map((k) => [k, FULL[k]])))
     for (const s of SECRETS) expect(Object.keys(vars)).not.toContain(s)
@@ -258,7 +320,9 @@ describe('full set, real run: secrets by one bulk, vars by config:write', () => 
   it('omitted optional vars are not written (the vars are exactly the present ones plus the default)', async () => {
     const { w } = setup(without('GMAIL_TOPIC_NAME', 'GMAIL_BACKFILL_DAYS', 'PUBLIC_BASE_URL'))
     await runSetup([...NONE, '--only', 'config:write'], CONFIRM, w.deps)
-    const written = Object.keys(configVars(w)).filter((k) => (VARS as readonly string[]).includes(k)).sort()
+    const written = Object.keys(configVars(w))
+      .filter((k) => (VARS as readonly string[]).includes(k))
+      .sort()
     expect(written).toEqual(VARS.filter((k) => !['GMAIL_TOPIC_NAME', 'GMAIL_BACKFILL_DAYS'].includes(k)).sort())
   })
 
@@ -350,7 +414,11 @@ describe('--dry-run with a full set', () => {
 
 describe('no value leaks', () => {
   const surface = (w: World, o?: SetupOutcome) =>
-    [w.surface(), ...(o?.results ?? []).flatMap((r) => [r.detail, ...(r.lines ?? []), ...(r.manual ?? [])]), w.fetched.join('\n')].join('\n')
+    [
+      w.surface(),
+      ...(o?.results ?? []).flatMap((r) => [r.detail, ...(r.lines ?? []), ...(r.manual ?? [])]),
+      w.fetched.join('\n'),
+    ].join('\n')
   const expectClean = (text: string) => {
     for (const s of SENTINELS) expect(text, `a value of the file reached the output`).not.toContain(s)
   }
@@ -359,7 +427,11 @@ describe('no value leaks', () => {
   it('dry run and real run, none and clerk, print variable names only', async () => {
     for (const mode of ['none', 'clerk'] as const) {
       const { w } = setup(FULL, mode === 'clerk' ? { configText: clerkConfig() } : {}, mode === 'clerk')
-      const outs = [await runSetup([...ARGS[mode], '--dry-run', '--only', 'config:write'], {}, w.deps), await runSetup([...ARGS[mode], '--only', 'config:write'], CONFIRM, w.deps), await runSetup([...ARGS[mode], '--only', 'secrets'], CONFIRM, w.deps)]
+      const outs = [
+        await runSetup([...ARGS[mode], '--dry-run', '--only', 'config:write'], {}, w.deps),
+        await runSetup([...ARGS[mode], '--only', 'config:write'], CONFIRM, w.deps),
+        await runSetup([...ARGS[mode], '--only', 'secrets'], CONFIRM, w.deps),
+      ]
       for (const o of outs) expect(o.exitCode).toBe(0)
       expectClean(surface(w, outs[2]))
       expect(w.secretInputs.join('')).toContain(FULL.GOOGLE_CLIENT_SECRET!)
@@ -389,7 +461,10 @@ describe('no value leaks', () => {
     expect(secretsRun.exitCode).toBe(1)
     const inStdinOnly = w.logs.join('\n') + secretsRun.results.map((r) => r.detail + (r.lines ?? []).join('')).join('')
     expectClean(inStdinOnly)
-    w.deps.exec = async (cmd) => (cmd.args.includes('list') && cmd.args.includes('secret') ? { status: 1, stdout: '', stderr: `nope ${FULL.GOOGLE_CLIENT_SECRET}` } : exec(cmd))
+    w.deps.exec = async (cmd) =>
+      cmd.args.includes('list') && cmd.args.includes('secret')
+        ? { status: 1, stdout: '', stderr: `nope ${FULL.GOOGLE_CLIENT_SECRET}` }
+        : exec(cmd)
     const listRun = await runSetup([...NONE, '--only', 'secrets'], CONFIRM, w.deps)
     expect(listRun.exitCode).toBe(1)
     expectClean(w.logs.join('\n') + listRun.results.map((r) => r.detail + (r.lines ?? []).join('')).join(''))

@@ -20,7 +20,8 @@ export default {
     if (url.pathname === '/__resets') return Response.json(captured)
     if (!url.pathname.startsWith('/auth/')) return new Response('not found', { status: 404 })
     const config = { secret: env.AUTH_SECRET, baseURL: env.PUBLIC_BASE_URL }
-    if (env.SHIPPED === '1') return (handler ??= createAuthHandler(env.CONTROL_DB, config, { unsafeOpenAdmissionForTests: true }))(req)
+    if (env.SHIPPED === '1')
+      return (handler ??= createAuthHandler(env.CONTROL_DB, config, { unsafeOpenAdmissionForTests: true }))(req)
     if (!handler) {
       const options = authOptions(env.CONTROL_DB, config, { unsafeOpenAdmissionForTests: true })
       const auth = betterAuth({

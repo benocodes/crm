@@ -73,7 +73,9 @@ export async function parseInvocation(cmd: Command, args: string[], io: InvokeIo
   const { values, positionals } = parsed
   if (positionals.length !== cmd.pathParams.length) {
     const want = cmd.pathParams.map((p) => `<${p}>`).join(' ')
-    throw usage(`${cmd.resource} ${cmd.action} takes ${cmd.pathParams.length} positional argument(s)${want ? `: ${want}` : ''}; got ${positionals.length}`)
+    throw usage(
+      `${cmd.resource} ${cmd.action} takes ${cmd.pathParams.length} positional argument(s)${want ? `: ${want}` : ''}; got ${positionals.length}`,
+    )
   }
   let path = cmd.path
   cmd.pathParams.forEach((name, i) => {
@@ -105,7 +107,8 @@ export async function parseInvocation(cmd: Command, args: string[], io: InvokeIo
     const flagged = Object.keys(fromFlags).length > 0
     if (data !== undefined) {
       if (flagged) {
-        if (typeof data !== 'object' || data === null || Array.isArray(data)) throw usage('flags can only be combined with a --data JSON object')
+        if (typeof data !== 'object' || data === null || Array.isArray(data))
+          throw usage('flags can only be combined with a --data JSON object')
         body = { ...(data as Record<string, unknown>), ...fromFlags }
       } else body = data
     } else if (flagged || cmd.bodyRequired) body = { ...fromFlags }

@@ -10,12 +10,21 @@ import { readReleaseVersion } from './version.js'
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url))
 const roots: string[] = []
-afterEach(() => { for (const d of roots.splice(0)) rmSync(d, { recursive: true, force: true }) })
-const tmp = (p: string) => { const d = mkdtempSync(join(tmpdir(), p)); roots.push(d); return d }
+afterEach(() => {
+  for (const d of roots.splice(0)) rmSync(d, { recursive: true, force: true })
+})
+const tmp = (p: string) => {
+  const d = mkdtempSync(join(tmpdir(), p))
+  roots.push(d)
+  return d
+}
 
 const workspace = (cli: Record<string, unknown> | null, server: Record<string, unknown> | null) => {
   const root = tmp('ops237-ver-')
-  for (const [dir, pkg] of [['cli', cli], ['server-d1', server]] as const) {
+  for (const [dir, pkg] of [
+    ['cli', cli],
+    ['server-d1', server],
+  ] as const) {
     if (pkg === null) continue
     mkdirSync(join(root, 'packages', dir), { recursive: true })
     writeFileSync(join(root, 'packages', dir, 'package.json'), JSON.stringify(pkg))
@@ -25,14 +34,22 @@ const workspace = (cli: Record<string, unknown> | null, server: Record<string, u
 
 describe('the version reader (D1)', () => {
   it('returns the version both workspace packages share', () => {
-    expect(readReleaseVersion(workspace({ name: '@vibase/cli', version: '0.3.1' }, { name: '@vibase/server-d1', version: '0.3.1' }))).toBe('0.3.1')
+    expect(
+      readReleaseVersion(
+        workspace({ name: '@vibase/cli', version: '0.3.1' }, { name: '@vibase/server-d1', version: '0.3.1' }),
+      ),
+    ).toBe('0.3.1')
   })
   it('accepts a prerelease version both share', () => {
     expect(readReleaseVersion(workspace({ version: '0.4.0-rc.0' }, { version: '0.4.0-rc.0' }))).toBe('0.4.0-rc.0')
   })
   it('refuses when a workspace package has no version, naming it', () => {
-    expect(() => readReleaseVersion(workspace({ name: '@vibase/cli' }, { version: '0.1.0' }))).toThrow(/packages\/cli\/package\.json/)
-    expect(() => readReleaseVersion(workspace({ version: '0.1.0' }, { version: '' }))).toThrow(/packages\/server-d1\/package\.json/)
+    expect(() => readReleaseVersion(workspace({ name: '@vibase/cli' }, { version: '0.1.0' }))).toThrow(
+      /packages\/cli\/package\.json/,
+    )
+    expect(() => readReleaseVersion(workspace({ version: '0.1.0' }, { version: '' }))).toThrow(
+      /packages\/server-d1\/package\.json/,
+    )
     expect(() => readReleaseVersion(workspace({ name: '@vibase/cli' }, { version: '0.1.0' }))).toThrow(ReleaseRefusal)
   })
   it('refuses when a package.json is missing', () => {
@@ -50,24 +67,33 @@ describe('the version reader (D1)', () => {
   })
 })
 
-const pkgDirs = (root: string) => readdirSync(join(root, 'packages')).filter((d) => existsSync(join(root, 'packages', d, 'package.json')))
+const pkgDirs = (root: string) =>
+  readdirSync(join(root, 'packages')).filter((d) => existsSync(join(root, 'packages', d, 'package.json')))
 const json = (f: string) => JSON.parse(readFileSync(f, 'utf8')) as Record<string, any>
-const workspaceNames = (root: string) => pkgDirs(root).map((d) => json(join(root, 'packages', d, 'package.json')).name as string).sort()
+const workspaceNames = (root: string) =>
+  pkgDirs(root)
+    .map((d) => json(join(root, 'packages', d, 'package.json')).name as string)
+    .sort()
 
 /** What is wrong with the changesets configuration of a repository root ([[OPS237]] D25). */
 export function configProblems(root: string): string[] {
   const out: string[] = []
   const c = json(join(root, '.changeset', 'config.json'))
-  if (JSON.stringify(c.fixed) !== JSON.stringify([['@vibase/cli', '@vibase/server-d1']])) out.push(`fixed is ${JSON.stringify(c.fixed)}, expected exactly one group of @vibase/cli and @vibase/server-d1`)
+  if (JSON.stringify(c.fixed) !== JSON.stringify([['@vibase/cli', '@vibase/server-d1']]))
+    out.push(`fixed is ${JSON.stringify(c.fixed)}, expected exactly one group of @vibase/cli and @vibase/server-d1`)
   const names = workspaceNames(root)
   const others = names.filter((n) => n !== '@vibase/cli' && n !== '@vibase/server-d1')
   if (others.length !== 12) out.push(`expected 12 other workspace packages, found ${others.length}`)
   const ignore = [...(c.ignore ?? [])].sort()
-  if (JSON.stringify(ignore) !== JSON.stringify(others)) out.push(`ignore is ${JSON.stringify(ignore)}, expected the other workspace packages ${JSON.stringify(others)}`)
-  if (JSON.stringify(c.privatePackages) !== JSON.stringify({ version: true, tag: false })) out.push('privatePackages must be { version: true, tag: false }')
+  if (JSON.stringify(ignore) !== JSON.stringify(others))
+    out.push(`ignore is ${JSON.stringify(ignore)}, expected the other workspace packages ${JSON.stringify(others)}`)
+  if (JSON.stringify(c.privatePackages) !== JSON.stringify({ version: true, tag: false }))
+    out.push('privatePackages must be { version: true, tag: false }')
   if (c.baseBranch !== 'main') out.push('baseBranch must be main')
   if (c.commit !== false) out.push('commit must be false')
-  for (const d of ['cli', 'server-d1']) if (json(join(root, 'packages', d, 'package.json')).private !== true) out.push(`packages/${d} must be private: true`)
+  for (const d of ['cli', 'server-d1'])
+    if (json(join(root, 'packages', d, 'package.json')).private !== true)
+      out.push(`packages/${d} must be private: true`)
   return out
 }
 
@@ -75,7 +101,10 @@ const START = '0.1.0'
 const BUMPED = '0.1.1'
 
 /** Copies the workspace manifests and the changesets config to a scratch git repository, adds one fixture changeset for `@vibase/server-d1`, runs `changeset version`, returns each package.json's version afterwards and the files that changed. */
-export function scratchVersion(mutate: (c: Record<string, any>) => void = () => {}): { versions: Record<string, string | undefined>; changed: string[] } {
+export function scratchVersion(mutate: (c: Record<string, any>) => void = () => {}): {
+  versions: Record<string, string | undefined>
+  changed: string[]
+} {
   const dir = tmp('ops237-scratch-')
   // Only the config: the repository's own pending changesets (a `minor` one among them, OPS249) must not decide the bump the fixture changeset is expected to produce.
   mkdirSync(join(dir, '.changeset'), { recursive: true })
@@ -93,15 +122,28 @@ export function scratchVersion(mutate: (c: Record<string, any>) => void = () => 
   const cfg = json(join(dir, '.changeset', 'config.json'))
   mutate(cfg)
   writeFileSync(join(dir, '.changeset', 'config.json'), JSON.stringify(cfg))
-  const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: dir, stdio: 'pipe' })
+  const git = (...a: string[]) =>
+    execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: dir, stdio: 'pipe' })
   git('init', '-q')
   git('add', '-A')
   git('commit', '-qm', 'scratch')
   writeFileSync(join(dir, '.changeset', 'fixture.md'), '---\n"@vibase/server-d1": patch\n---\n\nfixture\n')
-  execFileSync(join(REPO, 'node_modules', '.bin', 'changeset'), ['version'], { cwd: dir, stdio: 'pipe', env: { ...process.env, CI: '1' } })
-  const changed = git('status', '--porcelain', '-uall').toString().split('\n').filter(Boolean).map((l) => l.slice(3)).filter((f) => !f.startsWith('.changeset/'))
+  execFileSync(join(REPO, 'node_modules', '.bin', 'changeset'), ['version'], {
+    cwd: dir,
+    stdio: 'pipe',
+    env: { ...process.env, CI: '1' },
+  })
+  const changed = git('status', '--porcelain', '-uall')
+    .toString()
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => l.slice(3))
+    .filter((f) => !f.startsWith('.changeset/'))
   const versions: Record<string, string | undefined> = {}
-  for (const d of pkgDirs(dir)) { const p = json(join(dir, 'packages', d, 'package.json')); versions[p.name] = p.version }
+  for (const d of pkgDirs(dir)) {
+    const p = json(join(dir, 'packages', d, 'package.json'))
+    versions[p.name] = p.version
+  }
   return { versions, changed }
 }
 
@@ -127,11 +169,19 @@ describe('changeset version in a scratch copy (D25)', () => {
     const { versions, changed } = scratchVersion()
     expect(versions['@vibase/server-d1']).toBe(BUMPED)
     expect(versions['@vibase/cli']).toBe(BUMPED)
-    expect(changed.filter((f) => f.endsWith('package.json')).sort()).toEqual(['packages/cli/package.json', 'packages/server-d1/package.json'])
-    expect(changed.filter((f) => !f.endsWith('package.json')).sort()).toEqual(['packages/cli/CHANGELOG.md', 'packages/server-d1/CHANGELOG.md'])
+    expect(changed.filter((f) => f.endsWith('package.json')).sort()).toEqual([
+      'packages/cli/package.json',
+      'packages/server-d1/package.json',
+    ])
+    expect(changed.filter((f) => !f.endsWith('package.json')).sort()).toEqual([
+      'packages/cli/CHANGELOG.md',
+      'packages/server-d1/CHANGELOG.md',
+    ])
   })
   it('mutation: with @vibase/cli dropped from the fixed group the client is left behind (so the check above would be red)', () => {
-    const { versions } = scratchVersion((c) => { c.fixed = [['@vibase/server-d1']] })
+    const { versions } = scratchVersion((c) => {
+      c.fixed = [['@vibase/server-d1']]
+    })
     expect(versions['@vibase/server-d1']).toBe(BUMPED)
     expect(versions['@vibase/cli']).toBe(START)
   })

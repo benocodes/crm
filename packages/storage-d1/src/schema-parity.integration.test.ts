@@ -15,7 +15,9 @@ afterAll(() => local.dispose())
 
 describe('D1 schema parity with the portable types', () => {
   it.each(Object.entries(COLUMN_KINDS))('%s has exactly the modelled columns', async (table, kinds) => {
-    const cols = ((await d1.prepare(`pragma table_info(${table})`).all()).results as Array<{ name: string }>).map((c) => c.name)
+    const cols = ((await d1.prepare(`pragma table_info(${table})`).all()).results as Array<{ name: string }>).map(
+      (c) => c.name,
+    )
     expect(cols.sort()).toEqual(Object.keys(kinds).sort())
   })
 })

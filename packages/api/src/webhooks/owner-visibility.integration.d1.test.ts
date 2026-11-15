@@ -21,26 +21,45 @@ async function twoAgents() {
   const b = await k.seedAgent(SCOPES)
   const subA = await k.create(a)
   const subB = await k.create(b)
-  for (const [who, sub] of [[a, subA], [b, subB]] as const) {
+  for (const [who, sub] of [
+    [a, subA],
+    [b, subB],
+  ] as const) {
     expect((await k.call(asAgent(who), 'PATCH', `${BASE}/${sub.id}`, { status: 'paused' })).status).toBe(200)
     expect((await k.call(asAgent(who), 'POST', `${BASE}/${sub.id}/rotate-secret`)).status).toBe(200)
     expect((await k.call(asAgent(who), 'DELETE', `${BASE}/${sub.id}`)).status).toBe(204)
   }
-  const raw = (id: string) => k.all("select id, type from events where resource_type = 'webhook' and resource_id = ? order by seq", id) as Promise<{ id: string; type: string }[]>
+  const raw = (id: string) =>
+    k.all(
+      "select id, type from events where resource_type = 'webhook' and resource_id = ? order by seq",
+      id,
+    ) as Promise<{ id: string; type: string }[]>
   return { a, b, subA, subB, eventsA: await raw(subA.id), eventsB: await raw(subB.id) }
 }
 
 describe('the owner predicate in events.list and events.get', () => {
   it("each agent sees its own subscription's created, updated, secret_rotated and deleted events (the delete through before), never the other's", async () => {
     const { a, b, eventsA, eventsB } = await twoAgents()
-    expect(eventsA.map((e) => e.type)).toEqual(['webhook.created', 'webhook.updated', 'webhook.secret_rotated', 'webhook.deleted'])
-    for (const [me, mine, theirs] of [[a, eventsA, eventsB], [b, eventsB, eventsA]] as const) {
+    expect(eventsA.map((e) => e.type)).toEqual([
+      'webhook.created',
+      'webhook.updated',
+      'webhook.secret_rotated',
+      'webhook.deleted',
+    ])
+    for (const [me, mine, theirs] of [
+      [a, eventsA, eventsB],
+      [b, eventsB, eventsA],
+    ] as const) {
       const list = await k.call(asAgent(me), 'GET', '/api/v1/events?limit=200')
       expect(list.status, list.text).toBe(200)
       expect(list.body.data.map((e: any) => e.id)).toEqual(mine.map((e) => e.id))
       expect(types(list)).toEqual(['webhook.created', 'webhook.updated', 'webhook.secret_rotated', 'webhook.deleted'])
       for (const e of mine) expect((await k.call(asAgent(me), 'GET', `/api/v1/events/${e.id}`)).status).toBe(200)
-      for (const e of theirs) expect((await k.call(asAgent(me), 'GET', `/api/v1/events/${e.id}`)).status, "another agent's webhook event is 404").toBe(404)
+      for (const e of theirs)
+        expect(
+          (await k.call(asAgent(me), 'GET', `/api/v1/events/${e.id}`)).status,
+          "another agent's webhook event is 404",
+        ).toBe(404)
       const filtered = await k.call(asAgent(me), 'GET', '/api/v1/events?type=webhook.deleted')
       expect(filtered.body.data.map((e: any) => e.id)).toEqual([mine[3]!.id])
     }
@@ -56,7 +75,12 @@ describe('the owner predicate in events.list and events.get', () => {
   it('an owner (a user holding webhooks:read) sees every webhook event', async () => {
     const { eventsA, eventsB } = await twoAgents()
     const list = await k.call({ as: 'user', scopes: OWNER_SCOPES }, 'GET', '/api/v1/events?limit=200')
-    expect(list.body.data.filter((e: any) => e.resource_type === 'webhook').map((e: any) => e.id).sort()).toEqual([...eventsA, ...eventsB].map((e) => e.id).sort())
+    expect(
+      list.body.data
+        .filter((e: any) => e.resource_type === 'webhook')
+        .map((e: any) => e.id)
+        .sort(),
+    ).toEqual([...eventsA, ...eventsB].map((e) => e.id).sort())
   })
 
   it('an agent without webhooks:read sees none of its own', async () => {
@@ -70,11 +94,22 @@ describe('the owner predicate in events.list and events.get', () => {
 describe('subscribing to webhook.* and dispatch', () => {
   it('an agent holding webhooks:read may subscribe to webhook.updated (and is refused action_request.created, still invisible, #217)', async () => {
     const a = await k.seedAgent(SCOPES)
-    expect((await k.owner('POST', BASE, { url: 'https://example.com/h', agent_id: a, event_types: ['webhook.updated'] })).status).toBe(201)
-    const refused = await k.owner('POST', BASE, { url: 'https://example.com/h', agent_id: a, event_types: ['action_request.created'] })
+    expect(
+      (await k.owner('POST', BASE, { url: 'https://example.com/h', agent_id: a, event_types: ['webhook.updated'] }))
+        .status,
+    ).toBe(201)
+    const refused = await k.owner('POST', BASE, {
+      url: 'https://example.com/h',
+      agent_id: a,
+      event_types: ['action_request.created'],
+    })
     expect([refused.status, refused.body.error?.code ?? refused.body.code]).toEqual([400, 'event_type_not_readable'])
     const bare = await k.seedAgent(['events:read', 'tasks:read'])
-    const none = await k.owner('POST', BASE, { url: 'https://example.com/h', agent_id: bare, event_types: ['webhook.updated'] })
+    const none = await k.owner('POST', BASE, {
+      url: 'https://example.com/h',
+      agent_id: bare,
+      event_types: ['webhook.updated'],
+    })
     expect([none.status, none.body.error?.code ?? none.body.code]).toEqual([400, 'event_type_not_readable'])
   })
 
@@ -83,9 +118,13 @@ describe('subscribing to webhook.* and dispatch', () => {
     const b = await k.seedAgent(SCOPES)
     const own = await k.create(a, { event_types: ['webhook.updated'] })
     const theirs = await k.create(b, { event_types: ['task.created'] })
-    expect((await k.call(asAgent(b), 'PATCH', `${BASE}/${theirs.id}`, { url: 'https://example.com/b2' })).status).toBe(200)
+    expect((await k.call(asAgent(b), 'PATCH', `${BASE}/${theirs.id}`, { url: 'https://example.com/b2' })).status).toBe(
+      200,
+    )
     expect((await k.call(asAgent(a), 'PATCH', `${BASE}/${own.id}`, { url: 'https://example.com/a2' })).status).toBe(200)
-    const mine = (await k.all("select id from events where type = 'webhook.updated' and resource_id = ?", own.id)) as { id: string }[]
+    const mine = (await k.all("select id from events where type = 'webhook.updated' and resource_id = ?", own.id)) as {
+      id: string
+    }[]
     await k.dispatch()
     expect((await k.deliveries(own.id)).map((r) => r.event_id)).toEqual(mine.map((e) => e.id))
     expect(await k.deliveries(theirs.id), 'b subscribed to task.created only').toEqual([])

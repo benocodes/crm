@@ -3,8 +3,16 @@
 // `format=raw` and attachment bodies in Gmail's wire form (JSON with one base64url member) in chunks it can vary. Web APIs only: the
 // workerd smoke bundles this file. Not in the production barrel.
 import { GmailApiError, parseHistoryList, parseMessageList, type GmailClient } from '../channels/gmail/client.js'
-import type { GmailHistoryPage, GmailMessageList, GmailMessagePart, GmailMessageResource, GmailProfile, GmailSendAs, GmailWatch } from '../channels/gmail/types.js'
-import { header,messageIdTokens } from '../channels/gmail/mime.js'
+import type {
+  GmailHistoryPage,
+  GmailMessageList,
+  GmailMessagePart,
+  GmailMessageResource,
+  GmailProfile,
+  GmailSendAs,
+  GmailWatch,
+} from '../channels/gmail/types.js'
+import { header, messageIdTokens } from '../channels/gmail/mime.js'
 
 const enc = new TextEncoder()
 
@@ -64,7 +72,11 @@ export function buildGmailMessage(spec: MessageSpec): BuiltGmailMessage {
     `${p.mimeType}${p.charset || p.text !== undefined ? `; charset=${p.charset ?? 'UTF-8'}` : ''}${boundary ? `; boundary="${boundary}"` : ''}${p.filename ? `; name="${p.filename}"` : ''}`
   const toPart = (p: PartSpec, extra: Array<[string, string]> = [], top = false): GmailMessagePart => {
     const partId = top ? '' : String(partCounter++)
-    const headers: Array<[string, string]> = [...extra, ['Content-Type', contentType(p, p.parts ? `b-${p.mimeType.length}` : undefined)], ...(p.headers ?? [])]
+    const headers: Array<[string, string]> = [
+      ...extra,
+      ['Content-Type', contentType(p, p.parts ? `b-${p.mimeType.length}` : undefined)],
+      ...(p.headers ?? []),
+    ]
     const body: GmailMessagePart['body'] = { size: 0 }
     if (p.bytes) {
       const id = p.attachmentId ?? `att-${spec.id}-${partCounter}`
@@ -91,7 +103,9 @@ export function buildGmailMessage(spec: MessageSpec): BuiltGmailMessage {
   // RFC 822 from the same tree: headers, a blank line, the body (UTF-8 8bit text, base64 attachments, multipart boundaries).
   const serialise = (p: PartSpec, extra: Array<[string, string]>): string => {
     const boundary = p.parts ? `b-${p.mimeType.length}` : undefined
-    const lines = [...extra, ['Content-Type', contentType(p, boundary)], ...(p.headers ?? [])].map(([k, v]) => `${k}: ${v}`)
+    const lines = [...extra, ['Content-Type', contentType(p, boundary)], ...(p.headers ?? [])].map(
+      ([k, v]) => `${k}: ${v}`,
+    )
     if (p.bytes) lines.push('Content-Transfer-Encoding: base64')
     else if (p.text !== undefined) lines.push('Content-Transfer-Encoding: 8bit')
     let body = ''
@@ -122,7 +136,8 @@ export function buildGmailMessage(spec: MessageSpec): BuiltGmailMessage {
  */
 export function errorBody(err: GmailApiError): Record<string, unknown> {
   if (err.status === 403 && err.reason === 'rateLimitExceeded') {
-    const message = "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com' for consumer 'project_number:000000000000'."
+    const message =
+      "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com' for consumer 'project_number:000000000000'."
     return {
       error: {
         code: 403,
@@ -134,17 +149,37 @@ export function errorBody(err: GmailApiError): Record<string, unknown> {
             '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
             reason: 'RATE_LIMIT_EXCEEDED',
             domain: 'googleapis.com',
-            metadata: { consumer: 'projects/000000000000', quota_limit_value: '1500', quota_unit: '1/min/{project}/{user}', quota_metric: 'gmail.googleapis.com/quota_total_query_cost', window_start_time: '1791363743', quota_location: 'global', service: 'gmail.googleapis.com', quota_limit: 'TotalQueryCostPerMinutePerUser' },
+            metadata: {
+              consumer: 'projects/000000000000',
+              quota_limit_value: '1500',
+              quota_unit: '1/min/{project}/{user}',
+              quota_metric: 'gmail.googleapis.com/quota_total_query_cost',
+              window_start_time: '1791363743',
+              quota_location: 'global',
+              service: 'gmail.googleapis.com',
+              quota_limit: 'TotalQueryCostPerMinutePerUser',
+            },
           },
-          { '@type': 'type.googleapis.com/google.rpc.Help', links: [{ description: 'Request a higher quota limit.', url: 'https://cloud.google.com/docs/quota#requesting_higher_quota' }] },
+          {
+            '@type': 'type.googleapis.com/google.rpc.Help',
+            links: [
+              {
+                description: 'Request a higher quota limit.',
+                url: 'https://cloud.google.com/docs/quota#requesting_higher_quota',
+              },
+            ],
+          },
         ],
       },
     }
   }
-  return { error: { code: err.status, status: err.gmailStatus, ...(err.reason ? { errors: [{ reason: err.reason }] } : {}) } }
+  return {
+    error: { code: err.status, status: err.gmailStatus, ...(err.reason ? { errors: [{ reason: err.reason }] } : {}) },
+  }
 }
 
-const wireOf = (members: Array<[string, unknown]>): Uint8Array => enc.encode(`{${members.map(([k, v]) => `${JSON.stringify(k)}:${JSON.stringify(v)}`).join(',')}}`)
+const wireOf = (members: Array<[string, unknown]>): Uint8Array =>
+  enc.encode(`{${members.map(([k, v]) => `${JSON.stringify(k)}:${JSON.stringify(v)}`).join(',')}}`)
 
 /** Gmail's `format=raw` body: a message resource whose `snippet` is hostile to a naive scanner, then the base64url `raw` member. */
 export function rawWire(msg: BuiltGmailMessage): Uint8Array {
@@ -160,10 +195,17 @@ export function rawWire(msg: BuiltGmailMessage): Uint8Array {
     ['raw', toBase64Url(msg.rfc822)],
   ])
 }
-export const attachmentWire = (bytes: Uint8Array): Uint8Array => wireOf([['size', bytes.byteLength], ['data', toBase64Url(bytes)]])
+export const attachmentWire = (bytes: Uint8Array): Uint8Array =>
+  wireOf([
+    ['size', bytes.byteLength],
+    ['data', toBase64Url(bytes)],
+  ])
 
 /** A lazily pulled stream over `bytes`, cut into chunks of `size(index)` bytes. */
-export function chunkedStream(bytes: Uint8Array, size: number | ((index: number) => number)): ReadableStream<Uint8Array> {
+export function chunkedStream(
+  bytes: Uint8Array,
+  size: number | ((index: number) => number),
+): ReadableStream<Uint8Array> {
   let at = 0
   let index = 0
   return new ReadableStream<Uint8Array>({
@@ -177,7 +219,14 @@ export function chunkedStream(bytes: Uint8Array, size: number | ((index: number)
 }
 
 /** `messageId` is '' for the two list calls, which carry `startHistoryId` / `q` and `pageToken` instead. */
-export type FakeGmailCall = { op: 'full' | 'raw' | 'attachment' | 'history' | 'list' | 'watch' | 'stop' | 'send' | 'metadata'; messageId: string; attachmentId?: string; startHistoryId?: string; q?: string; pageToken?: string | null }
+export type FakeGmailCall = {
+  op: 'full' | 'raw' | 'attachment' | 'history' | 'list' | 'watch' | 'stop' | 'send' | 'metadata'
+  messageId: string
+  attachmentId?: string
+  startHistoryId?: string
+  q?: string
+  pageToken?: string | null
+}
 
 /**
  * One scripted history record ([[CHN5]] D72, D82). `added` entries carry `labelIds` as Gmail sends them on the record (every real record did): the listed `labels`,
@@ -192,26 +241,55 @@ export interface FakeHistoryRecord {
 }
 
 export class FakeGmail implements GmailClient {
-  readonly sendRequests:Array<{raw:string;threadId?:string}>=[]
-  loseSendResponses=0
-  delaySentSearches=0
-  private sentSequence=0
-  private acceptSend(raw:string,threadId?:string):{id:string;threadId:string}{
-    this.enterList({op:'send',messageId:''})
-    this.sendRequests.push({raw,...(threadId?{threadId}:{})})
-    const unfolded=raw.split('\r\n\r\n')[0]!.replace(/\r\n[ \t]+/g,' ')
-    const headers=unfolded.split('\r\n').map(line=>{const at=line.indexOf(':');return [line.slice(0,at),line.slice(at+1).trim()] as [string,string]})
-    const bytes=Uint8Array.from(atob(raw.split('\r\n\r\n')[1]!.replace(/\s/g,'')),c=>c.charCodeAt(0))
-    const id=`sent-${++this.sentSequence}`,thread=threadId??`sent-thread-${this.sentSequence}`
-    const message=buildGmailMessage({id,threadId:thread,headers,labels:['SENT'],internalDate:Date.now(),payload:{mimeType:'text/plain',text:new TextDecoder().decode(bytes)}})
-    message.rfc822=enc.encode(raw)
+  readonly sendRequests: Array<{ raw: string; threadId?: string }> = []
+  loseSendResponses = 0
+  delaySentSearches = 0
+  private sentSequence = 0
+  private acceptSend(raw: string, threadId?: string): { id: string; threadId: string } {
+    this.enterList({ op: 'send', messageId: '' })
+    this.sendRequests.push({ raw, ...(threadId ? { threadId } : {}) })
+    const unfolded = raw.split('\r\n\r\n')[0]!.replace(/\r\n[ \t]+/g, ' ')
+    const headers = unfolded.split('\r\n').map((line) => {
+      const at = line.indexOf(':')
+      return [line.slice(0, at), line.slice(at + 1).trim()] as [string, string]
+    })
+    const bytes = Uint8Array.from(atob(raw.split('\r\n\r\n')[1]!.replace(/\s/g, '')), (c) => c.charCodeAt(0))
+    const id = `sent-${++this.sentSequence}`,
+      thread = threadId ?? `sent-thread-${this.sentSequence}`
+    const message = buildGmailMessage({
+      id,
+      threadId: thread,
+      headers,
+      labels: ['SENT'],
+      internalDate: Date.now(),
+      payload: { mimeType: 'text/plain', text: new TextDecoder().decode(bytes) },
+    })
+    message.rfc822 = enc.encode(raw)
     this.add(message)
-    const history=String(Number(this.profile.historyId)+1);this.profile.historyId=history;this.history.push({id:history,added:[{id,labels:['SENT']}]})
-    if(this.loseSendResponses-->0)throw new Error('fake lost accepted send response')
-    return {id,threadId:thread}
+    const history = String(Number(this.profile.historyId) + 1)
+    this.profile.historyId = history
+    this.history.push({ id: history, added: [{ id, labels: ['SENT'] }] })
+    if (this.loseSendResponses-- > 0) throw new Error('fake lost accepted send response')
+    return { id, threadId: thread }
   }
-  async sendMessage(raw:string,threadId?:string):Promise<{id:string;threadId:string}>{await this.authenticate();return this.acceptSend(raw,threadId)}
-  async getMessageMetadata(id:string):Promise<GmailMessageResource>{await this.authenticate();const m=this.enter({op:'metadata',messageId:id}).resource;return {id:m.id,threadId:m.threadId,labelIds:m.labelIds,payload:{headers:m.payload?.headers?.filter(h=>['message-id','references','subject'].includes(h.name.toLowerCase()))}}}
+  async sendMessage(raw: string, threadId?: string): Promise<{ id: string; threadId: string }> {
+    await this.authenticate()
+    return this.acceptSend(raw, threadId)
+  }
+  async getMessageMetadata(id: string): Promise<GmailMessageResource> {
+    await this.authenticate()
+    const m = this.enter({ op: 'metadata', messageId: id }).resource
+    return {
+      id: m.id,
+      threadId: m.threadId,
+      labelIds: m.labelIds,
+      payload: {
+        headers: m.payload?.headers?.filter((h) =>
+          ['message-id', 'references', 'subject'].includes(h.name.toLowerCase()),
+        ),
+      },
+    }
+  }
   /** Every call, in order. */
   readonly calls: FakeGmailCall[] = []
   private readonly messages = new Map<string, BuiltGmailMessage>()
@@ -239,7 +317,10 @@ export class FakeGmail implements GmailClient {
   /** When set, called before every message, history and list call: the access token source, the way `HttpGmailClient` asks per request. A token `valid` refuses is a `401`. */
   private tokenSource: { token: () => Promise<string>; valid: (t: string) => boolean } | null = null
 
-  constructor(messages: Iterable<BuiltGmailMessage> = [], opts: { chunk?: number | ((index: number) => number); profile?: GmailProfile; sendAs?: GmailSendAs[] } = {}) {
+  constructor(
+    messages: Iterable<BuiltGmailMessage> = [],
+    opts: { chunk?: number | ((index: number) => number); profile?: GmailProfile; sendAs?: GmailSendAs[] } = {},
+  ) {
     this.chunk = opts.chunk ?? 4096
     this.profile = opts.profile ?? { emailAddress: 'owner@vibase.test', historyId: '1' }
     this.sendAs = opts.sendAs ?? [{ sendAsEmail: this.profile.emailAddress, isPrimary: true }]
@@ -273,20 +354,34 @@ export class FakeGmail implements GmailClient {
   }
 
   /** Gmail's `users.history.list` body for a request: no `history` member when empty, no `nextPageToken` on the last page. */
-  historyWire(startHistoryId: string, pageToken: string | null | undefined, maxResults: number): Record<string, unknown> {
-    if (Number(startHistoryId) < this.expireHistoryBefore) throw new GmailApiError({ status: 404, gmailStatus: 'NOT_FOUND', reason: 'notFound' })
+  historyWire(
+    startHistoryId: string,
+    pageToken: string | null | undefined,
+    maxResults: number,
+  ): Record<string, unknown> {
+    if (Number(startHistoryId) < this.expireHistoryBefore)
+      throw new GmailApiError({ status: 404, gmailStatus: 'NOT_FOUND', reason: 'notFound' })
     const all = this.history.filter((r) => Number(r.id) > Number(startHistoryId))
     const at = pageToken ? Number(pageToken.replace(/^h/, '')) : 0
     const slice = all.slice(at, at + maxResults)
     const wire = (r: FakeHistoryRecord) => {
-      const msg = (id: string, labels?: string[] | null) => ({ id, threadId: this.messages.get(id)?.resource.threadId ?? `t-${id}`, ...(labels ? { labelIds: labels } : {}) })
-      const labelsOf = (a: { id: string; labels?: string[] | null }): string[] | null => (a.labels === null ? null : (a.labels ?? this.messages.get(a.id)?.resource.labelIds ?? ['INBOX']))
+      const msg = (id: string, labels?: string[] | null) => ({
+        id,
+        threadId: this.messages.get(id)?.resource.threadId ?? `t-${id}`,
+        ...(labels ? { labelIds: labels } : {}),
+      })
+      const labelsOf = (a: { id: string; labels?: string[] | null }): string[] | null =>
+        a.labels === null ? null : (a.labels ?? this.messages.get(a.id)?.resource.labelIds ?? ['INBOX'])
       return {
         id: r.id,
         messages: [...(r.added ?? []).map((a) => msg(a.id))],
-        ...((r.added?.length ?? 0) > 0 ? { messagesAdded: r.added!.map((a) => ({ message: msg(a.id, labelsOf(a)) })) } : {}),
+        ...((r.added?.length ?? 0) > 0
+          ? { messagesAdded: r.added!.map((a) => ({ message: msg(a.id, labelsOf(a)) })) }
+          : {}),
         ...(r.deleted?.length ? { messagesDeleted: r.deleted.map((id) => ({ message: msg(id) })) } : {}),
-        ...(r.labelsAdded?.length ? { labelsAdded: r.labelsAdded.map((l) => ({ message: msg(l.id), labelIds: l.labelIds })) } : {}),
+        ...(r.labelsAdded?.length
+          ? { labelsAdded: r.labelsAdded.map((l) => ({ message: msg(l.id), labelIds: l.labelIds })) }
+          : {}),
       }
     }
     return {
@@ -297,19 +392,24 @@ export class FakeGmail implements GmailClient {
   }
   /** Gmail's `users.messages.list` body: matches of `after:<unix seconds> {in:inbox in:sent}` plus `extraListed`; no `messages` member when empty. */
   messageListWire(q: string, pageToken: string | null | undefined, maxResults: number): Record<string, unknown> {
-    const ref=/rfc822msgid:<?([^ >]+)>?/.exec(q)?.[1]
-    if(ref&&this.delaySentSearches-->0)return {}
+    const ref = /rfc822msgid:<?([^ >]+)>?/.exec(q)?.[1]
+    if (ref && this.delaySentSearches-- > 0) return {}
     const after = Number(/after:(\d+)/.exec(q)?.[1] ?? 0)
     const matching = [...this.messages.values()].filter((m) => {
       const labels = m.resource.labelIds ?? []
-      if(ref)return labels.includes('SENT')&&messageIdTokens(header(m.resource.payload?.headers,'Message-ID')).includes(ref)
+      if (ref)
+        return (
+          labels.includes('SENT') && messageIdTokens(header(m.resource.payload?.headers, 'Message-ID')).includes(ref)
+        )
       return (labels.includes('INBOX') || labels.includes('SENT')) && Number(m.resource.internalDate) / 1000 >= after
     })
     const ids = [...new Set([...matching.map((m) => m.resource.id), ...this.extraListed])]
     const at = pageToken ? Number(pageToken.replace(/^m/, '')) : 0
     const slice = ids.slice(at, at + maxResults)
     return {
-      ...(slice.length > 0 ? { messages: slice.map((id) => ({ id, threadId: this.messages.get(id)?.resource.threadId ?? `t-${id}` })) } : {}),
+      ...(slice.length > 0
+        ? { messages: slice.map((id) => ({ id, threadId: this.messages.get(id)?.resource.threadId ?? `t-${id}` })) }
+        : {}),
       ...(at + maxResults < ids.length ? { nextPageToken: `m${at + maxResults}` } : {}),
       resultSizeEstimate: ids.length,
     }
@@ -328,7 +428,12 @@ export class FakeGmail implements GmailClient {
     await this.authenticate()
     this.enterList({ op: 'stop', messageId: '' })
   }
-  async listHistory(p: { startHistoryId: string; pageToken?: string | null; maxResults: number; historyTypes: readonly string[] }): Promise<GmailHistoryPage> {
+  async listHistory(p: {
+    startHistoryId: string
+    pageToken?: string | null
+    maxResults: number
+    historyTypes: readonly string[]
+  }): Promise<GmailHistoryPage> {
     await this.authenticate()
     this.enterList({ op: 'history', messageId: '', startHistoryId: p.startHistoryId, pageToken: p.pageToken ?? null })
     return parseHistoryList(this.historyWire(p.startHistoryId, p.pageToken, p.maxResults))
@@ -344,18 +449,22 @@ export class FakeGmail implements GmailClient {
    * messages/<id>/attachments/<id>,profile}`, a bearer token `valid` accepts, the same call log and the same scripted failures as the client methods.
    */
   readonly handle = async (req: Request, valid: (token: string) => boolean): Promise<Response> => {
-    const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
+    const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+      new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
     const auth = req.headers.get('authorization') ?? ''
-    if (!auth.startsWith('Bearer ') || !valid(auth.slice(7))) return json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
+    if (!auth.startsWith('Bearer ') || !valid(auth.slice(7)))
+      return json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
     const url = new URL(req.url)
     const path = url.pathname.replace(/^\/gmail\/v1\/users\/me/, '')
     const q = url.searchParams
     try {
       if (path === '/profile') return json(this.profile)
-      if(path==='/messages/send'&&req.method==='POST'){
-        const p=await req.json() as {raw:string,threadId?:string}
-        const raw=new TextDecoder().decode(Uint8Array.from(atob(p.raw.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0)))
-        return json(this.acceptSend(raw,p.threadId))
+      if (path === '/messages/send' && req.method === 'POST') {
+        const p = (await req.json()) as { raw: string; threadId?: string }
+        const raw = new TextDecoder().decode(
+          Uint8Array.from(atob(p.raw.replaceAll('-', '+').replaceAll('_', '/')), (c) => c.charCodeAt(0)),
+        )
+        return json(this.acceptSend(raw, p.threadId))
       }
       if (path === '/watch' && req.method === 'POST') {
         this.watchTokens.push({ op: 'watch', token: auth.slice(7) })
@@ -369,8 +478,15 @@ export class FakeGmail implements GmailClient {
         return new Response(null, { status: 204 })
       }
       if (path === '/history') {
-        this.enterList({ op: 'history', messageId: '', startHistoryId: q.get('startHistoryId') ?? '', pageToken: q.get('pageToken') })
-        return json(this.historyWire(q.get('startHistoryId') ?? '', q.get('pageToken'), Number(q.get('maxResults') ?? 100)))
+        this.enterList({
+          op: 'history',
+          messageId: '',
+          startHistoryId: q.get('startHistoryId') ?? '',
+          pageToken: q.get('pageToken'),
+        })
+        return json(
+          this.historyWire(q.get('startHistoryId') ?? '', q.get('pageToken'), Number(q.get('maxResults') ?? 100)),
+        )
       }
       if (path === '/messages') {
         this.enterList({ op: 'list', messageId: '', q: q.get('q') ?? '', pageToken: q.get('pageToken') })
@@ -378,21 +494,31 @@ export class FakeGmail implements GmailClient {
       }
       const attachment = /^\/messages\/([^/]+)\/attachments\/([^/]+)$/.exec(path)
       if (attachment) {
-        const message = this.enter({ op: 'attachment', messageId: decodeURIComponent(attachment[1]!), attachmentId: decodeURIComponent(attachment[2]!) })
+        const message = this.enter({
+          op: 'attachment',
+          messageId: decodeURIComponent(attachment[1]!),
+          attachmentId: decodeURIComponent(attachment[2]!),
+        })
         const bytes = message.attachments.get(decodeURIComponent(attachment[2]!))
         if (!bytes) return json({ error: { code: 404, status: 'NOT_FOUND' } }, 404)
-        return new Response(attachmentWire(bytes) as unknown as BodyInit, { headers: { 'content-type': 'application/json' } })
+        return new Response(attachmentWire(bytes) as unknown as BodyInit, {
+          headers: { 'content-type': 'application/json' },
+        })
       }
       const one = /^\/messages\/([^/]+)$/.exec(path)
       if (one) {
         const id = decodeURIComponent(one[1]!)
-        if(q.get('format')==='metadata')return json(await this.getMessageMetadata(id))
-        if (q.get('format') === 'raw') return new Response(rawWire(this.enter({ op: 'raw', messageId: id })) as unknown as BodyInit, { headers: { 'content-type': 'application/json' } })
+        if (q.get('format') === 'metadata') return json(await this.getMessageMetadata(id))
+        if (q.get('format') === 'raw')
+          return new Response(rawWire(this.enter({ op: 'raw', messageId: id })) as unknown as BodyInit, {
+            headers: { 'content-type': 'application/json' },
+          })
         return json(this.enter({ op: 'full', messageId: id }).resource)
       }
       return json({ error: { code: 404, status: 'NOT_FOUND' } }, 404)
     } catch (err) {
-      if (err instanceof GmailApiError) return json(errorBody(err), err.status, err.retryAfter ? { 'retry-after': err.retryAfter } : {})
+      if (err instanceof GmailApiError)
+        return json(errorBody(err), err.status, err.retryAfter ? { 'retry-after': err.retryAfter } : {})
       throw err
     }
   }

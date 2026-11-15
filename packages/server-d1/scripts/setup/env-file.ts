@@ -2,11 +2,16 @@
 // nothing from `process.env` and never prints a value.
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
-import { isAbsolute, join, resolve } from 'node:path'
+import { isAbsolute, resolve } from 'node:path'
 import type { EnvFileProbe } from './types.js'
 
 /** `arg` is resolved against the repo root (pnpm `-C` moves the working directory); the default is `.env.<env>` there. */
-export function probeEnvFile(arg: string | undefined, envName: string, repoRoot: string, rootEnvPath: string): EnvFileProbe {
+export function probeEnvFile(
+  arg: string | undefined,
+  envName: string,
+  repoRoot: string,
+  rootEnvPath: string,
+): EnvFileProbe {
   const given = arg ?? `.env.${envName}`
   const path = isAbsolute(given) ? given : resolve(repoRoot, given)
   const display = arg ?? `.env.${envName}`
@@ -20,7 +25,8 @@ export function probeEnvFile(arg: string | undefined, envName: string, repoRoot:
   }
   const target = real(path)
   const root = real(rootEnvPath) ?? resolve(rootEnvPath)
-  if (resolve(path) === resolve(rootEnvPath) || (target !== null && target === root)) return { display, status: 'root-env' }
+  if (resolve(path) === resolve(rootEnvPath) || (target !== null && target === root))
+    return { display, status: 'root-env' }
   if (target === null || !existsSync(target)) return { display, status: 'missing' }
   const ignored = spawnSync('git', ['check-ignore', '-q', '--', path], { cwd: repoRoot })
   if (ignored.status !== 0) return { display, status: 'not-ignored' }
@@ -31,14 +37,24 @@ export function probeEnvFile(arg: string | undefined, envName: string, repoRoot:
  * Appends `NAME=value` to the instance's own env file ([[OPS249]] D3: `AUTH_SECRET`), creating it with mode 600 when it is missing. The same path rule as the probe; the root `.env` is
  * refused (it holds another instance's values) and a name already assigned is never overwritten. The value is written to the file only.
  */
-export function appendEnvFileVar(arg: string | undefined, envName: string, name: string, value: string, repoRoot: string, rootEnvPath: string): void {
+export function appendEnvFileVar(
+  arg: string | undefined,
+  envName: string,
+  name: string,
+  value: string,
+  repoRoot: string,
+  rootEnvPath: string,
+): void {
   const given = arg ?? `.env.${envName}`
   const path = isAbsolute(given) ? given : resolve(repoRoot, given)
-  if (resolve(path) === resolve(rootEnvPath)) throw new Error(`${given} is the root .env, which holds another instance's values`)
+  if (resolve(path) === resolve(rootEnvPath))
+    throw new Error(`${given} is the root .env, which holds another instance's values`)
   const text = existsSync(path) ? readFileSync(path, 'utf8') : null
   // A missing file is about to be created: the probe skipped git's ignore check for it, so it is made here, before anything is written.
-  if (text === null && spawnSync('git', ['check-ignore', '-q', '--', path], { cwd: repoRoot }).status !== 0) throw new Error(`${given} is not ignored by git: add it to .gitignore before it holds a secret`)
-  if (text !== null && new RegExp(`^\\s*(export\\s+)?${name}=`, 'm').test(text)) throw new Error(`${name} is already set in ${given}: refusing to overwrite a key`)
+  if (text === null && spawnSync('git', ['check-ignore', '-q', '--', path], { cwd: repoRoot }).status !== 0)
+    throw new Error(`${given} is not ignored by git: add it to .gitignore before it holds a secret`)
+  if (text !== null && new RegExp(`^\\s*(export\\s+)?${name}=`, 'm').test(text))
+    throw new Error(`${name} is already set in ${given}: refusing to overwrite a key`)
   const line = `${text === null || text === '' || text.endsWith('\n') ? '' : '\n'}${name}=${value}\n`
   if (text === null) writeFileSync(path, line, { mode: 0o600 })
   else appendFileSync(path, line)

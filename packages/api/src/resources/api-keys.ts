@@ -19,14 +19,19 @@ export const apiKeyRecord = z.object({
 export type ApiKeyRecord = z.infer<typeof apiKeyRecord>
 
 /** Read-only here; `api_keys.create` and `api_keys.revoke` are hand-written (`admin/`). */
-export const apiKeys = withColumnFilters(withColumnSorts(definePreparedResource({
-  notProposable: 'credentials are not proposable',
-  surface: 'meta',
-  name: 'api_keys',
-  eventName: 'api_key',
-  table: 'api_keys',
-  scopeResource: 'agents',
-  operations: ['list', 'get'],
-  record: apiKeyRecord,
-  filters: { agent_id: { schema: z.uuid() } },
-}), ['last_used_at', 'expires_at']))
+export const apiKeys = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      notProposable: 'credentials are not proposable',
+      surface: 'meta',
+      name: 'api_keys',
+      eventName: 'api_key',
+      table: 'api_keys',
+      scopeResource: 'agents',
+      operations: ['list', 'get'],
+      record: apiKeyRecord,
+      filters: { agent_id: { schema: z.uuid() } },
+    }),
+    ['last_used_at', 'expires_at'],
+  ),
+)

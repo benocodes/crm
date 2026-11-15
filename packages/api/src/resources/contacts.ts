@@ -33,12 +33,16 @@ const record = z.object({
     .string()
     .nullable()
     .optional()
-    .describe("When the latest outbound interaction with any of the contact's identities happened; null if none. Derived, read-only; present only with interactions:read."),
+    .describe(
+      "When the latest outbound interaction with any of the contact's identities happened; null if none. Derived, read-only; present only with interactions:read.",
+    ),
   last_interacted_at: z
     .string()
     .nullable()
     .optional()
-    .describe("When the latest interaction, in either direction, with any of the contact's identities happened; null if none. Derived, read-only; present only with interactions:read."),
+    .describe(
+      "When the latest interaction, in either direction, with any of the contact's identities happened; null if none. Derived, read-only; present only with interactions:read.",
+    ),
 })
 
 const fields = {
@@ -49,18 +53,23 @@ const create = z.strictObject(fields)
 const update = create.partial()
 
 /** Contacts on the prepared path ([[CORE36]]): the company must be a live company of this organisation; delete tombstones the identities as a set. */
-export const contacts = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'api',
-  name: 'contacts',
-  eventName: 'contact',
-  table: 'contacts',
-  associable: true,
-  customFilters: { tag_id: tagIdFilter('contacts'), tag: tagNameFilter('contacts'), ...contactActivityFilters },
-  derived: contactDerived,
-  record,
-  create,
-  update,
-  filters: { company_id: { schema: z.uuid() } },
-  references: { company_id: { table: 'companies', live: true } },
-  override: { delete: (env, id) => deleteContactOperation(env, id as string) },
-}), ['name', 'last_contacted_at', 'last_interacted_at']))
+export const contacts = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'api',
+      name: 'contacts',
+      eventName: 'contact',
+      table: 'contacts',
+      associable: true,
+      customFilters: { tag_id: tagIdFilter('contacts'), tag: tagNameFilter('contacts'), ...contactActivityFilters },
+      derived: contactDerived,
+      record,
+      create,
+      update,
+      filters: { company_id: { schema: z.uuid() } },
+      references: { company_id: { table: 'companies', live: true } },
+      override: { delete: (env, id) => deleteContactOperation(env, id as string) },
+    }),
+    ['name', 'last_contacted_at', 'last_interacted_at'],
+  ),
+)

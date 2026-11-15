@@ -27,8 +27,10 @@ afterAll(async () => {
   bundle?.dispose()
 })
 
-const vibaseRows = (w: Workerd) => Promise.all(['events', 'users', 'principals', 'memberships'].map((t) => w.rows(`select * from ${t} order by 1`)))
-const idsOf = async (w: Workerd, table: string) => (await w.controlRows<{ id: string }>(`select id from ${table}`)).map((r) => r.id)
+const vibaseRows = (w: Workerd) =>
+  Promise.all(['events', 'users', 'principals', 'memberships'].map((t) => w.rows(`select * from ${t} order by 1`)))
+const idsOf = async (w: Workerd, table: string) =>
+  (await w.controlRows<{ id: string }>(`select id from ${table}`)).map((r) => r.id)
 
 // [[CORE243]] D4, D5, P1, P3 in workerd: Better Auth writes into the migrated auth_* tables through the test composition (the only one that admits sign-up and
 // client registration), the hasher round-trips, and a vault with data in it is untouched.
@@ -40,13 +42,19 @@ describe('Better Auth in workerd on control migration 0001 (test admission)', ()
     await seedDeployment(open.d1, { organizationId: ORG, provider: 'better-auth', externalId: 'org_auth' })
     await seedPrincipal(open.d1, { id: OWNER, kind: 'user', email: 'owner@vibase.test' })
     vibaseBefore = await vibaseRows(open)
-    const up = await open.call('/auth/sign-up/email', { body: { name: 'Owner', email: 'owner@auth.test', password: PASSWORD } })
+    const up = await open.call('/auth/sign-up/email', {
+      body: { name: 'Owner', email: 'owner@auth.test', password: PASSWORD },
+    })
     expect(up.status, await up.clone().text()).toBe(200)
     cookie = up.headers.get('set-cookie')!.split(';')[0]!
     const session = (await (await open.call('/auth/get-session', { cookie })).json()) as { user: { email: string } }
     expect(session.user.email).toBe('owner@auth.test')
-    expect((await open.call('/auth/sign-in/email', { body: { email: 'owner@auth.test', password: PASSWORD } })).status).toBe(200)
-    const wrong = await open.call('/auth/sign-in/email', { body: { email: 'owner@auth.test', password: 'not the password at all' } })
+    expect(
+      (await open.call('/auth/sign-in/email', { body: { email: 'owner@auth.test', password: PASSWORD } })).status,
+    ).toBe(200)
+    const wrong = await open.call('/auth/sign-in/email', {
+      body: { email: 'owner@auth.test', password: 'not the password at all' },
+    })
     expect(wrong.status).toBe(401)
     for (const t of ['auth_users', 'auth_accounts', 'auth_sessions']) {
       const ids = await idsOf(open, t)
@@ -58,7 +66,9 @@ describe('Better Auth in workerd on control migration 0001 (test admission)', ()
   })
 
   it('records the timestamp form Better Auth writes: ISO-8601 text', async () => {
-    const [u] = await open.controlRows<{ created_at: unknown; email_verified: unknown }>('select created_at, email_verified from auth_users')
+    const [u] = await open.controlRows<{ created_at: unknown; email_verified: unknown }>(
+      'select created_at, email_verified from auth_users',
+    )
     expect(typeof u!.created_at).toBe('string')
     expect(new Date(u!.created_at as string).toISOString()).toBe(u!.created_at)
     expect(u!.email_verified).toBe(0)
@@ -69,7 +79,9 @@ describe('Better Auth in workerd on control migration 0001 (test admission)', ()
     expect(res.status).toBe(200)
     const body = (await res.json()) as { keys: Array<{ kid: string }> }
     expect(body.keys.length).toBeGreaterThan(0)
-    const rows = await open.controlRows<{ id: string; public_key: string; private_key: string }>('select id, public_key, private_key from auth_jwks')
+    const rows = await open.controlRows<{ id: string; public_key: string; private_key: string }>(
+      'select id, public_key, private_key from auth_jwks',
+    )
     expect(rows.length).toBeGreaterThan(0)
     for (const r of rows) {
       expect(r.id).toMatch(UUIDV7)
@@ -91,17 +103,25 @@ describe('Better Auth in workerd on control migration 0001 (test admission)', ()
     })
     expect(reg.status, await reg.clone().text()).toBe(201)
     const client = (await reg.json()) as { client_id: string }
-    const codes = await open.call('/auth/device/code', { body: { client_id: client.client_id, scope: 'openid offline_access', resource: 'http://localhost:8787' } })
+    const codes = await open.call('/auth/device/code', {
+      body: { client_id: client.client_id, scope: 'openid offline_access', resource: 'http://localhost:8787' },
+    })
     expect(codes.status, await codes.clone().text()).toBe(200)
     for (const t of ['auth_oauth_clients', 'auth_device_codes']) {
       const ids = await idsOf(open, t)
       expect(ids.length, t).toBe(1)
       expect(ids[0], t).toMatch(UUIDV7)
     }
-    const [c] = await open.controlRows<{ client_id: string; redirect_uris: string; token_endpoint_auth_method: string }>('select client_id, redirect_uris, token_endpoint_auth_method from auth_oauth_clients')
+    const [c] = await open.controlRows<{
+      client_id: string
+      redirect_uris: string
+      token_endpoint_auth_method: string
+    }>('select client_id, redirect_uris, token_endpoint_auth_method from auth_oauth_clients')
     expect(c!.client_id).toBe(client.client_id)
     expect(c!.token_endpoint_auth_method).toBe('none')
-    const [d] = await open.controlRows<{ client_id: string; status: string; polling_interval: number }>('select client_id, status, polling_interval from auth_device_codes')
+    const [d] = await open.controlRows<{ client_id: string; status: string; polling_interval: number }>(
+      'select client_id, status, polling_interval from auth_device_codes',
+    )
     expect(d).toMatchObject({ client_id: client.client_id, status: 'pending' })
   })
 
@@ -118,7 +138,9 @@ describe('Better Auth in workerd on control migration 0001 (test admission)', ()
 
 describe('a composition handed no invitation port (and no test admission) refuses sign-up (P1, fail closed; the Worker hands the port in, [[CORE287]])', () => {
   it('refuses sign-up and writes no user', async () => {
-    const res = await shut.call('/auth/sign-up/email', { body: { name: 'Nobody', email: 'nobody@auth.test', password: PASSWORD } })
+    const res = await shut.call('/auth/sign-up/email', {
+      body: { name: 'Nobody', email: 'nobody@auth.test', password: PASSWORD },
+    })
     expect(res.status).toBeGreaterThanOrEqual(400)
     expect(res.status).toBeLessThan(500)
     expect(await shut.controlRows('select id from auth_users')).toEqual([])
@@ -126,7 +148,14 @@ describe('a composition handed no invitation port (and no test admission) refuse
 
   it('registers a public client under the policy and still writes no user ([[CORE283]] P6 closes the foundation refusal)', async () => {
     const res = await shut.call('/auth/oauth2/register', {
-      body: { client_name: 'Nobody', token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'], scope: 'openid', redirect_uris: ['https://client.test/callback'] },
+      body: {
+        client_name: 'Nobody',
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+        scope: 'openid',
+        redirect_uris: ['https://client.test/callback'],
+      },
     })
     expect(res.status).toBe(201)
     expect((await shut.controlRows('select id from auth_oauth_clients')).length).toBe(1)
@@ -136,10 +165,18 @@ describe('a composition handed no invitation port (and no test admission) refuse
 
 // [[CORE287]] P1, P2 in workerd: with an invitation port the gate admits exactly the invited email with its token, and every other attempt is the one 403 with no auth row.
 describe('the invitation gate in workerd ([[CORE287]] P1, P2)', () => {
-  const up = (email: string, invitation_token?: string) => gated.call('/auth/sign-up/email', { body: { name: 'Ann', email, password: PASSWORD, ...(invitation_token === undefined ? {} : { invitation_token }) }, headers: { 'cf-connecting-ip': `203.0.113.${Math.floor(Math.random() * 200) + 1}` } })
+  const up = (email: string, invitation_token?: string) =>
+    gated.call('/auth/sign-up/email', {
+      body: { name: 'Ann', email, password: PASSWORD, ...(invitation_token === undefined ? {} : { invitation_token }) },
+      headers: { 'cf-connecting-ip': `203.0.113.${Math.floor(Math.random() * 200) + 1}` },
+    })
   it('refuses a missing token, a wrong token and another email with the same 403 and writes no auth row; admits the invited email, differently cased', async () => {
     const bodies = new Set<string>()
-    for (const [email, token] of [['ann@auth.test', undefined], ['ann@auth.test', 'wrong'], ['bob@auth.test', 'the-token']] as const) {
+    for (const [email, token] of [
+      ['ann@auth.test', undefined],
+      ['ann@auth.test', 'wrong'],
+      ['bob@auth.test', 'the-token'],
+    ] as const) {
       const res = await up(email, token)
       expect(res.status).toBe(403)
       bodies.add(JSON.stringify(await res.json()))
@@ -165,7 +202,12 @@ describe('the hasher in workerd (P3)', () => {
 
   it('verifies, inside workerd, a hash made elsewhere with other parameters', async () => {
     const old = await hashPassword('made in node', { iterations: 5_000 })
-    const verify = async (password: string) => ((await (await open.call(`/__verify?hash=${encodeURIComponent(old)}&password=${encodeURIComponent(password)}`)).json()) as { ok: boolean }).ok
+    const verify = async (password: string) =>
+      (
+        (await (
+          await open.call(`/__verify?hash=${encodeURIComponent(old)}&password=${encodeURIComponent(password)}`)
+        ).json()) as { ok: boolean }
+      ).ok
     expect(await verify('made in node')).toBe(true)
     expect(await verify('made in nodf')).toBe(false)
   })

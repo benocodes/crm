@@ -1,5 +1,18 @@
 import { sql, type SqlBool } from 'kysely'
-import { assertStep, codecs, defineOperation, execute, readMaybe, step, ts, unit, uuidv7, type PreparedOperation, type Read, type StorageBinding } from '@vibase/storage'
+import {
+  assertStep,
+  codecs,
+  defineOperation,
+  execute,
+  readMaybe,
+  step,
+  ts,
+  unit,
+  uuidv7,
+  type PreparedOperation,
+  type Read,
+  type StorageBinding,
+} from '@vibase/storage'
 import { generateApiKey } from './auth/api-keys.js'
 import { assertAgentGrantable, grantableScopes } from './auth/roles.js'
 import { ApiError } from './errors.js'
@@ -48,13 +61,26 @@ export function bootstrapOperation(a: BootstrapArgs): PreparedOperation<Bootstra
         [USER]: readMaybe(
           qc.db
             .selectFrom('users')
-            .select(['users.id', 'users.auth_provider', 'users.auth_subject', ts.exact(qc, 'users.updated_at').as('__stamp')])
+            .select([
+              'users.id',
+              'users.auth_provider',
+              'users.auth_subject',
+              ts.exact(qc, 'users.updated_at').as('__stamp'),
+            ])
             .where('users.email', '=', a.email),
         ),
-        [ORG]: readMaybe(qc.db.selectFrom('organizations').select('organizations.id').where('organizations.id', '=', a.organizationId)),
+        [ORG]: readMaybe(
+          qc.db.selectFrom('organizations').select('organizations.id').where('organizations.id', '=', a.organizationId),
+        ),
       }
       if (a.login) {
-        reads[HOLDER] = readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', a.login.provider).where('users.auth_subject', '=', a.login.subject))
+        reads[HOLDER] = readMaybe(
+          qc.db
+            .selectFrom('users')
+            .select('users.id')
+            .where('users.auth_provider', '=', a.login.provider)
+            .where('users.auth_subject', '=', a.login.subject),
+        )
       }
       return reads
     },
@@ -64,8 +90,13 @@ export function bootstrapOperation(a: BootstrapArgs): PreparedOperation<Bootstra
       const login = a.login
       if (login) {
         const holder = found.maybe(HOLDER)
-        if (holder && holder.id !== user?.id) throw new Error(`login ${login.provider}:${login.subject} belongs to another user`)
-        if (user && user.auth_subject !== null && (user.auth_provider !== login.provider || user.auth_subject !== login.subject)) {
+        if (holder && holder.id !== user?.id)
+          throw new Error(`login ${login.provider}:${login.subject} belongs to another user`)
+        if (
+          user &&
+          user.auth_subject !== null &&
+          (user.auth_provider !== login.provider || user.auth_subject !== login.subject)
+        ) {
           throw new Error(`user ${a.email} is linked to another login`)
         }
       }
@@ -103,7 +134,10 @@ export function bootstrapOperation(a: BootstrapArgs): PreparedOperation<Bootstra
               .onConflict((oc) => oc.doNothing()),
           ),
           // A user inserted by a racing bootstrap leaves ours a no-op: the assertion aborts the unit whole, so no orphan principal remains.
-          assertStep(qc, sql<SqlBool>`exists (select 1 from "users" where "users"."email" = ${a.email} and "users"."id" = ${a.ids.user})`),
+          assertStep(
+            qc,
+            sql<SqlBool>`exists (select 1 from "users" where "users"."email" = ${a.email} and "users"."id" = ${a.ids.user})`,
+          ),
         )
       } else if (login && user.auth_subject === null) {
         steps.push(
@@ -120,10 +154,28 @@ export function bootstrapOperation(a: BootstrapArgs): PreparedOperation<Bootstra
         )
       }
       steps.push(
-        step(qc.db.insertInto('memberships').values({ id: a.ids.membership, created_at: at, updated_at: at, organization_id: a.organizationId, user_id: userId, role: 'owner', created_by: userId })),
+        step(
+          qc.db.insertInto('memberships').values({
+            id: a.ids.membership,
+            created_at: at,
+            updated_at: at,
+            organization_id: a.organizationId,
+            user_id: userId,
+            role: 'owner',
+            created_by: userId,
+          }),
+        ),
         step(qc.db.insertInto('principals').values({ id: a.ids.agent, kind: 'agent', created_at: at })),
         step(
-          qc.db.insertInto('agents').values({ id: a.ids.agent, created_at: at, updated_at: at, organization_id: a.organizationId, name: a.agentName, scopes: [...a.scopes], created_by: userId }),
+          qc.db.insertInto('agents').values({
+            id: a.ids.agent,
+            created_at: at,
+            updated_at: at,
+            organization_id: a.organizationId,
+            name: a.agentName,
+            scopes: [...a.scopes],
+            created_by: userId,
+          }),
         ),
         step(
           qc.db.insertInto('api_keys').values({
@@ -144,7 +196,13 @@ export function bootstrapOperation(a: BootstrapArgs): PreparedOperation<Bootstra
       return unit({
         steps,
         events: [],
-        decode: () => ({ organizationId: a.organizationId, userId, agentId: a.ids.agent, apiKeyId: a.ids.apiKey, key: a.secret.key }),
+        decode: () => ({
+          organizationId: a.organizationId,
+          userId,
+          agentId: a.ids.agent,
+          apiKeyId: a.ids.apiKey,
+          key: a.secret.key,
+        }),
       })
     },
   })
@@ -185,7 +243,8 @@ export async function bootstrap(
   const now = env.now ?? new Date()
   const newId = env.newId ?? (() => uuidv7(now))
   const secret = await generateApiKey(env.randomBytes ?? ((n) => crypto.getRandomValues(new Uint8Array(n))))
-  const login = opts.authSubject !== undefined ? { provider: opts.authProvider ?? 'clerk', subject: opts.authSubject } : null
+  const login =
+    opts.authSubject !== undefined ? { provider: opts.authProvider ?? 'clerk', subject: opts.authSubject } : null
   const minted = newId() // consumed on both engines: the id source advances the same way
   const op = bootstrapOperation({
     organizationId: storage.kind === 'd1' ? storage.organizationId : minted,

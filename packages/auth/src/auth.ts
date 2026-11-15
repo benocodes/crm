@@ -75,7 +75,14 @@ export interface InvitationAdmission {
    * rows yet and a live invitation created no later than the account admitted it; re-admits a removed member whose sign-in carries a live token for its email ([[CORE302]]); otherwise writes nothing.
    * Throws when the write fails: the session is then not created.
    */
-  settle(a: { subject: string; email: string; name: string; /** The Better Auth user's `emailVerified` ([[CORE294]] P5): true for a Google-verified account, false for a password sign-up. */ emailVerified: boolean; accountCreatedAt: Date; /** The invitation token this sign-in carries ([[CORE302]] P1): the `vibase-invitation` header (password) or the OAuth state's server context (Google). Only a re-admission reads it. */ token?: string }): Promise<void>
+  settle(a: {
+    subject: string
+    email: string
+    name: string /** The Better Auth user's `emailVerified` ([[CORE294]] P5): true for a Google-verified account, false for a password sign-up. */
+    emailVerified: boolean
+    accountCreatedAt: Date /** The invitation token this sign-in carries ([[CORE302]] P1): the `vibase-invitation` header (password) or the OAuth state's server context (Google). Only a re-admission reads it. */
+    token?: string
+  }): Promise<void>
 }
 
 export interface CreateAuthOptions {
@@ -138,7 +145,12 @@ const snake = (name: string): string => name.replace(/([a-z0-9])([A-Z])/g, '$1_$
 
 // What Better Auth would create unmapped, for the plugins composed below. Only the field NAMES are read, to give each one its snake_case column: a field a library upgrade
 // adds is mapped the same way, and the schema test fails until a new reviewed migration carries it.
-const unmapped = getAuthTables({ baseURL: 'https://x.invalid', secret: 'x'.repeat(32), rateLimit: { enabled: true, storage: 'database' }, plugins: composePlugins('https://x.invalid') } as BetterAuthOptions)
+const unmapped = getAuthTables({
+  baseURL: 'https://x.invalid',
+  secret: 'x'.repeat(32),
+  rateLimit: { enabled: true, storage: 'database' },
+  plugins: composePlugins('https://x.invalid'),
+} as BetterAuthOptions)
 
 function schemaFor(key: ModelKey): { modelName: string; fields: Record<string, string> } {
   const table = (unmapped as Record<string, { fields: Record<string, unknown> }>)[key]
@@ -146,7 +158,12 @@ function schemaFor(key: ModelKey): { modelName: string; fields: Record<string, s
   return { modelName: MODELS[key], fields: Object.fromEntries(Object.keys(table.fields).map((f) => [f, snake(f)])) }
 }
 
-function composePlugins(baseURL: string, schema?: (key: ModelKey) => ReturnType<typeof schemaFor>, vaultScopes: readonly string[] = [], grantable: readonly string[] = []) {
+function composePlugins(
+  baseURL: string,
+  schema?: (key: ModelKey) => ReturnType<typeof schemaFor>,
+  vaultScopes: readonly string[] = [],
+  grantable: readonly string[] = [],
+) {
   const s = schema ?? (() => undefined)
   const scopes = [...AUTH_SCOPES, ...vaultScopes]
   // [[CORE283]] P6: a registered client holds the OIDC scopes and the grantable vault scopes, never a human-only one (the stored client scopes bound every later grant).
@@ -210,7 +227,11 @@ function composePlugins(baseURL: string, schema?: (key: ModelKey) => ReturnType<
   ]
 }
 
-const refusal = () => new APIError('FORBIDDEN', { code: INVITATION_REQUIRED, message: 'sign-up requires a valid invitation for this email' })
+const refusal = () =>
+  new APIError('FORBIDDEN', {
+    code: INVITATION_REQUIRED,
+    message: 'sign-up requires a valid invitation for this email',
+  })
 
 /**
  * The gate ([[CORE287]] P1, P2): a live invitation for `body.email` whose token is `body.invitation_token`, else the one refusal. Every cause is the same `403`, and nothing is written.
@@ -227,10 +248,22 @@ async function requireInvitation(admission: InvitationAdmission | undefined, bod
  * The Google branch of the backstop ([[CORE294]] D8, P3, P4): a user creation on an OAuth callback is admitted only when the token in the state's SERVER context is live for the Google profile's email AND
  * Google reports that email verified. The token is read from `serverContext` only, never from a top-level state key (client `additionalData`) and never from the callback's query.
  */
-async function requireGoogleInvitation(admission: InvitationAdmission | undefined, user: { email?: unknown; emailVerified?: unknown } | null | undefined, state: { serverContext?: Record<string, unknown> }): Promise<void> {
+async function requireGoogleInvitation(
+  admission: InvitationAdmission | undefined,
+  user: { email?: unknown; emailVerified?: unknown } | null | undefined,
+  state: { serverContext?: Record<string, unknown> },
+): Promise<void> {
   const token = state.serverContext?.[SERVER_CONTEXT_TOKEN]
   const email = typeof user?.email === 'string' ? user.email.trim().toLowerCase() : ''
-  if (!admission || email === '' || user?.emailVerified !== true || typeof token !== 'string' || token === '' || !(await admission.admits({ email, token }))) throw refusal()
+  if (
+    !admission ||
+    email === '' ||
+    user?.emailVerified !== true ||
+    typeof token !== 'string' ||
+    token === '' ||
+    !(await admission.admits({ email, token }))
+  )
+    throw refusal()
 }
 
 /** The OAuth state of the current request, or null when there is none (an email sign-up, or a call outside a request). */
@@ -260,8 +293,15 @@ const endpointGate = (admission: InvitationAdmission | undefined, open: boolean,
     // [[CORE288]] P7: with email off there is no self-service reset. The request is refused for every HTTP request (it never creates a verification row, never captures, returns or logs a token); the one
     // in-process call (`issueResetToken`) has no `request` and a waiter registered for its address.
     if (captures && RESET_REQUEST_PATHS.has(ctx.path)) {
-      const email = typeof (ctx.body as { email?: unknown } | undefined)?.email === 'string' ? (ctx.body as { email: string }).email.trim().toLowerCase() : ''
-      if (ctx.request !== undefined || !captures.has(email)) throw new APIError('BAD_REQUEST', { code: 'RESET_PASSWORD_DISABLED', message: 'password reset links are issued by a workspace owner' })
+      const email =
+        typeof (ctx.body as { email?: unknown } | undefined)?.email === 'string'
+          ? (ctx.body as { email: string }).email.trim().toLowerCase()
+          : ''
+      if (ctx.request !== undefined || !captures.has(email))
+        throw new APIError('BAD_REQUEST', {
+          code: 'RESET_PASSWORD_DISABLED',
+          message: 'password reset links are issued by a workspace owner',
+        })
     }
     // [[CORE294]] D8, P3: the invitation token of a Google sign-up rides the OAuth state's SERVER context (never a URL), and only a non-empty string is copied.
     if (ctx.path === '/sign-in/social') {
@@ -270,11 +310,19 @@ const endpointGate = (admission: InvitationAdmission | undefined, open: boolean,
     }
     if (ctx.path !== '/oauth2/register') return
     const method = (ctx.body as { token_endpoint_auth_method?: unknown } | undefined)?.token_endpoint_auth_method
-    if (method !== 'none') throw new APIError('BAD_REQUEST', { error: 'invalid_client_metadata', error_description: 'only public clients may register: token_endpoint_auth_method must be none' })
+    if (method !== 'none')
+      throw new APIError('BAD_REQUEST', {
+        error: 'invalid_client_metadata',
+        error_description: 'only public clients may register: token_endpoint_auth_method must be none',
+      })
   })
 
 /** The Better Auth options of the composition. Exported for the schema generator and the tests; the Worker uses `createAuthHandler`. */
-export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): BetterAuthOptions {
+export function authOptions(
+  db: AuthDatabaseLike,
+  config: AuthRuntimeConfig,
+  opts: CreateAuthOptions = {},
+): BetterAuthOptions {
   const open = opts.unsafeOpenAdmissionForTests === true
   const { admission } = opts
   return {
@@ -303,9 +351,23 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
     user: schemaFor('user'),
     session: { ...schemaFor('session'), expiresIn: BROWSER_SESSION_SECONDS },
     // [[CORE294]] D8: an existing account is linked to Google only by a Google-verified email equal to its own, with no trusted providers; the local email need not be verified (a password account never is: no verification mail).
-    account: { ...schemaFor('account'), accountLinking: { enabled: true, trustedProviders: [], requireLocalEmailVerified: false } },
+    account: {
+      ...schemaFor('account'),
+      accountLinking: { enabled: true, trustedProviders: [], requireLocalEmailVerified: false },
+    },
     // [[CORE294]] D7: Google is registered only when the composition hands in a complete client; scopes are exactly `openid email profile`, the redirect URI is Better Auth's `<base>/auth/callback/google`.
-    ...(config.google ? { socialProviders: { google: { clientId: config.google.clientId, clientSecret: config.google.clientSecret, disableDefaultScope: true, scope: [...GOOGLE_SCOPES] } } } : {}),
+    ...(config.google
+      ? {
+          socialProviders: {
+            google: {
+              clientId: config.google.clientId,
+              clientSecret: config.google.clientSecret,
+              disableDefaultScope: true,
+              scope: [...GOOGLE_SCOPES],
+            },
+          },
+        }
+      : {}),
     verification: schemaFor('verification'),
     rateLimit: { enabled: true, storage: 'database', ...schemaFor('rateLimit') },
     advanced: {
@@ -321,7 +383,10 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
         // The backstop at the point EVERY account creation passes ([[CORE287]] P2): a path the endpoint hook does not name (a later Google sign-in) carries no token and is refused here.
         // [[CORE294]] P4: a creation on the OAuth callback carries the provider's profile and the state; any other creation (email sign-up) is judged on the request body as before.
         create: {
-          before: async (user: { email?: unknown; emailVerified?: unknown }, ctx: { body?: unknown } | null | undefined) => {
+          before: async (
+            user: { email?: unknown; emailVerified?: unknown },
+            ctx: { body?: unknown } | null | undefined,
+          ) => {
             if (open) return
             const state = await oauthStateOrNull()
             if (state) await requireGoogleInvitation(admission, user, state)
@@ -332,16 +397,49 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
       session: {
         // Every successful sign-up and sign-in creates a session: the one place acceptance and repair ([[CORE287]] P3, P5) run, before the session exists, so a failure leaves no cookie.
         create: {
-          before: async (session: { userId: string }, ctx: { headers?: Headers; context?: { internalAdapter?: { findUserById(id: string): Promise<{ id: string; email: string; name: string; emailVerified?: boolean; createdAt: Date | string | number } | null> }; logger?: { error(...a: unknown[]): void } } } | null | undefined) => {
+          before: async (
+            session: { userId: string },
+            ctx:
+              | {
+                  headers?: Headers
+                  context?: {
+                    internalAdapter?: {
+                      findUserById(id: string): Promise<{
+                        id: string
+                        email: string
+                        name: string
+                        emailVerified?: boolean
+                        createdAt: Date | string | number
+                      } | null>
+                    }
+                    logger?: { error(...a: unknown[]): void }
+                  }
+                }
+              | null
+              | undefined,
+          ) => {
             if (!admission) return
             const user = await ctx?.context?.internalAdapter?.findUserById(session.userId)
             if (!user) return
             const token = await presentedToken(ctx)
             try {
-              await admission.settle({ subject: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified === true, accountCreatedAt: new Date(user.createdAt), ...(token === undefined ? {} : { token }) })
+              await admission.settle({
+                subject: user.id,
+                email: user.email,
+                name: user.name,
+                emailVerified: user.emailVerified === true,
+                accountCreatedAt: new Date(user.createdAt),
+                ...(token === undefined ? {} : { token }),
+              })
             } catch (err) {
-              ctx?.context?.logger?.error('invitation acceptance failed', err instanceof Error ? err.message : 'unknown error')
-              throw new APIError('INTERNAL_SERVER_ERROR', { code: 'invitation_acceptance_failed', message: 'the account could not be settled; sign in again to retry' })
+              ctx?.context?.logger?.error(
+                'invitation acceptance failed',
+                err instanceof Error ? err.message : 'unknown error',
+              )
+              throw new APIError('INTERNAL_SERVER_ERROR', {
+                code: 'invitation_acceptance_failed',
+                message: 'the account could not be settled; sign in again to retry',
+              })
             }
           },
         },
@@ -380,19 +478,28 @@ export function createAuth(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts
           captures.delete(key)
         }
         if (token === undefined) return null
-        const { internalAdapter } = (await auth.$context) as unknown as { internalAdapter: { findVerificationValue(identifier: string): Promise<{ expiresAt: Date } | null> } }
+        const { internalAdapter } = (await auth.$context) as unknown as {
+          internalAdapter: { findVerificationValue(identifier: string): Promise<{ expiresAt: Date } | null> }
+        }
         const row = await internalAdapter.findVerificationValue(`reset-password:${token}`)
         if (!row) return null
         return { token, expiresAt: new Date(row.expiresAt) }
       })
-      lanes.set(key, run.catch(() => undefined))
+      lanes.set(
+        key,
+        run.catch(() => undefined),
+      )
       return run
     },
   }
 }
 
 /** The handler alone, for composition that issues no reset links (and the tests): no `sendResetPassword`, so every reset request is refused by the library. */
-export function createAuthHandler(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): (req: Request) => Promise<Response> {
+export function createAuthHandler(
+  db: AuthDatabaseLike,
+  config: AuthRuntimeConfig,
+  opts: CreateAuthOptions = {},
+): (req: Request) => Promise<Response> {
   const auth = betterAuth(authOptions(db, config, opts))
   const metadata = oauthProviderAuthServerMetadata(auth as never)
   return (req) => (new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? metadata(req) : auth.handler(req))
@@ -407,29 +514,66 @@ const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
  * Idempotent and convergent: a missing row is created; an existing client has its seeded shape (public, device and refresh grants, linked to both resources, `scopes` NULL so it
  * follows the provider's list) put back, and its `disabled` flag is left alone. Written by bootstrap only (AGENTS.md invariant 5's auth-table exception); the Worker's handler never calls it.
  */
-export async function seedFirstPartyClient(db: AuthDatabaseLike, config: { baseURL: string }): Promise<{ client: 'created' | 'existing' }> {
+export async function seedFirstPartyClient(
+  db: AuthDatabaseLike,
+  config: { baseURL: string },
+): Promise<{ client: 'created' | 'existing' }> {
   // The secret signs nothing here: the instance exists only to reach the configured adapter (names, JSON encodings, ids).
-  const auth = betterAuth(authOptions(db, { secret: 'seed-only-secret-never-signs-anything-0123456789', baseURL: config.baseURL }))
+  const auth = betterAuth(
+    authOptions(db, { secret: 'seed-only-secret-never-signs-anything-0123456789', baseURL: config.baseURL }),
+  )
   const { adapter } = (await auth.$context) as unknown as { adapter: SeedAdapter }
   const now = new Date()
   for (const identifier of resourcesFor(config.baseURL)) {
     if (!(await adapter.findOne({ model: 'oauthResource', where: [{ field: 'identifier', value: identifier }] }))) {
-      await adapter.create({ model: 'oauthResource', data: { identifier, name: identifier, allowedScopes: null, dpopBoundAccessTokensRequired: false, disabled: false, policyVersion: 1, createdAt: now, updatedAt: now } })
+      await adapter.create({
+        model: 'oauthResource',
+        data: {
+          identifier,
+          name: identifier,
+          allowedScopes: null,
+          dpopBoundAccessTokensRequired: false,
+          disabled: false,
+          policyVersion: 1,
+          createdAt: now,
+          updatedAt: now,
+        },
+      })
     }
   }
-  const shape = { name: 'Vibase CLI', tokenEndpointAuthMethod: 'none', grantTypes: [DEVICE_GRANT, 'refresh_token'], responseTypes: [], redirectUris: [], scopes: null, applicationType: 'native' }
+  const shape = {
+    name: 'Vibase CLI',
+    tokenEndpointAuthMethod: 'none',
+    grantTypes: [DEVICE_GRANT, 'refresh_token'],
+    responseTypes: [],
+    redirectUris: [],
+    scopes: null,
+    applicationType: 'native',
+  }
   const where = [{ field: 'clientId', value: CLI_CLIENT_ID }]
   const existing = await adapter.findOne({ model: 'oauthClient', where })
   // Updated only when the stored shape differs, so a converged re-run writes nothing (not even `updated_at`).
   const current = existing as Record<string, unknown> | null
-  const same = current !== null && Object.entries(shape).every(([k, v]) => JSON.stringify(current[k] ?? null) === JSON.stringify(v))
+  const same =
+    current !== null &&
+    Object.entries(shape).every(([k, v]) => JSON.stringify(current[k] ?? null) === JSON.stringify(v))
   if (existing) {
     if (!same) await adapter.update({ model: 'oauthClient', where, update: { ...shape, updatedAt: now } })
-  }
-  else await adapter.create({ model: 'oauthClient', data: { clientId: CLI_CLIENT_ID, ...shape, createdAt: now, updatedAt: now } })
+  } else
+    await adapter.create({
+      model: 'oauthClient',
+      data: { clientId: CLI_CLIENT_ID, ...shape, createdAt: now, updatedAt: now },
+    })
   for (const resourceId of resourcesFor(config.baseURL)) {
-    const link = [{ field: 'clientId', value: CLI_CLIENT_ID }, { field: 'resourceId', value: resourceId }]
-    if (!(await adapter.findOne({ model: 'oauthClientResource', where: link }))) await adapter.create({ model: 'oauthClientResource', data: { clientId: CLI_CLIENT_ID, resourceId, createdAt: now } })
+    const link = [
+      { field: 'clientId', value: CLI_CLIENT_ID },
+      { field: 'resourceId', value: resourceId },
+    ]
+    if (!(await adapter.findOne({ model: 'oauthClientResource', where: link })))
+      await adapter.create({
+        model: 'oauthClientResource',
+        data: { clientId: CLI_CLIENT_ID, resourceId, createdAt: now },
+      })
   }
   return { client: existing ? 'existing' : 'created' }
 }
@@ -437,5 +581,9 @@ export async function seedFirstPartyClient(db: AuthDatabaseLike, config: { baseU
 interface SeedAdapter {
   findOne(o: { model: string; where: Array<{ field: string; value: unknown }> }): Promise<unknown | null>
   create(o: { model: string; data: Record<string, unknown> }): Promise<unknown>
-  update(o: { model: string; where: Array<{ field: string; value: unknown }>; update: Record<string, unknown> }): Promise<unknown>
+  update(o: {
+    model: string
+    where: Array<{ field: string; value: unknown }>
+    update: Record<string, unknown>
+  }): Promise<unknown>
 }

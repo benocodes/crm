@@ -5,7 +5,9 @@ import { scopeItems } from './scope-text.js'
 // [[UI247]] D5: the registry's one catalogue for vault scopes, the page's own sentences for the four OIDC scopes, "No description" for the rest; every value is text.
 describe('scopeItems', () => {
   it('a vault scope shows its catalogue sentence', () => {
-    expect(scopeItems(['contacts:read'])).toEqual([{ name: 'contacts:read', description: SCOPE_DESCRIPTIONS['contacts:read'] }])
+    expect(scopeItems(['contacts:read'])).toEqual([
+      { name: 'contacts:read', description: SCOPE_DESCRIPTIONS['contacts:read'] },
+    ])
     expect(SCOPE_DESCRIPTIONS['contacts:read']).toBeTruthy()
   })
 

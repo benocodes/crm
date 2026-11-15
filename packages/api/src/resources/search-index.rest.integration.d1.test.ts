@@ -18,20 +18,59 @@ afterAll(async () => {
   await e?.close()
 })
 
-const headers = () => ({ authorization: `Bearer ${mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes: ALL, kind: 'agent' })}`, 'content-type': 'application/json' })
+const headers = () => ({
+  authorization: `Bearer ${mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes: ALL, kind: 'agent' })}`,
+  'content-type': 'application/json',
+})
 const call = async (method: string, path: string, body?: unknown) => {
-  const res = await app.request(path, { method, headers: headers(), body: body === undefined ? undefined : JSON.stringify(body) })
+  const res = await app.request(path, {
+    method,
+    headers: headers(),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
   return { status: res.status, json: res.status === 204 ? null : ((await res.json()) as any) }
 }
-const all = async (text: string, ...binds: unknown[]) => ((await e.d1!.prepare(text).bind(...binds).all()).results ?? []) as Record<string, any>[]
+const all = async (text: string, ...binds: unknown[]) =>
+  ((
+    await e
+      .d1!.prepare(text)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as Record<string, any>[]
 const quote = (s: string) => `"${s.replaceAll('"', '""')}"`
 const hit = async (table: string, term: string) =>
-  (await all(`SELECT b.id AS id FROM "${table}" b WHERE b.deleted_at IS NULL AND b.id IN (SELECT id FROM "${table}_search" WHERE "${table}_search" MATCH ?)`, quote(term))).map((r) => r.id as string)
+  (
+    await all(
+      `SELECT b.id AS id FROM "${table}" b WHERE b.deleted_at IS NULL AND b.id IN (SELECT id FROM "${table}_search" WHERE "${table}_search" MATCH ?)`,
+      quote(term),
+    )
+  ).map((r) => r.id as string)
 
 const CASES = [
-  { table: 'companies', path: '/api/v1/companies', create: { name: 'Quokka Holdings', domain: 'quokka.example' }, patch: { name: 'Platypus Holdings', domain: 'platypus.example' }, oldTerm: 'quokka', newTerm: 'platypus' },
-  { table: 'notes', path: '/api/v1/notes', create: { title: 'Quokka plan', content: 'wombat renewal' }, patch: { content: 'numbat renewal' }, oldTerm: 'wombat', newTerm: 'numbat' },
-  { table: 'tasks', path: '/api/v1/tasks', create: { title: 'Quokka call', notes: 'wombat follow up' }, patch: { notes: 'numbat follow up' }, oldTerm: 'wombat', newTerm: 'numbat' },
+  {
+    table: 'companies',
+    path: '/api/v1/companies',
+    create: { name: 'Quokka Holdings', domain: 'quokka.example' },
+    patch: { name: 'Platypus Holdings', domain: 'platypus.example' },
+    oldTerm: 'quokka',
+    newTerm: 'platypus',
+  },
+  {
+    table: 'notes',
+    path: '/api/v1/notes',
+    create: { title: 'Quokka plan', content: 'wombat renewal' },
+    patch: { content: 'numbat renewal' },
+    oldTerm: 'wombat',
+    newTerm: 'numbat',
+  },
+  {
+    table: 'tasks',
+    path: '/api/v1/tasks',
+    create: { title: 'Quokka call', notes: 'wombat follow up' },
+    patch: { notes: 'numbat follow up' },
+    oldTerm: 'wombat',
+    newTerm: 'numbat',
+  },
 ] as const
 
 describe.each(CASES)('$table: index follows the real write paths and emits no event of its own', (c) => {
@@ -64,7 +103,11 @@ describe('schema.get does not show the search machinery', () => {
     expect(names.filter((n) => /_search(_|$)/.test(n))).toEqual([])
     for (const resource of ['companies', 'notes', 'tasks']) expect(names).toContain(resource)
     // the real database does hold them, so the exclusion is doing work
-    const real = (await all("SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE '%\\_search%' ESCAPE '\\'")).map((r) => r.name as string)
-    expect(real).toEqual(expect.arrayContaining(['companies_search', 'companies_search_data', 'notes_search_idx', 'tasks_search_docsize']))
+    const real = (
+      await all("SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE '%\\_search%' ESCAPE '\\'")
+    ).map((r) => r.name as string)
+    expect(real).toEqual(
+      expect.arrayContaining(['companies_search', 'companies_search_data', 'notes_search_idx', 'tasks_search_docsize']),
+    )
   })
 })

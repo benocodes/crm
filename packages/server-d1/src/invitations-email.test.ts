@@ -29,45 +29,100 @@ function flakyControl(real: D1Like): D1Like {
   return {
     prepare(query: string) {
       const p = real.prepare(query)
-      return { bind: (...v: unknown[]) => { const b = p.bind(...v); sqlOf.set(b, query); return b }, run: () => p.run(), all: () => p.all(), first: () => p.first() } as D1PreparedLike
+      return {
+        bind: (...v: unknown[]) => {
+          const b = p.bind(...v)
+          sqlOf.set(b, query)
+          return b
+        },
+        run: () => p.run(),
+        all: () => p.all(),
+        first: () => p.first(),
+      } as D1PreparedLike
     },
     async batch(batch: D1PreparedLike[]) {
       const sqls = batch.map((s) => sqlOf.get(s) ?? '')
-      if (inject.insert && sqls.some((q) => /insert\s+into\s+invitations/i.test(q))) throw new Error('injected insert failure')
-      if (inject.revoke && sqls.some((q) => /update\s+invitations\s+set\s+revoked_at/i.test(q))) throw new Error('injected revoke failure')
+      if (inject.insert && sqls.some((q) => /insert\s+into\s+invitations/i.test(q)))
+        throw new Error('injected insert failure')
+      if (inject.revoke && sqls.some((q) => /update\s+invitations\s+set\s+revoked_at/i.test(q)))
+        throw new Error('injected revoke failure')
       return real.batch(batch)
     },
   }
 }
 
 const worker = (on: boolean) =>
-  composeD1Worker({ DB: w.d1, CONTROL_DB: flakyControl(w.control), AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, ...(on ? { EMAIL: email, AUTH_EMAIL_FROM: 'Invites@Vibase.Test' } : {}) })
-const rows = async (d1: D1Like, text: string, ...binds: unknown[]) => ((await d1.prepare(text).bind(...binds).all()).results ?? []) as Array<Record<string, any>>
+  composeD1Worker({
+    DB: w.d1,
+    CONTROL_DB: flakyControl(w.control),
+    AUTH_PROVIDER: 'better-auth',
+    AUTH_SECRET,
+    PUBLIC_BASE_URL: AUTH_BASE,
+    ...(on ? { EMAIL: email, AUTH_EMAIL_FROM: 'Invites@Vibase.Test' } : {}),
+  })
+const rows = async (d1: D1Like, text: string, ...binds: unknown[]) =>
+  ((
+    await d1
+      .prepare(text)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as Array<Record<string, any>>
 type Res = { status: number; json: any }
-const call = async (wk: ReturnType<typeof worker>, method: string, path: string, tok: string, body?: unknown): Promise<Res> => {
-  const res = await wk.fetch(new Request(AUTH_BASE + path, { method, headers: { authorization: `Bearer ${tok}`, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }))
+const call = async (
+  wk: ReturnType<typeof worker>,
+  method: string,
+  path: string,
+  tok: string,
+  body?: unknown,
+): Promise<Res> => {
+  const res = await wk.fetch(
+    new Request(AUTH_BASE + path, {
+      method,
+      headers: { authorization: `Bearer ${tok}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+  )
   const text = await res.text()
   return { status: res.status, json: text ? JSON.parse(text) : null }
 }
 const PATH = '/meta/v1/invitations'
-const create = (wk: ReturnType<typeof worker>, tok: string, body: Record<string, unknown> = {}) => call(wk, 'POST', PATH, tok, { email: 'ann@x.test', role: 'member', ...body })
-const list = async (wk: ReturnType<typeof worker>, tok: string) => (await call(wk, 'GET', PATH, tok)).json.data as Array<Record<string, any>>
+const create = (wk: ReturnType<typeof worker>, tok: string, body: Record<string, unknown> = {}) =>
+  call(wk, 'POST', PATH, tok, { email: 'ann@x.test', role: 'member', ...body })
+const list = async (wk: ReturnType<typeof worker>, tok: string) =>
+  (await call(wk, 'GET', PATH, tok)).json.data as Array<Record<string, any>>
 const tokenOf = (url: string) => new URL(url).hash.replace(/^#token=/, '')
 const linkIn = (text: string) => /https?:\/\/\S+#token=\S+/.exec(text)![0]!
-const auditOf = async (id: string): Promise<Array<Record<string, any>>> => (await rows(w.control, 'select * from control_audit where target_id = ? order by at, id', id)).map((r) => ({ ...r, detail: JSON.parse(r.detail) }))
+const auditOf = async (id: string): Promise<Array<Record<string, any>>> =>
+  (await rows(w.control, 'select * from control_audit where target_id = ? order by at, id', id)).map((r) => ({
+    ...r,
+    detail: JSON.parse(r.detail),
+  }))
 
 let owner: { id: string; session: () => Promise<string> }
 beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', email: 'boot@x.test', agentName: 'bot', authProvider: 'none', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) })
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
+  const r = await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', email: 'boot@x.test', agentName: 'bot', authProvider: 'none', authOrgId: 'org_acme' },
+    { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) },
+  )
   orgId = r.organizationId
   kit = authKit(w.control, { scopes: declared })
   const { userId, cookie } = await kit.signUp('owner@x.test')
   const id = uuidv7(NOW)
-  await seedPrincipal(w.d1, { id, kind: 'user', email: 'owner@x.test', authProvider: 'better-auth', authSubject: userId })
+  await seedPrincipal(w.d1, {
+    id,
+    kind: 'user',
+    email: 'owner@x.test',
+    authProvider: 'better-auth',
+    authSubject: userId,
+  })
   await seedMembership(w.d1, { organizationId: orgId, userId: id, role: 'owner' })
   owner = { id, session: () => kit.sessionJwt(cookie) }
   email = fakeEmail()
@@ -76,8 +131,24 @@ beforeEach(async () => {
 })
 
 const signUp = (wk: ReturnType<typeof worker>, address: string, token: string) =>
-  wk.fetch(new Request(`${AUTH_BASE}/auth/sign-up/email`, { method: 'POST', headers: { origin: AUTH_BASE, 'content-type': 'application/json', 'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}` }, body: JSON.stringify({ name: 'Ann Tester', email: address, password: 'a long enough password 123', invitation_token: token }) }))
-const crmUser = async (address: string) => (await rows(w.d1, 'select email_verified from users where email = ?', address))[0]
+  wk.fetch(
+    new Request(`${AUTH_BASE}/auth/sign-up/email`, {
+      method: 'POST',
+      headers: {
+        origin: AUTH_BASE,
+        'content-type': 'application/json',
+        'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}`,
+      },
+      body: JSON.stringify({
+        name: 'Ann Tester',
+        email: address,
+        password: 'a long enough password 123',
+        invitation_token: token,
+      }),
+    }),
+  )
+const crmUser = async (address: string) =>
+  (await rows(w.d1, 'select email_verified from users where email = ?', address))[0]
 
 describe('email on: emailed invitations (D3, D6)', () => {
   it('defaults to email: 201 with delivery and no url key, one message to the address, the audit detail carries delivery', async () => {
@@ -95,7 +166,9 @@ describe('email on: emailed invitations (D3, D6)', () => {
     expect(linkIn(m.text)).toMatch(/^https:\/\/vibase\.test\/invite#token=[A-Za-z0-9_-]{43}/)
     expect(m.html).toContain(linkIn(m.text))
     expect((await auditOf(res.json.id))[0]!.detail).toMatchObject({ delivery: 'email' })
-    expect((await rows(w.control, 'select delivery from invitations where id = ?', res.json.id))[0]).toEqual({ delivery: 'email' })
+    expect((await rows(w.control, 'select delivery from invitations where id = ?', res.json.id))[0]).toEqual({
+      delivery: 'email',
+    })
   })
 
   it('the emailed link accepts the invitation end to end, and the vault records the address as verified (D5)', async () => {
@@ -154,7 +227,7 @@ describe('email on: emailed invitations (D3, D6)', () => {
   })
 })
 
-describe('email off: today\'s behaviour (D3)', () => {
+describe("email off: today's behaviour (D3)", () => {
   it('defaults to link: url present plus delivery, nothing sent, the audit detail says link', async () => {
     const wk = worker(false)
     const res = await create(wk, await owner.session())

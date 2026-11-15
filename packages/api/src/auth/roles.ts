@@ -72,7 +72,10 @@ export { SCOPE_DESCRIPTIONS } from './scope-descriptions.js'
 export function scopesForRole(role: Role, declared: readonly string[], policy: ScopePolicy = SCOPE_POLICY): ScopeSet {
   // [[AGT8]] D31: closed under write => request_approval, whatever the policy rows say.
   if (role === 'owner') return ScopeSet.closed(declared, declared)
-  return ScopeSet.closed(declared.filter((s) => policy[s]?.member === true), declared)
+  return ScopeSet.closed(
+    declared.filter((s) => policy[s]?.member === true),
+    declared,
+  )
 }
 
 export function isAgentGrantable(scope: string, policy: ScopePolicy = SCOPE_POLICY): boolean {

@@ -2,7 +2,16 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { MIGRATIONS_DIR } from '@vibase/storage-d1/test'
-import { d1CheckNames, diffShapes, fkItem, indexItem, normalizePredicate, uniqueItem, type SchemaShape, type TableShape } from './test/schema-audit.js'
+import {
+  d1CheckNames,
+  diffShapes,
+  fkItem,
+  indexItem,
+  normalizePredicate,
+  uniqueItem,
+  type SchemaShape,
+  type TableShape,
+} from './test/schema-audit.js'
 
 const empty = (): TableShape => ({ primaryKey: [], foreignKeys: [], uniqueKeys: [], indexes: [], namedChecks: [] })
 const shape = (tables: Record<string, Partial<TableShape>>): SchemaShape => ({
@@ -20,8 +29,12 @@ function createTable(file: string, table: string): string {
 
 describe('schema audit normalisers', () => {
   it('predicate: Postgres and D1 forms agree', () => {
-    expect(normalizePredicate('((deleted_at IS NULL) AND (domain IS NOT NULL))')).toBe('deleted_at is null and domain is not null')
-    expect(normalizePredicate('deleted_at IS NULL AND domain IS NOT NULL')).toBe('deleted_at is null and domain is not null')
+    expect(normalizePredicate('((deleted_at IS NULL) AND (domain IS NOT NULL))')).toBe(
+      'deleted_at is null and domain is not null',
+    )
+    expect(normalizePredicate('deleted_at IS NULL AND domain IS NOT NULL')).toBe(
+      'deleted_at is null and domain is not null',
+    )
   })
   it('predicate: casts dropped', () => {
     expect(normalizePredicate("(kind = 'system'::text)")).toBe("kind = 'system'")
@@ -35,17 +48,26 @@ describe('schema audit normalisers', () => {
     )
   })
   it('fk item, cascade', () => {
-    expect(fkItem(['organization_id'], 'organizations', ['id'], 'CASCADE')).toBe('(organization_id) -> organizations(id) on delete cascade')
+    expect(fkItem(['organization_id'], 'organizations', ['id'], 'CASCADE')).toBe(
+      '(organization_id) -> organizations(id) on delete cascade',
+    )
   })
   it('unique item with and without predicate', () => {
-    expect(uniqueItem(['organization_id', 'domain'], 'deleted_at IS NULL AND domain IS NOT NULL')).toBe('(organization_id, domain) where deleted_at is null and domain is not null')
+    expect(uniqueItem(['organization_id', 'domain'], 'deleted_at IS NULL AND domain IS NOT NULL')).toBe(
+      '(organization_id, domain) where deleted_at is null and domain is not null',
+    )
     expect(uniqueItem(['organization_id', 'domain'], null)).toBe('(organization_id, domain)')
   })
   it('index item', () => {
-    expect(indexItem('idx_tasks_organization_id_id', ['organization_id', 'id'], null)).toBe('idx_tasks_organization_id_id (organization_id, id)')
+    expect(indexItem('idx_tasks_organization_id_id', ['organization_id', 'id'], null)).toBe(
+      'idx_tasks_organization_id_id (organization_id, id)',
+    )
   })
   it('D1 check names', () => {
-    expect(d1CheckNames(createTable('0002_identity_model.sql', 'contacts'))).toEqual(['contacts_merged_is_deleted', 'contacts_not_merged_into_self'])
+    expect(d1CheckNames(createTable('0002_identity_model.sql', 'contacts'))).toEqual([
+      'contacts_merged_is_deleted',
+      'contacts_not_merged_into_self',
+    ])
   })
   it('D1 check names: none', () => {
     expect(d1CheckNames(createTable('0001_typed_storage_core.sql', 'tasks'))).toEqual([])

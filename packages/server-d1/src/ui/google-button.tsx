@@ -20,7 +20,15 @@ export function useGoogleEnabled(): boolean {
 }
 
 /** [[CORE294]] D8: posts to `/auth/sign-in/social` and follows the returned Google URL. A failure goes to `onError` as the page's own text. */
-export function GoogleButton({ invitationToken, onError, navigate = goTo }: { invitationToken?: string; onError: (message: string) => void; navigate?: (url: string) => void }) {
+export function GoogleButton({
+  invitationToken,
+  onError,
+  navigate = goTo,
+}: {
+  invitationToken?: string
+  onError: (message: string) => void
+  navigate?: (url: string) => void
+}) {
   const [busy, setBusy] = useState(false)
   const click = async () => {
     setBusy(true)

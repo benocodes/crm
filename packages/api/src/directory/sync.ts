@@ -64,7 +64,14 @@ export type ReconcileArgs = {
   newOrganizationId: string
   env: InternalEnv
 }
-export type RefreshArgs = { provider: string; subject: string; email: string; name: string | null; emailVerified: boolean; env: InternalEnv }
+export type RefreshArgs = {
+  provider: string
+  subject: string
+  email: string
+  name: string | null
+  emailVerified: boolean
+  env: InternalEnv
+}
 
 const INTERNAL_NULL = { kind: 'internal', organizationId: null } as const
 const ORG_COLUMNS = Object.keys(organizationRecord.shape)
@@ -82,12 +89,16 @@ const REFRESH_EMAIL = 'refresh:email'
 function organizationRead(qc: QueryContext, provider: string, externalId: string) {
   return qc.db
     .selectFrom('organizations')
-    .select([...recordColumns(qc, 'organizations', ORG_COLUMNS), ts.exact(qc, 'organizations.updated_at').as('__stamp')])
+    .select([
+      ...recordColumns(qc, 'organizations', ORG_COLUMNS),
+      ts.exact(qc, 'organizations.updated_at').as('__stamp'),
+    ])
     .where('organizations.auth_provider', '=', provider)
     .where('organizations.auth_org_id', '=', externalId)
 }
 
-const orgRecord = (row: Row) => organizationRecord.parse({ id: row.id, name: row.name, created_at: row.created_at, updated_at: row.updated_at })
+const orgRecord = (row: Row) =>
+  organizationRecord.parse({ id: row.id, name: row.name, created_at: row.created_at, updated_at: row.updated_at })
 const memberRecord = (row: Row) =>
   membershipRecord.parse({
     id: row.id,
@@ -101,7 +112,13 @@ const memberRecord = (row: Row) =>
 
 /** Labels the unit's first statement `first-mutation` and its first event `first-event` (the fault-injection points). */
 function labelled(steps: Step[], firstEvent: number): Step[] {
-  return steps.map((s, i) => (i === 0 ? { ...s, label: 'first-mutation' as const } : i === firstEvent ? { ...s, label: 'first-event' as const } : s))
+  return steps.map((s, i) =>
+    i === 0
+      ? { ...s, label: 'first-mutation' as const }
+      : i === firstEvent
+        ? { ...s, label: 'first-event' as const }
+        : s,
+  )
 }
 
 const linkHolds = (provider: string, externalId: string, orgId: string) =>
@@ -114,7 +131,14 @@ function createOrganization(
 ): { steps: Step[]; eventAt: number } {
   const insert = qc.db
     .insertInto('organizations')
-    .values({ id: a.id, created_at: a.at, updated_at: a.at, name: a.name, auth_provider: a.provider, auth_org_id: a.externalId })
+    .values({
+      id: a.id,
+      created_at: a.at,
+      updated_at: a.at,
+      name: a.name,
+      auth_provider: a.provider,
+      auth_org_id: a.externalId,
+    })
     .onConflict((oc) => oc.doNothing())
   const event = eventStatement(qc, {
     id: a.eventId,
@@ -173,7 +197,15 @@ export function repairOperation(a: RepairArgs): PreparedOperation<string> {
 
       if (!org) {
         const eventId = a.env.newId()
-        const made = createOrganization(qc, { provider: a.provider, externalId: a.externalId, id: orgId, name: a.fetchedName!, at, actorId: sys.id, eventId })
+        const made = createOrganization(qc, {
+          provider: a.provider,
+          externalId: a.externalId,
+          id: orgId,
+          name: a.fetchedName!,
+          at,
+          actorId: sys.id,
+          eventId,
+        })
         note(made.eventAt)
         steps.push(...made.steps)
         events.push({ id: eventId, type: 'organization.created', resourceType: 'organization', resourceId: orgId })
@@ -183,7 +215,15 @@ export function repairOperation(a: RepairArgs): PreparedOperation<string> {
         const eventId = a.env.newId()
         const insert = qc.db
           .insertInto('memberships')
-          .values({ id, created_at: at, updated_at: at, organization_id: orgId, user_id: a.userId, role: a.role, created_by: sys.id })
+          .values({
+            id,
+            created_at: at,
+            updated_at: at,
+            organization_id: orgId,
+            user_id: a.userId,
+            role: a.role,
+            created_by: sys.id,
+          })
           .onConflict((oc) => oc.doNothing())
         note(1)
         steps.push(
@@ -233,7 +273,12 @@ export function repairOperation(a: RepairArgs): PreparedOperation<string> {
             }),
           ),
         )
-        events.push({ id: eventId, type: 'membership.updated', resourceType: 'membership', resourceId: live.id as string })
+        events.push({
+          id: eventId,
+          type: 'membership.updated',
+          resourceType: 'membership',
+          resourceId: live.id as string,
+        })
       }
       return unit({ steps: labelled(steps, firstEvent), events, decode: () => orgId })
     },
@@ -246,16 +291,32 @@ export function repairOperation(a: RepairArgs): PreparedOperation<string> {
  * The read-only first step of a reconcile: which vault organisation the provider id links to and which of the
  * snapshot's subjects the vault already knows (so only the unknown ones are provisioned).
  */
-export function reconcilePlanOperation(a: { provider: string; externalId: string; subjects: readonly string[] }): PreparedOperation<{ organizationId: string | null; known: string[] }> {
+export function reconcilePlanOperation(a: {
+  provider: string
+  externalId: string
+  subjects: readonly string[]
+}): PreparedOperation<{ organizationId: string | null; known: string[] }> {
   return defineOperation({
     name: 'directory.reconcile_plan',
     mutates: false,
     reads: (qc) => {
       const reads: Record<string, Read> = {
-        [ORG]: readMaybe(qc.db.selectFrom('organizations').select('organizations.id').where('organizations.auth_provider', '=', a.provider).where('organizations.auth_org_id', '=', a.externalId)),
+        [ORG]: readMaybe(
+          qc.db
+            .selectFrom('organizations')
+            .select('organizations.id')
+            .where('organizations.auth_provider', '=', a.provider)
+            .where('organizations.auth_org_id', '=', a.externalId),
+        ),
       }
       if (a.subjects.length > 0) {
-        reads[USERS] = readSet(qc.db.selectFrom('users').select('users.auth_subject').where('users.auth_provider', '=', a.provider).where(memberOf(qc, 'users', 'auth_subject', a.subjects)))
+        reads[USERS] = readSet(
+          qc.db
+            .selectFrom('users')
+            .select('users.auth_subject')
+            .where('users.auth_provider', '=', a.provider)
+            .where(memberOf(qc, 'users', 'auth_subject', a.subjects)),
+        )
       }
       return reads
     },
@@ -263,7 +324,10 @@ export function reconcilePlanOperation(a: { provider: string; externalId: string
       unit({
         steps: [],
         events: [],
-        decode: () => ({ organizationId: (found.maybe(ORG)?.id as string | undefined) ?? null, known: found.all(USERS).map((r) => r.auth_subject as string) }),
+        decode: () => ({
+          organizationId: (found.maybe(ORG)?.id as string | undefined) ?? null,
+          known: found.all(USERS).map((r) => r.auth_subject as string),
+        }),
       }),
   })
 }
@@ -301,20 +365,33 @@ export function reconcileOperation(a: ReconcileArgs): PreparedOperation<Reconcil
       }
       if (subjects.length > 0) {
         reads[USERS] = readSet(
-          qc.db.selectFrom('users').select(['users.id', 'users.auth_subject']).where('users.auth_provider', '=', a.provider).where(memberOf(qc, 'users', 'auth_subject', subjects)),
+          qc.db
+            .selectFrom('users')
+            .select(['users.id', 'users.auth_subject'])
+            .where('users.auth_provider', '=', a.provider)
+            .where(memberOf(qc, 'users', 'auth_subject', subjects)),
         )
       }
       return reads
     },
     build: (found, qc) => {
       const org = found.maybe(ORG)
-      const summary: ReconcileSummary = { organizationId: (org?.id as string | undefined) ?? null, created: 0, updated: 0, deleted: 0 }
+      const summary: ReconcileSummary = {
+        organizationId: (org?.id as string | undefined) ?? null,
+        created: 0,
+        updated: 0,
+        deleted: 0,
+      }
       if (a.organization === null && !org) return unit({ steps: [], events: [], decode: () => summary })
 
       const idBySubject = new Map(found.all(USERS).map((u) => [u.auth_subject as string, u.id as string]))
       // A provider organisation that is gone wants no member at all; a member whose user was skipped (conflict, no email) is not wanted either.
       const desired =
-        a.organization === null ? [] : [...wanted].flatMap(([subject, role]) => (idBySubject.has(subject) ? [{ subject, userId: idBySubject.get(subject)!, role }] : []))
+        a.organization === null
+          ? []
+          : [...wanted].flatMap(([subject, role]) =>
+              idBySubject.has(subject) ? [{ subject, userId: idBySubject.get(subject)!, role }] : [],
+            )
       const live = found.all(LIVE)
       const liveBySubject = new Map(live.map((m) => [m.subject as string | null, m]))
       const keep = new Set(desired.map((d) => d.subject))
@@ -344,7 +421,15 @@ export function reconcileOperation(a: ReconcileArgs): PreparedOperation<Reconcil
 
       if (create) {
         const eventId = a.env.newId()
-        const made = createOrganization(qc, { provider: a.provider, externalId: a.externalId, id: orgId, name: a.organization!.name, at, actorId: sys.id, eventId })
+        const made = createOrganization(qc, {
+          provider: a.provider,
+          externalId: a.externalId,
+          id: orgId,
+          name: a.organization!.name,
+          at,
+          actorId: sys.id,
+          eventId,
+        })
         note(made.eventAt)
         steps.push(...made.steps)
         events.push({ id: eventId, type: 'organization.created', resourceType: 'organization', resourceId: orgId })
@@ -378,8 +463,14 @@ export function reconcileOperation(a: ReconcileArgs): PreparedOperation<Reconcil
       // creates: one INSERT from a one-parameter set
       const creates = toCreate.map((d) => ({ ...d, id: a.env.newId(), eventId: a.env.newId() }))
       if (creates.length > 0) {
-        const set = jsonRows(qc, 'r', { id: 'uuid', user_id: 'uuid', role: 'text' }, creates.map((c) => ({ id: c.id, user_id: c.userId, role: c.role })))
-        const insert = sql`insert into "memberships" ("id", "created_at", "updated_at", "organization_id", "user_id", "role", "created_by")
+        const set = jsonRows(
+          qc,
+          'r',
+          { id: 'uuid', user_id: 'uuid', role: 'text' },
+          creates.map((c) => ({ id: c.id, user_id: c.userId, role: c.role })),
+        )
+        const insert =
+          sql`insert into "memberships" ("id", "created_at", "updated_at", "organization_id", "user_id", "role", "created_by")
           select ${sql.ref('r.id')}, ${bind(qc, 'timestamp', at)}, ${bind(qc, 'timestamp', at)}, ${bind(qc, 'uuid', orgId)}, ${sql.ref('r.user_id')}, ${sql.ref('r.role')}, ${bind(qc, 'uuid', sys.id)}
           from ${set} order by ${sql.ref('r.ord')}`.compile(qc.db)
         steps.push(...exactly(qc, step(insert), creates.length))
@@ -394,7 +485,14 @@ export function reconcileOperation(a: ReconcileArgs): PreparedOperation<Reconcil
           .where('memberships.organization_id', '=', orgId)
           .where('memberships.deleted_at', 'is', null)
           .where('memberships.role', '<>', role)
-          .where(memberOf(qc, 'memberships', 'id', rows.map((r) => r.row.id as string)))
+          .where(
+            memberOf(
+              qc,
+              'memberships',
+              'id',
+              rows.map((r) => r.row.id as string),
+            ),
+          )
         steps.push(...exactly(qc, step(update), rows.length))
       }
       // deletes: one UPDATE over the planned ids
@@ -404,7 +502,14 @@ export function reconcileOperation(a: ReconcileArgs): PreparedOperation<Reconcil
           .set({ deleted_at: at, updated_at: at })
           .where('memberships.organization_id', '=', orgId)
           .where('memberships.deleted_at', 'is', null)
-          .where(memberOf(qc, 'memberships', 'id', toDelete.map((m) => m.id as string)))
+          .where(
+            memberOf(
+              qc,
+              'memberships',
+              'id',
+              toDelete.map((m) => m.id as string),
+            ),
+          )
         steps.push(...exactly(qc, step(update), toDelete.length))
       }
       // the organisation's live memberships are exactly the snapshot's (user, role) pairs
@@ -421,7 +526,11 @@ export function reconcileOperation(a: ReconcileArgs): PreparedOperation<Reconcil
         ),
       )
       // events, one set statement per kind (not gated on changes(): the exactly() above is what guarantees the set)
-      const eventSet = (type: string, rows: Array<{ eventId: string; resourceId: string; before: Record<string, unknown> | null }>, after: boolean) => {
+      const eventSet = (
+        type: string,
+        rows: Array<{ eventId: string; resourceId: string; before: Record<string, unknown> | null }>,
+        after: boolean,
+      ) => {
         if (rows.length === 0) return
         note(0)
         steps.push(
@@ -439,9 +548,21 @@ export function reconcileOperation(a: ReconcileArgs): PreparedOperation<Reconcil
         )
         for (const r of rows) events.push({ id: r.eventId, type, resourceType: 'membership', resourceId: r.resourceId })
       }
-      eventSet('membership.created', creates.map((c) => ({ eventId: c.eventId, resourceId: c.id, before: null })), true)
-      eventSet('membership.updated', toRerole.map((r) => ({ eventId: a.env.newId(), resourceId: r.row.id as string, before: memberRecord(r.row) })), true)
-      eventSet('membership.deleted', toDelete.map((m) => ({ eventId: a.env.newId(), resourceId: m.id as string, before: memberRecord(m) })), false)
+      eventSet(
+        'membership.created',
+        creates.map((c) => ({ eventId: c.eventId, resourceId: c.id, before: null })),
+        true,
+      )
+      eventSet(
+        'membership.updated',
+        toRerole.map((r) => ({ eventId: a.env.newId(), resourceId: r.row.id as string, before: memberRecord(r.row) })),
+        true,
+      )
+      eventSet(
+        'membership.deleted',
+        toDelete.map((m) => ({ eventId: a.env.newId(), resourceId: m.id as string, before: memberRecord(m) })),
+        false,
+      )
       return unit({ steps: labelled(steps, firstEvent), events, decode: () => summary })
     },
   })
@@ -462,7 +583,13 @@ export function refreshUserOperation(a: RefreshArgs): PreparedOperation<RefreshO
       [REFRESH_USER]: readMaybe(
         qc.db
           .selectFrom('users')
-          .select(['users.id', 'users.email', 'users.name', 'users.email_verified', ts.exact(qc, 'users.updated_at').as('__stamp')])
+          .select([
+            'users.id',
+            'users.email',
+            'users.name',
+            'users.email_verified',
+            ts.exact(qc, 'users.updated_at').as('__stamp'),
+          ])
           .where('users.auth_provider', '=', a.provider)
           .where('users.auth_subject', '=', a.subject),
       ),
@@ -477,7 +604,12 @@ export function refreshUserOperation(a: RefreshArgs): PreparedOperation<RefreshO
         console.warn('[directory] user refresh: email belongs to another account', { provider: a.provider })
         return outcome('conflict')
       }
-      if (user.email === a.email && user.name === a.name && codecs.boolean.read(user.email_verified) === a.emailVerified) return outcome('unchanged')
+      if (
+        user.email === a.email &&
+        user.name === a.name &&
+        codecs.boolean.read(user.email_verified) === a.emailVerified
+      )
+        return outcome('unchanged')
       const update = qc.db
         .updateTable('users')
         .set({ email: a.email, name: a.name, email_verified: a.emailVerified, updated_at: at })
@@ -562,7 +694,12 @@ export async function repairMembership(
  * the runtime's cap is refused before anything is written, members the vault has never seen are provisioned, then ONE unit.
  * No retry: drift is `409 conflict` and the provider redelivers.
  */
-export async function reconcileOrganization(storage: StorageBinding, adapter: AuthAdapter, externalId: string, env: InternalEnv): Promise<ReconcileSummary> {
+export async function reconcileOrganization(
+  storage: StorageBinding,
+  adapter: AuthAdapter,
+  externalId: string,
+  env: InternalEnv,
+): Promise<ReconcileSummary> {
   const provider = adapter.provider
   if (foreignLink(storage, provider, externalId)) throw forbidden()
   // 1. Network first.
@@ -577,7 +714,8 @@ export async function reconcileOrganization(storage: StorageBinding, adapter: Au
   try {
     // 3. Which organisation and which subjects the vault knows (read-only).
     const subjects = [...new Set(members.map((m) => m.subject))]
-    const plan = (await execute(storage, INTERNAL_NULL, reconcilePlanOperation({ provider, externalId, subjects }))).value
+    const plan = (await execute(storage, INTERNAL_NULL, reconcilePlanOperation({ provider, externalId, subjects })))
+      .value
     // 4. Provision the unknown members, one unit each. A conflict skips that member (the catch is out here: the unit already rolled back).
     const known = new Set(plan.known)
     for (const subject of subjects) {
@@ -586,8 +724,10 @@ export async function reconcileOrganization(storage: StorageBinding, adapter: Au
         await provisionUser(storage, adapter, subject, env)
       } catch (err) {
         if (err instanceof AuthFailure) console.warn('[directory] member skipped', { reason: 'no_email' })
-        else if (err instanceof ApiError && err.code === 'account_conflict') console.warn('[directory] member skipped', { reason: 'account_conflict' })
-        else if (err instanceof ApiError && err.code === 'invalid_identity') console.warn('[directory] member skipped', { reason: 'invalid_identity' })
+        else if (err instanceof ApiError && err.code === 'account_conflict')
+          console.warn('[directory] member skipped', { reason: 'account_conflict' })
+        else if (err instanceof ApiError && err.code === 'invalid_identity')
+          console.warn('[directory] member skipped', { reason: 'invalid_identity' })
         else throw err
       }
     }
@@ -596,7 +736,14 @@ export async function reconcileOrganization(storage: StorageBinding, adapter: Au
       await execute(
         storage,
         { kind: 'internal', organizationId: plan.organizationId },
-        reconcileOperation({ provider, externalId, organization: organization ? { name: organization.name } : null, members, newOrganizationId: newOrganizationId(storage, env), env }),
+        reconcileOperation({
+          provider,
+          externalId,
+          organization: organization ? { name: organization.name } : null,
+          members,
+          newOrganizationId: newOrganizationId(storage, env),
+          env,
+        }),
       )
     ).value
   } catch (err) {
@@ -608,7 +755,12 @@ export async function reconcileOrganization(storage: StorageBinding, adapter: Au
  * Refreshes a known user from the provider ([[CORE3]] D12). An unknown subject costs no provider call. A provider email the
  * vault cannot store (non-ASCII or malformed, D7) is `'unsupported'`: logged, nothing written.
  */
-export async function refreshUser(storage: StorageBinding, adapter: AuthAdapter, subject: string, env: InternalEnv): Promise<RefreshOutcome> {
+export async function refreshUser(
+  storage: StorageBinding,
+  adapter: AuthAdapter,
+  subject: string,
+  env: InternalEnv,
+): Promise<RefreshOutcome> {
   const provider = adapter.provider
   if (!(await lookupUser(storage, { provider, subject, organizationExternalId: null }))) return 'unknown'
   const profile = await adapter.fetchProfile(subject)
@@ -628,7 +780,20 @@ export async function refreshUser(storage: StorageBinding, adapter: AuthAdapter,
     throw err
   }
   try {
-    return (await execute(storage, INTERNAL_NULL, refreshUserOperation({ provider, subject, email, name: profile.name, emailVerified: profile.emailVerified, env }))).value
+    return (
+      await execute(
+        storage,
+        INTERNAL_NULL,
+        refreshUserOperation({
+          provider,
+          subject,
+          email,
+          name: profile.name,
+          emailVerified: profile.emailVerified,
+          env,
+        }),
+      )
+    ).value
   } catch (err) {
     throw mapStorageError(err)
   }

@@ -8,7 +8,13 @@ export const ORPHAN_AGE_MS = 24 * 60 * 60 * 1000
 export interface SweepControlFacts {
   users: Array<{ id: string; email: string; createdAt: string }>
   credentialSubjects: string[]
-  invitations: Array<{ email: string; createdAt: string; acceptedAt: string | null; revokedAt: string | null; expiresAt: string }>
+  invitations: Array<{
+    email: string
+    createdAt: string
+    acceptedAt: string | null
+    revokedAt: string | null
+    expiresAt: string
+  }>
 }
 export interface SweepCrmFacts {
   linked: Array<{ subject: string; authority: boolean }>
@@ -31,9 +37,21 @@ export function parseSweepControlRows(rows: unknown): SweepControlFacts {
   if (!Array.isArray(rows)) throw new Error('unexpected sweep read shape')
   const facts: SweepControlFacts = { users: [], credentialSubjects: [], invitations: [] }
   for (const r of rows as Array<Record<string, unknown>>) {
-    if (r?.kind === 'user') facts.users.push({ id: text(r.k1, 'user id'), email: text(r.k2, 'user email'), createdAt: text(r.k3, 'user created_at') })
+    if (r?.kind === 'user')
+      facts.users.push({
+        id: text(r.k1, 'user id'),
+        email: text(r.k2, 'user email'),
+        createdAt: text(r.k3, 'user created_at'),
+      })
     else if (r?.kind === 'credential') facts.credentialSubjects.push(text(r.k1, 'credential subject'))
-    else if (r?.kind === 'invitation') facts.invitations.push({ email: text(r.k1, 'invitation email'), createdAt: text(r.k2, 'invitation created_at'), acceptedAt: textOrNull(r.k3, 'accepted_at'), revokedAt: textOrNull(r.k4, 'revoked_at'), expiresAt: text(r.k5, 'expires_at') })
+    else if (r?.kind === 'invitation')
+      facts.invitations.push({
+        email: text(r.k1, 'invitation email'),
+        createdAt: text(r.k2, 'invitation created_at'),
+        acceptedAt: textOrNull(r.k3, 'accepted_at'),
+        revokedAt: textOrNull(r.k4, 'revoked_at'),
+        expiresAt: text(r.k5, 'expires_at'),
+      })
     else throw new Error('unexpected row kind in the sweep read')
   }
   return facts
@@ -65,7 +83,15 @@ export function classifySweep(a: { now: string; control: SweepControlFacts; crm:
   const cutoff = orphanCutoff(a.now)
   const orphans = a.control.users
     .filter((u) => !linked.has(u.id) && u.createdAt < cutoff)
-    .filter((u) => !a.control.invitations.some((i) => i.email === u.email.toLowerCase() && i.createdAt <= u.createdAt && (i.acceptedAt !== null || (i.revokedAt === null && i.expiresAt > a.now))))
+    .filter(
+      (u) =>
+        !a.control.invitations.some(
+          (i) =>
+            i.email === u.email.toLowerCase() &&
+            i.createdAt <= u.createdAt &&
+            (i.acceptedAt !== null || (i.revokedAt === null && i.expiresAt > a.now)),
+        ),
+    )
     .map((u) => u.id)
   return { revoke, orphans }
 }

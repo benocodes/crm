@@ -1,4 +1,10 @@
-import { AttachmentFetchError, ChannelThrottledError, type ChannelMessage, type ChannelPort, type ConnectionRef } from '../channels/port.js'
+import {
+  AttachmentFetchError,
+  ChannelThrottledError,
+  type ChannelMessage,
+  type ChannelPort,
+  type ConnectionRef,
+} from '../channels/port.js'
 import { stringifyMarkdown } from '../channels/markdown.js'
 import type { ObjectStore } from '../objects/store.js'
 import type { CaptureAttachment } from './capture.js'
@@ -28,7 +34,8 @@ export interface StoredContent {
   orphaned_objects: number
 }
 
-const hex = (bytes: ArrayBuffer): string => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
+const hex = (bytes: ArrayBuffer): string =>
+  [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
 
 /**
  * Stores one NEW message's content outside any unit ([[CORE69]] D6, [[CORE25]] "Capture write path" step 4): `v1/body.md` and
@@ -36,19 +43,32 @@ const hex = (bytes: ArrayBuffer): string => [...new Uint8Array(bytes)].map((b) =
  * object. A reaction stores nothing. Every attachment outcome is data (`stored`, `skipped`, `failed` with a short code); an
  * object-store failure is infrastructure and throws, so the caller's retry overwrites the deterministic keys.
  */
-export async function storeMessageContent(ctx: ContentContext, port: ChannelPort, conn: ConnectionRef, cm: ChannelMessage): Promise<StoredContent> {
+export async function storeMessageContent(
+  ctx: ContentContext,
+  port: ChannelPort,
+  conn: ConnectionRef,
+  cm: ChannelMessage,
+): Promise<StoredContent> {
   const { message, facts, raw } = cm
   const preview = messagePreview(message, facts.kind)
   if (facts.kind === 'reaction') return { content_key: null, preview, attachments: [], orphaned_objects: 0 }
-  if (facts.attachments.length !== message.attachments.length) throw new Error('facts.attachments must describe message.attachments one to one')
+  if (facts.attachments.length !== message.attachments.length)
+    throw new Error('facts.attachments must describe message.attachments one to one')
 
   const contentKey = await messageContentPrefix(ctx.organizationId, facts.channel, facts.external_id)
-  await ctx.objects.put(messageBodyKey(contentKey, 1), stringifyMarkdown(message.formatted), { contentType: 'text/markdown' })
+  await ctx.objects.put(messageBodyKey(contentKey, 1), stringifyMarkdown(message.formatted), {
+    contentType: 'text/markdown',
+  })
 
   const originalKey = messageOriginalKey(contentKey, 1, raw.ext)
   const opened = await raw.open()
   if (opened instanceof Uint8Array) await ctx.objects.put(originalKey, opened, { contentType: raw.content_type })
-  else await ctx.objects.putStream(originalKey, raw.size === null ? opened : opened.pipeThrough(ctx.streams.fixedLength(raw.size)), { size: raw.size, contentType: raw.content_type })
+  else
+    await ctx.objects.putStream(
+      originalKey,
+      raw.size === null ? opened : opened.pipeThrough(ctx.streams.fixedLength(raw.size)),
+      { size: raw.size, contentType: raw.content_type },
+    )
 
   const max = ctx.attachmentMaxBytes ?? ATTACHMENT_MAX_BYTES
   let orphaned = 0
@@ -66,7 +86,11 @@ export async function storeMessageContent(ctx: ContentContext, port: ChannelPort
       content_id: f.content_id,
       fetch_metadata: a.fetchMetadata ?? null,
     }
-    const outcome = (fetch_status: 'skipped' | 'failed', fetch_error: string | null, size_bytes = base.size_bytes): CaptureAttachment => ({ ...base, size_bytes, fetch_status, fetch_error, file: null })
+    const outcome = (
+      fetch_status: 'skipped' | 'failed',
+      fetch_error: string | null,
+      size_bytes = base.size_bytes,
+    ): CaptureAttachment => ({ ...base, size_bytes, fetch_status, fetch_error, file: null })
 
     if (a.size !== undefined && a.size > max) {
       attachments.push(outcome('skipped', null))
@@ -120,7 +144,10 @@ export async function storeMessageContent(ctx: ContentContext, port: ChannelPort
     const sink = ctx.streams.sha256()
     sink.digest.catch(() => {})
     const hashing = forHash.pipeTo(sink.writable)
-    const putting = ctx.objects.putStream(blobKey, forStore.pipeThrough(ctx.streams.fixedLength(size)), { size, contentType: mimeType })
+    const putting = ctx.objects.putStream(blobKey, forStore.pipeThrough(ctx.streams.fixedLength(size)), {
+      size,
+      contentType: mimeType,
+    })
     const [hashed, put] = await Promise.allSettled([hashing, putting])
 
     if (seen.failed) {

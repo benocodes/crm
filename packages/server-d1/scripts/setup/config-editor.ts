@@ -41,7 +41,13 @@ export interface ReconcileResult {
 type Json = Record<string, unknown>
 const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v)
 
-const controlEntry = (d: DesiredEnv): Json => ({ binding: 'CONTROL_DB', database_name: d.controlD1Name, database_id: d.controlD1Id ?? PLACEHOLDER_DATABASE_ID, migrations_dir: '../storage-d1/control-migrations', remote: true })
+const controlEntry = (d: DesiredEnv): Json => ({
+  binding: 'CONTROL_DB',
+  database_name: d.controlD1Name,
+  database_id: d.controlD1Id ?? PLACEHOLDER_DATABASE_ID,
+  migrations_dir: '../storage-d1/control-migrations',
+  remote: true,
+})
 
 /** The desired block, shaped like `env.smoked1` ([[OPS4]] D10). */
 export function desiredBlock(d: DesiredEnv): Json {
@@ -51,9 +57,24 @@ export function desiredBlock(d: DesiredEnv): Json {
     preview_urls: false,
     ...(d.noRoute ? {} : { routes: [{ pattern: d.apiHost, custom_domain: true }] }),
     observability: { enabled: true },
-    d1_databases: [{ binding: 'DB', database_name: d.d1Name, database_id: d.d1Id, migrations_dir: '../storage-d1/migrations', remote: true }, ...(d.controlD1Name ? [controlEntry(d)] : [])],
+    d1_databases: [
+      {
+        binding: 'DB',
+        database_name: d.d1Name,
+        database_id: d.d1Id,
+        migrations_dir: '../storage-d1/migrations',
+        remote: true,
+      },
+      ...(d.controlD1Name ? [controlEntry(d)] : []),
+    ],
     r2_buckets: [{ binding: 'BODIES', bucket_name: d.r2Name }],
-    vars: Object.fromEntries(Object.entries(d.authVars ? { ...d.authVars, CORS_ALLOWED_ORIGINS: d.corsOrigins, ...d.gmailVars } : { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: d.corsOrigins, ...d.gmailVars }).filter(([, v]) => v !== undefined)),
+    vars: Object.fromEntries(
+      Object.entries(
+        d.authVars
+          ? { ...d.authVars, CORS_ALLOWED_ORIGINS: d.corsOrigins, ...d.gmailVars }
+          : { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: d.corsOrigins, ...d.gmailVars },
+      ).filter(([, v]) => v !== undefined),
+    ),
   }
 }
 
@@ -74,7 +95,8 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
       if (!(key in obj)) edits.push({ path: [...path, key], value, label })
       else if (obj[key] !== value) {
         // The one value the command fills in place: a placeholder database_id.
-        if (key === 'database_id' && obj[key] === PLACEHOLDER_DATABASE_ID) edits.push({ path: [...path, key], value, label })
+        if (key === 'database_id' && obj[key] === PLACEHOLDER_DATABASE_ID)
+          edits.push({ path: [...path, key], value, label })
         else mismatches.push(label)
       }
     }
@@ -82,7 +104,8 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
     scalar(current, ['env', d.env], 'workers_dev', d.workersDev === true, at('workers_dev'))
     scalar(current, ['env', d.env], 'preview_urls', false, at('preview_urls'))
 
-    if (!('observability' in current)) edits.push({ path: ['env', d.env, 'observability'], value: { enabled: true }, label: at('observability') })
+    if (!('observability' in current))
+      edits.push({ path: ['env', d.env, 'observability'], value: { enabled: true }, label: at('observability') })
     else if (!isObj(current.observability)) mismatches.push(at('observability'))
     else scalar(current.observability, ['env', d.env, 'observability'], 'enabled', true, at('observability.enabled'))
 
@@ -91,13 +114,28 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
     const keyed = (field: string, key: string, keyValue: string, fields: Json, append = false) => {
       const list = current[field]
       const base: JSONPath = ['env', d.env, field]
-      if (list === undefined) return void edits.push({ path: base, value: [{ [key]: keyValue, ...fields }], label: at(field) })
+      if (list === undefined)
+        return void edits.push({ path: base, value: [{ [key]: keyValue, ...fields }], label: at(field) })
       if (!Array.isArray(list)) return void mismatches.push(at(field))
       const idx = list.findIndex((e) => isObj(e) && e[key] === keyValue)
-      if (idx < 0) return append ? void edits.push({ path: [...base, list.length], value: { [key]: keyValue, ...fields }, label: at(`${field}.${keyValue}`), insert: true }) : void mismatches.push(at(field))
-      for (const [k, v] of Object.entries(fields)) scalar(list[idx] as Json, [...base, idx], k, v, at(`${field}.${keyValue}.${k}`))
+      if (idx < 0)
+        return append
+          ? void edits.push({
+              path: [...base, list.length],
+              value: { [key]: keyValue, ...fields },
+              label: at(`${field}.${keyValue}`),
+              insert: true,
+            })
+          : void mismatches.push(at(field))
+      for (const [k, v] of Object.entries(fields))
+        scalar(list[idx] as Json, [...base, idx], k, v, at(`${field}.${keyValue}.${k}`))
     }
-    keyed('d1_databases', 'binding', 'DB', { database_name: d.d1Name, database_id: d.d1Id, migrations_dir: '../storage-d1/migrations', remote: true })
+    keyed('d1_databases', 'binding', 'DB', {
+      database_name: d.d1Name,
+      database_id: d.d1Id,
+      migrations_dir: '../storage-d1/migrations',
+      remote: true,
+    })
     if (d.controlD1Name) {
       const { binding: _b, ...fields } = controlEntry(d)
       keyed('d1_databases', 'binding', 'CONTROL_DB', fields, true)
@@ -109,10 +147,15 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
     if (d.noRoute) {
       // workers.dev mode has no custom-domain route: a route the record holds is a mismatch (the host would not be what the record says).
       if (routes !== undefined && !(Array.isArray(routes) && routes.length === 0)) mismatches.push(at('routes'))
-    } else if (routes === undefined) edits.push({ path: ['env', d.env, 'routes'], value: want.routes, label: at('routes') })
-    else if (!Array.isArray(routes) || !routes.some((r) => isObj(r) && r.pattern === d.apiHost && r.custom_domain === true)) {
+    } else if (routes === undefined)
+      edits.push({ path: ['env', d.env, 'routes'], value: want.routes, label: at('routes') })
+    else if (
+      !Array.isArray(routes) ||
+      !routes.some((r) => isObj(r) && r.pattern === d.apiHost && r.custom_domain === true)
+    ) {
       // A move replaces the old route (never keeps it); anything else is a mismatch.
-      if (d.move && (hasRoutes || (Array.isArray(routes) && routes.length === 0))) edits.push({ path: ['env', d.env, 'routes'], value: want.routes, label: at('routes') })
+      if (d.move && (hasRoutes || (Array.isArray(routes) && routes.length === 0)))
+        edits.push({ path: ['env', d.env, 'routes'], value: want.routes, label: at('routes') })
       else mismatches.push(at('routes'))
     }
 
@@ -125,11 +168,17 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
         const label = at(`vars.${k}`)
         if (k === 'CLERK_AUTHORIZED_PARTIES' && typeof v === 'string' && typeof here === 'string') {
           // A union, never a removal ([[UI30]] D7): what an owner added by hand stays, what setup needs is appended.
-          const present = here.split(',').map((o) => o.trim()).filter(Boolean)
+          const present = here
+            .split(',')
+            .map((o) => o.trim())
+            .filter(Boolean)
           const missing = v.split(',').filter((o) => o !== '' && !present.includes(o))
-          if (missing.length > 0) edits.push({ path: ['env', d.env, 'vars', k], value: [...present, ...missing].join(','), label })
-        } else if (k === 'CLERK_PUBLISHABLE_KEY' && here === '') edits.push({ path: ['env', d.env, 'vars', k], value: v, label })
-        else if (k === 'PUBLIC_BASE_URL' && d.move && typeof here === 'string' && here !== v) edits.push({ path: ['env', d.env, 'vars', k], value: v, label })
+          if (missing.length > 0)
+            edits.push({ path: ['env', d.env, 'vars', k], value: [...present, ...missing].join(','), label })
+        } else if (k === 'CLERK_PUBLISHABLE_KEY' && here === '')
+          edits.push({ path: ['env', d.env, 'vars', k], value: v, label })
+        else if (k === 'PUBLIC_BASE_URL' && d.move && typeof here === 'string' && here !== v)
+          edits.push({ path: ['env', d.env, 'vars', k], value: v, label })
         else scalar(vars, ['env', d.env, 'vars'], k, v, label)
       }
     }
@@ -137,6 +186,13 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
 
   if (mismatches.length > 0) return { text, changed: [], mismatches }
   let out = text
-  for (const e of edits) out = applyEdits(out, modify(out, e.path, e.value, { formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' }, isArrayInsertion: e.insert }))
+  for (const e of edits)
+    out = applyEdits(
+      out,
+      modify(out, e.path, e.value, {
+        formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' },
+        isArrayInsertion: e.insert,
+      }),
+    )
   return { text: out, changed: edits.map((e) => e.label), mismatches: [] }
 }

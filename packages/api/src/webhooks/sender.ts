@@ -1,5 +1,15 @@
 import { sql } from 'kysely'
-import { codecs, defineOperation, execute, readAll, step, unit, type PreparedOperation, type Step, type StorageBinding } from '@vibase/storage'
+import {
+  codecs,
+  defineOperation,
+  execute,
+  readAll,
+  step,
+  unit,
+  type PreparedOperation,
+  type Step,
+  type StorageBinding,
+} from '@vibase/storage'
 import { decodeBase64 } from '../connections/config.js'
 import { openToken } from '../connections/credentials.js'
 import { record as eventRecord } from '../events/operations.js'
@@ -64,9 +74,19 @@ export interface SenderSummary {
 }
 
 /** The three Standard Webhooks headers the sender sets on every POST ([[API221]] D21: the guide and the example's verifier are tested against this, not a copy). */
-export const WEBHOOK_HEADERS = { id: 'webhook-id', timestamp: 'webhook-timestamp', signature: 'webhook-signature' } as const
+export const WEBHOOK_HEADERS = {
+  id: 'webhook-id',
+  timestamp: 'webhook-timestamp',
+  signature: 'webhook-signature',
+} as const
 /** Every value `webhook_deliveries.last_error` takes, failures then cancellations ([[API221]]: the guide is tested against this list). */
-export const DELIVERY_FAILURE_CODES = ['timeout', 'connection_failed', 'http_status', 'redirect', 'sender_failed'] as const
+export const DELIVERY_FAILURE_CODES = [
+  'timeout',
+  'connection_failed',
+  'http_status',
+  'redirect',
+  'sender_failed',
+] as const
 export const DELIVERY_CANCEL_CODES = ['cancelled_subscription', 'cancelled_scope'] as const
 const SPENT = 'sender_failed'
 type FailureCode = (typeof DELIVERY_FAILURE_CODES)[number]
@@ -109,7 +129,16 @@ const internal = (organizationId: string) => ({ kind: 'internal' as const, organ
  * leases the rest with a guarded update (`attempts + 1`, `lease_until`, `lease_token`). The batch's result lists what really carries this wave's token or ended dead, so a row another sender took
  * between the read and the write is not ours. No due row means no write.
  */
-function claimWave(a: { organizationId: string; cutoff: string; now: string; limit: number; caps: Record<string, number>; token: string; leaseUntil: string; at: string }): PreparedOperation<Claimed> {
+function claimWave(a: {
+  organizationId: string
+  cutoff: string
+  now: string
+  limit: number
+  caps: Record<string, number>
+  token: string
+  leaseUntil: string
+  at: string
+}): PreparedOperation<Claimed> {
   return defineOperation<Claimed>({
     name: 'webhooks.send_claim',
     mutates: true,
@@ -148,7 +177,19 @@ function claimWave(a: { organizationId: string; cutoff: string; now: string; lim
         agentId: String(r.agent_id),
         scopes: codecs.stringArray.read(r.scopes).filter((s) => SCOPE_STRING.test(s)),
         agentLive: r.disabled_at === null && r.delegated_by === null,
-        event: r.e_id === null || r.e_id === undefined ? null : toEvent({ id: r.e_id, created_at: r.e_created_at, type: r.e_type, resource_type: r.e_resource_type, resource_id: r.e_resource_id, actor_id: r.e_actor_id, before: r.e_before, after: r.e_after }),
+        event:
+          r.e_id === null || r.e_id === undefined
+            ? null
+            : toEvent({
+                id: r.e_id,
+                created_at: r.e_created_at,
+                type: r.e_type,
+                resource_type: r.e_resource_type,
+                resource_id: r.e_resource_id,
+                actor_id: r.e_actor_id,
+                before: r.e_before,
+                after: r.e_after,
+              }),
         totalDue: Number(r.total_due),
       }))
       const totalDue = rows[0]?.totalDue ?? 0
@@ -171,7 +212,9 @@ function claimWave(a: { organizationId: string; cutoff: string; now: string; lim
             sql`update "webhook_deliveries" set "attempts" = "attempts" + 1, "lease_until" = ${a.leaseUntil}, "lease_token" = ${a.token}, "last_attempt_at" = ${a.at}
               where "organization_id" = ${org} and "id" in (select value from json_each(${JSON.stringify(claim)})) and "status" = 'pending' and "attempts" < ${SEND_MAX_ATTEMPTS}
                 and "next_attempt_at" <= ${a.cutoff} and ("lease_until" is null or "lease_until" <= ${a.now})
-                and exists (select 1 from webhook_subscriptions s where s.organization_id = "webhook_deliveries"."organization_id" and s.id = "webhook_deliveries"."subscription_id" and (s.status = 'active' or s.deleted_at is not null))`.compile(qc.db),
+                and exists (select 1 from webhook_subscriptions s where s.organization_id = "webhook_deliveries"."organization_id" and s.id = "webhook_deliveries"."subscription_id" and (s.status = 'active' or s.deleted_at is not null))`.compile(
+              qc.db,
+            ),
             steps.length === 0 ? 'first-mutation' : undefined,
           ),
         )
@@ -179,7 +222,9 @@ function claimWave(a: { organizationId: string; cutoff: string; now: string; lim
         steps.push(
           step(
             sql`select "id", "status", "lease_token" from "webhook_deliveries"
-              where "organization_id" = ${org} and "id" in (select value from json_each(${JSON.stringify(rows.map((r) => r.id))})) and ("lease_token" = ${a.token} or "status" = 'dead')`.compile(qc.db),
+              where "organization_id" = ${org} and "id" in (select value from json_each(${JSON.stringify(rows.map((r) => r.id))})) and ("lease_token" = ${a.token} or "status" = 'dead')`.compile(
+              qc.db,
+            ),
             'result',
           ),
         )
@@ -189,7 +234,13 @@ function claimWave(a: { organizationId: string; cutoff: string; now: string; lim
         decode: (result) => {
           const mine = new Set(result.filter((r) => r.lease_token === a.token).map((r) => String(r.id)))
           const dead = result.filter((r) => r.status === 'dead').length
-          return { rows: rows.filter((r) => mine.has(r.id)), token: a.token, leaseUntil: new Date(a.leaseUntil), dead, totalDue }
+          return {
+            rows: rows.filter((r) => mine.has(r.id)),
+            token: a.token,
+            leaseUntil: new Date(a.leaseUntil),
+            dead,
+            totalDue,
+          }
         },
       })
     },
@@ -213,13 +264,23 @@ function contextRead(a: { organizationId: string; registry: Registry; rows: Cand
     mutates: false,
     reads: (qc) => {
       const reads: Record<string, ReturnType<typeof readAll>> = {
-        secrets: readAll(sql`select subscription_id, sealed, created_at from webhook_secrets where organization_id = ${a.organizationId} and subscription_id in (${sql.join(subs)}) order by created_at, id`.compile(qc.db)),
+        secrets: readAll(
+          sql`select subscription_id, sealed, created_at from webhook_secrets where organization_id = ${a.organizationId} and subscription_id in (${sql.join(subs)}) order by created_at, id`.compile(
+            qc.db,
+          ),
+        ),
       }
       let i = 0
       for (const [agentId, rows] of byAgent) {
-        const vis = feedVisibility(a.registry, { scopes: ScopeSet.parse(rows[0]!.scopes), actor: { id: agentId, kind: 'agent' } })
+        const vis = feedVisibility(a.registry, {
+          scopes: ScopeSet.parse(rows[0]!.scopes),
+          actor: { id: agentId, kind: 'agent' },
+        })
         const seen = visible(vis)
-        if (seen !== null) reads[`vis:${agentId}`] = readAll(sql`select id from events where id in (${sql.join(rows.map((r) => r.eventId))}) and ${seen}`.compile(qc.db))
+        if (seen !== null)
+          reads[`vis:${agentId}`] = readAll(
+            sql`select id from events where id in (${sql.join(rows.map((r) => r.eventId))}) and ${seen}`.compile(qc.db),
+          )
         i++
       }
       return reads
@@ -230,9 +291,14 @@ function contextRead(a: { organizationId: string; registry: Registry; rows: Cand
         events: [],
         decode: () => {
           const visibleTo = new Map<string, Set<string>>()
-          for (const agentId of byAgent.keys()) visibleTo.set(agentId, new Set(found.all(`vis:${agentId}`).map((r) => String(r.id))))
+          for (const agentId of byAgent.keys())
+            visibleTo.set(agentId, new Set(found.all(`vis:${agentId}`).map((r) => String(r.id))))
           const secrets = new Map<string, { sealed: string; created_at: string }[]>()
-          for (const r of found.all('secrets')) secrets.set(String(r.subscription_id), [...(secrets.get(String(r.subscription_id)) ?? []), { sealed: String(r.sealed), created_at: String(r.created_at) }])
+          for (const r of found.all('secrets'))
+            secrets.set(String(r.subscription_id), [
+              ...(secrets.get(String(r.subscription_id)) ?? []),
+              { sealed: String(r.sealed), created_at: String(r.created_at) },
+            ])
           return { visibleTo, secrets }
         },
       }),
@@ -248,7 +314,12 @@ interface Recorded {
 }
 
 /** The record of a wave: ONE batch, one guarded update per row (`id` and `lease_token`), so a stale sender whose lease was taken over changes nothing. */
-function recordWave(a: { organizationId: string; token: string; at: string; recorded: Recorded[] }): PreparedOperation<void> {
+function recordWave(a: {
+  organizationId: string
+  token: string
+  at: string
+  recorded: Recorded[]
+}): PreparedOperation<void> {
   return defineOperation<void>({
     name: 'webhooks.send_record',
     mutates: true,
@@ -262,28 +333,36 @@ function recordWave(a: { organizationId: string; token: string; at: string; reco
         if (o.kind === 'delivered') {
           steps.push(
             step(
-              sql`update "webhook_deliveries" set "status" = 'delivered', "delivered_at" = ${a.at}, "last_status_code" = ${o.status}, "last_error" = null, "lease_until" = null, "lease_token" = null where ${mine(r.row.id)}`.compile(qc.db),
+              sql`update "webhook_deliveries" set "status" = 'delivered', "delivered_at" = ${a.at}, "last_status_code" = ${o.status}, "last_error" = null, "lease_until" = null, "lease_token" = null where ${mine(r.row.id)}`.compile(
+                qc.db,
+              ),
               steps.length === 0 ? 'first-mutation' : undefined,
             ),
             // The stamp D11 reads (API227): only where this record is the one that delivered (a stale sender matched no row above, so no delivered row carries this instant).
             step(
               sql`update "webhook_dispatch_state" set "last_success_at" = ${a.at}
                 where "organization_id" = ${org} and "subscription_id" = ${r.row.subscriptionId}
-                  and exists (select 1 from "webhook_deliveries" where "id" = ${r.row.id} and "status" = 'delivered' and "delivered_at" = ${a.at})`.compile(qc.db),
+                  and exists (select 1 from "webhook_deliveries" where "id" = ${r.row.id} and "status" = 'delivered' and "delivered_at" = ${a.at})`.compile(
+                qc.db,
+              ),
             ),
           )
         } else if (o.kind === 'failed') {
           const status = r.dead ? 'dead' : 'pending'
           steps.push(
             step(
-              sql`update "webhook_deliveries" set "status" = ${status}, "last_error" = ${o.code}, "last_status_code" = ${o.status}, "next_attempt_at" = coalesce(${r.nextAt}, "next_attempt_at"), "lease_until" = null, "lease_token" = null where ${mine(r.row.id)}`.compile(qc.db),
+              sql`update "webhook_deliveries" set "status" = ${status}, "last_error" = ${o.code}, "last_status_code" = ${o.status}, "next_attempt_at" = coalesce(${r.nextAt}, "next_attempt_at"), "lease_until" = null, "lease_token" = null where ${mine(r.row.id)}`.compile(
+                qc.db,
+              ),
               steps.length === 0 ? 'first-mutation' : undefined,
             ),
           )
         } else {
           steps.push(
             step(
-              sql`update "webhook_deliveries" set "status" = 'cancelled', "last_error" = ${o.code}, "lease_until" = null, "lease_token" = null where ${mine(r.row.id)}`.compile(qc.db),
+              sql`update "webhook_deliveries" set "status" = 'cancelled', "last_error" = ${o.code}, "lease_until" = null, "lease_token" = null where ${mine(r.row.id)}`.compile(
+                qc.db,
+              ),
               steps.length === 0 ? 'first-mutation' : undefined,
             ),
           )
@@ -354,32 +433,62 @@ async function sendWave(d: SenderDeps, key: Uint8Array, organizationId: string, 
   const fail = (row: Candidate, code: FailureCode, status: number | null): Recorded => {
     const attempt = row.attempts + 1
     const dead = attempt >= SEND_MAX_ATTEMPTS
-    return { row, outcome: { kind: 'failed', code, status }, dead, nextAt: dead ? null : iso(d.clock().getTime() + retryDelayMs(attempt, d.random ?? Math.random)) }
+    return {
+      row,
+      outcome: { kind: 'failed', code, status },
+      dead,
+      nextAt: dead ? null : iso(d.clock().getTime() + retryDelayMs(attempt, d.random ?? Math.random)),
+    }
   }
-  const cancel = (row: Candidate, code: CancelCode): Recorded => ({ row, outcome: { kind: 'cancelled', code }, nextAt: null, dead: false })
+  const cancel = (row: Candidate, code: CancelCode): Recorded => ({
+    row,
+    outcome: { kind: 'cancelled', code },
+    nextAt: null,
+    dead: false,
+  })
 
   // Cancelled without a read: the subscription is gone; the agent is disabled, delegated, or no longer holds events:read.
   const sendable: Candidate[] = []
   for (const row of rows) {
     if (row.deleted) recorded.set(row.id, cancel(row, 'cancelled_subscription'))
-    else if (!row.agentLive || !ScopeSet.parse(row.scopes).has({ resource: 'events', action: 'read' })) recorded.set(row.id, cancel(row, 'cancelled_scope'))
+    else if (!row.agentLive || !ScopeSet.parse(row.scopes).has({ resource: 'events', action: 'read' }))
+      recorded.set(row.id, cancel(row, 'cancelled_scope'))
     else sendable.push(row)
   }
   if (sendable.length > 0) {
-    const ctx = (await execute(d.binding, internal(organizationId), contextRead({ organizationId, registry: d.registry, rows: sendable }))).value
+    const ctx = (
+      await execute(
+        d.binding,
+        internal(organizationId),
+        contextRead({ organizationId, registry: d.registry, rows: sendable }),
+      )
+    ).value
     await Promise.all(
       sendable.map(async (row) => {
         try {
-          if (row.event === null || !ctx.visibleTo.get(row.agentId)?.has(row.eventId)) return void recorded.set(row.id, cancel(row, 'cancelled_scope'))
+          if (row.event === null || !ctx.visibleTo.get(row.agentId)?.has(row.eventId))
+            return void recorded.set(row.id, cancel(row, 'cancelled_scope'))
           const rotation = secretsInForce(ctx.secrets.get(row.subscriptionId) ?? [], d.clock())
           const opened = await Promise.all(rotation.map((s) => openSecret(key, s.sealed)))
-          if (rotation.length === 0 || opened.some((s) => s === null)) return void recorded.set(row.id, fail(row, SPENT, null))
+          if (rotation.length === 0 || opened.some((s) => s === null))
+            return void recorded.set(row.id, fail(row, SPENT, null))
           const body = JSON.stringify(eventRecord(organizationId, row.event))
           const timestamp = Math.floor(d.clock().getTime() / 1000)
           const signature = await signatureHeader({ secrets: opened as string[], id: row.eventId, timestamp, body })
-          const headers = { 'Content-Type': 'application/json', 'User-Agent': 'vibase-webhooks/1', [WEBHOOK_HEADERS.id]: row.eventId, [WEBHOOK_HEADERS.timestamp]: String(timestamp), [WEBHOOK_HEADERS.signature]: signature }
+          const headers = {
+            'Content-Type': 'application/json',
+            'User-Agent': 'vibase-webhooks/1',
+            [WEBHOOK_HEADERS.id]: row.eventId,
+            [WEBHOOK_HEADERS.timestamp]: String(timestamp),
+            [WEBHOOK_HEADERS.signature]: signature,
+          }
           const outcome = await post(d, row.url, headers, body)
-          recorded.set(row.id, outcome.kind === 'failed' ? fail(row, outcome.code, outcome.status) : { row, outcome, nextAt: null, dead: false })
+          recorded.set(
+            row.id,
+            outcome.kind === 'failed'
+              ? fail(row, outcome.code, outcome.status)
+              : { row, outcome, nextAt: null, dead: false },
+          )
         } catch {
           recorded.set(row.id, fail(row, SPENT, null))
         }
@@ -417,7 +526,22 @@ export async function sendWebhooks(d: SenderDeps): Promise<SenderSummary> {
     for (const [id, n] of Object.entries(perSubscription)) caps[id] = Math.max(0, SEND_SUBSCRIPTION_ROWS - n)
     let claimed: Claimed
     try {
-      claimed = (await execute(d.binding, internal(organizationId), claimWave({ organizationId, cutoff, now: iso(now), limit, caps, token: d.newId(), leaseUntil: iso(now + SEND_LEASE_MS), at: iso(now) }))).value
+      claimed = (
+        await execute(
+          d.binding,
+          internal(organizationId),
+          claimWave({
+            organizationId,
+            cutoff,
+            now: iso(now),
+            limit,
+            caps,
+            token: d.newId(),
+            leaseUntil: iso(now + SEND_LEASE_MS),
+            at: iso(now),
+          }),
+        )
+      ).value
     } catch (err) {
       console.error(`[webhooks] claiming deliveries failed: ${err instanceof Error ? err.name : 'error'}`)
       throw err
@@ -435,10 +559,16 @@ export async function sendWebhooks(d: SenderDeps): Promise<SenderSummary> {
     for (const r of claimed.rows) perSubscription[r.subscriptionId] = (perSubscription[r.subscriptionId] ?? 0) + 1
     const recorded = await sendWave(d, d.key, organizationId, claimed)
     try {
-      await execute(d.binding, internal(organizationId), recordWave({ organizationId, token: claimed.token, at: iso(d.clock().getTime()), recorded }))
+      await execute(
+        d.binding,
+        internal(organizationId),
+        recordWave({ organizationId, token: claimed.token, at: iso(d.clock().getTime()), recorded }),
+      )
     } catch (err) {
       // The attempts were made and are counted; the leases lapse and the next tick tries again (D15: at least once).
-      console.error(`[webhooks] recording a wave of ${recorded.length} attempt(s) failed: ${err instanceof Error ? err.name : 'error'}`)
+      console.error(
+        `[webhooks] recording a wave of ${recorded.length} attempt(s) failed: ${err instanceof Error ? err.name : 'error'}`,
+      )
       continue
     }
     for (const r of recorded) {

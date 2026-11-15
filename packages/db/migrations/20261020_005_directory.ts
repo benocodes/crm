@@ -11,7 +11,9 @@ export async function up(db: Kysely<any>): Promise<void> {
       ADD CONSTRAINT organizations_auth_provider_org_key UNIQUE (auth_provider, auth_org_id)`.execute(db)
 
   await sql`ALTER TABLE principals DROP CONSTRAINT principals_kind_check`.execute(db)
-  await sql`ALTER TABLE principals ADD CONSTRAINT principals_kind_check CHECK (kind IN ('user','agent','system'))`.execute(db)
+  await sql`ALTER TABLE principals ADD CONSTRAINT principals_kind_check CHECK (kind IN ('user','agent','system'))`.execute(
+    db,
+  )
   await sql`CREATE UNIQUE INDEX idx_principals_single_system ON principals (kind) WHERE kind = 'system'`.execute(db)
   await sql`DROP POLICY principals_tenant ON principals`.execute(db)
   await sql`

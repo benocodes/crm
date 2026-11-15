@@ -8,7 +8,15 @@ import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { bootstrapD1 } from '../../src/bootstrap-d1.js'
 import { openWorkerPair, type WorkerPair } from '../../src/test/kit.js'
 import { makeClerk } from '../setup/test/clerk-world.js'
-import { ALL_MIGRATIONS, API_HOST, CLERK_SECRETS_TEXT, readMarker, setupWorld, type SetupWorld, type SetupWorldOptions } from './setup-kit.js'
+import {
+  ALL_MIGRATIONS,
+  API_HOST,
+  CLERK_SECRETS_TEXT,
+  readMarker,
+  setupWorld,
+  type SetupWorld,
+  type SetupWorldOptions,
+} from './setup-kit.js'
 import { runSetup } from './setup.js'
 import { CONTROL_ALL, CONTROL_UUID, SECRETS_TEXT, UUID, cleanup, controlSettings } from './test-kit.js'
 
@@ -31,22 +39,46 @@ afterEach(() => cleanup())
 
 const world = (o: Partial<SetupWorldOptions> = {}): SetupWorld => setupWorld({ d1: pair, control: pair.control, ...o })
 const run = (s: SetupWorld, argv: string[] = ARGS) => runSetup(argv, s.w.deps)
-const rowsOf = async (d1: WorkerPair['d1'], q: string) => ((await d1.prepare(q).all()).results ?? []) as Record<string, any>[]
+const rowsOf = async (d1: WorkerPair['d1'], q: string) =>
+  ((await d1.prepare(q).all()).results ?? []) as Record<string, any>[]
 const row = (s: SetupWorld, name: string) => s.rows().find((r) => r.step === name)!
 const header = (s: SetupWorld) => /, auth (\S+),/.exec(s.w.out.find((l) => l.startsWith('setup: env')) ?? '')?.[1]
 const file = (s: SetupWorld) => readFileSync(s.w.secretsPath, 'utf8')
-const surface = (s: SetupWorld) => [s.w.all(), s.settings() ?? '', ...s.w.wrangler.map((c) => c.args.join(' ')), ...s.w.wrangler.flatMap((c) => (c.configText ? [c.configText] : [])), ...s.w.fetchUrls].join('\n')
-const bulks = (s: SetupWorld) => s.w.wrangler.filter((c) => c.args.includes('secret') && c.args.includes('bulk')).map((c) => JSON.parse(c.input!) as Record<string, string>)
+const surface = (s: SetupWorld) =>
+  [
+    s.w.all(),
+    s.settings() ?? '',
+    ...s.w.wrangler.map((c) => c.args.join(' ')),
+    ...s.w.wrangler.flatMap((c) => (c.configText ? [c.configText] : [])),
+    ...s.w.fetchUrls,
+  ].join('\n')
+const bulks = (s: SetupWorld) =>
+  s.w.wrangler
+    .filter((c) => c.args.includes('secret') && c.args.includes('bulk'))
+    .map((c) => JSON.parse(c.input!) as Record<string, string>)
 const urlLines = (s: SetupWorld) => s.w.out.filter((l) => l.includes('/invite#token='))
 const tokenOf = (s: SetupWorld) => /\/invite#token=([A-Za-z0-9_-]+)/.exec(s.w.out.join('\n'))?.[1]
-const before = (s: SetupWorld) => { s.w.out.length = 0; s.w.err.length = 0; s.w.wrangler.length = 0 }
+const before = (s: SetupWorld) => {
+  s.w.out.length = 0
+  s.w.err.length = 0
+  s.w.wrangler.length = 0
+}
 
 const BA_VARS = { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE, CORS_ALLOWED_ORIGINS: '' }
 /** An instance that is recorded, created, migrated, deployed and (when `marker`) bootstrapped: the state the secrets and re-run groups start from. */
 const recorded = (vars: Record<string, string> = BA_VARS) => ({
   settings: controlSettings({ vars }),
   secretsText: SECRETS_TEXT,
-  sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: 'ctl-recorded-name' }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], deployed: { version: 'v', commit: 'c' } },
+  sim: {
+    d1s: [
+      { uuid: UUID, name: 'vault-demo' },
+      { uuid: CONTROL_UUID, name: 'ctl-recorded-name' },
+    ],
+    r2s: ['vault-demo-bodies'],
+    applied: [...ALL_MIGRATIONS],
+    controlApplied: [...CONTROL_ALL],
+    deployed: { version: 'v', commit: 'c' },
+  },
 })
 const ONLY_SECRETS = [...ARGS, '--only', 'secrets']
 
@@ -70,7 +102,8 @@ describe('1. the provider rule (D1): matrix over a new instance and a recorded o
   ]
   const ALL = ['better-auth', 'clerk', 'none']
   describe.each(RECORDS)('recorded %s', (_n, vars, rec) => {
-    const mk = () => world({ ...recorded(vars), secretsText: CLERK_SECRETS_TEXT, sim: { ...recorded(vars).sim, clerk: makeClerk() } })
+    const mk = () =>
+      world({ ...recorded(vars), secretsText: CLERK_SECRETS_TEXT, sim: { ...recorded(vars).sim, clerk: makeClerk() } })
     it('no flag: the recorded provider', async () => {
       const s = mk()
       await run(s, [...ARGS, '--dry-run'])
@@ -81,16 +114,19 @@ describe('1. the provider rule (D1): matrix over a new instance and a recorded o
       await run(s, [...ARGS, '--auth', rec, '--dry-run'])
       expect(header(s), s.w.all()).toBe(rec)
     })
-    it.each(ALL.filter((p) => p !== rec))('--auth %s differs: refused (exit 2) before any wrangler or Cloudflare call, naming the record and OPS250', async (flag) => {
-      const s = mk()
-      expect(await run(s, [...ARGS, '--auth', flag, '--dry-run'])).toBe(2)
-      expect(s.w.wrangler).toEqual([])
-      expect(s.w.fetchUrls).toEqual([])
-      const said = s.w.err.join('\n')
-      expect(said).toContain(`--auth ${flag}`)
-      expect(said).toContain(rec)
-      expect(said).toContain('OPS250')
-    })
+    it.each(ALL.filter((p) => p !== rec))(
+      '--auth %s differs: refused (exit 2) before any wrangler or Cloudflare call, naming the record and OPS250',
+      async (flag) => {
+        const s = mk()
+        expect(await run(s, [...ARGS, '--auth', flag, '--dry-run'])).toBe(2)
+        expect(s.w.wrangler).toEqual([])
+        expect(s.w.fetchUrls).toEqual([])
+        const said = s.w.err.join('\n')
+        expect(said).toContain(`--auth ${flag}`)
+        expect(said).toContain(rec)
+        expect(said).toContain('OPS250')
+      },
+    )
   })
 })
 
@@ -104,21 +140,26 @@ describe('2. vars and refusals on better-auth (D2)', () => {
     // the generated wrangler config carries the same two vars
     const configs = s.w.wrangler.flatMap((c) => (c.configText ? [JSON.parse(c.configText) as Record<string, any>] : []))
     expect(configs.length).toBeGreaterThan(0)
-    for (const c of configs) if (c.vars) expect(c.vars).toMatchObject({ AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE })
+    for (const c of configs)
+      if (c.vars) expect(c.vars).toMatchObject({ AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE })
     before(s)
     expect(await run(s)).toBe(0)
     expect(row(s, 'config:write').status).toBe('ok')
   })
 
-  it.each([['--clerk-publishable-key', 'pk_test_x'], ['--clerk-production'], ['--no-dcr']])('%s is refused with better-auth (exit 2), before any step', async (...flag) => {
-    const s = world()
-    expect(await run(s, [...ARGS, ...flag])).toBe(2)
-    expect(s.w.err.join('\n')).toContain('--auth clerk')
-    expect(s.w.wrangler).toEqual([])
-    expect(s.w.fetchUrls).toEqual([])
-  })
+  it.each([['--clerk-publishable-key', 'pk_test_x'], ['--clerk-production'], ['--no-dcr']])(
+    '%s is refused with better-auth (exit 2), before any step',
+    async (...flag) => {
+      const s = world()
+      expect(await run(s, [...ARGS, ...flag])).toBe(2)
+      expect(s.w.err.join('\n')).toContain('--auth clerk')
+      expect(s.w.wrangler).toEqual([])
+      expect(s.w.fetchUrls).toEqual([])
+    },
+  )
 
-  const gmail = (base?: string) => `${SECRETS_TEXT}GOOGLE_CLIENT_ID=gid.apps.googleusercontent.com\nGOOGLE_CLIENT_SECRET=gsecret-0123456789\nOAUTH_STATE_SECRET=state-0123456789\nCREDENTIALS_KEY=${Buffer.alloc(32, 7).toString('base64')}\n${base ? `PUBLIC_BASE_URL=${base}\n` : ''}`
+  const gmail = (base?: string) =>
+    `${SECRETS_TEXT}GOOGLE_CLIENT_ID=gid.apps.googleusercontent.com\nGOOGLE_CLIENT_SECRET=gsecret-0123456789\nOAUTH_STATE_SECRET=state-0123456789\nCREDENTIALS_KEY=${Buffer.alloc(32, 7).toString('base64')}\n${base ? `PUBLIC_BASE_URL=${base}\n` : ''}`
   it('a Gmail-group PUBLIC_BASE_URL that differs from the derived one is refused (exit 2) before any step', async () => {
     const s = world({ secretsText: gmail('https://other.example.com') })
     expect(await run(s)).toBe(2)
@@ -139,7 +180,9 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     expect(put).toHaveLength(1)
     const value = put[0]!.AUTH_SECRET!
     expect(value).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(s.sim.bulkFile[0], 'the file must already hold the value when the put runs').toContain(`AUTH_SECRET=${value}`)
+    expect(s.sim.bulkFile[0], 'the file must already hold the value when the put runs').toContain(
+      `AUTH_SECRET=${value}`,
+    )
     expect(file(s)).toContain(`AUTH_SECRET=${value}\n`)
     expect(statSync(s.w.secretsPath).mode & 0o777).toBe(0o600)
     expect(row(s, 'secrets').status).toBe('create')
@@ -161,7 +204,7 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     expect(surface(s)).not.toContain(stored!)
   })
 
-  it('(b) file only: the file\'s value is put; nothing is generated or written', async () => {
+  it("(b) file only: the file's value is put; nothing is generated or written", async () => {
     const s = world({ ...recorded(), secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\n` })
     const text = file(s)
     expect(await run(s, ONLY_SECRETS)).toBe(0)
@@ -172,7 +215,11 @@ describe('3. AUTH_SECRET (D3), four states', () => {
 
   it('(c) both: no write and no put', async () => {
     const r = recorded()
-    const s = world({ ...r, secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\n`, sim: { ...r.sim, secrets: ['AUTH_SECRET'] } })
+    const s = world({
+      ...r,
+      secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\n`,
+      sim: { ...r.sim, secrets: ['AUTH_SECRET'] },
+    })
     const text = file(s)
     expect(await run(s, ONLY_SECRETS)).toBe(0)
     expect(row(s, 'secrets').status).toBe('ok')
@@ -189,13 +236,19 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     expect(file(s)).toBe(text)
     const m = row(s, 'secrets')
     expect(m.status).toBe('manual')
-    expect(m.detail).toBe(`AUTH_SECRET is set on the Worker but not in ${s.w.secretsPath}: owner-reset needs it; copy it in if you have it`)
+    expect(m.detail).toBe(
+      `AUTH_SECRET is set on the Worker but not in ${s.w.secretsPath}: owner-reset needs it; copy it in if you have it`,
+    )
     expect(s.w.out.join('\n')).toMatch(/manual:\n\s+secrets: AUTH_SECRET is set on the Worker/)
   })
 
   it('--rotate-secrets never replaces AUTH_SECRET (present on both sides, and Worker only)', async () => {
     const r = recorded()
-    const both = world({ ...r, secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\n`, sim: { ...r.sim, secrets: ['AUTH_SECRET'] } })
+    const both = world({
+      ...r,
+      secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\n`,
+      sim: { ...r.sim, secrets: ['AUTH_SECRET'] },
+    })
     expect(await run(both, [...ONLY_SECRETS, '--rotate-secrets'])).toBe(0)
     expect(bulks(both)).toEqual([])
     const only = world({ ...r, sim: { ...r.sim, secrets: ['AUTH_SECRET'] } })
@@ -225,12 +278,24 @@ describe('3. AUTH_SECRET (D3), four states', () => {
 
 describe('4. the Google pair (D4)', () => {
   it('both values are put as Worker secrets, beside AUTH_SECRET', async () => {
-    const s = world({ ...recorded(), secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\nAUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gsecret-CANARY-0123\n` })
+    const s = world({
+      ...recorded(),
+      secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\nAUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gsecret-CANARY-0123\n`,
+    })
     expect(await run(s, ONLY_SECRETS), s.w.all()).toBe(0)
-    expect(bulks(s)).toEqual([{ AUTH_SECRET: SECRET_43, AUTH_GOOGLE_CLIENT_ID: 'gid-1.apps.googleusercontent.com', AUTH_GOOGLE_CLIENT_SECRET: 'gsecret-CANARY-0123' }])
+    expect(bulks(s)).toEqual([
+      {
+        AUTH_SECRET: SECRET_43,
+        AUTH_GOOGLE_CLIENT_ID: 'gid-1.apps.googleusercontent.com',
+        AUTH_GOOGLE_CLIENT_SECRET: 'gsecret-CANARY-0123',
+      },
+    ])
     expect(surface(s)).not.toContain('gsecret-CANARY-0123')
   })
-  it.each([['AUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com', 'AUTH_GOOGLE_CLIENT_SECRET'], ['AUTH_GOOGLE_CLIENT_SECRET=gsecret-0123456789', 'AUTH_GOOGLE_CLIENT_ID']])('%s alone is refused (exit 2) before any step, naming %s', async (half, missing) => {
+  it.each([
+    ['AUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com', 'AUTH_GOOGLE_CLIENT_SECRET'],
+    ['AUTH_GOOGLE_CLIENT_SECRET=gsecret-0123456789', 'AUTH_GOOGLE_CLIENT_ID'],
+  ])('%s alone is refused (exit 2) before any step, naming %s', async (half, missing) => {
     const s = world({ secretsText: `${SECRETS_TEXT}${half}\n` })
     expect(await run(s)).toBe(2)
     expect(s.w.err.join('\n')).toContain(missing)
@@ -253,9 +318,20 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     const [dep] = await rowsOf(pair.d1, 'select organization_id, auth_provider, auth_org_id from deployment')
     expect(dep).toMatchObject({ auth_provider: 'better-auth', auth_org_id: 'demo' })
     expect((await readControlMarker(openControlDb(pair.control)))?.organizationId).toBe(dep!.organization_id)
-    expect(await rowsOf(pair.control, "select client_id from auth_oauth_clients where client_id = 'vibase-cli'")).toHaveLength(1)
-    expect((await rowsOf(pair.control, "select resource_id from auth_oauth_client_resources where client_id = 'vibase-cli' order by resource_id")).map((r) => r.resource_id)).toEqual([BASE, `${BASE}/mcp`])
-    expect(await rowsOf(pair.control, 'select email, role, accepted_at, revoked_at from invitations')).toEqual([{ email: OWNER, role: 'owner', accepted_at: null, revoked_at: null }])
+    expect(
+      await rowsOf(pair.control, "select client_id from auth_oauth_clients where client_id = 'vibase-cli'"),
+    ).toHaveLength(1)
+    expect(
+      (
+        await rowsOf(
+          pair.control,
+          "select resource_id from auth_oauth_client_resources where client_id = 'vibase-cli' order by resource_id",
+        )
+      ).map((r) => r.resource_id),
+    ).toEqual([BASE, `${BASE}/mcp`])
+    expect(await rowsOf(pair.control, 'select email, role, accepted_at, revoked_at from invitations')).toEqual([
+      { email: OWNER, role: 'owner', accepted_at: null, revoked_at: null },
+    ])
     expect(await rowsOf(pair.d1, 'select * from users')).toEqual([])
   })
 
@@ -265,7 +341,9 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     const [inv] = await rowsOf(pair.control, 'select created_at from invitations')
     const [org] = await rowsOf(pair.d1, 'select created_at from organizations')
     expect(inv!.created_at >= org!.created_at).toBe(true)
-    expect(await rowsOf(pair.control, "select action from control_audit where action = 'invitation.created'")).toHaveLength(1)
+    expect(
+      await rowsOf(pair.control, "select action from control_audit where action = 'invitation.created'"),
+    ).toHaveLength(1)
   })
 
   it('a new instance without --owner-email is refused (exit 2) before any step', async () => {
@@ -313,7 +391,7 @@ describe('6. re-runs and the one-time link (D7)', () => {
   const invitationRows = () => rowsOf(pair.control, 'select * from invitations')
   const auditRows = () => rowsOf(pair.control, "select * from control_audit where action like 'invitation.%'")
 
-  it('none: the run issues one invitation and prints its URL once, in the bootstrap step\'s lines', async () => {
+  it("none: the run issues one invitation and prints its URL once, in the bootstrap step's lines", async () => {
     const s = world()
     expect(await run(s)).toBe(0)
     expect(urlLines(s)).toHaveLength(1)

@@ -40,7 +40,8 @@ async function sqlstate(fn: (c: pg.PoolClient) => Promise<unknown>): Promise<str
 
 type World = { orgA: string; orgB: string; userA: string; userB: string }
 async function world(c: pg.PoolClient): Promise<World> {
-  const org = async () => (await c.query(`INSERT INTO organizations (name) VALUES ('o') RETURNING id`)).rows[0].id as string
+  const org = async () =>
+    (await c.query(`INSERT INTO organizations (name) VALUES ('o') RETURNING id`)).rows[0].id as string
   const user = async (organizationId: string) => {
     const id = (await c.query(`INSERT INTO principals (kind) VALUES ('user') RETURNING id`)).rows[0].id as string
     await c.query(`INSERT INTO users (id, email) VALUES ($1, $2)`, [id, `${id}@example.test`])
@@ -51,14 +52,40 @@ async function world(c: pg.PoolClient): Promise<World> {
   return { orgA, orgB, userA: await user(orgA), userB: await user(orgB) }
 }
 const company = async (c: pg.PoolClient, org: string, user: string, name = 'C', domain: string | null = null) =>
-  (await c.query(`INSERT INTO companies (organization_id, created_by, name, domain) VALUES ($1,$2,$3,$4) RETURNING id`, [org, user, name, domain])).rows[0].id as string
+  (
+    await c.query(
+      `INSERT INTO companies (organization_id, created_by, name, domain) VALUES ($1,$2,$3,$4) RETURNING id`,
+      [org, user, name, domain],
+    )
+  ).rows[0].id as string
 const contact = async (c: pg.PoolClient, org: string, user: string, extra: { company_id?: string | null } = {}) =>
-  (await c.query(`INSERT INTO contacts (organization_id, created_by, company_id) VALUES ($1,$2,$3) RETURNING id`, [org, user, extra.company_id ?? null])).rows[0].id as string
-const identity = async (c: pg.PoolClient, org: string, user: string, v: { kind?: string; value?: string; contact_id?: string | null; own?: boolean; deleted?: boolean }) =>
-  (await c.query(
-    `INSERT INTO identities (organization_id, created_by, kind, value, contact_id, own, deleted_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-    [org, user, v.kind ?? 'email', v.value ?? 'a@b.com', v.contact_id ?? null, v.own ?? false, v.deleted ? new Date() : null],
-  )).rows[0].id as string
+  (
+    await c.query(`INSERT INTO contacts (organization_id, created_by, company_id) VALUES ($1,$2,$3) RETURNING id`, [
+      org,
+      user,
+      extra.company_id ?? null,
+    ])
+  ).rows[0].id as string
+const identity = async (
+  c: pg.PoolClient,
+  org: string,
+  user: string,
+  v: { kind?: string; value?: string; contact_id?: string | null; own?: boolean; deleted?: boolean },
+) =>
+  (
+    await c.query(
+      `INSERT INTO identities (organization_id, created_by, kind, value, contact_id, own, deleted_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [
+        org,
+        user,
+        v.kind ?? 'email',
+        v.value ?? 'a@b.com',
+        v.contact_id ?? null,
+        v.own ?? false,
+        v.deleted ? new Date() : null,
+      ],
+    )
+  ).rows[0].id as string
 
 const TABLES = ['companies', 'contacts', 'identities']
 
@@ -73,7 +100,12 @@ const base: Col[] = [
 ]
 const SHAPES: Record<string, Col[]> = {
   companies: [...base, ['name', 'text', false, false], ['domain', 'citext', true, false]],
-  contacts: [...base, ['name', 'text', true, false], ['company_id', 'uuid', true, false], ['merged_into_id', 'uuid', true, false]],
+  contacts: [
+    ...base,
+    ['name', 'text', true, false],
+    ['company_id', 'uuid', true, false],
+    ['merged_into_id', 'uuid', true, false],
+  ],
   identities: [
     ...base,
     ['kind', 'text', false, false],
@@ -86,35 +118,59 @@ const SHAPES: Record<string, Col[]> = {
 describe('migration 003 identity model', () => {
   for (const table of TABLES) {
     it(`columns: ${table}`, async () => {
-      const rows = await q<{ column_name: string; udt_name: string; is_nullable: string; column_default: string | null }>(
+      const rows = await q<{
+        column_name: string
+        udt_name: string
+        is_nullable: string
+        column_default: string | null
+      }>(
         `SELECT column_name, udt_name, is_nullable, column_default FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
         [table],
       )
-      const actual = rows.map((r) => [r.column_name, r.udt_name, r.is_nullable === 'YES', r.column_default !== null] as Col).sort((a, b) => a[0].localeCompare(b[0]))
+      const actual = rows
+        .map((r) => [r.column_name, r.udt_name, r.is_nullable === 'YES', r.column_default !== null] as Col)
+        .sort((a, b) => a[0].localeCompare(b[0]))
       expect(actual).toEqual([...SHAPES[table]!].sort((a, b) => a[0].localeCompare(b[0])))
     })
   }
 
   it('own defaults to false', async () => {
-    const [r] = await q(`SELECT column_default FROM information_schema.columns WHERE table_name='identities' AND column_name='own'`)
+    const [r] = await q(
+      `SELECT column_default FROM information_schema.columns WHERE table_name='identities' AND column_name='own'`,
+    )
     expect(r.column_default).toBe('false')
   })
 
   it('constraints and indexes by name', async () => {
-    const cons = (await q<{ conname: string }>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('companies'::regclass,'contacts'::regclass,'identities'::regclass)`)).map((r) => r.conname)
+    const cons = (
+      await q<{ conname: string }>(
+        `SELECT conname FROM pg_constraint WHERE conrelid IN ('companies'::regclass,'contacts'::regclass,'identities'::regclass)`,
+      )
+    ).map((r) => r.conname)
     for (const n of [
-      'idx_companies_organization_id_id_unique', 'idx_contacts_organization_id_id_unique', 'idx_identities_organization_id_id_unique',
-      'contacts_company_fk', 'contacts_merged_into_fk', 'contacts_merged_is_deleted', 'contacts_not_merged_into_self',
-      'identities_kind', 'identities_contact_fk', 'identities_own_xor_contact',
-    ]) expect(cons).toContain(n)
-    const idx = await q<{ indexname: string; indexdef: string }>(`SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public'`)
+      'idx_companies_organization_id_id_unique',
+      'idx_contacts_organization_id_id_unique',
+      'idx_identities_organization_id_id_unique',
+      'contacts_company_fk',
+      'contacts_merged_into_fk',
+      'contacts_merged_is_deleted',
+      'contacts_not_merged_into_self',
+      'identities_kind',
+      'identities_contact_fk',
+      'identities_own_xor_contact',
+    ])
+      expect(cons).toContain(n)
+    const idx = await q<{ indexname: string; indexdef: string }>(
+      `SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public'`,
+    )
     const byName = Object.fromEntries(idx.map((i) => [i.indexname, i.indexdef]))
     for (const n of ['idx_companies_domain_unique', 'idx_identities_address_unique']) {
       expect(byName[n], n).toBeDefined()
       expect(byName[n]).toContain('deleted_at IS NULL')
       expect(byName[n]).toContain('UNIQUE')
     }
-    for (const n of ['idx_contacts_organization_id_company_id', 'idx_identities_contact_id']) expect(byName[n], n).toBeDefined()
+    for (const n of ['idx_contacts_organization_id_company_id', 'idx_identities_contact_id'])
+      expect(byName[n], n).toBeDefined()
   })
 
   it('identities is a composite FK target', async () => {
@@ -128,82 +184,134 @@ describe('migration 003 identity model', () => {
   })
 
   it('kind check', async () => {
-    expect(await sqlstate(async (c) => { const w = await world(c); await identity(c, w.orgA, w.userA, { kind: 'fax' }) })).toBe('23514')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        await identity(c, w.orgA, w.userA, { kind: 'fax' })
+      }),
+    ).toBe('23514')
   })
 
   it('own xor contact', async () => {
-    expect(await sqlstate(async (c) => { const w = await world(c); const k = await contact(c, w.orgA, w.userA); await identity(c, w.orgA, w.userA, { own: true, contact_id: k }) })).toBe('23514')
-    expect(await sqlstate(async (c) => { const w = await world(c); await identity(c, w.orgA, w.userA, { own: false }) })).toBe('23514')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        const k = await contact(c, w.orgA, w.userA)
+        await identity(c, w.orgA, w.userA, { own: true, contact_id: k })
+      }),
+    ).toBe('23514')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        await identity(c, w.orgA, w.userA, { own: false })
+      }),
+    ).toBe('23514')
   })
 
   it('live address unique', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c); const k = await contact(c, w.orgA, w.userA)
-      await identity(c, w.orgA, w.userA, { contact_id: k }); await identity(c, w.orgA, w.userA, { contact_id: k })
-    })).toBe('23505')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        const k = await contact(c, w.orgA, w.userA)
+        await identity(c, w.orgA, w.userA, { contact_id: k })
+        await identity(c, w.orgA, w.userA, { contact_id: k })
+      }),
+    ).toBe('23505')
   })
 
   it('address reusable after soft delete', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c); const k = await contact(c, w.orgA, w.userA)
-      await identity(c, w.orgA, w.userA, { contact_id: k, deleted: true }); await identity(c, w.orgA, w.userA, { contact_id: k })
-    })).toBeUndefined()
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        const k = await contact(c, w.orgA, w.userA)
+        await identity(c, w.orgA, w.userA, { contact_id: k, deleted: true })
+        await identity(c, w.orgA, w.userA, { contact_id: k })
+      }),
+    ).toBeUndefined()
   })
 
   it('same address in two orgs', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c)
-      await identity(c, w.orgA, w.userA, { own: true }); await identity(c, w.orgB, w.userB, { own: true })
-    })).toBeUndefined()
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        await identity(c, w.orgA, w.userA, { own: true })
+        await identity(c, w.orgB, w.userB, { own: true })
+      }),
+    ).toBeUndefined()
   })
 
   it('company domain unique and case-insensitive', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c)
-      await company(c, w.orgA, w.userA, 'a', 'Acme.com'); await company(c, w.orgA, w.userA, 'b', 'acme.COM')
-    })).toBe('23505')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        await company(c, w.orgA, w.userA, 'a', 'Acme.com')
+        await company(c, w.orgA, w.userA, 'b', 'acme.COM')
+      }),
+    ).toBe('23505')
   })
 
   it('null domains repeat', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c)
-      await company(c, w.orgA, w.userA); await company(c, w.orgA, w.userA)
-    })).toBeUndefined()
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        await company(c, w.orgA, w.userA)
+        await company(c, w.orgA, w.userA)
+      }),
+    ).toBeUndefined()
   })
 
   it('cross-tenant company refused by the FK', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c); const co = await company(c, w.orgB, w.userB)
-      await contact(c, w.orgA, w.userA, { company_id: co })
-    })).toBe('23503')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        const co = await company(c, w.orgB, w.userB)
+        await contact(c, w.orgA, w.userA, { company_id: co })
+      }),
+    ).toBe('23503')
   })
 
   it('cross-tenant contact refused by the FK', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c); const k = await contact(c, w.orgB, w.userB)
-      await identity(c, w.orgA, w.userA, { contact_id: k })
-    })).toBe('23503')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        const k = await contact(c, w.orgB, w.userB)
+        await identity(c, w.orgA, w.userA, { contact_id: k })
+      }),
+    ).toBe('23503')
   })
 
   it('cross-tenant merged_into_id refused', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c); const other = await contact(c, w.orgB, w.userB)
-      await c.query(`INSERT INTO contacts (organization_id, created_by, merged_into_id, deleted_at) VALUES ($1,$2,$3,now())`, [w.orgA, w.userA, other])
-    })).toBe('23503')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        const other = await contact(c, w.orgB, w.userB)
+        await c.query(
+          `INSERT INTO contacts (organization_id, created_by, merged_into_id, deleted_at) VALUES ($1,$2,$3,now())`,
+          [w.orgA, w.userA, other],
+        )
+      }),
+    ).toBe('23503')
   })
 
   it('merged must be deleted', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c); const a = await contact(c, w.orgA, w.userA); const b = await contact(c, w.orgA, w.userA)
-      await c.query(`UPDATE contacts SET merged_into_id = $1 WHERE id = $2`, [a, b])
-    })).toBe('23514')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        const a = await contact(c, w.orgA, w.userA)
+        const b = await contact(c, w.orgA, w.userA)
+        await c.query(`UPDATE contacts SET merged_into_id = $1 WHERE id = $2`, [a, b])
+      }),
+    ).toBe('23514')
   })
 
   it('not merged into self', async () => {
-    expect(await sqlstate(async (c) => {
-      const w = await world(c); const a = await contact(c, w.orgA, w.userA)
-      await c.query(`UPDATE contacts SET merged_into_id = id, deleted_at = now() WHERE id = $1`, [a])
-    })).toBe('23514')
+    expect(
+      await sqlstate(async (c) => {
+        const w = await world(c)
+        const a = await contact(c, w.orgA, w.userA)
+        await c.query(`UPDATE contacts SET merged_into_id = id, deleted_at = now() WHERE id = $1`, [a])
+      }),
+    ).toBe('23514')
   })
 
   it('grants', async () => {

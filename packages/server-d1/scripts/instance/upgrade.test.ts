@@ -2,11 +2,25 @@ import { readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { runUpgrade } from './upgrade.js'
-import { ACCOUNT, captureHealthBody, cleanup, makeWorld, NO_TRACKER_JSON, packageLine, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
+import {
+  ACCOUNT,
+  captureHealthBody,
+  cleanup,
+  makeWorld,
+  NO_TRACKER_JSON,
+  packageLine,
+  TOKEN,
+  trackerJson,
+  validSettings,
+  type World,
+  type WorldOptions,
+} from './test-kit.js'
 
 afterEach(cleanup)
 let HEALTH: Record<string, any>
-beforeAll(async () => { HEALTH = await captureHealthBody() }, 60_000)
+beforeAll(async () => {
+  HEALTH = await captureHealthBody()
+}, 60_000)
 
 const PKG_VERSION = '0.1.0'
 const ALL = ['0001_a.sql', '0002_b.sql']
@@ -30,7 +44,14 @@ interface Sim {
   applyRan: boolean
   deployed: boolean
 }
-const sim = (over: Partial<Sim> = {}): Sim => ({ applied: [], version: '0.0.9', lag: 0, applyRan: false, deployed: false, ...over })
+const sim = (over: Partial<Sim> = {}): Sim => ({
+  applied: [],
+  version: '0.0.9',
+  lag: 0,
+  applyRan: false,
+  deployed: false,
+  ...over,
+})
 
 const migrationsStatus = (applied: string[] | null): string => {
   const have = applied ?? []
@@ -38,7 +59,8 @@ const migrationsStatus = (applied: string[] | null): string => {
   if (ALL.some((n) => !have.includes(n))) return 'behind'
   return have.length > ALL.length ? 'ahead' : 'current'
 }
-const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
 function worldFor(s: Sim, o: WorldOptions & { runner?: WorldOptions['runner'] } = {}): World {
   let polls = 0
@@ -50,7 +72,12 @@ function worldFor(s: Sim, o: WorldOptions & { runner?: WorldOptions['runner'] } 
       if (path === '/health') {
         if (s.deployed) polls++
         const shown = s.deployed && polls > s.lag ? s.version : s.deployed && s.lag > 0 ? '0.0.9' : s.version
-        return json(200, { ...HEALTH, initialised: true, version: shown, migrations: { ...HEALTH.migrations, status: migrationsStatus(s.applied) } })
+        return json(200, {
+          ...HEALTH,
+          initialised: true,
+          version: shown,
+          migrations: { ...HEALTH.migrations, status: migrationsStatus(s.applied) },
+        })
       }
       const override = s.smoke?.[path]
       if (override) return json(override[0], override[1])
@@ -62,8 +89,11 @@ function worldFor(s: Sim, o: WorldOptions & { runner?: WorldOptions['runner'] } 
       ((args, _env) => {
         const sub = args.slice(0, 3).join(' ')
         if (sub.startsWith('d1 execute')) {
-          if (s.applyRan && s.trackerAfterApply !== undefined) return { status: 0, stdout: s.trackerAfterApply, stderr: '' }
-          return s.applied === null ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' } : { status: 0, stdout: trackerJson(s.applied), stderr: '' }
+          if (s.applyRan && s.trackerAfterApply !== undefined)
+            return { status: 0, stdout: s.trackerAfterApply, stderr: '' }
+          return s.applied === null
+            ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' }
+            : { status: 0, stdout: trackerJson(s.applied), stderr: '' }
         }
         if (sub.startsWith('d1 migrations apply')) {
           s.applyRan = true
@@ -154,7 +184,10 @@ describe('D15 upgrade sequence and guards', () => {
   })
 
   it('nothing to do (same version, migrations current): exit 0, no write, no CONFIRM_REMOTE, even with --dry-run', async () => {
-    for (const argv of [['--env', 'demo'], ['--env', 'demo', '--dry-run']]) {
+    for (const argv of [
+      ['--env', 'demo'],
+      ['--env', 'demo', '--dry-run'],
+    ]) {
       const { w, code } = await run(sim({ applied: [...ALL], version: PKG_VERSION }), argv, { processEnv: {} })
       expect(code).toBe(0)
       expect(verbs(w)).toEqual(['d1 execute DB'])
@@ -245,7 +278,9 @@ describe('D16 rollback (P3)', () => {
     noTemp(w)
   })
   it('--rollback --dry-run prints the plan and writes nothing', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: '0.2.0' }), [...rollback, '--dry-run'], { processEnv: {} })
+    const { w, code } = await run(sim({ applied: NEWER, version: '0.2.0' }), [...rollback, '--dry-run'], {
+      processEnv: {},
+    })
     expect(code).toBe(0)
     expect(writes(w)).toEqual([])
   })
@@ -324,7 +359,14 @@ describe('D13 pinning and the installed package', () => {
     expect(w.wrangler.every((c) => !c.args.some((a) => /^https?:/.test(a)))).toBe(true)
   })
   it('the temp directory is gone after success and after a failure at each step', async () => {
-    const cases: Partial<Sim>[] = [{}, { failApply: true }, { applyNoop: true }, { failDeploy: true }, { deployNoop: true }, { smoke: { '/openapi.json': [200, {}] } }]
+    const cases: Partial<Sim>[] = [
+      {},
+      { failApply: true },
+      { applyNoop: true },
+      { failDeploy: true },
+      { deployNoop: true },
+      { smoke: { '/openapi.json': [200, {}] } },
+    ]
     for (const c of cases) {
       const { w } = await run(sim(c))
       noTemp(w)
@@ -343,12 +385,19 @@ describe('secrets and side effects', () => {
       expect(c.args.join(' ')).not.toContain(TOKEN)
     }
   }
-  const echoing = (failOn: string): WorldOptions['runner'] => (args, env) => {
-    const echo = { status: 1, stdout: JSON.stringify(env), stderr: `failed with env ${JSON.stringify(env)} token=${env.CLOUDFLARE_API_TOKEN}` }
-    if (args.slice(0, 3).join(' ').startsWith(failOn)) return echo
-    if (args[0] === 'd1' && args[1] === 'execute') return { status: 0, stdout: trackerJson(['0001_a.sql']), stderr: '' }
-    return { status: 0, stdout: 'ok', stderr: '' }
-  }
+  const echoing =
+    (failOn: string): WorldOptions['runner'] =>
+    (args, env) => {
+      const echo = {
+        status: 1,
+        stdout: JSON.stringify(env),
+        stderr: `failed with env ${JSON.stringify(env)} token=${env.CLOUDFLARE_API_TOKEN}`,
+      }
+      if (args.slice(0, 3).join(' ').startsWith(failOn)) return echo
+      if (args[0] === 'd1' && args[1] === 'execute')
+        return { status: 0, stdout: trackerJson(['0001_a.sql']), stderr: '' }
+      return { status: 0, stdout: 'ok', stderr: '' }
+    }
   it('a failing migrate or deploy that echoes its whole env prints no secret', async () => {
     for (const on of ['d1 migrations apply', 'deploy']) {
       const { w, code } = await run(sim({ applied: ['0001_a.sql'] }), ['--env', 'demo'], { runner: echoing(on) })
@@ -358,8 +407,18 @@ describe('secrets and side effects', () => {
     }
   })
   it('the wrangler child gets the allow-listed environment only, on every call', async () => {
-    const { w } = await run(sim(), ['--env', 'demo'], { processEnv: { CONFIRM_REMOTE: '1', CLERK_SECRET_KEY: 'sk_live_nope' } })
-    for (const c of w.wrangler) expect(Object.keys(c.env).sort()).toEqual(['CI', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'HOME', 'PATH', 'WRANGLER_SEND_METRICS'])
+    const { w } = await run(sim(), ['--env', 'demo'], {
+      processEnv: { CONFIRM_REMOTE: '1', CLERK_SECRET_KEY: 'sk_live_nope' },
+    })
+    for (const c of w.wrangler)
+      expect(Object.keys(c.env).sort()).toEqual([
+        'CI',
+        'CLOUDFLARE_ACCOUNT_ID',
+        'CLOUDFLARE_API_TOKEN',
+        'HOME',
+        'PATH',
+        'WRANGLER_SEND_METRICS',
+      ])
     leaks(w)
   })
   it('no secret appears in output, refusal or the generated config across every upgrade and rollback case', async () => {
@@ -398,7 +457,9 @@ describe('secrets and side effects', () => {
   })
   it('the keyless smoke sends no Authorization, then the two malformed ones', async () => {
     const { w } = await run(sim())
-    const tasks = w.fetchCalls.filter((c) => new URL(c.url).pathname === '/api/v1/tasks').map((c) => (c.init?.headers as Record<string, string> | undefined)?.authorization)
+    const tasks = w.fetchCalls
+      .filter((c) => new URL(c.url).pathname === '/api/v1/tasks')
+      .map((c) => (c.init?.headers as Record<string, string> | undefined)?.authorization)
     expect(tasks).toEqual([undefined, 'Bearer vk_malformed', 'Bearer a.b.c'])
   })
 })

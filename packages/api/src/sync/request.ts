@@ -22,14 +22,26 @@ export const instanceId = (connectionId: string, uuid: string): string => `mail-
 export const STALE_MS = 15 * 60_000
 
 /** `sync_requested_at = at` for the connection, in its own unit. Machinery, no event ([[CHN5]] D22). */
-export async function markRequested(d: Pick<RequestDeps, 'binding' | 'organizationId'>, connectionId: string, at: string): Promise<void> {
+export async function markRequested(
+  d: Pick<RequestDeps, 'binding' | 'organizationId'>,
+  connectionId: string,
+  at: string,
+): Promise<void> {
   const op = defineOperation<void>({
     name: 'sync.mark_requested',
     mutates: true,
     reads: () => ({}),
     build: (_found, qc) =>
       unit({
-        steps: [step(qc.db.updateTable('mail_sync_state').set({ sync_requested_at: at }).where('connection_id', '=', connectionId).where('organization_id', '=', d.organizationId))],
+        steps: [
+          step(
+            qc.db
+              .updateTable('mail_sync_state')
+              .set({ sync_requested_at: at })
+              .where('connection_id', '=', connectionId)
+              .where('organization_id', '=', d.organizationId),
+          ),
+        ],
         events: [],
         decode: () => undefined,
       }),
@@ -38,7 +50,10 @@ export async function markRequested(d: Pick<RequestDeps, 'binding' | 'organizati
 }
 
 /** The one function every trigger uses. Throws when the instance cannot be created (the request stays recorded). */
-export async function requestSync(d: RequestDeps, connectionId: string): Promise<{ requested_at: string; instance_id: string }> {
+export async function requestSync(
+  d: RequestDeps,
+  connectionId: string,
+): Promise<{ requested_at: string; instance_id: string }> {
   const requested_at = d.clock().toISOString()
   await markRequested(d, connectionId, requested_at)
   const id = instanceId(connectionId, d.newId())

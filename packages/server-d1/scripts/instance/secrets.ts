@@ -14,7 +14,8 @@ export interface Secrets {
   redact(text: string): string
 }
 
-export const defaultSecretsPath = (env: Record<string, string | undefined>, homedir: string, envName: string): string => join(instancesDir(env, homedir), `${envName}.env`)
+export const defaultSecretsPath = (env: Record<string, string | undefined>, homedir: string, envName: string): string =>
+  join(instancesDir(env, homedir), `${envName}.env`)
 
 export function parseDotenv(text: string): Record<string, string> {
   const out: Record<string, string> = {}
@@ -24,7 +25,8 @@ export function parseDotenv(text: string): Record<string, string> {
     const m = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line)
     if (!m) continue
     let v = m[2]!.trim()
-    if (v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) v = v.slice(1, -1)
+    if (v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))))
+      v = v.slice(1, -1)
     out[m[1]!] = v
   }
   return out
@@ -46,9 +48,15 @@ export function loadSecrets(path: string, env: Record<string, string | undefined
   }
   if (stat === undefined) {
     // The process environment alone may supply both Cloudflare names ([[OPS210]] D10).
-    if (!NAMES.every((n) => fromEnv(n))) throw new InstanceRefusal(`no secrets file at ${path}: create it (mode 600) with ${NAMES.join(' and ')}, or pass --secrets-file <path>`)
+    if (!NAMES.every((n) => fromEnv(n)))
+      throw new InstanceRefusal(
+        `no secrets file at ${path}: create it (mode 600) with ${NAMES.join(' and ')}, or pass --secrets-file <path>`,
+      )
   } else {
-    if ((stat.mode & 0o077) !== 0) throw new InstanceRefusal(`${path} is accessible by group or others (mode ${(stat.mode & 0o777).toString(8)}): run chmod 600 on it`)
+    if ((stat.mode & 0o077) !== 0)
+      throw new InstanceRefusal(
+        `${path} is accessible by group or others (mode ${(stat.mode & 0o777).toString(8)}): run chmod 600 on it`,
+      )
     text = readFileSync(path, 'utf8')
     file = parseDotenv(text)
   }
@@ -59,6 +67,20 @@ export function loadSecrets(path: string, env: Record<string, string | undefined
   }
   const CLOUDFLARE_ACCOUNT_ID = value('CLOUDFLARE_ACCOUNT_ID')
   const CLOUDFLARE_API_TOKEN = value('CLOUDFLARE_API_TOKEN')
-  const masked = [...new Set([CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, ...Object.values(file), ...NAMES.map((n) => fromEnv(n) ?? '')].filter((v) => v.length >= MIN_MASKED))].sort((a, b) => b.length - a.length)
-  return { CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, text, redact: (text) => masked.reduce((t, v) => t.split(v).join('***'), text) }
+  const masked = [
+    ...new Set(
+      [
+        CLOUDFLARE_ACCOUNT_ID,
+        CLOUDFLARE_API_TOKEN,
+        ...Object.values(file),
+        ...NAMES.map((n) => fromEnv(n) ?? ''),
+      ].filter((v) => v.length >= MIN_MASKED),
+    ),
+  ].sort((a, b) => b.length - a.length)
+  return {
+    CLOUDFLARE_ACCOUNT_ID,
+    CLOUDFLARE_API_TOKEN,
+    text,
+    redact: (text) => masked.reduce((t, v) => t.split(v).join('***'), text),
+  }
 }

@@ -3,7 +3,19 @@ import { sql } from 'kysely'
 import { createOwnerTestDb, createTestDb, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vibase/db'
-import { StatementFailed, StorageError, UnitDriftError, defineOperation, execute, readAll, readMaybe, selectColumns, step, unit, eq } from '@vibase/storage'
+import {
+  StatementFailed,
+  StorageError,
+  UnitDriftError,
+  defineOperation,
+  execute,
+  readAll,
+  readMaybe,
+  selectColumns,
+  step,
+  unit,
+  eq,
+} from '@vibase/storage'
 import { classifyPostgresError, orgWriterKey, postgresBinding } from './index.js'
 
 const db = createTestDb({ max: 4 })
@@ -21,7 +33,12 @@ beforeEach(async () => {
 })
 
 const noop = (mutates: boolean) =>
-  defineOperation<number>({ name: 'noop', mutates, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => 1 }) })
+  defineOperation<number>({
+    name: 'noop',
+    mutates,
+    reads: () => ({}),
+    build: () => unit({ steps: [], events: [], decode: () => 1 }),
+  })
 
 describe('the Postgres runtime', () => {
   const binding = postgresBinding(db)
@@ -49,7 +66,11 @@ describe('the Postgres runtime', () => {
     })
     const first = execute(binding, identity(), holder)
     await new Promise((r) => setTimeout(r, 100))
-    const { rows } = await sql<{ n: number }>`select count(*)::int as n from pg_locks where locktype = 'advisory' and granted and pid <> pg_backend_pid()`.execute(owner)
+    const { rows } = await sql<{
+      n: number
+    }>`select count(*)::int as n from pg_locks where locktype = 'advisory' and granted and pid <> pg_backend_pid()`.execute(
+      owner,
+    )
     expect(rows[0]!.n).toBeGreaterThanOrEqual(1)
     const t0 = Date.now()
     await execute(binding, identity(), noop(true))
@@ -62,10 +83,23 @@ describe('the Postgres runtime', () => {
     const op = defineOperation<number>({
       name: 'drift',
       mutates: true,
-      reads: (qc) => ({ t: readMaybe(selectColumns(qc, 'tasks', ['id']).where(eq('tasks', 'id', '0190b2c4-0000-7000-8000-00000000dead'))) }),
+      reads: (qc) => ({
+        t: readMaybe(
+          selectColumns(qc, 'tasks', ['id']).where(eq('tasks', 'id', '0190b2c4-0000-7000-8000-00000000dead')),
+        ),
+      }),
       build: (_f, qc) =>
         unit({
-          steps: [step(qc.db.updateTable('tasks').set({ title: 'x' }).where(eq('tasks', 'id', '0190b2c4-0000-7000-8000-00000000dead')), 'first-mutation', { expect: 'affected' })],
+          steps: [
+            step(
+              qc.db
+                .updateTable('tasks')
+                .set({ title: 'x' })
+                .where(eq('tasks', 'id', '0190b2c4-0000-7000-8000-00000000dead')),
+              'first-mutation',
+              { expect: 'affected' },
+            ),
+          ],
           events: [],
           decode: () => 1,
         }),
@@ -84,16 +118,20 @@ describe('the Postgres runtime', () => {
       name: 'bad',
       mutates: true,
       reads: () => ({}),
-      build: () => unit({ steps: [step(sql`insert into tasks (id) values (null)`.compile(db))], events: [], decode: () => 1 }),
+      build: () =>
+        unit({ steps: [step(sql`insert into tasks (id) values (null)`.compile(db))], events: [], decode: () => 1 }),
     })
     await expect(execute(binding, identity(), bad)).rejects.toBeInstanceOf(StatementFailed)
   })
 
   describe('exact counts and holds-assertions (CORE36 C2)', () => {
     const insertTask = (qc: { db: any }, id: string) =>
-      sql`insert into tasks (id, organization_id, title, created_by, created_at, updated_at) values (${id}, ${org.id}, 't', ${user.id}, '2026-10-22T08:00:00.000Z', '2026-10-22T08:00:00.000Z')`.compile(qc.db)
+      sql`insert into tasks (id, organization_id, title, created_by, created_at, updated_at) values (${id}, ${org.id}, 't', ${user.id}, '2026-10-22T08:00:00.000Z', '2026-10-22T08:00:00.000Z')`.compile(
+        qc.db,
+      )
     const A = '0190b2c4-0000-7000-8000-0000000000a1'
-    const count = async () => Number((await sql<{ n: string }>`select count(*)::int as n from tasks`.execute(owner)).rows[0]!.n)
+    const count = async () =>
+      Number((await sql<{ n: string }>`select count(*)::int as n from tasks`.execute(owner)).rows[0]!.n)
 
     it('aborts and rolls back a unit whose statement affected fewer rows than { rows: n }', async () => {
       const op = defineOperation<number>({
@@ -104,7 +142,14 @@ describe('the Postgres runtime', () => {
           unit({
             steps: [
               step(insertTask(qc, A), 'first-mutation'),
-              step(qc.db.updateTable('tasks').set({ title: 'x' }).where(eq('tasks', 'id', A)), undefined, { expect: { rows: 2 } }),
+              step(
+                qc.db
+                  .updateTable('tasks')
+                  .set({ title: 'x' })
+                  .where(eq('tasks', 'id', A)),
+                undefined,
+                { expect: { rows: 2 } },
+              ),
             ],
             events: [],
             decode: () => 1,
@@ -119,7 +164,12 @@ describe('the Postgres runtime', () => {
         name: 'exactly.ok',
         mutates: true,
         reads: () => ({}),
-        build: (_f, qc) => unit({ steps: [step(insertTask(qc, A), 'first-mutation', { expect: { rows: 1 } })], events: [], decode: () => 1 }),
+        build: (_f, qc) =>
+          unit({
+            steps: [step(insertTask(qc, A), 'first-mutation', { expect: { rows: 1 } })],
+            events: [],
+            decode: () => 1,
+          }),
       })
       await execute(binding, identity(), op)
       expect(await count()).toBe(1)
@@ -135,7 +185,10 @@ describe('the Postgres runtime', () => {
         reads: () => ({}),
         build: (_f, qc) =>
           unit({
-            steps: [step(insertTask(qc, A), 'first-mutation'), step(sql`select cast(${holds} as boolean) as holds`.compile(qc.db), undefined, { expect: 'holds' })],
+            steps: [
+              step(insertTask(qc, A), 'first-mutation'),
+              step(sql`select cast(${holds} as boolean) as holds`.compile(qc.db), undefined, { expect: 'holds' }),
+            ],
             events: [],
             decode: () => 1,
           }),
@@ -170,8 +223,11 @@ describe('storage identities (CORE41 C1)', () => {
   const listMemberships = defineOperation<string[]>({
     name: 'memberships.all',
     mutates: false,
-    reads: (qc) => ({ rows: readAll(selectColumns(qc, 'memberships', ['id', 'organization_id']).orderBy('memberships.id')) }),
-    build: (found) => unit({ steps: [], events: [], decode: () => found.all('rows').map((r) => r.organization_id as string) }),
+    reads: (qc) => ({
+      rows: readAll(selectColumns(qc, 'memberships', ['id', 'organization_id']).orderBy('memberships.id')),
+    }),
+    build: (found) =>
+      unit({ steps: [], events: [], decode: () => found.all('rows').map((r) => r.organization_id as string) }),
   })
 
   it('internal runs as the service role', async () => {
@@ -194,7 +250,9 @@ describe('storage identities (CORE41 C1)', () => {
 
   it('internal rejects a non-UUID organisation before sending any statement', async () => {
     const spy = spyPool()
-    const err = await execute(postgresBinding(spy.pool), { kind: 'internal', organizationId: 'x' }, noop(true)).catch((e: unknown) => e)
+    const err = await execute(postgresBinding(spy.pool), { kind: 'internal', organizationId: 'x' }, noop(true)).catch(
+      (e: unknown) => e,
+    )
     expect(err).toBeInstanceOf(StorageError)
     expect(spy.queries()).toBe(0)
   })
@@ -209,7 +267,9 @@ describe('storage identities (CORE41 C1)', () => {
 
   it('account refuses a mutating unit before any SQL', async () => {
     const spy = spyPool()
-    const err = await execute(postgresBinding(spy.pool), { kind: 'account', actorId: user.id }, noop(true)).catch((e: unknown) => e)
+    const err = await execute(postgresBinding(spy.pool), { kind: 'account', actorId: user.id }, noop(true)).catch(
+      (e: unknown) => e,
+    )
     expect(err).toBeInstanceOf(StorageError)
     expect((err as Error).message).toMatch(/account units are read-only/)
     expect(spy.queries()).toBe(0)

@@ -19,7 +19,9 @@ describe('ScopeList', () => {
 
   it('renders markup-looking names and descriptions as text: no element is created from them', () => {
     const attack = '<img src=x onerror=alert(1)>'
-    const { container } = render(<ScopeList scopes={[{ name: attack, description: '<b>bold</b><script>1</script>' }]} />)
+    const { container } = render(
+      <ScopeList scopes={[{ name: attack, description: '<b>bold</b><script>1</script>' }]} />,
+    )
     expect(container.querySelector('img, b, script')).toBeNull()
     expect(screen.getByText(attack)).toBeTruthy()
     expect(container.textContent).toContain('<b>bold</b><script>1</script>')

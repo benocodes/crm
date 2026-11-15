@@ -11,18 +11,28 @@ describe('the tag check (P1)', () => {
     expect(decideTag({ refType: 'tag', refName: 'v0.1.0' }, '0.1.0')).toEqual({ mode: 'release', tag: 'v0.1.0' })
   })
   it('v<another version> refuses, naming the tag and the version', () => {
-    expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).toThrow(/v0\.2\.0.*0\.1\.0|0\.1\.0.*v0\.2\.0/)
+    expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).toThrow(
+      /v0\.2\.0.*0\.1\.0|0\.1\.0.*v0\.2\.0/,
+    )
     expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).toThrow(ReleaseRefusal)
   })
-  it.each(['v1', 'release-0.1.0', '0.1.0', 'v0.1', 'v0.1.0.0', 'V0.1.0', 'v0.1.0 '])('a tag that is not v<semver> (%s) refuses', (name) => {
-    expect(() => decideTag({ refType: 'tag', refName: name }, '0.1.0')).toThrow(ReleaseRefusal)
-  })
+  it.each(['v1', 'release-0.1.0', '0.1.0', 'v0.1', 'v0.1.0.0', 'V0.1.0', 'v0.1.0 '])(
+    'a tag that is not v<semver> (%s) refuses',
+    (name) => {
+      expect(() => decideTag({ refType: 'tag', refName: name }, '0.1.0')).toThrow(ReleaseRefusal)
+    },
+  )
   it('a prerelease tag equal to a prerelease version passes (changesets pre mode); against another version it refuses', () => {
-    expect(decideTag({ refType: 'tag', refName: 'v0.2.0-rc.0' }, '0.2.0-rc.0')).toEqual({ mode: 'release', tag: 'v0.2.0-rc.0' })
+    expect(decideTag({ refType: 'tag', refName: 'v0.2.0-rc.0' }, '0.2.0-rc.0')).toEqual({
+      mode: 'release',
+      tag: 'v0.2.0-rc.0',
+    })
     expect(() => decideTag({ refType: 'tag', refName: 'v0.1.0-rc.1' }, '0.1.0')).toThrow(/0\.1\.0/)
   })
   it('the refusal names the source of the version: the two workspace package.json files', () => {
-    expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).toThrow(/packages\/cli.*packages\/server-d1|packages\/server-d1.*packages\/cli/)
+    expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).toThrow(
+      /packages\/cli.*packages\/server-d1|packages\/server-d1.*packages\/cli/,
+    )
     expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).not.toThrow(/packages\/release/)
   })
   it('a dispatch run (a branch ref, or none) selects build-only and never the release path', () => {
@@ -32,7 +42,9 @@ describe('the tag check (P1)', () => {
 })
 
 const roots: string[] = []
-afterEach(() => { for (const d of roots.splice(0)) rmSync(d, { recursive: true, force: true }) })
+afterEach(() => {
+  for (const d of roots.splice(0)) rmSync(d, { recursive: true, force: true })
+})
 const dist = (files: string[]) => {
   const d = mkdtempSync(join(tmpdir(), 'ops237-dist-'))
   roots.push(d)
@@ -47,7 +59,9 @@ describe('the release asset list (P2)', () => {
     expect(releaseAssets(d, '0.1.0')).toEqual(GOOD.map((f) => join(d, f)))
   })
   it('a missing tarball refuses, naming it', () => {
-    expect(() => releaseAssets(dist(['vibase-cli-0.1.0.tgz', 'SHA256SUMS']), '0.1.0')).toThrow(/vibase-server-d1-0\.1\.0\.tgz.*missing|missing.*vibase-server-d1-0\.1\.0\.tgz/)
+    expect(() => releaseAssets(dist(['vibase-cli-0.1.0.tgz', 'SHA256SUMS']), '0.1.0')).toThrow(
+      /vibase-server-d1-0\.1\.0\.tgz.*missing|missing.*vibase-server-d1-0\.1\.0\.tgz/,
+    )
   })
   it('a missing SHA256SUMS refuses', () => {
     expect(() => releaseAssets(dist(GOOD.slice(0, 2)), '0.1.0')).toThrow(/SHA256SUMS/)

@@ -31,7 +31,12 @@ export interface PushClaims {
   expIn?: number | null
 }
 /** A push token as Google's would be: RS256, the two `iss` forms, `aud` the endpoint, the service account's `email` and `email_verified`. `now` is the vault's injected clock. */
-export async function signPushToken(key: PushKey, now: Date, c: PushClaims = {}, header: { alg?: string; kid?: string } = {}): Promise<string> {
+export async function signPushToken(
+  key: PushKey,
+  now: Date,
+  c: PushClaims = {},
+  header: { alg?: string; kid?: string } = {},
+): Promise<string> {
   const iat = Math.floor(now.getTime() / 1000)
   const payload: Record<string, unknown> = {}
   if (c.email !== null) payload.email = c.email ?? PUSH.serviceAccount
@@ -47,7 +52,11 @@ export async function signPushToken(key: PushKey, now: Date, c: PushClaims = {},
 }
 
 /** A JWKS `fetch` that counts its calls. `mode` is switchable per test. */
-export function jwksFetch(keys: PushKey[]): { fetch: typeof fetch; urls: string[]; mode: 'ok' | 'status' | 'throw' | 'bad_json' } {
+export function jwksFetch(keys: PushKey[]): {
+  fetch: typeof fetch
+  urls: string[]
+  mode: 'ok' | 'status' | 'throw' | 'bad_json'
+} {
   const state = {
     urls: [] as string[],
     mode: 'ok' as 'ok' | 'status' | 'throw' | 'bad_json',
@@ -58,7 +67,10 @@ export function jwksFetch(keys: PushKey[]): { fetch: typeof fetch; urls: string[
       if (state.mode === 'throw') throw new TypeError('fetch failed')
       if (state.mode === 'status') return new Response('{"error":"down"}', { status: 500 })
       if (state.mode === 'bad_json') return new Response('not json', { status: 200 })
-      return new Response(JSON.stringify({ keys: keys.map((k) => k.jwk) }), { status: 200, headers: { 'content-type': 'application/json' } })
+      return new Response(JSON.stringify({ keys: keys.map((k) => k.jwk) }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
     }) as typeof fetch,
   }
   return state
@@ -66,7 +78,20 @@ export function jwksFetch(keys: PushKey[]): { fetch: typeof fetch; urls: string[
 
 const b64 = (s: string): string => btoa(s).replace(/\+/g, '-').replace(/\//g, '_')
 /** Pub/Sub's push request body: the Gmail notification is the base64url `message.data`. `data` overrides it whole (a payload that does not decode). */
-export function pushBody(o: { emailAddress?: string; historyId?: string; subscription?: string; data?: string } = {}): string {
-  const data = o.data ?? b64(JSON.stringify({ emailAddress: o.emailAddress ?? 'owner@vibase.test', historyId: o.historyId ?? '1234567' }))
-  return JSON.stringify({ message: { data, messageId: '2070443601311540', message_id: '2070443601311540', publishTime: '2026-11-05T10:00:00.000Z', publish_time: '2026-11-05T10:00:00.000Z' }, subscription: o.subscription ?? PUSH.subscription })
+export function pushBody(
+  o: { emailAddress?: string; historyId?: string; subscription?: string; data?: string } = {},
+): string {
+  const data =
+    o.data ??
+    b64(JSON.stringify({ emailAddress: o.emailAddress ?? 'owner@vibase.test', historyId: o.historyId ?? '1234567' }))
+  return JSON.stringify({
+    message: {
+      data,
+      messageId: '2070443601311540',
+      message_id: '2070443601311540',
+      publishTime: '2026-11-05T10:00:00.000Z',
+      publish_time: '2026-11-05T10:00:00.000Z',
+    },
+    subscription: o.subscription ?? PUSH.subscription,
+  })
 }

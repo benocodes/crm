@@ -1,6 +1,15 @@
 import { sql, type Expression, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import { UnitDriftError, codecs, defineOperation, readMaybe, step, unit, type PreparedOperation, type Row } from '@vibase/storage'
+import {
+  UnitDriftError,
+  codecs,
+  defineOperation,
+  readMaybe,
+  step,
+  unit,
+  type PreparedOperation,
+  type Row,
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { noReads } from '../proposal.js'
@@ -31,7 +40,13 @@ export interface EnqueuedSpec {
   authorise?: (env: PreparedEnv, args: Record<string, unknown>, ctx: PrepareContext) => Promise<Authorisation | void>
 }
 
-const idempotencyKey = z.string().min(1).max(200).describe('Your key for this call: a repeat with the same key and arguments answers the same execution, and the same key with other arguments is 409 idempotency_key_reused. Unique per caller.')
+const idempotencyKey = z
+  .string()
+  .min(1)
+  .max(200)
+  .describe(
+    'Your key for this call: a repeat with the same key and arguments answers the same execution, and the same key with other arguments is 409 idempotency_key_reused. Unique per caller.',
+  )
 
 /**
  * An operation declared `execution: enqueued` ([[AGT8]] D2, D51): called directly it authorises one durable execution and answers `202` with its receipt
@@ -39,9 +54,16 @@ const idempotencyKey = z.string().min(1).max(200).describe('Your key for this ca
  * `after` starts the runner on the execution, best effort ([[AGT8]] D13, D49): the cron is the guarantee.
  */
 export function enqueuedOperation(spec: EnqueuedSpec): TenantOperation {
-  if ('idempotency_key' in spec.input.shape) throw new Error(`operation ${spec.name}: the input declares idempotency_key, which the builder adds`)
+  if ('idempotency_key' in spec.input.shape)
+    throw new Error(`operation ${spec.name}: the input declares idempotency_key, which the builder adds`)
   const body = spec.input.safeExtend({ idempotency_key: idempotencyKey })
-  const execution: ExecutionDecl = { ...(spec.retry ? { retry: spec.retry } : {}), transport: spec.transport, readScope: spec.readScope, input: spec.input, ...(spec.authorise ? { authorise: spec.authorise } : {}) }
+  const execution: ExecutionDecl = {
+    ...(spec.retry ? { retry: spec.retry } : {}),
+    transport: spec.transport,
+    readScope: spec.readScope,
+    input: spec.input,
+    ...(spec.authorise ? { authorise: spec.authorise } : {}),
+  }
   const description = [
     spec.description,
     'Enqueued: answers 202 with the execution receipt; poll action_executions.get for the outcome. idempotency_key is required: repeating the call with the same key and arguments answers the same execution.',
@@ -79,12 +101,29 @@ export function ownArguments(execution: ExecutionDecl, args: Record<string, unkn
   return parseInput(execution.input, rest)
 }
 
-async function directEnqueue(operation: string, execution: ExecutionDecl, bodySchema: z.ZodObject, env: PreparedEnv, rawBody: unknown, ctx: PrepareContext): Promise<PreparedOperation<ExecutionRecord>> {
+async function directEnqueue(
+  operation: string,
+  execution: ExecutionDecl,
+  bodySchema: z.ZodObject,
+  env: PreparedEnv,
+  rawBody: unknown,
+  ctx: PrepareContext,
+): Promise<PreparedOperation<ExecutionRecord>> {
   // The key first, by name: a missing key is the commonest mistake of a first call, and zod's own message would not say which field.
-  const key = idempotencyKey.safeParse(rawBody !== null && typeof rawBody === 'object' ? (rawBody as Record<string, unknown>).idempotency_key : undefined)
-  if (!key.success) throw new ApiError(400, 'validation_error', `idempotency_key is required: ${key.error.issues.map((i) => i.message).join('; ')}`)
-  const { idempotency_key: _key, ...args } = parseInput(bodySchema, rawBody) as { idempotency_key: string } & Record<string, unknown>
-  const sendText = operation === 'messages.send' ? args.body as string : undefined
+  const key = idempotencyKey.safeParse(
+    rawBody !== null && typeof rawBody === 'object' ? (rawBody as Record<string, unknown>).idempotency_key : undefined,
+  )
+  if (!key.success)
+    throw new ApiError(
+      400,
+      'validation_error',
+      `idempotency_key is required: ${key.error.issues.map((i) => i.message).join('; ')}`,
+    )
+  const { idempotency_key: _key, ...args } = parseInput(bodySchema, rawBody) as { idempotency_key: string } & Record<
+    string,
+    unknown
+  >
+  const sendText = operation === 'messages.send' ? (args.body as string) : undefined
   if (sendText !== undefined) args.body = await describeSendBody(sendText)
   const hash = await inputHash(operation, args)
   const byKey = (qc: Parameters<PreparedOperation<unknown>['reads']>[0]) =>
@@ -94,17 +133,30 @@ async function directEnqueue(operation: string, execution: ExecutionDecl, bodySc
       .where(sql<SqlBool>`${sql.ref('action_executions.idempotency_key')} = ${key.data}`)
   const replay = (existing: Row) => {
     const { __hash, ...rest } = existing
-    if (__hash !== hash) throw new ApiError(409, 'idempotency_key_reused', 'this idempotency_key was used for a different call; use a new key for a different call')
+    if (__hash !== hash)
+      throw new ApiError(
+        409,
+        'idempotency_key_reused',
+        'this idempotency_key was used for a different call; use a new key for a different call',
+      )
     return unit({ steps: [], events: [], decode: () => toRecord(actionExecutions, rest) })
   }
   // D61: a prior receipt survives a later authorisation refusal. Only a new key reaches authorise.
-  const existing = await ctx.read(defineOperation<Row | null>({
-    name: `${operation}.enqueue.lookup`,
-    mutates: false,
-    reads: (qc) => ({ existing: readMaybe(byKey(qc)) }),
-    build: (found) => unit({ steps: [], events: [], decode: () => found.maybe('existing') }),
-  }))
-  if (existing) return defineOperation({ name: `${operation}.enqueue`, mutates: false, reads: () => ({}), build: () => replay(existing) })
+  const existing = await ctx.read(
+    defineOperation<Row | null>({
+      name: `${operation}.enqueue.lookup`,
+      mutates: false,
+      reads: (qc) => ({ existing: readMaybe(byKey(qc)) }),
+      build: (found) => unit({ steps: [], events: [], decode: () => found.maybe('existing') }),
+    }),
+  )
+  if (existing)
+    return defineOperation({
+      name: `${operation}.enqueue`,
+      mutates: false,
+      reads: () => ({}),
+      build: () => replay(existing),
+    })
   const auth = (await execution.authorise?.(env, args, ctx)) ?? {}
   if (sendText !== undefined) await storeSendBody(requireSendStore(env.objects), env.organizationId, sendText)
   const id = env.newId()
@@ -127,15 +179,44 @@ async function directEnqueue(operation: string, execution: ExecutionDecl, bodySc
           step(
             insertExecution(
               qc,
-              { id, at, organizationId: env.organizationId, createdBy: env.actor.id, authorisedBy: env.actor.id, actionRequestId: null, operation, arguments: args, resolution: auth.resolution ?? {}, clientRef: clientRefOf(id, auth.clientRefDomain), idempotencyKey: key.data, inputHash: hash, deadlineAt: deadline },
+              {
+                id,
+                at,
+                organizationId: env.organizationId,
+                createdBy: env.actor.id,
+                authorisedBy: env.actor.id,
+                actionRequestId: null,
+                operation,
+                arguments: args,
+                resolution: auth.resolution ?? {},
+                clientRef: clientRefOf(id, auth.clientRefDomain),
+                idempotencyKey: key.data,
+                inputHash: hash,
+                deadlineAt: deadline,
+              },
               guards,
               { onConflictNothing: true },
             ),
             'first-mutation',
           ),
-          step(eventStatement(qc, { id: eventId, at, organizationId: env.organizationId, actorId: env.actor.id, type: 'action_execution.created', resourceType: 'action_execution', resourceId: id, before: null, after: afterOf(actionExecutions) }), 'first-event'),
           step(
-            selectRecord(actionExecutions, qc, env, id).where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`),
+            eventStatement(qc, {
+              id: eventId,
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'action_execution.created',
+              resourceType: 'action_execution',
+              resourceId: id,
+              before: null,
+              after: afterOf(actionExecutions),
+            }),
+            'first-event',
+          ),
+          step(
+            selectRecord(actionExecutions, qc, env, id).where(
+              sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`,
+            ),
             'result',
           ),
         ],

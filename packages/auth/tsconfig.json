@@ -4,15 +4,9 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
-    "types": [
-      "node",
-      "@cloudflare/workers-types"
-    ],
+    "types": ["node", "@cloudflare/workers-types"],
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": [
-    "src",
-    "scripts"
-  ]
+  "include": ["src", "scripts"]
 }

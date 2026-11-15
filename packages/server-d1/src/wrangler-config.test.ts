@@ -18,7 +18,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 describe('the local DB and CONTROL_DB are separate databases', () => {
   it('a write through DB is not visible through CONTROL_DB', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'wrangler-local-'))
-    const proxy = await getPlatformProxy<{ DB: { prepare(q: string): { run(): Promise<unknown>; all(): Promise<unknown> } }; CONTROL_DB: { prepare(q: string): { all(): Promise<unknown> } } }>({ configPath: CONFIG, persist: { path: dir }, remoteBindings: false })
+    const proxy = await getPlatformProxy<{
+      DB: { prepare(q: string): { run(): Promise<unknown>; all(): Promise<unknown> } }
+      CONTROL_DB: { prepare(q: string): { all(): Promise<unknown> } }
+    }>({ configPath: CONFIG, persist: { path: dir }, remoteBindings: false })
     try {
       await proxy.env.DB.prepare('create table only_in_crm (id text)').run()
       await expect(proxy.env.CONTROL_DB.prepare('select * from only_in_crm').all()).rejects.toThrow(/no such table/i)
@@ -72,7 +75,10 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
   it('no deployed env binds CONTROL_DB yet (its database comes with OPS260), and each env keeps exactly its DB binding', () => {
     for (const env of ['smoked1', 'hq']) {
       const c = unstable_readConfig({ config: CONFIG, env })
-      expect(c.d1_databases.map((d: { binding: string }) => d.binding), env).toEqual(['DB'])
+      expect(
+        c.d1_databases.map((d: { binding: string }) => d.binding),
+        env,
+      ).toEqual(['DB'])
     }
   })
 
@@ -93,28 +99,36 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
 describe('assets (UI30 D2)', () => {
   // Every env the file declares (a fork has its own set; none is assumed), plus the top level.
   const declaredEnvs = Object.keys((parse(readFileSync(CONFIG, 'utf8')) as { env?: object }).env ?? {})
-  it.each([undefined, ...declaredEnvs])('env %s binds ASSETS and runs the Worker first for /connect, /connect/*, the auth pages and /ui/* only (UI246 D2)', (env) => {
-    const c = unstable_readConfig({ config: CONFIG, env })
-    expect(c.assets?.binding).toBe('ASSETS')
-    // Derived from the constants the Worker serves, never a copied list: a page or prefix the Worker serves but `run_worker_first` omits would be answered by the assets binding without the headers.
-    expect(c.assets?.run_worker_first).toEqual(['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST])
-    for (const p of UI_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
-    expect(c.assets?.run_worker_first).toContain(`${UI_PREFIX}/*`)
-    expect(resolve(dirname(CONFIG), c.assets!.directory!)).toMatch(/packages\/server-d1\/dist\/assets$/)
-  })
+  it.each([undefined, ...declaredEnvs])(
+    'env %s binds ASSETS and runs the Worker first for /connect, /connect/*, the auth pages and /ui/* only (UI246 D2)',
+    (env) => {
+      const c = unstable_readConfig({ config: CONFIG, env })
+      expect(c.assets?.binding).toBe('ASSETS')
+      // Derived from the constants the Worker serves, never a copied list: a page or prefix the Worker serves but `run_worker_first` omits would be answered by the assets binding without the headers.
+      expect(c.assets?.run_worker_first).toEqual(['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST])
+      for (const p of UI_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
+      expect(c.assets?.run_worker_first).toContain(`${UI_PREFIX}/*`)
+      expect(resolve(dirname(CONFIG), c.assets!.directory!)).toMatch(/packages\/server-d1\/dist\/assets$/)
+    },
+  )
 })
 
 // [[UI247]] D1: every list that must equal the constant, read from the real files (the release fixture and the setup fixture are strings and files that stay in step with `wrangler.jsonc` by hand).
 describe('every run_worker_first list equals the constants the Worker serves (UI247 D1)', () => {
   const EXPECTED = ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST]
-  const listIn = (text: string): unknown => (parse(text) as { assets?: { run_worker_first?: unknown } }).assets?.run_worker_first
+  const listIn = (text: string): unknown =>
+    (parse(text) as { assets?: { run_worker_first?: unknown } }).assets?.run_worker_first
   it('wrangler.jsonc lists the five pages and /ui/*', () => {
     expect(listIn(readFileSync(CONFIG, 'utf8'))).toEqual(EXPECTED)
     expect(UI_PAGE_PATHS).toContain('/consent')
     expect(UI_PAGE_PATHS).toContain('/device')
   })
   it("the setup fixture's list", () => {
-    expect(listIn(readFileSync(fileURLToPath(new URL('../scripts/setup/test/wrangler.fixture.jsonc', import.meta.url)), 'utf8'))).toEqual(EXPECTED)
+    expect(
+      listIn(
+        readFileSync(fileURLToPath(new URL('../scripts/setup/test/wrangler.fixture.jsonc', import.meta.url)), 'utf8'),
+      ),
+    ).toEqual(EXPECTED)
   })
   it("@vibase/release's fixtures.ts BASE_SOURCE", async () => {
     const { BASE_SOURCE } = await import('../../release/src/fixtures.js')
@@ -133,12 +147,16 @@ describe('mail sync Workflow and crons (CHN141 D34, D76; AGT8 D54)', () => {
     ['hq', 'vault-hq-mail-sync', CRONS],
   ] as const)('env %s binds MAIL_SYNC to %s with crons %j', (env, name, crons) => {
     const c = unstable_readConfig({ config: CONFIG, env })
-    expect(c.workflows).toEqual([expect.objectContaining({ binding: 'MAIL_SYNC', name, class_name: 'MailSyncWorkflow' })])
+    expect(c.workflows).toEqual([
+      expect.objectContaining({ binding: 'MAIL_SYNC', name, class_name: 'MailSyncWorkflow' }),
+    ])
     expect(c.workflows).toHaveLength(1)
     expect(c.triggers?.crons ?? []).toEqual(crons)
   })
   it('the Worker entry exports the Workflow class the binding names', () => {
-    expect(readFileSync(fileURLToPath(new URL('./worker.ts', import.meta.url)), 'utf8')).toMatch(/export \{[^}]*MailSyncWorkflow[^}]*\}/)
+    expect(readFileSync(fileURLToPath(new URL('./worker.ts', import.meta.url)), 'utf8')).toMatch(
+      /export \{[^}]*MailSyncWorkflow[^}]*\}/,
+    )
   })
 })
 

@@ -13,19 +13,31 @@ beforeAll(async () => {
 afterAll(() => w.dispose())
 beforeEach(() => w.reset())
 
-const ASSETS = { fetch: async () => new Response('<!doctype html><title>connect</title>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) }
-const SELF_ONLY = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+const ASSETS = {
+  fetch: async () =>
+    new Response('<!doctype html><title>connect</title>', { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+}
+const SELF_ONLY =
+  "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 const clerkCsp = (i: string) =>
   `default-src 'self'; script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com; connect-src 'self' ${i} https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; frame-src https://challenges.cloudflare.com https://*.protect.clerk.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`
 const policy = async (env: D1WorkerEnv, fetcher?: typeof fetch): Promise<string> => {
-  const res = await composeD1Worker({ ...env, ASSETS }, fetcher ? { fetch: fetcher } : undefined).fetch(new Request(`${AUTH_BASE}/connect`))
+  const res = await composeD1Worker({ ...env, ASSETS }, fetcher ? { fetch: fetcher } : undefined).fetch(
+    new Request(`${AUTH_BASE}/connect`),
+  )
   expect(res.status).toBe(200)
   return res.headers.get('content-security-policy')!
 }
 
 describe('/connect CSP per provider (composed Worker)', () => {
   it('better-auth: the no-issuer, self-only policy: no Clerk host, no challenge host, no /auth path', async () => {
-    const csp = await policy({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE })
+    const csp = await policy({
+      DB: w.d1,
+      CONTROL_DB: w.control,
+      AUTH_PROVIDER: 'better-auth',
+      AUTH_SECRET,
+      PUBLIC_BASE_URL: AUTH_BASE,
+    })
     expect(csp).toBe(SELF_ONLY)
     expect(csp).not.toMatch(/clerk|challenges\.cloudflare\.com|\/auth|vibase\.test/)
   })

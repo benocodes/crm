@@ -53,51 +53,66 @@ function ownerColumns(input: Record<string, unknown>): { contact_id: string | nu
  * ASCII rule included, P6); the contact must be live (plan read and commit guard); a live address refuses a create in
  * the plan (`409 identity_exists`) and the partial unique index re-checks at commit. `kind` and `value` are immutable.
  */
-export const identities = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'api',
-  name: 'identities',
-  eventName: 'identity',
-  table: 'identities',
-  scopeResource: 'contacts',
-  record,
-  create,
-  update,
-  references: { contact_id: { table: 'contacts', live: true } },
-  filters: {
-    kind: { schema: z.enum(['email', 'phone']) },
-    value: {
-      schema: z.string().min(1).max(320),
-      normalize: (value, filters) => {
-        const kind = filters.kind as IdentityKind | undefined
-        if (!kind) throw new ApiError(400, 'validation_error', 'filter value requires kind')
-        return normalizeIdentityValue(kind, value as string)
-      },
-    },
-    contact_id: { schema: z.uuid() },
-  },
-  prepare: ({ values, meta }) => {
-    if (meta.op === 'update') return Object.keys(values).length === 0 ? {} : ownerColumns(values)
-    const owner = ownerColumns(values)
-    return { value: normalizeIdentityValue(values.kind as IdentityKind, values.value as string), ...owner }
-  },
-  conflicts: ({ qc, env, op, values }) => {
-    if (op !== 'create') return []
-    const q = qc.db
-      .selectFrom('identities')
-      .select(['identities.contact_id', 'identities.own'])
-      .where('identities.organization_id', '=', env.organizationId)
-      .where('identities.kind', '=', values.kind as IdentityKind)
-      .where('identities.value', '=', values.value as string)
-      .where('identities.deleted_at', 'is', null)
-    return [
-      {
-        read: readMaybe(q.limit(1)),
-        refuse: (row) => {
-          if (!row) return
-          const own = row.own === true || row.own === 1
-          throw new ApiError(409, 'identity_exists', own ? 'the address is already an own identity' : `the address already belongs to contact ${String(row.contact_id)}`)
+export const identities = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'api',
+      name: 'identities',
+      eventName: 'identity',
+      table: 'identities',
+      scopeResource: 'contacts',
+      record,
+      create,
+      update,
+      references: { contact_id: { table: 'contacts', live: true } },
+      filters: {
+        kind: { schema: z.enum(['email', 'phone']) },
+        value: {
+          schema: z.string().min(1).max(320),
+          normalize: (value, filters) => {
+            const kind = filters.kind as IdentityKind | undefined
+            if (!kind) throw new ApiError(400, 'validation_error', 'filter value requires kind')
+            return normalizeIdentityValue(kind, value as string)
+          },
         },
+        contact_id: { schema: z.uuid() },
       },
-    ]
+      prepare: ({ values, meta }) => {
+        if (meta.op === 'update') return Object.keys(values).length === 0 ? {} : ownerColumns(values)
+        const owner = ownerColumns(values)
+        return { value: normalizeIdentityValue(values.kind as IdentityKind, values.value as string), ...owner }
+      },
+      conflicts: ({ qc, env, op, values }) => {
+        if (op !== 'create') return []
+        const q = qc.db
+          .selectFrom('identities')
+          .select(['identities.contact_id', 'identities.own'])
+          .where('identities.organization_id', '=', env.organizationId)
+          .where('identities.kind', '=', values.kind as IdentityKind)
+          .where('identities.value', '=', values.value as string)
+          .where('identities.deleted_at', 'is', null)
+        return [
+          {
+            read: readMaybe(q.limit(1)),
+            refuse: (row) => {
+              if (!row) return
+              const own = row.own === true || row.own === 1
+              throw new ApiError(
+                409,
+                'identity_exists',
+                own
+                  ? 'the address is already an own identity'
+                  : `the address already belongs to contact ${String(row.contact_id)}`,
+              )
+            },
+          },
+        ]
+      },
+    }),
+    ['value'],
+  ),
+  {
+    value:
+      'Needs kind in the same call, as a plain equality (kind=email); each operand is normalised for that kind before it is compared.',
   },
-}), ['value']), { value: 'Needs kind in the same call, as a plain equality (kind=email); each operand is normalised for that kind before it is compared.' })
+)

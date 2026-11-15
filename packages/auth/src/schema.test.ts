@@ -15,7 +15,10 @@ const statements = (text: string) =>
 // fails here until a new reviewed control migration is written.
 describe('the auth schema (D4)', () => {
   it('control migration 0001 is exactly what Better Auth generates for the composed options, then control_deployment', async () => {
-    expect(statements(readFileSync(MIGRATION, 'utf8'))).toEqual([...statements(await generateAuthDdl()), ...statements(CONTROL_DEPLOYMENT_DDL)])
+    expect(statements(readFileSync(MIGRATION, 'utf8'))).toEqual([
+      ...statements(await generateAuthDdl()),
+      ...statements(CONTROL_DEPLOYMENT_DDL),
+    ])
   })
 
   it('every table is auth_ prefixed, every column snake_case, and the tables are the exported list', async () => {
@@ -24,7 +27,9 @@ describe('the auth schema (D4)', () => {
     expect([...tables].sort()).toEqual([...AUTH_TABLES].sort())
     expect(tables.length).toBeGreaterThanOrEqual(13)
     for (const t of tables) expect(t, t).toMatch(/^auth_[a-z]+(_[a-z]+)*$/)
-    const columns = [...ddl.matchAll(/create table "[^"]+" \(([^;]+)\);/g)].flatMap((m) => [...m[1]!.matchAll(/"([^"]+)" (?:text|integer|date|real|blob)/g)].map((c) => c[1]!))
+    const columns = [...ddl.matchAll(/create table "[^"]+" \(([^;]+)\);/g)].flatMap((m) =>
+      [...m[1]!.matchAll(/"([^"]+)" (?:text|integer|date|real|blob)/g)].map((c) => c[1]!),
+    )
     expect(columns.length).toBeGreaterThan(100)
     for (const c of columns) expect(c, c).toMatch(/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/)
     expect(tables).toEqual(expect.arrayContaining(['auth_device_codes', 'auth_rate_limits', 'auth_jwks', 'auth_users']))

@@ -19,7 +19,7 @@ const CLI = join(PKG, '..', 'cli', 'src', 'bin.ts')
 const SHOTS = join(PKG, 'e2e-screenshots')
 mkdirSync(SHOTS, { recursive: true })
 const PASSWORD = 'a long enough password 123'
-const CALLBACK = 'http://127.0.0.1:33999/cb'  // the client's own loopback callback stays http (RFC 8252)
+const CALLBACK = 'http://127.0.0.1:33999/cb' // the client's own loopback callback stays http (RFC 8252)
 
 // One browser context for the whole run (the session cookie made at sign-up is what later steps use or drop).
 const violations: string[] = []
@@ -40,7 +40,10 @@ const axeAndShot = async (name: string, scheme: 'light' | 'dark') => {
   await page.emulateMedia({ colorScheme: scheme })
   await page.screenshot({ path: join(SHOTS, `${name}--${scheme}.png`), fullPage: true })
   const results = await new AxeBuilder({ page }).analyze()
-  expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`), `axe ${name} ${scheme}`).toEqual([])
+  expect(
+    results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+    `axe ${name} ${scheme}`,
+  ).toEqual([])
 }
 const axeBoth = async (name: string) => {
   await axeAndShot(name, 'light')
@@ -58,16 +61,27 @@ const signInHere = async () => {
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 const signOutHere = async () => {
-  await page.evaluate(() => fetch('/auth/sign-out', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }))
+  await page.evaluate(() =>
+    fetch('/auth/sign-out', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }),
+  )
 }
 
 /** The real `vibase login` (tsx on the CLI source), its config in a private directory. Resolves the `/device` URL it prints; `done` resolves with its exit code and output. */
-function startLogin(): Promise<{ url: string; home: string; done: Promise<{ code: number; stdout: string; stderr: string }> }> {
+function startLogin(): Promise<{
+  url: string
+  home: string
+  done: Promise<{ code: number; stdout: string; stderr: string }>
+}> {
   const home = mkdtempSync(join(tmpdir(), 'vibase-e2e-'))
-  const child: ChildProcessWithoutNullStreams = spawn('pnpm', ['exec', 'tsx', CLI, 'login', '--server', BASE], { cwd: PKG, env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0', XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, HOME: home } })
+  const child: ChildProcessWithoutNullStreams = spawn('pnpm', ['exec', 'tsx', CLI, 'login', '--server', BASE], {
+    cwd: PKG,
+    env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0', XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, HOME: home },
+  })
   let stdout = ''
   let stderr = ''
-  const done = new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr })))
+  const done = new Promise<{ code: number; stdout: string; stderr: string }>((resolve) =>
+    child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr })),
+  )
   child.stdout.on('data', (c: Buffer) => (stdout += c.toString()))
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`vibase login printed no URL: ${stderr}`)), 30_000)
@@ -119,7 +133,16 @@ test('1. device: the printed URL leads through sign-in to the code, the review a
   expect(result.stdout).toContain('owner@e2e.test')
   // the stored credential works for a later command: `vibase me get` with the same private config directory
   const me = await new Promise<{ code: number; out: string }>((resolve) => {
-    const c = spawn('pnpm', ['exec', 'tsx', CLI, 'me', 'get', '--server', BASE], { cwd: PKG, env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0', XDG_CONFIG_HOME: login.home, XDG_CACHE_HOME: login.home, HOME: login.home } })
+    const c = spawn('pnpm', ['exec', 'tsx', CLI, 'me', 'get', '--server', BASE], {
+      cwd: PKG,
+      env: {
+        ...process.env,
+        NODE_TLS_REJECT_UNAUTHORIZED: '0',
+        XDG_CONFIG_HOME: login.home,
+        XDG_CACHE_HOME: login.home,
+        HOME: login.home,
+      },
+    })
     let out = ''
     c.stdout.on('data', (b: Buffer) => (out += b.toString()))
     c.stderr.on('data', (b: Buffer) => (out += b.toString()))
@@ -149,7 +172,14 @@ const pkce = () => {
 async function register(name: string): Promise<string> {
   const res = await page.request.post('/auth/oauth2/register', {
     headers: { origin: BASE },
-    data: { client_name: name, token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], redirect_uris: [CALLBACK], scope: 'openid offline_access contacts:read' },
+    data: {
+      client_name: name,
+      token_endpoint_auth_method: 'none',
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      redirect_uris: [CALLBACK],
+      scope: 'openid offline_access contacts:read',
+    },
   })
   expect(res.status(), await res.text()).toBe(201)
   return ((await res.json()) as { client_id: string }).client_id
@@ -160,7 +190,9 @@ const authorizeUrl = (clientId: string, challenge: string, state: string) =>
 /** Catches the browser's redirect to the loopback callback (nothing listens there) and returns its URL. */
 async function callbackOf(action: () => Promise<void>): Promise<URL> {
   const seen = page.waitForRequest((r) => r.url().startsWith(CALLBACK), { timeout: 30_000 })
-  await page.route(`${CALLBACK}**`, (route) => route.fulfill({ status: 200, contentType: 'text/plain', body: 'callback' }))
+  await page.route(`${CALLBACK}**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'text/plain', body: 'callback' }),
+  )
   await action()
   return new URL((await seen).url())
 }
@@ -188,10 +220,23 @@ test('3. MCP-style client: sign-in resumes the flow, /consent shows the app, All
   expect(back.searchParams.get('state')).toBe('state-allow')
   const code = back.searchParams.get('code')!
   expect(code).toBeTruthy()
-  const tok = await page.request.post('/auth/oauth2/token', { headers: { origin: BASE }, form: { grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: CALLBACK, client_id: id, resource: `${BASE}/mcp` } })
+  const tok = await page.request.post('/auth/oauth2/token', {
+    headers: { origin: BASE },
+    form: {
+      grant_type: 'authorization_code',
+      code,
+      code_verifier: verifier,
+      redirect_uri: CALLBACK,
+      client_id: id,
+      resource: `${BASE}/mcp`,
+    },
+  })
   expect(tok.status(), await tok.text()).toBe(200)
   const access = ((await tok.json()) as { access_token: string }).access_token
-  const mcp = await page.request.post('/mcp', { headers: { authorization: `Bearer ${access}`, accept: 'application/json, text/event-stream' }, data: { jsonrpc: '2.0', id: 1, method: 'tools/list' } })
+  const mcp = await page.request.post('/mcp', {
+    headers: { authorization: `Bearer ${access}`, accept: 'application/json, text/event-stream' },
+    data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+  })
   expect(mcp.status(), await mcp.text()).toBe(200)
 })
 
@@ -225,7 +270,13 @@ const emailShown = (p: Page) => p.locator('[data-section="who"]').getByText('own
 test('6. /connect signed in: the person and the delegated agent agents.list returns, a self-only CSP, no request leaves the origin', async () => {
   const outside: string[] = []
   const listener = (r: { url(): string }) => {
-    if (!r.url().startsWith(BASE) && !r.url().startsWith('about:') && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) outside.push(r.url())
+    if (
+      !r.url().startsWith(BASE) &&
+      !r.url().startsWith('about:') &&
+      !r.url().startsWith('data:') &&
+      !r.url().startsWith('blob:')
+    )
+      outside.push(r.url())
   }
   page.on('request', listener)
   const response = await page.goto(`${BASE}/connect`)
@@ -243,7 +294,8 @@ test('6. /connect signed in: the person and the delegated agent agents.list retu
   })
   const delegated = listed.filter((a) => a.delegated_by !== null)
   expect(delegated.length, 'leg 2 left a delegated agent').toBeGreaterThan(0)
-  for (const a of delegated) await expect(page.locator('[data-section="agents"]').getByText(a.name, { exact: true }).first()).toBeVisible()
+  for (const a of delegated)
+    await expect(page.locator('[data-section="agents"]').getByText(a.name, { exact: true }).first()).toBeVisible()
   await axeBoth('connect-signed-in')
 })
 

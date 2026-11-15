@@ -16,7 +16,13 @@ afterAll(async () => {
 beforeEach(async () => {
   t = (await s.reset()).a
 })
-const call = async (scopes: string[], method: string, path: string, body?: unknown, actor: 'user' | 'agent' = 'agent') => {
+const call = async (
+  scopes: string[],
+  method: string,
+  path: string,
+  body?: unknown,
+  actor: 'user' | 'agent' = 'agent',
+) => {
   const res = await s.call(t, actor, scopes, method, path, body)
   return { status: res.status, body: res.status === 204 ? null : ((await res.json()) as any) }
 }
@@ -26,18 +32,33 @@ describe('tags over REST', () => {
     const tag = (await call(FULL, 'POST', '/api/v1/tags', { name: 'Prospects' })).body
     const co = (await call(FULL, 'POST', '/api/v1/companies', { name: 'Acme' })).body
     await call(FULL, 'POST', '/api/v1/companies', { name: 'Other' })
-    expect((await call(FULL, 'POST', '/api/v1/associations', { a_type: 'companies', a_id: co.id, b_type: 'tags', b_id: tag.id })).status).toBe(201)
+    expect(
+      (
+        await call(FULL, 'POST', '/api/v1/associations', {
+          a_type: 'companies',
+          a_id: co.id,
+          b_type: 'tags',
+          b_id: tag.id,
+        })
+      ).status,
+    ).toBe(201)
     const list = await call(FULL, 'GET', `/api/v1/companies?tag_id=${tag.id}`)
     expect(list.status).toBe(200)
     expect(list.body.data.map((c: any) => c.id)).toEqual([co.id])
     expect((await call(FULL, 'POST', '/api/v1/tags', { name: 'prospects' })).body.error.code).toBe('tag_exists')
-    expect((await call(FULL, 'POST', '/api/v1/tags', { name: 'x', color: 'red' })).body.error.code).toBe('validation_error')
+    expect((await call(FULL, 'POST', '/api/v1/tags', { name: 'x', color: 'red' })).body.error.code).toBe(
+      'validation_error',
+    )
   })
 
   it('tag_id without tags:read or associations:read is 403 insufficient_scope naming the scope; without tag_id the list works', async () => {
     const tag = (await call(FULL, 'POST', '/api/v1/tags', { name: 'T' })).body
     for (const missing of ['tags:read', 'associations:read']) {
-      const res = await call(FULL.filter((x) => x !== missing), 'GET', `/api/v1/companies?tag_id=${tag.id}`)
+      const res = await call(
+        FULL.filter((x) => x !== missing),
+        'GET',
+        `/api/v1/companies?tag_id=${tag.id}`,
+      )
       expect([res.status, res.body.error.code]).toEqual([403, 'insufficient_scope'])
       expect(res.body.error.message).toContain(missing)
     }

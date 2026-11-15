@@ -18,7 +18,7 @@
   --sl-color-accent-high: var(--vibase-white);
 }
 
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   --sl-color-white: var(--vibase-black);
   --sl-color-gray-1: color-mix(in srgb, var(--vibase-black) 92%, var(--vibase-white));
   --sl-color-gray-2: color-mix(in srgb, var(--vibase-black) 80%, var(--vibase-white));
@@ -92,7 +92,7 @@
   width: auto;
 }
 
-:root[data-theme='dark'] .site-title img {
+:root[data-theme="dark"] .site-title img {
   filter: invert(1);
 }
 

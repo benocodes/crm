@@ -35,7 +35,10 @@ export function isWriteCommand(argv: readonly string[]): boolean {
  * A control database that holds only the marker (OPS279): enough for `control-store`'s two statements. `onInsert` runs before the row is stored,
  * so a test can look at the CRM database at the moment the control marker is written.
  */
-export function memoryControl(onInsert?: (organizationId: string) => Promise<void>, initial: string | null = null): D1Like & { inserts: string[]; marker(): string | null } {
+export function memoryControl(
+  onInsert?: (organizationId: string) => Promise<void>,
+  initial: string | null = null,
+): D1Like & { inserts: string[]; marker(): string | null } {
   let org: string | null = initial
   const inserts: string[] = []
   const prep = (q: string, args: unknown[] = []): D1PreparedLike => ({
@@ -51,7 +54,12 @@ export function memoryControl(onInsert?: (organizationId: string) => Promise<voi
     all: async () => ({ success: true, results: org ? [{ organization_id: org }] : [] }),
     first: async () => (org ? { organization_id: org } : null),
   })
-  return { prepare: (q: string) => prep(q), batch: async (s: D1PreparedLike[]) => Promise.all(s.map((x) => x.run())), inserts, marker: () => org }
+  return {
+    prepare: (q: string) => prep(q),
+    batch: async (s: D1PreparedLike[]) => Promise.all(s.map((x) => x.run())),
+    inserts,
+    marker: () => org,
+  }
 }
 
 export interface WorldOptions {
@@ -107,7 +115,21 @@ export interface World {
   probes: { arg: string | undefined; envName: string }[]
   fetched: string[]
   logs: string[]
-  state: { failBulk: boolean; envFileText: string | null; configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; appliedControl: string[] | null; deployedSha: string | null; sleeps: number[]; secrets: Record<string, string>; subdomain: SubdomainState }
+  state: {
+    failBulk: boolean
+    envFileText: string | null
+    configText: string
+    envText: string
+    configWrites: number
+    d1s: { uuid: string; name: string }[]
+    r2s: string[]
+    applied: string[] | null
+    appliedControl: string[] | null
+    deployedSha: string | null
+    sleeps: number[]
+    secrets: Record<string, string>
+    subdomain: SubdomainState
+  }
   writes(): string[][]
   /** The control database behind `CONTROL_DB`. */
   control: D1Like
@@ -121,7 +143,9 @@ export function makeWorld(o: WorldOptions): World {
   const events: string[] = []
   const state = {
     failBulk: o.failBulk === true,
-    envFileText: (o.clerkEnvText === undefined ? `CLERK_SECRET_KEY=${SK_TEST}\nVITE_CLERK_PUBLISHABLE_KEY=${PK_TEST}\n` : o.clerkEnvText) as string | null,
+    envFileText: (o.clerkEnvText === undefined
+      ? `CLERK_SECRET_KEY=${SK_TEST}\nVITE_CLERK_PUBLISHABLE_KEY=${PK_TEST}\n`
+      : o.clerkEnvText) as string | null,
     configText: o.configText ?? readFileSync(FIXTURE_CONFIG_PATH, 'utf8'),
     envText: o.envText ?? '',
     configWrites: 0,
@@ -132,7 +156,11 @@ export function makeWorld(o: WorldOptions): World {
     deployedSha: o.deployedSha === undefined ? null : o.deployedSha,
     sleeps: [] as number[],
     secrets: Object.fromEntries((o.secrets ?? []).map((n) => [n, 'present'])) as Record<string, string>,
-    subdomain: { subdomain: o.subdomain === undefined ? 'team' : o.subdomain, puts: [], denied: o.subdomainDenied } as SubdomainState,
+    subdomain: {
+      subdomain: o.subdomain === undefined ? 'team' : o.subdomain,
+      puts: [],
+      denied: o.subdomainDenied,
+    } as SubdomainState,
   }
   const argv: string[][] = []
   const inputs: string[] = []
@@ -151,7 +179,8 @@ export function makeWorld(o: WorldOptions): World {
 
   async function exec(cmd: SetupCmd): Promise<ExecResult> {
     argv.push([cmd.command, ...cmd.args])
-    if (cmd.input !== undefined) (cmd.args.includes('secret') && cmd.args.includes('bulk') ? secretInputs : inputs).push(cmd.input)
+    if (cmd.input !== undefined)
+      (cmd.args.includes('secret') && cmd.args.includes('bulk') ? secretInputs : inputs).push(cmd.input)
     const a = cmd.args
     const has = (...w: string[]) => w.every((x) => a.includes(x))
     if (cmd.command === 'git') {
@@ -165,13 +194,24 @@ export function makeWorld(o: WorldOptions): World {
       Object.assign(state.secrets, JSON.parse(cmd.input ?? '{}'))
       return text('Success! Uploaded secrets\n')
     }
-    if (has('d1', 'list')) return json(state.d1s.map((d) => ({ uuid: d.uuid, name: d.name, created_at: '2026-01-01', version: 'production', num_tables: 0, file_size: 0 })))
+    if (has('d1', 'list'))
+      return json(
+        state.d1s.map((d) => ({
+          uuid: d.uuid,
+          name: d.name,
+          created_at: '2026-01-01',
+          version: 'production',
+          num_tables: 0,
+          file_size: 0,
+        })),
+      )
     if (has('d1', 'create')) {
       const name = a[a.indexOf('create') + 1]!
       state.d1s.push({ uuid: `00000000-1111-4222-8333-${String(state.d1s.length + 1).padStart(12, '0')}`, name })
       return text(`Successfully created DB '${name}'\n`)
     }
-    if (has('r2', 'bucket', 'list')) return text(state.r2s.map((n) => `name:           ${n}\ncreation_date:  2026-01-01T00:00:00.000Z\n`).join('\n'))
+    if (has('r2', 'bucket', 'list'))
+      return text(state.r2s.map((n) => `name:           ${n}\ncreation_date:  2026-01-01T00:00:00.000Z\n`).join('\n'))
     if (has('r2', 'bucket', 'create')) {
       state.r2s.push(a[a.indexOf('create') + 1]!)
       return text('Created bucket\n')
@@ -180,24 +220,38 @@ export function makeWorld(o: WorldOptions): World {
       const sql = a[a.indexOf('--command') + 1] ?? ''
       if (a[a.indexOf('execute') + 1] === 'CONTROL_DB') {
         if (/d1_migrations/.test(sql)) {
-          if (state.appliedControl === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: d1_migrations' } }), stderr: '' }
+          if (state.appliedControl === null)
+            return {
+              status: 1,
+              stdout: JSON.stringify({ error: { text: 'no such table: d1_migrations' } }),
+              stderr: '',
+            }
           return json([{ results: state.appliedControl.map((name) => ({ name })), success: true }])
         }
         if (/from control_deployment/.test(sql)) {
-          if (state.appliedControl === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: control_deployment' } }), stderr: '' }
+          if (state.appliedControl === null)
+            return {
+              status: 1,
+              stdout: JSON.stringify({ error: { text: 'no such table: control_deployment' } }),
+              stderr: '',
+            }
           const row = await control.prepare(sql).first()
           return json([{ results: row ? [row] : [], success: true }])
         }
       }
       if (/d1_migrations/.test(sql)) {
-        if (state.applied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: d1_migrations' } }), stderr: '' }
+        if (state.applied === null)
+          return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: d1_migrations' } }), stderr: '' }
         return json([{ results: state.applied.map((name) => ({ name })), success: true }])
       }
       // OPS249 D7: the owner state, read from the real databases behind the proxy (CRM memberships, control invitations).
-      if (/from memberships/.test(sql)) return json([{ results: (await o.d1.prepare(sql).all()).results ?? [], success: true }])
-      if (/from invitations/.test(sql)) return json([{ results: (await control.prepare(sql).all()).results ?? [], success: true }])
+      if (/from memberships/.test(sql))
+        return json([{ results: (await o.d1.prepare(sql).all()).results ?? [], success: true }])
+      if (/from invitations/.test(sql))
+        return json([{ results: (await control.prepare(sql).all()).results ?? [], success: true }])
       if (/from deployment/.test(sql)) {
-        if (state.applied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: deployment' } }), stderr: '' }
+        if (state.applied === null)
+          return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: deployment' } }), stderr: '' }
         const row = await o.d1.prepare(sql).first()
         return json([{ results: row ? [row] : [], success: true }])
       }
@@ -212,7 +266,12 @@ export function makeWorld(o: WorldOptions): World {
       state.applied = [...EXPECTED_MIGRATIONS]
       return text('applied\n')
     }
-    if (a.includes('typecheck') || (a.includes('test') && a.includes('-C')) || (a.includes('build') && a.includes('-C'))) return text('ok\n')
+    if (
+      a.includes('typecheck') ||
+      (a.includes('test') && a.includes('-C')) ||
+      (a.includes('build') && a.includes('-C'))
+    )
+      return text('ok\n')
     if (a.includes('deploy')) {
       const v = a.find((x) => x.startsWith('VERSION:'))
       state.deployedSha = v ? v.slice('VERSION:'.length) : OLD_SHA
@@ -224,30 +283,64 @@ export function makeWorld(o: WorldOptions): World {
   const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = String(input)
     fetched.push(url)
-    const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+    const reply = (status: number, body: unknown) =>
+      new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
     if (o.clerk?.handles(url)) return o.clerk.handle(url, init)
     if (url.startsWith('https://api.cloudflare.com/client/v4/')) {
       const path = url.slice('https://api.cloudflare.com/client/v4/'.length)
       const sub = subdomainResponse(path, init, state.subdomain)
       if (sub) return sub
-      const kind = path.startsWith('zones') ? 'zones' : path.includes('/d1/') ? 'd1' : path.includes('/r2/') ? 'r2' : path.includes('/workers/') ? 'workers' : 'other'
-      if ((o.denied ?? []).includes(kind)) return reply(403, { success: false, errors: [{ code: 10000, message: 'Authentication error' }] })
-      if (kind === 'zones') return reply(200, { success: true, result: (o.zones ?? ['vibase.ai']).map((name, i) => ({ id: `z${i}`, name })) })
+      const kind = path.startsWith('zones')
+        ? 'zones'
+        : path.includes('/d1/')
+          ? 'd1'
+          : path.includes('/r2/')
+            ? 'r2'
+            : path.includes('/workers/')
+              ? 'workers'
+              : 'other'
+      if ((o.denied ?? []).includes(kind))
+        return reply(403, { success: false, errors: [{ code: 10000, message: 'Authentication error' }] })
+      if (kind === 'zones')
+        return reply(200, {
+          success: true,
+          result: (o.zones ?? ['vibase.ai']).map((name, i) => ({ id: `z${i}`, name })),
+        })
       if (kind === 'r2') return reply(200, { success: true, result: { buckets: [] } })
       return reply(200, { success: true, result: [] })
     }
     if (url.endsWith('/health')) {
       if (state.deployedSha === null) return new Response('', { status: 522 })
-      const initialised = (await o.d1.prepare('select 1 as x from deployment').first().catch(() => null)) !== null
-      return reply(200, { status: 'ok', version: state.deployedSha, initialised, migrations: { status: o.healthNeverCurrent || (o.healthCurrentAfterMs !== undefined && clock - clock0 < o.healthCurrentAfterMs) ? 'behind' : state.applied && EXPECTED_MIGRATIONS.every((n) => state.applied!.includes(n)) ? 'current' : 'behind' } })
+      const initialised =
+        (await o.d1
+          .prepare('select 1 as x from deployment')
+          .first()
+          .catch(() => null)) !== null
+      return reply(200, {
+        status: 'ok',
+        version: state.deployedSha,
+        initialised,
+        migrations: {
+          status:
+            o.healthNeverCurrent || (o.healthCurrentAfterMs !== undefined && clock - clock0 < o.healthCurrentAfterMs)
+              ? 'behind'
+              : state.applied && EXPECTED_MIGRATIONS.every((n) => state.applied!.includes(n))
+                ? 'current'
+                : 'behind',
+        },
+      })
     }
     const scripted = scriptedAnswer(url, o.ba ?? {}, baCounters)
     if (scripted && (o.ba !== undefined || /AUTH_PROVIDER"\s*:\s*"better-auth"/.test(state.configText))) return scripted
     if (url.endsWith('/.well-known/vibase')) {
       if (o.vibase === 'absent') return reply(404, {})
-      const vars = (parse(state.configText) as { env?: Record<string, { vars?: Record<string, string> }> }).env?.[new URL(url).hostname.split('.')[1] ?? '']?.vars
+      const vars = (parse(state.configText) as { env?: Record<string, { vars?: Record<string, string> }> }).env?.[
+        new URL(url).hostname.split('.')[1] ?? ''
+      ]?.vars
       const v = o.vibase ?? { issuer: vars?.CLERK_ISSUER ?? null, cli_client_id: vars?.AUTH_CLI_CLIENT_ID ?? null }
-      return reply(200, { auth: v.issuer === null ? null : { provider: 'clerk', issuer: v.issuer, cli_client_id: v.cli_client_id } })
+      return reply(200, {
+        auth: v.issuer === null ? null : { provider: 'clerk', issuer: v.issuer, cli_client_id: v.cli_client_id },
+      })
     }
     return reply(404, {})
   }) as typeof fetch

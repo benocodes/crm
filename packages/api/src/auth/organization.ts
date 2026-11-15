@@ -1,8 +1,6 @@
 import type { Role } from './roles.js'
 
-export type Resolution =
-  | { organizationId: string; role: Role }
-  | { organizationId: null; forbidden: boolean }
+export type Resolution = { organizationId: string; role: Role } | { organizationId: null; forbidden: boolean }
 
 /**
  * The active organisation ([[CORE3]] D7): the token's organisation claim decides (`active`, null without a

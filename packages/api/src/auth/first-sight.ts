@@ -29,7 +29,15 @@ export type UserLogin = {
   latestMembership: { role: Role; deletedAt: Date | null; updatedAt: Date } | null
 }
 type Lookup = { provider: string; subject: string; organizationExternalId: string | null }
-type FirstSight = { provider: string; subject: string; email: string; name: string | null; emailVerified: boolean; principalId: string; now: Date }
+type FirstSight = {
+  provider: string
+  subject: string
+  email: string
+  name: string | null
+  emailVerified: boolean
+  principalId: string
+  now: Date
+}
 
 const INTERNAL = { kind: 'internal', organizationId: null } as const
 const accountConflict = () => new ApiError(409, 'account_conflict', 'this email belongs to another account')
@@ -50,11 +58,21 @@ export function lookupUserOperation(a: Lookup): PreparedOperation<UserLogin | nu
     mutates: false,
     reads: (qc) => {
       const reads: Record<string, Read> = {
-        [USER]: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', a.provider).where('users.auth_subject', '=', a.subject)),
+        [USER]: readMaybe(
+          qc.db
+            .selectFrom('users')
+            .select('users.id')
+            .where('users.auth_provider', '=', a.provider)
+            .where('users.auth_subject', '=', a.subject),
+        ),
       }
       if (a.organizationExternalId !== null) {
         reads[ORG] = readMaybe(
-          qc.db.selectFrom('organizations').select('organizations.id').where('organizations.auth_provider', '=', a.provider).where('organizations.auth_org_id', '=', a.organizationExternalId),
+          qc.db
+            .selectFrom('organizations')
+            .select('organizations.id')
+            .where('organizations.auth_provider', '=', a.provider)
+            .where('organizations.auth_org_id', '=', a.organizationExternalId),
         )
         reads[LATEST] = readMaybe(
           qc.db
@@ -109,7 +127,13 @@ function loginReads(provider: string, subject: string, email: string) {
     // email seen as held by a winner implies the later subject read sees it too; reading the subject first could see 'absent' then 'email held'
     // and misreport the race as a conflict.
     [EMAIL]: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.email', '=', email)),
-    [SUBJECT]: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', provider).where('users.auth_subject', '=', subject)),
+    [SUBJECT]: readMaybe(
+      qc.db
+        .selectFrom('users')
+        .select('users.id')
+        .where('users.auth_provider', '=', provider)
+        .where('users.auth_subject', '=', subject),
+    ),
   })
 }
 
@@ -129,7 +153,12 @@ export function firstSightOperation(a: FirstSight): PreparedOperation<UserLogin>
     reads: loginReads(a.provider, a.subject, a.email),
     build: (found, qc) => {
       const known = found.maybe(SUBJECT)
-      if (known) return unit({ steps: [], events: [], decode: () => ({ userId: known.id as string, linkedOrganizationId: null, latestMembership: null }) })
+      if (known)
+        return unit({
+          steps: [],
+          events: [],
+          decode: () => ({ userId: known.id as string, linkedOrganizationId: null, latestMembership: null }),
+        })
       if (found.maybe(EMAIL)) {
         console.warn('[auth] account_conflict', { provider: a.provider })
         throw accountConflict()
@@ -166,14 +195,23 @@ export function firstSightOperation(a: FirstSight): PreparedOperation<UserLogin>
  * The read-only recheck after a first-sight drift ([[CORE36]] D18): the winner's login, `409 account_conflict` when the
  * email is now held by someone else, `409 conflict` when neither. It cannot write, so it cannot loop.
  */
-export function firstSightRecheckOperation(a: { provider: string; subject: string; email: string }): PreparedOperation<UserLogin> {
+export function firstSightRecheckOperation(a: {
+  provider: string
+  subject: string
+  email: string
+}): PreparedOperation<UserLogin> {
   return defineOperation<UserLogin>({
     name: 'auth.first_sight_recheck',
     mutates: false,
     reads: loginReads(a.provider, a.subject, a.email),
     build: (found) => {
       const known = found.maybe(SUBJECT)
-      if (known) return unit({ steps: [], events: [], decode: () => ({ userId: known.id as string, linkedOrganizationId: null, latestMembership: null }) })
+      if (known)
+        return unit({
+          steps: [],
+          events: [],
+          decode: () => ({ userId: known.id as string, linkedOrganizationId: null, latestMembership: null }),
+        })
       if (found.maybe(EMAIL)) throw accountConflict()
       throw new ApiError(409, 'conflict', 'the record changed while the operation was running; retry')
     },
@@ -210,7 +248,13 @@ export async function provisionUser(
       await execute(
         storage,
         INTERNAL,
-        firstSightOperation({ ...args, name: profile.name, emailVerified: profile.emailVerified, principalId: env.newId(), now: env.now }),
+        firstSightOperation({
+          ...args,
+          name: profile.name,
+          emailVerified: profile.emailVerified,
+          principalId: env.newId(),
+          now: env.now,
+        }),
       )
     ).value
   } catch (err) {

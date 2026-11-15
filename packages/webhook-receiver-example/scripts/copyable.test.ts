@@ -6,8 +6,14 @@ import { describe, expect, it } from 'vitest'
 // "Copyable" (API221): the example's own sources import no workspace package, no path outside src and no runtime dependency, so a customer copies `src/` and `wrangler.jsonc` and nothing else.
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const src = join(pkg, 'src')
-const files = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? files(join(dir, n)) : [join(dir, n)]))
-const importsOf = (text: string) => [...text.matchAll(/(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\s*['"]([^'"]+)['"]/g)].map((m) => (m[1] ?? m[2] ?? m[3])!)
+const files = (dir: string): string[] =>
+  readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? files(join(dir, n)) : [join(dir, n)]))
+const importsOf = (text: string) =>
+  [
+    ...text.matchAll(
+      /(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\s*['"]([^'"]+)['"]/g,
+    ),
+  ].map((m) => (m[1] ?? m[2] ?? m[3])!)
 
 /** The imports that would break a copy; a node: builtin and `cloudflare:` module are the platform. */
 export function foreignImports(file: string, text: string, root = src): string[] {
@@ -28,7 +34,9 @@ describe('the example is copyable', () => {
     const f = join(src, 'x.ts')
     expect(foreignImports(f, `import { a } from '@vibase/api'`)).toEqual(['@vibase/api'])
     expect(foreignImports(f, `import { a } from '../scripts/x.js'`)).toEqual(['../scripts/x.js'])
-    expect(foreignImports(f, `import x from 'hono'; import { y } from './y.js'; import z from 'node:fs'`)).toEqual(['hono'])
+    expect(foreignImports(f, `import x from 'hono'; import { y } from './y.js'; import z from 'node:fs'`)).toEqual([
+      'hono',
+    ])
   })
   it('declares no runtime dependency', () => {
     const json = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8'))
@@ -38,7 +46,12 @@ describe('the example is copyable', () => {
 
 describe('the Worker config matches the entry', () => {
   const config = readFileSync(join(pkg, 'wrangler.jsonc'), 'utf8')
-  const parsed = JSON.parse(config.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n'))
+  const parsed = JSON.parse(
+    config
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//'))
+      .join('\n'),
+  )
   it('has one Workflow binding, no routes and no account id', () => {
     expect(parsed.workflows).toHaveLength(1)
     expect(parsed.workers_dev).toBe(false)
@@ -50,7 +63,9 @@ describe('the Worker config matches the entry', () => {
     const cls = parsed.workflows[0].class_name as string
     const exported = new RegExp(`export\\s*\\{[^}]*\\b${cls}\\b[^}]*\\}|export\\s+class\\s+${cls}\\b`).test(entry)
     expect(exported, `entry exports ${cls}`).toBe(true)
-    const defining = files(src).map((f) => readFileSync(f, 'utf8')).find((t) => new RegExp(`class\\s+${cls}\\s+extends\\s+WorkflowEntrypoint`).test(t))
+    const defining = files(src)
+      .map((f) => readFileSync(f, 'utf8'))
+      .find((t) => new RegExp(`class\\s+${cls}\\s+extends\\s+WorkflowEntrypoint`).test(t))
     expect(defining).toBeDefined()
     expect(parsed.workflows[0].binding).toMatch(/^[A-Z_]+$/)
   })
@@ -58,6 +73,8 @@ describe('the Worker config matches the entry', () => {
     expect(existsSync(join(pkg, '.dev.vars.example'))).toBe(true)
     expect(existsSync(join(pkg, 'README.md'))).toBe(true)
     expect(existsSync(join(pkg, '.dev.vars'))).toBe(false)
-    expect(readFileSync(join(pkg, '.dev.vars.example'), 'utf8')).not.toMatch(/whsec_[A-Za-z0-9+/=]{20,}|vk_[A-Za-z0-9_-]{20,}/)
+    expect(readFileSync(join(pkg, '.dev.vars.example'), 'utf8')).not.toMatch(
+      /whsec_[A-Za-z0-9+/=]{20,}|vk_[A-Za-z0-9_-]{20,}/,
+    )
   })
 })

@@ -22,14 +22,24 @@ afterAll(async () => {
   await e?.close()
 })
 
-const token = (scopes: string[]) => mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
+const token = (scopes: string[]) =>
+  mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
 const bearer = (scopes: string[] = ['schema:read']) => ({ authorization: `Bearer ${token(scopes)}` })
 const rest = async () => {
   const res = await app.request('/meta/v1/schema', { headers: bearer() })
   return { status: res.status, body: (await res.json()) as any }
 }
 const mcp = async (scopes: string[] = ['schema:read']) => {
-  const res = await app.request('/mcp', { method: 'POST', headers: { ...bearer(scopes), 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'schema_get', arguments: {} } }) })
+  const res = await app.request('/mcp', {
+    method: 'POST',
+    headers: { ...bearer(scopes), 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'schema_get', arguments: {} },
+    }),
+  })
   return (await res.json()) as any
 }
 const tableOf = (doc: any, name: string) => doc.tables.find((t: any) => t.name === name)
@@ -47,9 +57,18 @@ const stated = (list: string, sort: string) => STATED_SORT_COSTS.some((c) => c.l
 describe('sorts agree with the list, for every resource (CORE187 D10, D16)', () => {
   it('there is a resource object for every registered resource that has a list, and each carries sorts', async () => {
     const doc = (await rest()).body
-    const withList = registry.resources().filter((d) => registry.get(`${d.name}.list`)).map((d) => d.name).sort()
+    const withList = registry
+      .resources()
+      .filter((d) => registry.get(`${d.name}.list`))
+      .map((d) => d.name)
+      .sort()
     expect(withList.length).toBeGreaterThanOrEqual(21)
-    expect(resourceTables(doc).map((t: any) => t.resource.name).filter((n: string) => withList.includes(n)).sort()).toEqual(withList)
+    expect(
+      resourceTables(doc)
+        .map((t: any) => t.resource.name)
+        .filter((n: string) => withList.includes(n))
+        .sort(),
+    ).toEqual(withList)
     for (const t of resourceTables(doc)) expect(Array.isArray(t.resource.sorts), `${t.name}.resource.sorts`).toBe(true)
   })
   it('names equal, in order, what the list accepts, and every kind is a sortable kind (the matrix)', async () => {
@@ -58,8 +77,12 @@ describe('sorts agree with the list, for every resource (CORE187 D10, D16)', () 
     for (const t of resourceTables(doc)) {
       if (!registry.get(`${t.resource.name}.list`)) continue
       const accepted = await advertised(t.resource.name)
-      expect(t.resource.sorts.map((s: any) => s.name), t.resource.name).toEqual(accepted)
-      for (const s of t.resource.sorts) expect(['timestamp', 'uuid', 'text', 'integer'], `${t.resource.name}.${s.name}`).toContain(s.kind)
+      expect(
+        t.resource.sorts.map((s: any) => s.name),
+        t.resource.name,
+      ).toEqual(accepted)
+      for (const s of t.resource.sorts)
+        expect(['timestamp', 'uuid', 'text', 'integer'], `${t.resource.name}.${s.name}`).toContain(s.kind)
       checked++
     }
     expect(checked).toBeGreaterThanOrEqual(21)
@@ -117,13 +140,25 @@ describe('empty and absent (CORE187 D15, D16)', () => {
   it('action_executions reports its four sorts in order, equal to what its list advertises, with indexed from the stated costs', async () => {
     const doc = (await rest()).body
     const sorts = tableOf(doc, 'action_executions').resource.sorts
-    expect(sorts.map((x: any) => [x.name, x.kind])).toEqual([['id', 'uuid'], ['created_at', 'timestamp'], ['updated_at', 'timestamp'], ['done_at', 'timestamp']])
+    expect(sorts.map((x: any) => [x.name, x.kind])).toEqual([
+      ['id', 'uuid'],
+      ['created_at', 'timestamp'],
+      ['updated_at', 'timestamp'],
+      ['done_at', 'timestamp'],
+    ])
     expect(await advertised('action_executions')).toEqual(['id', 'created_at', 'updated_at', 'done_at'])
     for (const x of sorts) expect(x.indexed, `action_executions.${x.name}`).toBe(!stated('action_executions', x.name))
     // The temporary sorts are the ones whose measured plan says so: the three timestamps; never dispatched_at, which is not sortable.
     expect(sorts.map((x: any) => x.name)).not.toContain('dispatched_at')
-    expect(STATED_SORT_COSTS.filter((c) => c.list === 'action_executions').map((c) => c.sort).sort()).toEqual(
-      sorts.filter((x: any) => !x.indexed).map((x: any) => x.name).sort(),
+    expect(
+      STATED_SORT_COSTS.filter((c) => c.list === 'action_executions')
+        .map((c) => c.sort)
+        .sort(),
+    ).toEqual(
+      sorts
+        .filter((x: any) => !x.indexed)
+        .map((x: any) => x.name)
+        .sort(),
     )
     expect(sorts.some((x: any) => x.indexed === false)).toBe(true)
   })
@@ -140,7 +175,7 @@ describe('empty and absent (CORE187 D15, D16)', () => {
 })
 
 describe('derived sortable and columns unchanged (CORE187 D10)', () => {
-  it('for every derived field of every table, sortable === the table\'s sorts include it', async () => {
+  it("for every derived field of every table, sortable === the table's sorts include it", async () => {
     const doc = (await rest()).body
     let n = 0
     for (const t of doc.tables) {
@@ -154,16 +189,42 @@ describe('derived sortable and columns unchanged (CORE187 D10)', () => {
   })
   it('contacts: both derived true; deals.status false', async () => {
     const doc = (await rest()).body
-    expect(tableOf(doc, 'contacts').derived.map((d: any) => [d.name, d.sortable])).toEqual([['last_contacted_at', true], ['last_interacted_at', true]])
+    expect(tableOf(doc, 'contacts').derived.map((d: any) => [d.name, d.sortable])).toEqual([
+      ['last_contacted_at', true],
+      ['last_interacted_at', true],
+    ])
     expect(tableOf(doc, 'deals').derived.find((d: any) => d.name === 'status').sortable).toBe(false)
   })
   it('column objects keep exactly their API63 keys', async () => {
     for (const t of (await rest()).body.tables) {
-      for (const c of t.columns) expect(Object.keys(c), `${t.name}.${c.name}`).toEqual(['name', 'type', 'kind', 'nullable', 'primary_key', 'default', 'label', 'description', 'values', 'exposed', 'references'])
+      for (const c of t.columns)
+        expect(Object.keys(c), `${t.name}.${c.name}`).toEqual([
+          'name',
+          'type',
+          'kind',
+          'nullable',
+          'primary_key',
+          'default',
+          'label',
+          'description',
+          'values',
+          'exposed',
+          'references',
+        ])
     }
   })
   it('a resource object has exactly the API63 keys, then sorts and filters', async () => {
-    expect(Object.keys(tableOf((await rest()).body, 'tasks').resource)).toEqual(['name', 'surface', 'path', 'operations', 'read_scope', 'write_scope', 'sorts', 'filters', 'aggregate'])
+    expect(Object.keys(tableOf((await rest()).body, 'tasks').resource)).toEqual([
+      'name',
+      'surface',
+      'path',
+      'operations',
+      'read_scope',
+      'write_scope',
+      'sorts',
+      'filters',
+      'aggregate',
+    ])
   })
 })
 
@@ -172,7 +233,11 @@ describe('wire contract (CORE187 D10, D17)', () => {
     const r = await rest()
     expect(r.status).toBe(200)
     const doc = schemaDocument.parse(r.body)
-    expect(doc.tables.find((t) => t.name === 'messages')!.resource!.sorts.map((s) => s.name)).toEqual(['id', 'created_at', 'occurred_at'])
+    expect(doc.tables.find((t) => t.name === 'messages')!.resource!.sorts.map((s) => s.name)).toEqual([
+      'id',
+      'created_at',
+      'occurred_at',
+    ])
     const wide = await app.request('/meta/v1/schema', { headers: bearer(['schema:read', ...ALL]) })
     expect(await wide.json()).toEqual(r.body)
   })
@@ -184,7 +249,11 @@ describe('wire contract (CORE187 D10, D17)', () => {
     const response = await mcp()
     const result = response.result.structuredContent
     const doc = schemaDocument.parse(result)
-    expect(doc.tables.find((t) => t.name === 'contacts')!.resource!.sorts.at(-1)).toEqual({ name: 'last_interacted_at', kind: 'timestamp', indexed: false })
+    expect(doc.tables.find((t) => t.name === 'contacts')!.resource!.sorts.at(-1)).toEqual({
+      name: 'last_interacted_at',
+      kind: 'timestamp',
+      indexed: false,
+    })
     expect(result).toEqual((await rest()).body)
   })
   it('the meta OpenAPI document describes sorts on the schema response', async () => {

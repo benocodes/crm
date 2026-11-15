@@ -24,14 +24,37 @@ const agentMe = (name = 'g-agent'): Me => ({
   memberships: [],
   active_organization: { id: ID(9), role: null, scopes: [] },
 })
-const rec = (over: Partial<AgentRecord>): AgentRecord => ({ id: ID(10), name: 'bot', scopes: ['contacts:read'], disabled_at: null, created_at: '2026-11-03T10:00:00.000Z', auth_subject: null, auth_client_id: null, delegated_by: null, ...over })
-const signedIn = (me: Me, agents: AgentRecord[] | null, error?: string): PageState => ({ kind: 'signed-in', me, agents, ...(error ? { error } : {}) })
-const view = (state: PageState, extra: { mcpUrl?: string | null; profileUrl?: string | null } = {}) => buildView(state, { origin: ORIGIN, ...extra })
+const rec = (over: Partial<AgentRecord>): AgentRecord => ({
+  id: ID(10),
+  name: 'bot',
+  scopes: ['contacts:read'],
+  disabled_at: null,
+  created_at: '2026-11-03T10:00:00.000Z',
+  auth_subject: null,
+  auth_client_id: null,
+  delegated_by: null,
+  ...over,
+})
+const signedIn = (me: Me, agents: AgentRecord[] | null, error?: string): PageState => ({
+  kind: 'signed-in',
+  me,
+  agents,
+  ...(error ? { error } : {}),
+})
+const view = (state: PageState, extra: { mcpUrl?: string | null; profileUrl?: string | null } = {}) =>
+  buildView(state, { origin: ORIGIN, ...extra })
 
 describe('states without a session', () => {
   it('loading: a message, nothing else, no sign-in button', () => {
     const v = view({ kind: 'loading' })
-    expect(v).toMatchObject({ state: 'loading', showSignIn: false, who: null, connect: null, agents: null, account: null })
+    expect(v).toMatchObject({
+      state: 'loading',
+      showSignIn: false,
+      who: null,
+      connect: null,
+      agents: null,
+      account: null,
+    })
     expect(v.message).toBeTruthy()
   })
 
@@ -54,19 +77,28 @@ describe('states without a session', () => {
     expect(v).toMatchObject({ who: null, agents: null, account: null })
   })
 
-  it.each([401, 403])('refused %i: says the server did not admit the session, offers sign out and no data', (status) => {
-    const v = view({ kind: 'refused', status })
-    expect(v.state).toBe('refused')
-    expect(v.message).toContain(String(status))
-    expect(v.who).toBeNull()
-    expect(v.agents).toBeNull()
-    expect(v.account).not.toBeNull()
-  })
+  it.each([401, 403])(
+    'refused %i: says the server did not admit the session, offers sign out and no data',
+    (status) => {
+      const v = view({ kind: 'refused', status })
+      expect(v.state).toBe('refused')
+      expect(v.message).toContain(String(status))
+      expect(v.who).toBeNull()
+      expect(v.agents).toBeNull()
+      expect(v.account).not.toBeNull()
+    },
+  )
 })
 
 describe('signed in', () => {
   it('owner: who, the CLI command, the API-key fallback, the list with Disable and Enable, the account section', () => {
-    const v = view(signedIn(user('owner', OWNER_SCOPES), [rec({ id: ID(10) }), rec({ id: ID(11), disabled_at: '2026-11-03T11:00:00.000Z' })]), { profileUrl: 'https://accounts.example/user' })
+    const v = view(
+      signedIn(user('owner', OWNER_SCOPES), [
+        rec({ id: ID(10) }),
+        rec({ id: ID(11), disabled_at: '2026-11-03T11:00:00.000Z' }),
+      ]),
+      { profileUrl: 'https://accounts.example/user' },
+    )
     expect(v.who).toEqual({ name: 'owner@acme.example', role: 'owner', scopes: OWNER_SCOPES })
     expect(v.connect?.cli?.command).toBe(`vibase login --server ${ORIGIN}`)
     expect(v.connect?.cli?.steps).toMatch(/link/i)
@@ -110,7 +142,9 @@ describe('signed in', () => {
 describe('D13 the MCP section', () => {
   it('is hidden while discovery has no mcp, and shows the URL from discovery when present', () => {
     expect(view(signedIn(user('owner', OWNER_SCOPES), [])).connect?.mcp).toBeNull()
-    expect(view(signedIn(user('owner', OWNER_SCOPES), []), { mcpUrl: `${ORIGIN}/mcp` }).connect?.mcp).toEqual({ url: `${ORIGIN}/mcp` })
+    expect(view(signedIn(user('owner', OWNER_SCOPES), []), { mcpUrl: `${ORIGIN}/mcp` }).connect?.mcp).toEqual({
+      url: `${ORIGIN}/mcp`,
+    })
     expect(view(signedIn(user('owner', OWNER_SCOPES), []), { mcpUrl: '' }).connect?.mcp).toBeNull()
   })
   it('is not offered when sign-in is unavailable (no OAuth to run)', () => {
@@ -122,12 +156,18 @@ describe('D11 agent rows', () => {
   const rows = (agents: AgentRecord[], me = user('owner', OWNER_SCOPES)) => view(signedIn(me, agents)).agents!.rows
 
   it('a delegated agent (delegated_by and auth_client_id): "delegated by you (<email>)" for the viewer, the id for anyone else', () => {
-    const [mine, other] = rows([rec({ delegated_by: ID(1), auth_client_id: 'client_1' }), rec({ id: ID(12), delegated_by: ID(5), auth_client_id: 'client_2' })])
+    const [mine, other] = rows([
+      rec({ delegated_by: ID(1), auth_client_id: 'client_1' }),
+      rec({ id: ID(12), delegated_by: ID(5), auth_client_id: 'client_2' }),
+    ])
     expect(mine).toMatchObject({ kind: 'delegated', kindLabel: 'delegated by you (owner@acme.example)' })
     expect(other).toMatchObject({ kind: 'delegated', kindLabel: `delegated by ${ID(5)}` })
   })
   it('an agent account has auth_subject and no delegate: "agent account"', () => {
-    expect(rows([rec({ auth_subject: 'user_g' })])[0]).toMatchObject({ kind: 'agent-account', kindLabel: 'agent account' })
+    expect(rows([rec({ auth_subject: 'user_g' })])[0]).toMatchObject({
+      kind: 'agent-account',
+      kindLabel: 'agent account',
+    })
   })
   it('no provider link at all: "API-key agent"', () => {
     expect(rows([rec({})])[0]).toMatchObject({ kind: 'api-key', kindLabel: 'API-key agent' })
@@ -136,13 +176,21 @@ describe('D11 agent rows', () => {
     expect(rows([rec({ auth_subject: 'user_g', delegated_by: ID(5), auth_client_id: 'c' })])[0]!.kind).toBe('delegated')
   })
   it('an agent with no scopes gets the exact grant command (owner); one with scopes, a viewer who cannot write, and none else', () => {
-    const [none, some] = rows([rec({ id: ID(20), scopes: [], auth_subject: 'user_g' }), rec({ id: ID(21), scopes: ['contacts:read'] })])
+    const [none, some] = rows([
+      rec({ id: ID(20), scopes: [], auth_subject: 'user_g' }),
+      rec({ id: ID(21), scopes: ['contacts:read'] }),
+    ])
     expect(none!.grantCommand).toBe(`vibase agents update ${ID(20)} --scopes '["contacts:read","contacts:write"]'`)
     expect(some!.grantCommand).toBeNull()
     expect(rows([rec({ id: ID(20), scopes: [] })], user('member', ['agents:read']))[0]!.grantCommand).toBeNull()
   })
   it('carries scopes, created and disabled times as the record has them', () => {
-    expect(rows([rec({ scopes: ['a:read', 'b:read'], created_at: 'C', disabled_at: 'D' })])[0]).toMatchObject({ scopes: ['a:read', 'b:read'], createdAt: 'C', disabledAt: 'D', action: 'enable' })
+    expect(rows([rec({ scopes: ['a:read', 'b:read'], created_at: 'C', disabled_at: 'D' })])[0]).toMatchObject({
+      scopes: ['a:read', 'b:read'],
+      createdAt: 'C',
+      disabledAt: 'D',
+      action: 'enable',
+    })
   })
 })
 
@@ -154,7 +202,13 @@ describe('provider-neutral copy (UI297 R5)', () => {
     ['signed-out', { kind: 'signed-out' }],
     ['refused, load failed (0)', { kind: 'refused', status: 0 }],
     ['refused 401', { kind: 'refused', status: 401 }],
-    ['signed-in owner with agents', signedIn(user('owner', OWNER_SCOPES), [rec({ id: ID(10) }), rec({ id: ID(11), delegated_by: ID(1), auth_client_id: 'c' })])],
+    [
+      'signed-in owner with agents',
+      signedIn(user('owner', OWNER_SCOPES), [
+        rec({ id: ID(10) }),
+        rec({ id: ID(11), delegated_by: ID(1), auth_client_id: 'c' }),
+      ]),
+    ],
     ['signed-in member', signedIn(user('member', ['contacts:read']), null)],
     ['signed-in agent', signedIn(agentMe(), null)],
   ]

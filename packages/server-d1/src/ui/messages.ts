@@ -5,7 +5,8 @@ export const MESSAGES = {
   invitationRefused:
     'This invitation cannot be used. The email address may not be the one that was invited, or the link may have expired, been revoked or already been used. Ask the person who invited you for a new link.',
   inviteAccountExists: 'Your account already exists, but its setup did not finish. Sign in to finish it.',
-  inviteNoToken: 'This page needs the invitation link you were sent. Open that link again, or ask the person who invited you for a new one.',
+  inviteNoToken:
+    'This page needs the invitation link you were sent. Open that link again, or ask the person who invited you for a new one.',
   // The sign-in page.
   wrongCredentials: 'The email or password is wrong.',
   signInAcceptanceFailed: 'Your account is almost ready, but setup did not finish. Sign in again to retry.',
@@ -21,9 +22,11 @@ export const MESSAGES = {
   // The device page ([[UI247]] D3).
   deviceCodeLabel: 'Code from your terminal',
   deviceCodeRequired: 'Enter the code your terminal shows.',
-  deviceUnrecognised: 'That code was not recognised. Check it against your terminal, or run the sign-in again to get a new one.',
+  deviceUnrecognised:
+    'That code was not recognised. Check it against your terminal, or run the sign-in again to get a new one.',
   deviceExpired: 'That code has expired. Run the sign-in again in your terminal to get a new one.',
-  deviceProcessed: 'That code has already been approved or denied. Run the sign-in again in your terminal if you need a new one.',
+  deviceProcessed:
+    'That code has already been approved or denied. Run the sign-in again in your terminal if you need a new one.',
   deviceCheckCode: 'Check that your terminal shows this code.',
   deviceWarning: 'Approve only if you started this sign-in yourself, just now.',
   deviceApproved: 'Approved. You can return to your terminal.',
@@ -47,7 +50,8 @@ export const MESSAGES = {
   networkFailure: 'Could not reach the server. Check your connection and try again.',
 } as const
 
-export const genericFailure = (status: number): string => (status === 0 ? MESSAGES.networkFailure : `Something went wrong (HTTP ${status}). Try again.`)
+export const genericFailure = (status: number): string =>
+  status === 0 ? MESSAGES.networkFailure : `Something went wrong (HTTP ${status}). Try again.`
 
 export const PASSWORD_MIN = 8
 export const PASSWORD_MAX = 128

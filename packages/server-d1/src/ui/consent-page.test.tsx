@@ -13,7 +13,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 // Encoded characters, a repeated key and an order the page must not touch.
-const QUERY = 'state=a%20b%2Bc&sig=Ab%2Fc%3D%3D&scope=openid+contacts%3Aread&client_id=app-1&redirect_uri=https%3A%2F%2Fclient.test%2Fcb%3Fx%3D1&exp=1999999999&scope=dup'
+const QUERY =
+  'state=a%20b%2Bc&sig=Ab%2Fc%3D%3D&scope=openid+contacts%3Aread&client_id=app-1&redirect_uri=https%3A%2F%2Fclient.test%2Fcb%3Fx%3D1&exp=1999999999&scope=dup'
 const at = (q: string) => history.replaceState(null, '', q === '' ? '/consent' : `/consent?${q}`)
 beforeEach(() => at(QUERY))
 
@@ -23,7 +24,10 @@ const CLIENT = { status: 200, json: { client_id: 'app-1', client_name: 'Claude D
 const routes = (over: Record<string, { status: number; json?: unknown; text?: string }> = {}) => ({
   'GET /auth/get-session': SESSION,
   'GET /auth/oauth2/public-client': CLIENT,
-  'POST /auth/oauth2/consent': { status: 200, json: { redirect: true, url: 'https://client.test/cb?code=c&state=a%20b%2Bc' } },
+  'POST /auth/oauth2/consent': {
+    status: 200,
+    json: { redirect: true, url: 'https://client.test/cb?code=c&state=a%20b%2Bc' },
+  },
   ...over,
 })
 const allow = async () => userEvent.setup().click(await screen.findByRole('button', { name: /allow/i }))
@@ -55,7 +59,7 @@ describe('no session', () => {
 })
 
 describe('signed in', () => {
-  it('shows the email, the app\'s name with the unverified line, the redirect host and the scopes as text', async () => {
+  it("shows the email, the app's name with the unverified line, the redirect host and the scopes as text", async () => {
     fakeFetch(routes())
     render(<ConsentPage />)
     expect(await screen.findByText('Signed in as ann@x.test')).toBeTruthy()
@@ -128,7 +132,14 @@ describe('Allow and Deny', () => {
   })
 
   it('Deny sends accept: false with the same query and follows the answered redirect', async () => {
-    const f = fakeFetch(routes({ 'POST /auth/oauth2/consent': { status: 200, json: { redirect: true, url: 'https://client.test/cb?error=access_denied' } } }))
+    const f = fakeFetch(
+      routes({
+        'POST /auth/oauth2/consent': {
+          status: 200,
+          json: { redirect: true, url: 'https://client.test/cb?error=access_denied' },
+        },
+      }),
+    )
     const go = vi.fn()
     render(<ConsentPage navigate={go} />)
     await deny()
@@ -136,22 +147,28 @@ describe('Allow and Deny', () => {
     expect(f.calls.find((c) => c.path === '/auth/oauth2/consent')!.body).toEqual({ accept: false, oauth_query: QUERY })
   })
 
-  it.each(['https://client.test/cb?code=c', 'http://127.0.0.1:33418/cb?code=c', '/consent?x=1'])('the redirect %s is followed', async (url) => {
-    fakeFetch(routes({ 'POST /auth/oauth2/consent': { status: 200, json: { redirect: true, url } } }))
-    const go = vi.fn()
-    render(<ConsentPage navigate={go} />)
-    await allow()
-    await waitFor(() => expect(go).toHaveBeenCalledWith(url))
-  })
+  it.each(['https://client.test/cb?code=c', 'http://127.0.0.1:33418/cb?code=c', '/consent?x=1'])(
+    'the redirect %s is followed',
+    async (url) => {
+      fakeFetch(routes({ 'POST /auth/oauth2/consent': { status: 200, json: { redirect: true, url } } }))
+      const go = vi.fn()
+      render(<ConsentPage navigate={go} />)
+      await allow()
+      await waitFor(() => expect(go).toHaveBeenCalledWith(url))
+    },
+  )
 
-  it.each(['javascript:alert(1)', 'data:text/html,<b>x</b>'])('the redirect %s is refused: nothing navigates and a generic error shows', async (url) => {
-    fakeFetch(routes({ 'POST /auth/oauth2/consent': { status: 200, json: { redirect: true, url } } }))
-    const go = vi.fn()
-    render(<ConsentPage navigate={go} />)
-    await allow()
-    expect((await screen.findByRole('alert')).textContent).toBe(genericFailure(200))
-    expect(go).not.toHaveBeenCalled()
-  })
+  it.each(['javascript:alert(1)', 'data:text/html,<b>x</b>'])(
+    'the redirect %s is refused: nothing navigates and a generic error shows',
+    async (url) => {
+      fakeFetch(routes({ 'POST /auth/oauth2/consent': { status: 200, json: { redirect: true, url } } }))
+      const go = vi.fn()
+      render(<ConsentPage navigate={go} />)
+      await allow()
+      expect((await screen.findByRole('alert')).textContent).toBe(genericFailure(200))
+      expect(go).not.toHaveBeenCalled()
+    },
+  )
 
   it('an answer without a redirect is the generic error, not a navigation', async () => {
     fakeFetch(routes({ 'POST /auth/oauth2/consent': { status: 200, json: { ok: true } } }))
@@ -164,11 +181,15 @@ describe('Allow and Deny', () => {
 
   const failures: Array<[string, { status: number; json?: unknown; text?: string }, string]> = [
     ['invalid_signature', { status: 400, json: { error: 'invalid_signature' } }, MESSAGES.consentInvalid],
-    ['an expired or lost query (400 invalid_request)', { status: 400, json: { error: 'invalid_request', error_description: 'missing oauth query' } }, MESSAGES.consentInvalid],
+    [
+      'an expired or lost query (400 invalid_request)',
+      { status: 400, json: { error: 'invalid_request', error_description: 'missing oauth query' } },
+      MESSAGES.consentInvalid,
+    ],
     ['429', { status: 429, json: {} }, MESSAGES.rateLimited],
     ['a generic failure', { status: 500, text: 'boom' }, genericFailure(500)],
   ]
-  it.each(failures)('%s gets its message, not the server\'s', async (_n, reply, message) => {
+  it.each(failures)("%s gets its message, not the server's", async (_n, reply, message) => {
     fakeFetch(routes({ 'POST /auth/oauth2/consent': reply }))
     const go = vi.fn()
     render(<ConsentPage navigate={go} />)

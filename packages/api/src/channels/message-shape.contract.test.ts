@@ -39,11 +39,25 @@ const messageSchema = z.object({
   threadId: z.string().min(1),
   text: z.string(),
   formatted: z.object({ type: z.literal('root'), children: z.array(z.object({ type: z.string() }).loose()) }).loose(),
-  author: z.object({ userId: z.string(), userName: z.string(), fullName: z.string(), isBot: z.union([z.boolean(), z.literal('unknown')]), isMe: z.boolean() }).strict(),
+  author: z
+    .object({
+      userId: z.string(),
+      userName: z.string(),
+      fullName: z.string(),
+      isBot: z.union([z.boolean(), z.literal('unknown')]),
+      isMe: z.boolean(),
+    })
+    .strict(),
   metadata: z.object({ dateSent: z.date(), edited: z.boolean() }).loose(),
   attachments: z.array(
     z
-      .object({ type: z.enum(['image', 'file', 'video', 'audio']), name: z.string().optional(), mimeType: z.string().optional(), size: z.number().int().nonnegative().optional(), fetchMetadata: z.record(z.string(), z.string()).optional() })
+      .object({
+        type: z.enum(['image', 'file', 'video', 'audio']),
+        name: z.string().optional(),
+        mimeType: z.string().optional(),
+        size: z.number().int().nonnegative().optional(),
+        fetchMetadata: z.record(z.string(), z.string()).optional(),
+      })
       .strict(),
   ),
 })
@@ -57,9 +71,18 @@ const factsSchema = z.object({
   provider_thread_id: z.string(),
   occurred_at: z.iso.datetime(),
   subject: z.string().nullable(),
-  participants: z.array(z.object({ kind: z.enum(['email', 'phone']), value: z.string(), name: z.string().optional(), role: z.enum(['from', 'to', 'cc', 'bcc']) })),
+  participants: z.array(
+    z.object({
+      kind: z.enum(['email', 'phone']),
+      value: z.string(),
+      name: z.string().optional(),
+      role: z.enum(['from', 'to', 'cc', 'bcc']),
+    }),
+  ),
   sent_by_connection: z.boolean(),
-  attachments: z.array(z.object({ position: z.number().int().nonnegative(), inline: z.boolean(), content_id: z.string().nullable() })),
+  attachments: z.array(
+    z.object({ position: z.number().int().nonnegative(), inline: z.boolean(), content_id: z.string().nullable() }),
+  ),
 })
 
 /** Stored expectations: what `stringifyMarkdown(formatted)` and `messagePreview` must say for each fixture. */
@@ -75,7 +98,9 @@ const EXPECTED: Record<string, { markdown: string; preview: string }> = {
 describe('FakeChannel fixtures satisfy the port contract', () => {
   const scripts = standardScripts()
   const fake = new FakeChannel(Object.values(scripts))
-  const ids = Object.values(scripts).filter((s) => s.skip === undefined).map((s) => s.providerMessageId)
+  const ids = Object.values(scripts)
+    .filter((s) => s.skip === undefined)
+    .map((s) => s.providerMessageId)
 
   it.each(ids)('%s: message and facts match the schemas, and attachments line up', async (id) => {
     const out = (await fake.readMessage({ id: 'c' }, id)) as ChannelMessage
@@ -100,9 +125,13 @@ describe('FakeChannel fixtures satisfy the port contract', () => {
 // ---- the Gmail mapper's fixtures join the table ([[CHN5]] D35) ---------------------------------------------------------------
 const GMAIL_EXPECTED: Record<FixtureName, { markdown: string; preview: string }> = {
   plain: { markdown: 'Hello Owner,\n\nPlease see below.\nThanks\n', preview: 'Hello Owner, Please see below. Thanks' },
-  htmlOnly: { markdown: '# Title\n\nSome *emphasis* and **strong** with [a link](https://example.test/x).\n\n> quoted\n', preview: 'Title Some emphasis and strong with a link. quoted' },
+  htmlOnly: {
+    markdown: '# Title\n\nSome *emphasis* and **strong** with [a link](https://example.test/x).\n\n> quoted\n',
+    preview: 'Title Some emphasis and strong with a link. quoted',
+  },
   alternativeTable: {
-    markdown: '# Quarterly\n\n| Item    | Qty |\n| ------- | --- |\n| Widgets | 3   |\n| Gadgets | 5   |\n\nThanks, **Jane**\n',
+    markdown:
+      '# Quarterly\n\n| Item    | Qty |\n| ------- | --- |\n| Widgets | 3   |\n| Gadgets | 5   |\n\nThanks, **Jane**\n',
     preview: 'Quarterly Item Qty Widgets 3 Gadgets 5 Thanks, Jane',
   },
   inlineImage: { markdown: 'Logo: ![logo](cid:logo1@acme.test)\n', preview: 'Logo: logo' },
@@ -114,7 +143,11 @@ const GMAIL_EXPECTED: Record<FixtureName, { markdown: string; preview: string }>
 }
 describe('Gmail mapper fixtures satisfy the port contract', () => {
   const map = (name: FixtureName, fixtures = allGmailFixtures()): ChannelMessage => {
-    const out = mapGmailMessage({ conn: { id: 'c', mailbox: MAILBOX }, resource: fixtures[name].resource, openRaw: async () => new Blob([]).stream() as ReadableStream<Uint8Array> })
+    const out = mapGmailMessage({
+      conn: { id: 'c', mailbox: MAILBOX },
+      resource: fixtures[name].resource,
+      openRaw: async () => new Blob([]).stream() as ReadableStream<Uint8Array>,
+    })
     if ('skip' in out) throw new Error(out.skip)
     return out
   }
@@ -147,7 +180,8 @@ const PARITY: Record<string, string> = {
   list: '- one\n- two\n  - nested\n\n1. first\n2. second\n',
   'hard break': 'line one  \nline two\\\nline three\n',
   'thematic break': 'above\n\n---\n\nbelow\n',
-  'quote, code and link': '> quoted\n\n```ts\nconst a = 1\n```\n\n[site](https://example.test) and `code` ![img](https://example.test/i.png "t")\n',
+  'quote, code and link':
+    '> quoted\n\n```ts\nconst a = 1\n```\n\n[site](https://example.test) and `code` ![img](https://example.test/i.png "t")\n',
   empty: '',
 }
 describe('vendored markdown functions equal chat 4.43.0', () => {

@@ -4,9 +4,25 @@ import { sql, type Kysely } from 'kysely'
 import type { D1Like } from '@vibase/storage-d1'
 
 export type Aspect = 'table' | 'primaryKey' | 'foreignKey' | 'uniqueKey' | 'index' | 'namedCheck'
-export interface TableShape { primaryKey: string[]; foreignKeys: string[]; uniqueKeys: string[]; indexes: string[]; namedChecks: string[] }
-export interface SchemaShape { tables: string[]; byTable: Record<string, TableShape> }
-export interface EngineDifference { aspect: Aspect; engine: 'postgres' | 'd1'; table: string; item: string; reason: string; d1Fragment?: string }
+export interface TableShape {
+  primaryKey: string[]
+  foreignKeys: string[]
+  uniqueKeys: string[]
+  indexes: string[]
+  namedChecks: string[]
+}
+export interface SchemaShape {
+  tables: string[]
+  byTable: Record<string, TableShape>
+}
+export interface EngineDifference {
+  aspect: Aspect
+  engine: 'postgres' | 'd1'
+  table: string
+  item: string
+  reason: string
+  d1Fragment?: string
+}
 
 const ASPECT_ORDER: Aspect[] = ['table', 'primaryKey', 'foreignKey', 'uniqueKey', 'index', 'namedCheck']
 
@@ -45,7 +61,8 @@ const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 /** One entry per item present on one engine only. Per-table aspects are compared for tables present on both. */
 export function diffShapes(pg: SchemaShape, d1: SchemaShape): EngineDifference[] {
   const out: EngineDifference[] = []
-  const add = (aspect: Aspect, engine: 'postgres' | 'd1', table: string, item: string) => out.push({ aspect, engine, table, item, reason: '' })
+  const add = (aspect: Aspect, engine: 'postgres' | 'd1', table: string, item: string) =>
+    out.push({ aspect, engine, table, item, reason: '' })
   for (const t of pg.tables) if (!d1.tables.includes(t)) add('table', 'postgres', t, t)
   for (const t of d1.tables) if (!pg.tables.includes(t)) add('table', 'd1', t, t)
   const keys: Array<[Aspect, (s: TableShape) => string[]]> = [
@@ -66,7 +83,12 @@ export function diffShapes(pg: SchemaShape, d1: SchemaShape): EngineDifference[]
       for (const item of right) if (!left.includes(item)) add(aspect, 'd1', t, item)
     }
   }
-  return out.sort((x, y) => ASPECT_ORDER.indexOf(x.aspect) - ASPECT_ORDER.indexOf(y.aspect) || byText(x.table, y.table) || byText(x.item, y.item))
+  return out.sort(
+    (x, y) =>
+      ASPECT_ORDER.indexOf(x.aspect) - ASPECT_ORDER.indexOf(y.aspect) ||
+      byText(x.table, y.table) ||
+      byText(x.item, y.item),
+  )
 }
 
 const emptyTable = (): TableShape => ({ primaryKey: [], foreignKeys: [], uniqueKeys: [], indexes: [], namedChecks: [] })
@@ -78,13 +100,31 @@ const finish = (s: TableShape): TableShape => ({
   namedChecks: [...s.namedChecks].sort(byText),
 })
 const pkItem = (cols: string[]) => `(${cols.join(', ')})`
-const PG_ON_DELETE: Record<string, string> = { a: 'no action', r: 'restrict', c: 'cascade', n: 'set null', d: 'set default' }
+const PG_ON_DELETE: Record<string, string> = {
+  a: 'no action',
+  r: 'restrict',
+  c: 'cascade',
+  n: 'set null',
+  d: 'set default',
+}
 
 /** Postgres: the `public` base tables (migration bookkeeping excluded) and, for `tables`, their constraints and indexes. */
 export async function postgresShape(owner: Kysely<any>, tables: readonly string[]): Promise<SchemaShape> {
-  const all = await sql<{ table_name: string }>`select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name not like 'kysely\\_migration%' order by table_name`.execute(owner)
+  const all = await sql<{
+    table_name: string
+  }>`select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name not like 'kysely\\_migration%' order by table_name`.execute(
+    owner,
+  )
   const names = all.rows.map((r) => r.table_name)
-  const constraints = await sql<{ conname: string; contype: string; tbl: string; cols: string[]; reftbl: string | null; refcols: string[] | null; confdeltype: string }>`
+  const constraints = await sql<{
+    conname: string
+    contype: string
+    tbl: string
+    cols: string[]
+    reftbl: string | null
+    refcols: string[] | null
+    confdeltype: string
+  }>`
     select c.conname, c.contype, t.relname as tbl, c.confdeltype,
       (select array_agg(a.attname::text order by k.ord) from unnest(c.conkey) with ordinality as k(attnum, ord) join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum) as cols,
       rt.relname as reftbl,
@@ -94,7 +134,14 @@ export async function postgresShape(owner: Kysely<any>, tables: readonly string[
     join pg_namespace n on n.oid = t.relnamespace and n.nspname = 'public'
     left join pg_class rt on rt.oid = c.confrelid
     where c.contype in ('p', 'f', 'u', 'c')`.execute(owner)
-  const indexes = await sql<{ idxname: string; tbl: string; isunique: boolean; backs_constraint: boolean; cols: string[]; predicate: string | null }>`
+  const indexes = await sql<{
+    idxname: string
+    tbl: string
+    isunique: boolean
+    backs_constraint: boolean
+    cols: string[]
+    predicate: string | null
+  }>`
     select ic.relname as idxname, t.relname as tbl, i.indisunique as isunique,
       exists (select 1 from pg_constraint c where c.conindid = i.indexrelid) as backs_constraint,
       (select array_agg(a.attname::text order by k.ord) from unnest(string_to_array(i.indkey::text, ' ')::int2[]) with ordinality as k(attnum, ord) join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.ord <= i.indnkeyatts) as cols,
@@ -109,7 +156,8 @@ export async function postgresShape(owner: Kysely<any>, tables: readonly string[
     const s = emptyTable()
     for (const c of constraints.rows.filter((r) => r.tbl === t)) {
       if (c.contype === 'p') s.primaryKey = c.cols
-      else if (c.contype === 'f') s.foreignKeys.push(fkItem(c.cols, c.reftbl!, c.refcols!, PG_ON_DELETE[c.confdeltype] ?? c.confdeltype))
+      else if (c.contype === 'f')
+        s.foreignKeys.push(fkItem(c.cols, c.reftbl!, c.refcols!, PG_ON_DELETE[c.confdeltype] ?? c.confdeltype))
       else if (c.contype === 'u') s.uniqueKeys.push(uniqueItem(c.cols, null))
       else if (c.contype === 'c') s.namedChecks.push(c.conname)
     }
@@ -124,23 +172,48 @@ export async function postgresShape(owner: Kysely<any>, tables: readonly string[
 
 /** D1 (SQLite): the same, through the pragmas and `sqlite_schema`. */
 export async function d1Shape(d1: D1Like, tables: readonly string[]): Promise<SchemaShape> {
-  const rows = async (query: string, ...binds: unknown[]) => ((await d1.prepare(query).bind(...binds).all()).results ?? []) as Array<Record<string, any>>
-  const all = await rows("select name from sqlite_schema where type = 'table' and name not glob 'sqlite_*' and name not glob '_cf_*' and name <> 'd1_migrations' order by name")
+  const rows = async (query: string, ...binds: unknown[]) =>
+    ((
+      await d1
+        .prepare(query)
+        .bind(...binds)
+        .all()
+    ).results ?? []) as Array<Record<string, any>>
+  const all = await rows(
+    "select name from sqlite_schema where type = 'table' and name not glob 'sqlite_*' and name not glob '_cf_*' and name <> 'd1_migrations' order by name",
+  )
   const names = all.map((r) => r.name as string)
   const byTable: Record<string, TableShape> = {}
   for (const t of tables) {
     if (!names.includes(t)) continue
     const s = emptyTable()
     s.primaryKey = (await rows('select name from pragma_table_info(?) where pk > 0 order by pk', t)).map((r) => r.name)
-    const fks = await rows('select id, seq, "table" as ref, "from" as col, "to" as refcol, on_delete from pragma_foreign_key_list(?) order by id, seq', t)
+    const fks = await rows(
+      'select id, seq, "table" as ref, "from" as col, "to" as refcol, on_delete from pragma_foreign_key_list(?) order by id, seq',
+      t,
+    )
     for (const id of new Set(fks.map((r) => r.id))) {
       const parts = fks.filter((r) => r.id === id)
-      s.foreignKeys.push(fkItem(parts.map((p) => p.col), parts[0]!.ref, parts.map((p) => p.refcol), parts[0]!.on_delete))
+      s.foreignKeys.push(
+        fkItem(
+          parts.map((p) => p.col),
+          parts[0]!.ref,
+          parts.map((p) => p.refcol),
+          parts[0]!.on_delete,
+        ),
+      )
     }
-    const sqlOf = new Map((await rows("select name, sql from sqlite_schema where tbl_name = ?", t)).map((r) => [r.name as string, (r.sql ?? '') as string]))
+    const sqlOf = new Map(
+      (await rows('select name, sql from sqlite_schema where tbl_name = ?', t)).map((r) => [
+        r.name as string,
+        (r.sql ?? '') as string,
+      ]),
+    )
     for (const ix of await rows('select name, "unique" as is_unique, origin from pragma_index_list(?)', t)) {
       if (ix.origin === 'pk') continue
-      const cols = (await rows('select name from pragma_index_info(?) order by seqno', ix.name)).map((r) => r.name as string)
+      const cols = (await rows('select name from pragma_index_info(?) order by seqno', ix.name)).map(
+        (r) => r.name as string,
+      )
       if (ix.origin === 'u') {
         s.uniqueKeys.push(uniqueItem(cols, null))
         continue
@@ -157,21 +230,90 @@ export async function d1Shape(d1: D1Like, tables: readonly string[]): Promise<Sc
 
 /** What is deliberately not compared, and why (printed into RESULT.md and the README's profile). */
 export const NOT_COMPARED: readonly { what: string; why: string }[] = [
-  { what: 'column types (citext vs lower-case ASCII text, uuid vs checked text, timestamptz vs strftime text, boolean vs 0/1, jsonb vs json_valid text, text[] vs JSON array, bigint/integer vs INTEGER)', why: 'bound by the parity tests and COLUMN_KINDS' },
+  {
+    what: 'column types (citext vs lower-case ASCII text, uuid vs checked text, timestamptz vs strftime text, boolean vs 0/1, jsonb vs json_valid text, text[] vs JSON array, bigint/integer vs INTEGER)',
+    why: 'bound by the parity tests and COLUMN_KINDS',
+  },
   { what: 'row-level security', why: 'Postgres only; asserted by packages/db schema-invariants' },
-  { what: "D1's unnamed representation CHECKs (UUID text shape, strftime timestamps, 0/1 booleans, json_valid)", why: 'they are the D1 spelling of Postgres column types' },
-  { what: 'append-only enforcement (Postgres grants vs D1 BEFORE UPDATE triggers)', why: 'the audit reads neither grants nor triggers (CORE25 P15); asserted by migration-008, schema-invariants and the D1 schema test' },
+  {
+    what: "D1's unnamed representation CHECKs (UUID text shape, strftime timestamps, 0/1 booleans, json_valid)",
+    why: 'they are the D1 spelling of Postgres column types',
+  },
+  {
+    what: 'append-only enforcement (Postgres grants vs D1 BEFORE UPDATE triggers)',
+    why: 'the audit reads neither grants nor triggers (CORE25 P15); asserted by migration-008, schema-invariants and the D1 schema test',
+  },
 ]
 
 /** Every expected difference between the engines. Exact in both directions: an unlisted one fails, and so does a stale entry. */
 export const ENGINE_DIFFERENCES: readonly EngineDifference[] = [
-  { aspect: 'table', engine: 'd1', table: 'deployment', item: 'deployment', reason: 'the D1 deployment marker: one organisation per database (CORE35 D18)' },
-  { aspect: 'table', engine: 'd1', table: 'unit_assertion', item: 'unit_assertion', reason: 'D1 commit-time assertion machinery (CORE36 D4); Postgres asserts inside its transaction' },
-  { aspect: 'foreignKey', engine: 'd1', table: 'organizations', item: '(id) -> deployment(organization_id) on delete no action', reason: 'the marker fixes the one organisation (CORE35 D18)' },
-  { aspect: 'namedCheck', engine: 'postgres', table: 'organizations', item: 'organizations_auth_pair', reason: 'unnamed inline CHECK on D1 (CORE47 P2)', d1Fragment: 'CHECK ((auth_provider IS NULL) = (auth_org_id IS NULL))' },
-  { aspect: 'namedCheck', engine: 'postgres', table: 'principals', item: 'principals_kind_check', reason: 'Postgres auto-name; unnamed inline CHECK on D1 (CORE47 P2)', d1Fragment: "CHECK (kind IN ('user', 'agent', 'system'))" },
-  { aspect: 'namedCheck', engine: 'postgres', table: 'users', item: 'users_auth_pair', reason: 'unnamed inline CHECK on D1 (CORE47 P2)', d1Fragment: 'CHECK ((auth_provider IS NULL) = (auth_subject IS NULL))' },
-  { aspect: 'namedCheck', engine: 'postgres', table: 'users', item: 'users_email_ascii_lower', reason: 'unnamed inline CHECK on D1 (CORE47 P2)', d1Fragment: "CHECK (email = lower(email) AND email NOT GLOB '*[^ -~]*')" },
-  { aspect: 'namedCheck', engine: 'postgres', table: 'memberships', item: 'memberships_role_check', reason: 'Postgres auto-name; unnamed inline CHECK on D1 (CORE47 P2)', d1Fragment: "CHECK (role IN ('owner', 'member'))" },
-  { aspect: 'namedCheck', engine: 'postgres', table: 'tasks', item: 'tasks_status_check', reason: 'Postgres auto-name; unnamed inline CHECK on D1 (CORE47 P2)', d1Fragment: "CHECK (status IN ('open', 'done'))" },
+  {
+    aspect: 'table',
+    engine: 'd1',
+    table: 'deployment',
+    item: 'deployment',
+    reason: 'the D1 deployment marker: one organisation per database (CORE35 D18)',
+  },
+  {
+    aspect: 'table',
+    engine: 'd1',
+    table: 'unit_assertion',
+    item: 'unit_assertion',
+    reason: 'D1 commit-time assertion machinery (CORE36 D4); Postgres asserts inside its transaction',
+  },
+  {
+    aspect: 'foreignKey',
+    engine: 'd1',
+    table: 'organizations',
+    item: '(id) -> deployment(organization_id) on delete no action',
+    reason: 'the marker fixes the one organisation (CORE35 D18)',
+  },
+  {
+    aspect: 'namedCheck',
+    engine: 'postgres',
+    table: 'organizations',
+    item: 'organizations_auth_pair',
+    reason: 'unnamed inline CHECK on D1 (CORE47 P2)',
+    d1Fragment: 'CHECK ((auth_provider IS NULL) = (auth_org_id IS NULL))',
+  },
+  {
+    aspect: 'namedCheck',
+    engine: 'postgres',
+    table: 'principals',
+    item: 'principals_kind_check',
+    reason: 'Postgres auto-name; unnamed inline CHECK on D1 (CORE47 P2)',
+    d1Fragment: "CHECK (kind IN ('user', 'agent', 'system'))",
+  },
+  {
+    aspect: 'namedCheck',
+    engine: 'postgres',
+    table: 'users',
+    item: 'users_auth_pair',
+    reason: 'unnamed inline CHECK on D1 (CORE47 P2)',
+    d1Fragment: 'CHECK ((auth_provider IS NULL) = (auth_subject IS NULL))',
+  },
+  {
+    aspect: 'namedCheck',
+    engine: 'postgres',
+    table: 'users',
+    item: 'users_email_ascii_lower',
+    reason: 'unnamed inline CHECK on D1 (CORE47 P2)',
+    d1Fragment: "CHECK (email = lower(email) AND email NOT GLOB '*[^ -~]*')",
+  },
+  {
+    aspect: 'namedCheck',
+    engine: 'postgres',
+    table: 'memberships',
+    item: 'memberships_role_check',
+    reason: 'Postgres auto-name; unnamed inline CHECK on D1 (CORE47 P2)',
+    d1Fragment: "CHECK (role IN ('owner', 'member'))",
+  },
+  {
+    aspect: 'namedCheck',
+    engine: 'postgres',
+    table: 'tasks',
+    item: 'tasks_status_check',
+    reason: 'Postgres auto-name; unnamed inline CHECK on D1 (CORE47 P2)',
+    d1Fragment: "CHECK (status IN ('open', 'done'))",
+  },
 ]

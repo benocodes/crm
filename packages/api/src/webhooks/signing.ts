@@ -12,12 +12,23 @@ const keyBytes = (secret: string): Uint8Array => {
 const base64 = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes))
 
 async function sign(secret: string, text: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', keyBytes(secret) as BufferSource, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyBytes(secret) as BufferSource,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
   return base64(new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(text))))
 }
 
 /** The `webhook-signature` value: `v1,<sig>` for each secret, space separated, in the order given. */
-export async function signatureHeader(a: { secrets: string[]; id: string; timestamp: number; body: string }): Promise<string> {
+export async function signatureHeader(a: {
+  secrets: string[]
+  id: string
+  timestamp: number
+  body: string
+}): Promise<string> {
   const text = `${a.id}.${a.timestamp}.${a.body}`
   return (await Promise.all(a.secrets.map(async (s) => `v1,${await sign(s, text)}`))).join(' ')
 }

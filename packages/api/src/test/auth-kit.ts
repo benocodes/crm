@@ -24,11 +24,18 @@ export interface AuthKit {
   env(): InternalEnv
   /** D1 only: arm `hook` for the next unit with this operation name (between its plan reads and its commit batch). */
   armOn(name: string, hook: () => Promise<void>): void
-  call(path: string, sub: string, init?: { method?: string; claim?: { id: string; rol: string }; body?: unknown; header?: string; iat?: Date }): Promise<Response>
+  call(
+    path: string,
+    sub: string,
+    init?: { method?: string; claim?: { id: string; rol: string }; body?: unknown; header?: string; iat?: Date },
+  ): Promise<Response>
   keyCall(path: string, key: string, init?: { method?: string; body?: unknown; header?: string }): Promise<Response>
   webhook(payload: unknown, opts?: { secret?: string; headers?: Record<string, string | undefined> }): Promise<Response>
   /** A Clerk profile for `sub`; returns the email. */
-  profile(sub: string, opts?: { email?: string | null; verified?: boolean; first?: string | null; last?: string | null }): string | null
+  profile(
+    sub: string,
+    opts?: { email?: string | null; verified?: boolean; first?: string | null; last?: string | null },
+  ): string | null
 }
 
 /** Build after `engine.reset()`: the D1 binding is replaced on every reset. */
@@ -65,7 +72,10 @@ export async function openAuthKit(e: Engine, opts: { now?: Date; binding?: Stora
   const request = (path: string, token: string, init: { method?: string; body?: unknown; header?: string } = {}) =>
     app.request(path, {
       method: init.method ?? 'GET',
-      headers: { authorization: `Bearer ${token}`, ...(init.header !== undefined ? { 'x-organization-id': init.header } : {}) },
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(init.header !== undefined ? { 'x-organization-id': init.header } : {}),
+      },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     })
   return {
@@ -77,7 +87,11 @@ export async function openAuthKit(e: Engine, opts: { now?: Date; binding?: Stora
     env: () => internalEnv({ clock: () => clock.now }),
     armOn: (name, hook) => void armed.set(name, hook),
     async call(path, sub, init = {}) {
-      const token = await mintClerkToken(clerk.issuer, { sub, now: init.iat ?? clock.now, ...(init.claim ? { extra: orgClaim(init.claim.id, init.claim.rol) } : {}) })
+      const token = await mintClerkToken(clerk.issuer, {
+        sub,
+        now: init.iat ?? clock.now,
+        ...(init.claim ? { extra: orgClaim(init.claim.id, init.claim.rol) } : {}),
+      })
       return request(path, token, init)
     },
     keyCall: async (path, key, init) => request(path, key, init),
@@ -92,7 +106,16 @@ export async function openAuthKit(e: Engine, opts: { now?: Date; binding?: Stora
     },
     profile(sub, o = {}) {
       const email = o.email === undefined ? `${sub}@x.test` : o.email
-      clerk.profiles.set(sub, clerkUser({ id: sub, email, verified: o.verified ?? true, first: 'first' in o ? o.first : 'Ada', last: 'last' in o ? o.last : 'L' }))
+      clerk.profiles.set(
+        sub,
+        clerkUser({
+          id: sub,
+          email,
+          verified: o.verified ?? true,
+          first: 'first' in o ? o.first : 'Ada',
+          last: 'last' in o ? o.last : 'L',
+        }),
+      )
       return email
     },
   }

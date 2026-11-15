@@ -9,7 +9,14 @@ import { softDeletes, type PreparedEnv, type PreparedResource } from './storage/
 import { columnFilterParams } from './storage/column-filters.js'
 import { aggregateAnswer, aggregateDescription, aggregateParams } from './storage/aggregate.js'
 import { SORTED_NEXT, sortedQueryFields } from './storage/sort-params.js'
-import { aggregateOperation, createOperation, deleteOperation, getOperation, listOperation, updateOperation } from './storage/crud.js'
+import {
+  aggregateOperation,
+  createOperation,
+  deleteOperation,
+  getOperation,
+  listOperation,
+  updateOperation,
+} from './storage/crud.js'
 import { endpointTypesOf, type EndpointTypes } from './associations/definition.js'
 import { embeddedFields, getWithAssociations, includeQuery } from './associations/embed.js'
 import { fullPath, type Surface } from './surfaces.js'
@@ -21,7 +28,11 @@ import { crudActions, parseInput, resourcePath, scopeResourceOf, type CrudAction
  * show (`alsoRequires`, for discovery). `eligible: false` carries the reason a client is told (`400 operation_not_proposable`).
  */
 export type ProposalDecl =
-  | { eligible: true; target?: { table: PhysicalTable; idArg: string; notFound: string; live: boolean }; alsoRequires?: string }
+  | {
+      eligible: true
+      target?: { table: PhysicalTable; idArg: string; notFound: string; live: boolean }
+      alsoRequires?: string
+    }
   | { eligible: false; reason: string }
 /** What `prepare` may call besides building: a read-only unit on the request's own storage identity ([[AGT8]] D28: plan reads before a decision command). */
 export interface PrepareContext {
@@ -65,7 +76,12 @@ export interface BinaryBody {
   filename: string
 }
 /** `origin` is the request's own origin (`https://host`) where the transport knows it: REST sets it, MCP does not ([[CHN5]] D57's redirect URI). */
-export type OperationInput = { params: Record<string, unknown>; query: Record<string, unknown>; body: unknown; origin?: string }
+export type OperationInput = {
+  params: Record<string, unknown>
+  query: Record<string, unknown>
+  body: unknown
+  origin?: string
+}
 interface OperationBase {
   name: string
   /** [[API32]] D1: required, no default. `path` is relative to the surface; the wire path is `fullPath(op)`. */
@@ -102,7 +118,11 @@ export interface TenantOperation extends OperationBase {
   proposal?: ProposalDecl
   /** [[AGT8]] D28: a unit that drifts is planned and run once more, then answers `409 conflict`. */
   replanOnDrift?: boolean
-  prepare: (env: PreparedEnv, input: OperationInput, ctx?: PrepareContext) => PreparedOperation<unknown> | Promise<PreparedOperation<unknown>>
+  prepare: (
+    env: PreparedEnv,
+    input: OperationInput,
+    ctx?: PrepareContext,
+  ) => PreparedOperation<unknown> | Promise<PreparedOperation<unknown>>
   /**
    * The object stage ([[CORE25]] D52): runs after the read unit with the unit's value and the composition's store, so a
    * unit never calls R2. Its return is the response (JSON) or a `BinaryBody` (binary).
@@ -127,7 +147,10 @@ export interface AccountEnv {
   readonly scopes: ScopeSet
   readonly now: Date
   /** Set on a single-workspace composition ([[CORE64]] D24): the user's role from the token, null for an agent. Absent: the copy-based answer. */
-  readonly workspace?: { readonly role: Role | null; /** The OAuth client of the token ([[CORE77]] D14); null for a session token and an API key. */ readonly clientId: string | null }
+  readonly workspace?: {
+    readonly role: Role | null /** The OAuth client of the token ([[CORE77]] D14); null for a session token and an API key. */
+    readonly clientId: string | null
+  }
 }
 export interface AccountOperation extends OperationBase {
   kind: 'account'
@@ -185,13 +208,16 @@ export class Registry {
     }
     const binary = op.output === 'binary'
     if (binary) {
-      if (op.response.schema !== undefined) throw new Error(`operation ${op.name}: a binary operation has no response schema`)
+      if (op.response.schema !== undefined)
+        throw new Error(`operation ${op.name}: a binary operation has no response schema`)
       if (op.response.status !== 200) throw new Error(`operation ${op.name}: a binary operation responds 200`)
-      if (op.kind !== 'tenant' || !op.objects) throw new Error(`operation ${op.name}: a binary operation needs an objects stage`)
+      if (op.kind !== 'tenant' || !op.objects)
+        throw new Error(`operation ${op.name}: a binary operation needs an objects stage`)
     } else if (op.response.status === 204 ? op.response.schema !== undefined : op.response.schema === undefined) {
       throw new Error(`operation ${op.name}: response schema is required unless 204 or binary, and forbidden on 204`)
     }
-    if (op.kind === 'tenant' && op.objects && op.response.status === 204) throw new Error(`operation ${op.name}: an objects stage needs a response body`)
+    if (op.kind === 'tenant' && op.objects && op.response.status === 204)
+      throw new Error(`operation ${op.name}: an objects stage needs a response body`)
     const params = op.request?.params
     if (params) {
       for (const m of op.path.matchAll(/\{(\w+)\}/g)) {
@@ -200,12 +226,19 @@ export class Registry {
     }
     if (op.kind === 'tenant') {
       if (op.scope === null && !op.authority) throw new Error(`operation ${op.name}: a null scope needs an authority`)
-      if (op.method !== 'get' && !op.proposal) throw new Error(`operation ${op.name}: every tenant operation that changes data declares its proposal metadata (eligible, or ineligible with a reason)`)
+      if (op.method !== 'get' && !op.proposal)
+        throw new Error(
+          `operation ${op.name}: every tenant operation that changes data declares its proposal metadata (eligible, or ineligible with a reason)`,
+        )
       if (op.execution) checkEnqueued(op, op.execution)
       if (op.proposal?.eligible) {
-        if (op.scope === null || op.scope.action !== 'write') throw new Error(`operation ${op.name}: a proposable operation requires a write scope`)
+        if (op.scope === null || op.scope.action !== 'write')
+          throw new Error(`operation ${op.name}: a proposable operation requires a write scope`)
         // An enqueued operation is not inline: its after stage starts the runner and it is D1 only ([[AGT8]] D26, D49).
-        if (!op.execution && (op.after || op.objects || op.d1Only)) throw new Error(`operation ${op.name}: a proposable operation runs inline: no after-commit or object stage, no d1Only`)
+        if (!op.execution && (op.after || op.objects || op.d1Only))
+          throw new Error(
+            `operation ${op.name}: a proposable operation runs inline: no after-commit or object stage, no d1Only`,
+          )
         if (op.objects) throw new Error(`operation ${op.name}: an enqueued operation has no object stage`)
       }
     }
@@ -244,9 +277,10 @@ export class Registry {
   decorate(name: string, change: (op: TenantOperation) => TenantOperation): this {
     const at = this.ops.findIndex((o) => o.name === name)
     const op = this.ops[at]
-    if (!op || op.kind !== 'tenant') throw new Error(`decorate: no tenant operation ${name}`)
+    if (op?.kind !== 'tenant') throw new Error(`decorate: no tenant operation ${name}`)
     const next = change(op)
-    if (next.name !== op.name || next.method !== op.method || next.path !== op.path) throw new Error(`decorate: ${name} must keep its name, method and path`)
+    if (next.name !== op.name || next.method !== op.method || next.path !== op.path)
+      throw new Error(`decorate: ${name} must keep its name, method and path`)
     this.ops[at] = next
     return this
   }
@@ -268,7 +302,8 @@ export class Registry {
     for (const op of this.ops) {
       if (op.kind === 'account' || op.scope === null) continue
       out.add(formatScope(op.scope))
-      if (op.kind === 'tenant' && op.proposal?.eligible) out.add(formatScope({ resource: op.scope.resource, action: 'request_approval' }))
+      if (op.kind === 'tenant' && op.proposal?.eligible)
+        out.add(formatScope({ resource: op.scope.resource, action: 'request_approval' }))
     }
     return [...out].sort()
   }
@@ -286,7 +321,8 @@ function checkEnqueued(op: TenantOperation, execution: ExecutionDecl): void {
   if (op.request?.params || op.request?.query) fail('takes its arguments in the body: no path or query parameters')
   const body = op.request?.body
   const key = body instanceof z.ZodObject ? body.shape.idempotency_key : undefined
-  if (!(body instanceof z.ZodObject) || key === undefined || key.safeParse(undefined).success) fail('requires an idempotency_key in its body')
+  if (!(body instanceof z.ZodObject) || key === undefined || key.safeParse(undefined).success)
+    fail('requires an idempotency_key in its body')
   if (!op.proposal?.eligible) fail('is proposable (an approved request creates the same execution)')
 }
 
@@ -299,21 +335,42 @@ export const toolName = (name: string): string => name.replaceAll('.', '_')
  */
 function filterFields(def: PreparedResource<any, any>): Record<string, z.ZodType> {
   const fields: Record<string, z.ZodType> = {}
-  for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.customFilters ?? {}) })) fields[key] = (f as { schema: z.ZodType }).schema.optional()
+  for (const [key, f] of Object.entries({ ...(def.filters ?? {}), ...(def.customFilters ?? {}) }))
+    fields[key] = (f as { schema: z.ZodType }).schema.optional()
   return Object.assign(fields, columnFilterParams(def))
 }
 
 /** The generic CRUD operations of a definition, in CRUD_ACTIONS order, for the actions it generates. */
-export function resourceOperations(def: PreparedResource<any, any>, types: () => EndpointTypes = () => endpointTypesOf([def])): TenantOperation[] {
+export function resourceOperations(
+  def: PreparedResource<any, any>,
+  types: () => EndpointTypes = () => endpointTypesOf([def]),
+): TenantOperation[] {
   const p = resourcePath(def)
   const s = scopeResourceOf(def)
   const actions = new Set<CrudAction>(crudActions(def))
   const idParams = z.object({ id: z.uuid() })
   const rec: z.ZodType = def.record
   const getQuery = z.object({ include: includeQuery.optional() })
-  const base = { kind: 'tenant' as const, surface: def.surface, validation: 'handler' as const, tags: [def.name], ...(def.d1Only ? { d1Only: true } : {}) }
+  const base = {
+    kind: 'tenant' as const,
+    surface: def.surface,
+    validation: 'handler' as const,
+    tags: [def.name],
+    ...(def.d1Only ? { d1Only: true } : {}),
+  }
   const notProposable = (): ProposalDecl => ({ eligible: false, reason: def.notProposable ?? 'not proposable' })
-  const targeted = (): ProposalDecl => (def.notProposable !== undefined ? notProposable() : { eligible: true, target: { table: def.table as PhysicalTable, idArg: 'id', notFound: `${def.eventName} not found`, live: softDeletes(def) } })
+  const targeted = (): ProposalDecl =>
+    def.notProposable !== undefined
+      ? notProposable()
+      : {
+          eligible: true,
+          target: {
+            table: def.table as PhysicalTable,
+            idArg: 'id',
+            notFound: `${def.eventName} not found`,
+            live: softDeletes(def),
+          },
+        }
   const ops: TenantOperation[] = []
   if (actions.has('list')) {
     // [[CORE133]] D8, D9: a list that declares `sorts` takes sort and order, and its cursor is an opaque string; every other list keeps a UUID cursor.
@@ -334,11 +391,25 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
       path: p,
       scope: { resource: s, action: 'read' },
       request: { query: z.object(query) },
-      response: { status: 200, schema: z.object({ data: z.array(rec), next_cursor: sorts.length > 0 ? SORTED_NEXT : z.uuid().nullable() }) },
+      response: {
+        status: 200,
+        schema: z.object({ data: z.array(rec), next_cursor: sorts.length > 0 ? SORTED_NEXT : z.uuid().nullable() }),
+      },
       prepare: (env, input) => {
         const { after, limit, sort, order, ...filters } = input.query as Record<string, unknown>
         // Without `sorts`, `sort` and `order` are not parameters: they stay in `filters`, where they are unknown filters, as they always were.
-        const raw = sorts.length > 0 ? { after, limit, sort, order, filters: filters as Record<string, string> } : { after, limit, filters: { ...(sort !== undefined ? { sort } : {}), ...(order !== undefined ? { order } : {}), ...filters } as Record<string, string> }
+        const raw =
+          sorts.length > 0
+            ? { after, limit, sort, order, filters: filters as Record<string, string> }
+            : {
+                after,
+                limit,
+                filters: {
+                  ...(sort !== undefined ? { sort } : {}),
+                  ...(order !== undefined ? { order } : {}),
+                  ...filters,
+                } as Record<string, string>,
+              }
         return def.override?.list ? def.override.list(env, raw) : listOperation(def, env, raw)
       },
     })
@@ -388,7 +459,8 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
       proposal: def.notProposable !== undefined ? notProposable() : { eligible: true },
       request: { body: def.create },
       response: { status: 201, schema: rec },
-      prepare: (env, input) => (def.override?.create ? def.override.create(env, input.body) : createOperation(def, env, input.body)),
+      prepare: (env, input) =>
+        def.override?.create ? def.override.create(env, input.body) : createOperation(def, env, input.body),
     })
   }
   if (actions.has('update')) {
@@ -419,7 +491,10 @@ export function resourceOperations(def: PreparedResource<any, any>, types: () =>
       proposal: targeted(),
       request: { params: idParams },
       response: { status: 204 },
-      prepare: (env, input) => (def.override?.delete ? def.override.delete(env, input.params.id) : deleteOperation(def, env, input.params.id as string)),
+      prepare: (env, input) =>
+        def.override?.delete
+          ? def.override.delete(env, input.params.id)
+          : deleteOperation(def, env, input.params.id as string),
     })
   }
   return ops

@@ -17,7 +17,13 @@ export interface Discovery {
 export interface Me {
   principal: { id: string; kind: 'user' | 'agent' }
   user: { id: string; email: string; name: string | null; email_verified: boolean } | null
-  agent: { id: string; name: string; delegated_by: string | null; auth_client_id: string | null; auth_subject: string | null } | null
+  agent: {
+    id: string
+    name: string
+    delegated_by: string | null
+    auth_client_id: string | null
+    auth_subject: string | null
+  } | null
   client_id: string | null
   memberships: { organization_id: string; organization_name: string; role: 'owner' | 'member' }[]
   active_organization: { id: string; role: 'owner' | 'member' | null; scopes: string[] } | null

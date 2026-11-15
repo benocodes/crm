@@ -2,16 +2,19 @@ import { open, rename, rm } from 'node:fs/promises'
 import { CliError, usage } from './errors.js'
 import type { Command, Deps, Invocation } from './types.js'
 
-export const json = (deps: Deps, sink: 'stdout' | 'stderr', value: unknown) => deps[sink].write(JSON.stringify(value, null, deps[sink].isTTY ? 2 : undefined) + '\n')
+export const json = (deps: Deps, sink: 'stdout' | 'stderr', value: unknown) =>
+  deps[sink].write(JSON.stringify(value, null, deps[sink].isTTY ? 2 : undefined) + '\n')
 
-const network = (url: string, e: unknown) => new CliError(1, 'network_error', `could not reach ${url}: ${e instanceof Error ? e.message : 'request failed'}`)
+const network = (url: string, e: unknown) =>
+  new CliError(1, 'network_error', `could not reach ${url}: ${e instanceof Error ? e.message : 'request failed'}`)
 
 /** The API's own `{ error: { code, message } }` when the body has it; otherwise one built from the status. */
 export async function apiError(res: Response): Promise<CliError> {
   const text = await res.text().catch(() => '')
   try {
     const body = JSON.parse(text)
-    if (typeof body?.error?.code === 'string' && typeof body.error.message === 'string') return new CliError(1, body.error.code, body.error.message)
+    if (typeof body?.error?.code === 'string' && typeof body.error.message === 'string')
+      return new CliError(1, body.error.code, body.error.message)
   } catch {
     // not JSON
   }
@@ -22,12 +25,27 @@ export async function apiError(res: Response): Promise<CliError> {
  * One authenticated request of an invocation. The one place the credential leaves the CLI: the path must stay on the server's origin ([[API6]] D18),
  * whatever document it came from. `query` replaces the invocation's own.
  */
-export async function sendRequest(cmd: Command, inv: Invocation, query: [string, string][], key: string, deps: Deps, server: string): Promise<Response> {
+export async function sendRequest(
+  cmd: Command,
+  inv: Invocation,
+  query: [string, string][],
+  key: string,
+  deps: Deps,
+  server: string,
+): Promise<Response> {
   // The path comes from a document the server served: it must stay on the server's origin, whatever it contains.
   const url = new URL(inv.path, server)
-  if (url.origin !== server || !inv.path.startsWith('/') || inv.path.startsWith('//')) throw usage(`refusing to send the credential to ${url.origin}: ${cmd.operationId} is not on ${server}`, 'origin_mismatch')
+  if (url.origin !== server || !inv.path.startsWith('/') || inv.path.startsWith('//'))
+    throw usage(
+      `refusing to send the credential to ${url.origin}: ${cmd.operationId} is not on ${server}`,
+      'origin_mismatch',
+    )
   for (const [k, v] of query) url.searchParams.append(k, v)
-  const headers: Record<string, string> = { authorization: `Bearer ${key}`, 'user-agent': `vibase-cli/${deps.version}`, accept: cmd.binary ? '*/*' : 'application/json' }
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${key}`,
+    'user-agent': `vibase-cli/${deps.version}`,
+    accept: cmd.binary ? '*/*' : 'application/json',
+  }
   let body: string | undefined
   if (inv.body !== undefined) {
     headers['content-type'] = 'application/json'
@@ -41,11 +59,17 @@ export async function sendRequest(cmd: Command, inv: Invocation, query: [string,
 }
 
 /** Runs one invocation against `server` with `key` and prints the result ([[API6]] D8, D14). Returns the exit code. */
-export async function execute(cmd: Command, inv: Invocation, conn: { server: string; key: string; refresh?: (rejected: string) => Promise<string> }, deps: Deps): Promise<number> {
+export async function execute(
+  cmd: Command,
+  inv: Invocation,
+  conn: { server: string; key: string; refresh?: (rejected: string) => Promise<string> },
+  deps: Deps,
+): Promise<number> {
   let key = conn.key
   let retried = false
   const toStdout = cmd.binary && (inv.output === undefined || inv.output === '-')
-  if (cmd.binary && inv.output === undefined && deps.stdout.isTTY) throw usage('this command returns bytes: pass --output <path>, or --output - to write them to the terminal')
+  if (cmd.binary && inv.output === undefined && deps.stdout.isTTY)
+    throw usage('this command returns bytes: pass --output <path>, or --output - to write them to the terminal')
 
   // A `401` on an OAuth credential is answered by one refresh and one retry ([[API6]] D20); a second `401` is the answer.
   const send = async (query: [string, string][]): Promise<Response> => {
@@ -94,7 +118,8 @@ export async function execute(cmd: Command, inv: Invocation, conn: { server: str
       const res = await send(query)
       if (!res.ok) throw await apiError(res)
       const page = (await res.json().catch(() => undefined)) as { data?: unknown[]; next_cursor?: unknown } | undefined
-      if (!page || !Array.isArray(page.data)) throw new CliError(1, 'invalid_response', 'a list response had no data array')
+      if (!page || !Array.isArray(page.data))
+        throw new CliError(1, 'invalid_response', 'a list response had no data array')
       for (const item of page.data) await deps.stdout.write(JSON.stringify(item) + '\n')
       const next = page.next_cursor
       if (typeof next !== 'string' || next === '') return 0

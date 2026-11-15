@@ -64,6 +64,8 @@ describe('Field', () => {
       </>,
     )
     expect(screen.getByLabelText('One').id).not.toBe(screen.getByLabelText('Two').id)
-    expect(screen.getByLabelText('One').getAttribute('aria-describedby')).not.toBe(screen.getByLabelText('Two').getAttribute('aria-describedby'))
+    expect(screen.getByLabelText('One').getAttribute('aria-describedby')).not.toBe(
+      screen.getByLabelText('Two').getAttribute('aria-describedby'),
+    )
   })
 })

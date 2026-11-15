@@ -20,6 +20,8 @@ describe('passwordResetUrl', () => {
   })
 
   it('sits beside invitationUrl with the same base handling', () => {
-    expect(passwordResetUrl('https://h.test/', 't').replace('/reset-password', '')).toBe(invitationUrl('https://h.test/', 't').replace('/invite', ''))
+    expect(passwordResetUrl('https://h.test/', 't').replace('/reset-password', '')).toBe(
+      invitationUrl('https://h.test/', 't').replace('/invite', ''),
+    )
   })
 })

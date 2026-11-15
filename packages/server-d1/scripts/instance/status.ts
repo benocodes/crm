@@ -14,18 +14,38 @@ export async function runStatus(argv: string[], deps: InstanceDeps): Promise<num
   try {
     let values: { env?: string; settings?: string; 'secrets-file'?: string }
     try {
-      values = parseArgs({ args: argv, strict: true, allowPositionals: false, options: { env: { type: 'string' }, settings: { type: 'string' }, 'secrets-file': { type: 'string' } } }).values
+      values = parseArgs({
+        args: argv,
+        strict: true,
+        allowPositionals: false,
+        options: { env: { type: 'string' }, settings: { type: 'string' }, 'secrets-file': { type: 'string' } },
+      }).values
     } catch (e) {
       const rollback = argv.includes('--rollback')
-      throw new InstanceRefusal(rollback ? 'status does not accept --rollback (it belongs to upgrade)' : `${e instanceof Error ? e.message : 'bad arguments'}; usage: vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]`)
+      throw new InstanceRefusal(
+        rollback
+          ? 'status does not accept --rollback (it belongs to upgrade)'
+          : `${e instanceof Error ? e.message : 'bad arguments'}; usage: vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]`,
+      )
     }
-    if (!values.env) throw new InstanceRefusal('--env <name> is required; usage: vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]')
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(values.env)) throw new InstanceRefusal(`--env ${values.env} is not an environment name (lowercase letters, digits and dashes)`)
-    const g = await runGate({ envName: values.env, settingsPath: values.settings, secretsPath: values['secrets-file'], sweepCounts: true }, deps)
+    if (!values.env)
+      throw new InstanceRefusal(
+        '--env <name> is required; usage: vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]',
+      )
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(values.env))
+      throw new InstanceRefusal(`--env ${values.env} is not an environment name (lowercase letters, digits and dashes)`)
+    const g = await runGate(
+      { envName: values.env, settingsPath: values.settings, secretsPath: values['secrets-file'], sweepCounts: true },
+      deps,
+    )
     const expected = g.manifest.migrations.map((m) => m.name)
     const migrations = statusOf(g.applied, expected)
-    deps.out(`package: vibase-server/${g.manifest.version} (${g.manifest.commit}), ${Object.keys(g.manifest.files).length} files verified`)
-    deps.out(`instance: ${g.settings.env} at https://${g.settings.api_host} (worker ${g.settings.worker}, settings ${g.settingsPath})`)
+    deps.out(
+      `package: vibase-server/${g.manifest.version} (${g.manifest.commit}), ${Object.keys(g.manifest.files).length} files verified`,
+    )
+    deps.out(
+      `instance: ${g.settings.env} at https://${g.settings.api_host} (worker ${g.settings.worker}, settings ${g.settingsPath})`,
+    )
     deps.out(`live: version ${g.live.version}${g.live.commit ? `, commit ${g.live.commit}` : ''}`)
     for (const n of g.notes) deps.out(`note: ${n}`)
     for (const l of diffLines(g)) deps.out(l)

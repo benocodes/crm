@@ -3,7 +3,12 @@
 import { sql } from 'kysely'
 import { defineOperation, execute, readSet, step, unit, type Step, type StorageBinding } from '@vibase/storage'
 import type { GmailConfig } from '../../connections/config.js'
-import { GoogleRefreshError, refreshAccessToken, type GoogleEndpoints, GOOGLE_ENDPOINTS } from '../../connections/google.js'
+import {
+  GoogleRefreshError,
+  refreshAccessToken,
+  type GoogleEndpoints,
+  GOOGLE_ENDPOINTS,
+} from '../../connections/google.js'
 import { openToken } from '../../connections/credentials.js'
 import { GmailApiError, HttpGmailClient, isGmailThrottle, type GmailClient } from './client.js'
 import { gmailClientFor, markConnectionStatus } from './sync.js'
@@ -36,7 +41,8 @@ export interface RenewResult {
 export function classifyWatchFailure(err: unknown): WatchFailureClass {
   if (err instanceof GoogleRefreshError && err.code === 'invalid_grant') return 'reauth_required'
   if (isGmailThrottle(err)) return 'throttled'
-  if (err instanceof GmailApiError && (err.status === 403 || err.status === 400 || err.status === 404)) return 'misconfigured'
+  if (err instanceof GmailApiError && (err.status === 403 || err.status === 400 || err.status === 404))
+    return 'misconfigured'
   return 'failed'
 }
 
@@ -49,17 +55,30 @@ function describe(err: unknown): string {
 const isoOfExpiration = (expiration: string): string => new Date(Number(expiration)).toISOString()
 
 /** The `gmail_watches` upsert ([[CHN5]] D89), one statement: `ON CONFLICT` (invariant 3), so a row inserted between a read and this write is updated, not a violation. */
-export function watchUpsertStep(qc: Parameters<Parameters<typeof defineOperation>[0]['build']>[1], p: { connectionId: string; organizationId: string; ownerId: string; mailbox: string; at: string; expiresAt: string }): Step {
+export function watchUpsertStep(
+  qc: Parameters<Parameters<typeof defineOperation>[0]['build']>[1],
+  p: { connectionId: string; organizationId: string; ownerId: string; mailbox: string; at: string; expiresAt: string },
+): Step {
   return step(
     qc.db
       .insertInto('gmail_watches')
-      .values({ connection_id: p.connectionId, organization_id: p.organizationId, created_by: p.ownerId, created_at: p.at, mailbox: p.mailbox, expires_at: p.expiresAt })
+      .values({
+        connection_id: p.connectionId,
+        organization_id: p.organizationId,
+        created_by: p.ownerId,
+        created_at: p.at,
+        mailbox: p.mailbox,
+        expires_at: p.expiresAt,
+      })
       .onConflict((oc) => oc.column('connection_id').doUpdateSet({ mailbox: p.mailbox, expires_at: p.expiresAt })),
   )
 }
 
 /** `users.watch` for the connect flow, never throwing ([[CHN5]] D89): the expiry as an ISO timestamp, or the failure's class for the log. */
-export async function watchAtConnect(client: GmailClient, topicName: string): Promise<{ ok: true; expires_at: string } | { ok: false; klass: WatchFailureClass; detail: string }> {
+export async function watchAtConnect(
+  client: GmailClient,
+  topicName: string,
+): Promise<{ ok: true; expires_at: string } | { ok: false; klass: WatchFailureClass; detail: string }> {
   try {
     const w = await client.watch({ topicName })
     return { ok: true, expires_at: isoOfExpiration(w.expiration) }
@@ -89,7 +108,15 @@ async function candidates(d: WatchDeps, now: Date): Promise<Candidate[]> {
           order by c.id`.compile(qc.db),
       ),
     }),
-    build: (found) => unit({ steps: [], events: [], decode: () => found.all('due').map((r) => ({ id: String(r.id), owner_id: String(r.owner_id), mailbox: String(r.mailbox).toLowerCase() })) }),
+    build: (found) =>
+      unit({
+        steps: [],
+        events: [],
+        decode: () =>
+          found
+            .all('due')
+            .map((r) => ({ id: String(r.id), owner_id: String(r.owner_id), mailbox: String(r.mailbox).toLowerCase() })),
+      }),
   })
   return (await execute(d.binding, { kind: 'internal', organizationId: d.organizationId }, op)).value
 }
@@ -112,7 +139,21 @@ export async function renewWatches(d: WatchDeps): Promise<RenewResult> {
         name: 'gmail.renew_watch',
         mutates: true,
         reads: () => ({}),
-        build: (_found, qc) => unit({ steps: [watchUpsertStep(qc, { connectionId: c.id, organizationId: d.organizationId, ownerId: c.owner_id, mailbox: c.mailbox, at, expiresAt })], events: [], decode: () => undefined }),
+        build: (_found, qc) =>
+          unit({
+            steps: [
+              watchUpsertStep(qc, {
+                connectionId: c.id,
+                organizationId: d.organizationId,
+                ownerId: c.owner_id,
+                mailbox: c.mailbox,
+                at,
+                expiresAt,
+              }),
+            ],
+            events: [],
+            decode: () => undefined,
+          }),
       })
       await execute(d.binding, { kind: 'internal', organizationId: d.organizationId }, op)
       out.registered++
@@ -124,7 +165,9 @@ export async function renewWatches(d: WatchDeps): Promise<RenewResult> {
         try {
           await markConnectionStatus(d, c.id, c.owner_id, 'reauth_required', 'invalid_grant')
         } catch (inner) {
-          console.error(`[watch] could not mark connection ${c.id} reauth_required: ${inner instanceof Error ? inner.name : 'error'}`)
+          console.error(
+            `[watch] could not mark connection ${c.id} reauth_required: ${inner instanceof Error ? inner.name : 'error'}`,
+          )
         }
       }
     }
@@ -149,9 +192,21 @@ export async function stopWatch(d: {
     if (d.keyVersion !== d.config.keyVersion) throw new Error('credential_key_mismatch')
     const refreshToken = await openToken(d.config.credentialsKey, d.ciphertext)
     const doFetch = d.fetch ?? ((i, n) => fetch(i, n))
-    const refreshed = await refreshAccessToken({ endpoints: d.endpoints ?? GOOGLE_ENDPOINTS, clientId: d.config.clientId, clientSecret: d.config.clientSecret, refreshToken, fetch: doFetch })
-    await new HttpGmailClient({ accessToken: async () => refreshed.accessToken, fetch: doFetch, ...(d.gmailBaseUrl ? { baseUrl: d.gmailBaseUrl } : {}) }).stop()
+    const refreshed = await refreshAccessToken({
+      endpoints: d.endpoints ?? GOOGLE_ENDPOINTS,
+      clientId: d.config.clientId,
+      clientSecret: d.config.clientSecret,
+      refreshToken,
+      fetch: doFetch,
+    })
+    await new HttpGmailClient({
+      accessToken: async () => refreshed.accessToken,
+      fetch: doFetch,
+      ...(d.gmailBaseUrl ? { baseUrl: d.gmailBaseUrl } : {}),
+    }).stop()
   } catch (err) {
-    console.warn(`[watch] stop failed for deleted connection ${d.connectionId}: ${err instanceof GoogleRefreshError ? `refresh_${err.code}` : describe(err)}`)
+    console.warn(
+      `[watch] stop failed for deleted connection ${d.connectionId}: ${err instanceof GoogleRefreshError ? `refresh_${err.code}` : describe(err)}`,
+    )
   }
 }

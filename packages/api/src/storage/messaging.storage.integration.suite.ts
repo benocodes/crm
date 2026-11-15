@@ -62,9 +62,29 @@ export function engineSuite(engineName: EngineName): void {
         })
         const m = await get(messages, s.messageId)
         expect(Object.keys(m).sort()).toEqual(
-          ['id', 'thread_id', 'channel', 'kind', 'external_id', 'in_reply_to', 'author', 'occurred_at', 'preview', 'version', 'retracted_at', 'attachments', 'created_by', 'created_at'].sort(),
+          [
+            'id',
+            'thread_id',
+            'channel',
+            'kind',
+            'external_id',
+            'in_reply_to',
+            'author',
+            'occurred_at',
+            'preview',
+            'version',
+            'retracted_at',
+            'attachments',
+            'created_by',
+            'created_at',
+          ].sort(),
         )
-        expect(m.author).toEqual({ user_id: 'jane@acme.test', user_name: 'jane@acme.test', full_name: 'Jane', is_bot: false })
+        expect(m.author).toEqual({
+          user_id: 'jane@acme.test',
+          user_name: 'jane@acme.test',
+          full_name: 'Jane',
+          is_bot: false,
+        })
         expect(m.version).toBe(1)
         expect(m.attachments.map((a: any) => a.position)).toEqual([0, 1, 2])
         expect(m.attachments[0]).toMatchObject({ type: 'file', fetch_status: 'stored', inline: false })
@@ -73,7 +93,18 @@ export function engineSuite(engineName: EngineName): void {
         expect(m.attachments[2]).toMatchObject({ size_bytes: 52_428_800, inline: true })
         expect(typeof m.attachments[2].inline).toBe('boolean')
         for (const a of m.attachments) {
-          expect(Object.keys(a).sort()).toEqual(['content_id', 'fetch_status', 'file_id', 'id', 'inline', 'mime_type', 'name', 'position', 'size_bytes', 'type'])
+          expect(Object.keys(a).sort()).toEqual([
+            'content_id',
+            'fetch_status',
+            'file_id',
+            'id',
+            'inline',
+            'mime_type',
+            'name',
+            'position',
+            'size_bytes',
+            'type',
+          ])
         }
       })
 
@@ -86,9 +117,28 @@ export function engineSuite(engineName: EngineName): void {
         const a = await identityOf('a@acme.test')
         const b = await identityOf('b@acme.test')
         const c = await identityOf('c@acme.test')
-        const s = await seed({ participants: [{ identityId: b.identityId, role: 'to' }, { identityId: a.identityId, role: 'from' }, { identityId: c.identityId, role: 'cc' }] })
+        const s = await seed({
+          participants: [
+            { identityId: b.identityId, role: 'to' },
+            { identityId: a.identityId, role: 'from' },
+            { identityId: c.identityId, role: 'cc' },
+          ],
+        })
         const i = await get(interactions, s.interactionId!)
-        expect(Object.keys(i).sort()).toEqual(['id', 'kind', 'channel', 'direction', 'occurred_at', 'thread_id', 'message_id', 'participants', 'created_by', 'created_at'].sort())
+        expect(Object.keys(i).sort()).toEqual(
+          [
+            'id',
+            'kind',
+            'channel',
+            'direction',
+            'occurred_at',
+            'thread_id',
+            'message_id',
+            'participants',
+            'created_by',
+            'created_at',
+          ].sort(),
+        )
         expect(i.participants).toEqual([
           { identity_id: c.identityId, role: 'cc' },
           { identity_id: a.identityId, role: 'from' },
@@ -102,7 +152,9 @@ export function engineSuite(engineName: EngineName): void {
         const f = await get(files, s.fileIds[0]!)
         expect(f.size_bytes).toBe(52_428_800)
         expect(typeof f.size_bytes).toBe('number')
-        expect(Object.keys(f).sort()).toEqual(['id', 'name', 'mime_type', 'size_bytes', 'sha256', 'created_by', 'created_at'].sort())
+        expect(Object.keys(f).sort()).toEqual(
+          ['id', 'name', 'mime_type', 'size_bytes', 'sha256', 'created_by', 'created_at'].sort(),
+        )
       })
 
       it('threads record', async () => {
@@ -131,7 +183,9 @@ export function engineSuite(engineName: EngineName): void {
         const t1 = await seed({ externalId: 'one@acme.test' })
         const t2 = await seed({ externalId: 'two@acme.test', kind: 'reaction', inReplyTo: 'one@acme.test' })
         const sameThread = await seed({ externalId: 'three@acme.test', threadId: t1.threadId })
-        expect(ids(await list(messages, { thread_id: t1.threadId }))).toEqual([t1.messageId, sameThread.messageId].sort())
+        expect(ids(await list(messages, { thread_id: t1.threadId }))).toEqual(
+          [t1.messageId, sameThread.messageId].sort(),
+        )
         expect(ids(await list(messages, { kind: 'reaction' }))).toEqual([t2.messageId])
         expect(ids(await list(messages, { external_id: 'two@acme.test' }))).toEqual([t2.messageId])
         expect(ids(await list(messages, { in_reply_to: 'one@acme.test' }))).toEqual([t2.messageId])
@@ -157,7 +211,12 @@ export function engineSuite(engineName: EngineName): void {
         const a = await identityOf('a@acme.test')
         const b = await identityOf('b@acme.test')
         const c = await identityOf('c@acme.test')
-        const i1 = await seed({ participants: [{ identityId: a.identityId, role: 'from' }, { identityId: b.identityId, role: 'to' }] })
+        const i1 = await seed({
+          participants: [
+            { identityId: a.identityId, role: 'from' },
+            { identityId: b.identityId, role: 'to' },
+          ],
+        })
         await seed({ participants: [{ identityId: c.identityId, role: 'from' }] })
         expect(ids(await list(interactions, { identity_id: b.identityId }))).toEqual([i1.interactionId])
         expect(ids(await list(interactions, { identity_id: b.identityId.toUpperCase() }))).toEqual([i1.interactionId])
@@ -215,8 +274,11 @@ export function engineSuite(engineName: EngineName): void {
         it('a custom filter never reaches another organisation (the foreign identity and interaction exist)', async () => {
           const f = await foreignTenant(e)
           const contact = await f.run(createOperation(contacts, f.env(), {}))
-          const identity = await f.run(createOperation(identities, f.env(), { kind: 'email', value: 'x@foreign.test', contact_id: contact.id }))
-          const foreignInsert = (table: string, row: Record<string, unknown>) => e.insert(table, { ...row, organization_id: f.organizationId, created_by: f.userId })
+          const identity = await f.run(
+            createOperation(identities, f.env(), { kind: 'email', value: 'x@foreign.test', contact_id: contact.id }),
+          )
+          const foreignInsert = (table: string, row: Record<string, unknown>) =>
+            e.insert(table, { ...row, organization_id: f.organizationId, created_by: f.userId })
           await seedConversation(foreignInsert, { participants: [{ identityId: identity.id, role: 'from' }] })
           expect(ids(await list(interactions, { identity_id: identity.id }))).toEqual([])
           expect(ids(await list(interactions, { contact_id: contact.id }))).toEqual([])
@@ -225,7 +287,11 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     describe('events carry the embeds in `after`', () => {
-      const setEvent = (def: PreparedResource<any, any>, resourceId: string, eventId: string): PreparedOperation<null> =>
+      const setEvent = (
+        def: PreparedResource<any, any>,
+        resourceId: string,
+        eventId: string,
+      ): PreparedOperation<null> =>
         defineOperation<null>({
           name: 'test.event_after',
           mutates: true,
@@ -233,7 +299,18 @@ export function engineSuite(engineName: EngineName): void {
           build: (_found, qc) =>
             unit({
               steps: [
-                step(eventSet(qc, { at: '2026-10-28T10:00:00.000Z', organizationId: e.organizationId, actorId: e.userId, type: `${def.eventName}.updated`, resourceType: def.eventName, after: afterOf(def), rows: [{ eventId, resourceId, before: null }] }), 'first-event'),
+                step(
+                  eventSet(qc, {
+                    at: '2026-10-28T10:00:00.000Z',
+                    organizationId: e.organizationId,
+                    actorId: e.userId,
+                    type: `${def.eventName}.updated`,
+                    resourceType: def.eventName,
+                    after: afterOf(def),
+                    rows: [{ eventId, resourceId, before: null }],
+                  }),
+                  'first-event',
+                ),
               ],
               events: [{ id: eventId, type: `${def.eventName}.updated`, resourceType: def.eventName, resourceId }],
               decode: () => null,
@@ -253,7 +330,12 @@ export function engineSuite(engineName: EngineName): void {
       it('an interaction: after deep-equals the get record', async () => {
         const a = await identityOf('a@acme.test')
         const b = await identityOf('b@acme.test')
-        const s = await seed({ participants: [{ identityId: b.identityId, role: 'to' }, { identityId: a.identityId, role: 'from' }] })
+        const s = await seed({
+          participants: [
+            { identityId: b.identityId, role: 'to' },
+            { identityId: a.identityId, role: 'from' },
+          ],
+        })
         const eventId = uuidv7()
         await e.run(setEvent(interactions, s.interactionId!, eventId))
         const ev = (await e.rows('events')).find((x) => x.id === eventId)!
@@ -263,8 +345,22 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     describe.each([
-      { label: 'contact', def: (): PreparedResource<any, any> => contactFiles, table: 'contact_files', col: 'contact_id', ev: 'contact_file', parent: async () => (await k.contact({})).id as string },
-      { label: 'company', def: (): PreparedResource<any, any> => companyFiles, table: 'company_files', col: 'company_id', ev: 'company_file', parent: async () => (await k.company({ name: 'Co' })).id as string },
+      {
+        label: 'contact',
+        def: (): PreparedResource<any, any> => contactFiles,
+        table: 'contact_files',
+        col: 'contact_id',
+        ev: 'contact_file',
+        parent: async () => (await k.contact({})).id as string,
+      },
+      {
+        label: 'company',
+        def: (): PreparedResource<any, any> => companyFiles,
+        table: 'company_files',
+        col: 'company_id',
+        ev: 'company_file',
+        parent: async () => (await k.company({ name: 'Co' })).id as string,
+      },
     ])('$label links', ({ def, table, col, ev, parent }) => {
       const create = (body: Record<string, unknown>) => k.run((env) => createOperation(def(), env, body))
       const remove = (id: string) => k.run((env) => deleteOperation(def(), env, id))
@@ -280,7 +376,13 @@ export function engineSuite(engineName: EngineName): void {
         expect(r.created_at).toBe(r.updated_at)
         const evs = await events(ev)
         expect(evs).toHaveLength(before + 1)
-        expect(evs.at(-1)).toMatchObject({ type: `${ev}.created`, resource_id: r.id, actor_id: e.userId, after: r, created_at: r.created_at })
+        expect(evs.at(-1)).toMatchObject({
+          type: `${ev}.created`,
+          resource_id: r.id,
+          actor_id: e.userId,
+          after: r,
+          created_at: r.created_at,
+        })
       })
 
       it('a duplicate live link is 409 link_exists, with no row and no event', async () => {
@@ -317,7 +419,11 @@ export function engineSuite(engineName: EngineName): void {
         await (col === 'contact_id' ? k.deleteContact(deleted) : k.deleteCompany(deleted))
         const rows = (await e.rows(table)).length
         const evs = (await e.rows('events')).length
-        for (const body of [{ [col]: deleted, file_id: F }, { [col]: P, file_id: uuidv7() }, { [col]: uuidv7(), file_id: F }]) {
+        for (const body of [
+          { [col]: deleted, file_id: F },
+          { [col]: P, file_id: uuidv7() },
+          { [col]: uuidv7(), file_id: F },
+        ]) {
           const err = await k.fail((env) => createOperation(def(), env, body))
           expect([err.status, err.code]).toEqual([400, 'invalid_reference'])
         }
@@ -328,7 +434,10 @@ export function engineSuite(engineName: EngineName): void {
       if (name === 'postgres') {
         it("another organisation's file is invalid_reference", async () => {
           const f = await foreignTenant(e)
-          const foreign = await seedConversation((t, row) => e.insert(t, { ...row, organization_id: f.organizationId, created_by: f.userId }), { attachments: 1 })
+          const foreign = await seedConversation(
+            (t, row) => e.insert(t, { ...row, organization_id: f.organizationId, created_by: f.userId }),
+            { attachments: 1 },
+          )
           const P = await parent()
           const err = await k.fail((env) => createOperation(def(), env, { [col]: P, file_id: foreign.fileIds[0] }))
           expect([err.status, err.code]).toEqual([400, 'invalid_reference'])

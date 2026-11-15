@@ -58,11 +58,30 @@ export interface Conversation {
 async function seedConnection(insert: Insert): Promise<string> {
   const id = uuidv7()
   try {
-    const own = await insert('identities', { kind: 'email', value: `conn-${id}@seed.test`, contact_id: null, own: true })
-    await insert('channel_connections', { id, provider: 'google', account_id: `seed-${id}`, identity_id: own.id, owner_id: own.created_by, status: 'active', granted_scopes: [], connected_at: '2026-10-22T08:00:00.000Z' })
+    const own = await insert('identities', {
+      kind: 'email',
+      value: `conn-${id}@seed.test`,
+      contact_id: null,
+      own: true,
+    })
+    await insert('channel_connections', {
+      id,
+      provider: 'google',
+      account_id: `seed-${id}`,
+      identity_id: own.id,
+      owner_id: own.created_by,
+      status: 'active',
+      granted_scopes: [],
+      connected_at: '2026-10-22T08:00:00.000Z',
+    })
   } catch (err) {
     // Only "there is no such table" is expected (Postgres); a real failure here would surface later as a confusing foreign-key error.
-    if (!/no such table|does not exist|relation .* not found/i.test(String(err instanceof Error ? `${err.message} ${String(err.cause ?? '')}` : err))) throw err
+    if (
+      !/no such table|does not exist|relation .* not found/i.test(
+        String(err instanceof Error ? `${err.message} ${String(err.cause ?? '')}` : err),
+      )
+    )
+      throw err
   }
   return id
 }
@@ -76,7 +95,11 @@ export async function seedConversation(insert: Insert, opts: ConversationOpts = 
   const kind = opts.kind ?? 'message'
   const thread = opts.threadId
     ? null
-    : await insert('threads', { ...(opts.ids?.thread ? { id: opts.ids.thread } : {}), channel: 'email', subject: opts.subject === undefined ? `Subject ${n}` : opts.subject })
+    : await insert('threads', {
+        ...(opts.ids?.thread ? { id: opts.ids.thread } : {}),
+        channel: 'email',
+        subject: opts.subject === undefined ? `Subject ${n}` : opts.subject,
+      })
   const threadId = opts.threadId ?? (thread!.id as string)
   const organizationId = (thread?.organization_id as string | undefined) ?? ''
   const contentKey = kind === 'message' ? `orgs/${organizationId || 'org'}/messages/email/${hex64()}` : null
@@ -95,7 +118,9 @@ export async function seedConversation(insert: Insert, opts: ConversationOpts = 
     retracted_at: null,
   })
   const specs: readonly AttachmentSpec[] =
-    typeof opts.attachments === 'number' ? Array.from({ length: opts.attachments }, (_, position) => ({ position })) : (opts.attachments ?? [])
+    typeof opts.attachments === 'number'
+      ? Array.from({ length: opts.attachments }, (_, position) => ({ position }))
+      : (opts.attachments ?? [])
   const fileIds: string[] = []
   const storageKeys: string[] = []
   const attachmentIds: string[] = []
@@ -103,7 +128,13 @@ export async function seedConversation(insert: Insert, opts: ConversationOpts = 
     let fileId: string | null = null
     if (!spec.failed) {
       const storageKey = `orgs/${organizationId || 'org'}/files/${uuidv7()}`
-      const file = await insert('files', { name: spec.name ?? `file-${spec.position}.pdf`, mime_type: 'application/pdf', size_bytes: spec.size_bytes ?? 1000 + spec.position, sha256: hex64(), storage_key: storageKey })
+      const file = await insert('files', {
+        name: spec.name ?? `file-${spec.position}.pdf`,
+        mime_type: 'application/pdf',
+        size_bytes: spec.size_bytes ?? 1000 + spec.position,
+        sha256: hex64(),
+        storage_key: storageKey,
+      })
       fileId = file.id as string
       fileIds.push(fileId)
       storageKeys.push(storageKey)
@@ -136,11 +167,27 @@ export async function seedConversation(insert: Insert, opts: ConversationOpts = 
       message_id: message.id,
     })
     interactionId = interaction.id as string
-    for (const p of opts.participants ?? []) await insert('interaction_participants', { interaction_id: interactionId, identity_id: p.identityId, role: p.role })
+    for (const p of opts.participants ?? [])
+      await insert('interaction_participants', {
+        interaction_id: interactionId,
+        identity_id: p.identityId,
+        role: p.role,
+      })
   }
   const connectionId = await seedConnection(insert)
-  const source = await insert('message_sources', { message_id: message.id, connection_id: connectionId, provider_message_id: `gm-${n}`, provider_thread_id: `gt-${n}` })
-  const tsource = thread ? await insert('thread_sources', { thread_id: threadId, connection_id: connectionId, provider_thread_id: `gt-${n}` }) : null
+  const source = await insert('message_sources', {
+    message_id: message.id,
+    connection_id: connectionId,
+    provider_message_id: `gm-${n}`,
+    provider_thread_id: `gt-${n}`,
+  })
+  const tsource = thread
+    ? await insert('thread_sources', {
+        thread_id: threadId,
+        connection_id: connectionId,
+        provider_thread_id: `gt-${n}`,
+      })
+    : null
   return {
     organizationId: (message.organization_id as string | undefined) ?? organizationId,
     threadId,

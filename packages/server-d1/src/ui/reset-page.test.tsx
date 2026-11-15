@@ -21,7 +21,8 @@ const fill = async (a = GOOD, b = a) => {
   await user.type(screen.getByLabelText('Confirm new password'), b)
   return user
 }
-const submit = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: /set new password/i }))
+const submit = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', { name: /set new password/i }))
 
 describe('the fragment token', () => {
   it('is read and removed from the address before the form renders', () => {
@@ -32,12 +33,15 @@ describe('the fragment token', () => {
     expect(location.pathname).toBe('/reset-password')
   })
 
-  it.each(['/reset-password', '/reset-password#token=', '/reset-password#x=1'])('%s: an explanation and no form', (url) => {
-    history.replaceState(null, '', url)
-    render(<ResetPage />)
-    expect(screen.getByText(MESSAGES.resetNoToken)).toBeTruthy()
-    expect(screen.queryByLabelText('New password')).toBeNull()
-  })
+  it.each(['/reset-password', '/reset-password#token=', '/reset-password#x=1'])(
+    '%s: an explanation and no form',
+    (url) => {
+      history.replaceState(null, '', url)
+      render(<ResetPage />)
+      expect(screen.getByText(MESSAGES.resetNoToken)).toBeTruthy()
+      expect(screen.queryByLabelText('New password')).toBeNull()
+    },
+  )
 
   it('both fields are new-password', () => {
     render(<ResetPage />)
@@ -82,9 +86,21 @@ describe('the request and its outcomes', () => {
   })
 
   const cases: Array<[string, { status: number; json?: unknown; text?: string }, string]> = [
-    ['INVALID_TOKEN', { status: 400, json: { code: 'INVALID_TOKEN', message: 'Invalid token' } }, MESSAGES.resetInvalidLink],
-    ['PASSWORD_TOO_SHORT from the server', { status: 400, json: { code: 'PASSWORD_TOO_SHORT', message: 'Password too short' } }, MESSAGES.passwordTooShort],
-    ['PASSWORD_TOO_LONG from the server', { status: 400, json: { code: 'PASSWORD_TOO_LONG', message: 'Password too long' } }, MESSAGES.passwordTooLong],
+    [
+      'INVALID_TOKEN',
+      { status: 400, json: { code: 'INVALID_TOKEN', message: 'Invalid token' } },
+      MESSAGES.resetInvalidLink,
+    ],
+    [
+      'PASSWORD_TOO_SHORT from the server',
+      { status: 400, json: { code: 'PASSWORD_TOO_SHORT', message: 'Password too short' } },
+      MESSAGES.passwordTooShort,
+    ],
+    [
+      'PASSWORD_TOO_LONG from the server',
+      { status: 400, json: { code: 'PASSWORD_TOO_LONG', message: 'Password too long' } },
+      MESSAGES.passwordTooLong,
+    ],
     ['429', { status: 429, json: {} }, MESSAGES.rateLimited],
     ['an unknown status', { status: 500, text: 'boom' }, genericFailure(500)],
   ]
@@ -101,7 +117,12 @@ describe('the request and its outcomes', () => {
   })
 
   it('a server message with markup is never rendered', async () => {
-    fakeFetch({ 'POST /auth/reset-password': { status: 400, json: { code: 'INVALID_TOKEN', message: '<img src=x><b id="injected">hi</b>' } } })
+    fakeFetch({
+      'POST /auth/reset-password': {
+        status: 400,
+        json: { code: 'INVALID_TOKEN', message: '<img src=x><b id="injected">hi</b>' },
+      },
+    })
     render(<ResetPage navigate={() => {}} />)
     await submit(await fill())
     expect((await screen.findByRole('alert')).textContent).toBe(MESSAGES.resetInvalidLink)

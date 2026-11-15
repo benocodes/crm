@@ -2,7 +2,14 @@ import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { MIGRATIONS, createInvitation, openControlDb, revokeInvitation, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
+import {
+  MIGRATIONS,
+  createInvitation,
+  openControlDb,
+  revokeInvitation,
+  type D1Like,
+  type D1PreparedLike,
+} from '@vibase/storage-d1'
 import { createVibaseRegistry, scopesForRole } from '@vibase/api'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -27,14 +34,26 @@ afterAll(() => w.dispose())
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 const tokenOf = (url: string) => new URL(url).hash.replace(/^#token=/, '')
 const iso = (ms: number) => new Date(ms).toISOString()
-const rows = async (d1: D1Like, text: string, ...binds: unknown[]) => ((await d1.prepare(text).bind(...binds).all()).results ?? []) as Array<Record<string, any>>
+const rows = async (d1: D1Like, text: string, ...binds: unknown[]) =>
+  ((
+    await d1
+      .prepare(text)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as Array<Record<string, any>>
 const crm = (text: string, ...binds: unknown[]) => rows(w.d1, text, ...binds)
 const ctl = (text: string, ...binds: unknown[]) => rows(w.control, text, ...binds)
 const count = async (d1: D1Like, t: string) => Number((await rows(d1, `select count(*) n from "${t}"`))[0]!.n)
 const AUTH_ROWS = ['auth_users', 'auth_accounts', 'auth_sessions']
-const authCounts = async () => Object.fromEntries(await Promise.all(AUTH_ROWS.map(async (t) => [t, await count(w.control, t)])))
+const authCounts = async () =>
+  Object.fromEntries(await Promise.all(AUTH_ROWS.map(async (t) => [t, await count(w.control, t)])))
 const dump = async (d1: D1Like) => {
-  const tables = (await rows(d1, "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like '_cf_%' and name not like 'auth_rate%' and name not like 'auth_jwks'")).map((r) => r.name as string)
+  const tables = (
+    await rows(
+      d1,
+      "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like '_cf_%' and name not like 'auth_rate%' and name not like 'auth_jwks'",
+    )
+  ).map((r) => r.name as string)
   const all: Record<string, unknown[]> = {}
   for (const t of tables) all[t] = await rows(d1, `select * from "${t}" order by 1`)
   return all
@@ -46,10 +65,20 @@ function flaky(real: D1Like, fail: { on: boolean }): D1Like {
   return {
     prepare(query: string) {
       const p = real.prepare(query)
-      return { bind: (...v: unknown[]) => { const b = p.bind(...v); sqlOf.set(b, query); return b }, run: () => p.run(), all: () => p.all(), first: () => p.first() } as D1PreparedLike
+      return {
+        bind: (...v: unknown[]) => {
+          const b = p.bind(...v)
+          sqlOf.set(b, query)
+          return b
+        },
+        run: () => p.run(),
+        all: () => p.all(),
+        first: () => p.first(),
+      } as D1PreparedLike
     },
     async batch(batch: D1PreparedLike[]) {
-      if (fail.on && batch.some((s) => /insert\s+into\s+"?(memberships|agents)"?/i.test(sqlOf.get(s) ?? ''))) throw new Error('injected failure')
+      if (fail.on && batch.some((s) => /insert\s+into\s+"?(memberships|agents)"?/i.test(sqlOf.get(s) ?? '')))
+        throw new Error('injected failure')
       return real.batch(batch)
     },
   }
@@ -62,10 +91,20 @@ function flakyControl(real: D1Like): D1Like {
   return {
     prepare(query: string) {
       const p = real.prepare(query)
-      return { bind: (...v: unknown[]) => { const b = p.bind(...v); sqlOf.set(b, query); return b }, run: () => p.run(), all: () => p.all(), first: () => p.first() } as D1PreparedLike
+      return {
+        bind: (...v: unknown[]) => {
+          const b = p.bind(...v)
+          sqlOf.set(b, query)
+          return b
+        },
+        run: () => p.run(),
+        all: () => p.all(),
+        first: () => p.first(),
+      } as D1PreparedLike
     },
     async batch(batch: D1PreparedLike[]) {
-      if (failControl.on && batch.some((s) => /update\s+invitations\s+set\s+accepted_at/i.test(sqlOf.get(s) ?? ''))) throw new Error('injected control failure')
+      if (failControl.on && batch.some((s) => /update\s+invitations\s+set\s+accepted_at/i.test(sqlOf.get(s) ?? '')))
+        throw new Error('injected control failure')
       return real.batch(batch)
     },
   }
@@ -73,17 +112,43 @@ function flakyControl(real: D1Like): D1Like {
 
 let fail: { on: boolean }
 let clock: () => Date
-const worker = (over: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: flaky(w.d1, fail), CONTROL_DB: flakyControl(w.control), AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, ...over }, { clock: () => clock() })
+const worker = (over: Partial<D1WorkerEnv> = {}) =>
+  composeD1Worker(
+    {
+      DB: flaky(w.d1, fail),
+      CONTROL_DB: flakyControl(w.control),
+      AUTH_PROVIDER: 'better-auth',
+      AUTH_SECRET,
+      PUBLIC_BASE_URL: AUTH_BASE,
+      ...over,
+    },
+    { clock: () => clock() },
+  )
 let wk: ReturnType<typeof worker>
 const send = (path: string, init: { method?: string; body?: unknown; cookie?: string; bearer?: string } = {}) =>
   wk.fetch(
     new Request(AUTH_BASE + path, {
       method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
-      headers: { origin: AUTH_BASE, 'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}`, ...(init.body === undefined ? {} : { 'content-type': 'application/json' }), ...(init.cookie ? { cookie: init.cookie } : {}), ...(init.bearer ? { authorization: `Bearer ${init.bearer}` } : {}) },
+      headers: {
+        origin: AUTH_BASE,
+        'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}`,
+        ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(init.cookie ? { cookie: init.cookie } : {}),
+        ...(init.bearer ? { authorization: `Bearer ${init.bearer}` } : {}),
+      },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     }),
   )
-const signUp = (email: string, token?: string, extra: Record<string, unknown> = {}) => send('/auth/sign-up/email', { body: { name: 'Ann Tester', email, password: PASSWORD, ...(token === undefined ? {} : { invitation_token: token }), ...extra } })
+const signUp = (email: string, token?: string, extra: Record<string, unknown> = {}) =>
+  send('/auth/sign-up/email', {
+    body: {
+      name: 'Ann Tester',
+      email,
+      password: PASSWORD,
+      ...(token === undefined ? {} : { invitation_token: token }),
+      ...extra,
+    },
+  })
 const signIn = (email: string) => send('/auth/sign-in/email', { body: { email, password: PASSWORD } })
 const cookieOf = (res: Response) => res.headers.get('set-cookie')!.split(';')[0]!
 const me = async (cookie: string) => {
@@ -93,13 +158,31 @@ const me = async (cookie: string) => {
 }
 
 /** A control-plane invitation at a chosen clock, with a known token (the store only keeps its hash). */
-async function invite(email: string, role: 'owner' | 'member' | 'agent', o: { createdAt?: number; expiresAt?: number; state?: 'revoked' | 'accepted' } = {}) {
+async function invite(
+  email: string,
+  role: 'owner' | 'member' | 'agent',
+  o: { createdAt?: number; expiresAt?: number; state?: 'revoked' | 'accepted' } = {},
+) {
   const t = o.createdAt ?? Date.now()
   const id = uuidv7()
   const token = `token-${id}`
-  expect(await createInvitation(openControlDb(w.control), { id, auditId: uuidv7(), organizationId: orgId, email, role, tokenHash: sha256(token), expiresAt: iso(o.expiresAt ?? t + 7 * DAY), createdBy: systemId, now: iso(t) })).toBe('created')
-  if (o.state === 'revoked') await revokeInvitation(openControlDb(w.control), { id, auditId: uuidv7(), actorId: systemId, now: iso(Date.now()) })
-  if (o.state === 'accepted') await w.control.prepare('update invitations set accepted_at = ? where id = ?').bind(iso(Date.now()), id).run()
+  expect(
+    await createInvitation(openControlDb(w.control), {
+      id,
+      auditId: uuidv7(),
+      organizationId: orgId,
+      email,
+      role,
+      tokenHash: sha256(token),
+      expiresAt: iso(o.expiresAt ?? t + 7 * DAY),
+      createdBy: systemId,
+      now: iso(t),
+    }),
+  ).toBe('created')
+  if (o.state === 'revoked')
+    await revokeInvitation(openControlDb(w.control), { id, auditId: uuidv7(), actorId: systemId, now: iso(Date.now()) })
+  if (o.state === 'accepted')
+    await w.control.prepare('update invitations set accepted_at = ? where id = ?').bind(iso(Date.now()), id).run()
   return { id, token }
 }
 
@@ -107,11 +190,24 @@ beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
   fail = { on: false }
   failControl.on = false
   clock = () => new Date()
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE, ownerEmail: 'owner@x.test' }, { control: openControlDb(w.control) })
+  const r = await bootstrapD1(
+    w.d1,
+    {
+      organizationName: 'Acme',
+      authProvider: 'better-auth',
+      authOrgId: 'better-auth',
+      publicBaseUrl: AUTH_BASE,
+      ownerEmail: 'owner@x.test',
+    },
+    { control: openControlDb(w.control) },
+  )
   orgId = r.organizationId
   ownerToken = tokenOf(r.ownerInvitation!.url)
   systemId = (await crm("select id from principals where kind = 'system'"))[0]!.id
@@ -124,9 +220,29 @@ describe('the gate (P1, P2)', () => {
     ['no token', async () => ({ email: 'owner@x.test' })],
     ['an unknown token', async () => ({ email: 'owner@x.test', token: 'not-a-token' })],
     ['a live token for another email', async () => ({ email: 'other@x.test', token: ownerToken })],
-    ['an expired invitation', async () => ({ email: 'late@x.test', token: (await invite('late@x.test', 'member', { createdAt: Date.now() - 9 * DAY, expiresAt: Date.now() - 2 * DAY })).token })],
-    ['a revoked invitation', async () => ({ email: 'gone@x.test', token: (await invite('gone@x.test', 'member', { state: 'revoked' })).token })],
-    ['an accepted invitation', async () => ({ email: 'used@x.test', token: (await invite('used@x.test', 'member', { state: 'accepted' })).token })],
+    [
+      'an expired invitation',
+      async () => ({
+        email: 'late@x.test',
+        token: (
+          await invite('late@x.test', 'member', { createdAt: Date.now() - 9 * DAY, expiresAt: Date.now() - 2 * DAY })
+        ).token,
+      }),
+    ],
+    [
+      'a revoked invitation',
+      async () => ({
+        email: 'gone@x.test',
+        token: (await invite('gone@x.test', 'member', { state: 'revoked' })).token,
+      }),
+    ],
+    [
+      'an accepted invitation',
+      async () => ({
+        email: 'used@x.test',
+        token: (await invite('used@x.test', 'member', { state: 'accepted' })).token,
+      }),
+    ],
   ]
   it.each(causes)('%s: 403 with the one code and no auth row', async (_name, make) => {
     const a = await make()
@@ -171,44 +287,88 @@ describe('the gate (P1, P2)', () => {
 })
 
 describe('acceptance per role (P3)', () => {
-  it.each(['owner', 'member', 'agent'] as const)('%s: the vault rows, the one event, the token resolving to that principal', async (role) => {
-    const email = `${role}@x.test`
-    const token = role === 'owner' ? ownerToken : (await invite(email, role)).token
-    const crmBefore = await crm('select count(*) n from events')
-    const res = await signUp(email, token)
-    expect(res.status, await res.clone().text()).toBe(200)
-    const subject = ((await res.json()) as any).user.id as string
-    const cookie = cookieOf(res)
+  it.each(['owner', 'member', 'agent'] as const)(
+    '%s: the vault rows, the one event, the token resolving to that principal',
+    async (role) => {
+      const email = `${role}@x.test`
+      const token = role === 'owner' ? ownerToken : (await invite(email, role)).token
+      const crmBefore = await crm('select count(*) n from events')
+      const res = await signUp(email, token)
+      expect(res.status, await res.clone().text()).toBe(200)
+      const subject = ((await res.json()) as any).user.id as string
+      const cookie = cookieOf(res)
 
-    const events = (await crm('select * from events order by id')).filter((e) => e.type === 'membership.created' || e.type === 'agent.created')
-    expect(events.map((e) => e.type)).toEqual([role === 'agent' ? 'agent.created' : 'membership.created'])
-    expect(JSON.stringify(events)).not.toContain(token)
-    expect(await crm('select count(*) n from events')).not.toEqual(crmBefore)
+      const events = (await crm('select * from events order by id')).filter(
+        (e) => e.type === 'membership.created' || e.type === 'agent.created',
+      )
+      expect(events.map((e) => e.type)).toEqual([role === 'agent' ? 'agent.created' : 'membership.created'])
+      expect(JSON.stringify(events)).not.toContain(token)
+      expect(await crm('select count(*) n from events')).not.toEqual(crmBefore)
 
-    if (role === 'agent') {
-      const agent = (await crm('select * from agents where auth_subject = ?', subject))[0]!
-      expect(agent).toEqual({ id: agent.id, created_at: agent.created_at, updated_at: agent.created_at, organization_id: orgId, name: 'Ann Tester', scopes: '[]', disabled_at: null, created_by: systemId, auth_provider: 'better-auth', auth_subject: subject, auth_client_id: null, delegated_by: null })
-      expect((await crm('select kind from principals where id = ?', agent.id))[0]).toEqual({ kind: 'agent' })
-      expect(await count(w.d1, 'memberships')).toBe(0)
-      expect(await count(w.d1, 'users')).toBe(0)
-      expect(events[0]!.resource_id).toBe(agent.id)
-      const got = await me(cookie)
-      expect([got.status, got.json.principal.kind, got.json.principal.id]).toEqual([200, 'agent', agent.id])
-      expect(got.json.active_organization.scopes).toEqual([])
-    } else {
-      const user = (await crm('select * from users where auth_subject = ?', subject))[0]!
-      expect(user).toEqual({ id: user.id, created_at: user.created_at, updated_at: user.created_at, email, name: 'Ann Tester', auth_provider: 'better-auth', auth_subject: subject, email_verified: 0 })
-      expect((await crm('select kind from principals where id = ?', user.id))[0]).toEqual({ kind: 'user' })
-      const m = await crm('select * from memberships')
-      expect(m).toEqual([{ id: m[0]!.id, created_at: user.created_at, updated_at: user.created_at, organization_id: orgId, user_id: user.id, role, created_by: systemId, deleted_at: null }])
-      expect(events[0]!.resource_id).toBe(m[0]!.id)
-      expect(await count(w.d1, 'agents')).toBe(0)
-      const got = await me(cookie)
-      expect(got.status, JSON.stringify(got.json)).toBe(200)
-      expect([got.json.principal.kind, got.json.principal.id, got.json.active_organization.role]).toEqual(['user', user.id, role])
-      expect(got.json.active_organization.scopes).toEqual(scopesForRole(role, createVibaseRegistry().declaredScopes()).toStrings())
-    }
-  })
+      if (role === 'agent') {
+        const agent = (await crm('select * from agents where auth_subject = ?', subject))[0]!
+        expect(agent).toEqual({
+          id: agent.id,
+          created_at: agent.created_at,
+          updated_at: agent.created_at,
+          organization_id: orgId,
+          name: 'Ann Tester',
+          scopes: '[]',
+          disabled_at: null,
+          created_by: systemId,
+          auth_provider: 'better-auth',
+          auth_subject: subject,
+          auth_client_id: null,
+          delegated_by: null,
+        })
+        expect((await crm('select kind from principals where id = ?', agent.id))[0]).toEqual({ kind: 'agent' })
+        expect(await count(w.d1, 'memberships')).toBe(0)
+        expect(await count(w.d1, 'users')).toBe(0)
+        expect(events[0]!.resource_id).toBe(agent.id)
+        const got = await me(cookie)
+        expect([got.status, got.json.principal.kind, got.json.principal.id]).toEqual([200, 'agent', agent.id])
+        expect(got.json.active_organization.scopes).toEqual([])
+      } else {
+        const user = (await crm('select * from users where auth_subject = ?', subject))[0]!
+        expect(user).toEqual({
+          id: user.id,
+          created_at: user.created_at,
+          updated_at: user.created_at,
+          email,
+          name: 'Ann Tester',
+          auth_provider: 'better-auth',
+          auth_subject: subject,
+          email_verified: 0,
+        })
+        expect((await crm('select kind from principals where id = ?', user.id))[0]).toEqual({ kind: 'user' })
+        const m = await crm('select * from memberships')
+        expect(m).toEqual([
+          {
+            id: m[0]!.id,
+            created_at: user.created_at,
+            updated_at: user.created_at,
+            organization_id: orgId,
+            user_id: user.id,
+            role,
+            created_by: systemId,
+            deleted_at: null,
+          },
+        ])
+        expect(events[0]!.resource_id).toBe(m[0]!.id)
+        expect(await count(w.d1, 'agents')).toBe(0)
+        const got = await me(cookie)
+        expect(got.status, JSON.stringify(got.json)).toBe(200)
+        expect([got.json.principal.kind, got.json.principal.id, got.json.active_organization.role]).toEqual([
+          'user',
+          user.id,
+          role,
+        ])
+        expect(got.json.active_organization.scopes).toEqual(
+          scopesForRole(role, createVibaseRegistry().declaredScopes()).toStrings(),
+        )
+      }
+    },
+  )
 
   it('an agent account holds no scopes: its session token is admitted as an agent but every resource scope is refused', async () => {
     const { token } = await invite('bot@x.test', 'agent')
@@ -249,7 +409,9 @@ describe('commit order and single use (P3, P4)', () => {
     const again = await signUp('owner@x.test', ownerToken)
     expect([again.status, ((await again.json()) as any).code]).toEqual([403, CODE])
     expect(await count(w.control, 'auth_users')).toBe(1)
-    const list = await send('/meta/v1/invitations', { bearer: ((await (await send('/auth/token', { cookie: cookieOf(res) })).json()) as { token: string }).token })
+    const list = await send('/meta/v1/invitations', {
+      bearer: ((await (await send('/auth/token', { cookie: cookieOf(res) })).json()) as { token: string }).token,
+    })
     expect(((await list.json()) as any).data[0].status).toBe('accepted')
   })
 })
@@ -290,22 +452,36 @@ describe('repair on sign-in (P5)', () => {
   })
 
   it.each([
-    ['revoked', async () => void (await w.control.prepare('update invitations set revoked_at = ?').bind(iso(Date.now())).run())],
-    ['expired', async () => void (await w.control.prepare('update invitations set expires_at = ?, created_at = ?').bind(iso(Date.now() - 1000), iso(Date.now() - 8 * DAY)).run())],
+    [
+      'revoked',
+      async () => void (await w.control.prepare('update invitations set revoked_at = ?').bind(iso(Date.now())).run()),
+    ],
+    [
+      'expired',
+      async () =>
+        void (await w.control
+          .prepare('update invitations set expires_at = ?, created_at = ?')
+          .bind(iso(Date.now() - 1000), iso(Date.now() - 8 * DAY))
+          .run()),
+    ],
     ['absent', async () => void (await w.control.prepare('delete from invitations').run())],
-  ] as Array<[string, () => Promise<void>]>)('the admitting invitation %s: sign-in writes nothing and /meta/v1/me stays 403', async (_name, spoil) => {
-    await orphan('owner@x.test')
-    await spoil()
-    const crmBefore = await dump(w.d1)
-    const ctlBefore = (await dump(w.control)) as Record<string, unknown[]>
-    const res = await signIn('owner@x.test')
-    expect(res.status).toBe(200)
-    expect(await dump(w.d1)).toEqual(crmBefore)
-    const after = (await dump(w.control)) as Record<string, unknown[]>
-    for (const t of Object.keys(ctlBefore).filter((t) => !t.startsWith('auth_'))) expect(after[t], t).toEqual(ctlBefore[t])
-    const got = await me(cookieOf(res))
-    expect([got.status, got.json.error?.code]).toEqual([403, 'organization_forbidden'])
-  })
+  ] as Array<[string, () => Promise<void>]>)(
+    'the admitting invitation %s: sign-in writes nothing and /meta/v1/me stays 403',
+    async (_name, spoil) => {
+      await orphan('owner@x.test')
+      await spoil()
+      const crmBefore = await dump(w.d1)
+      const ctlBefore = (await dump(w.control)) as Record<string, unknown[]>
+      const res = await signIn('owner@x.test')
+      expect(res.status).toBe(200)
+      expect(await dump(w.d1)).toEqual(crmBefore)
+      const after = (await dump(w.control)) as Record<string, unknown[]>
+      for (const t of Object.keys(ctlBefore).filter((t) => !t.startsWith('auth_')))
+        expect(after[t], t).toEqual(ctlBefore[t])
+      const got = await me(cookieOf(res))
+      expect([got.status, got.json.error?.code]).toEqual([403, 'organization_forbidden'])
+    },
+  )
 
   it('no invitation at all, or only a live one created after the account, writes nothing (the created-before rule, within the same second)', async () => {
     const userId = await orphan('late@x.test')
@@ -336,15 +512,19 @@ describe('repair on sign-in (P5)', () => {
   it('a linked subject never re-runs the CRM program: with nothing adoptable its sign-in leaves every CRM and control row unchanged', async () => {
     expect((await signUp('owner@x.test', ownerToken)).status).toBe(200)
     // The real P6 re-invite: a live invitation for the same address created AFTER the account is not the one that admitted it.
-    const at = await ((async () => Date.parse((await ctl('select created_at from auth_users'))[0]!.created_at))())
+    const at = await (async () => Date.parse((await ctl('select created_at from auth_users'))[0]!.created_at))()
     await invite('owner@x.test', 'member', { createdAt: at + 1000 })
     const crmBefore = await dump(w.d1)
     const ctlBefore = (await dump(w.control)) as Record<string, unknown[]>
     expect((await signIn('owner@x.test')).status).toBe(200)
     expect(await dump(w.d1)).toEqual(crmBefore)
     const after = (await dump(w.control)) as Record<string, unknown[]>
-    for (const t of Object.keys(ctlBefore).filter((t) => !t.startsWith('auth_'))) expect(after[t], t).toEqual(ctlBefore[t])
-    expect((await ctl("select accepted_at from invitations where email = 'owner@x.test' and role = 'member'"))[0]!.accepted_at).toBeNull()
+    for (const t of Object.keys(ctlBefore).filter((t) => !t.startsWith('auth_')))
+      expect(after[t], t).toEqual(ctlBefore[t])
+    expect(
+      (await ctl("select accepted_at from invitations where email = 'owner@x.test' and role = 'member'"))[0]!
+        .accepted_at,
+    ).toBeNull()
     expect(await ctl("select * from control_audit where action = 'invitation.accepted'")).toHaveLength(1)
   })
 
@@ -368,7 +548,8 @@ describe('repair on sign-in (P5)', () => {
     expect((await signIn('owner@x.test')).status).toBe(200)
     expect(await dump(w.d1)).toEqual(crmBefore)
     const again = (await dump(w.control)) as Record<string, unknown[]>
-    for (const t of Object.keys(ctlAfter).filter((t) => !t.startsWith('auth_'))) expect(again[t], t).toEqual((ctlAfter as any)[t])
+    for (const t of Object.keys(ctlAfter).filter((t) => !t.startsWith('auth_')))
+      expect(again[t], t).toEqual((ctlAfter as any)[t])
   })
 })
 
@@ -384,7 +565,17 @@ describe('the shipped composition and the existing paths', () => {
 
   it("bootstrap's re-run after the owner has accepted issues nothing", async () => {
     expect((await signUp('owner@x.test', ownerToken)).status).toBe(200)
-    const again = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE, ownerEmail: 'owner@x.test' }, { control: openControlDb(w.control) })
+    const again = await bootstrapD1(
+      w.d1,
+      {
+        organizationName: 'Acme',
+        authProvider: 'better-auth',
+        authOrgId: 'better-auth',
+        publicBaseUrl: AUTH_BASE,
+        ownerEmail: 'owner@x.test',
+      },
+      { control: openControlDb(w.control) },
+    )
     expect(again.ownerInvitation).toBeNull()
     expect(await count(w.control, 'invitations')).toBe(1)
   })

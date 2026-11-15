@@ -5,8 +5,21 @@ import { sql } from 'kysely'
 import { uuidv7 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { enqueuedOperation } from '../executions/enqueue.js'
-import { runDueExecutions, railTick, runExecution, expireOverdueRequests, type RailDeps, type RunOutcome } from '../executions/runner.js'
-import type { DispatchOutcome, PermanentCode, ReconcileOutcome, Transport, TransportCall } from '../executions/transport.js'
+import {
+  runDueExecutions,
+  railTick,
+  runExecution,
+  expireOverdueRequests,
+  type RailDeps,
+  type RunOutcome,
+} from '../executions/runner.js'
+import type {
+  DispatchOutcome,
+  PermanentCode,
+  ReconcileOutcome,
+  Transport,
+  TransportCall,
+} from '../executions/transport.js'
 import { createVibaseRegistry } from '../operations.js'
 import type { Registry } from '../registry.js'
 import type { RawRow } from './engines.js'
@@ -36,7 +49,8 @@ export class FakeTransport implements Transport {
   aborted = 0
   private answers: Answer[] = []
   private reconcileAnswers: ReconcileAnswer[] = []
-  private holds: { kind: 'dispatch' | 'reconcile'; reached: () => void; answer: Promise<Answer | ReconcileAnswer> }[] = []
+  private holds: { kind: 'dispatch' | 'reconcile'; reached: () => void; answer: Promise<Answer | ReconcileAnswer> }[] =
+    []
   /** False: the transport has no `reconcile` (a transport that cannot ask). */
   canReconcile = true
 
@@ -98,7 +112,9 @@ export class FakeTransport implements Transport {
     }
   }
   private async untilAborted(call: TransportCall, ignoreAbort = false): Promise<never> {
-    await new Promise<void>((resolve) => (call.signal.aborted ? resolve() : call.signal.addEventListener('abort', () => resolve(), { once: true })))
+    await new Promise<void>((resolve) =>
+      call.signal.aborted ? resolve() : call.signal.addEventListener('abort', () => resolve(), { once: true }),
+    )
     this.aborted++
     if (ignoreAbort) await new Promise<never>(() => undefined)
     throw new Error('aborted')
@@ -110,7 +126,11 @@ export class FakeTransport implements Transport {
 }
 
 export const TEST_TRANSPORT = 'test'
-export const TEST_OPS = { reconcile: 'test.enqueue', idempotent: 'test.enqueue_idempotent', never: 'test.enqueue_never' } as const
+export const TEST_OPS = {
+  reconcile: 'test.enqueue',
+  idempotent: 'test.enqueue_idempotent',
+  never: 'test.enqueue_never',
+} as const
 const input = z.strictObject({
   text: z.string().min(1).max(200),
   /** Refused at final validation (authorise): `409 test_refused`. */
@@ -142,13 +162,42 @@ export function registerTestOperations(registry: Registry): void {
       return {
         resolution: { anchor: (args.anchor as string | undefined) ?? 'anchor-1' },
         ...(args.no_domain === true ? {} : { clientRefDomain: 'test.invalid' }),
-        ...(guardTask ? { guards: () => [sql<boolean>`exists (select 1 from "tasks" where "tasks"."id" = ${guardTask} and "tasks"."deleted_at" is null)` as never] } : {}),
+        ...(guardTask
+          ? {
+              guards: () => [
+                sql<boolean>`exists (select 1 from "tasks" where "tasks"."id" = ${guardTask} and "tasks"."deleted_at" is null)` as never,
+              ],
+            }
+          : {}),
       }
     },
   }
-  registry.register(enqueuedOperation({ ...common, name: TEST_OPS.reconcile, path: '/test-enqueue', readScope: { resource: 'tasks', action: 'read' } }))
-  registry.register(enqueuedOperation({ ...common, name: TEST_OPS.idempotent, path: '/test-enqueue-idempotent', retry: 'idempotent', readScope: { resource: 'tasks', action: 'read' } }))
-  registry.register(enqueuedOperation({ ...common, name: TEST_OPS.never, path: '/test-enqueue-never', retry: 'never', readScope: { resource: 'notes', action: 'read' } }))
+  registry.register(
+    enqueuedOperation({
+      ...common,
+      name: TEST_OPS.reconcile,
+      path: '/test-enqueue',
+      readScope: { resource: 'tasks', action: 'read' },
+    }),
+  )
+  registry.register(
+    enqueuedOperation({
+      ...common,
+      name: TEST_OPS.idempotent,
+      path: '/test-enqueue-idempotent',
+      retry: 'idempotent',
+      readScope: { resource: 'tasks', action: 'read' },
+    }),
+  )
+  registry.register(
+    enqueuedOperation({
+      ...common,
+      name: TEST_OPS.never,
+      path: '/test-enqueue-never',
+      retry: 'never',
+      readScope: { resource: 'notes', action: 'read' },
+    }),
+  )
 }
 
 export interface RailKit extends ActionKit {
@@ -204,7 +253,8 @@ export async function openRailKit(opts: { now?: Date } = {}): Promise<RailKit> {
     suppressStart: { get: () => state.suppress, set: (v: boolean) => void (state.suppress = v) },
     settle: { value: async () => void (await Promise.all(pending.splice(0))) },
     enqueue: {
-      value: (actor: Actor, body: Record<string, unknown>, op: keyof typeof TEST_OPS = 'reconcile') => base.call(actor, 'POST', `/api/v1/${TEST_OPS[op].replace('test.', 'test-').replaceAll('_', '-')}`, body),
+      value: (actor: Actor, body: Record<string, unknown>, op: keyof typeof TEST_OPS = 'reconcile') =>
+        base.call(actor, 'POST', `/api/v1/${TEST_OPS[op].replace('test.', 'test-').replaceAll('_', '-')}`, body),
     },
     run: { value: (id: string) => runExecution(deps, id) },
     runDue: { value: () => runDueExecutions(deps) },

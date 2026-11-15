@@ -20,12 +20,27 @@ const WD = [...NEW, '--workers-dev']
 const CHANGE = [...NEW, '--api-host', HOST, '--change-host']
 const fixture = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const BA = (base: string) => ({ AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: base, CORS_ALLOWED_ORIGINS: '' })
-const withBlock = (block: Record<string, unknown>) => applyEdits(fixture, modify(fixture, ['env', 'acme'], block, { formattingOptions: { insertSpaces: true, tabSize: 2 } }))
+const withBlock = (block: Record<string, unknown>) =>
+  applyEdits(
+    fixture,
+    modify(fixture, ['env', 'acme'], block, { formattingOptions: { insertSpaces: true, tabSize: 2 } }),
+  )
 const RECORD_WD = withBlock({ name: 'vb-acme', workers_dev: true, vars: BA(WD_BASE) })
-const RECORD_CUSTOM = withBlock({ name: 'vb-acme', workers_dev: false, routes: [{ pattern: HOST, custom_domain: true }], vars: BA(BASE) })
-const RECORD_CLERK = withBlock({ name: 'vb-acme', workers_dev: false, routes: [{ pattern: HOST, custom_domain: true }], vars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: 'https://clerk.acme.example' } })
+const RECORD_CUSTOM = withBlock({
+  name: 'vb-acme',
+  workers_dev: false,
+  routes: [{ pattern: HOST, custom_domain: true }],
+  vars: BA(BASE),
+})
+const RECORD_CLERK = withBlock({
+  name: 'vb-acme',
+  workers_dev: false,
+  routes: [{ pattern: HOST, custom_domain: true }],
+  vars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: 'https://clerk.acme.example' },
+})
 const GOOGLE = 'AUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gsecret-0123456789\n'
-const gmail = (base?: string) => `GOOGLE_CLIENT_ID=gid.apps.googleusercontent.com\nGOOGLE_CLIENT_SECRET=gsecret-0123456789\nOAUTH_STATE_SECRET=state-0123456789\nCREDENTIALS_KEY=${Buffer.alloc(32, 7).toString('base64')}\n${base ? `PUBLIC_BASE_URL=${base}\n` : ''}`
+const gmail = (base?: string) =>
+  `GOOGLE_CLIENT_ID=gid.apps.googleusercontent.com\nGOOGLE_CLIENT_SECRET=gsecret-0123456789\nOAUTH_STATE_SECRET=state-0123456789\nCREDENTIALS_KEY=${Buffer.alloc(32, 7).toString('base64')}\n${base ? `PUBLIC_BASE_URL=${base}\n` : ''}`
 
 let pair: WorkerPair
 beforeAll(async () => {
@@ -38,7 +53,8 @@ beforeEach(async () => {
   await pair.reset()
 })
 
-const world = (o: Partial<WorldOptions> = {}): World => makeWorld({ d1: pair.d1, control: pair.control, clerkEnvText: null, ...o })
+const world = (o: Partial<WorldOptions> = {}): World =>
+  makeWorld({ d1: pair.d1, control: pair.control, clerkEnvText: null, ...o })
 const run = (w: World, argv: string[]) => runSetup(argv, CONFIRM, w.deps)
 const dry = (w: World, argv: string[]) => runSetup([...argv, '--dry-run'], {}, w.deps)
 const said = (w: World) => w.logs.join('\n')
@@ -68,22 +84,44 @@ describe('1. host flag rules (D12, P4, P6): the matrix', () => {
   it.each([
     ['neither --api-host nor --workers-dev', NEW, ['--api-host', '--workers-dev']],
     ['both flags', [...NEW, '--api-host', HOST, '--workers-dev'], ['exactly one']],
-    ['an --api-host under workers.dev', [...NEW, '--api-host', 'vb-acme.team.workers.dev'], ['--workers-dev', 'workers.dev']],
+    [
+      'an --api-host under workers.dev',
+      [...NEW, '--api-host', 'vb-acme.team.workers.dev'],
+      ['--workers-dev', 'workers.dev'],
+    ],
     ['--workers-dev with --auth clerk', [...NEW, '--workers-dev', '--auth', 'clerk'], ['clerk']],
-    ['--register-workers-subdomain without --workers-dev', [...NEW, '--api-host', HOST, '--register-workers-subdomain', 'team'], ['--register-workers-subdomain', '--workers-dev']],
+    [
+      '--register-workers-subdomain without --workers-dev',
+      [...NEW, '--api-host', HOST, '--register-workers-subdomain', 'team'],
+      ['--register-workers-subdomain', '--workers-dev'],
+    ],
     ['--change-host on a new instance', [...NEW, '--api-host', HOST, '--change-host'], ['--change-host']],
-  ] as [string, string[], string[]][])('a new instance with %s is refused before any call', async (_n, argv, needles) => {
-    await expectRefused(world(), argv, needles)
-  })
+  ] as [string, string[], string[]][])(
+    'a new instance with %s is refused before any call',
+    async (_n, argv, needles) => {
+      await expectRefused(world(), argv, needles)
+    },
+  )
 
   it('a recorded workers.dev instance given another --api-host without --change-host: refused, naming the flag and the consequences', async () => {
-    await expectRefused(world({ configText: RECORD_WD }), [...NEW, '--api-host', HOST], ['--change-host', 'sign in again', 'vibase login'])
+    await expectRefused(
+      world({ configText: RECORD_WD }),
+      [...NEW, '--api-host', HOST],
+      ['--change-host', 'sign in again', 'vibase login'],
+    )
   })
-  it.each([['without --change-host', []], ['with --change-host (P4: custom domain to workers.dev is not offered)', ['--change-host']]])('a recorded custom-domain instance given --workers-dev %s: refused', async (_n, extra) => {
+  it.each([
+    ['without --change-host', []],
+    ['with --change-host (P4: custom domain to workers.dev is not offered)', ['--change-host']],
+  ])('a recorded custom-domain instance given --workers-dev %s: refused', async (_n, extra) => {
     await expectRefused(world({ configText: RECORD_CUSTOM }), [...NEW, '--workers-dev', ...extra], ['custom domain'])
   })
   it('--change-host on a Clerk record (P6): refused, naming Clerk', async () => {
-    await expectRefused(world({ configText: RECORD_CLERK, clerkEnvText: undefined }), ['--env', 'acme', '--owner-email', OWNER, '--api-host', 'api2.acme.vibase.ai', '--change-host'], ['--change-host', 'Clerk'])
+    await expectRefused(
+      world({ configText: RECORD_CLERK, clerkEnvText: undefined }),
+      ['--env', 'acme', '--owner-email', OWNER, '--api-host', 'api2.acme.vibase.ai', '--change-host'],
+      ['--change-host', 'Clerk'],
+    )
   })
   it.each([
     ['better-auth', [...WD]],
@@ -160,7 +198,11 @@ describe('2. the subdomain read, registration and preflight (D12, P3)', () => {
     expect(w.state.subdomain.puts).toEqual([])
   })
   it('a malformed name is refused before any call', async () => {
-    await expectRefused(world({ subdomain: null }), [...WD, '--register-workers-subdomain', 'Bad_Name'], ['--register-workers-subdomain'])
+    await expectRefused(
+      world({ subdomain: null }),
+      [...WD, '--register-workers-subdomain', 'Bad_Name'],
+      ['--register-workers-subdomain'],
+    )
   })
   it('a token that cannot read the subdomain: refused naming the permission', async () => {
     const w = world({ subdomainDenied: true })
@@ -169,7 +211,9 @@ describe('2. the subdomain read, registration and preflight (D12, P3)', () => {
     expect(w.state.configWrites).toBe(0)
   })
   it('a renamed account subdomain on a recorded workers.dev instance is a host change: refused without --change-host, nothing written', async () => {
-    const w = world({ configText: withBlock({ name: 'vb-acme', workers_dev: true, vars: BA('https://vb-acme.old.workers.dev') }) })
+    const w = world({
+      configText: withBlock({ name: 'vb-acme', workers_dev: true, vars: BA('https://vb-acme.old.workers.dev') }),
+    })
     const o = await run(w, WD)
     expect(o.exitCode).toBe(1)
     expect(said(w)).toContain('--change-host')
@@ -181,7 +225,11 @@ describe('2. the subdomain read, registration and preflight (D12, P3)', () => {
     const o = await dry(w, WD)
     expect(step(o, 'preflight').status).toBe('ok')
     expect(w.fetched.filter((u) => /\/zones\?/.test(u))).toEqual([])
-    for (const p of ['/d1/database', '/r2/buckets', '/workers/scripts']) expect(w.fetched.some((u) => u.includes(p)), p).toBe(true)
+    for (const p of ['/d1/database', '/r2/buckets', '/workers/scripts'])
+      expect(
+        w.fetched.some((u) => u.includes(p)),
+        p,
+      ).toBe(true)
     const c = world()
     await dry(c, [...NEW, '--api-host', HOST])
     expect(c.fetched.some((u) => /\/zones\?/.test(u))).toBe(true)
@@ -221,8 +269,11 @@ describe('4. one base URL and one verify bound (P1, P2)', () => {
     const worker = w.fetched.filter((u) => !u.startsWith('https://api.cloudflare.com/'))
     expect(worker.length).toBeGreaterThan(0)
     for (const u of worker) expect(u.startsWith(`${WD_BASE}/`), u).toBe(true)
-    for (const p of ['/health', '/.well-known/vibase', '/.well-known/oauth-authorization-server/auth']) expect(worker, p).toContain(`${WD_BASE}${p}`)
-    expect(w.logs.filter((l) => l.includes('/invite#token=')).every((l) => l.includes(`${WD_BASE}/invite#token=`))).toBe(true)
+    for (const p of ['/health', '/.well-known/vibase', '/.well-known/oauth-authorization-server/auth'])
+      expect(worker, p).toContain(`${WD_BASE}${p}`)
+    expect(
+      w.logs.filter((l) => l.includes('/invite#token=')).every((l) => l.includes(`${WD_BASE}/invite#token=`)),
+    ).toBe(true)
     expect(w.logs.some((l) => l.includes('/invite#token='))).toBe(true)
     expect(said(w)).toContain(`vibase login --server ${WD_BASE}`)
     expect(said(w)).toContain(`${WD_BASE}/auth/callback/google`)
@@ -244,7 +295,7 @@ describe('4. one base URL and one verify bound (P1, P2)', () => {
     expect(said(bad)).toMatch(/PUBLIC_BASE_URL/)
     expect(bad.state.configWrites).toBe(0)
   })
-  it('health current after 200 s, then discovery answering 5xx: fails by 300 s from verify\'s start, and says so', async () => {
+  it("health current after 200 s, then discovery answering 5xx: fails by 300 s from verify's start, and says so", async () => {
     const w = world({ healthCurrentAfterMs: 200_000, ba: { vibase: [{ status: 500 }] } })
     await run(w, WD)
     w.logs.length = 0

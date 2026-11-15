@@ -31,7 +31,11 @@ describe('api keys', () => {
     expect(ev[0]).toMatchObject({ actor_id: a.ownerId, resource_id: body.id })
     const { key, ...record } = body
     expect(ev[0]!.after).toEqual(record)
-    const stored = await k.owner.selectFrom('api_keys').select('key_hash').where('id', '=', body.id).executeTakeFirstOrThrow()
+    const stored = await k.owner
+      .selectFrom('api_keys')
+      .select('key_hash')
+      .where('id', '=', body.id)
+      .executeTakeFirstOrThrow()
     const json = JSON.stringify(ev[0])
     expect(json).not.toContain(key)
     expect(json).not.toContain(stored.key_hash)
@@ -62,12 +66,20 @@ describe('api keys', () => {
 
   it('gives a disabled agent a key that works once it is enabled', async () => {
     const { a, g } = await setup()
-    await k.call(`/meta/v1/agents/${g.agentId}`, 'o', { method: 'PATCH', org: a.organizationId, body: { disabled: true } })
+    await k.call(`/meta/v1/agents/${g.agentId}`, 'o', {
+      method: 'PATCH',
+      org: a.organizationId,
+      body: { disabled: true },
+    })
     const res = await mint(a.organizationId, g.agentId)
     expect(res.status).toBe(201)
     const { key } = await res.json()
     expect((await k.keyCall('/api/v1/tasks', key)).status).toBe(401)
-    await k.call(`/meta/v1/agents/${g.agentId}`, 'o', { method: 'PATCH', org: a.organizationId, body: { disabled: false } })
+    await k.call(`/meta/v1/agents/${g.agentId}`, 'o', {
+      method: 'PATCH',
+      org: a.organizationId,
+      body: { disabled: false },
+    })
     expect((await k.keyCall('/api/v1/tasks', key)).status).toBe(200)
   })
 
@@ -112,7 +124,11 @@ describe('api keys', () => {
     const res = await k.call(`/meta/v1/api-keys/${theirs.id}/revoke`, 'o', { method: 'POST', org: a.organizationId })
     expect(res.status).toBe(404)
     expect((await errorOf(res)).code).toBe('not_found')
-    const row = await k.owner.selectFrom('api_keys').select('revoked_at').where('id', '=', theirs.id).executeTakeFirstOrThrow()
+    const row = await k.owner
+      .selectFrom('api_keys')
+      .select('revoked_at')
+      .where('id', '=', theirs.id)
+      .executeTakeFirstOrThrow()
     expect(row.revoked_at).toBeNull()
   })
 
@@ -135,14 +151,20 @@ describe('users', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.data.map((u: { id: string }) => u.id).sort()).toEqual([a.ownerId, a.memberId].sort())
-    for (const u of body.data) expect(Object.keys(u).sort()).toEqual(['created_at', 'email', 'id', 'name', 'updated_at'])
+    for (const u of body.data)
+      expect(Object.keys(u).sort()).toEqual(['created_at', 'email', 'id', 'name', 'updated_at'])
     expect(body.next_cursor).toBeNull()
   })
 
   it('drops a removed member from the list but still resolves them', async () => {
     const { a } = await setup()
-    k.clerk.members.set(a.externalId, k.clerk.members.get(a.externalId)!.filter((m) => m.public_user_data.user_id !== 'm'))
-    expect((await k.webhook(clerkWebhook('organizationMembership.deleted', { organization: { id: a.externalId } }))).status).toBe(200)
+    k.clerk.members.set(
+      a.externalId,
+      k.clerk.members.get(a.externalId)!.filter((m) => m.public_user_data.user_id !== 'm'),
+    )
+    expect(
+      (await k.webhook(clerkWebhook('organizationMembership.deleted', { organization: { id: a.externalId } }))).status,
+    ).toBe(200)
     const list = await (await k.call('/meta/v1/users', 'o', { org: a.organizationId })).json()
     expect(list.data.map((u: { id: string }) => u.id)).toEqual([a.ownerId])
     expect((await k.call(`/meta/v1/users/${a.memberId}`, 'o', { org: a.organizationId })).status).toBe(200)
@@ -161,13 +183,17 @@ describe('users', () => {
     const a = await k.seedOrg('A')
     for (const sub of ['p1', 'p2']) {
       k.profile(sub)
-      k.clerk.members.get(a.externalId)!.push(clerkMembership({ organizationId: a.externalId, userId: sub, role: 'org:member' }))
+      k.clerk.members
+        .get(a.externalId)!
+        .push(clerkMembership({ organizationId: a.externalId, userId: sub, role: 'org:member' }))
     }
     expect((await k.webhook(clerkWebhook('organization.updated', { id: a.externalId }))).status).toBe(200)
     const first = await (await k.call('/meta/v1/users?limit=2', 'o', { org: a.organizationId })).json()
     expect(first.data).toHaveLength(2)
     expect(first.next_cursor).toBe(first.data[1].id)
-    const second = await (await k.call(`/meta/v1/users?limit=2&after=${first.next_cursor}`, 'o', { org: a.organizationId })).json()
+    const second = await (
+      await k.call(`/meta/v1/users?limit=2&after=${first.next_cursor}`, 'o', { org: a.organizationId })
+    ).json()
     expect(second.data).toHaveLength(2)
     expect(second.next_cursor).toBeNull()
     const ids = [...first.data, ...second.data].map((u: { id: string }) => u.id)
@@ -202,14 +228,30 @@ describe('documentation', () => {
     const doc = (await (await k.app.request('/meta/v1/openapi.json')).json()) as any
     const ids = new Set(Object.values<any>(doc.paths).flatMap((p) => Object.values<any>(p).map((o) => o.operationId)))
     for (const name of [
-      'memberships.list', 'memberships.get',
-      'users.list', 'users.get', 'agents.list', 'agents.get', 'agents.create', 'agents.update',
-      'api_keys.list', 'api_keys.get', 'api_keys.create', 'api_keys.revoke',
+      'memberships.list',
+      'memberships.get',
+      'users.list',
+      'users.get',
+      'agents.list',
+      'agents.get',
+      'agents.create',
+      'agents.update',
+      'api_keys.list',
+      'api_keys.get',
+      'api_keys.create',
+      'api_keys.revoke',
     ]) {
       expect(ids, name).toContain(name)
       expect(createVibaseRegistry().get(name), name).toBeDefined()
     }
-    for (const gone of ['invitations.list', 'invitations.create', 'invitations.accept', 'memberships.update', 'memberships.delete', 'organizations.create']) {
+    for (const gone of [
+      'invitations.list',
+      'invitations.create',
+      'invitations.accept',
+      'memberships.update',
+      'memberships.delete',
+      'organizations.create',
+    ]) {
       expect(ids, gone).not.toContain(gone)
     }
     expect(doc.paths['/meta/v1/api-keys/{id}/revoke'].post).toBeDefined()

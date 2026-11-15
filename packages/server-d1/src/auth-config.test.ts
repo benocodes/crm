@@ -6,7 +6,11 @@ import { clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test
 // `/health` still 200), the log names the variable and never its value; `clerk` and unset never read the two variables for auth. The control-plane database is bound throughout
 // ([[CORE259]] D6: `better-auth` without it is its own refusal, in control-plane.test.ts), so each case isolates the variable it names.
 const SECRET = 'a-valid-auth-secret-of-exactly-32!' // 34 characters
-const VALID = { AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: 'https://vibase.example.workers.dev' } as const
+const VALID = {
+  AUTH_PROVIDER: 'better-auth',
+  AUTH_SECRET: SECRET,
+  PUBLIC_BASE_URL: 'https://vibase.example.workers.dev',
+} as const
 
 let w: WorkerPair
 let kit: ClerkKit
@@ -19,11 +23,13 @@ afterAll(() => w.dispose())
 let logged: string[] = []
 beforeEach(() => {
   logged = []
-  for (const level of ['error', 'warn', 'log', 'info'] as const) vi.spyOn(console, level).mockImplementation((...args: unknown[]) => void logged.push(args.map(String).join(' ')))
+  for (const level of ['error', 'warn', 'log', 'info'] as const)
+    vi.spyOn(console, level).mockImplementation((...args: unknown[]) => void logged.push(args.map(String).join(' ')))
 })
 afterEach(() => vi.restoreAllMocks())
 
-const worker = (extra: Partial<D1WorkerEnv>) => composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, ...extra }, { fetch: kit.fetch })
+const worker = (extra: Partial<D1WorkerEnv>) =>
+  composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, ...extra }, { fetch: kit.fetch })
 const get = (wk: ReturnType<typeof worker>, path: string) => wk.fetch(new Request(`https://w.test${path}`))
 
 describe('AUTH_SECRET and PUBLIC_BASE_URL for better-auth', () => {
@@ -35,24 +41,36 @@ describe('AUTH_SECRET and PUBLIC_BASE_URL for better-auth', () => {
     ['AUTH_SECRET with a trailing newline', { AUTH_SECRET: `${SECRET}\n` }, 'AUTH_SECRET'],
     ['PUBLIC_BASE_URL missing', { PUBLIC_BASE_URL: undefined }, 'PUBLIC_BASE_URL'],
     ['PUBLIC_BASE_URL with a path', { PUBLIC_BASE_URL: 'https://vibase.example.workers.dev/app' }, 'PUBLIC_BASE_URL'],
-    ['PUBLIC_BASE_URL http on a non-localhost host', { PUBLIC_BASE_URL: 'http://vibase.example.workers.dev' }, 'PUBLIC_BASE_URL'],
+    [
+      'PUBLIC_BASE_URL http on a non-localhost host',
+      { PUBLIC_BASE_URL: 'http://vibase.example.workers.dev' },
+      'PUBLIC_BASE_URL',
+    ],
     ['PUBLIC_BASE_URL not a URL', { PUBLIC_BASE_URL: 'vibase.example.workers.dev' }, 'PUBLIC_BASE_URL'],
-  ])('%s: a non-health request is 500 internal, /health is 200, and the log names the variable but never a value', async (_n, change, name) => {
-    const env = { ...VALID, ...change } as Partial<D1WorkerEnv>
-    const wk = worker(env)
-    const res = await get(wk, '/api/v1/contacts')
-    expect(res.status).toBe(500)
-    expect(await res.json()).toEqual({ error: { code: 'internal', message: 'internal error' } })
-    expect((await get(wk, '/auth/get-session')).status).toBe(500)
-    expect((await get(wk, '/health')).status).toBe(200)
-    const text = logged.join('\n')
-    expect(text).toContain(name)
-    for (const value of [env.AUTH_SECRET, env.PUBLIC_BASE_URL]) if (value && value.trim().length > 3) expect(text, `value ${value.trim().slice(0, 6)}...`).not.toContain(value.trim())
-    expect(text).not.toContain('abcdefghij0123456789')
-  })
+  ])(
+    '%s: a non-health request is 500 internal, /health is 200, and the log names the variable but never a value',
+    async (_n, change, name) => {
+      const env = { ...VALID, ...change } as Partial<D1WorkerEnv>
+      const wk = worker(env)
+      const res = await get(wk, '/api/v1/contacts')
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ error: { code: 'internal', message: 'internal error' } })
+      expect((await get(wk, '/auth/get-session')).status).toBe(500)
+      expect((await get(wk, '/health')).status).toBe(200)
+      const text = logged.join('\n')
+      expect(text).toContain(name)
+      for (const value of [env.AUTH_SECRET, env.PUBLIC_BASE_URL])
+        if (value && value.trim().length > 3)
+          expect(text, `value ${value.trim().slice(0, 6)}...`).not.toContain(value.trim())
+      expect(text).not.toContain('abcdefghij0123456789')
+    },
+  )
 
   it.each([
-    ['the minimum secret (32 characters) and an https origin', { AUTH_SECRET: 'abcdefghij0123456789abcdefghijkl', PUBLIC_BASE_URL: 'https://vibase.example' }],
+    [
+      'the minimum secret (32 characters) and an https origin',
+      { AUTH_SECRET: 'abcdefghij0123456789abcdefghijkl', PUBLIC_BASE_URL: 'https://vibase.example' },
+    ],
     ['a workers.dev origin', {}],
     ['http://localhost for local development', { PUBLIC_BASE_URL: 'http://localhost:8787' }],
   ])('%s serves: an API route is the normal answer, not a configuration error', async (_n, change) => {
@@ -64,7 +82,11 @@ describe('AUTH_SECRET and PUBLIC_BASE_URL for better-auth', () => {
   })
 
   it('clerk and unset never read AUTH_SECRET or PUBLIC_BASE_URL for auth: no value, a short or a padded one all serve as today', async () => {
-    for (const extra of [{}, { AUTH_SECRET: 'short' }, { AUTH_SECRET: `  ${SECRET}  `, PUBLIC_BASE_URL: 'not a url' }]) {
+    for (const extra of [
+      {},
+      { AUTH_SECRET: 'short' },
+      { AUTH_SECRET: `  ${SECRET}  `, PUBLIC_BASE_URL: 'not a url' },
+    ]) {
       const clerk = worker({ ...kit.env, CLERK_WEBHOOK_SECRET: undefined, ...extra } as Partial<D1WorkerEnv>)
       expect((await get(clerk, '/api/v1/contacts')).status).not.toBe(500)
       const unset = worker({ AUTH_PROVIDER: '', ...extra } as Partial<D1WorkerEnv>)

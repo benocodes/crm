@@ -49,7 +49,11 @@ describe('DCR policy (P6)', () => {
     const stored = JSON.parse(c!.scopes) as string[]
     expect(stored).toEqual(expect.arrayContaining(['openid', 'offline_access', 'contacts:read']))
     for (const h of humanOnly) expect(stored).not.toContain(h)
-    const links = (await rows(`select resource_id from auth_oauth_client_resources where client_id = '${body.client_id}' order by resource_id`)).map((r) => r.resource_id)
+    const links = (
+      await rows(
+        `select resource_id from auth_oauth_client_resources where client_id = '${body.client_id}' order by resource_id`,
+      )
+    ).map((r) => r.resource_id)
     expect(links).toEqual([AUTH_BASE, `${AUTH_BASE}/mcp`])
   })
 
@@ -77,11 +81,15 @@ describe('DCR policy (P6)', () => {
     const { cookie } = await kit.signUp('person@x.test')
     const reg = (await (await register(meta())).json()) as { client_id: string }
     const attempt = async (scope: string) => {
-      const res = await kit.call('/auth/device/code', { body: { client_id: reg.client_id, scope, resource: AUTH_BASE } })
+      const res = await kit.call('/auth/device/code', {
+        body: { client_id: reg.client_id, scope, resource: AUTH_BASE },
+      })
       if (!res.ok) return { refused: true as const }
       try {
         const t = await kit.deviceTokens(cookie, reg.client_id, scope)
-        const claims = JSON.parse(Buffer.from(t.access_token.split('.')[1]!, 'base64url').toString()) as { scope?: string }
+        const claims = JSON.parse(Buffer.from(t.access_token.split('.')[1]!, 'base64url').toString()) as {
+          scope?: string
+        }
         return { refused: false as const, scopes: (claims.scope ?? '').split(' ') }
       } catch {
         return { refused: true as const }
@@ -104,9 +112,21 @@ describe('DCR policy (P6)', () => {
 })
 
 describe('registration rate limit (P6)', () => {
-  const handler = () => createAuthHandler(w.control, { secret: AUTH_SECRET, baseURL: AUTH_BASE, vaultScopes: declared, grantableScopes: grantable })
+  const handler = () =>
+    createAuthHandler(w.control, {
+      secret: AUTH_SECRET,
+      baseURL: AUTH_BASE,
+      vaultScopes: declared,
+      grantableScopes: grantable,
+    })
   const post = (h: ReturnType<typeof handler>, ip: string | null) =>
-    h(new Request(`${AUTH_BASE}/auth/oauth2/register`, { method: 'POST', headers: { 'content-type': 'application/json', origin: AUTH_BASE, ...(ip ? { 'cf-connecting-ip': ip } : {}) }, body: JSON.stringify(meta()) }))
+    h(
+      new Request(`${AUTH_BASE}/auth/oauth2/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: AUTH_BASE, ...(ip ? { 'cf-connecting-ip': ip } : {}) },
+        body: JSON.stringify(meta()),
+      }),
+    )
 
   it('the 11th registration from one IP in the window is 429; another IP is unaffected; the counters live in CONTROL_DB and the CRM database has no limiter table', async () => {
     const h = handler()
@@ -117,7 +137,8 @@ describe('registration rate limit (P6)', () => {
     const limiter = await rows("select key, count from auth_rate_limits where key like '%198.51.100.7%'")
     expect(limiter.length).toBeGreaterThan(0)
     expect(await rows('select client_id from auth_oauth_clients')).toHaveLength(11)
-    const crm = (await w.d1.prepare("select name from sqlite_master where name like 'auth\\_%' escape '\\'").all()).results
+    const crm = (await w.d1.prepare("select name from sqlite_master where name like 'auth\\_%' escape '\\'").all())
+      .results
     expect(crm).toEqual([])
   })
 

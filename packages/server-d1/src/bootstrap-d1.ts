@@ -1,7 +1,22 @@
-import { INVITATION_TTL_MS, bootstrap, bootstrapWorkspace, invitationUrl, newInvitationToken, normaliseInvitationEmail } from '@vibase/api'
+import {
+  INVITATION_TTL_MS,
+  bootstrap,
+  bootstrapWorkspace,
+  invitationUrl,
+  newInvitationToken,
+  normaliseInvitationEmail,
+} from '@vibase/api'
 import { seedFirstPartyClient } from '@vibase/auth'
 import { execute, uuidv7 } from '@vibase/storage'
-import { controlAuthDatabase, d1Binding, readControlMarker, reissueOwnerInvitation, writeControlMarker, type ControlDb, type D1Like } from '@vibase/storage-d1'
+import {
+  controlAuthDatabase,
+  d1Binding,
+  readControlMarker,
+  reissueOwnerInvitation,
+  writeControlMarker,
+  type ControlDb,
+  type D1Like,
+} from '@vibase/storage-d1'
 import { initDeploymentOperation, markerInsert, readDeployment, type DeploymentLink } from './init-deployment.js'
 
 export interface BootstrapD1Options {
@@ -68,30 +83,51 @@ export async function bootstrapD1(
   opts: BootstrapD1Options & { agentName: string },
   env?: BootstrapD1Env,
 ): Promise<BootstrapD1Result & { agentId: string; apiKeyId: string; key: string }>
-export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env?: BootstrapD1Env): Promise<BootstrapD1Result>
-export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: BootstrapD1Env = {}): Promise<BootstrapD1Result> {
+export async function bootstrapD1(
+  d1: D1Like,
+  opts: BootstrapD1Options,
+  env?: BootstrapD1Env,
+): Promise<BootstrapD1Result>
+export async function bootstrapD1(
+  d1: D1Like,
+  opts: BootstrapD1Options,
+  env: BootstrapD1Env = {},
+): Promise<BootstrapD1Result> {
   const builtIn = opts.authProvider === 'better-auth'
-  if (opts.ownerEmail !== undefined && !builtIn) throw new Error('--owner-email applies to --auth-provider better-auth only: Clerk keeps its own invitations and the none provider creates its owner from --email')
-  if (opts.ownerEmail !== undefined && normaliseInvitationEmail(opts.ownerEmail) === null) throw new Error('--owner-email is not a valid address')
+  if (opts.ownerEmail !== undefined && !builtIn)
+    throw new Error(
+      '--owner-email applies to --auth-provider better-auth only: Clerk keeps its own invitations and the none provider creates its owner from --email',
+    )
+  if (opts.ownerEmail !== undefined && normaliseInvitationEmail(opts.ownerEmail) === null)
+    throw new Error('--owner-email is not a valid address')
   // Clerk and the built-in provider both create no human here: the first owner is invited ([[CORE64]] D11, [[CORE245]]).
   const clerk = (opts.authProvider ?? 'clerk') === 'clerk' || builtIn
-  if (builtIn && !env.control) throw new Error('authProvider better-auth requires the control database (CONTROL_DB): it holds the auth tables')
-  if (builtIn && !opts.publicBaseUrl) throw new Error('authProvider better-auth requires the public base URL (PUBLIC_BASE_URL)')
+  if (builtIn && !env.control)
+    throw new Error('authProvider better-auth requires the control database (CONTROL_DB): it holds the auth tables')
+  if (builtIn && !opts.publicBaseUrl)
+    throw new Error('authProvider better-auth requires the public base URL (PUBLIC_BASE_URL)')
   if (clerk && (opts.email !== undefined || opts.authSubject !== undefined || opts.userName !== undefined)) {
-    throw new Error('a Clerk or Better Auth deployment creates no human: the first owner is invited (drop the email, name and auth subject)')
+    throw new Error(
+      'a Clerk or Better Auth deployment creates no human: the first owner is invited (drop the email, name and auth subject)',
+    )
   }
-  if (!clerk && (opts.email === undefined || opts.agentName === undefined)) throw new Error(`authProvider ${opts.authProvider} requires an email and an agent name`)
+  if (!clerk && (opts.email === undefined || opts.agentName === undefined))
+    throw new Error(`authProvider ${opts.authProvider} requires an email and an agent name`)
   const now = env.now ?? new Date()
   const newId = env.newId ?? (() => uuidv7(now))
   let link = await readDeployment(d1)
   // [[CORE259]] D7: a control marker for another organisation is refused before either database is written.
   if (env.control) {
     const marker = await readControlMarker(env.control).catch((err: unknown) => {
-      if (/no such table/i.test(err instanceof Error ? err.message : '')) throw new Error('the control database has no control_deployment table: run `wrangler d1 migrations apply CONTROL_DB --local` first')
+      if (/no such table/i.test(err instanceof Error ? err.message : ''))
+        throw new Error(
+          'the control database has no control_deployment table: run `wrangler d1 migrations apply CONTROL_DB --local` first',
+        )
       throw err
     })
     const expected = link?.organizationId ?? opts.organizationId
-    if (marker && marker.organizationId !== expected) throw new Error(`the control database is already paired with organization ${marker.organizationId}`)
+    if (marker && marker.organizationId !== expected)
+      throw new Error(`the control database is already paired with organization ${marker.organizationId}`)
   }
   let deployment: 'created' | 'existing'
   if (link) {
@@ -99,39 +135,96 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
       link.authOrgId !== opts.authOrgId ||
       (opts.authProvider !== undefined && link.authProvider !== opts.authProvider) ||
       (opts.organizationId !== undefined && link.organizationId !== opts.organizationId)
-    if (differs) throw new Error(`deployment is already initialised for organization ${link.organizationId} (${link.authProvider}:${link.authOrgId})`)
+    if (differs)
+      throw new Error(
+        `deployment is already initialised for organization ${link.organizationId} (${link.authProvider}:${link.authOrgId})`,
+      )
     deployment = 'existing'
   } else {
-    const wanted: DeploymentLink = { organizationId: opts.organizationId ?? newId(), authProvider: opts.authProvider ?? 'clerk', authOrgId: opts.authOrgId }
-    const done = await execute(d1Binding(d1, wanted), { kind: 'internal', organizationId: wanted.organizationId }, initDeploymentOperation(wanted))
+    const wanted: DeploymentLink = {
+      organizationId: opts.organizationId ?? newId(),
+      authProvider: opts.authProvider ?? 'clerk',
+      authOrgId: opts.authOrgId,
+    }
+    const done = await execute(
+      d1Binding(d1, wanted),
+      { kind: 'internal', organizationId: wanted.organizationId },
+      initDeploymentOperation(wanted),
+    )
     link = wanted
     deployment = done.value
   }
   // The control marker follows the CRM deployment row, so a crash between the two is resumed by the next run (idempotent).
   if (env.control) await writeControlMarker(env.control, link.organizationId)
-  if ((link.authProvider === 'clerk' || link.authProvider === 'better-auth') !== clerk || builtIn !== (link.authProvider === 'better-auth')) throw new Error(`the marker's provider is ${link.authProvider}: pass --auth-provider ${link.authProvider}`)
+  if (
+    (link.authProvider === 'clerk' || link.authProvider === 'better-auth') !== clerk ||
+    builtIn !== (link.authProvider === 'better-auth')
+  )
+    throw new Error(`the marker's provider is ${link.authProvider}: pass --auth-provider ${link.authProvider}`)
   // [[CORE283]] P5: the first-party CLI client, in the control plane, idempotent. Bootstrap is its one writer besides Better Auth's own handler.
-  if (builtIn && env.control) await seedFirstPartyClient(controlAuthDatabase(env.control), { baseURL: opts.publicBaseUrl! })
+  if (builtIn && env.control)
+    await seedFirstPartyClient(controlAuthDatabase(env.control), { baseURL: opts.publicBaseUrl! })
   // A re-run on the built-in provider converges the seed above and leaves an existing organisation (and its keys) alone ([[CORE283]] P5).
   // [[CORE245]] P7: the owner invitation is the last write, after the CRM rows, the control marker and the seed. An owner membership means nothing is issued; otherwise every live owner invitation
   // is replaced by a fresh one in one control batch (the only lost-link recovery before `owner-reset`, [[OPS249]]).
   const issueOwnerInvitation = async (): Promise<{ ownerInvitation?: OwnerInvitation | null }> => {
     if (!builtIn || opts.ownerEmail === undefined) return {}
     const email = normaliseInvitationEmail(opts.ownerEmail)!
-    if (await d1.prepare("select id from memberships where role = 'owner' and deleted_at is null limit 1").first()) return { ownerInvitation: null }
+    if (await d1.prepare("select id from memberships where role = 'owner' and deleted_at is null limit 1").first())
+      return { ownerInvitation: null }
     const system = await d1.prepare("select id from principals where kind = 'system' limit 1").first()
     if (!system) throw new Error('the CRM database has no system principal: initialise the organisation first')
-    const { token, hash } = await newInvitationToken(env.randomBytes ?? ((n) => crypto.getRandomValues(new Uint8Array(n))))
+    const { token, hash } = await newInvitationToken(
+      env.randomBytes ?? ((n) => crypto.getRandomValues(new Uint8Array(n))),
+    )
     const id = newId()
     const expiresAt = new Date(now.getTime() + INVITATION_TTL_MS).toISOString()
-    const out = await reissueOwnerInvitation(env.control!, { id, auditId: newId(), newAuditId: newId, organizationId: link.organizationId, email, role: 'owner', tokenHash: hash, expiresAt, createdBy: system.id as string, now: now.toISOString() })
-    if (out.result === 'live_exists') throw new Error(`a live invitation for ${email} already exists with another role: revoke it (invitations.revoke) and run again`)
-    return { ownerInvitation: { id, email, url: invitationUrl(opts.publicBaseUrl!, token), expiresAt, revoked: out.revoked } }
+    const out = await reissueOwnerInvitation(env.control!, {
+      id,
+      auditId: newId(),
+      newAuditId: newId,
+      organizationId: link.organizationId,
+      email,
+      role: 'owner',
+      tokenHash: hash,
+      expiresAt,
+      createdBy: system.id as string,
+      now: now.toISOString(),
+    })
+    if (out.result === 'live_exists')
+      throw new Error(
+        `a live invitation for ${email} already exists with another role: revoke it (invitations.revoke) and run again`,
+      )
+    return {
+      ownerInvitation: { id, email, url: invitationUrl(opts.publicBaseUrl!, token), expiresAt, revoked: out.revoked },
+    }
   }
-  if (builtIn && (await d1.prepare('select id from organizations limit 1').first())) return { organizationId: link.organizationId, userId: null, agentId: null, apiKeyId: null, key: null, deployment, organizationExisted: true, ...(await issueOwnerInvitation()) }
+  if (builtIn && (await d1.prepare('select id from organizations limit 1').first()))
+    return {
+      organizationId: link.organizationId,
+      userId: null,
+      agentId: null,
+      apiKeyId: null,
+      key: null,
+      deployment,
+      organizationExisted: true,
+      ...(await issueOwnerInvitation()),
+    }
   if (clerk) {
-    const w = await bootstrapWorkspace(d1Binding(d1, link), { organizationName: opts.organizationName, agentName: opts.agentName, scopes: opts.scopes }, { now, newId, randomBytes: env.randomBytes })
-    return { organizationId: w.organizationId, userId: null, agentId: w.agentId, apiKeyId: w.apiKeyId, key: w.key, deployment, ...(await issueOwnerInvitation()) }
+    const w = await bootstrapWorkspace(
+      d1Binding(d1, link),
+      { organizationName: opts.organizationName, agentName: opts.agentName, scopes: opts.scopes },
+      { now, newId, randomBytes: env.randomBytes },
+    )
+    return {
+      organizationId: w.organizationId,
+      userId: null,
+      agentId: w.agentId,
+      apiKeyId: w.apiKeyId,
+      key: w.key,
+      deployment,
+      ...(await issueOwnerInvitation()),
+    }
   }
   const r = await bootstrap(
     d1Binding(d1, link),
@@ -146,7 +239,14 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
     },
     { now, newId, randomBytes: env.randomBytes },
   )
-  return { organizationId: r.organizationId, userId: r.userId, agentId: r.agentId, apiKeyId: r.apiKeyId, key: r.key, deployment }
+  return {
+    organizationId: r.organizationId,
+    userId: r.userId,
+    agentId: r.agentId,
+    apiKeyId: r.apiKeyId,
+    key: r.key,
+    deployment,
+  }
 }
 
 /**
@@ -155,7 +255,10 @@ export async function bootstrapD1(d1: D1Like, opts: BootstrapD1Options, env: Boo
  * already exists (the resumable path). A leaked probe row holds exactly the link bootstrap would write, so a resumed
  * bootstrap adopts it. Not a resource write: no event (the marker is machinery).
  */
-export async function probeBatchAtomicity(d1: D1Like, link: DeploymentLink): Promise<'atomic' | 'not-atomic' | 'skipped'> {
+export async function probeBatchAtomicity(
+  d1: D1Like,
+  link: DeploymentLink,
+): Promise<'atomic' | 'not-atomic' | 'skipped'> {
   if (await readDeployment(d1)) return 'skipped'
   try {
     await d1.batch([markerInsert(d1, link), d1.prepare('select * from __vibase_atomicity_probe')])

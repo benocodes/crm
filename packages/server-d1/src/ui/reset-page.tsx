@@ -42,7 +42,9 @@ export function ResetPage({ navigate = goTo }: PageProps) {
     }
     if (result.code === 'INVALID_TOKEN') return MESSAGES.resetInvalidLink
     if (result.code === 'PASSWORD_TOO_SHORT' || result.code === 'PASSWORD_TOO_LONG') {
-      setErrors({ password: result.code === 'PASSWORD_TOO_SHORT' ? MESSAGES.passwordTooShort : MESSAGES.passwordTooLong })
+      setErrors({
+        password: result.code === 'PASSWORD_TOO_SHORT' ? MESSAGES.passwordTooShort : MESSAGES.passwordTooLong,
+      })
       return MESSAGES.fixFields
     }
     if (result.status === 429) return MESSAGES.rateLimited
@@ -59,8 +61,27 @@ export function ResetPage({ navigate = goTo }: PageProps) {
         </Button>
       }
     >
-      <Field label="New password" name="new-password" type="password" autoComplete="new-password" hint="8 to 128 characters." value={password} onChange={setPassword} error={errors.password} required />
-      <Field label="Confirm new password" name="confirm-password" type="password" autoComplete="new-password" value={confirm} onChange={setConfirm} error={errors.confirm} required />
+      <Field
+        label="New password"
+        name="new-password"
+        type="password"
+        autoComplete="new-password"
+        hint="8 to 128 characters."
+        value={password}
+        onChange={setPassword}
+        error={errors.password}
+        required
+      />
+      <Field
+        label="Confirm new password"
+        name="confirm-password"
+        type="password"
+        autoComplete="new-password"
+        value={confirm}
+        onChange={setConfirm}
+        error={errors.confirm}
+        required
+      />
     </FormLayout>
   )
 }

@@ -45,14 +45,25 @@ export const isConnectPath = (pathname: string): boolean => pathname === PREFIX 
  * `/connect`; `/connect/<file>` is the asset (the build puts every file under `connect/`, so the asset path is the request path) or the
  * binding's `404`. Without the binding every `/connect*` is `404`. It reads no storage and needs no credential, so it runs before every gate.
  */
-export async function serveConnect(req: Request, opts: { assets?: AssetsLike; issuer?: string }): Promise<Response | undefined> {
+export async function serveConnect(
+  req: Request,
+  opts: { assets?: AssetsLike; issuer?: string },
+): Promise<Response | undefined> {
   const url = new URL(req.url)
   if (!isConnectPath(url.pathname)) return undefined
   const csp = connectCsp(opts.issuer)
   const reply = (res: Response) => withHeaders(res, csp)
-  if (req.method !== 'GET' && req.method !== 'HEAD') return reply(new Response('method not allowed', { status: 405, headers: { allow: 'GET, HEAD', 'content-type': 'text/plain; charset=utf-8' } }))
-  if (url.pathname === `${PREFIX}/`) return reply(new Response(null, { status: 308, headers: { location: `${PREFIX}${url.search}` } }))
-  if (!opts.assets) return reply(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } }))
+  if (req.method !== 'GET' && req.method !== 'HEAD')
+    return reply(
+      new Response('method not allowed', {
+        status: 405,
+        headers: { allow: 'GET, HEAD', 'content-type': 'text/plain; charset=utf-8' },
+      }),
+    )
+  if (url.pathname === `${PREFIX}/`)
+    return reply(new Response(null, { status: 308, headers: { location: `${PREFIX}${url.search}` } }))
+  if (!opts.assets)
+    return reply(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } }))
   // The page itself is the asset directory's index, reached at `/connect/` (the binding's own redirect would send `/connect` there anyway).
   const target = new URL(url.pathname === PREFIX ? `${PREFIX}/` : url.pathname, url.origin)
   return reply(await opts.assets.fetch(new Request(target, { method: req.method, headers: req.headers })))

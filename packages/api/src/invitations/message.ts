@@ -4,7 +4,12 @@
 
 /** The five characters that matter in text and in a double-quoted attribute. */
 export const escapeHtml = (s: string): string =>
-  s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
+  s
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 
 export interface InvitationMessageInput {
   /** The instance's host (from `PUBLIC_BASE_URL`, never a request). */

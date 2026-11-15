@@ -22,7 +22,14 @@ export const messagingCorpus = (): FakeMessageScript[] => [
     from: 'jane@acme.test',
     attachments: [
       { name: 'plan.pdf', mimeType: 'application/pdf', bytes: bytesOf(300) },
-      { name: 'logo.png', mimeType: 'image/png', type: 'image', inline: true, contentId: 'logo@fake.test', bytes: bytesOf(64, 7) },
+      {
+        name: 'logo.png',
+        mimeType: 'image/png',
+        type: 'image',
+        inline: true,
+        contentId: 'logo@fake.test',
+        bytes: bytesOf(64, 7),
+      },
     ],
   },
   {
@@ -39,7 +46,15 @@ export const messagingCorpus = (): FakeMessageScript[] => [
     sentByConnection: true,
     attachments: [{ name: 'notes.txt', mimeType: 'text/plain', bytes: bytesOf(48, 3) }],
   },
-  { providerMessageId: 'm3', providerThreadId: 't1', kind: 'reaction', occurredAt: '2026-10-22T07:30:00.000Z', inReplyTo: '<m1@fake.test>', markdown: '👍', from: 'bob@acme.test' },
+  {
+    providerMessageId: 'm3',
+    providerThreadId: 't1',
+    kind: 'reaction',
+    occurredAt: '2026-10-22T07:30:00.000Z',
+    inReplyTo: '<m1@fake.test>',
+    markdown: '👍',
+    from: 'bob@acme.test',
+  },
   {
     providerMessageId: 'm4',
     providerThreadId: 't2',
@@ -47,7 +62,13 @@ export const messagingCorpus = (): FakeMessageScript[] => [
     occurredAt: '2026-10-22T07:40:00.000Z',
     markdown: 'See the invoice.',
     from: 'carol@other.test',
-    attachments: [{ name: 'invoice.pdf', bytes: bytesOf(10), fail: new AttachmentFetchError('not_found', 'https://mail.example/secret') }],
+    attachments: [
+      {
+        name: 'invoice.pdf',
+        bytes: bytesOf(10),
+        fail: new AttachmentFetchError('not_found', 'https://mail.example/secret'),
+      },
+    ],
   },
 ]
 

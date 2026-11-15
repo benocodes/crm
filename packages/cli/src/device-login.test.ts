@@ -9,17 +9,23 @@ import { fakeInstance, json, KEY, rig } from './test/harness.js'
 
 const SERVER = 'https://vibase.test'
 const SCOPES = ['contacts:read', 'contacts:write', 'tasks:read']
-const ME = { principal: { id: 'p1', kind: 'user' }, user: { id: 'p1' }, active_organization: { id: 'o1', role: 'owner', scopes: ['contacts:read'] } }
+const ME = {
+  principal: { id: 'p1', kind: 'user' },
+  user: { id: 'p1' },
+  active_organization: { id: 'o1', role: 'owner', scopes: ['contacts:read'] },
+}
 
 const rigs: ReturnType<typeof rig>[] = []
 const worlds: World[] = []
 afterEach(() => {
   // The shared assertion, automatic: nothing the authorization server issued is in any run's stdout or stderr.
   try {
-    for (const w of worlds) for (const o of w.r.outputs) for (const s of w.iss.secrets()) {
-      expect(o.stdout, `stdout of vibase ${o.argv.join(' ')}`).not.toContain(s)
-      expect(o.stderr, `stderr of vibase ${o.argv.join(' ')}`).not.toContain(s)
-    }
+    for (const w of worlds)
+      for (const o of w.r.outputs)
+        for (const s of w.iss.secrets()) {
+          expect(o.stdout, `stdout of vibase ${o.argv.join(' ')}`).not.toContain(s)
+          expect(o.stderr, `stderr of vibase ${o.argv.join(' ')}`).not.toContain(s)
+        }
   } finally {
     worlds.length = 0
     while (rigs.length) rigs.pop()!.dispose()
@@ -36,7 +42,13 @@ interface World {
   denyPage2?: boolean
 }
 
-function world(o: { issuer?: FakeIssuerOptions; auth?: unknown | ((issuer: string, origin: string) => unknown); scopes?: string[] | null } = {}): World {
+function world(
+  o: {
+    issuer?: FakeIssuerOptions
+    auth?: unknown | ((issuer: string, origin: string) => unknown)
+    scopes?: string[] | null
+  } = {},
+): World {
   const iss = fakeIssuer(o.issuer)
   const w = { denyAll: false } as World
   const inst = fakeInstance({
@@ -47,18 +59,34 @@ function world(o: { issuer?: FakeIssuerOptions; auth?: unknown | ((issuer: strin
             ? o.auth(iss.origin, origin)
             : o.auth !== undefined
               ? o.auth
-              : { provider: 'clerk', issuer: iss.origin, cli_client_id: iss.clientId, protected_resource_metadata: origin + '/.well-known/oauth-protected-resource' },
+              : {
+                  provider: 'clerk',
+                  issuer: iss.origin,
+                  cli_client_id: iss.clientId,
+                  protected_resource_metadata: origin + '/.well-known/oauth-protected-resource',
+                },
       }),
     routes: (req) => {
       const u = new URL(req.url)
-      if (u.pathname === '/.well-known/oauth-protected-resource') return json({ resource: u.origin, authorization_servers: [iss.origin], scopes_supported: o.scopes ?? SCOPES, bearer_methods_supported: ['header'] })
+      if (u.pathname === '/.well-known/oauth-protected-resource')
+        return json({
+          resource: u.origin,
+          authorization_servers: [iss.origin],
+          scopes_supported: o.scopes ?? SCOPES,
+          bearer_methods_supported: ['header'],
+        })
       if (u.pathname === '/meta/v1/me' || u.pathname === '/api/v1/widgets') {
-        if (w.meRedirect && u.pathname === '/meta/v1/me') return new Response(null, { status: 307, headers: { location: w.meRedirect } })
+        if (w.meRedirect && u.pathname === '/meta/v1/me')
+          return new Response(null, { status: 307, headers: { location: w.meRedirect } })
         const tok = /^Bearer (.+)$/.exec(req.headers.get('authorization') ?? '')?.[1]
-        if (w.denyAll || !tok || !iss.isLiveAccess(tok)) return json({ error: { code: 'unauthorized', message: 'bad token' } }, 401)
+        if (w.denyAll || !tok || !iss.isLiveAccess(tok))
+          return json({ error: { code: 'unauthorized', message: 'bad token' } }, 401)
         if (u.pathname === '/api/v1/widgets' && w.denyPage2) {
           if (u.searchParams.has('after')) return json({ error: { code: 'unauthorized', message: 'bad token' } }, 401)
-          return json({ data: [{ id: '00000000-0000-7000-8000-000000000009', name: 'a' }], next_cursor: '00000000-0000-7000-8000-000000000009' })
+          return json({
+            data: [{ id: '00000000-0000-7000-8000-000000000009', name: 'a' }],
+            next_cursor: '00000000-0000-7000-8000-000000000009',
+          })
         }
         return json(u.pathname === '/meta/v1/me' ? ME : { data: [], next_cursor: null })
       }
@@ -66,7 +94,11 @@ function world(o: { issuer?: FakeIssuerOptions; auth?: unknown | ((issuer: strin
     },
   })
   w.iss = iss
-  w.net = network({ [SERVER]: inst.fetch, [iss.origin]: iss.handler, 'https://evil.test': () => json({ stolen: true }) })
+  w.net = network({
+    [SERVER]: inst.fetch,
+    [iss.origin]: iss.handler,
+    'https://evil.test': () => json({ stolen: true }),
+  })
   w.r = rig({ fetch: w.net.fetch })
   rigs.push(w.r)
   worlds.push(w)
@@ -87,12 +119,19 @@ const editProfile = (w: World, patch: Record<string, unknown>, name = 'default')
 const login = (w: World, extra: string[] = []) => w.r.run(['login', '--server', SERVER, ...extra])
 /** The shared assertion: nothing issued by the authorization server is ever printed. */
 const clean = (w: World, ...res: { stdout: string; stderr: string }[]) => {
-  for (const x of res) for (const s of w.iss.secrets()) {
-    expect(x.stdout).not.toContain(s)
-    expect(x.stderr).not.toContain(s)
-  }
+  for (const x of res)
+    for (const s of w.iss.secrets()) {
+      expect(x.stdout).not.toContain(s)
+      expect(x.stderr).not.toContain(s)
+    }
 }
-const errCode = (stderr: string) => JSON.parse(stderr.split('\n').filter((l) => l.startsWith('{')).pop()!).error.code as string
+const errCode = (stderr: string) =>
+  JSON.parse(
+    stderr
+      .split('\n')
+      .filter((l) => l.startsWith('{'))
+      .pop()!,
+  ).error.code as string
 const expireIn = (w: World, ms: number) => w.r.advance(profile(w).expires_at - w.r.now() - ms)
 const meHits = (w: World) => w.net.at(SERVER, '/meta/v1/me')
 const deviceRequests = (w: World) => w.net.at(w.iss.origin, '/oauth/device_authorization')
@@ -111,14 +150,26 @@ describe('device login: the happy path (D11)', () => {
     expect(res.stderr).toMatch(/10 minutes|600 seconds/)
     // device request: the CLI client id and D19's default scopes
     expect(deviceRequests(w)).toHaveLength(1)
-    expect(form(deviceRequests(w)[0]!.body)).toEqual({ client_id: 'client_cli', scope: 'contacts:read contacts:write tasks:read offline_access' })
+    expect(form(deviceRequests(w)[0]!.body)).toEqual({
+      client_id: 'client_cli',
+      scope: 'contacts:read contacts:write tasks:read offline_access',
+    })
     // polling used the device grant with the CLI client id
     const polls = tokenPosts(w)
     expect(polls).toHaveLength(2)
-    expect(polls[0]).toMatchObject({ grant_type: 'urn:ietf:params:oauth:grant-type:device_code', client_id: 'client_cli' })
+    expect(polls[0]).toMatchObject({
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      client_id: 'client_cli',
+    })
     // the profile
     const p = profile(w)
-    expect(p).toMatchObject({ kind: 'oauth', server: SERVER, issuer: 'https://issuer.test', client_id: 'client_cli', scope: 'contacts:read contacts:write tasks:read offline_access' })
+    expect(p).toMatchObject({
+      kind: 'oauth',
+      server: SERVER,
+      issuer: 'https://issuer.test',
+      client_id: 'client_cli',
+      scope: 'contacts:read contacts:write tasks:read offline_access',
+    })
     expect(p.access_token).toMatch(/^tok-access-/)
     expect(p.refresh_token).toMatch(/^tok-refresh-/)
     expect(p.expires_at).toBe(w.r.now() + 3600_000)
@@ -169,7 +220,10 @@ describe('device login: polling (D11)', () => {
   })
 
   it('access_denied and expired_token are exit 1 and store nothing', async () => {
-    for (const [outcome, code] of [['denied', 'access_denied'], ['expired', 'expired_token']] as const) {
+    for (const [outcome, code] of [
+      ['denied', 'access_denied'],
+      ['expired', 'expired_token'],
+    ] as const) {
       const w = world({ issuer: { script: ['pending', outcome] } })
       const res = await login(w)
       expect(res.code).toBe(1)
@@ -226,13 +280,50 @@ describe('a failed login leaves the profile as it was (decision c)', () => {
 describe('refusals before any device request (exit 2)', () => {
   const cases: [string, Parameters<typeof world>[0], string[], string][] = [
     ['auth is null (API keys only)', { auth: null }, [], 'api_keys_only'],
-    ['cli_client_id is null', { auth: (i: string, o: string) => ({ provider: 'clerk', issuer: i, cli_client_id: null, protected_resource_metadata: o + '/.well-known/oauth-protected-resource' }) }, [], 'api_keys_only'],
-    ['the issuer document names another issuer', { issuer: { metadata: (b) => ({ ...b, issuer: 'https://other.test' }) } }, [], 'issuer_mismatch'],
+    [
+      'cli_client_id is null',
+      {
+        auth: (i: string, o: string) => ({
+          provider: 'clerk',
+          issuer: i,
+          cli_client_id: null,
+          protected_resource_metadata: o + '/.well-known/oauth-protected-resource',
+        }),
+      },
+      [],
+      'api_keys_only',
+    ],
+    [
+      'the issuer document names another issuer',
+      { issuer: { metadata: (b) => ({ ...b, issuer: 'https://other.test' }) } },
+      [],
+      'issuer_mismatch',
+    ],
     ['a non-https issuer', { issuer: { origin: 'http://issuer.test' } }, [], 'insecure_issuer'],
-    ['the token endpoint is off the issuer origin', { issuer: { metadata: (b) => ({ ...b, token_endpoint: 'https://evil.test/token' }) } }, [], 'endpoint_origin'],
-    ['the device endpoint is off the issuer origin', { issuer: { metadata: (b) => ({ ...b, device_authorization_endpoint: 'https://evil.test/device' }) } }, [], 'endpoint_origin'],
-    ['the revocation endpoint is off the issuer origin', { issuer: { metadata: (b) => ({ ...b, revocation_endpoint: 'https://evil.test/revoke' }) } }, [], 'endpoint_origin'],
-    ['a token endpoint that is not https', { issuer: { metadata: (b) => ({ ...b, token_endpoint: 'http://issuer.test/oauth/token' }) } }, [], 'endpoint_origin'],
+    [
+      'the token endpoint is off the issuer origin',
+      { issuer: { metadata: (b) => ({ ...b, token_endpoint: 'https://evil.test/token' }) } },
+      [],
+      'endpoint_origin',
+    ],
+    [
+      'the device endpoint is off the issuer origin',
+      { issuer: { metadata: (b) => ({ ...b, device_authorization_endpoint: 'https://evil.test/device' }) } },
+      [],
+      'endpoint_origin',
+    ],
+    [
+      'the revocation endpoint is off the issuer origin',
+      { issuer: { metadata: (b) => ({ ...b, revocation_endpoint: 'https://evil.test/revoke' }) } },
+      [],
+      'endpoint_origin',
+    ],
+    [
+      'a token endpoint that is not https',
+      { issuer: { metadata: (b) => ({ ...b, token_endpoint: 'http://issuer.test/oauth/token' }) } },
+      [],
+      'endpoint_origin',
+    ],
     ['a --scope entry the instance does not support', {}, ['--scope', 'contacts:read,bogus:scope'], 'unknown_scope'],
   ]
   it.each(cases)('%s', async (_name, opts, extra, code) => {
@@ -277,7 +368,8 @@ describe('credential routing (D18)', () => {
       const atToken = t.origin === w.iss.origin && (t.path === '/oauth/token' || t.path === '/oauth/revoke')
       if (t.origin !== SERVER) expect(t.headers.authorization, `${t.url} carried Authorization`).toBeUndefined()
       else if (t.headers.authorization) authorized++
-      if (t.path.startsWith('/.well-known/')) expect(t.headers.authorization, `${t.url} carried Authorization`).toBeUndefined()
+      if (t.path.startsWith('/.well-known/'))
+        expect(t.headers.authorization, `${t.url} carried Authorization`).toBeUndefined()
       for (const a of access) {
         if (t.origin === SERVER) expect(t.url + t.body).not.toContain(a)
         else expect(hay).not.toContain(a)
@@ -305,13 +397,16 @@ describe('credential routing (D18)', () => {
     ['the issuer metadata', '/.well-known/oauth-authorization-server', 'login'],
     ['the device endpoint', '/oauth/device_authorization', 'login'],
     ['the token endpoint during polling', '/oauth/token', 'login'],
-  ])('a redirect from %s is not followed (a credential-free request, but the answer is never trusted off-origin)', async (_n, path, _cmd) => {
-    const w = world({ issuer: { redirect: { path, to: 'https://evil.test/steal' } } })
-    const res = await login(w)
-    expect(res.code).not.toBe(0)
-    expect(w.net.at('https://evil.test')).toEqual([])
-    expect(existsSync(w.r.configFile)).toBe(false)
-  })
+  ])(
+    'a redirect from %s is not followed (a credential-free request, but the answer is never trusted off-origin)',
+    async (_n, path, _cmd) => {
+      const w = world({ issuer: { redirect: { path, to: 'https://evil.test/steal' } } })
+      const res = await login(w)
+      expect(res.code).not.toBe(0)
+      expect(w.net.at('https://evil.test')).toEqual([])
+      expect(existsSync(w.r.configFile)).toBe(false)
+    },
+  )
 
   it('a redirect from the token endpoint on refresh, from the revocation endpoint on logout and from /meta/v1/me after login is not followed, so no token leaves', async () => {
     const w = world()
@@ -446,7 +541,10 @@ describe('the refresh lock (D20)', () => {
     const w = world({ issuer: { refreshDelayMs: 60 } })
     await login(w)
     expireIn(w, -5000)
-    const [a, b] = await Promise.all([w.r.run(['me', 'get'], { sleep: realSleep }), w.r.run(['me', 'get'], { sleep: realSleep })])
+    const [a, b] = await Promise.all([
+      w.r.run(['me', 'get'], { sleep: realSleep }),
+      w.r.run(['me', 'get'], { sleep: realSleep }),
+    ])
     expect([a.code, b.code]).toEqual([0, 0])
     expect(w.iss.refreshCalls()).toBe(1)
     expect(JSON.parse(a.stdout)).toEqual(ME)
@@ -487,7 +585,10 @@ describe('the refresh lock (D20)', () => {
     await login(w)
     w.iss.rejectAccess(profile(w).access_token)
     // two requests rejected with 401 at the same time: one refresh, the other adopts the result
-    const [a, b] = await Promise.all([w.r.run(['me', 'get'], { sleep: realSleep }), w.r.run(['me', 'get'], { sleep: realSleep })])
+    const [a, b] = await Promise.all([
+      w.r.run(['me', 'get'], { sleep: realSleep }),
+      w.r.run(['me', 'get'], { sleep: realSleep }),
+    ])
     expect([a.code, b.code]).toEqual([0, 0])
     expect(w.iss.refreshCalls()).toBe(1)
   })

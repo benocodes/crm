@@ -7,16 +7,7 @@
       "method": "GET",
       "host": "gmail.googleapis.com",
       "path": "/gmail/v1/users/me/messages",
-      "query": [
-        [
-          "q",
-          "after:1791363743 {in:inbox in:sent}"
-        ],
-        [
-          "maxResults",
-          "25"
-        ]
-      ],
+      "query": [["q", "after:1791363743 {in:inbox in:sent}"], ["maxResults", "25"]],
       "form": null
     },
     "response": {

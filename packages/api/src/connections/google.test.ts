@@ -1,6 +1,17 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { FAKE_ENDPOINTS, FakeGoogle } from '../test/google.js'
-import { GMAIL_READONLY, GMAIL_SEND, GoogleExchangeError, REQUESTED_SCOPES, buildAuthorizeUrl, exchangeCode, verifyIdToken, GOOGLE_ENDPOINTS, GoogleRefreshError, refreshAccessToken } from './google.js'
+import {
+  GMAIL_READONLY,
+  GMAIL_SEND,
+  GoogleExchangeError,
+  REQUESTED_SCOPES,
+  buildAuthorizeUrl,
+  exchangeCode,
+  verifyIdToken,
+  GOOGLE_ENDPOINTS,
+  GoogleRefreshError,
+  refreshAccessToken,
+} from './google.js'
 import { pkceChallenge, pkceVerifier } from './state.js'
 
 // CHN140 D1, D9, D57: the authorize URL, the code exchange and the ID token check, against a fake Google that mints real signed tokens.
@@ -13,16 +24,39 @@ beforeAll(async () => {
 
 async function code(opts: Parameters<FakeGoogle['consent']>[2] = {}) {
   const verifier = await pkceVerifier('s', `n-${Math.random()}`)
-  const url = buildAuthorizeUrl({ endpoints: FAKE_ENDPOINTS, clientId: google.clientId, redirectUri: REDIRECT, state: 'st', challenge: await pkceChallenge(verifier) })
+  const url = buildAuthorizeUrl({
+    endpoints: FAKE_ENDPOINTS,
+    clientId: google.clientId,
+    redirectUri: REDIRECT,
+    state: 'st',
+    challenge: await pkceChallenge(verifier),
+  })
   const callback = new URL(await google.consent(url, ACCOUNT, opts))
   return { code: callback.searchParams.get('code')!, verifier }
 }
 const exchange = (c: { code: string; verifier: string }, over: Partial<Parameters<typeof exchangeCode>[0]> = {}) =>
-  exchangeCode({ endpoints: FAKE_ENDPOINTS, clientId: google.clientId, clientSecret: google.clientSecret, redirectUri: REDIRECT, code: c.code, verifier: c.verifier, fetch: google.fetch, ...over })
+  exchangeCode({
+    endpoints: FAKE_ENDPOINTS,
+    clientId: google.clientId,
+    clientSecret: google.clientSecret,
+    redirectUri: REDIRECT,
+    code: c.code,
+    verifier: c.verifier,
+    fetch: google.fetch,
+    ...over,
+  })
 
 describe('buildAuthorizeUrl (D1)', () => {
   it('asks for the authorization code flow with offline access, consent, the three scopes and an S256 challenge', () => {
-    const u = new URL(buildAuthorizeUrl({ endpoints: GOOGLE_ENDPOINTS, clientId: 'cid', redirectUri: REDIRECT, state: 'the-state', challenge: 'the-challenge' }))
+    const u = new URL(
+      buildAuthorizeUrl({
+        endpoints: GOOGLE_ENDPOINTS,
+        clientId: 'cid',
+        redirectUri: REDIRECT,
+        state: 'the-state',
+        challenge: 'the-challenge',
+      }),
+    )
     expect(`${u.origin}${u.pathname}`).toBe('https://accounts.google.com/o/oauth2/v2/auth')
     const q = u.searchParams
     expect(Object.fromEntries(q)).toEqual({
@@ -80,7 +114,12 @@ describe('exchangeCode', () => {
 describe('verifyIdToken (D9)', () => {
   const verify = async (opts: Parameters<FakeGoogle['consent']>[2]) => {
     const { idToken } = await exchange(await code(opts))
-    return verifyIdToken(idToken, { endpoints: FAKE_ENDPOINTS, clientId: google.clientId, fetch: google.fetch, nowMs: Date.now() })
+    return verifyIdToken(idToken, {
+      endpoints: FAKE_ENDPOINTS,
+      clientId: google.clientId,
+      fetch: google.fetch,
+      nowMs: Date.now(),
+    })
   }
 
   it('returns the sub and the email of a good token', async () => {
@@ -100,14 +139,28 @@ describe('verifyIdToken (D9)', () => {
     expect(await verify({ idToken: { iss: 'accounts.google.com' } })).toMatchObject({ sub: 'sub-1' })
     const other = await FakeGoogle.create({ clientId: google.clientId })
     const { idToken } = await exchange(await code())
-    await expect(verifyIdToken(idToken, { endpoints: FAKE_ENDPOINTS, clientId: google.clientId, fetch: other.fetch, nowMs: Date.now() })).rejects.toBeInstanceOf(GoogleExchangeError)
+    await expect(
+      verifyIdToken(idToken, {
+        endpoints: FAKE_ENDPOINTS,
+        clientId: google.clientId,
+        fetch: other.fetch,
+        nowMs: Date.now(),
+      }),
+    ).rejects.toBeInstanceOf(GoogleExchangeError)
   })
 })
 
 // [[CHN5]] D68 ([[CHN149]]): the refresh POST and the classification of its failures.
 describe('refreshAccessToken (D68)', () => {
   const refresh = (refreshToken: string, over: Partial<Parameters<typeof refreshAccessToken>[0]> = {}) =>
-    refreshAccessToken({ endpoints: FAKE_ENDPOINTS, clientId: google.clientId, clientSecret: google.clientSecret, refreshToken, fetch: google.fetch, ...over })
+    refreshAccessToken({
+      endpoints: FAKE_ENDPOINTS,
+      clientId: google.clientId,
+      clientSecret: google.clientSecret,
+      refreshToken,
+      fetch: google.fetch,
+      ...over,
+    })
 
   it('POSTs grant_type=refresh_token with the refresh token, client id and secret to the token endpoint, as a form', async () => {
     const rt = google.issueRefreshToken()
@@ -115,7 +168,14 @@ describe('refreshAccessToken (D68)', () => {
     const out = await refresh(rt)
     expect(out.accessToken).toMatch(/^at-/)
     expect(out.refreshToken).toBeNull()
-    expect(google.refreshRequests.slice(before)).toEqual([{ grant_type: 'refresh_token', refresh_token: rt, client_id: google.clientId, client_secret: google.clientSecret }])
+    expect(google.refreshRequests.slice(before)).toEqual([
+      {
+        grant_type: 'refresh_token',
+        refresh_token: rt,
+        client_id: google.clientId,
+        client_secret: google.clientSecret,
+      },
+    ])
     expect(google.calls.at(-1)).toEqual({ method: 'POST', url: `${FAKE_ENDPOINTS.tokenUrl}` })
   })
 
@@ -151,16 +211,22 @@ describe('refreshAccessToken (D68)', () => {
         google.failRefresh(null)
       }
     }
-    expect(errors.map((e) => (e as GoogleRefreshError).code)).toEqual(['oauth_error', 'token_endpoint', 'token_endpoint'])
+    expect(errors.map((e) => (e as GoogleRefreshError).code)).toEqual([
+      'oauth_error',
+      'token_endpoint',
+      'token_endpoint',
+    ])
     for (const e of errors) {
       expect(e).toBeInstanceOf(GoogleRefreshError)
-      for (const secret of [rt, google.clientSecret, 'secret provider text']) expect((e as Error).message).not.toContain(secret)
+      for (const secret of [rt, google.clientSecret, 'secret provider text'])
+        expect((e as Error).message).not.toContain(secret)
     }
   })
 
   it('a 200 without an access token is bad_response', async () => {
     const rt = google.issueRefreshToken()
-    const fetch = (async () => new Response('{"token_type":"Bearer"}', { status: 200 })) as unknown as typeof globalThis.fetch
+    const fetch = (async () =>
+      new Response('{"token_type":"Bearer"}', { status: 200 })) as unknown as typeof globalThis.fetch
     await expect(refresh(rt, { fetch })).rejects.toMatchObject({ code: 'bad_response' })
   })
 })

@@ -28,7 +28,9 @@ describe('GET /meta/v1/schema', () => {
     expect(r.status).toBe(200)
     const doc = schemaDocument.parse(r.body)
     expect(doc.engine).toBe('d1')
-    expect(doc.tables.map((x) => x.name)).toEqual(expect.arrayContaining(['notes', 'associations', 'events', 'principals']))
+    expect(doc.tables.map((x) => x.name)).toEqual(
+      expect.arrayContaining(['notes', 'associations', 'events', 'principals']),
+    )
     expect(Object.keys(r.body)).toEqual(['engine', 'kinds', 'tables', 'associations'])
   })
   it('associations.associable equals the definitions flagged associable, sorted, and includes notes', async () => {
@@ -48,7 +50,11 @@ describe('GET /meta/v1/schema', () => {
   })
   it('is the same document for every caller', async () => {
     const narrow = await call(['schema:read'], '/meta/v1/schema')
-    const wide = await call(['schema:read', 'tasks:read', 'tasks:write', 'contacts:read', 'agents:read'], '/meta/v1/schema', 'user')
+    const wide = await call(
+      ['schema:read', 'tasks:read', 'tasks:write', 'contacts:read', 'agents:read'],
+      '/meta/v1/schema',
+      'user',
+    )
     expect(narrow.status).toBe(200)
     expect(wide.body).toEqual(narrow.body)
   })

@@ -20,7 +20,12 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
     if (!token) return { status: 401, body: null, noToken: true }
     const headers: Record<string, string> = { authorization: `Bearer ${token}`, accept: 'application/json' }
     if (body !== undefined) headers['content-type'] = 'application/json'
-    const res = await deps.fetch(`${deps.origin}${path}`, { method, headers, credentials: 'omit', ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
+    const res = await deps.fetch(`${deps.origin}${path}`, {
+      method,
+      headers,
+      credentials: 'omit',
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    })
     let parsed: T | null = null
     try {
       parsed = (await res.json()) as T
@@ -37,14 +42,19 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
       let after: string | null = null
       // A page is a request with its own token. A server that never ends the cursor is bounded, not trusted.
       for (let i = 0; i < 100; i++) {
-        const r: ApiResult<{ data: AgentRecord[]; next_cursor: string | null }> = await call('GET', `/meta/v1/agents?limit=200${after ? `&after=${encodeURIComponent(after)}` : ''}`)
-        if (r.status < 200 || r.status >= 300 || !r.body) return { status: r.status, body: null, ...(r.noToken ? { noToken: true as const } : {}) }
+        const r: ApiResult<{ data: AgentRecord[]; next_cursor: string | null }> = await call(
+          'GET',
+          `/meta/v1/agents?limit=200${after ? `&after=${encodeURIComponent(after)}` : ''}`,
+        )
+        if (r.status < 200 || r.status >= 300 || !r.body)
+          return { status: r.status, body: null, ...(r.noToken ? { noToken: true as const } : {}) }
         all.push(...r.body.data)
         if (r.body.next_cursor === null) return { status: r.status, body: all }
         after = r.body.next_cursor
       }
       return { status: 200, body: all }
     },
-    setDisabled: (id, disabled) => call<AgentRecord>('PATCH', `/meta/v1/agents/${encodeURIComponent(id)}`, { disabled }),
+    setDisabled: (id, disabled) =>
+      call<AgentRecord>('PATCH', `/meta/v1/agents/${encodeURIComponent(id)}`, { disabled }),
   }
 }

@@ -9,7 +9,11 @@ export type CaptureSkipReason = 'unsupported_sender' | 'too_many_participants' |
  * counted (never logged: it is an address); duplicates by `(role, kind, value)` keep the first, with its name; order is kept.
  * `skip` is `unsupported_sender` when no `from` survives.
  */
-export function normalizeParticipants(raw: readonly CaptureParticipant[]): { participants: CaptureParticipant[]; dropped: number; skip: 'unsupported_sender' | null } {
+export function normalizeParticipants(raw: readonly CaptureParticipant[]): {
+  participants: CaptureParticipant[]
+  dropped: number
+  skip: 'unsupported_sender' | null
+} {
   const participants: CaptureParticipant[] = []
   const seen = new Set<string>()
   let dropped = 0

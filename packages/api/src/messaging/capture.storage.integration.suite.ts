@@ -3,7 +3,13 @@ import { SetLimitExceeded, uuidv7 } from '@vibase/storage'
 import { withFault } from '@vibase/storage/test'
 import { ApiError, mapStorageError } from '../errors.js'
 import { openEngines, type Engine, type EngineName, type RawRow } from '../test/engines.js'
-import { captureMessage, ensureConnection, runCapture, storedAttachment, type CaptureOverrides } from '../test/capture-kit.js'
+import {
+  captureMessage,
+  ensureConnection,
+  runCapture,
+  storedAttachment,
+  type CaptureOverrides,
+} from '../test/capture-kit.js'
 import { recordMessages, recordMessagesOperation, type CaptureMessage } from './capture.js'
 
 // The capture unit on both engines ([[CORE68]], spec [[CORE25]] "Capture write path" step 5). D1 is the gate; Postgres is
@@ -12,11 +18,25 @@ import { recordMessages, recordMessagesOperation, type CaptureMessage } from './
 const C1 = '0190b2c4-0000-7000-8000-0000000000c1'
 const C2 = '0190b2c4-0000-7000-8000-0000000000c2'
 const NOW = '2026-10-22T10:00:00.000Z'
-const CAPTURE_TABLES = ['threads', 'messages', 'files', 'message_attachments', 'interactions', 'interaction_participants', 'message_sources', 'thread_sources'] as const
+const CAPTURE_TABLES = [
+  'threads',
+  'messages',
+  'files',
+  'message_attachments',
+  'interactions',
+  'interaction_participants',
+  'message_sources',
+  'thread_sources',
+] as const
 /** `e.rows`, without the own identity `ensureConnection` seeds for the connection ([[CHN5]] D27: a source names a connection that exists). */
-const ownRowsOf = async (e: Engine, t: string) => (await e.rows(t)).filter((r) => !(t === 'identities' && String(r.value).endsWith('@seed.test')))
+const ownRowsOf = async (e: Engine, t: string) =>
+  (await e.rows(t)).filter((r) => !(t === 'identities' && String(r.value).endsWith('@seed.test')))
 const ALL_TABLES = [...CAPTURE_TABLES, 'contacts', 'identities', 'events'] as const
-const settle = (p: Promise<unknown>) => p.then(() => null, (err: unknown) => err)
+const settle = (p: Promise<unknown>) =>
+  p.then(
+    () => null,
+    (err: unknown) => err,
+  )
 
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
@@ -44,10 +64,13 @@ export function engineSuite(engineName: EngineName): void {
     const msg = (over: CaptureOverrides = {}): CaptureMessage => captureMessage(e.organizationId, over)
     const cap = (messages: CaptureMessage[], opts: { connection?: string; as?: 'user' | 'agent' } = {}) =>
       runCapture(e, { connection_id: opts.connection ?? C1, messages }, opts.as)
-    const counts = async (tables: readonly string[] = ALL_TABLES) => Object.fromEntries(await Promise.all(tables.map(async (t) => [t, (await ownRows(t)).length] as const)))
+    const counts = async (tables: readonly string[] = ALL_TABLES) =>
+      Object.fromEntries(await Promise.all(tables.map(async (t) => [t, (await ownRows(t)).length] as const)))
     const types = async () => (await e.rows('events')).map((r) => r.type as string)
-    const threadOf = async (m: CaptureMessage) => (await e.rows('messages')).find((r) => r.external_id === m.external_id)!.thread_id as string
-    const identity = async (value: string) => (await e.rows('identities')).find((r) => r.value === value && r.deleted_at === null)!
+    const threadOf = async (m: CaptureMessage) =>
+      (await e.rows('messages')).find((r) => r.external_id === m.external_id)!.thread_id as string
+    const identity = async (value: string) =>
+      (await e.rows('identities')).find((r) => r.value === value && r.deleted_at === null)!
 
     describe('one message', () => {
       it('writes the whole conversation and its events in order', async () => {
@@ -56,7 +79,13 @@ export function engineSuite(engineName: EngineName): void {
 
         const [thread] = await e.rows('threads')
         expect(await e.rows('threads')).toHaveLength(1)
-        expect(thread).toMatchObject({ channel: 'email', subject: 'Hello', created_by: e.userId, created_at: NOW, organization_id: e.organizationId })
+        expect(thread).toMatchObject({
+          channel: 'email',
+          subject: 'Hello',
+          created_by: e.userId,
+          created_at: NOW,
+          organization_id: e.organizationId,
+        })
 
         const [message] = await e.rows('messages')
         expect(await e.rows('messages')).toHaveLength(1)
@@ -78,15 +107,37 @@ export function engineSuite(engineName: EngineName): void {
 
         const [file] = await e.rows('files')
         expect(await e.rows('files')).toHaveLength(1)
-        expect(file).toMatchObject({ storage_key: m.attachments[0]!.file!.storage_key, sha256: m.attachments[0]!.file!.sha256, name: 'file-0.pdf', mime_type: 'application/pdf', size_bytes: 1000, created_at: NOW })
+        expect(file).toMatchObject({
+          storage_key: m.attachments[0]!.file!.storage_key,
+          sha256: m.attachments[0]!.file!.sha256,
+          name: 'file-0.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1000,
+          created_at: NOW,
+        })
 
         const [link] = await e.rows('message_attachments')
         expect(await e.rows('message_attachments')).toHaveLength(1)
-        expect(link).toMatchObject({ message_id: message!.id, position: 0, fetch_status: 'stored', file_id: file!.id, inline: false, created_at: NOW })
+        expect(link).toMatchObject({
+          message_id: message!.id,
+          position: 0,
+          fetch_status: 'stored',
+          file_id: file!.id,
+          inline: false,
+          created_at: NOW,
+        })
 
         const [interaction] = await e.rows('interactions')
         expect(await e.rows('interactions')).toHaveLength(1)
-        expect(interaction).toMatchObject({ kind: 'message', channel: 'email', direction: 'inbound', thread_id: thread!.id, message_id: message!.id, occurred_at: m.occurred_at, created_at: NOW })
+        expect(interaction).toMatchObject({
+          kind: 'message',
+          channel: 'email',
+          direction: 'inbound',
+          thread_id: thread!.id,
+          message_id: message!.id,
+          occurred_at: m.occurred_at,
+          created_at: NOW,
+        })
 
         const jane = await identity('jane@acme.test')
         const owner = await identity('owner@vibase.test')
@@ -98,16 +149,59 @@ export function engineSuite(engineName: EngineName): void {
         ])
         expect(participants.every((p) => p.created_at === NOW && p.created_by === e.userId)).toBe(true)
 
-        expect(await e.rows('message_sources')).toEqual([expect.objectContaining({ message_id: message!.id, connection_id: C1, provider_message_id: m.provider_message_id, provider_thread_id: m.provider_thread_id, created_at: NOW })])
-        expect(await e.rows('thread_sources')).toEqual([expect.objectContaining({ thread_id: thread!.id, connection_id: C1, provider_thread_id: m.provider_thread_id, created_at: NOW })])
+        expect(await e.rows('message_sources')).toEqual([
+          expect.objectContaining({
+            message_id: message!.id,
+            connection_id: C1,
+            provider_message_id: m.provider_message_id,
+            provider_thread_id: m.provider_thread_id,
+            created_at: NOW,
+          }),
+        ])
+        expect(await e.rows('thread_sources')).toEqual([
+          expect.objectContaining({
+            thread_id: thread!.id,
+            connection_id: C1,
+            provider_thread_id: m.provider_thread_id,
+            created_at: NOW,
+          }),
+        ])
 
-        expect(await types()).toEqual(['contact.created', 'contact.created', 'identity.created', 'identity.created', 'thread.created', 'message.created', 'file.created', 'interaction.created'])
+        expect(await types()).toEqual([
+          'contact.created',
+          'contact.created',
+          'identity.created',
+          'identity.created',
+          'thread.created',
+          'message.created',
+          'file.created',
+          'interaction.created',
+        ])
         const evs = await e.rows('events')
-        expect(evs.every((r) => r.created_at === NOW && r.actor_id === e.userId && r.organization_id === e.organizationId && r.before === null)).toBe(true)
+        expect(
+          evs.every(
+            (r) =>
+              r.created_at === NOW &&
+              r.actor_id === e.userId &&
+              r.organization_id === e.organizationId &&
+              r.before === null,
+          ),
+        ).toBe(true)
         expect(events.map((r) => r.type)).toEqual(evs.map((r) => r.type))
         const byType = (t: string) => evs.find((r) => r.type === t)!
         expect(byType('message.created').after.attachments).toEqual([
-          { id: link!.id, position: 0, type: 'file', name: 'file-0.pdf', mime_type: 'application/pdf', size_bytes: 1000, inline: false, content_id: null, fetch_status: 'stored', file_id: file!.id },
+          {
+            id: link!.id,
+            position: 0,
+            type: 'file',
+            name: 'file-0.pdf',
+            mime_type: 'application/pdf',
+            size_bytes: 1000,
+            inline: false,
+            content_id: null,
+            fetch_status: 'stored',
+            file_id: file!.id,
+          },
         ])
         expect(byType('interaction.created').after.participants).toEqual([
           { identity_id: jane.id, role: 'from' },
@@ -117,7 +211,15 @@ export function engineSuite(engineName: EngineName): void {
         expect(byType('file.created').after).not.toHaveProperty('storage_key')
 
         expect(value).toEqual({
-          captured: [{ external_id: m.external_id, message_id: message!.id, thread_id: thread!.id, interaction_id: interaction!.id, new_thread: true }],
+          captured: [
+            {
+              external_id: m.external_id,
+              message_id: message!.id,
+              thread_id: thread!.id,
+              interaction_id: interaction!.id,
+              new_thread: true,
+            },
+          ],
           existing: [],
           duplicate_objects: [],
         })
@@ -126,10 +228,24 @@ export function engineSuite(engineName: EngineName): void {
 
       it('attributes every row and event to the calling agent', async () => {
         await cap([msg({ attachments: 1 })], { as: 'agent' })
-        for (const t of ['threads', 'messages', 'files', 'message_attachments', 'interactions', 'interaction_participants', 'message_sources', 'thread_sources', 'contacts', 'identities']) {
+        for (const t of [
+          'threads',
+          'messages',
+          'files',
+          'message_attachments',
+          'interactions',
+          'interaction_participants',
+          'message_sources',
+          'thread_sources',
+          'contacts',
+          'identities',
+        ]) {
           const rows = await ownRows(t)
           expect(rows.length, t).toBeGreaterThan(0)
-          expect(rows.every((r) => r.created_by === e.agentId), t).toBe(true)
+          expect(
+            rows.every((r) => r.created_by === e.agentId),
+            t,
+          ).toBe(true)
         }
         const evs = await e.rows('events')
         expect(evs.length).toBeGreaterThan(0)
@@ -178,7 +294,12 @@ export function engineSuite(engineName: EngineName): void {
         })
         await cap([m])
         const links = (await e.rows('message_attachments')).sort((a, b) => a.position - b.position)
-        expect(links.map((l) => [l.position, l.fetch_status])).toEqual([[0, 'stored'], [1, 'failed'], [2, 'skipped'], [3, 'pending']])
+        expect(links.map((l) => [l.position, l.fetch_status])).toEqual([
+          [0, 'stored'],
+          [1, 'failed'],
+          [2, 'skipped'],
+          [3, 'pending'],
+        ])
         expect(links.map((l) => l.file_id !== null)).toEqual([true, false, false, false])
         expect(links[1]).toMatchObject({ fetch_error: 'not found' })
         expect(links[2]).toMatchObject({ inline: true, content_id: 'cid-1' })
@@ -189,11 +310,17 @@ export function engineSuite(engineName: EngineName): void {
       it('derives direction from the connection, then from an own sender', async () => {
         await e.insert('identities', { kind: 'email', value: 'me@vibase.test', contact_id: null, own: true })
         const sent = msg({ sent_by_connection: true, occurred_at: '2026-10-22T09:00:00.000Z' })
-        const fromOwn = msg({ participants: [{ kind: 'email', value: 'me@vibase.test', role: 'from' }], occurred_at: '2026-10-22T09:01:00.000Z' })
+        const fromOwn = msg({
+          participants: [{ kind: 'email', value: 'me@vibase.test', role: 'from' }],
+          occurred_at: '2026-10-22T09:01:00.000Z',
+        })
         const inbound = msg({ occurred_at: '2026-10-22T09:02:00.000Z' })
         const { value } = await cap([inbound, fromOwn, sent])
         const interactions = await e.rows('interactions')
-        const direction = (m: CaptureMessage) => interactions.find((i) => i.id === value.captured.find((c) => c.external_id === m.external_id)!.interaction_id)!.direction
+        const direction = (m: CaptureMessage) =>
+          interactions.find(
+            (i) => i.id === value.captured.find((c) => c.external_id === m.external_id)!.interaction_id,
+          )!.direction
         expect([direction(sent), direction(fromOwn), direction(inbound)]).toEqual(['outbound', 'outbound', 'inbound'])
       })
     })
@@ -209,7 +336,11 @@ export function engineSuite(engineName: EngineName): void {
 
       it('puts a reply listed before its parent in one chunk into one thread named after the parent', async () => {
         const parent = msg({ subject: 'The parent', occurred_at: '2026-10-22T08:00:00.000Z' })
-        const reply = msg({ subject: 'Re: The parent', in_reply_to: parent.external_id, occurred_at: '2026-10-22T09:00:00.000Z' })
+        const reply = msg({
+          subject: 'Re: The parent',
+          in_reply_to: parent.external_id,
+          occurred_at: '2026-10-22T09:00:00.000Z',
+        })
         const { value } = await cap([reply, parent])
         const threads = await e.rows('threads')
         expect(threads).toHaveLength(1)
@@ -227,7 +358,10 @@ export function engineSuite(engineName: EngineName): void {
         const t = await threadOf(parent)
         expect(await threadOf(reply)).toBe(t)
         expect(await e.rows('threads')).toHaveLength(1)
-        expect((await e.rows('thread_sources')).map((s) => [s.provider_thread_id, s.thread_id])).toEqual([[parent.provider_thread_id, t], [reply.provider_thread_id, t]])
+        expect((await e.rows('thread_sources')).map((s) => [s.provider_thread_id, s.thread_id])).toEqual([
+          [parent.provider_thread_id, t],
+          [reply.provider_thread_id, t],
+        ])
       })
 
       it('follows a References-only hint', async () => {
@@ -256,7 +390,12 @@ export function engineSuite(engineName: EngineName): void {
         await cap([m2])
         const t = await threadOf(m1)
         expect(await threadOf(m2)).toBe(t)
-        expect((await e.rows('thread_sources')).map((s) => [s.connection_id, s.provider_thread_id, s.thread_id])).toEqual([[C1, 'g1', t], [C1, 'g2', t]])
+        expect(
+          (await e.rows('thread_sources')).map((s) => [s.connection_id, s.provider_thread_id, s.thread_id]),
+        ).toEqual([
+          [C1, 'g1', t],
+          [C1, 'g2', t],
+        ])
       })
 
       it('lets the pair alias win over a hint', async () => {
@@ -283,22 +422,34 @@ export function engineSuite(engineName: EngineName): void {
         expect(await counts()).toEqual({ ...before, message_sources: 2, thread_sources: 2 })
         expect((await e.rows('events')).length).toBe(eventsBefore)
         expect((await e.rows('thread_sources')).map((s) => s.thread_id)).toEqual([message.thread_id, message.thread_id])
-        expect((await e.rows('message_sources')).map((s) => [s.connection_id, s.message_id])).toEqual([[C1, message.id], [C2, message.id]])
-        expect(value).toEqual({ captured: [], existing: [{ external_id: m.external_id, message_id: message.id }], duplicate_objects: [] })
+        expect((await e.rows('message_sources')).map((s) => [s.connection_id, s.message_id])).toEqual([
+          [C1, message.id],
+          [C2, message.id],
+        ])
+        expect(value).toEqual({
+          captured: [],
+          existing: [{ external_id: m.external_id, message_id: message.id }],
+          duplicate_objects: [],
+        })
       })
 
       it("reports a copy's fresh objects as duplicates and writes no file", async () => {
         const m = msg()
         await cap([m])
         const att = storedAttachment(e.organizationId, 0)
-        const { value } = await cap([{ ...m, provider_message_id: 'x', provider_thread_id: 'y', attachments: [att] }], { connection: C2 })
+        const { value } = await cap([{ ...m, provider_message_id: 'x', provider_thread_id: 'y', attachments: [att] }], {
+          connection: C2,
+        })
         expect(value.duplicate_objects).toEqual([att.file!.storage_key])
         expect(await e.rows('files')).toHaveLength(0)
         expect(await e.rows('message_attachments')).toHaveLength(0)
       })
 
       it('treats a re-run chunk as all existing and writes nothing', async () => {
-        const ms = [msg({ attachments: 1, occurred_at: '2026-10-22T09:00:00.000Z' }), msg({ attachments: 1, occurred_at: '2026-10-22T09:01:00.000Z' })]
+        const ms = [
+          msg({ attachments: 1, occurred_at: '2026-10-22T09:00:00.000Z' }),
+          msg({ attachments: 1, occurred_at: '2026-10-22T09:01:00.000Z' }),
+        ]
         await cap(ms)
         const before = await counts()
         const messages = await e.rows('messages')
@@ -307,7 +458,12 @@ export function engineSuite(engineName: EngineName): void {
         expect(await counts()).toEqual(before)
         expect(events).toEqual([])
         expect(value.captured).toEqual([])
-        expect(value.existing).toEqual(fresh.map((m) => ({ external_id: m.external_id, message_id: messages.find((r) => r.external_id === m.external_id)!.id })))
+        expect(value.existing).toEqual(
+          fresh.map((m) => ({
+            external_id: m.external_id,
+            message_id: messages.find((r) => r.external_id === m.external_id)!.id,
+          })),
+        )
         expect(value.duplicate_objects).toEqual(fresh.flatMap((m) => m.attachments.map((a) => a.file!.storage_key)))
         expect(stats.statements).toBe(ALL_EXISTING_STATEMENTS[name])
       })
@@ -352,7 +508,9 @@ export function engineSuite(engineName: EngineName): void {
 
     describe('shape', () => {
       const fresh = (n: number) =>
-        Array.from({ length: n }, (_, i) => msg({ attachments: 1, occurred_at: `2026-10-22T09:${String(i).padStart(2, '0')}:00.000Z` }))
+        Array.from({ length: n }, (_, i) =>
+          msg({ attachments: 1, occurred_at: `2026-10-22T09:${String(i).padStart(2, '0')}:00.000Z` }),
+        )
 
       it('sends a constant number of statements whatever the chunk size', async () => {
         const one = await cap(fresh(1))
@@ -363,7 +521,10 @@ export function engineSuite(engineName: EngineName): void {
 
       it('rolls back everything when a statement fails after the first mutation or the first event', async () => {
         for (const after of ['first-mutation', 'first-event'] as const) {
-          const op = withFault(recordMessagesOperation(e.env(), { connection_id: C1, messages: [msg({ attachments: 1 })] }), { after })
+          const op = withFault(
+            recordMessagesOperation(e.env(), { connection_id: C1, messages: [msg({ attachments: 1 })] }),
+            { after },
+          )
           await expect(e.run(op)).rejects.toBeDefined()
           expect(await counts(), after).toEqual(Object.fromEntries(ALL_TABLES.map((t) => [t, 0])))
         }
@@ -375,9 +536,13 @@ export function engineSuite(engineName: EngineName): void {
         expect(run(msg({ content_key: null }))).toThrow(/content_key/)
         expect(run(msg({ kind: 'reaction', content_key: 'orgs/x' }))).toThrow(/content_key/)
         expect(run(msg({ attachments: [{ ...storedAttachment(e.organizationId, 0), file: null }] }))).toThrow(/stored/)
-        expect(run(msg({ attachments: [{ ...storedAttachment(e.organizationId, 0), fetch_status: 'failed' }] }))).toThrow(/stored/)
+        expect(
+          run(msg({ attachments: [{ ...storedAttachment(e.organizationId, 0), fetch_status: 'failed' }] })),
+        ).toThrow(/stored/)
         expect(run(msg({ participants: [{ kind: 'email', value: 'bob@x.test', role: 'to' }] }))).toThrow(/from/)
-        expect(run(msg({ participants: [{ kind: 'email', value: 'Jane@X.test', role: 'from' }] }))).toThrow(/normalised/)
+        expect(run(msg({ participants: [{ kind: 'email', value: 'Jane@X.test', role: 'from' }] }))).toThrow(
+          /normalised/,
+        )
       })
     })
 
@@ -480,7 +645,13 @@ export function engineSuite(engineName: EngineName): void {
         const att = storedAttachment(e.organizationId, 0, { sha256: sha })
         const kx = `orgs/${e.organizationId}/files/${uuidv7()}`
         await drift([msg({ attachments: [att] })], async () => {
-          await e.insert('files', { name: 'x', mime_type: 'application/pdf', size_bytes: 1, sha256: sha, storage_key: kx })
+          await e.insert('files', {
+            name: 'x',
+            mime_type: 'application/pdf',
+            size_bytes: 1,
+            sha256: sha,
+            storage_key: kx,
+          })
         })
         const { value } = await cap([msg({ attachments: [att] })])
         expect((await e.rows('files')).map((f) => f.storage_key)).toEqual([kx, kx])
@@ -491,7 +662,12 @@ export function engineSuite(engineName: EngineName): void {
         const m = msg({ participants: [{ kind: 'email', value: 'new@x.test', role: 'from' }] })
         let raced: RawRow
         await drift([m], async () => {
-          raced = await e.insert('identities', { kind: 'email', value: 'new@x.test', contact_id: (await e.insert('contacts', { name: 'Raced' })).id, own: false })
+          raced = await e.insert('identities', {
+            kind: 'email',
+            value: 'new@x.test',
+            contact_id: (await e.insert('contacts', { name: 'Raced' })).id,
+            own: false,
+          })
         })
         await cap([m])
         expect((await e.rows('interaction_participants'))[0]!.identity_id).toBe(raced!.id)
@@ -508,7 +684,10 @@ export function engineSuite(engineName: EngineName): void {
         const participantsOf = async (m: CaptureMessage) => {
           const id = (await e.rows('messages')).find((r) => r.external_id === m.external_id)!.id
           const interaction = (await e.rows('interactions')).find((i) => i.message_id === id)!
-          return { interaction, rows: (await e.rows('interaction_participants')).filter((p) => p.interaction_id === interaction.id) }
+          return {
+            interaction,
+            rows: (await e.rows('interaction_participants')).filter((p) => p.interaction_id === interaction.id),
+          }
         }
 
         it('a planned identity was removed: a new identity is created on retry', async () => {
@@ -527,7 +706,12 @@ export function engineSuite(engineName: EngineName): void {
           let replacement: RawRow
           await drift([m], async () => {
             await e.update('identities', jane.id, { deleted_at: NOW })
-            replacement = await e.insert('identities', { kind: 'email', value: 'jane@acme.test', contact_id: (await e.insert('contacts', { name: 'Replacement' })).id, own: false })
+            replacement = await e.insert('identities', {
+              kind: 'email',
+              value: 'jane@acme.test',
+              contact_id: (await e.insert('contacts', { name: 'Replacement' })).id,
+              own: false,
+            })
           })
           await cap([m])
           expect((await participantsOf(m)).rows.find((p) => p.role === 'from')!.identity_id).toBe(replacement!.id)
@@ -585,7 +769,15 @@ export function engineSuite(engineName: EngineName): void {
       await refused([m(), m(), m(), m()])
     })
     it('refuses more distinct addresses than the cap', async () => {
-      await refused([m({ participants: ['a', 'b', 'c', 'd'].map((x, i) => ({ kind: 'email' as const, value: `${x}@x.test`, role: i === 0 ? ('from' as const) : ('to' as const) })) })])
+      await refused([
+        m({
+          participants: ['a', 'b', 'c', 'd'].map((x, i) => ({
+            kind: 'email' as const,
+            value: `${x}@x.test`,
+            role: i === 0 ? ('from' as const) : ('to' as const),
+          })),
+        }),
+      ])
     })
     it('refuses more stored attachments than the cap', async () => {
       await refused([m({ attachments: 4 })])

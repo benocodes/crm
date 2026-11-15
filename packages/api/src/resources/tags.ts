@@ -42,35 +42,40 @@ export const TAGGABLE = ['companies', 'contacts', 'deals', 'tasks', 'notes'] as 
  * case-insensitively (the column's NOCASE collation): a live duplicate refuses the write in the plan (`409 tag_exists`),
  * the partial unique index is the commit-time backstop. Delete cascades the tag's live edges (`identity/cascades.ts`).
  */
-export const tags = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'api',
-  name: 'tags',
-  eventName: 'tag',
-  table: 'tags',
-  associable: true,
-  neighbours: TAGGABLE,
-  override: { delete: (env, id) => deleteTagOperation(env, id as string) },
-  record,
-  create,
-  update,
-  filters: { name: { schema: z.string().trim().min(1).max(100) }, created_by: { schema: z.uuid() } },
-  conflicts: ({ qc, env, id, values }) => {
-    const name = values.name
-    if (typeof name !== 'string') return []
-    let q = qc.db
-      .selectFrom('tags')
-      .select('tags.id')
-      .where('tags.organization_id', '=', env.organizationId)
-      .where('tags.name', '=', name)
-      .where('tags.deleted_at', 'is', null)
-    if (id) q = q.where('tags.id', '!=', id)
-    return [
-      {
-        read: readMaybe(q.limit(1)),
-        refuse: (row) => {
-          if (row) throw new ApiError(409, 'tag_exists', `a tag named "${name}" already exists (${String(row.id)})`)
-        },
+export const tags = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'api',
+      name: 'tags',
+      eventName: 'tag',
+      table: 'tags',
+      associable: true,
+      neighbours: TAGGABLE,
+      override: { delete: (env, id) => deleteTagOperation(env, id as string) },
+      record,
+      create,
+      update,
+      filters: { name: { schema: z.string().trim().min(1).max(100) }, created_by: { schema: z.uuid() } },
+      conflicts: ({ qc, env, id, values }) => {
+        const name = values.name
+        if (typeof name !== 'string') return []
+        let q = qc.db
+          .selectFrom('tags')
+          .select('tags.id')
+          .where('tags.organization_id', '=', env.organizationId)
+          .where('tags.name', '=', name)
+          .where('tags.deleted_at', 'is', null)
+        if (id) q = q.where('tags.id', '!=', id)
+        return [
+          {
+            read: readMaybe(q.limit(1)),
+            refuse: (row) => {
+              if (row) throw new ApiError(409, 'tag_exists', `a tag named "${name}" already exists (${String(row.id)})`)
+            },
+          },
+        ]
       },
-    ]
-  },
-}), ['name']))
+    }),
+    ['name'],
+  ),
+)

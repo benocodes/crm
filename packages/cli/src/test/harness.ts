@@ -20,7 +20,13 @@ export interface Result {
 type Handler = (req: Request) => Response | Promise<Response> | undefined
 
 /** A scratch config and cache directory, and a `run` that records every outgoing request. */
-export function rig(opts: { fetch: (req: Request) => Response | Promise<Response>; env?: Record<string, string>; tty?: boolean; stdin?: string; stdinTTY?: boolean }) {
+export function rig(opts: {
+  fetch: (req: Request) => Response | Promise<Response>
+  env?: Record<string, string>
+  tty?: boolean
+  stdin?: string
+  stdinTTY?: boolean
+}) {
   const dir = mkdtempSync(join(tmpdir(), 'vibase-cli-'))
   const seen: Seen[] = []
   // Like the real fetch: a 3xx is an error under redirect 'error', and is followed (headers kept, as a hostile server would hope) otherwise.
@@ -43,12 +49,25 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
   const configFile = join(dir, 'vibase', 'config.json')
   const cacheDir = join(dir, 'vibase')
   let clock = 1_800_000_000_000
-  const go = async (argv: string[], over: { env?: Record<string, string | undefined>; stdin?: string; tty?: boolean; stdinTTY?: boolean; sleep?: (ms: number) => Promise<void>; signal?: AbortSignal } = {}): Promise<Result> => {
+  const go = async (
+    argv: string[],
+    over: {
+      env?: Record<string, string | undefined>
+      stdin?: string
+      tty?: boolean
+      stdinTTY?: boolean
+      sleep?: (ms: number) => Promise<void>
+      signal?: AbortSignal
+    } = {},
+  ): Promise<Result> => {
     let stdinRead = 0
     const out: (string | Uint8Array)[] = []
     const err: string[] = []
     const stdout: Sink = { isTTY: over.tty ?? opts.tty ?? false, write: (c) => void out.push(c) }
-    const stderr: Sink = { isTTY: false, write: (c) => void err.push(typeof c === 'string' ? c : Buffer.from(c).toString()) }
+    const stderr: Sink = {
+      isTTY: false,
+      write: (c) => void err.push(typeof c === 'string' ? c : Buffer.from(c).toString()),
+    }
     const deps: Deps = {
       fetch: fetchImpl,
       env: { XDG_CONFIG_HOME: dir, XDG_CACHE_HOME: dir, ...opts.env, ...over.env },
@@ -91,11 +110,20 @@ export function rig(opts: { fetch: (req: Request) => Response | Promise<Response
 
 export const KEY = ['vk', 'cli'.repeat(12)].join('_')
 export const SERVER = 'http://127.0.0.1:8787'
-const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
+const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
 export { json }
 
 /** A fake instance at `origin`: the discovery document, both OpenAPI documents and routes supplied by the test. */
-export function fakeInstance(opts: { origin?: string; routes?: Handler; wellKnown?: (origin: string) => Response | unknown; api?: unknown; meta?: unknown } = {}) {
+export function fakeInstance(
+  opts: {
+    origin?: string
+    routes?: Handler
+    wellKnown?: (origin: string) => Response | unknown
+    api?: unknown
+    meta?: unknown
+  } = {},
+) {
   const counts = { wellKnown: 0, api: 0, meta: 0 }
   const fetch = async (req: Request): Promise<Response> => {
     const u = new URL(req.url)
@@ -106,8 +134,8 @@ export function fakeInstance(opts: { origin?: string; routes?: Handler; wellKnow
       return body instanceof Response ? body : json(body)
     }
     if (u.pathname.endsWith('/openapi.json')) {
-      if (u.pathname.startsWith('/api/')) return counts.api++, json(opts.api ?? apiDoc())
-      return counts.meta++, json(opts.meta ?? metaDoc())
+      if (u.pathname.startsWith('/api/')) return (counts.api++, json(opts.api ?? apiDoc()))
+      return (counts.meta++, json(opts.meta ?? metaDoc()))
     }
     return (await opts.routes?.(req)) ?? json({ error: { code: 'not_found', message: 'no such route' } }, 404)
   }

@@ -2,7 +2,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { pgStorage } from '../test/storage.js'
 import type { Kysely } from 'kysely'
 import type { Database } from '@vibase/db'
-import { createOwnerTestDb, createTestDb, seedAgent, seedMembership, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
+import {
+  createOwnerTestDb,
+  createTestDb,
+  seedAgent,
+  seedMembership,
+  seedOrganization,
+  seedUser,
+  truncateAll,
+} from '@vibase/db/test'
 import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { seedApiKey } from '../test/keys.js'
@@ -32,7 +40,11 @@ beforeEach(async () => {
 })
 
 /** `claim`: the Clerk organisation id (and role) the token names. */
-const call = async (path: string, sub: string, init: { method?: string; claim?: { id: string; rol?: string }; body?: unknown } = {}) =>
+const call = async (
+  path: string,
+  sub: string,
+  init: { method?: string; claim?: { id: string; rol?: string }; body?: unknown } = {},
+) =>
   app.request(path, {
     method: init.method ?? 'GET',
     headers: {
@@ -45,7 +57,13 @@ describe('me.get', () => {
   it('shape', async () => {
     const beta = await seedOrganization(db, { name: 'Beta', authOrgId: 'org_beta' })
     const alpha = await seedOrganization(db, { name: 'Alpha', authOrgId: 'org_alpha' })
-    const u = await seedUser(db, { organizationId: beta.id, role: 'owner', authSubject: 'u1', emailVerified: true, email: 'me@x.test' })
+    const u = await seedUser(db, {
+      organizationId: beta.id,
+      role: 'owner',
+      authSubject: 'u1',
+      emailVerified: true,
+      email: 'me@x.test',
+    })
     await seedMembership(db, { organizationId: alpha.id, userId: u.id, role: 'member' })
     const res = await call('/meta/v1/me', 'u1', { claim: { id: 'org_beta' } })
     expect(res.status).toBe(200)
@@ -74,7 +92,9 @@ describe('me.get', () => {
 describe('documentation', () => {
   it('lists me.get only', async () => {
     const doc = await (await app.request('/meta/v1/openapi.json')).json()
-    const ids = Object.values(doc.paths).flatMap((p) => Object.values(p as Record<string, { operationId?: string }>).map((o) => o.operationId))
+    const ids = Object.values(doc.paths).flatMap((p) =>
+      Object.values(p as Record<string, { operationId?: string }>).map((o) => o.operationId),
+    )
     expect(ids).toContain('me.get')
     expect(ids).not.toContain('organizations.create')
     expect(ids).not.toContain('invitations.accept')
@@ -92,4 +112,3 @@ describe('documentation', () => {
     expect((await res.json()).error.code).toBe('user_required')
   })
 })
-

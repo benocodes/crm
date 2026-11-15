@@ -8,7 +8,17 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { unstable_readConfig } from 'wrangler'
-import { CONFIG_PATH, PACKAGE_DIR, RemoteRefusal, loadRootEnv, parseEnvFlag, requireConfirm, resolveTarget, type Cmd, type ConfigLike } from './remote.js'
+import {
+  CONFIG_PATH,
+  PACKAGE_DIR,
+  RemoteRefusal,
+  loadRootEnv,
+  parseEnvFlag,
+  requireConfirm,
+  resolveTarget,
+  type Cmd,
+  type ConfigLike,
+} from './remote.js'
 
 export const PULL_DIR = join(PACKAGE_DIR, 'recordings-pull')
 /** The only wrangler verb this script ever runs; a test pins it. */
@@ -31,7 +41,8 @@ export function bucketOf(config: ConfigLike, envName: string): string {
 }
 
 /** A key the index may name: under `_recordings/`, plain path segments only (no `..`, no spaces or shell characters). */
-export const safeKey = (key: string): boolean => /^_recordings\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(key) && !key.split('/').some((s) => s === '..' || s === '.')
+export const safeKey = (key: string): boolean =>
+  /^_recordings\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(key) && !key.split('/').some((s) => s === '..' || s === '.')
 
 /** The keys the index lists; a key that is not safe refuses the whole pull. */
 export function parseIndex(text: string): string[] {
@@ -89,7 +100,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exitCode = runPull(process.argv.slice(2), process.env, {
       loadEnv: () => loadRootEnv(),
       readConfig: (envName) => unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike,
-      exec: (cmd) => ({ status: spawnSync(cmd.command, cmd.args, { cwd: PACKAGE_DIR, stdio: 'inherit', env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' } }).status }),
+      exec: (cmd) => ({
+        status: spawnSync(cmd.command, cmd.args, {
+          cwd: PACKAGE_DIR,
+          stdio: 'inherit',
+          env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' },
+        }).status,
+      }),
       readFile: (p) => readFileSync(p, 'utf8'),
       mkdir: (p) => void mkdirSync(p, { recursive: true }),
       log: (l) => console.log(l),

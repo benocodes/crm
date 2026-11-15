@@ -16,11 +16,20 @@ beforeEach(() => history.replaceState(null, '', '/device'))
 
 const NO_SESSION = { status: 200, json: null }
 const SESSION = { status: 200, json: { user: { id: 'u1', email: 'ann@x.test', name: 'Ann' }, session: { id: 's1' } } }
-const CLAIM = { status: 200, json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'vibase-cli', scope: 'openid contacts:read' } }
+const CLAIM = {
+  status: 200,
+  json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'vibase-cli', scope: 'openid contacts:read' },
+}
 const CLIENT = { status: 200, json: { client_id: 'vibase-cli', client_name: 'Vibase CLI' } }
 const OK = { status: 200, json: { success: true } }
 const urlsOf = (f: ReturnType<typeof fakeFetch>) => f.fn.mock.calls.map((c) => String(c[0]))
-const happyRoutes = () => ({ 'GET /auth/get-session': SESSION, 'GET /auth/device': CLAIM, 'GET /auth/oauth2/public-client': CLIENT, 'POST /auth/device/approve': OK, 'POST /auth/device/deny': OK })
+const happyRoutes = () => ({
+  'GET /auth/get-session': SESSION,
+  'GET /auth/device': CLAIM,
+  'GET /auth/oauth2/public-client': CLIENT,
+  'POST /auth/device/approve': OK,
+  'POST /auth/device/deny': OK,
+})
 const submitCode = async (typed?: string) => {
   const user = userEvent.setup()
   if (typed !== undefined) await user.type(await screen.findByLabelText(MESSAGES.deviceCodeLabel), typed)
@@ -34,7 +43,9 @@ describe('no session', () => {
     fakeFetch({ 'GET /auth/get-session': NO_SESSION })
     const go = vi.fn()
     render(<DevicePage navigate={go} />)
-    await waitFor(() => expect(go).toHaveBeenCalledWith(`/sign-in?return_to=${encodeURIComponent('/device?user_code=abcd-efgh')}`))
+    await waitFor(() =>
+      expect(go).toHaveBeenCalledWith(`/sign-in?return_to=${encodeURIComponent('/device?user_code=abcd-efgh')}`),
+    )
     expect(screen.queryByLabelText(MESSAGES.deviceCodeLabel)).toBeNull()
   })
 
@@ -87,7 +98,9 @@ describe('signed in: the code form', () => {
     const go = vi.fn()
     render(<DevicePage navigate={go} />)
     await userEvent.setup().click(await screen.findByRole('button', { name: MESSAGES.useAnotherAccount }))
-    await waitFor(() => expect(go).toHaveBeenCalledWith(`/sign-in?return_to=${encodeURIComponent('/device?user_code=ABCDEFGH')}`))
+    await waitFor(() =>
+      expect(go).toHaveBeenCalledWith(`/sign-in?return_to=${encodeURIComponent('/device?user_code=ABCDEFGH')}`),
+    )
     expect(f.requests()).toContain('POST /auth/sign-out')
   })
 
@@ -124,7 +137,10 @@ describe('claim, then review', () => {
     fakeFetch({
       ...happyRoutes(),
       'GET /auth/get-session': { status: 200, json: { user: { id: 'u', email: '<i id="e">a</i>@x.test' } } },
-      'GET /auth/device': { status: 200, json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'c', scope: '<u>x</u>:read' } },
+      'GET /auth/device': {
+        status: 200,
+        json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'c', scope: '<u>x</u>:read' },
+      },
       'GET /auth/oauth2/public-client': { status: 200, json: { client_name: '<b id="n">Evil</b>' } },
     })
     render(<DevicePage />)
@@ -138,7 +154,13 @@ describe('claim, then review', () => {
 
   it('an unknown scope is shown by name with "No description"', async () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
-    fakeFetch({ ...happyRoutes(), 'GET /auth/device': { status: 200, json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'c', scope: 'mystery:read' } } })
+    fakeFetch({
+      ...happyRoutes(),
+      'GET /auth/device': {
+        status: 200,
+        json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'c', scope: 'mystery:read' },
+      },
+    })
     render(<DevicePage />)
     await submitCode()
     expect(await screen.findByText('mystery:read')).toBeTruthy()
@@ -172,11 +194,31 @@ describe('claim, then review', () => {
 
 describe('one message per outcome', () => {
   const claimCases: Array<[string, { status: number; json?: unknown; text?: string }, string]> = [
-    ['not recognised (400 invalid_request)', { status: 400, json: { error: 'invalid_request', error_description: 'Invalid user code' } }, MESSAGES.deviceUnrecognised],
-    ['an answer with no client_id (another account claimed it)', { status: 200, json: { user_code: 'ABCDEFGH', status: 'pending' } }, MESSAGES.deviceUnrecognised],
-    ['expired (400 expired_token)', { status: 400, json: { error: 'expired_token', error_description: 'User code has expired' } }, MESSAGES.deviceExpired],
-    ['already approved', { status: 200, json: { user_code: 'ABCDEFGH', status: 'approved', client_id: 'c', scope: 'openid' } }, MESSAGES.deviceProcessed],
-    ['already denied', { status: 200, json: { user_code: 'ABCDEFGH', status: 'denied', client_id: 'c', scope: 'openid' } }, MESSAGES.deviceProcessed],
+    [
+      'not recognised (400 invalid_request)',
+      { status: 400, json: { error: 'invalid_request', error_description: 'Invalid user code' } },
+      MESSAGES.deviceUnrecognised,
+    ],
+    [
+      'an answer with no client_id (another account claimed it)',
+      { status: 200, json: { user_code: 'ABCDEFGH', status: 'pending' } },
+      MESSAGES.deviceUnrecognised,
+    ],
+    [
+      'expired (400 expired_token)',
+      { status: 400, json: { error: 'expired_token', error_description: 'User code has expired' } },
+      MESSAGES.deviceExpired,
+    ],
+    [
+      'already approved',
+      { status: 200, json: { user_code: 'ABCDEFGH', status: 'approved', client_id: 'c', scope: 'openid' } },
+      MESSAGES.deviceProcessed,
+    ],
+    [
+      'already denied',
+      { status: 200, json: { user_code: 'ABCDEFGH', status: 'denied', client_id: 'c', scope: 'openid' } },
+      MESSAGES.deviceProcessed,
+    ],
     ['too many attempts (429)', { status: 429, json: { message: 'Too many requests' } }, MESSAGES.rateLimited],
     ['a generic failure', { status: 503, text: 'down' }, genericFailure(503)],
   ]
@@ -192,8 +234,16 @@ describe('one message per outcome', () => {
 
   const decideCases: Array<[string, { status: number; json?: unknown; text?: string }, string]> = [
     ['expired', { status: 400, json: { error: 'expired_token' } }, MESSAGES.deviceExpired],
-    ['already processed', { status: 400, json: { error: 'invalid_request', error_description: 'Device code already processed' } }, MESSAGES.deviceProcessed],
-    ['claimed by another account (403)', { status: 403, json: { error: 'access_denied' } }, MESSAGES.deviceUnrecognised],
+    [
+      'already processed',
+      { status: 400, json: { error: 'invalid_request', error_description: 'Device code already processed' } },
+      MESSAGES.deviceProcessed,
+    ],
+    [
+      'claimed by another account (403)',
+      { status: 403, json: { error: 'access_denied' } },
+      MESSAGES.deviceUnrecognised,
+    ],
     ['429', { status: 429, json: {} }, MESSAGES.rateLimited],
     ['a generic failure', { status: 500, text: 'boom' }, genericFailure(500)],
   ]
@@ -217,7 +267,13 @@ describe('one message per outcome', () => {
 
   it('a server error_description or message is never shown', async () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
-    fakeFetch({ ...happyRoutes(), 'GET /auth/device': { status: 400, json: { error: 'invalid_request', error_description: '<b id="x">Invalid user code</b>', message: 'nope' } } })
+    fakeFetch({
+      ...happyRoutes(),
+      'GET /auth/device': {
+        status: 400,
+        json: { error: 'invalid_request', error_description: '<b id="x">Invalid user code</b>', message: 'nope' },
+      },
+    })
     render(<DevicePage />)
     await submitCode()
     expect((await screen.findByRole('alert')).textContent).toBe(MESSAGES.deviceUnrecognised)

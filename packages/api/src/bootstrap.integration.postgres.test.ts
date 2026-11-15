@@ -28,7 +28,11 @@ beforeEach(() => truncateAll(owner))
 
 const app = () => createApp({ storage: pgStorage(db) })
 const call = (key: string, method = 'GET', body?: unknown) =>
-  app().request('/api/v1/tasks', { method, headers: { authorization: `Bearer ${key}` }, body: body ? JSON.stringify(body) : undefined })
+  app().request('/api/v1/tasks', {
+    method,
+    headers: { authorization: `Bearer ${key}` },
+    body: body ? JSON.stringify(body) : undefined,
+  })
 
 describe('bootstrap', () => {
   it('creates and authenticates', async () => {
@@ -63,7 +67,9 @@ describe('bootstrap', () => {
   })
   it('writes nothing on a bad scope', async () => {
     await expect(bootstrap(storage, { ...base, scopes: ['tasks:delete'] })).rejects.toThrow('invalid scope')
-    await expect(bootstrap(storage, { ...base, scopes: ['widgets:read'] })).rejects.toThrow('unknown scope: widgets:read')
+    await expect(bootstrap(storage, { ...base, scopes: ['widgets:read'] })).rejects.toThrow(
+      'unknown scope: widgets:read',
+    )
     expect(await owner.selectFrom('organizations').selectAll().execute()).toHaveLength(0)
   })
   it('emits no events', async () => {
@@ -93,7 +99,9 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
     const org = await seedOrganization(db)
     await seedUser(db, { organizationId: org.id, email: 'b@x.test', authSubject: 'user_a' })
     const orgs = (await owner.selectFrom('organizations').selectAll().execute()).length
-    await expect(bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_z' })).rejects.toThrow('user b@x.test is linked to another login')
+    await expect(bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_z' })).rejects.toThrow(
+      'user b@x.test is linked to another login',
+    )
     expect((await owner.selectFrom('organizations').selectAll().execute()).length).toBe(orgs)
   })
 
@@ -113,16 +121,25 @@ describe('bootstrap login linking ([[CORE3]] C15)', () => {
   })
 
   it('refuses a human-only scope', () => {
-    const policy: ScopePolicy = { 'a:read': { member: true, agentGrantable: true }, 'a:write': { member: true, agentGrantable: false } }
-    expect(() => assertAgentGrantable(['a:read', 'a:write'], ['a:read', 'a:write'], policy)).toThrow('scope not grantable to an agent: a:write')
+    const policy: ScopePolicy = {
+      'a:read': { member: true, agentGrantable: true },
+      'a:write': { member: true, agentGrantable: false },
+    }
+    expect(() => assertAgentGrantable(['a:read', 'a:write'], ['a:read', 'a:write'], policy)).toThrow(
+      'scope not grantable to an agent: a:write',
+    )
   })
 
   it('a bootstrapped user signs in', async () => {
     await bootstrap(storage, { ...base, email: 'b@x.test', authSubject: 'user_b' })
-    const kit = await testClerkAdapter({ profiles: new Map([['user_b', clerkUser({ id: 'user_b', email: 'b@x.test' })]]) })
+    const kit = await testClerkAdapter({
+      profiles: new Map([['user_b', clerkUser({ id: 'user_b', email: 'b@x.test' })]]),
+    })
     const authed = createApp({ authAdapter: kit.adapter, storage: pgStorage(db) })
     // No organisation claim: a bootstrapped organisation is not linked to the provider, so /me is the check.
-    const res = await authed.request('/meta/v1/me', { headers: { authorization: `Bearer ${await mintClerkToken(kit.issuer, { sub: 'user_b' })}` } })
+    const res = await authed.request('/meta/v1/me', {
+      headers: { authorization: `Bearer ${await mintClerkToken(kit.issuer, { sub: 'user_b' })}` },
+    })
     expect(res.status).toBe(200)
     expect((await res.json()).memberships).toHaveLength(1)
     expect(kit.fetch.calls).toHaveLength(0)

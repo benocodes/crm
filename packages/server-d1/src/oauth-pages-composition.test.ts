@@ -20,24 +20,49 @@ beforeEach(async () => {
 const ALPHABET = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/
 const register = async (name = 'Claude Desktop') => {
   const res = await kit.call('/auth/oauth2/register', {
-    body: { client_name: name, token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], redirect_uris: ['http://127.0.0.1:33418/cb'], scope: 'openid contacts:read' },
+    body: {
+      client_name: name,
+      token_endpoint_auth_method: 'none',
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      redirect_uris: ['http://127.0.0.1:33418/cb'],
+      scope: 'openid contacts:read',
+    },
   })
   expect(res.status, await res.clone().text()).toBe(201)
   return ((await res.json()) as { client_id: string }).client_id
 }
 const authorizeUrl = (clientId: string) => {
   const challenge = createHash('sha256').update('v'.repeat(50)).digest('base64url')
-  const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: 'http://127.0.0.1:33418/cb', scope: 'openid contacts:read', state: 'st 1&x', code_challenge: challenge, code_challenge_method: 'S256', resource: `${AUTH_BASE}/mcp` })
+  const q = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: 'http://127.0.0.1:33418/cb',
+    scope: 'openid contacts:read',
+    state: 'st 1&x',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    resource: `${AUTH_BASE}/mcp`,
+  })
   return `/auth/oauth2/authorize?${q.toString()}`
 }
 
 describe('the device grant (D1, D2)', () => {
   it('verification_uri and verification_uri_complete name the page at <base>/device, not /auth/device', async () => {
     const dev = await kit.call('/auth/oauth2/register', {
-      body: { client_name: 'Dev', token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'], response_types: ['code'], redirect_uris: ['http://127.0.0.1:33418/cb'], scope: 'openid contacts:read' },
+      body: {
+        client_name: 'Dev',
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
+        response_types: ['code'],
+        redirect_uris: ['http://127.0.0.1:33418/cb'],
+        scope: 'openid contacts:read',
+      },
     })
     const clientId = ((await dev.json()) as { client_id: string }).client_id
-    const res = await kit.call('/auth/device/code', { body: { client_id: clientId, scope: 'openid contacts:read', resource: AUTH_BASE } })
+    const res = await kit.call('/auth/device/code', {
+      body: { client_id: clientId, scope: 'openid contacts:read', resource: AUTH_BASE },
+    })
     expect(res.status, await res.clone().text()).toBe(200)
     const body = (await res.json()) as Record<string, any>
     expect(body.verification_uri).toBe(`${AUTH_BASE}/device`)
@@ -46,12 +71,21 @@ describe('the device grant (D1, D2)', () => {
 
   it('D2 pins the code: 8 characters from the 32-character alphabet, unseparated, 30 minutes, 5 seconds', async () => {
     const dev = await kit.call('/auth/oauth2/register', {
-      body: { client_name: 'Dev', token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'], response_types: ['code'], redirect_uris: ['http://127.0.0.1:33418/cb'], scope: 'openid contacts:read' },
+      body: {
+        client_name: 'Dev',
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
+        response_types: ['code'],
+        redirect_uris: ['http://127.0.0.1:33418/cb'],
+        scope: 'openid contacts:read',
+      },
     })
     const clientId = ((await dev.json()) as { client_id: string }).client_id
     const codes = new Set<string>()
     for (let i = 0; i < 6; i++) {
-      const res = await kit.call('/auth/device/code', { body: { client_id: clientId, scope: 'openid', resource: AUTH_BASE } })
+      const res = await kit.call('/auth/device/code', {
+        body: { client_id: clientId, scope: 'openid', resource: AUTH_BASE },
+      })
       const body = (await res.json()) as Record<string, any>
       expect(res.status, JSON.stringify(body)).toBe(200)
       expect(body.user_code).toMatch(ALPHABET)

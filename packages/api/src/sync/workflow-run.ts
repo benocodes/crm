@@ -7,7 +7,17 @@
 import { execute } from '@vibase/storage'
 import type { Role, ScopePolicy } from '../auth/roles.js'
 import { scopesForRole } from '../auth/roles.js'
-import { beginScan, captureHistoryPage, captureScanPage, loadSyncState, markConnectionStatus, type GmailSyncDeps, type PageResult, type Scan, type ScanStart } from '../channels/gmail/sync.js'
+import {
+  beginScan,
+  captureHistoryPage,
+  captureScanPage,
+  loadSyncState,
+  markConnectionStatus,
+  type GmailSyncDeps,
+  type PageResult,
+  type Scan,
+  type ScanStart,
+} from '../channels/gmail/sync.js'
 import { userSubjectOperation } from '../connections/callback.js'
 import { claimLease, extendLease, finishPass, releaseLease, type LeaseDeps } from './lease.js'
 import { instanceId, type MailSyncInstances, type MailSyncParams } from './request.js'
@@ -49,27 +59,49 @@ export const MAX_THROTTLES = 5
 /** The first throttle's sleep when Google sent no `Retry-After`; it doubles on each later throttle of the same page ([[CHN5]] D84). */
 export const BASE_BACKOFF_SECONDS = 30
 /** The n-th throttle (1-based) of one page sleeps what Google asked, else 30 s x 2^(n-1): 30, 60, 120, 240, 480. */
-export const backoffSeconds = (n: number, retryAfter: number | null): number => retryAfter ?? BASE_BACKOFF_SECONDS * 2 ** (n - 1)
+export const backoffSeconds = (n: number, retryAfter: number | null): number =>
+  retryAfter ?? BASE_BACKOFF_SECONDS * 2 ** (n - 1)
 /** Shorter than the lease, so a page that outlives its step timeout cannot outlive its lease. */
-const PAGE_STEP: StepConfig = { retries: { limit: 3, delay: '30 seconds', backoff: 'exponential' }, timeout: '4 minutes' }
-const SHORT_STEP: StepConfig = { retries: { limit: 5, delay: '10 seconds', backoff: 'exponential' }, timeout: '2 minutes' }
+const PAGE_STEP: StepConfig = {
+  retries: { limit: 3, delay: '30 seconds', backoff: 'exponential' },
+  timeout: '4 minutes',
+}
+const SHORT_STEP: StepConfig = {
+  retries: { limit: 5, delay: '10 seconds', backoff: 'exponential' },
+  timeout: '2 minutes',
+}
 
-type Claim = { claimed: true; owner_id: string; needs_backfill: boolean } | { claimed: false; reason: 'held' | 'inactive' | 'suspended' }
+type Claim =
+  | { claimed: true; owner_id: string; needs_backfill: boolean }
+  | { claimed: false; reason: 'held' | 'inactive' | 'suspended' }
 type PageOutcome = PageResult | ScanStart | { outcome: 'lease_lost' }
 type Stop = Exclude<MailSyncEnd, 'complete' | 'held' | 'suspended'>
 
-const leaseOf = (rt: MailSyncRuntime): LeaseDeps => ({ binding: rt.pages.binding, organizationId: rt.pages.organizationId, clock: rt.pages.clock })
+const leaseOf = (rt: MailSyncRuntime): LeaseDeps => ({
+  binding: rt.pages.binding,
+  organizationId: rt.pages.organizationId,
+  clock: rt.pages.clock,
+})
 
 /** The claim ([[CHN5]] D11, D33): the connection must be live and active, its owner admitted (else `suspended`, one event), and the lease free. */
 async function claim(rt: MailSyncRuntime, connectionId: string, runId: string): Promise<Claim> {
   const deps = rt.pages
   const state = await loadSyncState(deps, connectionId)
-  if (!state || state.status !== 'active' || state.deleted_at !== null) return { claimed: false, reason: 'inactive' }
+  if (state?.status !== 'active' || state.deleted_at !== null) return { claimed: false, reason: 'inactive' }
   if (rt.roleOf !== null) {
     // A failed lookup throws here and the step retries; nothing has been written.
-    const subject = (await execute(deps.binding, { kind: 'tenant', actorId: state.owner_id, organizationId: deps.organizationId }, userSubjectOperation(state.owner_id))).value
+    const subject = (
+      await execute(
+        deps.binding,
+        { kind: 'tenant', actorId: state.owner_id, organizationId: deps.organizationId },
+        userSubjectOperation(state.owner_id),
+      )
+    ).value
     const role = subject === null ? null : await rt.roleOf(subject)
-    if (role === null || !scopesForRole(role, rt.declaredScopes, rt.policy).has({ resource: 'connections', action: 'write' })) {
+    if (
+      role === null ||
+      !scopesForRole(role, rt.declaredScopes, rt.policy).has({ resource: 'connections', action: 'write' })
+    ) {
       await markConnectionStatus(deps, connectionId, state.owner_id, 'suspended', 'owner_not_admitted')
       return { claimed: false, reason: 'suspended' }
     }
@@ -78,7 +110,11 @@ async function claim(rt: MailSyncRuntime, connectionId: string, runId: string): 
   return { claimed: true, owner_id: state.owner_id, needs_backfill: state.last_synced_at === null }
 }
 
-export async function runMailSync(event: WorkflowEventLike<MailSyncParams>, step: WorkflowStepLike, resolve: () => Promise<MailSyncRuntime> | MailSyncRuntime): Promise<MailSyncSummary> {
+export async function runMailSync(
+  event: WorkflowEventLike<MailSyncParams>,
+  step: WorkflowStepLike,
+  resolve: () => Promise<MailSyncRuntime> | MailSyncRuntime,
+): Promise<MailSyncSummary> {
   const connectionId = event.payload.connection_id
 
   // Captured once: a replay re-reads these from the step, never from the clock.
@@ -97,17 +133,27 @@ export async function runMailSync(event: WorkflowEventLike<MailSyncParams>, step
   if (!claimed.claimed) return { end: claimed.reason, passes: 0 }
 
   /** One page-shaped step: gate, extend the lease (a run that lost it writes nothing), then the body. A throttle sleeps and repeats the same page. */
-  const page = async <T extends PageOutcome>(name: string, body: (deps: GmailSyncDeps) => Promise<T>): Promise<T | { outcome: 'lease_lost' }> => {
+  const page = async <T extends PageOutcome>(
+    name: string,
+    body: (deps: GmailSyncDeps) => Promise<T>,
+  ): Promise<T | { outcome: 'lease_lost' }> => {
     for (let throttles = 0; ; ) {
-      const r = await step.do(throttles === 0 ? name : `${name}-t${throttles}`, PAGE_STEP, async (): Promise<T | { outcome: 'lease_lost' }> => {
-        const rt = await resolve()
-        await rt.gate()
-        if (!(await extendLease(leaseOf(rt), connectionId, runId))) return { outcome: 'lease_lost' }
-        return body(rt.pages)
-      })
+      const r = await step.do(
+        throttles === 0 ? name : `${name}-t${throttles}`,
+        PAGE_STEP,
+        async (): Promise<T | { outcome: 'lease_lost' }> => {
+          const rt = await resolve()
+          await rt.gate()
+          if (!(await extendLease(leaseOf(rt), connectionId, runId))) return { outcome: 'lease_lost' }
+          return body(rt.pages)
+        },
+      )
       if (r.outcome !== 'throttled') return r
       if (++throttles > MAX_THROTTLES) throw new Error(`Gmail throttled the page ${throttles} times`)
-      await step.sleep(`${name}-sleep-${throttles}`, `${backoffSeconds(throttles, (r as { retry_after_seconds: number | null }).retry_after_seconds)} seconds`)
+      await step.sleep(
+        `${name}-sleep-${throttles}`,
+        `${backoffSeconds(throttles, (r as { retry_after_seconds: number | null }).retry_after_seconds)} seconds`,
+      )
     }
   }
 

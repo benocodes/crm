@@ -11,12 +11,19 @@ export interface SessionUser {
   name?: string
 }
 
-async function call(method: 'GET' | 'POST', path: string, body?: unknown, headers: Record<string, string> = {}): Promise<ApiResult<unknown>> {
+async function call(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+): Promise<ApiResult<unknown>> {
   try {
     const res = await fetch(path, {
       method,
       credentials: 'include',
-      ...(body === undefined ? {} : { headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) }),
+      ...(body === undefined
+        ? {}
+        : { headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) }),
     })
     const text = await res.text()
     let json: unknown
@@ -28,7 +35,8 @@ async function call(method: 'GET' | 'POST', path: string, body?: unknown, header
     if (res.ok) return { ok: true, data: json }
     // Better Auth's own endpoints answer `{ code, message }`; the OAuth and device endpoints answer `{ error, error_description }` ([[UI247]] D6): `error` is a machine code too, the description is text a page never shows.
     const failure = json as { code?: unknown; error?: unknown } | null | undefined
-    const code = typeof failure?.code === 'string' ? failure.code : typeof failure?.error === 'string' ? failure.error : undefined
+    const code =
+      typeof failure?.code === 'string' ? failure.code : typeof failure?.error === 'string' ? failure.error : undefined
     return code !== undefined ? { ok: false, status: res.status, code } : { ok: false, status: res.status }
   } catch {
     return { ok: false, status: 0 }
@@ -67,15 +75,37 @@ const withUser = (r: ApiResult<unknown>): ApiResult<{ user?: SessionUser }> => {
   return { ok: true, data: user ? { user } : {} }
 }
 
-export const signUp = async (b: { name: string; email: string; password: string; invitation_token: string }): Promise<ApiResult<{ user?: SessionUser }>> =>
-  withUser(await call('POST', '/auth/sign-up/email', { name: b.name, email: b.email, password: b.password, invitation_token: b.invitation_token }))
+export const signUp = async (b: {
+  name: string
+  email: string
+  password: string
+  invitation_token: string
+}): Promise<ApiResult<{ user?: SessionUser }>> =>
+  withUser(
+    await call('POST', '/auth/sign-up/email', {
+      name: b.name,
+      email: b.email,
+      password: b.password,
+      invitation_token: b.invitation_token,
+    }),
+  )
 /**
  * [[UI247]] D6: with `oauthQuery` (the signed query of an OAuth flow, verbatim) the request carries it as `oauth_query`, and a success may answer `{ redirect: true, url }`: the data then holds the
  * validated URL (`isFollowable`). A redirect that is not followable is a failure, never a navigation.
  */
-export const signIn = async (b: { email: string; password: string; oauthQuery?: string; invitationToken?: string }): Promise<ApiResult<{ user?: SessionUser; redirect?: string }>> => {
+export const signIn = async (b: {
+  email: string
+  password: string
+  oauthQuery?: string
+  invitationToken?: string
+}): Promise<ApiResult<{ user?: SessionUser; redirect?: string }>> => {
   // [[CORE302]] P1: the invitation token of a re-admission rides a header (Better Auth's sign-in body schema strips unknown fields).
-  const raw = await call('POST', '/auth/sign-in/email', { email: b.email, password: b.password, ...(b.oauthQuery === undefined ? {} : { oauth_query: b.oauthQuery }) }, b.invitationToken === undefined ? {} : { 'vibase-invitation': b.invitationToken })
+  const raw = await call(
+    'POST',
+    '/auth/sign-in/email',
+    { email: b.email, password: b.password, ...(b.oauthQuery === undefined ? {} : { oauth_query: b.oauthQuery }) },
+    b.invitationToken === undefined ? {} : { 'vibase-invitation': b.invitationToken },
+  )
   const r = withUser(raw)
   return r.ok && raw.ok ? withRedirect(r, raw.data) : r
 }
@@ -85,7 +115,9 @@ export const signIn = async (b: { email: string; password: string; oauthQuery?: 
  */
 export async function getSignInMethods(): Promise<string[]> {
   const r = await call('GET', '/.well-known/vibase')
-  const methods = r.ok ? (r.data as { auth?: { sign_in_methods?: unknown } } | null | undefined)?.auth?.sign_in_methods : undefined
+  const methods = r.ok
+    ? (r.data as { auth?: { sign_in_methods?: unknown } } | null | undefined)?.auth?.sign_in_methods
+    : undefined
   return Array.isArray(methods) ? methods.filter((m): m is string => typeof m === 'string') : ['password']
 }
 /**
@@ -93,10 +125,17 @@ export async function getSignInMethods(): Promise<string[]> {
  * (validated like every redirect: `http:` or `https:` only).
  */
 export async function startGoogleSignIn(invitationToken?: string): Promise<ApiResult<{ redirect: string }>> {
-  const r = await call('POST', '/auth/sign-in/social', { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in', ...(invitationToken === undefined ? {} : { invitation_token: invitationToken }) })
+  const r = await call('POST', '/auth/sign-in/social', {
+    provider: 'google',
+    callbackURL: '/sign-in',
+    errorCallbackURL: '/sign-in',
+    ...(invitationToken === undefined ? {} : { invitation_token: invitationToken }),
+  })
   if (!r.ok) return r
   const target = redirectOf(r.data)
-  return typeof target === 'string' ? { ok: true, data: { redirect: target } } : { ok: false, status: 200, code: 'invalid_redirect' }
+  return typeof target === 'string'
+    ? { ok: true, data: { redirect: target } }
+    : { ok: false, status: 200, code: 'invalid_redirect' }
 }
 export const getSession = async (): Promise<ApiResult<{ user: SessionUser } | null>> => {
   const r = await call('GET', '/auth/get-session')
@@ -105,22 +144,29 @@ export const getSession = async (): Promise<ApiResult<{ user: SessionUser } | nu
   return { ok: true, data: user ? { user } : null }
 }
 export const signOut = (): Promise<ApiResult<unknown>> => call('POST', '/auth/sign-out', {})
-export const resetPassword = (b: { newPassword: string; token: string }): Promise<ApiResult<unknown>> => call('POST', '/auth/reset-password', { newPassword: b.newPassword, token: b.token })
-
+export const resetPassword = (b: { newPassword: string; token: string }): Promise<ApiResult<unknown>> =>
+  call('POST', '/auth/reset-password', { newPassword: b.newPassword, token: b.token })
 
 const text = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined)
 
 /** The answer of `GET /auth/device?user_code=`: claims a pending code for this session ([[UI247]] D3). `clientId` and `scope` come back only to the session that claimed it. */
-export async function claimDeviceCode(userCode: string): Promise<ApiResult<{ status: string; clientId?: string; scope?: string }>> {
+export async function claimDeviceCode(
+  userCode: string,
+): Promise<ApiResult<{ status: string; clientId?: string; scope?: string }>> {
   const r = await call('GET', `/auth/device?user_code=${encodeURIComponent(userCode)}`)
   if (!r.ok) return r
   const b = (r.data ?? {}) as { status?: unknown; client_id?: unknown; scope?: unknown }
   const clientId = text(b.client_id)
   const scope = text(b.scope)
-  return { ok: true, data: { status: text(b.status) ?? '', ...(clientId ? { clientId } : {}), ...(scope ? { scope } : {}) } }
+  return {
+    ok: true,
+    data: { status: text(b.status) ?? '', ...(clientId ? { clientId } : {}), ...(scope ? { scope } : {}) },
+  }
 }
-export const approveDevice = (userCode: string): Promise<ApiResult<unknown>> => call('POST', '/auth/device/approve', { userCode })
-export const denyDevice = (userCode: string): Promise<ApiResult<unknown>> => call('POST', '/auth/device/deny', { userCode })
+export const approveDevice = (userCode: string): Promise<ApiResult<unknown>> =>
+  call('POST', '/auth/device/approve', { userCode })
+export const denyDevice = (userCode: string): Promise<ApiResult<unknown>> =>
+  call('POST', '/auth/device/deny', { userCode })
 
 /** An app's self-declared name (`GET /auth/oauth2/public-client`): text from an open registration, never trusted ([[UI247]] D4). */
 export async function getClientName(clientId: string): Promise<ApiResult<{ name?: string }>> {
@@ -135,5 +181,7 @@ export async function submitConsent(accept: boolean, oauthQuery: string): Promis
   const r = await call('POST', '/auth/oauth2/consent', { accept, oauth_query: oauthQuery })
   if (!r.ok) return r
   const target = redirectOf(r.data)
-  return typeof target === 'string' ? { ok: true, data: { redirect: target } } : { ok: false, status: 200, code: 'invalid_redirect' }
+  return typeof target === 'string'
+    ? { ok: true, data: { redirect: target } }
+    : { ok: false, status: 200, code: 'invalid_redirect' }
 }

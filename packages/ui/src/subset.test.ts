@@ -40,21 +40,22 @@ describe('subset scan', () => {
     ['dangerouslySetInnerHTML', 'const a = <div dangerouslySetInnerHTML={{ __html: x }} />', 'dangerouslySetInnerHTML'],
     ['a style prop', 'const a = <div style={{ color: "red" }} />', 'style prop'],
     ['a class attribute', 'const a = <div class="x" />', 'class attribute (use className)'],
-    ['forwardRef', "const A = forwardRef(() => null)", 'forwardRef (ref is an ordinary prop)'],
+    ['forwardRef', 'const A = forwardRef(() => null)', 'forwardRef (ref is an ordinary prop)'],
   ])('refuses %s', (_name, source, rule) => {
     expect(checkSubset(sandbox({ 'a.tsx': source })).map((x) => x.rule)).toEqual([rule])
   })
 
   it('allows react, relative files and the stylesheet, and className/htmlFor', () => {
     const root = sandbox({
-      'a.tsx': "import { useId } from 'react'\nimport type { ReactNode } from 'react'\nimport { b } from './b'\nimport '../ui.css'\nconst a = <label className=\"x\" htmlFor=\"y\" />",
+      'a.tsx':
+        "import { useId } from 'react'\nimport type { ReactNode } from 'react'\nimport { b } from './b'\nimport '../ui.css'\nconst a = <label className=\"x\" htmlFor=\"y\" />",
     })
     expect(checkSubset(root)).toEqual([])
   })
 
   it('exempts test files and src/test/, which may import anything', () => {
     const root = sandbox({
-      'a.test.tsx': "import { render } from 'preact'\nconst a = <div class=\"x\" />",
+      'a.test.tsx': 'import { render } from \'preact\'\nconst a = <div class="x" />',
       'a.ui.test.tsx': "import { x } from '@testing-library/react'",
       'test/helper.ts': "import { x } from 'preact'",
     })
@@ -62,6 +63,12 @@ describe('subset scan', () => {
   })
 
   it('does not trip on a comment that names a refused spelling', () => {
-    expect(checkSubset(sandbox({ 'a.tsx': "// never dangerouslySetInnerHTML, style= or class=\n/* forwardRef */\nexport const a = 1" }))).toEqual([])
+    expect(
+      checkSubset(
+        sandbox({
+          'a.tsx': '// never dangerouslySetInnerHTML, style= or class=\n/* forwardRef */\nexport const a = 1',
+        }),
+      ),
+    ).toEqual([])
   })
 })

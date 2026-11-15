@@ -22,7 +22,9 @@ export async function seedDeployment(
   if (opts.organization !== false) {
     statements.push(
       d1
-        .prepare('INSERT INTO organizations (id, created_at, updated_at, name, auth_provider, auth_org_id) VALUES (?, ?, ?, ?, ?, ?)')
+        .prepare(
+          'INSERT INTO organizations (id, created_at, updated_at, name, auth_provider, auth_org_id) VALUES (?, ?, ?, ?, ?, ?)',
+        )
         .bind(opts.organizationId, SEED_AT, SEED_AT, opts.name ?? 'Local organisation', provider, externalId),
     )
   }
@@ -43,11 +45,15 @@ export async function seedPrincipal(
   },
 ): Promise<void> {
   const at = opts.at ?? SEED_AT
-  const statements = [d1.prepare('INSERT INTO principals (id, kind, created_at) VALUES (?, ?, ?)').bind(opts.id, opts.kind, at)]
+  const statements = [
+    d1.prepare('INSERT INTO principals (id, kind, created_at) VALUES (?, ?, ?)').bind(opts.id, opts.kind, at),
+  ]
   if (opts.kind === 'user') {
     statements.push(
       d1
-        .prepare('INSERT INTO users (id, created_at, updated_at, email, name, auth_provider, auth_subject, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .prepare(
+          'INSERT INTO users (id, created_at, updated_at, email, name, auth_provider, auth_subject, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        )
         .bind(
           opts.id,
           at,
@@ -66,12 +72,21 @@ export async function seedPrincipal(
 /** A membership row (the directory sync writes these on Postgres; a D1 deployment seeds them). `at` stamps the row. */
 export async function seedMembership(
   d1: D1Like,
-  opts: { id?: string; organizationId: string; userId: string; role: 'owner' | 'member'; createdBy?: string; at?: string },
+  opts: {
+    id?: string
+    organizationId: string
+    userId: string
+    role: 'owner' | 'member'
+    createdBy?: string
+    at?: string
+  },
 ): Promise<string> {
   const id = opts.id ?? uuidv7()
   const at = opts.at ?? SEED_AT
   await d1
-    .prepare('INSERT INTO memberships (id, created_at, updated_at, organization_id, user_id, role, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .prepare(
+      'INSERT INTO memberships (id, created_at, updated_at, organization_id, user_id, role, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
     .bind(id, at, at, opts.organizationId, opts.userId, opts.role, opts.createdBy ?? opts.userId)
     .run()
   return id
@@ -80,13 +95,30 @@ export async function seedMembership(
 /** An agent: its principal and its agents row. `scopes` are stored as the JSON array the column holds. */
 export async function seedAgent(
   d1: D1Like,
-  opts: { id: string; organizationId: string; createdBy: string; name?: string; scopes?: readonly string[]; at?: string },
+  opts: {
+    id: string
+    organizationId: string
+    createdBy: string
+    name?: string
+    scopes?: readonly string[]
+    at?: string
+  },
 ): Promise<void> {
   const at = opts.at ?? SEED_AT
   await d1.batch([
     d1.prepare('INSERT INTO principals (id, kind, created_at) VALUES (?, ?, ?)').bind(opts.id, 'agent', at),
     d1
-      .prepare('INSERT INTO agents (id, created_at, updated_at, organization_id, name, scopes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(opts.id, at, at, opts.organizationId, opts.name ?? 'seeded-agent', JSON.stringify(opts.scopes ?? []), opts.createdBy),
+      .prepare(
+        'INSERT INTO agents (id, created_at, updated_at, organization_id, name, scopes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+      .bind(
+        opts.id,
+        at,
+        at,
+        opts.organizationId,
+        opts.name ?? 'seeded-agent',
+        JSON.stringify(opts.scopes ?? []),
+        opts.createdBy,
+      ),
   ])
 }

@@ -2,18 +2,29 @@
 // contract test checks them and [[CORE187]]'s discovery can derive `indexed` from them at runtime (a sort is indexed unless it is listed here).
 
 /** A list x sort whose `order=desc` D1 plan carries `USE TEMP B-TREE FOR ORDER BY`, accepted with a reason. Exact: the contract fails on a missing, obsolete or unknown entry. */
-export interface StatedSortCost { readonly list: string; readonly sort: string; readonly reason: string }
+export interface StatedSortCost {
+  readonly list: string
+  readonly sort: string
+  readonly reason: string
+}
 /** A hand-written registry list that keeps ascending `id` and UUID cursors, with the reason it is outside the rollout (D15, #188); [[CORE188]] adopted action_executions, so two remain. */
-export interface SortExemption { readonly list: string; readonly reason: string }
+export interface SortExemption {
+  readonly list: string
+  readonly reason: string
+}
 
-const COLUMN = 'no (organization_id, column, id) index (D7): a temporary sort over the organisation\'s live rows'
-const DERIVED = 'derived field: evaluated per row by a correlated lookup of another table, then sorted in a temporary b-tree'
-const ID = 'the planner reads the live-row unique index, whose order is not id, so id order needs a temporary sort, as the unsorted ascending list already does'
+const COLUMN = "no (organization_id, column, id) index (D7): a temporary sort over the organisation's live rows"
+const DERIVED =
+  'derived field: evaluated per row by a correlated lookup of another table, then sorted in a temporary b-tree'
+const ID =
+  'the planner reads the live-row unique index, whose order is not id, so id order needs a temporary sort, as the unsorted ascending list already does'
 
 // [[CORE188]] D5: action_executions is read through `operation IN (the readable operations)`, so the planner searches the (organization_id, operation)
 // index once per operation and every order, `id` included, is a temporary sort over the organisation's executions of those operations.
-const EXECUTION_COLUMN = 'no (organization_id, column, id) index (D5): a temporary sort over the executions of the readable operations, a few hundred to a few thousand rows per workspace'
-const EXECUTION_ID = 'the visibility predicate is operation IN (the readable operations): the planner searches the (organization_id, operation) index per operation, so id order needs a temporary sort, as the unsorted ascending list already does'
+const EXECUTION_COLUMN =
+  'no (organization_id, column, id) index (D5): a temporary sort over the executions of the readable operations, a few hundred to a few thousand rows per workspace'
+const EXECUTION_ID =
+  'the visibility predicate is operation IN (the readable operations): the planner searches the (organization_id, operation) index per operation, so id order needs a temporary sort, as the unsorted ascending list already does'
 
 export const STATED_SORT_COSTS: readonly StatedSortCost[] = [
   { list: 'action_executions', sort: 'created_at', reason: EXECUTION_COLUMN },
@@ -82,10 +93,19 @@ export const STATED_SORT_COSTS: readonly StatedSortCost[] = [
   { list: 'memberships', sort: 'id', reason: ID },
 ]
 
-const HAND_WRITTEN = 'a hand-written list with its own query: it keeps ascending id and UUID cursors until #188 adopts the shared foundation on it'
+const HAND_WRITTEN =
+  'a hand-written list with its own query: it keeps ascending id and UUID cursors until #188 adopts the shared foundation on it'
 export const SORT_EXEMPT_LISTS: readonly SortExemption[] = [
   { list: 'associations', reason: `${HAND_WRITTEN}; oriented edges of an anchor, paged by association id` },
   { list: 'users', reason: `${HAND_WRITTEN}; users with a live membership` },
-  { list: 'events', reason: 'the change feed (API214): paged by event id in commit order (seq), never sorted; its cursor is the id of the last event seen and it has no column filters (API6 D2, D5)' },
-  { list: 'webhooks', reason: 'owner-scoped subscriptions (API7 D22): a hand-written list paged by subscription id, ascending; no definition generates it' },
+  {
+    list: 'events',
+    reason:
+      'the change feed (API214): paged by event id in commit order (seq), never sorted; its cursor is the id of the last event seen and it has no column filters (API6 D2, D5)',
+  },
+  {
+    list: 'webhooks',
+    reason:
+      'owner-scoped subscriptions (API7 D22): a hand-written list paged by subscription id, ascending; no definition generates it',
+  },
 ]

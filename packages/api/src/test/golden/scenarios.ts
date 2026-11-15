@@ -33,11 +33,27 @@ export const GOLDEN_EXPIRED_KEY = 'vk_golden-agent-key-0002-expired-at-seed'
  * seeded API keys; `{ clerk }` is a real Clerk-signed token for that subject (with an optional organisation claim); `webhook` is a
  * Svix-signed delivery of the step's `body` to `POST /webhooks/clerk` (CORE41 P15).
  */
-export type GoldenActor = 'user' | 'agent' | 'agent-key' | 'expired-key' | 'webhook' | { clerk: string; claim?: { org: string; role: string } }
+export type GoldenActor =
+  | 'user'
+  | 'agent'
+  | 'agent-key'
+  | 'expired-key'
+  | 'webhook'
+  | { clerk: string; claim?: { org: string; role: string } }
 /** The fake Clerk a scenario runs against: profiles by subject and organisations with their members (role `org:admin` or `org:member`). */
 export interface GoldenClerk {
-  users?: ReadonlyArray<{ subject: string; email: string | null; first?: string | null; last?: string | null; verified?: boolean }>
-  organizations?: ReadonlyArray<{ id: string; name: string; members: ReadonlyArray<readonly [string, 'org:admin' | 'org:member']> }>
+  users?: ReadonlyArray<{
+    subject: string
+    email: string | null
+    first?: string | null
+    last?: string | null
+    verified?: boolean
+  }>
+  organizations?: ReadonlyArray<{
+    id: string
+    name: string
+    members: ReadonlyArray<readonly [string, 'org:admin' | 'org:member']>
+  }>
 }
 export interface GoldenStep {
   as: GoldenActor
@@ -93,10 +109,23 @@ export const taskScenarios: readonly GoldenScenario[] = [
         at: at(0),
         method: 'POST',
         path: '/api/v1/tasks',
-        body: { title: '  Padded title  ', notes: 'n', status: 'done', due_at: '2026-10-25T10:00:00+02:00', assignee_id: IDS.user2 },
+        body: {
+          title: '  Padded title  ',
+          notes: 'n',
+          status: 'done',
+          due_at: '2026-10-25T10:00:00+02:00',
+          assignee_id: IDS.user2,
+        },
         save: 'a',
       },
-      { as: 'agent', at: at(1), method: 'POST', path: '/api/v1/tasks', body: { title: 'By the agent', status: 'open', notes: null, due_at: null, assignee_id: null }, save: 'b' },
+      {
+        as: 'agent',
+        at: at(1),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 'By the agent', status: 'open', notes: null, due_at: null, assignee_id: null },
+        save: 'b',
+      },
     ],
   },
   {
@@ -105,7 +134,13 @@ export const taskScenarios: readonly GoldenScenario[] = [
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: {} },
       { as: 'user', at: at(1), method: 'POST', path: '/api/v1/tasks', body: { title: '' } },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/tasks', body: { title: 'x', completed_at: '2026-10-22T09:00:00Z' } },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 'x', completed_at: '2026-10-22T09:00:00Z' },
+      },
       { as: 'user', at: at(3), method: 'POST', path: '/api/v1/tasks', body: { title: 'x', due_at: '2026-10-25' } },
       { as: 'user', at: at(4), method: 'POST', path: '/api/v1/tasks', body: { title: 'x', status: 'blocked' } },
       { as: 'user', at: at(5), method: 'POST', path: '/api/v1/tasks', body: { title: 'x', assignee_id: 'not-a-uuid' } },
@@ -114,7 +149,8 @@ export const taskScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'completion',
-    about: 'completed_at follows status: open to done stamps, done to done keeps, done to open clears, no status leaves it',
+    about:
+      'completed_at follows status: open to done stamps, done to done keeps, done to open clears, no status leaves it',
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: { title: 'Complete me' }, save: 'a' },
       { as: 'user', at: at(1), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { status: 'done' } },
@@ -127,12 +163,26 @@ export const taskScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'patch-variants',
-    about: 'an empty patch checks existence and writes nothing; a same-value patch is a real update; null clears nullable fields',
+    about:
+      'an empty patch checks existence and writes nothing; a same-value patch is a real update; null clears nullable fields',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: { title: 'Patch me', notes: 'keep', due_at: '2026-10-30T12:00:00Z', assignee_id: IDS.user2 }, save: 'a' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 'Patch me', notes: 'keep', due_at: '2026-10-30T12:00:00Z', assignee_id: IDS.user2 },
+        save: 'a',
+      },
       { as: 'user', at: at(1), method: 'PATCH', path: '/api/v1/tasks/{a}', body: {} },
       { as: 'user', at: at(2), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { title: 'Patch me' } },
-      { as: 'user', at: at(3), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { notes: null, due_at: null, assignee_id: null } },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'PATCH',
+        path: '/api/v1/tasks/{a}',
+        body: { notes: null, due_at: null, assignee_id: null },
+      },
       { as: 'user', at: at(4), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { title: 'x', zz_unknown: 1 } },
       { as: 'user', at: at(5), method: 'PATCH', path: `/api/v1/tasks/${IDS.missing}`, body: {} },
       { as: 'user', at: at(6), method: 'PATCH', path: '/api/v1/tasks/not-a-uuid', body: { title: 'x' } },
@@ -140,21 +190,47 @@ export const taskScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'references',
-    about: 'an assignee must be a principal of this vault; checked after existence, before any write; null is always fine',
+    about:
+      'an assignee must be a principal of this vault; checked after existence, before any write; null is always fine',
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: { title: 'Assign me' }, save: 'a' },
-      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/tasks', body: { title: 'Bad assignee', assignee_id: IDS.missing } },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/tasks', body: { title: 'Foreign assignee', assignee_id: IDS.foreignUser } },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 'Bad assignee', assignee_id: IDS.missing },
+      },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 'Foreign assignee', assignee_id: IDS.foreignUser },
+      },
       { as: 'user', at: at(3), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { assignee_id: IDS.missing } },
-      { as: 'user', at: at(4), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { assignee_id: IDS.foreignUser, title: 'Not applied' } },
-      { as: 'user', at: at(5), method: 'PATCH', path: `/api/v1/tasks/${IDS.missing}`, body: { assignee_id: IDS.missing } },
+      {
+        as: 'user',
+        at: at(4),
+        method: 'PATCH',
+        path: '/api/v1/tasks/{a}',
+        body: { assignee_id: IDS.foreignUser, title: 'Not applied' },
+      },
+      {
+        as: 'user',
+        at: at(5),
+        method: 'PATCH',
+        path: `/api/v1/tasks/${IDS.missing}`,
+        body: { assignee_id: IDS.missing },
+      },
       { as: 'user', at: at(6), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { assignee_id: IDS.agent } },
       { as: 'user', at: at(7), method: 'GET', path: '/api/v1/tasks/{a}' },
     ],
   },
   {
     name: 'delete',
-    about: 'delete is soft: the record leaves get, list and update; a second delete is not_found; the event carries the last record',
+    about:
+      'delete is soft: the record leaves get, list and update; a second delete is not_found; the event carries the last record',
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: { title: 'Delete me' }, save: 'a' },
       { as: 'user', at: at(1), method: 'POST', path: '/api/v1/tasks', body: { title: 'Keep me' }, save: 'b' },
@@ -168,11 +244,33 @@ export const taskScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'list-filters-and-pages',
-    about: 'filters are equality, pages are id-ordered with an opaque next_cursor, bad filters and limits are validation errors',
+    about:
+      'filters are equality, pages are id-ordered with an opaque next_cursor, bad filters and limits are validation errors',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: { title: 't1', assignee_id: IDS.user2 }, save: 't1' },
-      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/tasks', body: { title: 't2', status: 'done' }, save: 't2' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/tasks', body: { title: 't3', assignee_id: IDS.user2, status: 'done' }, save: 't3' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 't1', assignee_id: IDS.user2 },
+        save: 't1',
+      },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 't2', status: 'done' },
+        save: 't2',
+      },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 't3', assignee_id: IDS.user2, status: 'done' },
+        save: 't3',
+      },
       { as: 'user', at: at(3), method: 'POST', path: '/api/v1/tasks', body: { title: 't4' }, save: 't4' },
       { as: 'user', at: at(4), method: 'GET', path: '/api/v1/tasks?limit=2' },
       { as: 'user', at: at(5), method: 'GET', path: '/api/v1/tasks?limit=2&after={t2}' },
@@ -187,12 +285,33 @@ export const taskScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'sorted-pages',
-    about: 'CORE175: tasks sort by a stored column: due_at ascending pages with a null first, an opaque cursor picked from page one and reused on page two, the same cursor under another sort is a validation error; reads emit no events',
+    about:
+      'CORE175: tasks sort by a stored column: due_at ascending pages with a null first, an opaque cursor picked from page one and reused on page two, the same cursor under another sort is a validation error; reads emit no events',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: { title: 'late', due_at: '2026-10-30T09:00:00.000Z' }, save: 'late' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 'late', due_at: '2026-10-30T09:00:00.000Z' },
+        save: 'late',
+      },
       { as: 'user', at: at(1), method: 'POST', path: '/api/v1/tasks', body: { title: 'undated' }, save: 'undated' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/tasks', body: { title: 'early', due_at: '2026-10-25T09:00:00.000Z' }, save: 'early' },
-      { as: 'user', at: at(3), method: 'GET', path: '/api/v1/tasks?sort=due_at&order=asc&limit=2', pick: { next: (b) => b.next_cursor } },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/tasks',
+        body: { title: 'early', due_at: '2026-10-25T09:00:00.000Z' },
+        save: 'early',
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'GET',
+        path: '/api/v1/tasks?sort=due_at&order=asc&limit=2',
+        pick: { next: (b) => b.next_cursor },
+      },
       { as: 'user', at: at(4), method: 'GET', path: '/api/v1/tasks?sort=due_at&order=asc&limit=2&after={next}' },
       { as: 'agent', at: at(5), method: 'GET', path: '/api/v1/tasks?sort=due_at&order=desc' },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/tasks?sort=title&order=asc&limit=2&after={next}' },
@@ -208,29 +327,96 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
     about:
       'domains are normalised and unique per live company (409 domain_exists names the other company); a company may keep its own domain; the domain filter normalises; a deleted company frees its domain',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme', domain: ' Acme.COM ' }, save: 'a' },
-      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/companies', body: { name: 'Other', domain: 'other.com' }, save: 'b' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/api/v1/companies',
+        body: { name: 'Acme', domain: ' Acme.COM ' },
+        save: 'a',
+      },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/api/v1/companies',
+        body: { name: 'Other', domain: 'other.com' },
+        save: 'b',
+      },
       { as: 'user', at: at(2), method: 'POST', path: '/api/v1/companies', body: { name: 'Clash', domain: 'ACME.com' } },
       { as: 'user', at: at(3), method: 'PATCH', path: '/api/v1/companies/{b}', body: { domain: 'acme.com' } },
-      { as: 'user', at: at(4), method: 'PATCH', path: '/api/v1/companies/{a}', body: { domain: 'ACME.COM', name: 'Acme Inc' } },
-      { as: 'user', at: at(5), method: 'POST', path: '/api/v1/companies', body: { name: 'Bad', domain: 'https://acme.com' } },
+      {
+        as: 'user',
+        at: at(4),
+        method: 'PATCH',
+        path: '/api/v1/companies/{a}',
+        body: { domain: 'ACME.COM', name: 'Acme Inc' },
+      },
+      {
+        as: 'user',
+        at: at(5),
+        method: 'POST',
+        path: '/api/v1/companies',
+        body: { name: 'Bad', domain: 'https://acme.com' },
+      },
       { as: 'agent', at: at(6), method: 'POST', path: '/api/v1/companies', body: { name: 'No domain' }, save: 'c' },
       { as: 'user', at: at(7), method: 'GET', path: '/api/v1/companies?domain=ACME.com' },
-      { as: 'user', at: at(8), method: 'PATCH', path: '/api/v1/companies/{c}', body: { domain: null, name: 'Renamed' } },
+      {
+        as: 'user',
+        at: at(8),
+        method: 'PATCH',
+        path: '/api/v1/companies/{c}',
+        body: { domain: null, name: 'Renamed' },
+      },
       { as: 'user', at: at(9), method: 'DELETE', path: '/api/v1/companies/{a}' },
-      { as: 'user', at: at(10), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme again', domain: 'acme.com' } },
+      {
+        as: 'user',
+        at: at(10),
+        method: 'POST',
+        path: '/api/v1/companies',
+        body: { name: 'Acme again', domain: 'acme.com' },
+      },
       { as: 'user', at: at(11), method: 'GET', path: '/api/v1/companies/{a}' },
       { as: 'user', at: at(12), method: 'GET', path: '/api/v1/companies' },
     ],
   },
   {
     name: 'company-delete-unlinks',
-    about: 'deleting a company unlinks its LIVE contacts in one set (company.deleted, then contact.updated per contact in id order); a deleted contact is untouched',
+    about:
+      'deleting a company unlinks its LIVE contacts in one set (company.deleted, then contact.updated per contact in id order); a deleted contact is untouched',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme', domain: 'acme.com' }, save: 'co' },
-      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/contacts', body: { name: 'One', company_id: '{co}' }, save: 'k1' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/contacts', body: { name: 'Two', company_id: '{co}' }, save: 'k2' },
-      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/contacts', body: { name: 'Gone', company_id: '{co}' }, save: 'k3' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/api/v1/companies',
+        body: { name: 'Acme', domain: 'acme.com' },
+        save: 'co',
+      },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/api/v1/contacts',
+        body: { name: 'One', company_id: '{co}' },
+        save: 'k1',
+      },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/contacts',
+        body: { name: 'Two', company_id: '{co}' },
+        save: 'k2',
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/api/v1/contacts',
+        body: { name: 'Gone', company_id: '{co}' },
+        save: 'k3',
+      },
       { as: 'user', at: at(4), method: 'DELETE', path: '/api/v1/contacts/{k3}' },
       { as: 'agent', at: at(5), method: 'DELETE', path: '/api/v1/companies/{co}' },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/contacts/{k1}' },
@@ -245,11 +431,24 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/contacts', body: {}, save: 'a' },
       { as: 'user', at: at(1), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme' }, save: 'co' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/contacts', body: { name: '  Padded  ', company_id: '{co}' }, save: 'b' },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/contacts',
+        body: { name: '  Padded  ', company_id: '{co}' },
+        save: 'b',
+      },
       { as: 'user', at: at(3), method: 'POST', path: '/api/v1/contacts', body: { company_id: IDS.missing } },
       { as: 'user', at: at(4), method: 'PATCH', path: '/api/v1/contacts/{a}', body: { company_id: IDS.missing } },
       { as: 'user', at: at(5), method: 'PATCH', path: '/api/v1/contacts/{a}', body: { merged_into_id: '{b}' } },
-      { as: 'agent', at: at(6), method: 'PATCH', path: '/api/v1/contacts/{a}', body: { name: 'Named', company_id: '{co}' } },
+      {
+        as: 'agent',
+        at: at(6),
+        method: 'PATCH',
+        path: '/api/v1/contacts/{a}',
+        body: { name: 'Named', company_id: '{co}' },
+      },
       { as: 'user', at: at(7), method: 'PATCH', path: '/api/v1/contacts/{b}', body: {} },
       { as: 'user', at: at(8), method: 'PATCH', path: '/api/v1/contacts/{b}', body: { name: null, company_id: null } },
       { as: 'user', at: at(9), method: 'GET', path: '/api/v1/contacts?company_id={co}' },
@@ -260,17 +459,45 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'contact-delete-cascade',
-    about: 'deleting a contact tombstones its live identities in one set (contact.deleted, then identity.deleted per identity in id order); the addresses become reusable',
+    about:
+      'deleting a contact tombstones its live identities in one set (contact.deleted, then identity.deleted per identity in id order); the addresses become reusable',
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/contacts', body: { name: 'Ori' }, save: 'k' },
-      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'ori@example.com', contact_id: '{k}' }, save: 'i1' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/identities', body: { kind: 'phone', value: '+14155550100', contact_id: '{k}' }, save: 'i2' },
-      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'old@example.com', contact_id: '{k}' }, save: 'i3' },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'ori@example.com', contact_id: '{k}' },
+        save: 'i1',
+      },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'phone', value: '+14155550100', contact_id: '{k}' },
+        save: 'i2',
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'old@example.com', contact_id: '{k}' },
+        save: 'i3',
+      },
       { as: 'user', at: at(4), method: 'DELETE', path: '/api/v1/identities/{i3}' },
       { as: 'agent', at: at(5), method: 'DELETE', path: '/api/v1/contacts/{k}' },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/identities/{i1}' },
       { as: 'user', at: at(7), method: 'POST', path: '/api/v1/contacts', body: {}, save: 'k2' },
-      { as: 'user', at: at(8), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'ORI@example.com', contact_id: '{k2}' } },
+      {
+        as: 'user',
+        at: at(8),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'ORI@example.com', contact_id: '{k2}' },
+      },
       { as: 'user', at: at(9), method: 'DELETE', path: '/api/v1/contacts/{k}' },
     ],
   },
@@ -281,19 +508,69 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/contacts', body: { name: 'X' }, save: 'x' },
       { as: 'user', at: at(1), method: 'POST', path: '/api/v1/contacts', body: { name: 'Y' }, save: 'y' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: ' Ori@Example.com ', contact_id: '{x}' }, save: 'i' },
-      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'me@us.com', own: true }, save: 'own' },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: ' Ori@Example.com ', contact_id: '{x}' },
+        save: 'i',
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'me@us.com', own: true },
+        save: 'own',
+      },
       { as: 'user', at: at(4), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'a@b.com' } },
-      { as: 'user', at: at(5), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'a@b.com', contact_id: '{x}', own: true } },
-      { as: 'user', at: at(6), method: 'POST', path: '/api/v1/identities', body: { kind: 'phone', value: '020 7946 0958', contact_id: '{x}' } },
-      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'ORI@example.com', contact_id: '{y}' } },
-      { as: 'user', at: at(8), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'me@us.com', contact_id: '{y}' } },
-      { as: 'user', at: at(9), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'z@z.com', contact_id: IDS.missing } },
+      {
+        as: 'user',
+        at: at(5),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'a@b.com', contact_id: '{x}', own: true },
+      },
+      {
+        as: 'user',
+        at: at(6),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'phone', value: '020 7946 0958', contact_id: '{x}' },
+      },
+      {
+        as: 'user',
+        at: at(7),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'ORI@example.com', contact_id: '{y}' },
+      },
+      {
+        as: 'user',
+        at: at(8),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'me@us.com', contact_id: '{y}' },
+      },
+      {
+        as: 'user',
+        at: at(9),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'z@z.com', contact_id: IDS.missing },
+      },
       { as: 'user', at: at(10), method: 'PATCH', path: '/api/v1/identities/{i}', body: { contact_id: '{y}' } },
       { as: 'user', at: at(11), method: 'PATCH', path: '/api/v1/identities/{i}', body: { own: true } },
       { as: 'agent', at: at(12), method: 'PATCH', path: '/api/v1/identities/{i}', body: { contact_id: '{x}' } },
       { as: 'user', at: at(13), method: 'PATCH', path: '/api/v1/identities/{i}', body: {} },
-      { as: 'user', at: at(14), method: 'PATCH', path: '/api/v1/identities/{i}', body: { contact_id: '{x}', own: true } },
+      {
+        as: 'user',
+        at: at(14),
+        method: 'PATCH',
+        path: '/api/v1/identities/{i}',
+        body: { contact_id: '{x}', own: true },
+      },
       { as: 'user', at: at(15), method: 'PATCH', path: '/api/v1/identities/{i}', body: { value: 'other@example.com' } },
       { as: 'user', at: at(16), method: 'GET', path: '/api/v1/identities?kind=email&value=Ori%40Example.COM' },
       { as: 'user', at: at(17), method: 'GET', path: '/api/v1/identities?value=ori@example.com' },
@@ -304,14 +581,44 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'identities-ascii',
-    about: 'emails are lowercase ASCII on both engines (D7): a non-ASCII address is invalid_identity before any write, in create, resolve (with its index) and the value filter; phones are unaffected',
+    about:
+      'emails are lowercase ASCII on both engines (D7): a non-ASCII address is invalid_identity before any write, in create, resolve (with its index) and the value filter; phones are unaffected',
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/contacts', body: {}, save: 'k' },
-      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'Jürgen@Example.com', contact_id: '{k}' } },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'ö', contact_id: '{k}' } },
-      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/identities/resolve', body: { identities: [{ kind: 'email', value: 'ok@example.com' }, { kind: 'email', value: 'bücher@example.com' }] } },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'Jürgen@Example.com', contact_id: '{k}' },
+      },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'ö', contact_id: '{k}' },
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/api/v1/identities/resolve',
+        body: {
+          identities: [
+            { kind: 'email', value: 'ok@example.com' },
+            { kind: 'email', value: 'bücher@example.com' },
+          ],
+        },
+      },
       { as: 'user', at: at(4), method: 'GET', path: '/api/v1/identities?kind=email&value=jürgen@example.com' },
-      { as: 'user', at: at(5), method: 'POST', path: '/api/v1/identities', body: { kind: 'phone', value: '+44 20 7946 0958', contact_id: '{k}' } },
+      {
+        as: 'user',
+        at: at(5),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'phone', value: '+44 20 7946 0958', contact_id: '{k}' },
+      },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/identities' },
     ],
   },
@@ -320,7 +627,13 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
     about:
       'resolve creates one contact and identity per new normalised address in first-occurrence order (events: every contact.created, then every identity.created); existing addresses are never renamed; an own address has no contact; an invalid entry fails the whole call',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/identities/resolve', body: { identities: [{ kind: 'email', value: ' Ori@Example.com ', name: '  Ori  ' }] } },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/api/v1/identities/resolve',
+        body: { identities: [{ kind: 'email', value: ' Ori@Example.com ', name: '  Ori  ' }] },
+      },
       {
         as: 'agent',
         at: at(1),
@@ -335,9 +648,32 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
           ],
         },
       },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'me@us.com', own: true } },
-      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/identities/resolve', body: { identities: [{ kind: 'email', value: 'me@us.com' }] } },
-      { as: 'user', at: at(4), method: 'POST', path: '/api/v1/identities/resolve', body: { identities: [{ kind: 'email', value: 'fine@example.com' }, { kind: 'phone', value: 'abc' }] } },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'me@us.com', own: true },
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/api/v1/identities/resolve',
+        body: { identities: [{ kind: 'email', value: 'me@us.com' }] },
+      },
+      {
+        as: 'user',
+        at: at(4),
+        method: 'POST',
+        path: '/api/v1/identities/resolve',
+        body: {
+          identities: [
+            { kind: 'email', value: 'fine@example.com' },
+            { kind: 'phone', value: 'abc' },
+          ],
+        },
+      },
       { as: 'user', at: at(5), method: 'POST', path: '/api/v1/identities/resolve', body: { identities: [] } },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/contacts' },
     ],
@@ -351,8 +687,22 @@ export const identityModelScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(1), method: 'POST', path: '/api/v1/contacts', body: { name: 'Survivor' }, save: 's' },
       { as: 'user', at: at(2), method: 'POST', path: '/api/v1/contacts', body: { company_id: '{co}' }, save: 'r' },
       { as: 'user', at: at(3), method: 'POST', path: '/api/v1/contacts', body: { name: 'Third' }, save: 't' },
-      { as: 'user', at: at(4), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'r1@example.com', contact_id: '{r}' }, save: 'i1' },
-      { as: 'user', at: at(5), method: 'POST', path: '/api/v1/identities', body: { kind: 'email', value: 'r2@example.com', contact_id: '{r}' }, save: 'i2' },
+      {
+        as: 'user',
+        at: at(4),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'r1@example.com', contact_id: '{r}' },
+        save: 'i1',
+      },
+      {
+        as: 'user',
+        at: at(5),
+        method: 'POST',
+        path: '/api/v1/identities',
+        body: { kind: 'email', value: 'r2@example.com', contact_id: '{r}' },
+        save: 'i2',
+      },
       { as: 'user', at: at(6), method: 'DELETE', path: '/api/v1/identities/{i2}' },
       { as: 'user', at: at(7), method: 'POST', path: '/api/v1/contacts/{s}/merge', body: { source_id: '{s}' } },
       { as: 'user', at: at(8), method: 'POST', path: '/api/v1/contacts/{s}/merge', body: { source_id: IDS.missing } },
@@ -373,11 +723,24 @@ export const administrationScenarios: readonly GoldenScenario[] = [
     about:
       'an agent is created with its principal, normalised scopes (trimmed name, deduplicated and sorted scopes); get and list read it; a rename and a scope change are updates; disabling twice keeps the first disabled_at; enabling clears it; an empty patch writes nothing',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/agents', body: { name: '  Bot  ', scopes: ['tasks:write', 'tasks:read', 'tasks:write'] }, save: 'a' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/meta/v1/agents',
+        body: { name: '  Bot  ', scopes: ['tasks:write', 'tasks:read', 'tasks:write'] },
+        save: 'a',
+      },
       { as: 'user', at: at(1), method: 'GET', path: '/meta/v1/agents/{a}' },
       { as: 'user', at: at(2), method: 'GET', path: '/meta/v1/agents' },
       { as: 'user', at: at(3), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { name: 'Renamed' } },
-      { as: 'user', at: at(4), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { scopes: ['contacts:read', 'tasks:read'] } },
+      {
+        as: 'user',
+        at: at(4),
+        method: 'PATCH',
+        path: '/meta/v1/agents/{a}',
+        body: { scopes: ['contacts:read', 'tasks:read'] },
+      },
       { as: 'user', at: at(5), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { disabled: true } },
       { as: 'user', at: at(6), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { disabled: true } },
       { as: 'user', at: at(7), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { disabled: false } },
@@ -391,8 +754,20 @@ export const administrationScenarios: readonly GoldenScenario[] = [
       'an unknown scope is unknown_scope and a human-only scope is scope_not_grantable (the first offender in input order decides, on create and on update); a blank name and an unknown field are validation errors; an unknown agent is 404; nothing is written for any of them',
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/agents', body: { name: 'Bot' }, save: 'a' },
-      { as: 'user', at: at(1), method: 'POST', path: '/meta/v1/agents', body: { name: 'X', scopes: ['tasks:read', 'nope:read'] } },
-      { as: 'user', at: at(2), method: 'POST', path: '/meta/v1/agents', body: { name: 'X', scopes: ['members:read', 'nope:read'] } },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/meta/v1/agents',
+        body: { name: 'X', scopes: ['tasks:read', 'nope:read'] },
+      },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/meta/v1/agents',
+        body: { name: 'X', scopes: ['members:read', 'nope:read'] },
+      },
       { as: 'user', at: at(3), method: 'POST', path: '/meta/v1/agents', body: { name: '   ' } },
       { as: 'user', at: at(4), method: 'POST', path: '/meta/v1/agents', body: { name: 'X', organization_id: IDS.org } },
       { as: 'user', at: at(5), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { scopes: ['agents:write'] } },
@@ -406,17 +781,66 @@ export const administrationScenarios: readonly GoldenScenario[] = [
     about:
       'add_scopes and remove_scopes merge into the stored list server-side (sorted, deduplicated) as one agent.updated; a delta that changes nothing (adding a stored scope, removing an absent or undeclared one) writes no event and keeps updated_at; a delta combines with name; scopes with a delta, a scope in both deltas, an unknown add and a non-grantable add are refused with nothing written (overlap before unknown add, first offender in input order)',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/agents', body: { name: 'Bot', scopes: ['tasks:read', 'tasks:write'] }, save: 'a' },
-      { as: 'user', at: at(1), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['contacts:read', 'tasks:read'] } },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/meta/v1/agents',
+        body: { name: 'Bot', scopes: ['tasks:read', 'tasks:write'] },
+        save: 'a',
+      },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'PATCH',
+        path: '/meta/v1/agents/{a}',
+        body: { add_scopes: ['contacts:read', 'tasks:read'] },
+      },
       { as: 'user', at: at(2), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { remove_scopes: ['tasks:write'] } },
-      { as: 'user', at: at(3), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['messages:request_approval'], remove_scopes: ['contacts:read'] } },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'PATCH',
+        path: '/meta/v1/agents/{a}',
+        body: { add_scopes: ['messages:request_approval'], remove_scopes: ['contacts:read'] },
+      },
       { as: 'user', at: at(4), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['tasks:read'] } },
-      { as: 'user', at: at(5), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { remove_scopes: ['deals:read', 'nope:read'] } },
-      { as: 'user', at: at(6), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { name: 'Renamed', add_scopes: ['tasks:read'] } },
-      { as: 'user', at: at(7), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { scopes: ['tasks:read'], add_scopes: ['contacts:read'] } },
-      { as: 'user', at: at(8), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['nope:read', 'tasks:read'], remove_scopes: ['tasks:read'] } },
+      {
+        as: 'user',
+        at: at(5),
+        method: 'PATCH',
+        path: '/meta/v1/agents/{a}',
+        body: { remove_scopes: ['deals:read', 'nope:read'] },
+      },
+      {
+        as: 'user',
+        at: at(6),
+        method: 'PATCH',
+        path: '/meta/v1/agents/{a}',
+        body: { name: 'Renamed', add_scopes: ['tasks:read'] },
+      },
+      {
+        as: 'user',
+        at: at(7),
+        method: 'PATCH',
+        path: '/meta/v1/agents/{a}',
+        body: { scopes: ['tasks:read'], add_scopes: ['contacts:read'] },
+      },
+      {
+        as: 'user',
+        at: at(8),
+        method: 'PATCH',
+        path: '/meta/v1/agents/{a}',
+        body: { add_scopes: ['nope:read', 'tasks:read'], remove_scopes: ['tasks:read'] },
+      },
       { as: 'user', at: at(9), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['nope:read'] } },
-      { as: 'user', at: at(10), method: 'PATCH', path: '/meta/v1/agents/{a}', body: { add_scopes: ['agents:write', 'nope:read'] } },
+      {
+        as: 'user',
+        at: at(10),
+        method: 'PATCH',
+        path: '/meta/v1/agents/{a}',
+        body: { add_scopes: ['agents:write', 'nope:read'] },
+      },
       { as: 'user', at: at(11), method: 'GET', path: '/meta/v1/agents/{a}' },
     ],
   },
@@ -425,9 +849,23 @@ export const administrationScenarios: readonly GoldenScenario[] = [
     about:
       'a key is issued once with its plaintext (vk_ + prefix of 11 characters), the event and every read carry neither the plaintext nor the hash; list filters by agent; revoke stamps revoked_at and updated_at with the unit clock and emits api_key.revoked; revoking again returns the same record with no event; a disabled agent may be issued a key',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/agents', body: { name: 'Bot', scopes: ['tasks:read'] }, save: 'a' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/meta/v1/agents',
+        body: { name: 'Bot', scopes: ['tasks:read'] },
+        save: 'a',
+      },
       { as: 'user', at: at(1), method: 'POST', path: '/meta/v1/api-keys', body: { agent_id: '{a}' }, save: 'k' },
-      { as: 'user', at: at(2), method: 'POST', path: '/meta/v1/api-keys', body: { agent_id: '{a}', expires_at: '2027-01-01T00:00:00.000Z' }, save: 'k2' },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/meta/v1/api-keys',
+        body: { agent_id: '{a}', expires_at: '2027-01-01T00:00:00.000Z' },
+        save: 'k2',
+      },
       { as: 'user', at: at(3), method: 'GET', path: '/meta/v1/api-keys?agent_id={a}' },
       { as: 'user', at: at(4), method: 'GET', path: '/meta/v1/api-keys/{k}' },
       { as: 'user', at: at(5), method: 'POST', path: '/meta/v1/api-keys/{k}/revoke' },
@@ -445,8 +883,20 @@ export const administrationScenarios: readonly GoldenScenario[] = [
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/agents', body: { name: 'Bot' }, save: 'a' },
       { as: 'user', at: at(1), method: 'POST', path: '/meta/v1/api-keys', body: { agent_id: IDS.missing } },
-      { as: 'user', at: at(2), method: 'POST', path: '/meta/v1/api-keys', body: { agent_id: '{a}', expires_at: at(1) } },
-      { as: 'user', at: at(3), method: 'POST', path: '/meta/v1/api-keys', body: { agent_id: '{a}', expires_at: at(3) } },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/meta/v1/api-keys',
+        body: { agent_id: '{a}', expires_at: at(1) },
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/meta/v1/api-keys',
+        body: { agent_id: '{a}', expires_at: at(3) },
+      },
       { as: 'user', at: at(4), method: 'POST', path: '/meta/v1/api-keys', body: { agent_id: '{a}', key: 'vk_mine' } },
       { as: 'user', at: at(5), method: 'POST', path: `/meta/v1/api-keys/${IDS.missing}/revoke` },
       { as: 'user', at: at(6), method: 'POST', path: '/meta/v1/api-keys/nope/revoke' },
@@ -455,20 +905,28 @@ export const administrationScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'memberships-read',
-    about: 'memberships are read-only: list, the role and user_id filters, get; an unknown id is 404; there is no write route',
+    about:
+      'memberships are read-only: list, the role and user_id filters, get; an unknown id is 404; there is no write route',
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/meta/v1/memberships' },
       { as: 'user', at: at(1), method: 'GET', path: '/meta/v1/memberships?role=owner' },
       { as: 'user', at: at(2), method: 'GET', path: `/meta/v1/memberships?user_id=${IDS.user2}` },
       { as: 'user', at: at(3), method: 'GET', path: `/meta/v1/memberships/${IDS.membership2}` },
       { as: 'user', at: at(4), method: 'GET', path: `/meta/v1/memberships/${IDS.missing}` },
-      { as: 'user', at: at(5), method: 'PATCH', path: `/meta/v1/memberships/${IDS.membership2}`, body: { role: 'owner' } },
+      {
+        as: 'user',
+        at: at(5),
+        method: 'PATCH',
+        path: `/meta/v1/memberships/${IDS.membership2}`,
+        body: { role: 'owner' },
+      },
       { as: 'user', at: at(6), method: 'DELETE', path: `/meta/v1/memberships/${IDS.membership2}` },
     ],
   },
   {
     name: 'users-read',
-    about: 'users are listed (live members only, keyset by id) and read by id; an unknown id and an id that is not a UUID are 404; a pagination step shows the cursor',
+    about:
+      'users are listed (live members only, keyset by id) and read by id; an unknown id and an id that is not a UUID are 404; a pagination step shows the cursor',
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/meta/v1/users' },
       { as: 'user', at: at(1), method: 'GET', path: '/meta/v1/users?limit=1' },
@@ -480,15 +938,16 @@ export const administrationScenarios: readonly GoldenScenario[] = [
   },
 ]
 
-
 const DELIVERY = (type: string, data: unknown) => ({ type, object: 'event', data, timestamp: T0 })
-const MEMBERSHIP_DELIVERY = (type: string, org: string, userId: string) => DELIVERY(type, { id: `orgmem_${userId}`, organization: { id: org }, public_user_data: { user_id: userId } })
+const MEMBERSHIP_DELIVERY = (type: string, org: string, userId: string) =>
+  DELIVERY(type, { id: `orgmem_${userId}`, organization: { id: org }, public_user_data: { user_id: userId } })
 
 export const authScenarios: readonly GoldenScenario[] = [
   {
     name: 'api-key-auth',
     keys: true,
-    about: 'a seeded key authenticates; last_used_at is stamped at most once a minute (30 s and exactly 60 s later: no stamp; 61 s later: stamped) and updated_at never moves',
+    about:
+      'a seeded key authenticates; last_used_at is stamped at most once a minute (30 s and exactly 60 s later: no stamp; 61 s later: stamped) and updated_at never moves',
     steps: [
       { as: 'agent-key', at: secs(0), method: 'GET', path: `/meta/v1/api-keys/${IDS.agentKey}` },
       { as: 'agent-key', at: secs(30), method: 'GET', path: `/meta/v1/api-keys/${IDS.agentKey}` },
@@ -509,17 +968,28 @@ export const authScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'first-sight-and-me',
-    about: 'the first sight of a subject provisions it with no event (the email is normalised); a second call writes nothing; a seeded user reads /me with its organisation',
-    clerk: { users: [{ subject: 'user_golden_new', email: ' Grace@Golden.Test ', first: 'Grace', last: 'Hopper', verified: true }] },
+    about:
+      'the first sight of a subject provisions it with no event (the email is normalised); a second call writes nothing; a seeded user reads /me with its organisation',
+    clerk: {
+      users: [
+        { subject: 'user_golden_new', email: ' Grace@Golden.Test ', first: 'Grace', last: 'Hopper', verified: true },
+      ],
+    },
     steps: [
       { as: { clerk: 'user_golden_new' }, at: at(0), method: 'GET', path: '/meta/v1/me' },
       { as: { clerk: 'user_golden_new' }, at: at(1), method: 'GET', path: '/meta/v1/me' },
-      { as: { clerk: GOLDEN_SUBJECTS.user, claim: { org: GOLDEN_ORG_LINK, role: 'org:admin' } }, at: at(2), method: 'GET', path: '/meta/v1/me' },
+      {
+        as: { clerk: GOLDEN_SUBJECTS.user, claim: { org: GOLDEN_ORG_LINK, role: 'org:admin' } },
+        at: at(2),
+        method: 'GET',
+        path: '/meta/v1/me',
+      },
     ],
   },
   {
     name: 'first-sight-refusals',
-    about: 'an email that belongs to another user (any case) is 409 account_conflict, a non-ASCII email is 400 invalid_identity, a profile with no email is 401; none writes anything',
+    about:
+      'an email that belongs to another user (any case) is 409 account_conflict, a non-ASCII email is 400 invalid_identity, a profile with no email is 401; none writes anything',
     clerk: {
       users: [
         { subject: 'user_golden_dup', email: 'B002@Golden.TEST' },
@@ -536,32 +1006,52 @@ export const authScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'claim-repair',
-    about: 'a token claiming an organisation the user has no membership in repairs the copy: membership.created by the system principal, then the tenant call succeeds; the next sign-in writes nothing',
+    about:
+      'a token claiming an organisation the user has no membership in repairs the copy: membership.created by the system principal, then the tenant call succeeds; the next sign-in writes nothing',
     clerk: {
       users: [{ subject: 'user_golden_claim', email: 'claim@golden.test', first: 'Claire', last: 'Claim' }],
       organizations: [{ id: GOLDEN_ORG_LINK, name: 'Golden org', members: [] }],
     },
     steps: [
-      { as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } }, at: at(0), method: 'GET', path: '/api/v1/tasks' },
+      {
+        as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } },
+        at: at(0),
+        method: 'GET',
+        path: '/api/v1/tasks',
+      },
       { as: 'user', at: at(1), method: 'GET', path: '/meta/v1/memberships' },
-      { as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } }, at: at(2), method: 'GET', path: '/api/v1/tasks' },
+      {
+        as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } },
+        at: at(2),
+        method: 'GET',
+        path: '/api/v1/tasks',
+      },
     ],
   },
   {
     name: 'foreign-organisation-claim',
-    about: 'a token claiming another provider organisation: Postgres is multi-tenant and repairs it (200); a D1 serves one organisation and refuses it 403 before any SQL (CORE36 D19, the one named difference)',
+    about:
+      'a token claiming another provider organisation: Postgres is multi-tenant and repairs it (200); a D1 serves one organisation and refuses it 403 before any SQL (CORE36 D19, the one named difference)',
     clerk: {
       users: [{ subject: 'user_golden_foreigner', email: 'foreigner@golden.test' }],
       organizations: [{ id: GOLDEN_FOREIGN_LINK, name: 'Foreign org', members: [] }],
     },
-    steps: [{ as: { clerk: 'user_golden_foreigner', claim: { org: GOLDEN_FOREIGN_LINK, role: 'org:admin' } }, at: at(0), method: 'GET', path: '/api/v1/tasks' }],
+    steps: [
+      {
+        as: { clerk: 'user_golden_foreigner', claim: { org: GOLDEN_FOREIGN_LINK, role: 'org:admin' } },
+        at: at(0),
+        method: 'GET',
+        path: '/api/v1/tasks',
+      },
+    ],
   },
 ]
 
 export const directoryScenarios: readonly GoldenScenario[] = [
   {
     name: 'webhook-reconcile',
-    about: 'one delivery creates a member, re-roles another and removes a third; the same delivery again changes nothing',
+    about:
+      'one delivery creates a member, re-roles another and removes a third; the same delivery again changes nothing',
     clerk: {
       users: [
         { subject: 'user_golden_claim', email: 'claim@golden.test' },
@@ -572,14 +1062,35 @@ export const directoryScenarios: readonly GoldenScenario[] = [
           id: GOLDEN_ORG_LINK,
           name: 'Golden a001', // the seeded name: only the memberships change
           // user_golden_claim is left out: the delivery removes the membership the first step repairs into existence.
-          members: [[GOLDEN_SUBJECTS.user, 'org:admin'], [GOLDEN_SUBJECTS.user2, 'org:admin'], ['user_golden_added', 'org:member']],
+          members: [
+            [GOLDEN_SUBJECTS.user, 'org:admin'],
+            [GOLDEN_SUBJECTS.user2, 'org:admin'],
+            ['user_golden_added', 'org:member'],
+          ],
         },
       ],
     },
     steps: [
-      { as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } }, at: at(0), method: 'GET', path: '/api/v1/tasks' },
-      { as: 'webhook', at: at(1), method: 'POST', path: '/webhooks/clerk', body: MEMBERSHIP_DELIVERY('organizationMembership.updated', GOLDEN_ORG_LINK, 'user_golden_added') },
-      { as: 'webhook', at: at(2), method: 'POST', path: '/webhooks/clerk', body: MEMBERSHIP_DELIVERY('organizationMembership.updated', GOLDEN_ORG_LINK, 'user_golden_added') },
+      {
+        as: { clerk: 'user_golden_claim', claim: { org: GOLDEN_ORG_LINK, role: 'org:member' } },
+        at: at(0),
+        method: 'GET',
+        path: '/api/v1/tasks',
+      },
+      {
+        as: 'webhook',
+        at: at(1),
+        method: 'POST',
+        path: '/webhooks/clerk',
+        body: MEMBERSHIP_DELIVERY('organizationMembership.updated', GOLDEN_ORG_LINK, 'user_golden_added'),
+      },
+      {
+        as: 'webhook',
+        at: at(2),
+        method: 'POST',
+        path: '/webhooks/clerk',
+        body: MEMBERSHIP_DELIVERY('organizationMembership.updated', GOLDEN_ORG_LINK, 'user_golden_added'),
+      },
       { as: 'user', at: at(3), method: 'GET', path: '/meta/v1/memberships' },
       { as: 'user', at: at(4), method: 'GET', path: '/meta/v1/users' },
     ],
@@ -588,18 +1099,58 @@ export const directoryScenarios: readonly GoldenScenario[] = [
     name: 'webhook-rename',
     about: 'a rename at the provider updates the organisation and emits organization.updated; nothing else changes',
     clerk: {
-      organizations: [{ id: GOLDEN_ORG_LINK, name: 'Golden org renamed', members: [[GOLDEN_SUBJECTS.user, 'org:admin'], [GOLDEN_SUBJECTS.user2, 'org:member']] }],
+      organizations: [
+        {
+          id: GOLDEN_ORG_LINK,
+          name: 'Golden org renamed',
+          members: [
+            [GOLDEN_SUBJECTS.user, 'org:admin'],
+            [GOLDEN_SUBJECTS.user2, 'org:member'],
+          ],
+        },
+      ],
     },
-    steps: [{ as: 'webhook', at: at(0), method: 'POST', path: '/webhooks/clerk', body: DELIVERY('organization.updated', { id: GOLDEN_ORG_LINK }) }],
+    steps: [
+      {
+        as: 'webhook',
+        at: at(0),
+        method: 'POST',
+        path: '/webhooks/clerk',
+        body: DELIVERY('organization.updated', { id: GOLDEN_ORG_LINK }),
+      },
+    ],
   },
   {
     name: 'webhook-user-updated',
-    about: 'user.updated refreshes a known user\'s profile (updated_at is the step clock, no event); an unknown subject costs no provider call',
-    clerk: { users: [{ subject: GOLDEN_SUBJECTS.user, email: 'Ada.Lovelace@Golden.Test', first: 'Ada', last: 'Lovelace', verified: true }] },
+    about:
+      "user.updated refreshes a known user's profile (updated_at is the step clock, no event); an unknown subject costs no provider call",
+    clerk: {
+      users: [
+        {
+          subject: GOLDEN_SUBJECTS.user,
+          email: 'Ada.Lovelace@Golden.Test',
+          first: 'Ada',
+          last: 'Lovelace',
+          verified: true,
+        },
+      ],
+    },
     steps: [
-      { as: 'webhook', at: at(0), method: 'POST', path: '/webhooks/clerk', body: DELIVERY('user.updated', { id: GOLDEN_SUBJECTS.user }) },
+      {
+        as: 'webhook',
+        at: at(0),
+        method: 'POST',
+        path: '/webhooks/clerk',
+        body: DELIVERY('user.updated', { id: GOLDEN_SUBJECTS.user }),
+      },
       { as: 'user', at: at(1), method: 'GET', path: `/meta/v1/users/${IDS.user}` },
-      { as: 'webhook', at: at(2), method: 'POST', path: '/webhooks/clerk', body: DELIVERY('user.updated', { id: 'user_golden_nobody' }) },
+      {
+        as: 'webhook',
+        at: at(2),
+        method: 'POST',
+        path: '/webhooks/clerk',
+        body: DELIVERY('user.updated', { id: 'user_golden_nobody' }),
+      },
     ],
   },
 ]
@@ -609,23 +1160,37 @@ export const directoryScenarios: readonly GoldenScenario[] = [
 // connection with one, and a reaction; thread 2 holds one message whose only attachment cannot be fetched. Ids are not written here:
 // `pick` reads them out of list responses, so a scenario never depends on the order ids were minted in.
 const first = (body: any): string => body.data[0].id
-const messagesOf = (body: any) => body.data as Array<{ id: string; kind: string; external_id: string; attachments: Array<{ file_id: string | null }> }>
+const messagesOf = (body: any) =>
+  body.data as Array<{ id: string; kind: string; external_id: string; attachments: Array<{ file_id: string | null }> }>
 const byExternal = (body: any, external: string) => messagesOf(body).find((m) => m.external_id === external)!
 
 export const messagingScenarios: readonly GoldenScenario[] = [
   {
     name: 'mail-sorted-pages',
-    about: 'CORE174: newest messages by occurred_at, an opaque cursor picked from page one and reused on page two; interactions use the same stored-column descending order; reads emit no events',
+    about:
+      'CORE174: newest messages by occurred_at, an opaque cursor picked from page one and reused on page two; interactions use the same stored-column descending order; reads emit no events',
     seed: 'messaging',
     steps: [
-      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/messages?sort=occurred_at&order=desc&limit=2', pick: { next: (b) => b.next_cursor } },
-      { as: 'user', at: at(1), method: 'GET', path: '/api/v1/messages?sort=occurred_at&order=desc&limit=2&after={next}' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'GET',
+        path: '/api/v1/messages?sort=occurred_at&order=desc&limit=2',
+        pick: { next: (b) => b.next_cursor },
+      },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'GET',
+        path: '/api/v1/messages?sort=occurred_at&order=desc&limit=2&after={next}',
+      },
       { as: 'agent', at: at(2), method: 'GET', path: '/api/v1/interactions?sort=occurred_at&order=desc&limit=2' },
     ],
   },
   {
     name: 'threads-list-get',
-    about: 'threads list in id order and get one; a channel filter keeps them, an unknown one is a validation error; a missing id is 404 (read-only: no write route)',
+    about:
+      'threads list in id order and get one; a channel filter keeps them, an unknown one is a validation error; a missing id is 404 (read-only: no write route)',
     seed: 'messaging',
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/api/v1/threads', pick: { t: first } },
@@ -638,10 +1203,17 @@ export const messagingScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'messages-list-get',
-    about: 'messages embed their attachments ordered by position; the thread, kind and external_id filters; a get returns the same record; a reaction has no attachments',
+    about:
+      'messages embed their attachments ordered by position; the thread, kind and external_id filters; a get returns the same record; a reaction has no attachments',
     seed: 'messaging',
     steps: [
-      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/messages', pick: { parent: (b) => byExternal(b, '<m1@fake.test>').id, thread: (b) => (b.data[0] as any).thread_id } },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'GET',
+        path: '/api/v1/messages',
+        pick: { parent: (b) => byExternal(b, '<m1@fake.test>').id, thread: (b) => (b.data[0] as any).thread_id },
+      },
       { as: 'user', at: at(1), method: 'GET', path: '/api/v1/messages/{parent}' },
       { as: 'user', at: at(2), method: 'GET', path: '/api/v1/messages?thread_id={thread}' },
       { as: 'user', at: at(3), method: 'GET', path: '/api/v1/messages?kind=reaction' },
@@ -651,10 +1223,17 @@ export const messagingScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'interactions-and-join-filters',
-    about: 'interactions embed their participants (role, then identity id); identity_id filters by a participant; contact_id follows the identities that are live now, so linking an identity to a contact makes it match',
+    about:
+      'interactions embed their participants (role, then identity id); identity_id filters by a participant; contact_id follows the identities that are live now, so linking an identity to a contact makes it match',
     seed: 'messaging',
     steps: [
-      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/interactions', pick: { one: first, ident: (b) => b.data[0].participants[0].identity_id } },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'GET',
+        path: '/api/v1/interactions',
+        pick: { one: first, ident: (b) => b.data[0].participants[0].identity_id },
+      },
       { as: 'user', at: at(1), method: 'GET', path: '/api/v1/interactions/{one}' },
       { as: 'user', at: at(2), method: 'GET', path: '/api/v1/interactions?identity_id={ident}' },
       { as: 'user', at: at(3), method: 'POST', path: '/api/v1/contacts', body: { name: 'Jane' }, save: 'k' },
@@ -697,7 +1276,13 @@ export const messagingScenarios: readonly GoldenScenario[] = [
       'CORE131: contacts created by capture carry last_contacted_at and last_interacted_at. The connection wrote to jane (cc bob) at 07:20, so both are contacted then; bob also reacted at 07:30; carol only wrote (interacted, never contacted); owner is a contact here because the messaging seed has no own identity. The six filters partition them; an unparseable time is a validation error; CORE133: contacts sorted by last_contacted_at desc, a first page with its opaque next_cursor and the second page fetched with it (null last), and order without sort is a validation error; the golden actors hold interactions:read in messaging scenarios, so the keys are present',
     seed: 'messaging',
     steps: [
-      { as: 'user', at: at(0), method: 'GET', path: '/api/v1/contacts', pick: { jane: (b) => b.data.find((c: any) => c.last_contacted_at !== null)?.id } },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'GET',
+        path: '/api/v1/contacts',
+        pick: { jane: (b) => b.data.find((c: any) => c.last_contacted_at !== null)?.id },
+      },
       { as: 'user', at: at(1), method: 'GET', path: '/api/v1/contacts/{jane}' },
       { as: 'agent', at: at(2), method: 'GET', path: '/api/v1/contacts?never_contacted=true' },
       { as: 'user', at: at(3), method: 'GET', path: '/api/v1/contacts?contacted_since=2026-10-22T07:20:00Z' },
@@ -705,8 +1290,19 @@ export const messagingScenarios: readonly GoldenScenario[] = [
       { as: 'user', at: at(5), method: 'GET', path: '/api/v1/contacts?interacted_since=2026-10-22T09:30:00%2B02:00' },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/contacts?never_interacted=false' },
       { as: 'user', at: at(7), method: 'GET', path: '/api/v1/contacts?contacted_since=2026-10-22' },
-      { as: 'user', at: at(8), method: 'GET', path: '/api/v1/contacts?sort=last_contacted_at&order=desc&limit=2', pick: { next: (b) => b.next_cursor } },
-      { as: 'user', at: at(9), method: 'GET', path: '/api/v1/contacts?sort=last_contacted_at&order=desc&limit=2&after={next}' },
+      {
+        as: 'user',
+        at: at(8),
+        method: 'GET',
+        path: '/api/v1/contacts?sort=last_contacted_at&order=desc&limit=2',
+        pick: { next: (b) => b.next_cursor },
+      },
+      {
+        as: 'user',
+        at: at(9),
+        method: 'GET',
+        path: '/api/v1/contacts?sort=last_contacted_at&order=desc&limit=2&after={next}',
+      },
       { as: 'user', at: at(10), method: 'GET', path: '/api/v1/contacts?order=desc' },
       { as: 'user', at: at(11), method: 'PATCH', path: '/api/v1/contacts/{jane}', body: { name: 'Jane A.' } },
       { as: 'user', at: at(12), method: 'PATCH', path: '/api/v1/contacts/{jane}', body: { last_contacted_at: null } },
@@ -732,31 +1328,91 @@ export const messagingScenarios: readonly GoldenScenario[] = [
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/api/v1/files', pick: { f: first } },
       { as: 'user', at: at(1), method: 'POST', path: '/api/v1/contacts', body: { name: 'Jane' }, save: 'k' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: '{f}' }, save: 'l' },
-      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: '{f}' } },
-      { as: 'user', at: at(4), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: IDS.missing } },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/contact-files',
+        body: { contact_id: '{k}', file_id: '{f}' },
+        save: 'l',
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/api/v1/contact-files',
+        body: { contact_id: '{k}', file_id: '{f}' },
+      },
+      {
+        as: 'user',
+        at: at(4),
+        method: 'POST',
+        path: '/api/v1/contact-files',
+        body: { contact_id: '{k}', file_id: IDS.missing },
+      },
       { as: 'user', at: at(5), method: 'GET', path: '/api/v1/contact-files/{l}' },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/contact-files?contact_id={k}' },
       { as: 'agent', at: at(7), method: 'DELETE', path: '/api/v1/contact-files/{l}' },
       { as: 'user', at: at(8), method: 'GET', path: '/api/v1/contact-files?file_id={f}' },
-      { as: 'user', at: at(9), method: 'POST', path: '/api/v1/contact-files', body: { contact_id: '{k}', file_id: '{f}' }, save: 'l2' },
+      {
+        as: 'user',
+        at: at(9),
+        method: 'POST',
+        path: '/api/v1/contact-files',
+        body: { contact_id: '{k}', file_id: '{f}' },
+        save: 'l2',
+      },
       { as: 'user', at: at(10), method: 'DELETE', path: '/api/v1/contact-files/{l2}' },
       { as: 'user', at: at(11), method: 'DELETE', path: '/api/v1/contact-files/{l}' },
     ],
   },
   {
     name: 'company-files-links',
-    about: 'the same for companies: create, link_exists, invalid_reference for an unknown company, delete with its event, relink; the old link stays deleted, the new one reads',
+    about:
+      'the same for companies: create, link_exists, invalid_reference for an unknown company, delete with its event, relink; the old link stays deleted, the new one reads',
     seed: 'messaging',
     steps: [
       { as: 'user', at: at(0), method: 'GET', path: '/api/v1/files', pick: { f: first } },
-      { as: 'user', at: at(1), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme', domain: 'acme.test' }, save: 'c' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' }, save: 'l' },
-      { as: 'user', at: at(3), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' } },
-      { as: 'user', at: at(4), method: 'POST', path: '/api/v1/company-files', body: { company_id: IDS.missing, file_id: '{f}' } },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/api/v1/companies',
+        body: { name: 'Acme', domain: 'acme.test' },
+        save: 'c',
+      },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/company-files',
+        body: { company_id: '{c}', file_id: '{f}' },
+        save: 'l',
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/api/v1/company-files',
+        body: { company_id: '{c}', file_id: '{f}' },
+      },
+      {
+        as: 'user',
+        at: at(4),
+        method: 'POST',
+        path: '/api/v1/company-files',
+        body: { company_id: IDS.missing, file_id: '{f}' },
+      },
       { as: 'user', at: at(5), method: 'GET', path: '/api/v1/company-files?company_id={c}' },
       { as: 'user', at: at(6), method: 'DELETE', path: '/api/v1/company-files/{l}' },
-      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/company-files', body: { company_id: '{c}', file_id: '{f}' }, save: 'l2' },
+      {
+        as: 'user',
+        at: at(7),
+        method: 'POST',
+        path: '/api/v1/company-files',
+        body: { company_id: '{c}', file_id: '{f}' },
+        save: 'l2',
+      },
       { as: 'user', at: at(8), method: 'GET', path: '/api/v1/company-files/{l}' },
       { as: 'user', at: at(9), method: 'GET', path: '/api/v1/company-files/{l2}' },
     ],
@@ -770,17 +1426,43 @@ export const tagScenarios: readonly GoldenScenario[] = [
     about:
       'a tag is a named list ([[CORE129]]): names are unique ignoring case (409 tag_exists), a rename keeps the members, tagging is an association and companies.list?tag_id returns the members, a tag cannot label another tag, and deleting a tag cascades its edges',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tags', body: { name: '  Prospects  ', description: 'GTM tools' }, save: 't' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/api/v1/tags',
+        body: { name: '  Prospects  ', description: 'GTM tools' },
+        save: 't',
+      },
       { as: 'user', at: at(1), method: 'POST', path: '/api/v1/tags', body: { name: 'prospects' } },
       { as: 'user', at: at(2), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme' }, save: 'c' },
       { as: 'user', at: at(3), method: 'POST', path: '/api/v1/companies', body: { name: 'Untagged' } },
       { as: 'user', at: at(4), method: 'PATCH', path: '/api/v1/tags/{t}', body: { name: 'Prospects 2026' } },
-      { as: 'agent', at: at(5), method: 'POST', path: '/api/v1/associations', body: { a_type: 'tags', a_id: '{t}', b_type: 'companies', b_id: '{c}' }, save: 'e' },
+      {
+        as: 'agent',
+        at: at(5),
+        method: 'POST',
+        path: '/api/v1/associations',
+        body: { a_type: 'tags', a_id: '{t}', b_type: 'companies', b_id: '{c}' },
+        save: 'e',
+      },
       { as: 'user', at: at(6), method: 'GET', path: '/api/v1/companies?tag_id={t}' },
-      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/associations', body: { a_type: 'tags', a_id: '{t}', b_type: 'tags', b_id: '{t}' } },
+      {
+        as: 'user',
+        at: at(7),
+        method: 'POST',
+        path: '/api/v1/associations',
+        body: { a_type: 'tags', a_id: '{t}', b_type: 'tags', b_id: '{t}' },
+      },
       { as: 'user', at: at(8), method: 'DELETE', path: '/api/v1/associations/{e}' },
       { as: 'user', at: at(9), method: 'GET', path: '/api/v1/companies?tag_id={t}' },
-      { as: 'user', at: at(10), method: 'POST', path: '/api/v1/associations', body: { a_type: 'companies', a_id: '{c}', b_type: 'tags', b_id: '{t}' } },
+      {
+        as: 'user',
+        at: at(10),
+        method: 'POST',
+        path: '/api/v1/associations',
+        body: { a_type: 'companies', a_id: '{c}', b_type: 'tags', b_id: '{t}' },
+      },
       { as: 'user', at: at(11), method: 'DELETE', path: '/api/v1/tags/{t}' },
       { as: 'user', at: at(12), method: 'GET', path: '/api/v1/companies?tag_id={t}' },
       { as: 'user', at: at(13), method: 'GET', path: '/api/v1/associations?type=companies&id={c}' },
@@ -796,16 +1478,75 @@ export const dealScenarios: readonly GoldenScenario[] = [
     about:
       'a pipeline and its stages are configuration (/meta/v1), a deal sits in one stage ([[CORE130]]): a duplicate stage name is 409 stage_exists, the pipeline follows the stage, a move to won sets closed_at and emits deal.stage_changed, back to open clears it, a stage holding a deal cannot be deleted (409 stage_in_use), and status is derived and filterable',
     steps: [
-      { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/pipelines', body: { name: '  Prospecting ' }, save: 'p' },
+      {
+        as: 'user',
+        at: at(0),
+        method: 'POST',
+        path: '/meta/v1/pipelines',
+        body: { name: '  Prospecting ' },
+        save: 'p',
+      },
       { as: 'user', at: at(1), method: 'POST', path: '/meta/v1/pipelines', body: { name: 'prospecting' } },
-      { as: 'user', at: at(2), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'Researched', kind: 'open', position: 10 }, save: 's1' },
-      { as: 'user', at: at(3), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'Contacted', kind: 'open', position: 20 }, save: 's2' },
-      { as: 'user', at: at(4), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'Won', kind: 'won', position: 90 }, save: 's3' },
-      { as: 'user', at: at(5), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'CONTACTED', kind: 'open', position: 25 } },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/meta/v1/pipeline-stages',
+        body: { pipeline_id: '{p}', name: 'Researched', kind: 'open', position: 10 },
+        save: 's1',
+      },
+      {
+        as: 'user',
+        at: at(3),
+        method: 'POST',
+        path: '/meta/v1/pipeline-stages',
+        body: { pipeline_id: '{p}', name: 'Contacted', kind: 'open', position: 20 },
+        save: 's2',
+      },
+      {
+        as: 'user',
+        at: at(4),
+        method: 'POST',
+        path: '/meta/v1/pipeline-stages',
+        body: { pipeline_id: '{p}', name: 'Won', kind: 'won', position: 90 },
+        save: 's3',
+      },
+      {
+        as: 'user',
+        at: at(5),
+        method: 'POST',
+        path: '/meta/v1/pipeline-stages',
+        body: { pipeline_id: '{p}', name: 'CONTACTED', kind: 'open', position: 25 },
+      },
       { as: 'user', at: at(6), method: 'PATCH', path: '/meta/v1/pipeline-stages/{s1}', body: { kind: 'won' } },
-      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/deals', body: { name: 'Acme - pilot', stage_id: '{s1}', amount_minor: 1250000, currency: 'usd', expected_close_date: '2026-12-31' }, save: 'd' },
-      { as: 'user', at: at(8), method: 'POST', path: '/api/v1/deals', body: { name: 'No currency', stage_id: '{s1}', amount_minor: 5 } },
-      { as: 'agent', at: at(9), method: 'PATCH', path: '/api/v1/deals/{d}', body: { name: 'Acme - pilot (renewed)', amount_minor: 1500000 } },
+      {
+        as: 'user',
+        at: at(7),
+        method: 'POST',
+        path: '/api/v1/deals',
+        body: {
+          name: 'Acme - pilot',
+          stage_id: '{s1}',
+          amount_minor: 1250000,
+          currency: 'usd',
+          expected_close_date: '2026-12-31',
+        },
+        save: 'd',
+      },
+      {
+        as: 'user',
+        at: at(8),
+        method: 'POST',
+        path: '/api/v1/deals',
+        body: { name: 'No currency', stage_id: '{s1}', amount_minor: 5 },
+      },
+      {
+        as: 'agent',
+        at: at(9),
+        method: 'PATCH',
+        path: '/api/v1/deals/{d}',
+        body: { name: 'Acme - pilot (renewed)', amount_minor: 1500000 },
+      },
       { as: 'user', at: at(10), method: 'PATCH', path: '/api/v1/deals/{d}', body: { stage_id: '{s2}' } },
       { as: 'user', at: at(11), method: 'POST', path: '/api/v1/deals/{d}/move-stage', body: { stage_id: '{s3}' } },
       { as: 'user', at: at(12), method: 'POST', path: '/api/v1/deals/{d}/move-stage', body: { stage_id: '{s3}' } },
@@ -822,22 +1563,73 @@ export const dealScenarios: readonly GoldenScenario[] = [
   },
   {
     name: 'deals-linking',
-    scopes: ['deals:read', 'deals:write', 'pipelines:read', 'pipelines:write', 'companies:read', 'companies:write', 'tags:read', 'tags:write', 'associations:read', 'associations:write'],
+    scopes: [
+      'deals:read',
+      'deals:write',
+      'pipelines:read',
+      'pipelines:write',
+      'companies:read',
+      'companies:write',
+      'tags:read',
+      'tags:write',
+      'associations:read',
+      'associations:write',
+    ],
     about:
       'a deal links to companies and tags through associations ([[CORE130]] D14, [[CORE136]]): deals.list?company_id= and ?tag_id= return the linked deals, a deal cannot link to another deal or to an interaction (400, the allowed types are named), a deleted edge leaves the filter, deals.get?include=associations embeds the live edges, and deleting a deal cascades its edges',
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/meta/v1/pipelines', body: { name: 'Sales' }, save: 'p' },
-      { as: 'user', at: at(1), method: 'POST', path: '/meta/v1/pipeline-stages', body: { pipeline_id: '{p}', name: 'Researched', kind: 'open', position: 10 }, save: 's' },
-      { as: 'user', at: at(2), method: 'POST', path: '/api/v1/deals', body: { name: 'Acme - pilot', stage_id: '{s}' }, save: 'd' },
+      {
+        as: 'user',
+        at: at(1),
+        method: 'POST',
+        path: '/meta/v1/pipeline-stages',
+        body: { pipeline_id: '{p}', name: 'Researched', kind: 'open', position: 10 },
+        save: 's',
+      },
+      {
+        as: 'user',
+        at: at(2),
+        method: 'POST',
+        path: '/api/v1/deals',
+        body: { name: 'Acme - pilot', stage_id: '{s}' },
+        save: 'd',
+      },
       { as: 'user', at: at(3), method: 'POST', path: '/api/v1/deals', body: { name: 'Unlinked', stage_id: '{s}' } },
       { as: 'user', at: at(4), method: 'POST', path: '/api/v1/companies', body: { name: 'Acme' }, save: 'c' },
       { as: 'user', at: at(5), method: 'POST', path: '/api/v1/tags', body: { name: 'Q4' }, save: 't' },
-      { as: 'agent', at: at(6), method: 'POST', path: '/api/v1/associations', body: { a_type: 'deals', a_id: '{d}', b_type: 'companies', b_id: '{c}' }, save: 'e1' },
-      { as: 'user', at: at(7), method: 'POST', path: '/api/v1/associations', body: { a_type: 'tags', a_id: '{t}', b_type: 'deals', b_id: '{d}' }, save: 'e2' },
+      {
+        as: 'agent',
+        at: at(6),
+        method: 'POST',
+        path: '/api/v1/associations',
+        body: { a_type: 'deals', a_id: '{d}', b_type: 'companies', b_id: '{c}' },
+        save: 'e1',
+      },
+      {
+        as: 'user',
+        at: at(7),
+        method: 'POST',
+        path: '/api/v1/associations',
+        body: { a_type: 'tags', a_id: '{t}', b_type: 'deals', b_id: '{d}' },
+        save: 'e2',
+      },
       { as: 'user', at: at(8), method: 'GET', path: '/api/v1/deals?company_id={c}' },
       { as: 'user', at: at(9), method: 'GET', path: '/api/v1/deals?tag_id={t}&status=open' },
-      { as: 'user', at: at(10), method: 'POST', path: '/api/v1/associations', body: { a_type: 'deals', a_id: '{d}', b_type: 'deals', b_id: '{d}' } },
-      { as: 'user', at: at(11), method: 'POST', path: '/api/v1/associations', body: { a_type: 'deals', a_id: '{d}', b_type: 'interactions', b_id: '0190b2c4-0000-7000-8000-000000000001' } },
+      {
+        as: 'user',
+        at: at(10),
+        method: 'POST',
+        path: '/api/v1/associations',
+        body: { a_type: 'deals', a_id: '{d}', b_type: 'deals', b_id: '{d}' },
+      },
+      {
+        as: 'user',
+        at: at(11),
+        method: 'POST',
+        path: '/api/v1/associations',
+        body: { a_type: 'deals', a_id: '{d}', b_type: 'interactions', b_id: '0190b2c4-0000-7000-8000-000000000001' },
+      },
       { as: 'user', at: at(12), method: 'GET', path: '/api/v1/deals/{d}?include=associations' },
       { as: 'user', at: at(13), method: 'DELETE', path: '/api/v1/associations/{e1}' },
       { as: 'user', at: at(14), method: 'GET', path: '/api/v1/deals?company_id={c}' },
@@ -853,7 +1645,8 @@ export const schemaScenarios: readonly GoldenScenario[] = [
   {
     name: 'schema-get',
     scopes: ['schema:read'],
-    about: 'schema.get describes every built-in table and, per resource, the sorts its list accepts with their kind and whether an index serves them ([[CORE170]] D10, D16): the full document as the HTTP route serves it',
+    about:
+      'schema.get describes every built-in table and, per resource, the sorts its list accepts with their kind and whether an index serves them ([[CORE170]] D10, D16): the full document as the HTTP route serves it',
     steps: [{ as: 'agent', at: at(0), method: 'GET', path: '/meta/v1/schema' }],
   },
 ]

@@ -15,7 +15,14 @@ const MCP_RESOURCE_PATH = '/mcp'
 /** The configuration the three documents read: public values only, never a secret. */
 export interface DiscoveryConfig {
   /** `undefined` when `AUTH_PROVIDER` is unset (API keys only). */
-  provider?: { name: 'clerk'; issuer: string } | { name: 'better-auth'; issuer: string; /** `PUBLIC_BASE_URL`: the documents' resource and URLs come from it, never the request host ([[CORE243]] D23). */ baseUrl: string; /** [[CORE294]] D7: how a person signs in here; the auth pages read it to show the Google button. */ signInMethods?: readonly ('password' | 'google')[] }
+  provider?:
+    | { name: 'clerk'; issuer: string }
+    | {
+        name: 'better-auth'
+        issuer: string /** `PUBLIC_BASE_URL`: the documents' resource and URLs come from it, never the request host ([[CORE243]] D23). */
+        baseUrl: string /** [[CORE294]] D7: how a person signs in here; the auth pages read it to show the Google button. */
+        signInMethods?: readonly ('password' | 'google')[]
+      }
   /** `AUTH_CLI_CLIENT_ID`; `undefined` is `null` in the document. */
   cliClientId?: string
   /** `CLERK_PUBLISHABLE_KEY` ([[UI30]] D5), already validated against the issuer; `undefined` is `null` in the document. */
@@ -25,7 +32,8 @@ export interface DiscoveryConfig {
 }
 
 /** The `WWW-Authenticate` value of every 401 when a provider is configured ([[CORE64]] D22, RFC 9728 section 5.1). */
-export const resourceMetadataChallenge = (origin: string): string => `Bearer resource_metadata="${origin}${PROTECTED_RESOURCE_PATH}"`
+export const resourceMetadataChallenge = (origin: string): string =>
+  `Bearer resource_metadata="${origin}${PROTECTED_RESOURCE_PATH}"`
 
 /**
  * [[API106]] D14: the `WWW-Authenticate` value of a 401 on `/mcp`. `scope` is one quoted, space-separated value (RFC 6750 section 3
@@ -56,7 +64,10 @@ const DOCUMENT_PATHS: readonly string[] = [VIBASE_DISCOVERY_PATH, PROTECTED_RESO
  */
 export function discoveryResponse(req: Request, config: DiscoveryConfig): Response | undefined {
   const url = new URL(req.url)
-  if (req.method === 'OPTIONS') return DOCUMENT_PATHS.includes(url.pathname) ? new Response(null, { status: 204, headers: PREFLIGHT_HEADERS }) : undefined
+  if (req.method === 'OPTIONS')
+    return DOCUMENT_PATHS.includes(url.pathname)
+      ? new Response(null, { status: 204, headers: PREFLIGHT_HEADERS })
+      : undefined
   if (req.method !== 'GET' && req.method !== 'HEAD') return undefined
   let body: unknown
   if (url.pathname === VIBASE_DISCOVERY_PATH) {
@@ -70,16 +81,38 @@ export function discoveryResponse(req: Request, config: DiscoveryConfig): Respon
         ? null
         : p.name === 'better-auth'
           ? // [[CORE283]] P3: no publishable key; the issuer, the resource and the metadata URL come from the configured base URL.
-            { provider: p.name, issuer: p.issuer, cli_client_id: config.cliClientId ?? null, resource: p.baseUrl, protected_resource_metadata: p.baseUrl + PROTECTED_RESOURCE_PATH, sign_in_methods: p.signInMethods ?? ['password'] }
-          : { provider: p.name, issuer: p.issuer, cli_client_id: config.cliClientId ?? null, publishable_key: config.publishableKey ?? null, protected_resource_metadata: o + PROTECTED_RESOURCE_PATH },
+            {
+              provider: p.name,
+              issuer: p.issuer,
+              cli_client_id: config.cliClientId ?? null,
+              resource: p.baseUrl,
+              protected_resource_metadata: p.baseUrl + PROTECTED_RESOURCE_PATH,
+              sign_in_methods: p.signInMethods ?? ['password'],
+            }
+          : {
+              provider: p.name,
+              issuer: p.issuer,
+              cli_client_id: config.cliClientId ?? null,
+              publishable_key: config.publishableKey ?? null,
+              protected_resource_metadata: o + PROTECTED_RESOURCE_PATH,
+            },
     }
   } else if (url.pathname === PROTECTED_RESOURCE_PATH || url.pathname === MCP_PROTECTED_RESOURCE_PATH) {
     // Without a provider there is no authorisation server to name: 404, not a document that points nowhere.
-    if (!config.provider) return new Response(JSON.stringify({ error: { code: 'not_found', message: 'no such route' } }), { status: 404, headers: { 'content-type': 'application/json' } })
+    if (!config.provider)
+      return new Response(JSON.stringify({ error: { code: 'not_found', message: 'no such route' } }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      })
     const resourceOrigin = config.provider.name === 'better-auth' ? config.provider.baseUrl : url.origin
     body =
       url.pathname === PROTECTED_RESOURCE_PATH
-        ? { resource: resourceOrigin, authorization_servers: [config.provider.issuer], scopes_supported: config.declaredScopes.map(toProviderScope), bearer_methods_supported: ['header'] }
+        ? {
+            resource: resourceOrigin,
+            authorization_servers: [config.provider.issuer],
+            scopes_supported: config.declaredScopes.map(toProviderScope),
+            bearer_methods_supported: ['header'],
+          }
         : // [[API106]] D13: every MCP token is an agent's, and human-only scopes are dropped from agents, so only the grantable ones are offered.
           {
             resource: resourceOrigin + MCP_RESOURCE_PATH,

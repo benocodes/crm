@@ -51,7 +51,8 @@ function walk(part: GmailMessagePart, into: Walked = { bodies: [], attachments: 
   }
   if (mime === 'message/rfc822') return into // an embedded message without an attachment id has nothing to fetch
   if (part.parts) for (const child of part.parts) walk(child, into)
-  else if ((mime === 'text/plain' || mime === 'text/html') && !part.filename && part.body?.data !== undefined) into.bodies.push(part)
+  else if ((mime === 'text/plain' || mime === 'text/html') && !part.filename && part.body?.data !== undefined)
+    into.bodies.push(part)
   return into
 }
 
@@ -84,7 +85,11 @@ function formattedOf(bodies: GmailMessagePart[]): Root {
   const children: Root['children'] = []
   for (const part of chosen) {
     const text = decodeCharset(bodyBytes(part), charsetOf(header(part.headers, 'Content-Type')) ?? 'utf-8')
-    children.push(...((part.mimeType ?? '').toLowerCase() === 'text/html' ? (htmlToMdast(text) as Root['children']) : textToMdast(text)))
+    children.push(
+      ...((part.mimeType ?? '').toLowerCase() === 'text/html'
+        ? (htmlToMdast(text) as Root['children'])
+        : textToMdast(text)),
+    )
   }
   return { type: 'root', children }
 }
@@ -104,7 +109,12 @@ export function mapGmailMessage(input: MapperInput): ChannelMessage | { skip: st
   const headers = payload.headers
 
   const dateHeader = header(headers, 'Date')
-  const instant = resource.internalDate !== undefined && /^\d+$/.test(resource.internalDate) ? Number(resource.internalDate) : dateHeader ? Date.parse(dateHeader) : Number.NaN
+  const instant =
+    resource.internalDate !== undefined && /^\d+$/.test(resource.internalDate)
+      ? Number(resource.internalDate)
+      : dateHeader
+        ? Date.parse(dateHeader)
+        : Number.NaN
   if (Number.isNaN(instant)) return { skip: 'no_date' }
   const occurred = new Date(instant)
 
@@ -117,8 +127,14 @@ export function mapGmailMessage(input: MapperInput): ChannelMessage | { skip: st
   const hints = [...new Set([...replyTo, ...refs])].slice(0, MAX_HINTS)
 
   const participants: ChannelFacts['participants'] = []
-  for (const [name, role] of [['From', 'from'], ['To', 'to'], ['Cc', 'cc'], ['Bcc', 'bcc']] as Array<[string, ParticipantRole]>) {
-    for (const a of parseAddressList(header(headers, name))) participants.push({ kind: 'email', value: a.value, ...(a.name === undefined ? {} : { name: a.name }), role })
+  for (const [name, role] of [
+    ['From', 'from'],
+    ['To', 'to'],
+    ['Cc', 'cc'],
+    ['Bcc', 'bcc'],
+  ] as Array<[string, ParticipantRole]>) {
+    for (const a of parseAddressList(header(headers, name)))
+      participants.push({ kind: 'email', value: a.value, ...(a.name === undefined ? {} : { name: a.name }), role })
   }
   const from = participants.find((p) => p.role === 'from')
   const sent = labels.includes('SENT')
@@ -139,9 +155,17 @@ export function mapGmailMessage(input: MapperInput): ChannelMessage | { skip: st
         ...(part.filename ? { name: part.filename } : {}),
         mimeType: mime,
         ...(size === undefined ? {} : { size }),
-        fetchMetadata: { message_id: resource.id, attachment_id: part.body!.attachmentId!, ...(size === undefined ? {} : { size: String(size) }) },
+        fetchMetadata: {
+          message_id: resource.id,
+          attachment_id: part.body!.attachmentId!,
+          ...(size === undefined ? {} : { size: String(size) }),
+        },
       },
-      fact: { position, inline: /^\s*inline/i.test(disposition ?? '') || cid !== '', content_id: cid === '' ? null : cid },
+      fact: {
+        position,
+        inline: /^\s*inline/i.test(disposition ?? '') || cid !== '',
+        content_id: cid === '' ? null : cid,
+      },
     }
   })
 

@@ -44,7 +44,8 @@ export function proposerScopes(scopes: ScopeSet, op: TenantOperation): ScopeSet 
   if (op.scope === null) return scopes
   return ScopeSet.parse([...scopes.toStrings(), formatScope(op.scope)])
 }
-export const canPropose = (scopes: ScopeSet, op: TenantOperation): boolean => op.scope !== null && scopes.has(proposalScopeOf(op.scope))
+export const canPropose = (scopes: ScopeSet, op: TenantOperation): boolean =>
+  op.scope !== null && scopes.has(proposalScopeOf(op.scope))
 
 const refuseReads: PrepareContext = {
   read() {
@@ -59,7 +60,11 @@ export { refuseReads as noReads }
  * it validates the call as a proposal would and gives no hint when that validation itself is refused for a missing scope. A caller
  * with no proposal authority, or an operation that is not proposable, gets no hint.
  */
-export async function proposalHint(op: TenantOperation, env: PreparedEnv, input: OperationInput): Promise<string | null> {
+export async function proposalHint(
+  op: TenantOperation,
+  env: PreparedEnv,
+  input: OperationInput,
+): Promise<string | null> {
   if (op.proposal?.eligible !== true || !canPropose(env.scopes, op)) return null
   try {
     await op.prepare({ ...env, scopes: proposerScopes(env.scopes, op) }, input, refuseReads)

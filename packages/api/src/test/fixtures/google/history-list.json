@@ -7,20 +7,7 @@
       "method": "GET",
       "host": "gmail.googleapis.com",
       "path": "/gmail/v1/users/me/history",
-      "query": [
-        [
-          "startHistoryId",
-          "5906950"
-        ],
-        [
-          "maxResults",
-          "100"
-        ],
-        [
-          "historyTypes",
-          "messageAdded"
-        ]
-      ],
+      "query": [["startHistoryId", "5906950"], ["maxResults", "100"], ["historyTypes", "messageAdded"]],
       "form": null
     },
     "response": {
@@ -43,10 +30,7 @@
                 "message": {
                   "id": "75u5l2ea57s8b7q4",
                   "threadId": "75u5l2ea57s8b7q4",
-                  "labelIds": [
-                    "INBOX",
-                    "UNREAD"
-                  ]
+                  "labelIds": ["INBOX", "UNREAD"]
                 }
               }
             ]
@@ -65,9 +49,7 @@
                   "id": "56h0v0im87d0i1g9",
                   "threadId": "75u5l2ea57s8b7q4"
                 },
-                "labelIds": [
-                  "STARRED"
-                ]
+                "labelIds": ["STARRED"]
               }
             ]
           }
@@ -84,10 +66,7 @@
           "messagesAdded": [
             {
               "message": {
-                "labelIds": [
-                  "INBOX",
-                  "UNREAD"
-                ]
+                "labelIds": ["INBOX", "UNREAD"]
               }
             }
           ]

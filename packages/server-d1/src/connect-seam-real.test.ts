@@ -24,13 +24,26 @@ beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', email: 'boot@x.test', agentName: 'bot', authProvider: 'none', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) })
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
+  const r = await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', email: 'boot@x.test', agentName: 'bot', authProvider: 'none', authOrgId: 'org_acme' },
+    { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) },
+  )
   orgId = r.organizationId
   kit = authKit(w.control, { scopes: declared })
 })
 
-const env = (): D1WorkerEnv => ({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE })
+const env = (): D1WorkerEnv => ({
+  DB: w.d1,
+  CONTROL_DB: w.control,
+  AUTH_PROVIDER: 'better-auth',
+  AUTH_SECRET,
+  PUBLIC_BASE_URL: AUTH_BASE,
+})
 
 /** What a browser does for the page: relative URLs resolve against the page origin, the origin header is sent, `Set-Cookie` is kept. */
 function browser(cookie: string) {
@@ -43,7 +56,8 @@ function browser(cookie: string) {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, AUTH_BASE)
     const headers = new Headers(init?.headers)
     headers.set('origin', AUTH_BASE)
-    if (url.origin === AUTH_BASE && init?.credentials !== 'omit' && jar.size) headers.set('cookie', [...jar].map(([k, v]) => `${k}=${v}`).join('; '))
+    if (url.origin === AUTH_BASE && init?.credentials !== 'omit' && jar.size)
+      headers.set('cookie', [...jar].map(([k, v]) => `${k}=${v}`).join('; '))
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
     const res = await worker.fetch(new Request(url, { ...init, headers }))
     for (const sc of res.headers.getSetCookie()) {
@@ -60,7 +74,13 @@ function browser(cookie: string) {
 async function person() {
   const { userId, cookie } = await kit.signUp('person@x.test')
   const id = uuidv7(NOW)
-  await seedPrincipal(w.d1, { id, kind: 'user', email: 'person@x.test', authProvider: 'better-auth', authSubject: userId })
+  await seedPrincipal(w.d1, {
+    id,
+    kind: 'user',
+    email: 'person@x.test',
+    authProvider: 'better-auth',
+    authSubject: userId,
+  })
   await seedMembership(w.d1, { organizationId: orgId, userId: id, role: 'owner' })
   return { cookie, id }
 }

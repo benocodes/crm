@@ -33,10 +33,26 @@ beforeEach(async () => {
 
 describe('a valid token of each kind verifies (D8)', () => {
   it('a session JWT is a session: subject, issued-at, no role, no organisation', async () => {
-    expect(await adapter().verify(await mint({ sub: 'u-1' }))).toEqual({ ok: true, kind: 'session', subject: 'u-1', issuedAt: new Date(T0), organization: null, role: undefined })
+    expect(await adapter().verify(await mint({ sub: 'u-1' }))).toEqual({
+      ok: true,
+      kind: 'session',
+      subject: 'u-1',
+      issuedAt: new Date(T0),
+      organization: null,
+      role: undefined,
+    })
   })
-  it('an OAuth access token is oauth: client, and the vault scopes only (the provider\'s own scopes dropped)', async () => {
-    expect(await adapter().verify(await mint({ kind: 'oauth', sub: 'u-1', clientId: 'c-1', scope: 'openid offline_access contacts:read contacts:write email' }))).toEqual({
+  it("an OAuth access token is oauth: client, and the vault scopes only (the provider's own scopes dropped)", async () => {
+    expect(
+      await adapter().verify(
+        await mint({
+          kind: 'oauth',
+          sub: 'u-1',
+          clientId: 'c-1',
+          scope: 'openid offline_access contacts:read contacts:write email',
+        }),
+      ),
+    ).toEqual({
       ok: true,
       kind: 'oauth',
       subject: 'u-1',
@@ -45,7 +61,9 @@ describe('a valid token of each kind verifies (D8)', () => {
     })
   })
   it('the audience may be a list that names the API origin (the provider adds the userinfo endpoint with openid)', async () => {
-    expect((await adapter().verify(await mint({ kind: 'oauth', aud: [BA_BASE, `${BA_ISSUER}/oauth2/userinfo`] }))).ok).toBe(true)
+    expect(
+      (await adapter().verify(await mint({ kind: 'oauth', aud: [BA_BASE, `${BA_ISSUER}/oauth2/userinfo`] }))).ok,
+    ).toBe(true)
   })
 })
 
@@ -59,13 +77,22 @@ describe('every bad token is refused (D8, D23)', () => {
     expect(await adapter().verify(await mint({ kid: null }))).toEqual({ ok: false, reason: 'signature' })
   })
   it('wrong iss, including the issuer an attacker host would claim (never the request host)', async () => {
-    expect(await adapter().verify(await mint({ iss: 'https://evil.example/auth' }))).toEqual({ ok: false, reason: 'issuer' })
+    expect(await adapter().verify(await mint({ iss: 'https://evil.example/auth' }))).toEqual({
+      ok: false,
+      reason: 'issuer',
+    })
     expect(await adapter().verify(await mint({ iss: BA_BASE }))).toEqual({ ok: false, reason: 'issuer' })
-    expect(await adapter().verify(await mint({ kind: 'oauth', iss: 'https://other.vibase.test/auth' }))).toEqual({ ok: false, reason: 'issuer' })
+    expect(await adapter().verify(await mint({ kind: 'oauth', iss: 'https://other.vibase.test/auth' }))).toEqual({
+      ok: false,
+      reason: 'issuer',
+    })
   })
   it('wrong aud: another origin, a list without the API origin, none at all', async () => {
     expect(await adapter().verify(await mint({ aud: 'https://evil.example' }))).toEqual({ ok: false, reason: 'claims' })
-    expect(await adapter().verify(await mint({ aud: ['https://a.example', 'https://b.example'] }))).toEqual({ ok: false, reason: 'claims' })
+    expect(await adapter().verify(await mint({ aud: ['https://a.example', 'https://b.example'] }))).toEqual({
+      ok: false,
+      reason: 'claims',
+    })
     expect(await adapter().verify(await mint({ kind: 'oauth', omit: ['aud'] }))).toMatchObject({ ok: false })
   })
   it('expired', async () => {
@@ -83,7 +110,9 @@ describe('every bad token is refused (D8, D23)', () => {
   })
   it('a Clerk-shaped token on a better-auth Worker', async () => {
     const clerk = await testIssuer()
-    expect((await adapter().verify(await mintClerkToken(clerk, { sub: 'user_1', extra: { vibase_role: 'owner' } }))).ok).toBe(false)
+    expect(
+      (await adapter().verify(await mintClerkToken(clerk, { sub: 'user_1', extra: { vibase_role: 'owner' } }))).ok,
+    ).toBe(false)
   })
   it('not a JWT at all', async () => {
     expect(await adapter().verify('abc.def.ghi')).toEqual({ ok: false, reason: 'malformed' })
@@ -91,19 +120,29 @@ describe('every bad token is refused (D8, D23)', () => {
 })
 
 describe('the two kinds are never confused (D8)', () => {
-  it('a delegating client\'s access token is oauth, never a session, even with a session id claim', async () => {
-    const r = await adapter().verify(await mint({ kind: 'oauth', clientId: 'delegating', extra: { vibase_token: 'session' } }))
+  it("a delegating client's access token is oauth, never a session, even with a session id claim", async () => {
+    const r = await adapter().verify(
+      await mint({ kind: 'oauth', clientId: 'delegating', extra: { vibase_token: 'session' } }),
+    )
     expect(r).toMatchObject({ ok: true, kind: 'oauth', clientId: 'delegating' })
   })
   it('a JWT without the access-token header that carries a client is refused', async () => {
-    expect(await adapter().verify(await mint({ extra: { client_id: 'c', azp: 'c', scope: 'contacts:read' } }))).toEqual({ ok: false, reason: 'claims' })
+    expect(await adapter().verify(await mint({ extra: { client_id: 'c', azp: 'c', scope: 'contacts:read' } }))).toEqual(
+      { ok: false, reason: 'claims' },
+    )
   })
   it('a JWT that is no access token and lacks the session marker is refused', async () => {
     expect(await adapter().verify(await mint({ omit: ['vibase_token'] }))).toEqual({ ok: false, reason: 'claims' })
-    expect(await adapter().verify(await mint({ extra: { vibase_token: 'other' } }))).toEqual({ ok: false, reason: 'claims' })
+    expect(await adapter().verify(await mint({ extra: { vibase_token: 'other' } }))).toEqual({
+      ok: false,
+      reason: 'claims',
+    })
   })
   it('an access token with no client id is refused', async () => {
-    expect(await adapter().verify(await mint({ kind: 'oauth', omit: ['client_id'] }))).toEqual({ ok: false, reason: 'claims' })
+    expect(await adapter().verify(await mint({ kind: 'oauth', omit: ['client_id'] }))).toEqual({
+      ok: false,
+      reason: 'claims',
+    })
   })
 })
 

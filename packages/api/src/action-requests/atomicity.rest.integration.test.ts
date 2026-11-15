@@ -14,15 +14,30 @@ afterAll(() => k.close())
 beforeEach(async () => {
   await k.reset()
   owner = k.owner
-  writer = await k.actor('writer', 'agent', ['tasks:read', 'tasks:write', 'contacts:write', 'deals:write', 'pipelines:write', 'action_requests:read'])
-  proposer = await k.actor('proposer', 'agent', ['tasks:read', 'tasks:request_approval', 'contacts:request_approval', 'deals:request_approval', 'action_requests:read'])
+  writer = await k.actor('writer', 'agent', [
+    'tasks:read',
+    'tasks:write',
+    'contacts:write',
+    'deals:write',
+    'pipelines:write',
+    'action_requests:read',
+  ])
+  proposer = await k.actor('proposer', 'agent', [
+    'tasks:read',
+    'tasks:request_approval',
+    'contacts:request_approval',
+    'deals:request_approval',
+    'action_requests:read',
+  ])
 })
 const AR = '/api/v1/action-requests'
 const post = async (path: string, body: unknown) => (await k.call(owner, 'POST', path, body)).body
-const propose = async (operation: string, args: Record<string, unknown>) => (await k.call(proposer, 'POST', AR, { operation, arguments: args, reason: 'x' })).body.id as string
+const propose = async (operation: string, args: Record<string, unknown>) =>
+  (await k.call(proposer, 'POST', AR, { operation, arguments: args, reason: 'x' })).body.id as string
 const code = (r: { status: number; body: any }) => [r.status, r.body?.error?.code]
 const statusOf = async (id: string) => (await k.rows('action_requests', 'id = ?', id))[0]!.status
-const touch = (table: string, id: string, set: string) => k.d1.prepare(`update "${table}" set ${set} where id = ?`).bind(id).run()
+const touch = (table: string, id: string, set: string) =>
+  k.d1.prepare(`update "${table}" set ${set} where id = ?`).bind(id).run()
 const LATER = '2026-11-06T10:00:01.000Z'
 
 /**
@@ -43,7 +58,12 @@ function afterReads(actions: Array<(() => Promise<void>) | null>): void {
 async function expectUntouched(id: string, eventsBefore: number) {
   expect(await statusOf(id)).toBe('pending')
   expect((await k.events()).length).toBe(eventsBefore)
-  expect((await k.rows('action_requests', 'id = ?', id))[0]).toMatchObject({ decided_by: null, decided_at: null, result: null, executed_at: null })
+  expect((await k.rows('action_requests', 'id = ?', id))[0]).toMatchObject({
+    decided_by: null,
+    decided_at: null,
+    result: null,
+    executed_at: null,
+  })
 }
 
 describe('concurrent decisions: exactly one outcome and one target mutation (D28)', () => {
@@ -88,9 +108,19 @@ describe('concurrent decisions: exactly one outcome and one target mutation (D28
     const t = (await post('/api/v1/tasks', { title: 'start' })).id
     let other: { status: number; body: any } | undefined
     k.beforeCommit(async () => {
-      other = await k.call(owner, 'POST', AR, { operation: 'tasks.update', arguments: { id: t, title: 'o' }, reason: 'x', dedup_key: 'race' })
+      other = await k.call(owner, 'POST', AR, {
+        operation: 'tasks.update',
+        arguments: { id: t, title: 'o' },
+        reason: 'x',
+        dedup_key: 'race',
+      })
     })
-    const mine = await k.call(proposer, 'POST', AR, { operation: 'tasks.update', arguments: { id: t, title: 'p' }, reason: 'x', dedup_key: 'race' })
+    const mine = await k.call(proposer, 'POST', AR, {
+      operation: 'tasks.update',
+      arguments: { id: t, title: 'p' },
+      reason: 'x',
+      dedup_key: 'race',
+    })
     expect(other?.status).toBe(201)
     expect(code(mine)).toEqual([409, 'duplicate_action_request'])
     expect(await k.rows('action_requests', "status = 'pending'")).toHaveLength(1)
@@ -124,7 +154,7 @@ describe('inline atomicity (D10, D35): a guard failing at commit leaves no decis
     expect((await k.call(owner, 'GET', `/api/v1/tasks/${t}`)).body.title).toBe('start')
   })
 
-  it('the target deleted after the plan: the replan finds nothing, the answer is the target\'s 404, the request stays pending', async () => {
+  it("the target deleted after the plan: the replan finds nothing, the answer is the target's 404, the request stays pending", async () => {
     const t = (await post('/api/v1/tasks', { title: 'start' })).id
     const id = await propose('tasks.update', { id: t, title: 'final' })
     const before = (await k.events()).length
@@ -133,12 +163,15 @@ describe('inline atomicity (D10, D35): a guard failing at commit leaves no decis
     await expectUntouched(id, before)
   })
 
-  it('a reference guard: a company deleted after the plan, answered as the target\'s invalid_reference, nothing written', async () => {
+  it("a reference guard: a company deleted after the plan, answered as the target's invalid_reference, nothing written", async () => {
     const company = (await post('/api/v1/companies', { name: 'Acme' })).id
     const c = (await post('/api/v1/contacts', { name: 'Ann' })).id
     const id = await propose('contacts.update', { id: c, company_id: company })
     const before = (await k.events()).length
-    afterReads([null, async () => void (await touch('companies', company, `deleted_at = '${LATER}', updated_at = '${LATER}'`))])
+    afterReads([
+      null,
+      async () => void (await touch('companies', company, `deleted_at = '${LATER}', updated_at = '${LATER}'`)),
+    ])
     expect(code(await k.call(writer, 'POST', `${AR}/${id}/approve`))).toEqual([400, 'invalid_reference'])
     await expectUntouched(id, before)
     expect((await k.rows('contacts', 'id = ?', c))[0]!.company_id).toBeNull()
@@ -146,12 +179,19 @@ describe('inline atomicity (D10, D35): a guard failing at commit leaves no decis
 
   it('a command guard: the stage of a deal move deleted after the plan', async () => {
     const pipeline = (await post('/meta/v1/pipelines', { name: 'Sales' })).id
-    const open = (await post('/meta/v1/pipeline-stages', { pipeline_id: pipeline, name: 'Open', kind: 'open', position: 1 })).id
-    const won = (await post('/meta/v1/pipeline-stages', { pipeline_id: pipeline, name: 'Won', kind: 'won', position: 2 })).id
+    const open = (
+      await post('/meta/v1/pipeline-stages', { pipeline_id: pipeline, name: 'Open', kind: 'open', position: 1 })
+    ).id
+    const won = (
+      await post('/meta/v1/pipeline-stages', { pipeline_id: pipeline, name: 'Won', kind: 'won', position: 2 })
+    ).id
     const deal = (await post('/api/v1/deals', { name: 'D', stage_id: open })).id
     const id = await propose('deals.move_stage', { id: deal, stage_id: won })
     const before = (await k.events()).length
-    afterReads([null, async () => void (await touch('pipeline_stages', won, `deleted_at = '${LATER}', updated_at = '${LATER}'`))])
+    afterReads([
+      null,
+      async () => void (await touch('pipeline_stages', won, `deleted_at = '${LATER}', updated_at = '${LATER}'`)),
+    ])
     expect(code(await k.call(writer, 'POST', `${AR}/${id}/approve`))).toEqual([400, 'invalid_reference'])
     await expectUntouched(id, before)
     expect((await k.rows('deals', 'id = ?', deal))[0]!.stage_id).toBe(open)

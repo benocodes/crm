@@ -2,9 +2,23 @@
 // suites and by the contract fixtures of the six messaging resources (which seed through the program under construction
 // of the unit they read, replacing the direct-insert seeding of cycle 1, P15).
 import { sql } from 'kysely'
-import { defineOperation, execute, step, unit, uuidv7, type PreparedOperation, type StorageBinding } from '@vibase/storage'
+import {
+  defineOperation,
+  execute,
+  step,
+  unit,
+  uuidv7,
+  type PreparedOperation,
+  type StorageBinding,
+} from '@vibase/storage'
 import { fileObjectPrefix } from '../messaging/r2-keys.js'
-import { recordMessagesOperation, type CaptureAttachment, type CaptureInput, type CaptureMessage, type CaptureResult } from '../messaging/capture.js'
+import {
+  recordMessagesOperation,
+  type CaptureAttachment,
+  type CaptureInput,
+  type CaptureMessage,
+  type CaptureResult,
+} from '../messaging/capture.js'
 import { ScopeSet } from '../scopes.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import type { Engine } from './engines.js'
@@ -13,7 +27,11 @@ import type { Tenant } from './tenant.js'
 let counter = 0
 const hex64 = (): string => (++counter).toString(16).padStart(64, '0')
 
-export function storedAttachment(organizationId: string, position: number, opts: Partial<CaptureAttachment> & { sha256?: string; storage_key?: string } = {}): CaptureAttachment {
+export function storedAttachment(
+  organizationId: string,
+  position: number,
+  opts: Partial<CaptureAttachment> & { sha256?: string; storage_key?: string } = {},
+): CaptureAttachment {
   const { sha256, storage_key, ...rest } = opts
   const sha = sha256 ?? hex64()
   const base: CaptureAttachment = {
@@ -27,12 +45,20 @@ export function storedAttachment(organizationId: string, position: number, opts:
     fetch_status: 'stored',
     fetch_metadata: null,
     fetch_error: null,
-    file: { storage_key: storage_key ?? fileObjectPrefix(organizationId, uuidv7()), sha256: sha, size_bytes: 1000 + position, name: `file-${position}.pdf`, mime_type: 'application/pdf' },
+    file: {
+      storage_key: storage_key ?? fileObjectPrefix(organizationId, uuidv7()),
+      sha256: sha,
+      size_bytes: 1000 + position,
+      name: `file-${position}.pdf`,
+      mime_type: 'application/pdf',
+    },
   }
   return { ...base, ...rest }
 }
 
-export type CaptureOverrides = Omit<Partial<CaptureMessage>, 'attachments'> & { attachments?: number | readonly CaptureAttachment[] }
+export type CaptureOverrides = Omit<Partial<CaptureMessage>, 'attachments'> & {
+  attachments?: number | readonly CaptureAttachment[]
+}
 
 /** A valid message: unique `external_id`, from `jane@acme.test` to `owner@vibase.test`, a fixed instant. `attachments: n` means n stored attachments. */
 export function captureMessage(organizationId: string, over: CaptureOverrides = {}): CaptureMessage {
@@ -57,7 +83,10 @@ export function captureMessage(organizationId: string, over: CaptureOverrides = 
       { kind: 'email', value: 'jane@acme.test', role: 'from' },
       { kind: 'email', value: 'owner@vibase.test', role: 'to' },
     ],
-    attachments: typeof attachments === 'number' ? Array.from({ length: attachments }, (_, i) => storedAttachment(organizationId, i)) : (attachments ?? []),
+    attachments:
+      typeof attachments === 'number'
+        ? Array.from({ length: attachments }, (_, i) => storedAttachment(organizationId, i))
+        : (attachments ?? []),
     ...rest,
   }
 }
@@ -68,7 +97,11 @@ export function captureMessage(organizationId: string, over: CaptureOverrides = 
  * live read, list or participant sees it; nothing is written when the connection exists):
  * not an operation, and the connect flow's own writes are proven by the CHN140 suites. Postgres has no such table (D1 only): a no-op there.
  */
-export function ensureConnectionOperation(organizationId: string, ownerId: string, connectionId: string): PreparedOperation<void> {
+export function ensureConnectionOperation(
+  organizationId: string,
+  ownerId: string,
+  connectionId: string,
+): PreparedOperation<void> {
   const at = '2026-10-22T08:00:00.000Z'
   return defineOperation<void>({
     name: 'test.ensure_connection',
@@ -80,11 +113,15 @@ export function ensureConnectionOperation(organizationId: string, ownerId: strin
           step(
             sql`insert into "identities" ("id", "created_at", "updated_at", "organization_id", "created_by", "kind", "value", "contact_id", "own", "deleted_at")
               select ${connectionId}, ${at}, ${at}, ${organizationId}, ${ownerId}, 'email', ${`conn-${connectionId}@seed.test`}, null, 1, ${at}
-              where not exists (select 1 from "channel_connections" where "id" = ${connectionId}) on conflict do nothing`.compile(qc.db),
+              where not exists (select 1 from "channel_connections" where "id" = ${connectionId}) on conflict do nothing`.compile(
+              qc.db,
+            ),
           ),
           step(
             sql`insert into "channel_connections" ("id", "created_at", "updated_at", "organization_id", "created_by", "provider", "account_id", "identity_id", "owner_id", "status", "granted_scopes", "connected_at")
-              values (${connectionId}, ${at}, ${at}, ${organizationId}, ${ownerId}, 'google', ${`seed-${connectionId}`}, ${connectionId}, ${ownerId}, 'active', '[]', ${at}) on conflict do nothing`.compile(qc.db),
+              values (${connectionId}, ${at}, ${at}, ${organizationId}, ${ownerId}, 'google', ${`seed-${connectionId}`}, ${connectionId}, ${ownerId}, 'active', '[]', ${at}) on conflict do nothing`.compile(
+              qc.db,
+            ),
           ),
         ],
         events: [],
@@ -101,13 +138,21 @@ export const forgetEnsuredConnections = (binding: StorageBinding): void => void 
  * new one), so a connection is made once: a later call touches nothing, which keeps the "between plan and commit" drift hook of the engine for the unit
  * under test. A suite that arms that hook seeds every connection it uses first.
  */
-export async function ensureConnection(binding: StorageBinding, t: { organizationId: string; userId: string }, connectionId: string): Promise<void> {
+export async function ensureConnection(
+  binding: StorageBinding,
+  t: { organizationId: string; userId: string },
+  connectionId: string,
+): Promise<void> {
   if (binding.kind !== 'd1') return
   const done = ensured.get(binding) ?? new Set<string>()
   ensured.set(binding, done)
   if (done.has(connectionId)) return
   done.add(connectionId)
-  await execute(binding, { kind: 'tenant', actorId: t.userId, organizationId: t.organizationId }, ensureConnectionOperation(t.organizationId, t.userId, connectionId))
+  await execute(
+    binding,
+    { kind: 'tenant', actorId: t.userId, organizationId: t.organizationId },
+    ensureConnectionOperation(t.organizationId, t.userId, connectionId),
+  )
 }
 
 /** Runs one capture unit on the engine as the tenant's user (or agent). */
@@ -131,7 +176,11 @@ export function tenantEnv(t: Tenant, now = new Date('2026-10-22T10:00:00.000Z'))
 /** Runs one capture unit as the tenant's user on a contract session's binding. */
 export async function captureAs(binding: StorageBinding, t: Tenant, input: CaptureInput): Promise<CaptureResult> {
   await ensureConnection(binding, t, input.connection_id)
-  const out = await execute(binding, { kind: 'tenant', actorId: t.userId, organizationId: t.organizationId }, recordMessagesOperation(tenantEnv(t), input))
+  const out = await execute(
+    binding,
+    { kind: 'tenant', actorId: t.userId, organizationId: t.organizationId },
+    recordMessagesOperation(tenantEnv(t), input),
+  )
   return out.value
 }
 

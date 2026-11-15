@@ -2,7 +2,17 @@
 import type { D1Like } from '@vibase/storage-d1'
 import type { HostMode, RecordedHost } from './host.js'
 
-export const STEP_NAMES = ['preflight', 'config:resources', 'clerk', 'config:write', 'migrate', 'bootstrap', 'deploy', 'secrets', 'verify'] as const
+export const STEP_NAMES = [
+  'preflight',
+  'config:resources',
+  'clerk',
+  'config:write',
+  'migrate',
+  'bootstrap',
+  'deploy',
+  'secrets',
+  'verify',
+] as const
 /** Steps that exist only with `--auth clerk` ([[OPS65]] D11); `secrets` also runs on `--auth none` for the Gmail group ([[OPS65]] D41). */
 export const CLERK_ONLY_STEPS: readonly StepName[] = ['clerk']
 export type StepName = (typeof STEP_NAMES)[number]
@@ -58,7 +68,11 @@ export interface SetupDeps {
   readConfigText(): string
   writeConfigText(text: string): void
   /** The instance's remote D1 (a platform proxy in the real command). */
-  openD1(envName: string): Promise<{ d1: D1Like; /** `CONTROL_DB`, when the env binds one (OPS279). */ control?: D1Like; dispose(): Promise<void> }>
+  openD1(envName: string): Promise<{
+    d1: D1Like /** `CONTROL_DB`, when the env binds one (OPS279). */
+    control?: D1Like
+    dispose(): Promise<void>
+  }>
   /** The Clerk env file ([[OPS65]] D34): resolves the path (default `.env.<env>` at the repo root), compares real paths with the root `.env`, asks git whether it is ignored, reads it. Never touches `process.env`. */
   probeEnvFile(arg: string | undefined, envName: string): EnvFileProbe
   /** Appends `NAME=value` to the instance's own env file (`.env.<env>`, or `--clerk-env-file`), creating it (mode 600) when it is missing; throws if the name is already there (OPS249 D3). */

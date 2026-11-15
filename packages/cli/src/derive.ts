@@ -16,7 +16,8 @@ function resolve(root: unknown, node: unknown): Obj {
     const ref: string = cur.$ref
     if (!ref.startsWith('#/')) return {}
     let target: unknown = root
-    for (const part of ref.slice(2).split('/')) target = isObj(target) ? target[part.replace(/~1/g, '/').replace(/~0/g, '~')] : undefined
+    for (const part of ref.slice(2).split('/'))
+      target = isObj(target) ? target[part.replace(/~1/g, '/').replace(/~0/g, '~')] : undefined
     cur = target
   }
   return {}
@@ -24,12 +25,25 @@ function resolve(root: unknown, node: unknown): Obj {
 
 const isJsonType = (t: string) => t === 'application/json' || t.endsWith('+json')
 
-function toOperation(source: 'api' | 'meta', root: unknown, path: string, method: string, op: Obj, shared: unknown[]): Operation {
+function toOperation(
+  source: 'api' | 'meta',
+  root: unknown,
+  path: string,
+  method: string,
+  op: Obj,
+  shared: unknown[],
+): Operation {
   const parameters: Operation['parameters'] = []
   for (const raw of [...shared, ...(Array.isArray(op.parameters) ? op.parameters : [])]) {
     const p = resolve(root, raw)
     if ((p.in !== 'path' && p.in !== 'query') || typeof p.name !== 'string') continue
-    const entry = { name: p.name, in: p.in as 'path' | 'query', required: p.in === 'path' || p.required === true, schema: resolve(root, p.schema), description: typeof p.description === 'string' ? p.description : undefined }
+    const entry = {
+      name: p.name,
+      in: p.in as 'path' | 'query',
+      required: p.in === 'path' || p.required === true,
+      schema: resolve(root, p.schema),
+      description: typeof p.description === 'string' ? p.description : undefined,
+    }
     const at = parameters.findIndex((x) => x.name === entry.name && x.in === entry.in)
     if (at >= 0) parameters[at] = entry
     else parameters.push(entry)
@@ -52,8 +66,19 @@ function toOperation(source: 'api' | 'meta', root: unknown, path: string, method
   const jsonType = types.find(isJsonType)
   const responseSchema = jsonType ? resolve(root, content[jsonType]?.schema) : {}
   const props = resolve(root, responseSchema).properties
-  const paginated = parameters.some((p) => p.in === 'query' && p.name === 'after') && isObj(props) && 'next_cursor' in props
-  return { id: op.operationId, source, method: method.toUpperCase(), path, summary: typeof op.summary === 'string' ? op.summary : '', parameters, body, binary, paginated }
+  const paginated =
+    parameters.some((p) => p.in === 'query' && p.name === 'after') && isObj(props) && 'next_cursor' in props
+  return {
+    id: op.operationId,
+    source,
+    method: method.toUpperCase(),
+    path,
+    summary: typeof op.summary === 'string' ? op.summary : '',
+    parameters,
+    body,
+    binary,
+    paginated,
+  }
 }
 
 /** Merges the two OpenAPI documents by `operationId` ([[API6]] D7). A duplicate is a usage error naming both. */
@@ -69,7 +94,11 @@ export function mergeDocuments(docs: { source: 'api' | 'meta'; doc: unknown }[])
         if (!isObj(op) || typeof op.operationId !== 'string' || op.operationId === '') continue
         const next = toOperation(source, doc, path, method, op, shared)
         const prior = out.get(next.id)
-        if (prior) throw usage(`operationId "${next.id}" appears twice: ${prior.method} ${prior.path} (${prior.source} document) and ${next.method} ${next.path} (${next.source} document)`, 'duplicate_operation')
+        if (prior)
+          throw usage(
+            `operationId "${next.id}" appears twice: ${prior.method} ${prior.path} (${prior.source} document) and ${next.method} ${next.path} (${next.source} document)`,
+            'duplicate_operation',
+          )
         out.set(next.id, next)
       }
     }
@@ -87,14 +116,19 @@ function flagType(schema: JsonSchema): { type: FlagType; enum?: string[] } {
     for (const key of ['anyOf', 'oneOf']) {
       const variants = s[key]
       if (Array.isArray(variants)) {
-        const found = variants.map((v) => (isObj(v) ? typeOf(v) : undefined)).find((x) => x !== undefined && x !== 'null')
+        const found = variants
+          .map((v) => (isObj(v) ? typeOf(v) : undefined))
+          .find((x) => x !== undefined && x !== 'null')
         if (found) return found
       }
     }
     return undefined
   }
   const t = typeOf(schema)
-  const en = Array.isArray(schema.enum) && schema.enum.every((v) => typeof v === 'string') ? (schema.enum as string[]) : undefined
+  const en =
+    Array.isArray(schema.enum) && schema.enum.every((v) => typeof v === 'string')
+      ? (schema.enum as string[])
+      : undefined
   if (t === 'integer' || t === 'number' || t === 'boolean') return { type: t }
   if (t === 'object' || t === 'array') return { type: 'json' }
   return en ? { type: 'string', enum: en } : { type: 'string' }
@@ -120,17 +154,29 @@ export function deriveCommand(op: Operation): Command {
   const fail = (error: string): Command => ({ ...base, flags: [], dataOnly: [], error })
   if (dot <= 0) return fail(`operationId "${op.id}" is not <resource>.<action>`)
   const declared = new Set(op.parameters.filter((p) => p.in === 'path').map((p) => p.name))
-  for (const name of base.pathParams) if (!declared.has(name)) return fail(`path parameter {${name}} of ${op.id} is not declared`)
+  for (const name of base.pathParams)
+    if (!declared.has(name)) return fail(`path parameter {${name}} of ${op.id} is not declared`)
   const taken = new Set<string>()
   for (const p of op.parameters) {
     if (p.in !== 'query') continue
     const name = kebab(p.name)
-    if (RESERVED_FLAGS.includes(name)) return fail(`${op.id}: query parameter "${p.name}" has a name reserved by the CLI (${RESERVED_FLAGS.map((r) => '--' + r).join(', ')}), so this command cannot be derived`)
+    if (RESERVED_FLAGS.includes(name))
+      return fail(
+        `${op.id}: query parameter "${p.name}" has a name reserved by the CLI (${RESERVED_FLAGS.map((r) => '--' + r).join(', ')}), so this command cannot be derived`,
+      )
     if (taken.has(name)) return fail(`${op.id}: two query parameters map to --${name}`)
     taken.add(name)
-    base.flags.push({ name, prop: p.name, where: 'query', ...flagType(p.schema), required: p.required, description: p.description })
+    base.flags.push({
+      name,
+      prop: p.name,
+      where: 'query',
+      ...flagType(p.schema),
+      required: p.required,
+      description: p.description,
+    })
   }
-  if (op.body && op.body.schema === null) return fail(`${op.id}: the request body is not JSON, which the CLI cannot send`)
+  if (op.body && op.body.schema === null)
+    return fail(`${op.id}: the request body is not JSON, which the CLI cannot send`)
   const props = isObj(op.body?.schema?.properties) ? (op.body!.schema!.properties as Obj) : {}
   const required = Array.isArray(op.body?.schema?.required) ? (op.body!.schema!.required as string[]) : []
   for (const [prop, raw] of Object.entries(props)) {
@@ -141,7 +187,14 @@ export function deriveCommand(op: Operation): Command {
     }
     taken.add(name)
     const schema = isObj(raw) ? raw : {}
-    base.flags.push({ name, prop, where: 'body', ...flagType(schema), required: required.includes(prop), description: typeof schema.description === 'string' ? schema.description : undefined })
+    base.flags.push({
+      name,
+      prop,
+      where: 'body',
+      ...flagType(schema),
+      required: required.includes(prop),
+      description: typeof schema.description === 'string' ? schema.description : undefined,
+    })
   }
   return base
 }

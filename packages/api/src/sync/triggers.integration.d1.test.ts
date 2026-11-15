@@ -12,7 +12,13 @@ import { requestSync, type MailSyncInstances, type MailSyncParams } from './requ
 
 // [[CHN141]]: the non-push triggers on local D1: `requestSync`, `connections.sync`, the connect flow's request and the cron's selection.
 const KEY = new Uint8Array(32).fill(3)
-const ENV = { GOOGLE_CLIENT_ID: 'fake-client-id.apps.test', GOOGLE_CLIENT_SECRET: 'fake-client-secret', OAUTH_STATE_SECRET: 'state-secret-for-tests', CREDENTIALS_KEY: Buffer.from(KEY).toString('base64'), PUBLIC_BASE_URL: 'https://vibase.test' }
+const ENV = {
+  GOOGLE_CLIENT_ID: 'fake-client-id.apps.test',
+  GOOGLE_CLIENT_SECRET: 'fake-client-secret',
+  OAUTH_STATE_SECRET: 'state-secret-for-tests',
+  CREDENTIALS_KEY: Buffer.from(KEY).toString('base64'),
+  PUBLIC_BASE_URL: 'https://vibase.test',
+}
 const BASE = 'https://vibase.test'
 const MIN = 60_000
 
@@ -37,12 +43,29 @@ beforeEach(async () => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-const raw = (sql: string, ...binds: unknown[]) => e.d1!.prepare(sql).bind(...binds).run()
-const deps = (over: Partial<Parameters<typeof requestSync>[0]> = {}) => ({ binding: e.binding, organizationId: e.organizationId, clock: () => now, newId: () => uuidv7(now), instances, ...over })
+const raw = (sql: string, ...binds: unknown[]) =>
+  e
+    .d1!.prepare(sql)
+    .bind(...binds)
+    .run()
+const deps = (over: Partial<Parameters<typeof requestSync>[0]> = {}) => ({
+  binding: e.binding,
+  organizationId: e.organizationId,
+  clock: () => now,
+  newId: () => uuidv7(now),
+  instances,
+  ...over,
+})
 let n = 0
 const seed = (over: { lastSyncedAt?: string | null } = {}) => {
   n++
-  return seedGmailConnection(e, { key: KEY, refreshToken: google.issueRefreshToken(), sub: `sub-${n}`, mailbox: `box${n}@vibase.test`, lastSyncedAt: over.lastSyncedAt ?? null })
+  return seedGmailConnection(e, {
+    key: KEY,
+    refreshToken: google.issueRefreshToken(),
+    sub: `sub-${n}`,
+    mailbox: `box${n}@vibase.test`,
+    lastSyncedAt: over.lastSyncedAt ?? null,
+  })
 }
 const stateOf = async (id: string) => (await e.rows('mail_sync_state')).find((r) => r.connection_id === id)!
 
@@ -73,7 +96,9 @@ describe('requestSync (D11)', () => {
   })
   it('an instance that cannot be created leaves the request recorded (the cron will serve it) and throws', async () => {
     const id = await seed()
-    await expect(requestSync(deps({ instances: { create: async () => Promise.reject(new Error('workflows down')) } }), id)).rejects.toThrow('workflows down')
+    await expect(
+      requestSync(deps({ instances: { create: async () => Promise.reject(new Error('workflows down')) } }), id),
+    ).rejects.toThrow('workflows down')
     expect((await stateOf(id)).sync_requested_at).toBe(now.toISOString())
   })
 })
@@ -86,13 +111,31 @@ describe('connections.sync (D43, D75)', () => {
       userAuthenticator: fakeUserAuthenticator(),
       clock: () => now,
       newId: () => uuidv7(now),
-      gmail: { config: over.config === false ? null : config, endpoints: FAKE_ENDPOINTS, fetch: google.fetch, gmailBaseUrl: FAKE_GMAIL_BASE, ...(over.instances === null ? {} : { instances: over.instances ?? instances }) },
+      gmail: {
+        config: over.config === false ? null : config,
+        endpoints: FAKE_ENDPOINTS,
+        fetch: google.fetch,
+        gmailBaseUrl: FAKE_GMAIL_BASE,
+        ...(over.instances === null ? {} : { instances: over.instances ?? instances }),
+      },
     })
   }
-  const post = async (a: ReturnType<typeof app>, id: string, o: { scopes?: string[]; kind?: 'user' | 'agent' } = {}) => {
+  const post = async (
+    a: ReturnType<typeof app>,
+    id: string,
+    o: { scopes?: string[]; kind?: 'user' | 'agent' } = {},
+  ) => {
     const kind = o.kind ?? 'user'
-    const token = mintTestUserToken({ userId: kind === 'agent' ? e.agentId : e.userId, organizationId: e.organizationId, scopes: o.scopes ?? ['connections:write'], kind })
-    const res = await a.request(`${BASE}/meta/v1/connections/${id}/sync`, { method: 'POST', headers: { authorization: `Bearer ${token}` } })
+    const token = mintTestUserToken({
+      userId: kind === 'agent' ? e.agentId : e.userId,
+      organizationId: e.organizationId,
+      scopes: o.scopes ?? ['connections:write'],
+      kind,
+    })
+    const res = await a.request(`${BASE}/meta/v1/connections/${id}/sync`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+    })
     const text = await res.text()
     return { status: res.status, body: text ? (JSON.parse(text) as any) : null }
   }
@@ -133,7 +176,12 @@ describe('connections.sync (D43, D75)', () => {
   it('404 not_found for an unknown id and for a soft-deleted connection', async () => {
     const id = await seed()
     expect((await post(app(), unknownId)).body.error.code).toBe('not_found')
-    const del = await app().request(`${BASE}/meta/v1/connections/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes: ['connections:write'], kind: 'user' })}` } })
+    const del = await app().request(`${BASE}/meta/v1/connections/${id}`, {
+      method: 'DELETE',
+      headers: {
+        authorization: `Bearer ${mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes: ['connections:write'], kind: 'user' })}`,
+      },
+    })
     expect(del.status).toBe(204)
     const res = await post(app(), id)
     expect([res.status, res.body.error.code]).toEqual([404, 'not_found'])
@@ -151,7 +199,10 @@ describe('connections.sync (D43, D75)', () => {
   })
   it('an instance that cannot be created is 503 sync_unavailable, with the request recorded', async () => {
     const id = await seed()
-    const res = await post(app({ instances: { create: async () => Promise.reject(new Error('workflows down: secret detail')) } }), id)
+    const res = await post(
+      app({ instances: { create: async () => Promise.reject(new Error('workflows down: secret detail')) } }),
+      id,
+    )
     expect([res.status, res.body.error.code]).toEqual([503, 'sync_unavailable'])
     expect(JSON.stringify(res.body)).not.toContain('secret detail')
     expect((await stateOf(id)).sync_requested_at).toBe(now.toISOString())
@@ -167,14 +218,34 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
       userAuthenticator: fakeUserAuthenticator(),
       clock: () => now,
       newId: () => uuidv7(now),
-      gmail: { config, problems, endpoints: FAKE_ENDPOINTS, fetch: google.fetch, gmailBaseUrl: FAKE_GMAIL_BASE, policy: SCOPE_POLICY, roleOf: async (s) => roles.get(s) ?? null, ...(inst ? { instances: inst } : {}) },
+      gmail: {
+        config,
+        problems,
+        endpoints: FAKE_ENDPOINTS,
+        fetch: google.fetch,
+        gmailBaseUrl: FAKE_GMAIL_BASE,
+        policy: SCOPE_POLICY,
+        roleOf: async (s) => roles.get(s) ?? null,
+        ...(inst ? { instances: inst } : {}),
+      },
     })
   }
   const connect = async (a: ReturnType<typeof build>) => {
-    const token = mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes: ['connections:write'], kind: 'user' })
-    const auth = await a.request(`${BASE}/meta/v1/connections/authorize`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ provider: 'google' }) })
+    const token = mintTestUserToken({
+      userId: e.userId,
+      organizationId: e.organizationId,
+      scopes: ['connections:write'],
+      kind: 'user',
+    })
+    const auth = await a.request(`${BASE}/meta/v1/connections/authorize`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'google' }),
+    })
     const { authorize_url } = (await auth.json()) as { authorize_url: string }
-    const cb = new URL(await google.consent(authorize_url, { sub: 'sub-ann', email: 'ann@example.test', historyId: '555' }))
+    const cb = new URL(
+      await google.consent(authorize_url, { sub: 'sub-ann', email: 'ann@example.test', historyId: '555' }),
+    )
     return a.request(cb.toString())
   }
   it('a successful callback requests exactly one sync, after the connection exists', async () => {
@@ -193,7 +264,9 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
     expect((await stateOf(conn!.id as string)).sync_requested_at).toBe(now.toISOString())
   })
   it('a failed unit requests none and writes no request', async () => {
-    await raw("create trigger boom_credentials before insert on channel_credentials begin select raise(abort, 'boom'); end")
+    await raw(
+      "create trigger boom_credentials before insert on channel_credentials begin select raise(abort, 'boom'); end",
+    )
     try {
       const res = await connect(build(instances))
       expect(res.status).toBe(503)
@@ -226,7 +299,14 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
 describe('the cron: which connections get a request (D14, D75)', () => {
   const iso = (offsetMin: number) => new Date(now.getTime() + offsetMin * MIN).toISOString()
   const setState = (id: string, p: { success?: number | null; lease?: number | null; requested?: number | null }) =>
-    raw('update mail_sync_state set last_success_at = ?, lease_until = ?, run_id = ?, sync_requested_at = ? where connection_id = ?', p.success == null ? null : iso(p.success), p.lease == null ? null : iso(p.lease), p.lease == null ? null : 'some-run', p.requested == null ? null : iso(p.requested), id)
+    raw(
+      'update mail_sync_state set last_success_at = ?, lease_until = ?, run_id = ?, sync_requested_at = ? where connection_id = ?',
+      p.success == null ? null : iso(p.success),
+      p.lease == null ? null : iso(p.lease),
+      p.lease == null ? null : 'some-run',
+      p.requested == null ? null : iso(p.requested),
+      id,
+    )
   it('requests never-synced, stale, expired-lease and requested-but-unserved connections; not fresh, already-served, held-lease, non-active or soft-deleted ones', async () => {
     const never = await seed()
     const stale = await seed()

@@ -9,11 +9,33 @@ import { clientPackageJson, serverPackageJson } from './stage.js'
 const PACKAGES = new URL('../../', import.meta.url).pathname
 const workspace = readdirSync(PACKAGES)
   .filter((d) => existsSync(join(PACKAGES, d, 'package.json')))
-  .map((d) => ({ dir: d, pkg: JSON.parse(readFileSync(join(PACKAGES, d, 'package.json'), 'utf8')) as { name: string; private?: boolean; dependencies?: Record<string, string> } }))
+  .map((d) => ({
+    dir: d,
+    pkg: JSON.parse(readFileSync(join(PACKAGES, d, 'package.json'), 'utf8')) as {
+      name: string
+      private?: boolean
+      dependencies?: Record<string, string>
+    },
+  }))
 
 describe('OPS262 workspace package names', () => {
   it('finds the 14 workspace packages', () => {
-    expect(workspace.map((w) => w.dir).sort()).toEqual(['api', 'approvals-app', 'auth', 'cli', 'db', 'docs', 'release', 'server-d1', 'server-postgres', 'storage', 'storage-d1', 'storage-postgres', 'ui', 'webhook-receiver-example'])
+    expect(workspace.map((w) => w.dir).sort()).toEqual([
+      'api',
+      'approvals-app',
+      'auth',
+      'cli',
+      'db',
+      'docs',
+      'release',
+      'server-d1',
+      'server-postgres',
+      'storage',
+      'storage-d1',
+      'storage-postgres',
+      'ui',
+      'webhook-receiver-example',
+    ])
   })
   it('every package is named @vibase/<directory>', () => {
     expect(workspace.map((w) => [w.dir, w.pkg.name])).toEqual(workspace.map((w) => [w.dir, `@vibase/${w.dir}`]))
@@ -28,7 +50,12 @@ describe('OPS262 workspace package names', () => {
   })
   it('neither published package.json depends on any @vibase/* package', () => {
     for (const p of [clientPackageJson('1.2.3'), serverPackageJson('1.2.3', '4.5.6')]) {
-      const deps = Object.keys({ ...(p.dependencies as object), ...(p.devDependencies as object), ...(p.peerDependencies as object), ...(p.optionalDependencies as object) })
+      const deps = Object.keys({
+        ...(p.dependencies as object),
+        ...(p.devDependencies as object),
+        ...(p.peerDependencies as object),
+        ...(p.optionalDependencies as object),
+      })
       expect(deps.filter((d) => d.startsWith('@vibase/'))).toEqual([])
     }
   })

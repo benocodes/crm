@@ -1,5 +1,18 @@
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, assertStep, codecs, defineOperation, execute, readMaybe, step, unit, type PreparedOperation, type Read, type Step, type StorageBinding } from '@vibase/storage'
+import {
+  UnitDriftError,
+  assertStep,
+  codecs,
+  defineOperation,
+  execute,
+  readMaybe,
+  step,
+  unit,
+  type PreparedOperation,
+  type Read,
+  type Step,
+  type StorageBinding,
+} from '@vibase/storage'
 import { ApiError, mapStorageError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from '../directory/system-principal.js'
@@ -29,21 +42,44 @@ const AGENT_COLUMNS = ['agents.id as agent_id', 'agents.scopes', 'agents.disable
 
 type Row = Record<string, unknown>
 const loginOf = (row: Row | null): AgentLogin | null =>
-  row ? { agentId: row.agent_id as string, scopes: codecs.stringArray.read(row.scopes), disabled: codecs.timestamp.readNullable(row.disabled_at) !== null } : null
+  row
+    ? {
+        agentId: row.agent_id as string,
+        scopes: codecs.stringArray.read(row.scopes),
+        disabled: codecs.timestamp.readNullable(row.disabled_at) !== null,
+      }
+    : null
 
 /**
  * The steady-state lookup ([[CORE77]] D14): ONE read-only internal unit answering, for a token's subject, whether a `users` row exists, whether an
  * agent account is linked to the subject (D17) and, when the token's client is not the first-party CLI, whether the delegated agent for
  * (client, human) exists (D15). Reads only; the three answers decide the principal kind.
  */
-export function lookupPrincipalOperation(a: { provider: string; subject: string; clientId: string | null; organizationId?: string }): PreparedOperation<PrincipalLookup> {
+export function lookupPrincipalOperation(a: {
+  provider: string
+  subject: string
+  clientId: string | null
+  organizationId?: string
+}): PreparedOperation<PrincipalLookup> {
   return defineOperation<PrincipalLookup>({
     name: 'auth.lookup_principal',
     mutates: false,
     reads: (qc) => {
       const reads: Record<string, Read> = {
-        [USER]: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', a.provider).where('users.auth_subject', '=', a.subject)),
-        [ACCOUNT]: readMaybe(qc.db.selectFrom('agents').select([...AGENT_COLUMNS]).where('agents.auth_provider', '=', a.provider).where('agents.auth_subject', '=', a.subject)),
+        [USER]: readMaybe(
+          qc.db
+            .selectFrom('users')
+            .select('users.id')
+            .where('users.auth_provider', '=', a.provider)
+            .where('users.auth_subject', '=', a.subject),
+        ),
+        [ACCOUNT]: readMaybe(
+          qc.db
+            .selectFrom('agents')
+            .select([...AGENT_COLUMNS])
+            .where('agents.auth_provider', '=', a.provider)
+            .where('agents.auth_subject', '=', a.subject),
+        ),
       }
       if (a.clientId !== null) {
         reads[DELEGATED] = readMaybe(
@@ -57,7 +93,12 @@ export function lookupPrincipalOperation(a: { provider: string; subject: string;
             .where('users.auth_subject', '=', a.subject),
         )
       }
-      if (a.organizationId !== undefined) reads[MEMBERSHIP] = membershipRoleRead(qc, { provider: a.provider, subject: a.subject, organizationId: a.organizationId })
+      if (a.organizationId !== undefined)
+        reads[MEMBERSHIP] = membershipRoleRead(qc, {
+          provider: a.provider,
+          subject: a.subject,
+          organizationId: a.organizationId,
+        })
       return reads
     },
     build: (found) =>
@@ -74,7 +115,10 @@ export function lookupPrincipalOperation(a: { provider: string; subject: string;
   })
 }
 
-export async function lookupPrincipal(storage: StorageBinding, a: { provider: string; subject: string; clientId: string | null; organizationId?: string }): Promise<PrincipalLookup> {
+export async function lookupPrincipal(
+  storage: StorageBinding,
+  a: { provider: string; subject: string; clientId: string | null; organizationId?: string },
+): Promise<PrincipalLookup> {
   try {
     return (await execute(storage, INTERNAL, lookupPrincipalOperation(a))).value
   } catch (err) {
@@ -108,15 +152,20 @@ const KEY = 'agent:existing'
 export function createAgentPrincipalOperation(a: NewAgent): PreparedOperation<AgentLogin> {
   const at = codecs.timestamp.write(a.now)
   const linkColumns = a.link
-  const linkMatches = 'auth_subject' in linkColumns
-    ? sql<SqlBool>`"agents"."auth_subject" = ${linkColumns.auth_subject}`
-    : sql<SqlBool>`"agents"."auth_client_id" = ${linkColumns.auth_client_id} and "agents"."delegated_by" = ${linkColumns.delegated_by}`
+  const linkMatches =
+    'auth_subject' in linkColumns
+      ? sql<SqlBool>`"agents"."auth_subject" = ${linkColumns.auth_subject}`
+      : sql<SqlBool>`"agents"."auth_client_id" = ${linkColumns.auth_client_id} and "agents"."delegated_by" = ${linkColumns.delegated_by}`
   return defineOperation<AgentLogin>({
     name: a.createdBy === null ? 'auth.first_sight_agent_account' : 'auth.first_sight_delegated_agent',
     mutates: true,
-    reads: (qc): Record<string, Read> => (a.createdBy === null ? { [SYSTEM_PRINCIPAL_READ]: systemPrincipalRead(qc) } : {}),
+    reads: (qc): Record<string, Read> =>
+      a.createdBy === null ? { [SYSTEM_PRINCIPAL_READ]: systemPrincipalRead(qc) } : {},
     build: (found, qc) => {
-      const sys = a.createdBy === null ? systemPrincipalSteps(qc, found.maybe(SYSTEM_PRINCIPAL_READ), a.systemId, at) : { id: a.createdBy, steps: [] as Step[] }
+      const sys =
+        a.createdBy === null
+          ? systemPrincipalSteps(qc, found.maybe(SYSTEM_PRINCIPAL_READ), a.systemId, at)
+          : { id: a.createdBy, steps: [] as Step[] }
       const insert = qc.db
         .insertInto('agents')
         .values({
@@ -136,12 +185,30 @@ export function createAgentPrincipalOperation(a: NewAgent): PreparedOperation<Ag
         })
         .onConflict((oc) => oc.doNothing())
       const holds = sql<SqlBool>`exists (select 1 from "agents" where "agents"."auth_provider" = ${a.provider} and ${linkMatches} and "agents"."id" = ${a.agentId})`
-      const result = qc.db.selectFrom('agents').select([...AGENT_COLUMNS]).where('agents.id', '=', a.agentId)
+      const result = qc.db
+        .selectFrom('agents')
+        .select([...AGENT_COLUMNS])
+        .where('agents.id', '=', a.agentId)
       const steps: Step[] = [
         ...sys.steps,
         step(qc.db.insertInto('principals').values({ id: a.agentId, kind: 'agent', created_at: at })),
         step(insert),
-        { ...step(eventStatement(qc, { id: a.eventId, at, organizationId: a.organizationId, actorId: sys.id, type: 'agent.created', resourceType: 'agent', resourceId: a.agentId, before: null, after: { table: 'agents', columns: columnsOf(agents) } })), label: 'first-event' },
+        {
+          ...step(
+            eventStatement(qc, {
+              id: a.eventId,
+              at,
+              organizationId: a.organizationId,
+              actorId: sys.id,
+              type: 'agent.created',
+              resourceType: 'agent',
+              resourceId: a.agentId,
+              before: null,
+              after: { table: 'agents', columns: columnsOf(agents) },
+            }),
+          ),
+          label: 'first-event',
+        },
         assertStep(qc, holds),
         { ...step(result), label: 'result' },
       ]
@@ -165,9 +232,19 @@ export function createAgentPrincipalOperation(a: NewAgent): PreparedOperation<Ag
 export async function provisionAgent(
   storage: StorageBinding,
   env: InternalEnv,
-  a: { provider: string; subject: string; clientId: string | null; kind: 'account' | 'delegated'; name: string; scopes: readonly string[]; humanId: string | null; organizationId: string },
+  a: {
+    provider: string
+    subject: string
+    clientId: string | null
+    kind: 'account' | 'delegated'
+    name: string
+    scopes: readonly string[]
+    humanId: string | null
+    organizationId: string
+  },
 ): Promise<AgentLogin> {
-  const link = a.kind === 'account' ? { auth_subject: a.subject } : { auth_client_id: a.clientId!, delegated_by: a.humanId! }
+  const link =
+    a.kind === 'account' ? { auth_subject: a.subject } : { auth_client_id: a.clientId!, delegated_by: a.humanId! }
   const op = createAgentPrincipalOperation({
     organizationId: a.organizationId,
     provider: a.provider,
@@ -185,7 +262,11 @@ export async function provisionAgent(
   } catch (err) {
     if (!(err instanceof UnitDriftError)) throw mapStorageError(err)
   }
-  const again = await lookupPrincipal(storage, { provider: a.provider, subject: a.subject, clientId: a.kind === 'delegated' ? a.clientId : null })
+  const again = await lookupPrincipal(storage, {
+    provider: a.provider,
+    subject: a.subject,
+    clientId: a.kind === 'delegated' ? a.clientId : null,
+  })
   const found = a.kind === 'account' ? again.account : again.delegated
   if (!found) throw new ApiError(409, 'conflict', 'the record changed while the operation was running; retry')
   return found

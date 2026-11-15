@@ -26,8 +26,10 @@ export function engineSuite(engineName: EngineName): void {
       await e.reset()
       k = identityKit(e)
     })
-    const merge = (survivor: string, source: string, opts?: Parameters<typeof mergeOperation>[3]) => k.run((env) => mergeOperation(env, survivor, source, opts))
-    const identitiesOf = async (contactId: string) => (await e.rows('identities')).filter((i) => i.contact_id === contactId)
+    const merge = (survivor: string, source: string, opts?: Parameters<typeof mergeOperation>[3]) =>
+      k.run((env) => mergeOperation(env, survivor, source, opts))
+    const identitiesOf = async (contactId: string) =>
+      (await e.rows('identities')).filter((i) => i.contact_id === contactId)
     const mkIdentity = (contact_id: string, value: string) => k.identity({ kind: 'email', value, contact_id })
 
     it('moves the live identities of the source; a deleted identity stays', async () => {
@@ -101,7 +103,11 @@ export function engineSuite(engineName: EngineName): void {
       await mkIdentity(r.id, 'r@x.com')
       const mark = (await k.events()).length
       await merge(s.id, r.id)
-      expect((await k.events()).slice(mark).map((x) => x.type)).toEqual(['identity.updated', 'contact.updated', 'contact.merged'])
+      expect((await k.events()).slice(mark).map((x) => x.type)).toEqual([
+        'identity.updated',
+        'contact.updated',
+        'contact.merged',
+      ])
     })
 
     it('returns the survivor equal to a fresh get', async () => {
@@ -127,7 +133,9 @@ export function engineSuite(engineName: EngineName): void {
       const gone = await k.contact({})
       await k.deleteContact(gone.id)
       expect((await k.fail((env) => mergeOperation(env, gone.id, s.id))).code).toBe('not_found')
-      expect((await k.fail((env) => mergeOperation(env, s.id, '0190b2c4-0000-7000-8000-00000000dead'))).code).toBe('not_found')
+      expect((await k.fail((env) => mergeOperation(env, s.id, '0190b2c4-0000-7000-8000-00000000dead'))).code).toBe(
+        'not_found',
+      )
     })
 
     it('never rewrites a tombstone pointer', async () => {
@@ -148,7 +156,9 @@ export function engineSuite(engineName: EngineName): void {
       const i2 = await mkIdentity(r.id, 'r2@x.com')
       await k.run((env) => deleteOperation(identities, env, i2.id))
       const mark = (await k.events()).length
-      await merge(s.id, r.id, { catalog: [{ def: identities, table: 'identities', column: 'contact_id', liveOnly: false }] })
+      await merge(s.id, r.id, {
+        catalog: [{ def: identities, table: 'identities', column: 'contact_id', liveOnly: false }],
+      })
       expect((await identitiesOf(s.id)).map((i) => i.id).sort()).toEqual([i1.id, i2.id].sort())
       const ev = (await k.events()).slice(mark).filter((x) => x.type === 'identity.updated')
       expect(ev).toHaveLength(2)

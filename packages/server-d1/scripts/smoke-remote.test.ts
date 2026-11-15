@@ -14,7 +14,11 @@ describe('percentile (nearest rank)', () => {
 
 describe('parseSmokeArgs', () => {
   it('reads the flags', () => {
-    expect(parseSmokeArgs(['--', '--base', 'https://h', '--phase', 'after', '--expect-version', 'abc'])).toEqual({ base: 'https://h', phase: 'after', expectVersion: 'abc' })
+    expect(parseSmokeArgs(['--', '--base', 'https://h', '--phase', 'after', '--expect-version', 'abc'])).toEqual({
+      base: 'https://h',
+      phase: 'after',
+      expectVersion: 'abc',
+    })
   })
   it('rejects a bad phase', () => {
     expect(() => parseSmokeArgs(['--base', 'https://h', '--phase', 'during', '--expect-version', 'abc'])).toThrow()
@@ -35,9 +39,12 @@ describe('afterHealthOk (CORE61 D7)', () => {
 })
 
 describe('operatorKeyOf ([[OPS265]] D15)', () => {
-  it('reads VIBASE_SMOKED1_OPERATOR_KEY', () => expect(operatorKeyOf({ VIBASE_SMOKED1_OPERATOR_KEY: 'vk_a' })).toBe('vk_a'))
+  it('reads VIBASE_SMOKED1_OPERATOR_KEY', () =>
+    expect(operatorKeyOf({ VIBASE_SMOKED1_OPERATOR_KEY: 'vk_a' })).toBe('vk_a'))
   it('refuses when only the old VAULT_ name is set, and the refusal names the new variable', () => {
     expect(() => operatorKeyOf({ VAULT_SMOKED1_OPERATOR_KEY: 'vk_old' })).toThrow(RemoteRefusal)
-    expect(() => operatorKeyOf({ VAULT_SMOKED1_OPERATOR_KEY: 'vk_old' })).toThrow('VIBASE_SMOKED1_OPERATOR_KEY must be set')
+    expect(() => operatorKeyOf({ VAULT_SMOKED1_OPERATOR_KEY: 'vk_old' })).toThrow(
+      'VIBASE_SMOKED1_OPERATOR_KEY must be set',
+    )
   })
 })

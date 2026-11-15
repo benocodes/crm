@@ -1,6 +1,5 @@
 // Test-only. The Postgres backend of the shared contract suite ([[CORE35]] D16): imported by `*.postgres.test.ts` entry files only.
 import { sql, type Kysely } from 'kysely'
-import type { Database } from '@vibase/db'
 import { createOwnerTestDb, createTestDb, seedAgent, seedUser, truncateAll } from '@vibase/db/test'
 import { postgresBinding } from '@vibase/storage-postgres'
 import { createApp } from '../rest/app.js'
@@ -46,7 +45,10 @@ export function postgresBackend(): ContractBackend {
           await owner.destroy()
         },
         async call(t, actor, scopes, method, path, body) {
-          const token = actor === 'agent' ? (await agentFor(t, scopes)).key : mintTestUserToken({ userId: t.userId, organizationId: t.organizationId, scopes })
+          const token =
+            actor === 'agent'
+              ? (await agentFor(t, scopes)).key
+              : mintTestUserToken({ userId: t.userId, organizationId: t.organizationId, scopes })
           return app.request(path, {
             method,
             headers: { authorization: `Bearer ${token}` },
@@ -58,22 +60,44 @@ export function postgresBackend(): ContractBackend {
         },
         async seedMember(t, role) {
           const u = await seedUser(db, { organizationId: t.organizationId, role })
-          const m = await owner.selectFrom('memberships').select('id').where('user_id', '=', u.id).executeTakeFirstOrThrow()
+          const m = await owner
+            .selectFrom('memberships')
+            .select('id')
+            .where('user_id', '=', u.id)
+            .executeTakeFirstOrThrow()
           return { userId: u.id, membershipId: m.id }
         },
         async insert(t, table, row) {
           const full = withTenantDefaults(table, row, t)
           const cols = Object.keys(full)
-          const res = await sql<Record<string, any>>`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(owner)
+          const res = await sql<
+            Record<string, any>
+          >`insert into ${sql.table(table)} (${sql.join(cols.map((c) => sql.ref(c)))}) values (${sql.join(cols.map((c) => sql`${full[c]}`))}) returning *`.execute(
+            owner,
+          )
           return res.rows[0]!
         },
         capture: (t, input) => captureAs(storage, t, input),
         eventsOf: (id) => owner.selectFrom('events').selectAll().where('resource_id', '=', id).orderBy('id').execute(),
-        countEvents: async () => Number((await owner.selectFrom('events').select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
+        countEvents: async () =>
+          Number(
+            (
+              await owner
+                .selectFrom('events')
+                .select((eb) => eb.fn.countAll().as('n'))
+                .executeTakeFirstOrThrow()
+            ).n,
+          ),
         countRows: async (table) =>
-          Number((await (owner as unknown as Kysely<Record<string, Record<string, unknown>>>).selectFrom(table).select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),
+          Number(
+            (
+              await (owner as unknown as Kysely<Record<string, Record<string, unknown>>>)
+                .selectFrom(table)
+                .select((eb) => eb.fn.countAll().as('n'))
+                .executeTakeFirstOrThrow()
+            ).n,
+          ),
       }
     },
   }
 }
-
