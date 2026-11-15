@@ -201,6 +201,8 @@ pnpm install          # at the repo root
 pnpm -r test          # all packages (D1 and engine-neutral; the postgres project is off)
 pnpm test:postgres    # the parked Postgres suites alone (the `postgres` vitest project; needs a Postgres test database)
 pnpm -r typecheck
+pnpm lint             # Biome (biome.json): format + lint check, exit 1 on any format diff or lint error; part of the gate
+pnpm format           # Biome: apply formatting and safe lint fixes in place (run before committing)
 pnpm -C packages/<pkg> test [file]
 pnpm db:migrate       # dev database
 pnpm db:test:reset    # rebuild the test database (refuses names without "test")

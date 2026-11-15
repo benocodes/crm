@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: read
@@ -28,6 +28,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check the tag against the release version
         run: pnpm release:ci tag
+      - name: Lint and format (Biome)
+        run: pnpm lint
       - name: Typecheck
         run: pnpm -r typecheck
       - name: Test (every package but api, one at a time)

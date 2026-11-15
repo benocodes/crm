@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The cycle gate as one run (execute-cycle §5): every suite, typecheck, build. Runs all four steps even
+# The cycle gate as one run (execute-cycle §5): every suite, typecheck, build and the Biome lint/format check. Runs all five steps even
 # when one fails, so a single run shows everything that is red. Run it from the cycle's worktree root.
 #
 #   scripts/gate.sh [log-dir]
@@ -41,6 +41,7 @@ step packages pnpm -r --workspace-concurrency=1 --filter '!@vibase/api' test --r
 step api pnpm -C packages/api test --reporter=dot
 step typecheck pnpm -r typecheck
 step build pnpm -r build
+step lint pnpm lint
 
 mv "$log_dir/gate.status.partial" "$log_dir/gate.status"
 echo "GATE_EXIT=$overall" >>"$log_dir/gate.status"
