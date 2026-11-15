@@ -23,10 +23,13 @@ import {
   createBetterAuthAdapter,
   createWorkspaceAuthAdapter,
   grantableScopes,
+  logEmailFailure,
   membershipRoleReader,
   parseCliClientId,
   parseOriginList,
   parsePublishableKey,
+  passwordResetMessage,
+  passwordResetUrl,
   r2ObjectStore,
   requestDueSyncs,
   runMailSync,
@@ -249,6 +252,11 @@ export function composeD1Worker(
     clock?: () => Date
     newId?: () => string /** Milliseconds for the migration-state re-read window; defaults to `Date.now`. */
     nowMs?: () => number
+    /**
+     * Schedules work past the response ([[CORE304]] D4): the self-service reset send. The Worker entry supplies `cloudflare:workers`' `waitUntil`, Node tests a recorder. Absent, the send simply runs unawaited.
+     * Never awaited by the caller, so a send's latency stays out of the answer.
+     */
+    waitUntil?: (promise: Promise<unknown>) => void
   } = {},
 ): {
   fetch(req: Request, ctx?: ExecutionContextLike): Promise<Response>
@@ -350,6 +358,8 @@ export function composeD1Worker(
             issuer: `${builtInConfig.baseURL}/auth`,
             baseUrl: builtInConfig.baseURL,
             signInMethods: builtInConfig.google ? (['password', 'google'] as const) : (['password'] as const),
+            // [[CORE304]] D2: self-service reset exists exactly when email is on.
+            selfServiceReset: emailFrom !== undefined,
           }
         : undefined
       : authAdapter
@@ -437,6 +447,27 @@ export function composeD1Worker(
         grantableScopes: grantableScopes(discovery.declaredScopes),
       },
       {
+        // [[CORE304]] D4: with email on, a reset requested over HTTP is built into the reset message and SCHEDULED (never awaited: the answer's timing must not reveal whether the address has an account). A failure is
+        // logged by event name and error code only (P2). Owner-issued links never reach here (P1).
+        ...(emailFrom !== undefined && env.EMAIL
+          ? {
+              deliverResetToken: ({ email, token }: { email: string; token: string }) => {
+                const sender = cloudflareEmailSender(env.EMAIL!, emailFrom!)
+                const send = Promise.resolve()
+                  .then(() =>
+                    sender.send({
+                      to: email,
+                      ...passwordResetMessage({
+                        host: new URL(builtInConfig!.baseURL).host,
+                        url: passwordResetUrl(builtInConfig!.baseURL, token),
+                      }),
+                    }),
+                  )
+                  .catch((err: unknown) => logEmailFailure('password_reset_send_failed', err))
+                if (deps.waitUntil) deps.waitUntil(send)
+              },
+            }
+          : {}),
         admission: invitationAdmission({
           store: {
             hasLive: (a) => hasLiveInvitationForToken(control!, a),

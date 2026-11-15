@@ -21,7 +21,11 @@ export interface DiscoveryConfig {
         name: 'better-auth'
         issuer: string /** `PUBLIC_BASE_URL`: the documents' resource and URLs come from it, never the request host ([[CORE243]] D23). */
         baseUrl: string /** [[CORE294]] D7: how a person signs in here; the auth pages read it to show the Google button. */
-        signInMethods?: readonly ('password' | 'google')[]
+        signInMethods?: readonly (
+          | 'password'
+          | 'google'
+        )[] /** [[CORE304]] D2: true exactly when outbound email is configured (a person can ask for a reset link); the `/sign-in` page reads it. Default false. */
+        selfServiceReset?: boolean
       }
   /** `AUTH_CLI_CLIENT_ID`; `undefined` is `null` in the document. */
   cliClientId?: string
@@ -88,6 +92,7 @@ export function discoveryResponse(req: Request, config: DiscoveryConfig): Respon
               resource: p.baseUrl,
               protected_resource_metadata: p.baseUrl + PROTECTED_RESOURCE_PATH,
               sign_in_methods: p.signInMethods ?? ['password'],
+              self_service_reset: p.selfServiceReset ?? false,
             }
           : {
               provider: p.name,

@@ -167,6 +167,7 @@ describe('discovery in workerd through the real Worker module (D12)', () => {
       resource: BASE,
       protected_resource_metadata: `${BASE}/.well-known/oauth-protected-resource`,
       sign_in_methods: ['password'],
+      self_service_reset: false,
     })
   })
 })

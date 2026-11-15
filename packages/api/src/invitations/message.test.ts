@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { escapeHtml, invitationMessage } from './message.js'
+import { escapeHtml, invitationMessage, passwordResetMessage } from './message.js'
 
 // [[CORE248]] D6: fixed English text, a plain part and a minimal HTML part, the link in both, the HTML escaped; the only variable content is host, role, link and expiry.
 const URL_ = 'https://vibase.test/invite#token=abc_DEF-123'
@@ -36,6 +36,37 @@ describe('invitationMessage', () => {
 
   it('has no remote resources and no scripts', () => {
     const m = invitationMessage(base)
+    expect(m.html).not.toMatch(/<img|<script|<link|src=/i)
+  })
+})
+
+// [[CORE304]] D6: the reset message, beside the invitation's. Fixed text; the only variable content is the host and the link.
+describe('passwordResetMessage', () => {
+  const RESET_URL = 'https://vibase.test/reset-password#token=abc_DEF-123'
+  const reset = { host: 'vibase.test', url: RESET_URL }
+
+  it('subject names the host; text and HTML carry the link; the one-hour expiry is stated', () => {
+    const m = passwordResetMessage(reset)
+    expect(m.subject).toBe('Reset your Vibase password at vibase.test')
+    expect(m.text).toContain(RESET_URL)
+    expect(m.html).toContain(`href="${RESET_URL}"`)
+    expect(m.text).toMatch(/1 hour/)
+    expect(m.html).toMatch(/1 hour/)
+    expect(m.text).toMatch(/ignore this message/)
+  })
+
+  it('escapes the HTML: a host or link carrying <&" never comes out raw, the text part keeps the link verbatim', () => {
+    const m = passwordResetMessage({ host: 'h<i>.test', url: 'https://x.test/reset-password?a=1&b="2"#token=<t>' })
+    expect(m.html).not.toMatch(/<i>|<t>|"2"/)
+    expect(m.html).toContain('&lt;i&gt;')
+    expect(m.html).toContain('&amp;b=&quot;2&quot;')
+    expect(m.html).toContain('&lt;t&gt;')
+    expect(m.text).toContain('https://x.test/reset-password?a=1&b="2"#token=<t>')
+  })
+
+  it('takes nothing but the host and the link, and has no remote resources or scripts', () => {
+    const m = passwordResetMessage({ ...reset, email: 'victim@x.test', name: 'Mallory' } as never)
+    for (const part of [m.subject, m.text, m.html]) expect(part).not.toMatch(/victim|Mallory/)
     expect(m.html).not.toMatch(/<img|<script|<link|src=/i)
   })
 })

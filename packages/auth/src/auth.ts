@@ -100,12 +100,20 @@ export interface CreateAuthOptions {
    * public reset-request paths are refused for every HTTP request; only an in-process call that registered a waiter for its address passes. Absent: no `sendResetPassword`, as before.
    */
   resetCaptures?: ResetCaptures
+  /**
+   * Self-service reset ([[CORE304]] D4): present only when the composition has email. It turns on the HTTP `POST /request-password-reset` (the gate lets it through; `/forget-password` stays refused), the 5 per hour
+   * per client IP limit, and is called with the address and token of every reset Better Auth issues for an HTTP request, never for the in-process owner-issued call ([[CORE304]] P1: that token only ever reaches its
+   * waiter). Composition builds the message and schedules the send; this package knows no email. It must return at once and never throw.
+   */
+  deliverResetToken?: (a: { email: string; token: string }) => void
 }
 
 /** The tokens `sendResetPassword` hands over, by lowercased address: a waiter is registered only around an in-process call, so nothing else can ever receive or see a token. */
 export type ResetCaptures = Map<string, (token: string) => void>
 /** The password reset token's lifetime ([[CORE243]] D15): one hour. */
 export const RESET_PASSWORD_TTL_SECONDS = 60 * 60
+/** [[CORE304]] D4: a whole-hour window, not the library default (3 per 60 s). */
+export const RESET_REQUEST_LIMIT = { window: 60 * 60, max: 5 } as const
 const RESET_REQUEST_PATHS = new Set(['/request-password-reset', '/forget-password'])
 
 /** Better Auth's model keys and the vault's table names for them ([[CORE243]] D4): `auth_` prefixed, plural, snake_case. */
@@ -287,7 +295,12 @@ async function presentedToken(ctx: { headers?: Headers } | null | undefined): Pr
  * Before-hooks of every endpoint. [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the
  * library, so it is refused too. [[CORE287]]: email sign-up is gated before anything else runs, so an unadmitted request costs no password hash and cannot tell an existing account from an absent one.
  */
-const endpointGate = (admission: InvitationAdmission | undefined, open: boolean, captures: ResetCaptures | undefined) =>
+const endpointGate = (
+  admission: InvitationAdmission | undefined,
+  open: boolean,
+  captures: ResetCaptures | undefined,
+  selfService: boolean,
+) =>
   createAuthMiddleware(async (ctx) => {
     if (ctx.path === '/sign-up/email' && !open) await requireInvitation(admission, ctx.body)
     // [[CORE288]] P7: with email off there is no self-service reset. The request is refused for every HTTP request (it never creates a verification row, never captures, returns or logs a token); the one
@@ -297,7 +310,9 @@ const endpointGate = (admission: InvitationAdmission | undefined, open: boolean,
         typeof (ctx.body as { email?: unknown } | undefined)?.email === 'string'
           ? (ctx.body as { email: string }).email.trim().toLowerCase()
           : ''
-      if (ctx.request !== undefined || !captures.has(email))
+      // [[CORE304]] D4: with email on, an HTTP `/request-password-reset` passes; `/forget-password` and everything else keeps today's rule.
+      const publicRequest = selfService && ctx.request !== undefined && ctx.path === '/request-password-reset'
+      if (!publicRequest && (ctx.request !== undefined || !captures.has(email)))
         throw new APIError('BAD_REQUEST', {
           code: 'RESET_PASSWORD_DISABLED',
           message: 'password reset links are issued by a workspace owner',
@@ -342,8 +357,14 @@ export function authOptions(
       ...(opts.resetCaptures
         ? {
             resetPasswordTokenExpiresIn: RESET_PASSWORD_TTL_SECONDS,
-            sendResetPassword: async ({ user, token }: { user: { email: string }; token: string }) => {
-              opts.resetCaptures!.get(user.email.trim().toLowerCase())?.(token)
+            sendResetPassword: async (
+              { user, token }: { user: { email: string }; token: string },
+              request?: Request,
+            ) => {
+              const address = user.email.trim().toLowerCase()
+              // [[CORE304]] P1: only the in-process call (no HTTP `request`) is captured; an HTTP request is delivered by email even while a waiter for its address is registered, and the waiter keeps its own token.
+              if (request === undefined) opts.resetCaptures!.get(address)?.(token)
+              else opts.deliverResetToken?.({ email: address, token })
             },
           }
         : {}),
@@ -369,7 +390,13 @@ export function authOptions(
         }
       : {}),
     verification: schemaFor('verification'),
-    rateLimit: { enabled: true, storage: 'database', ...schemaFor('rateLimit') },
+    // [[CORE304]] D4, P3: with email on, a reset request is limited to 5 per hour per client IP (the library's default is 3 per minute); keyed by `cf-connecting-ip` like registration, and one shared bucket per path without it.
+    rateLimit: {
+      enabled: true,
+      storage: 'database',
+      ...schemaFor('rateLimit'),
+      ...(opts.deliverResetToken ? { customRules: { '/request-password-reset': RESET_REQUEST_LIMIT } } : {}),
+    },
     advanced: {
       database: { generateId: opts.generateId ?? (() => uuidv7()) },
       // Cloudflare's own header; a client-supplied X-Forwarded-For is not trusted.
@@ -377,7 +404,7 @@ export function authOptions(
     },
     telemetry: { enabled: false },
     plugins: composePlugins(config.baseURL, schemaFor, config.vaultScopes, config.grantableScopes),
-    hooks: { before: endpointGate(admission, open, opts.resetCaptures) },
+    hooks: { before: endpointGate(admission, open, opts.resetCaptures, opts.deliverResetToken !== undefined) },
     databaseHooks: {
       user: {
         // The backstop at the point EVERY account creation passes ([[CORE287]] P2): a path the endpoint hook does not name (a later Google sign-in) carries no token and is refused here.

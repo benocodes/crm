@@ -216,6 +216,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   (`r.sleeps`) and every request's `after`. The absence mutation that matters is "poll from the original start"
   (duplicates → red) ([[API215]], `packages/cli/src/events-tail.test.ts`). For a file that must survive a crash, persist
   per item and prove it with a run that fails mid-way and a resume that reprints nothing.
+- **A Miniflare D1 test cannot park one query to race a second request.** Kysely's D1 dialect holds one connection
+  mutex, so a query held mid-flight (a stubbed insert awaiting a promise) blocks every other query on that database:
+  the test times out at 30 s instead of failing an assertion. Race the real entry point against state set up by hand
+  (CORE304 registers the waiter the in-process caller would register, then sends the real HTTP request) and prove the
+  test with an absence mutation (`packages/server-d1/src/self-service-reset.test.ts`, [[CORE304]]).
+- **A rate-limit window is pinned with a clock, not a burst.** N+1 requests in a row prove the count, not the window: a
+  mutation from one hour to one minute stays green. Fake `Date` (`vi.useFakeTimers({ toFake: ['Date'] })`), move past the
+  library default and assert still refused, then past the window and assert served again. Better Auth's window slides
+  from the last allowed request, not the first ([[CORE304]]).
 - **An absence test ("never reveals X") only counts once seen failing** with the leak deliberately injected,
   on every code path that renders the value.
 - **A redaction canary suite needs structure-injection canaries**, not only content canaries. For every parser in the
@@ -655,6 +664,15 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
 - **A third-party sign-in leg stops at the provider's door.** Shipped configuration has no switch to point Google
   elsewhere ([[UI246]] D9), so route `accounts.google.com` with `page.route`, assert the captured navigation
   (`redirect_uri`, `scope`, no secret in any part), and prove the callback in workerd against a fake provider.
+- **Never write "Playwright" in a non-test file under `packages/server-d1/src/`**, comments included:
+  `scripts/build-connect.test.ts` scans `src/**/*.ts` (except `*.test.ts`) for `/playwright/i` and `@clerk/testing`, and a
+  test-only entry under `src/test/` is scanned too. Say "browser E2E". Run that file in the affected tests when adding
+  anything under `src/` for an E2E ([[CORE304]] gate round).
+- **An E2E that needs a different Worker configuration (bindings, vars, entry) is its own script** with its own
+  Playwright config and fresh local state, like `e2e:oauth-pages` and `e2e:auth-pages-reset`: each consumes the single
+  owner invitation, so two scripts cannot share one local state. Capture outbound email with a test-only entry that
+  wraps the real Worker module and replaces `env.EMAIL` with a recording binding (`src/test/entry-email.ts`, read back at
+  `/__emails`).
 - **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.
