@@ -125,6 +125,8 @@ permanently:
 | The finding… | Its durable home |
 |---|---|
 | is a repo-wide invariant any future cycle could trip on | `AGENTS.md` (Load-bearing invariants) |
+| is a new write that emits no event (an exception to invariant 5) | a row in `api-routes`, "Writes that emit no event"; `AGENTS.md` changes only if a new category appears |
+| is a new command | the skill that uses it (`ship-branch` for release and remote commands, `writing-tests` §7 for E2E scripts); `AGENTS.md` lists only the commands of everyday work |
 | is area-scoped engineering knowledge | the owning skill in `.agents/skills/`: `db-schema-and-migrations`, `api-routes`, `hyperdrive-pg-rls`, `cloudflare-workflows`, … |
 | changes a stated principle, data shape or architecture | `knowledge/architecture.md` (and the spec, Step 5) |
 | is a workflow lesson about how cycles run | the lifecycle skill concerned (`tdd-cycle-generator`, `spec-author`, …) |
@@ -138,7 +140,8 @@ Rules for propagating:
 - **Update, don't duplicate.** Check whether the destination already covers the point; sharpen the
   existing text. Delete anything the lesson proves wrong.
 - **Prefer the area skill over `AGENTS.md` when unsure.** `AGENTS.md` is for invariants that bite across
-  areas; it must stay short to stay read.
+  areas; it must stay short to stay read (a 4,000-word budget, `wiki-lint` check 10). Adding to it means
+  checking the budget, and moving detail out if the addition would break it.
 
 ### Step 5: Update the spec
 

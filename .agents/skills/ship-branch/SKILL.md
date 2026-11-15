@@ -1,6 +1,6 @@
 ---
 name: ship-branch
-description: Merge a finished feature branch into main and deploy it to production in the right order — shared test/dev databases migrated forward first, suites green against the shared test DB, prod migration before the Worker deploy. Use whenever the user says "ship it", "merge and deploy", "deploy to production", or asks for the commands to get a branch live.
+description: Merge a finished feature branch into main and deploy it to production in the right order — shared test/dev databases migrated forward first, suites green against the shared test DB, prod migration before the Worker deploy. Use whenever the user says "ship it", "merge and deploy", "deploy to production", or asks for the commands to get a branch live. Also holds the command reference for release packages and for every remote command against a deployed instance (setup, status, migrate, deploy, smoke, owner reset); read it before running one.
 ---
 
 # Ship a branch
@@ -86,8 +86,8 @@ The D1 Worker (`packages/server-d1`, [[OPS4]]) deploys separately from the main 
 4. `pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai --phase after --expect-version "$(git rev-parse HEAD)"`.
    `--expect-version` needs the full 40-character sha; a short one never matches ([[CORE77]] ship).
 
-`smoked1` only: agents may run these under the standing exception (AGENTS.md, Hard stops; user 2026-10-28). Any other
-env, and creating resources, stays a hard stop. Since [[OPS65]], `setup:remote -- --env smoked1 --auth none --api-host
+`smoked1` only: agents may run these under AGENTS.md, "Environments", which is the one statement of what they may
+do there. Any other env, and creating resources beyond that list, stays a hard stop. Since [[OPS65]], `setup:remote -- --env smoked1 --auth none --api-host
 api.smoked1.vibase.ai --dry-run` is a read-only check of the whole env: every step `ok`, except `deploy: update` (and
 `verify: blocked`) while HEAD is not what `smoked1` runs.
 
@@ -105,3 +105,36 @@ Worker name: wrangler appends the env to a given name (`vault-smoked1` becomes `
   `cd <worktree> && pnpm db:test:worktree --drop`, then `cd <repo root> && git worktree remove <worktree>`.
 
 If the branch implements a cycle, [[retrospect]] still owes its RETRO; shipping doesn't replace it.
+
+## 5. Command reference: release packages and deployed instances
+
+The commands AGENTS.md's "Stack and commands" leaves out. None is in the gate.
+
+**Who may run what.** Agents run a remote command (anything with `CONFIRM_REMOTE=1`, `vibase-server status`,
+`upgrade` or `setup`, `smoke:remote`, `e2e:rail`) only against an environment that is theirs: today `smoked1`
+(AGENTS.md, "Environments"). Agents never push a release tag, publish the draft GitHub Release, run
+`changeset publish` (or `changeset version` outside a scratch copy) or merge the Version Packages PR.
+
+### Release packages
+
+```bash
+pnpm release:build [--allow-dirty]                 # the two release packages in packages/release/dist/: vibase-cli-<version>.tgz (@vibase/cli, bin `vibase`) and vibase-server-d1-<version>.tgz (@vibase/server-d1, bin `vibase-server`) plus one SHA256SUMS (OPS210, OPS240); refuses a dirty tree unless --allow-dirty (commit <sha>-dirty); nothing published; not in the gate
+pnpm release:check [<cli tarball> <server tarball>]  # verifies and scans both tarballs, npm-installs each into its own directory outside the repo (public registry read), runs the installed `vibase` and `vibase-server`, `npm exec --package`, the exports, the migrations and the Worker in workerd; not in the gate
+.github/workflows/release.yml                    # OPS237: `workflow_dispatch` or a `v*` tag runs install, the gate, release:build, release:check and uploads both tarballs and SHA256SUMS (7 days); a tag equal to the version of packages/cli and packages/server-d1 (a changesets `fixed` group, OPS210 D1/D25) then makes a DRAFT GitHub Release (never npm, never published); agents never push the tag, publish the draft or run it except the one post-merge dispatch on main (`pnpm release:ci tag|assets` are its checks). `.github/workflows/version.yml` (push to main) opens the Version Packages PR only; the user merges it
+pnpm changeset                                     # add a changeset (a `.changeset/*.md`); a PR that changes what `@vibase/cli` or `@vibase/server-d1` ships adds one (OPS210 D25; the PR check is #264); agents never run `changeset publish`, `changeset version` outside a scratch copy, or merge the Version Packages PR
+npx @vibase/server-d1@<version> status --env <name> [--settings <p>] [--secrets-file <p>]  # or `vibase-server status ...` once installed; the server package's bin, never the client's (OPS240; `vibase instance ...` only prints this redirect): verify, settings ~/.config/vibase/instances/<env>.json + <env>.env (mode 600), /health and a read-only tracker select; exit 0 current, 1 behind, 2 refused; reads a remote env, so agents run it only where that env is theirs (same for `upgrade` and `setup`; before a registry publish: `npx --package ./vibase-server-d1-<version>.tgz vibase-server status ...`)
+```
+
+### Deployed instances
+
+Migrate before deploy; the `smoked1` order and its checks are in section 3 above.
+
+```bash
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> (--api-host <host> | --workers-dev) --owner-email <e> [--auth better-auth|clerk|none] [--clerk-env-file .env.<name>] [--register-workers-subdomain <name>] [--change-host] [--dry-run]  # one guarded idempotent setup of a self-managed env (OPS65, OPS87, OPS249, OPS306); `better-auth` is the default for a new instance (a recorded instance keeps its provider); the instance's own env file .env.<name> holds Clerk keys, `AUTH_SECRET` and the optional Google pair, never the root `.env`; --dry-run reads only
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset [--email <owner>]  # OPS307: owner recovery for a Better Auth instance, from `.env.<name>`'s `AUTH_SECRET` (never the root `.env`): prints a one-time owner reset link (`vibase-server owner-reset --env <name> [--email <owner>] [--dry-run]` from a release, exit 0/2/3), or with no owner an owner invitation for `--email`; printed once, stored nowhere; no remote run by agents except on `smoked1`
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env <name>    # applied vs expected; exit 0 only when current (CORE61)
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env <name>   # remote D1 migrations (OPS4); migrate before deploy
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env <name>       # deploy the Worker; /health shows the sha
+pnpm -C packages/server-d1 smoke:remote -- --base <url> --phase before|after --expect-version <sha>
+pnpm -C packages/server-d1 e2e:rail -- --base https://api.smoked1.vibase.ai --expect-version <sha>  # on-demand real-cron expiry check, not in the gate; runnable once #173 supplies owner-bound administration of newly added scopes
+```

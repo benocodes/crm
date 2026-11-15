@@ -479,7 +479,7 @@ and `knowledge/specs/008-AGT165-execution-rail/RETRO.md`.
   schema (`messaging/send-input.ts`).
 - **Finish is the resource transition:** execution result, linked request outcome and their events
   commit in one lease-token-guarded unit as `authorised_by`. Claim/stamp/retry/recovery are the narrowly
-  named exception in AGENTS.md invariant 5; they emit no events and leave `updated_at` unchanged.
+  named exception to AGENTS.md invariant 5 ("Writes that emit no event" below); they emit no events and leave `updated_at` unchanged.
 
 ## Resources: declarative definitions, generic CRUD
 
@@ -1008,8 +1008,56 @@ A write appends an event row (`task.created`, `contact.updated`, with `before` a
 table **in the same transaction**. Hooks, webhooks, the agent cursor and the audit trail all read that one
 table. Because the event commits with the write, a crash between commit and delivery cannot lose it (the predecessor's in-memory after-commit kick could, and needed recovery crons). Commands emit through the same outbox.
 `before`/`after` scalars into a jsonb column need `JSON.stringify` (see `db-schema-and-migrations`).
-Writes that are not resources (identity bookkeeping, channel machinery, `bootstrap`, execution leases, FTS indexes, webhook machinery) are the named
-exceptions in AGENTS.md invariant 5. A new exception needs a spec decision.
+Writes that are not resources are the named exceptions below.
+
+### Writes that emit no event
+
+This is the full list behind AGENTS.md invariant 5 (it has no count: it grows by spec decision). A write may
+skip the event only when it is not a resource and a row here names it. A new exception needs a spec decision
+and a new row here. If such a write has a tenant-visible consequence (a membership, a connection's status),
+that consequence still emits its event.
+
+| Write | Who writes it, and the limits | Decision |
+|---|---|---|
+| Identity bookkeeping: `principals`; `users` on first sight, on a provider profile refresh and on invitation acceptance | the identity paths | [[CORE3]] D12, [[CORE41]] P11, [[CORE287]] P3 |
+| Channel machinery tables: credentials, subscriptions, sync state and cursors | the channel adapters | [[CHN5]] D22 |
+| The provider-id maps `message_sources` and `thread_sources` | capture | [[CORE25]] D17 |
+| Whatever the dev/ops `bootstrap` script writes | `bootstrap` only | [[CORE15]] |
+| The API-key usage stamp | `api_keys.last_used_at` only, at most once a minute, never `updated_at` | [[CORE36]] D17 |
+| Execution lease columns: `action_executions.attempts`, `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`, `last_error_code`, and the `queued`/`claimed` status they move between | claim, dispatch stamp, retry scheduling and lease recovery, without changing `updated_at`. Creation and the final outcome of an execution, and the linked request's `executed`/`failed`, are resources: they emit `action_execution.created`, `.completed`, `.failed` and `action_request.executed`, `.failed` | [[AGT8]] D56 |
+| The D1 full-text search indexes (`<table>_search` FTS5 tables) | triggers on the base table only, never a program, an operation or a script | [[CORE194]] D5 |
+| Webhook machinery tables: `webhook_secrets`, `webhook_dispatch_state`, later `webhook_deliveries` | the subscription units, the dispatcher, the sender and the purge, without touching `webhook_subscriptions.updated_at`. Creation, update, deletion, rotation and auto-disable of a subscription are resources and emit `webhook.*` | [[API7]] D20 |
+| The control-plane database `CONTROL_DB` | see below | [[CORE259]] |
+
+**The control-plane database.** Its tables are deployment-scoped (no `organization_id`), emit no CRM event and
+sit outside the `updated_at` rules. Only composition, `bootstrap` (and its `owner-reset` twin),
+`vibase-server owner-reset` ([[OPS307]]), the control store and the release tooling (binding-to-directory
+mapping; tracker reads in the local `release:check` only, [[OPS260]]) may touch `CONTROL_DB`, never a program
+or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
+
+- **`auth_*`**, the built-in auth provider's tables (control migration 0001, [[CORE259]]; the CRM copy from
+  0018 is dropped by CRM 0019, [[OPS260]]). The `auth_` prefix is reserved and hidden from schema discovery
+  ([[CORE243]] D5). Their only writers:
+  - Better Auth's handler at `/auth`;
+  - `bootstrap`'s idempotent seed of the first-party `vibase-cli` client and its two resource rows, through
+    Better Auth's own adapter in-process, never hand-written SQL ([[CORE283]]);
+  - the same Better Auth instance's in-process reset request behind an owner-issued reset link
+    (`issueResetToken` in `@vibase/auth`, writing the verification row, [[CORE288]]). Its second caller is the
+    operator command `owner-reset`, which composes the same instance in the operator's process against the
+    remote control database ([[OPS307]]);
+  - the control store's `revokeSubjectCredentials`: one control batch of hand-written deletes of a removed
+    member's `auth_sessions`, `auth_oauth_access_tokens`, `auth_oauth_refresh_tokens` and `auth_device_codes`
+    with its `user.sessions_revoked` audit row, atomic with it ([[CORE288]]);
+  - the control store's repair sweep `runAuthSweep` (the one-minute rail cron on `better-auth`): one control
+    batch of hand-written deletes of the credentials of linked subjects without authority, created before the
+    sweep's CRM read, and of stale unlinked `auth_users` rows ([[CORE289]], [[CORE259]] D10). It writes no
+    `control_audit` row and nothing in the CRM database; its counts are read-only `SELECT`s from the two
+    status commands;
+  - later, [[OPS250]]'s migration tool.
+- **`control_deployment`**, the control marker: written only by `bootstrap`.
+- **`invitations` and `control_audit`** (control migration 0002, [[CORE245]], [[CORE259]] D12): written only
+  by the control store, one control batch per change and its audit row; `control_audit` is append-only by
+  trigger.
 
 ## Response shape and errors
 
