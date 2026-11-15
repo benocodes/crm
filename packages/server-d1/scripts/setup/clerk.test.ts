@@ -567,6 +567,8 @@ describe('12. verify (D21) and 13. the repair hint (D39)', () => {
     expect(t).toMatch(/vibase login --server https:\/\/api\.acme\.vibase\.ai/)
     expect(t).toMatch(/invitation/i)
     expect(t).toMatch(/C3/)
+    // OPS306: Clerk's next steps are as they were; none of the better-auth lines (MCP, the claim line, the no-email statement) appear.
+    expect(t).not.toMatch(/MCP:|printed above by the bootstrap step|Email is not configured/)
   })
   it('an issuer mismatch on /.well-known/vibase is a fail', async () => {
     const { clerk, w, opts } = await deployed()
