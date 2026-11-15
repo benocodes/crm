@@ -102,6 +102,22 @@ describe('DCR policy (P6)', () => {
     if (!good.refused) expect(good.scopes).toContain('contacts:read')
   })
 
+  it('audit:read ([[CORE261]] P2): a registration naming no scope does not get it, one naming it does, and it is neither human-only nor refused', async () => {
+    expect(grantable).toContain('audit:read')
+    const { scope: _omit, ...noScope } = meta()
+    const plain = await register(noScope)
+    expect(plain.status, await plain.clone().text()).toBe(201)
+    const { client_id: a } = (await plain.json()) as { client_id: string }
+    const [ca] = await rows(`select scopes from auth_oauth_clients where client_id = '${a}'`)
+    expect(JSON.parse(ca!.scopes)).toEqual(expect.arrayContaining(['openid', 'contacts:read']))
+    expect(JSON.parse(ca!.scopes)).not.toContain('audit:read')
+    const named = await register(meta({ scope: 'openid audit:read' }))
+    expect(named.status, await named.clone().text()).toBe(201)
+    const { client_id: b } = (await named.json()) as { client_id: string }
+    const [cb] = await rows(`select scopes from auth_oauth_clients where client_id = '${b}'`)
+    expect(JSON.parse(cb!.scopes)).toContain('audit:read')
+  })
+
   it('the seeded-shape client (scopes NULL) is not affected: DCR policy bounds registered clients only', async () => {
     // a client with scopes NULL follows the provider list: proven end to end by the resource matrix; here only that the stored DCR scopes are a bounded list
     const res = await register(meta())

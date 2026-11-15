@@ -96,3 +96,11 @@ export function assertAgentGrantable(
     if (declared.includes(s) && !isAgentGrantable(s, policy)) throw new Error(`scope not grantable to an agent: ${s}`)
   }
 }
+
+/** Scopes grantable to an agent but never part of a default grant ([[CORE261]] P2). */
+export const NOT_DEFAULT_GRANT: readonly string[] = []
+
+/** What a dynamically registered client or a default agent holds when nothing narrower is asked: the grantable scopes minus `NOT_DEFAULT_GRANT`. */
+export function defaultGrantScopes(declared: readonly string[], policy: ScopePolicy = SCOPE_POLICY): string[] {
+  return grantableScopes(declared, policy).filter((s) => !NOT_DEFAULT_GRANT.includes(s))
+}

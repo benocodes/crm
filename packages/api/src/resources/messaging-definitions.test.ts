@@ -24,6 +24,7 @@ describe('messaging definitions (CORE25 C1)', () => {
       'associations:read',
       'associations:request_approval',
       'associations:write',
+      'audit:read',
       'companies:read',
       'companies:request_approval',
       'companies:write',

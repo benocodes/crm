@@ -233,6 +233,25 @@ export async function listInvitations(c: ControlDb, a: { after?: string; limit: 
   return ((res.results ?? []) as Array<Record<string, unknown>>).map(recordOf)
 }
 
+/** A `control_audit` row as stored; `detail` is the stored JSON parsed. */
+export interface ControlAuditRecord {
+  id: string
+  at: string
+  actorId: string
+  action: string
+  targetType: string
+  targetId: string
+  detail: unknown
+}
+
+/** One page of the audit log in id order after the cursor, with optional exact-match filters ([[CORE261]] P3). Reads only. */
+export async function listControlAudit(
+  _c: ControlDb,
+  _a: { after?: string; limit: number; action?: string; targetType?: string; targetId?: string },
+): Promise<ControlAuditRecord[]> {
+  throw new Error('not implemented')
+}
+
 const readInvitation = async (d1: D1Like, id: string): Promise<InvitationRecord | null> => {
   const row = await d1.prepare(`select ${COLUMNS} from invitations where id = ?`).bind(id).first()
   return row ? recordOf(row) : null

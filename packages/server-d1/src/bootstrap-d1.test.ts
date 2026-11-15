@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding, openControlDb, readControlMarker, writeControlMarker } from '@vibase/storage-d1'
-import { authenticateApiKey, hashApiKey } from '@vibase/api'
+import { authenticateApiKey, createVibaseRegistry, defaultGrantScopes, hashApiKey } from '@vibase/api'
 import { bootstrapD1, probeBatchAtomicity } from './bootstrap-d1.js'
 import { initDeploymentOperation, readDeployment } from './init-deployment.js'
 import { openLocalD1 } from '@vibase/storage-d1/test'
@@ -35,6 +35,16 @@ const counts = async () =>
   )
 
 describe('bootstrapD1 (P7)', () => {
+  it('the default agent holds the default-grant scopes: audit:read is grantable but not given by default ([[CORE261]] P2)', async () => {
+    const r = await bootstrapD1(w.d1, base, env())
+    const [agent] = await all('agents')
+    const scopes = JSON.parse(agent!.scopes as string) as string[]
+    expect(scopes).toContain('contacts:read')
+    expect(scopes).not.toContain('audit:read')
+    expect(scopes).toEqual(defaultGrantScopes(createVibaseRegistry().declaredScopes()))
+    expect(r.agentId).toBe(agent!.id)
+  })
+
   it('a fresh bootstrap writes the marker, the organisation, the owner, the agent and a key, with no events', async () => {
     const r = await bootstrapD1(w.d1, base, env())
     expect(r.deployment).toBe('created')

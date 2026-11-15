@@ -9,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { initDeploymentOperation, readDeployment } from '../../src/init-deployment.js'
 import { bootstrapD1 } from '../../src/bootstrap-d1.js'
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
+import { desiredScopes } from './clerk.js'
 import { runSetup, type SetupOutcome } from './run.js'
 import {
   ISSUER,
@@ -43,7 +44,7 @@ const text = (o: SetupOutcome, step = 'clerk') => {
 const declared = createVibaseRegistry().declaredScopes()
 const cliScopes = [...declared.map(toProviderScope), 'offline_access']
 const readScopes = declared
-  .filter((s) => SCOPE_POLICY[s]?.agentGrantable === true && s.split(':')[1] === 'read')
+  .filter((s) => SCOPE_POLICY[s]?.agentGrantable === true && s.split(':')[1] === 'read' && s !== 'audit:read')
   .map(toProviderScope)
 const sameSet = (a: string[], b: string[]) => [...a].sort().join() === [...b].sort().join()
 
@@ -338,6 +339,31 @@ describe('5. desired-state rows', () => {
       const { clerk, w } = setup(settled({ allowedOrigins: ['https://x.example'] }))
       await run(w, clerk, onlyClerk())
       expect(clerk.writes()).toEqual([])
+    })
+  })
+
+  describe('audit:read is not a default grant ([[CORE261]] P2)', () => {
+    it('is in the declared scopes and the CLI ceiling, and absent from C7 default_scopes', () => {
+      const d = desiredScopes()
+      expect(d.declared).toContain('audit:read')
+      expect(d.cli).toContain('audit:read')
+      expect(d.defaults).not.toContain('audit:read')
+      expect(d.defaults).toContain('contacts:read')
+    })
+    it('an instance whose default_scopes already hold it is a difference: one PATCH removes it', async () => {
+      const { clerk, w } = setup(
+        settled({
+          settings: {
+            dynamic_oauth_client_registration: true,
+            default_scopes: [...readScopes, 'audit:read'],
+            oauth_jwt_access_tokens: true,
+          },
+        }),
+      )
+      await run(w, clerk, onlyClerk())
+      const writes = settingsWrites(clerk)
+      expect(writes).toHaveLength(1)
+      expect(sameSet((writes[0]!.body as any).default_scopes, readScopes)).toBe(true)
     })
   })
 
