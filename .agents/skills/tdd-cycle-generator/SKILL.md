@@ -216,6 +216,14 @@ an obligation of its own.
 planner rules, scripts and docs only. It cost 232k / 76 calls over two runs (+138 code / +639 test / +117 doc lines, 15 files),
 with one text-only review round. Writing "× 2 front-ends" in the Size line and asking for one shared fixture builder per seam
 kept this cycle under OPS249's cost.
+**OPS308** (`knowledge/specs/015-OPS308-workers-dev-mode/RETRO.md`): 6 groups (1 matrix) × 2 front-ends, 3 decisions plus 6
+planner rules, scripts and docs only, at the group limit. It cost 333k / 75 calls in one run plus a ~16k / 11-call fix round
+(+357 code / +822 test lines, 35 files): OPS249's cost, so a sixth group × 2 front-ends is the ceiling. Both findings trace to
+the charter. P3 put "host resolution in preflight" next to an account-wide write (registering the subdomain), and the coder
+did the write during resolution, before later refusals. When a rule mixes a read with an external write, the charter says
+the write runs after every refusal and a passing preflight, and asks for a "no write" case per later refusal. The charter
+also said "the Google redirect URI" where an instance has two (Better Auth sign-in `/auth/callback/google`, the Gmail
+connector's `/oauth/google/callback`): name each URI a consequence line must carry.
 
 ### Step 3: Resolve identities
 

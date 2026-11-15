@@ -188,6 +188,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   after, like `process.stdin` at its end. A fake that hands back the full input on every read hid a double read in the
   CLI's stale-cache retry ([[CORE136]] review); the test that caught it runs the same bad `--data -` fresh, then on the
   cached state, and asserts identical stderr and no request sent.
+- **An external write comes after every refusal, and each refusal proves it.** When a run can make a call with an outside
+  side effect (registering a Cloudflare subdomain, a `PUT`), test one case per refusal that can still fire after the value
+  is known (a later flag check, a preflight failure) and assert the fake's write log is empty, not only the dry-run case.
+  A test of "the flag registers" alone passed while the `PUT` ran before the Gmail refusal and the preflight ([[OPS308]]
+  review, `packages/server-d1/scripts/setup/workers-dev.test.ts`, `instance/setup-workers-dev.test.ts`). Resolution reads
+  and derives from the planned value; the write is its own step.
 - **A fake that answers for a real component is tied to it by a test.** When a kit fakes what the Worker answers
   (discovery, metadata), build the fake from one module of answer builders and add one test that composes the real
   Worker in-process (`composeD1Worker`) and compares its answers with the builders. Every kit then uses those builders.
