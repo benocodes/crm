@@ -82,6 +82,8 @@ export interface WorldOptions {
   secrets?: string[]
   /** `wrangler secret bulk` fails (exit 1) and puts nothing (OPS249 D3: the partial state after the env file was written). */
   failBulk?: boolean
+  /** A missing env file is not ignored by git: creating it is refused, as the real `appendEnvFileVar` does (OPS249 D3). */
+  missingFileNotIgnored?: boolean
   /** What the Worker's `/.well-known/vibase` reports (`auth.issuer`, `auth.cli_client_id`); default: matches `state.configText`'s vars. */
   vibase?: { issuer: string | null; cli_client_id: string | null } | 'absent'
 }
@@ -251,6 +253,7 @@ export function makeWorld(o: WorldOptions): World {
       return text === null ? { display, status: 'missing' } : { display, status: 'ok', text }
     },
     appendEnvFileVar: (_arg, _envName, name, value) => {
+      if (state.envFileText === null && o.missingFileNotIgnored) throw new Error('not ignored by git')
       const text = state.envFileText ?? ''
       if (new RegExp(`^${name}=`, 'm').test(text)) throw new Error(`${name} is already set in the env file`)
       events.push(`file:${name}`)

@@ -36,6 +36,8 @@ export function appendEnvFileVar(arg: string | undefined, envName: string, name:
   const path = isAbsolute(given) ? given : resolve(repoRoot, given)
   if (resolve(path) === resolve(rootEnvPath)) throw new Error(`${given} is the root .env, which holds another instance's values`)
   const text = existsSync(path) ? readFileSync(path, 'utf8') : null
+  // A missing file is about to be created: the probe skipped git's ignore check for it, so it is made here, before anything is written.
+  if (text === null && spawnSync('git', ['check-ignore', '-q', '--', path], { cwd: repoRoot }).status !== 0) throw new Error(`${given} is not ignored by git: add it to .gitignore before it holds a secret`)
   if (text !== null && new RegExp(`^\\s*(export\\s+)?${name}=`, 'm').test(text)) throw new Error(`${name} is already set in ${given}: refusing to overwrite a key`)
   const line = `${text === null || text === '' || text.endsWith('\n') ? '' : '\n'}${name}=${value}\n`
   if (text === null) writeFileSync(path, line, { mode: 0o600 })

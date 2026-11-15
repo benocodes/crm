@@ -1,7 +1,11 @@
 // OPS249 cycle 1 on `setup:remote`: the provider rule (D1), the Better Auth vars (D2), `AUTH_SECRET` (D3), the Google pair (D4), the bootstrap step (D6) and re-runs that never
 // re-issue the owner link (D7). The same obligations for `vibase-server setup` are in instance/setup-better-auth.test.ts. Everything runs against the setup kit's faked wrangler,
 // Cloudflare API and fetch, with two real local D1s (CRM and control) behind the proxy.
-import { readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { appendEnvFileVar } from './env-file.js'
 import { applyEdits, modify, parse } from 'jsonc-parser'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { openControlDb, readControlMarker } from '@vibase/storage-d1'
@@ -221,6 +225,26 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     await secretsRun(only, [...ONLY, '--rotate-secrets'])
     expect(only.secretInputs).toEqual([])
     expect(only.state.envFileText).toBeNull()
+  })
+
+  it('(a) a missing file git does not ignore is never created: the step fails, "nothing was put", no secret bulk runs', async () => {
+    const w = world({ missingFileNotIgnored: true })
+    await firstRun(w, [...ACME, '--clerk-env-file', 'in-repo/missing.env'])
+    const o = await secretsRun(w, [...ACME, '--clerk-env-file', 'in-repo/missing.env', '--only', 'secrets'])
+    expect(step(o, 'secrets').status).toBe('fail')
+    expect(step(o, 'secrets').detail).toContain('nothing was put')
+    expect(w.state.envFileText).toBeNull()
+    expect(w.secretInputs).toEqual([])
+  })
+
+  it('the real appendEnvFileVar refuses to create a missing file that git does not ignore, and creates an ignored one with mode 600', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'ops249-repo-'))
+    spawnSync('git', ['init', '-q'], { cwd: repo })
+    writeFileSync(join(repo, '.gitignore'), '.env.*\n')
+    expect(() => appendEnvFileVar('plain.txt', 'acme', 'AUTH_SECRET', 'v', repo, join(repo, '.env'))).toThrow(/not ignored/)
+    expect(existsSync(join(repo, 'plain.txt'))).toBe(false)
+    appendEnvFileVar(undefined, 'acme', 'AUTH_SECRET', 'v', repo, join(repo, '.env'))
+    expect(readFileSync(join(repo, '.env.acme'), 'utf8')).toBe('AUTH_SECRET=v\n')
   })
 
   it('a dry run reports state (a) and writes and puts nothing', async () => {
