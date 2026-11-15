@@ -148,6 +148,12 @@ export function ownerResetSuite(label: string, makeDriver: () => Driver | Promis
         await seed([{ email: 'o@x.test' }])
         await refusal({ record: { secret: null } }, /AUTH_SECRET/)
       })
+      it('an AUTH_SECRET shorter than the Worker accepts is refused (it cannot be the Worker\'s value), and the value is never printed', async () => {
+        await seed([{ email: 'o@x.test' }])
+        await refusal({ record: { secret: 'short-secret-value' } }, /shorter than 32/)
+        const r = await drive({ record: { secret: 'short-secret-value' } })
+        expect(allText(r)).not.toContain('short-secret-value')
+      })
       it('several better-auth owners without --email: refused, listing their emails', async () => {
         await seed([{ email: 'a@x.test' }, { email: 'b@x.test' }])
         await refusal({}, /a@x\.test[\s\S]*b@x\.test|b@x\.test[\s\S]*a@x\.test/)

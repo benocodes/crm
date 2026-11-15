@@ -111,7 +111,8 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
       }
       if (!p.authSecret) throw new OwnerResetRefusal(`AUTH_SECRET is not in ${p.secretsFile}: owner-reset needs it to compose Better Auth as the Worker does. If the Worker has one, copy it into that file; a new value would sign everyone out`)
       if (p.authSecret.length < AUTH_SECRET_MIN_LENGTH) throw new OwnerResetRefusal(`AUTH_SECRET in ${p.secretsFile} is shorter than ${AUTH_SECRET_MIN_LENGTH} characters: it is not the value the Worker holds`)
-      if (!target.auth_subject) throw new OwnerResetRefusal(`the owner ${target.email} has no Better Auth subject recorded: nothing to reset`)
+      // `users` holds `auth_provider` and `auth_subject` both or neither (a CHECK), so a better-auth owner always has a subject.
+      const subject = target.auth_subject as string
       if (p.dryRun) return { kind: 'dry-run', action: 'reset', email: target.email }
 
       const auth = createAuth(controlAuthDatabase(openControlDb(control)), { secret: p.authSecret, baseURL: baseUrl })
@@ -129,7 +130,7 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
       const expiresAt = issued.expiresAt.toISOString()
       // The audit row comes before the answer: a link nobody can account for is never returned. A failure leaves an unreturned verification row, inert until it expires.
       try {
-        await recordResetLinkIssued(openControlDb(control), { auditId: newId(), actorId: system, subject: target.auth_subject, expiresAt, now: now.toISOString(), via: 'owner-reset' })
+        await recordResetLinkIssued(openControlDb(control), { auditId: newId(), actorId: system, subject, expiresAt, now: now.toISOString(), via: 'owner-reset' })
       } catch (e) {
         throw new OwnerResetFailure(`the reset link was not recorded in the audit log (${message(e)}): nothing was printed; the unused link expires, run again`)
       }
