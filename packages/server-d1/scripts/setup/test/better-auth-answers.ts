@@ -1,4 +1,4 @@
-// The Worker's answers on `better-auth` as both setup kits fake them ([[OPS306]] obligation 1): `better-auth-discovery.test.ts` compares these builders with the real Worker
+// The Worker's answers on `better-auth` as both setup kits fake them ([[OPS306]] obligation 1): `scripts/setup/better-auth-answers.test.ts` compares these builders with the real Worker
 // (`composeD1Worker` on `better-auth` vars), so the fake cannot drift from the real shape.
 
 export const discoveryAnswer = (base: string, signInMethods: string[] = ['password']) => ({

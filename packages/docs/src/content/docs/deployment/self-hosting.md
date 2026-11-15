@@ -48,7 +48,7 @@ CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
 CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
 ```
 
-Setup generates the instance's `AUTH_SECRET` (the key that signs sessions), appends it to this file before it puts it on the Worker, and never prints it. Keep the file: a re-run reads the secret from it, and the owner recovery tools need it.
+Setup generates the instance's `AUTH_SECRET` (the key that signs sessions), appends it to this file before it puts it on the Worker, and never prints it. Keep the file: a re-run reads the secret from it.
 
 The Cloudflare token needs these permissions:
 
