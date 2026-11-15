@@ -3,7 +3,9 @@ import { createVibaseRegistry } from '../operations.js'
 import {
   SCOPE_DESCRIPTIONS,
   SCOPE_POLICY,
+  NOT_DEFAULT_GRANT,
   assertAgentGrantable,
+  defaultGrantScopes,
   grantableScopes,
   isAgentGrantable,
   scopesForRole,
@@ -92,5 +94,25 @@ describe('roles', () => {
     const member = scopesForRole('member', createVibaseRegistry().declaredScopes()).toStrings()
     expect(member).toEqual(expect.arrayContaining(['members:read', 'agents:read']))
     expect(member).not.toContain('agents:write')
+  })
+})
+
+describe('audit:read ([[CORE261]] P2)', () => {
+  const all = createVibaseRegistry().declaredScopes()
+  it('is declared, owner-held, never a member scope, agent-grantable, and has no write counterpart', () => {
+    expect(all).toContain('audit:read')
+    expect(SCOPE_POLICY['audit:read']).toEqual({ member: false, agentGrantable: true })
+    expect(scopesForRole('owner', all).toStrings()).toContain('audit:read')
+    expect(scopesForRole('member', all).toStrings()).not.toContain('audit:read')
+    expect(grantableScopes(all)).toContain('audit:read')
+    expect(() => assertAgentGrantable(['audit:read'], all)).not.toThrow()
+    expect(all).not.toContain('audit:write')
+    expect(SCOPE_DESCRIPTIONS['audit:read']).toMatch(/audit/i)
+  })
+  it('is grantable but excluded from the default grant', () => {
+    expect(NOT_DEFAULT_GRANT).toEqual(['audit:read'])
+    expect(defaultGrantScopes(all)).not.toContain('audit:read')
+    expect(defaultGrantScopes(all)).toContain('contacts:read')
+    expect(defaultGrantScopes(all)).toEqual(grantableScopes(all).filter((s) => s !== 'audit:read'))
   })
 })

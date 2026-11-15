@@ -14,7 +14,7 @@ import {
   type StorageBinding,
 } from '@vibase/storage'
 import { generateApiKey } from './auth/api-keys.js'
-import { assertAgentGrantable, grantableScopes } from './auth/roles.js'
+import { assertAgentGrantable, defaultGrantScopes } from './auth/roles.js'
 import { ApiError } from './errors.js'
 import { normalizeIdentityValue } from './identity/normalize.js'
 import { createVibaseRegistry } from './operations.js'
@@ -229,7 +229,7 @@ export async function bootstrap(
   env: { now?: Date; newId?: () => string; randomBytes?: (n: number) => Uint8Array } = {},
 ): Promise<BootstrapResult> {
   const declared = createVibaseRegistry().declaredScopes()
-  const scopes = opts.scopes ? ScopeSet.parse(opts.scopes).toStrings() : grantableScopes(declared)
+  const scopes = opts.scopes ? ScopeSet.parse(opts.scopes).toStrings() : defaultGrantScopes(declared)
   for (const s of scopes) if (!declared.includes(s)) throw new Error(`unknown scope: ${s}`)
   assertAgentGrantable(scopes, declared)
   let email: string

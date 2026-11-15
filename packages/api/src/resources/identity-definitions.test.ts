@@ -19,6 +19,7 @@ describe('identity definitions', () => {
       'associations:read',
       'associations:request_approval',
       'associations:write',
+      'audit:read',
       'companies:read',
       'companies:request_approval',
       'companies:write',

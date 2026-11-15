@@ -8,6 +8,7 @@ export {
   seedFirstPartyClient,
   MCP_RESOURCE_PATH,
   REGISTRATION_LIMIT,
+  registrationScopes,
   resourcesFor,
   BROWSER_SESSION_SECONDS,
   SESSION_JWT_SECONDS,

@@ -34,6 +34,7 @@ place('api', 'events', ['list', 'get'])
 place('meta', 'agents', CRUD)
 place('meta', 'connections', ['list', 'get', 'delete', 'authorize', 'sync'])
 place('meta', 'api_keys', [...CRUD, 'revoke'])
+place('meta', 'audit', ['list'])
 place('meta', 'invitations', ['create', 'list', 'revoke'])
 place('meta', 'memberships', ['list', 'get', 'update', 'delete'])
 place('meta', 'users', ['list', 'get', 'issue_reset_link'])
@@ -80,6 +81,7 @@ describe('placement (D6)', () => {
         'api_keys.get',
         'api_keys.list',
         'api_keys.revoke',
+        'audit.list',
         'connections.authorize',
         'connections.delete',
         'connections.get',
@@ -107,7 +109,7 @@ describe('placement (D6)', () => {
         'webhooks.update',
       ].sort(),
     )
-    expect(ops.length).toBe(114)
+    expect(ops.length).toBe(115)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

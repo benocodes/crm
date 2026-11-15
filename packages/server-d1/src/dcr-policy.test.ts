@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createAuthHandler } from '@vibase/auth'
-import { createVibaseRegistry, grantableScopes } from '@vibase/api'
+import { createAuthHandler, registrationScopes } from '@vibase/auth'
+import { createVibaseRegistry, defaultGrantScopes, grantableScopes } from '@vibase/api'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
 import { openWorkerPair, type WorkerPair } from './test/kit.js'
 
@@ -100,6 +100,21 @@ describe('DCR policy (P6)', () => {
     const good = await attempt('openid contacts:read')
     expect(good.refused).toBe(false)
     if (!good.refused) expect(good.scopes).toContain('contacts:read')
+  })
+
+  it('audit:read ([[CORE261]] P2): grantable and allowed to name, but not in the registration default list; the composition narrows the defaults, and the library accepts it when named', async () => {
+    expect(grantable).toContain('audit:read')
+    const narrowed = registrationScopes(declared, grantable, defaultGrantScopes(declared))
+    expect(narrowed.allowed).toContain('audit:read')
+    expect(narrowed.defaults).not.toContain('audit:read')
+    expect(narrowed.defaults).toEqual(expect.arrayContaining(['openid', 'contacts:read']))
+    // not narrowed (a caller passing no defaults): the defaults are the grantable scopes, as before this cycle
+    expect(registrationScopes(declared, grantable).defaults).toContain('audit:read')
+    const named = await register(meta({ scope: 'openid audit:read' }))
+    expect(named.status, await named.clone().text()).toBe(201)
+    const { client_id } = (await named.json()) as { client_id: string }
+    const [c] = await rows(`select scopes from auth_oauth_clients where client_id = '${client_id}'`)
+    expect(JSON.parse(c!.scopes)).toContain('audit:read')
   })
 
   it('the seeded-shape client (scopes NULL) is not affected: DCR policy bounds registered clients only', async () => {

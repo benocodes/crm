@@ -1,5 +1,5 @@
 import { toProviderScope } from './auth/clerk.js'
-import { grantableScopes } from './auth/roles.js'
+import { defaultGrantScopes, grantableScopes } from './auth/roles.js'
 import { SURFACE_PREFIX, openApiPath } from './surfaces.js'
 
 /** [[CORE64]] D21: the vault's own discovery document. */
@@ -41,10 +41,10 @@ export const resourceMetadataChallenge = (origin: string): string =>
 
 /**
  * [[API106]] D14: the `WWW-Authenticate` value of a 401 on `/mcp`. `scope` is one quoted, space-separated value (RFC 6750 section 3
- * `scope-token` list), the agent-grantable scopes in provider names, in the vault's sorted order, so the client requests a useful grant.
+ * `scope-token` list), the default-grant scopes in provider names ([[CORE261]] P2: the agent-grantable ones minus those never granted by default, such as `audit:read`), in the vault's sorted order, so the client requests a useful grant.
  */
 export const mcpChallenge = (origin: string, declaredScopes: readonly string[]): string =>
-  `Bearer resource_metadata="${origin}${MCP_PROTECTED_RESOURCE_PATH}", scope="${grantableScopes(declaredScopes).map(toProviderScope).join(' ')}"`
+  `Bearer resource_metadata="${origin}${MCP_PROTECTED_RESOURCE_PATH}", scope="${defaultGrantScopes(declaredScopes).map(toProviderScope).join(' ')}"`
 
 const HEADERS = {
   'content-type': 'application/json',
