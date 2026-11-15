@@ -6,7 +6,7 @@ import {
 import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { createVibaseRegistry, grantableScopes, toProviderScope } from '@vibase/api'
+import { createVibaseRegistry, defaultGrantScopes, grantableScopes, toProviderScope } from '@vibase/api'
 import { mintClerkToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
@@ -37,9 +37,10 @@ const PRM_MCP = `${PRM}/mcp`
 const NAMES = MIGRATIONS.map((m) => m.name)
 const declared = createVibaseRegistry().declaredScopes()
 const grantable = grantableScopes(declared).map(toProviderScope)
+/** [[CORE261]] P2: the challenge's `scope` is what a client requests on connect, so it is the default grant; `scopes_supported` stays the whole grantable set. */
+const defaults = defaultGrantScopes(declared).map(toProviderScope)
 const rootChallenge = (origin: string) => `Bearer resource_metadata="${origin}${PRM}"`
-const mcpChallenge = (origin: string) =>
-  `Bearer resource_metadata="${origin}${PRM_MCP}", scope="${grantable.join(' ')}"`
+const mcpChallenge = (origin: string) => `Bearer resource_metadata="${origin}${PRM_MCP}", scope="${defaults.join(' ')}"`
 
 const worker = (extra: Partial<D1WorkerEnv> = {}) =>
   composeD1Worker(
@@ -213,8 +214,11 @@ describe('D14 the 401 challenge on /mcp', () => {
     expect(res.status).toBe(401)
     const parsed = extractWWWAuthenticateParams(res)
     expect(parsed.resourceMetadataUrl?.href).toBe(`${BASE}${PRM_MCP}`)
-    expect(parsed.scope).toBe(grantable.join(' '))
-    expect(parsed.scope?.split(' ')).toEqual(grantable)
+    expect(parsed.scope).toBe(defaults.join(' '))
+    expect(parsed.scope?.split(' ')).toEqual(defaults)
+    // audit:read is grantable (scopes_supported) but never requested by default (the challenge)
+    expect(grantable).toContain('audit:read')
+    expect(parsed.scope?.split(' ')).not.toContain('audit:read')
     const fetchFn = ((input: RequestInfo | URL, init?: RequestInit) =>
       wk.fetch(new Request(input, init))) as typeof fetch
     const meta = await discoverOAuthProtectedResourceMetadata(
