@@ -22,12 +22,18 @@ import type { InvitationsRuntime } from '../invitations/port.js'
 import type { MembersRuntime } from '../members/port.js'
 import { webhooksConfigNotice, type WebhooksRuntime } from '../webhooks/config.js'
 import type { ObjectStore } from '../objects/store.js'
-import { validateOperationInput, type BinaryBody, type Operation, type OperationInput, type PrepareContext, type Registry } from '../registry.js'
+import {
+  validateOperationInput,
+  type BinaryBody,
+  type Operation,
+  type OperationInput,
+  type PrepareContext,
+  type Registry,
+} from '../registry.js'
 import { proposalHint } from '../proposal.js'
-import { hydrateSendRecord,requireSendStore } from '../messaging/send-body.js'
+import { hydrateSendRecord, requireSendStore } from '../messaging/send-body.js'
 import { runExecution } from '../executions/runner.js'
 import type { TransportRegistry } from '../executions/transport.js'
-import { parseInput } from '../resources/define.js'
 import { ScopeSet, formatScope } from '../scopes.js'
 import { internalEnv } from '../storage/internal.js'
 import { renderError, renderNotFound } from './errors.js'
@@ -75,7 +81,10 @@ export interface AppOptions {
    * token's claim, `/webhooks/clerk` is not mounted and `me.get` answers agents. `adapter` is the workspace adapter, absent when
    * the deployment is API-key only. Exclusive with `authAdapter` and `userAuthenticator`.
    */
-  workspace?: { adapter?: AuthAdapter; /** The first-party CLI's OAuth client id ([[CORE77]] D14); unset: none. */ cliClientId?: string }
+  workspace?: {
+    adapter?: AuthAdapter /** The first-party CLI's OAuth client id ([[CORE77]] D14); unset: none. */
+    cliClientId?: string
+  }
   /** Injected clock and id source for prepared units (tests and golden fixtures). Default: real time, UUIDv7. */
   clock?: () => Date
   newId?: () => string
@@ -110,7 +119,12 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   const query: Record<string, unknown> = c.req.query()
   // [[CORE129]] D10a (any repeated query parameter): a repeated query parameter is refused, never answered with whichever value the router keeps (the first).
   for (const [key, values] of Object.entries(c.req.queries())) {
-    if (values.length > 1) throw new ApiError(400, 'validation_error', `query parameter "${key}" was given ${values.length} times; send it once`)
+    if (values.length > 1)
+      throw new ApiError(
+        400,
+        'validation_error',
+        `query parameter "${key}" was given ${values.length} times; send it once`,
+      )
   }
   let body: unknown
   if (op.method === 'post' || op.method === 'patch') {
@@ -126,9 +140,12 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   return { params, query, body, origin }
 }
 
-type Injected = Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects' | 'workspace' | 'executions'> & { registry: Registry }
+type Injected = Pick<AppOptions, 'clock' | 'newId' | 'randomBytes' | 'objects' | 'workspace' | 'executions'> & {
+  registry: Registry
+}
 
-const run = async (c: Context<AppEnv>, op: Operation, injected: Injected): Promise<unknown> => executeOperation(c, op, await readInput(c, op), injected)
+const run = async (c: Context<AppEnv>, op: Operation, injected: Injected): Promise<unknown> =>
+  executeOperation(c, op, await readInput(c, op), injected)
 
 /**
  * The after-commit kick of the execution rail ([[AGT8]] D13, D49): starts the runner on one execution, best effort. A kick that throws, is dropped by the
@@ -138,11 +155,18 @@ function kickRunner(c: Context<AppEnv>, injected: Injected, executionId: string)
   const rail = injected.executions
   if (!rail || c.var.storage.kind !== 'd1') return
   const clock = injected.clock ?? (() => new Date())
-  const deps = { binding: c.var.storage, registry: injected.registry, transports: rail.transports, clock, newId: () => uuidv7(clock()) }
+  const deps = {
+    binding: c.var.storage,
+    registry: injected.registry,
+    transports: rail.transports,
+    clock,
+    newId: () => uuidv7(clock()),
+  }
   const run = () =>
     runExecution(deps, executionId).then(
       () => undefined,
-      (err) => console.error(`[rail] execution ${executionId} failed to run: ${err instanceof Error ? err.name : 'error'}`),
+      (err) =>
+        console.error(`[rail] execution ${executionId} failed to run: ${err instanceof Error ? err.name : 'error'}`),
     )
   try {
     if (rail.start) rail.start(run)
@@ -156,7 +180,12 @@ function kickRunner(c: Context<AppEnv>, injected: Injected, executionId: string)
  * The executor both REST and MCP `tools/call` run ([[API106]] D12): scope checks, the account-operation rule, `prepare`, the storage
  * unit, events and error mapping. `input` is already read; adapter-validated operations are validated first, as REST does.
  */
-async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: OperationInput, injected: Injected): Promise<unknown> {
+async function executeOperation(
+  c: Context<AppEnv>,
+  op: Operation,
+  rawInput: OperationInput,
+  injected: Injected,
+): Promise<unknown> {
   const input = validateOperationInput(op, rawInput)
   const principal = c.var.principal
   if (op.kind === 'account') {
@@ -171,7 +200,14 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
       organizationId,
       scopes: organizationId === null ? ScopeSet.parse([]) : principal.scopes,
       now: (injected.clock ?? (() => new Date()))(),
-      ...(injected.workspace ? { workspace: { role: principal.actor.kind === 'user' ? (principal.role ?? null) : null, clientId: principal.clientId ?? null } } : {}),
+      ...(injected.workspace
+        ? {
+            workspace: {
+              role: principal.actor.kind === 'user' ? (principal.role ?? null) : null,
+              clientId: principal.clientId ?? null,
+            },
+          }
+        : {}),
     }
     try {
       return (await execute(storage, { kind: 'account', actorId: principal.actor.id }, op.prepare(env, input))).value
@@ -183,7 +219,11 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
     throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
   }
   if (principal.organizationId === null) {
-    throw new ApiError(403, 'organization_required', 'an organisation is required (sign in with an active organisation)')
+    throw new ApiError(
+      403,
+      'organization_required',
+      'an organisation is required (sign in with an active organisation)',
+    )
   }
   const { actor, organizationId, scopes } = principal
   const storage = c.var.storage
@@ -209,7 +249,8 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
     throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}${hint ? `; ${hint}` : ''}`)
   }
   // [[CHN5]] D29: a D1-only operation on another engine is not implemented there; refused after the scope checks, before any unit runs.
-  if (op.d1Only && c.var.storage.kind !== 'd1') throw new ApiError(501, 'not_implemented', 'this operation is implemented for D1 only')
+  if (op.d1Only && c.var.storage.kind !== 'd1')
+    throw new ApiError(501, 'not_implemented', 'this operation is implemented for D1 only')
   // D52: a composition without a store refuses before any unit runs; the scope checks above stay the first refusals.
   if (op.objects && !injected.objects) {
     throw new ApiError(503, 'objects_unavailable', 'object storage is not configured')
@@ -233,7 +274,11 @@ async function executeOperation(c: Context<AppEnv>, op: Operation, rawInput: Ope
   // The after-commit stage ([[CHN141]]): outside the storage error mapping too; it throws the ApiError it means.
   if (op.after) value = await op.after(value, { kick: (executionId) => kickRunner(c, injected, executionId) })
   // AGT166: the existing post-read object seam, restricted to authored send gets. Other operation arguments retain their existing behavior.
-  if ((op.name === 'action_requests.get' || op.name === 'action_executions.get') && (value as {operation?:string}).operation === 'messages.send') return hydrateSendRecord(value,requireSendStore(injected.objects))
+  if (
+    (op.name === 'action_requests.get' || op.name === 'action_executions.get') &&
+    (value as { operation?: string }).operation === 'messages.send'
+  )
+    return hydrateSendRecord(value, requireSendStore(injected.objects))
   // The object stage runs after the unit, outside the storage error mapping: an ApiError propagates, anything else is masked.
   return op.objects ? op.objects(value, injected.objects!) : value
 }
@@ -244,19 +289,45 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   }
   const gmail = options.gmail
   const push: PushConfig | null = gmail?.config && gmail.instances && gmail.push ? gmail.push : null
-  const registry = options.registry ?? createVibaseRegistry({ operations: options.extraOperations, ...(options.invitations ? { invitations: options.invitations } : {}), ...(options.members ? { members: options.members } : {}), ...(options.webhooks ? { webhooks: options.webhooks.runtime } : {}), connections: { config: gmail?.config ?? null, ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}), ...(gmail?.instances ? { instances: gmail.instances } : {}), push, ...(gmail?.fetch ? { fetch: gmail.fetch } : {}), ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}) } })
+  const registry =
+    options.registry ??
+    createVibaseRegistry({
+      operations: options.extraOperations,
+      ...(options.invitations ? { invitations: options.invitations } : {}),
+      ...(options.members ? { members: options.members } : {}),
+      ...(options.webhooks ? { webhooks: options.webhooks.runtime } : {}),
+      connections: {
+        config: gmail?.config ?? null,
+        ...(gmail?.endpoints ? { endpoints: gmail.endpoints } : {}),
+        ...(gmail?.instances ? { instances: gmail.instances } : {}),
+        push,
+        ...(gmail?.fetch ? { fetch: gmail.fetch } : {}),
+        ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}),
+      },
+    })
   // [[CHN5]] D58: a partial configuration is a startup log line naming what is wrong; nothing configured at all is simply "off".
-  if (gmail?.problems && gmail.problems.length > 0 && !gmailUnconfigured(gmail.problems)) console.warn(gmailConfigNotice(gmail.problems))
-  if (options.webhooks?.problems && options.webhooks.problems.length > 0) console.warn(webhooksConfigNotice(options.webhooks.problems))
-  if (gmail?.pushProblems && gmail.pushProblems.length > 0) console.warn(`[gmail] push is off: set or fix ${gmail.pushProblems.join(', ')}`)
-  else if (gmail?.push && !push) console.warn(`[gmail] push is off: ${gmail.config ? 'the MAIL_SYNC binding is missing' : 'Gmail is not configured'}`)
+  if (gmail?.problems && gmail.problems.length > 0 && !gmailUnconfigured(gmail.problems))
+    console.warn(gmailConfigNotice(gmail.problems))
+  if (options.webhooks?.problems && options.webhooks.problems.length > 0)
+    console.warn(webhooksConfigNotice(options.webhooks.problems))
+  if (gmail?.pushProblems && gmail.pushProblems.length > 0)
+    console.warn(`[gmail] push is off: set or fix ${gmail.pushProblems.join(', ')}`)
+  else if (gmail?.push && !push)
+    console.warn(
+      `[gmail] push is off: ${gmail.config ? 'the MAIL_SYNC binding is missing' : 'Gmail is not configured'}`,
+    )
   const profiles = options.workspace?.adapter ? createProfileCache(options.workspace.adapter) : null
   const userAuthenticator =
     options.userAuthenticator ??
     (options.authAdapter
       ? createUserAuthenticator({ adapter: options.authAdapter, declaredScopes: registry.declaredScopes() })
       : options.workspace?.adapter
-        ? createWorkspaceAuthenticator({ adapter: options.workspace.adapter, declaredScopes: registry.declaredScopes(), cliClientId: options.workspace.cliClientId, profiles: profiles! })
+        ? createWorkspaceAuthenticator({
+            adapter: options.workspace.adapter,
+            declaredScopes: registry.declaredScopes(),
+            cliClientId: options.workspace.cliClientId,
+            profiles: profiles!,
+          })
         : undefined)
   const app = new OpenAPIHono<AppEnv>()
   app.onError(renderError)
@@ -266,7 +337,8 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   // so an empty list refuses every browser. Before the CORS middleware, so a refused origin gets no CORS answer either.
   app.use(MCP_PATH, async (c, next) => {
     const origin = c.req.header('origin')
-    if (origin !== undefined && !corsOrigins.includes(origin)) return c.json({ error: { code: 'origin_forbidden', message: 'this origin may not call the MCP endpoint' } }, 403)
+    if (origin !== undefined && !corsOrigins.includes(origin))
+      return c.json({ error: { code: 'origin_forbidden', message: 'this origin may not call the MCP endpoint' } }, 403)
     await next()
   })
   if (corsOrigins.length > 0) {
@@ -289,7 +361,12 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
       if (c.res.status !== 401) return
       // [[API106]] D14: only the exact /mcp path carries the MCP challenge; every other path keeps [[CORE84]]'s.
       const url = new URL(c.req.url)
-      c.res.headers.set('WWW-Authenticate', url.pathname === MCP_PATH ? mcpChallenge(url.origin, registry.declaredScopes()) : resourceMetadataChallenge(url.origin))
+      c.res.headers.set(
+        'WWW-Authenticate',
+        url.pathname === MCP_PATH
+          ? mcpChallenge(url.origin, registry.declaredScopes())
+          : resourceMetadataChallenge(url.origin),
+      )
     })
   }
   app.use('*', async (c, next) => {
@@ -298,8 +375,20 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   })
 
   registerSecurityScheme(app)
-  const injected: Injected = { clock: options.clock, newId: options.newId, randomBytes: options.randomBytes, objects: options.objects, workspace: options.workspace, executions: options.executions, registry }
-  const auth = authMiddleware({ userAuthenticator, env: () => internalEnv(options), declaredScopes: registry.declaredScopes() })
+  const injected: Injected = {
+    clock: options.clock,
+    newId: options.newId,
+    randomBytes: options.randomBytes,
+    objects: options.objects,
+    workspace: options.workspace,
+    executions: options.executions,
+    registry,
+  }
+  const auth = authMiddleware({
+    userAuthenticator,
+    env: () => internalEnv(options),
+    declaredScopes: registry.declaredScopes(),
+  })
   for (const op of registry.operations()) {
     documentOperation(app, op)
     app.on(op.method.toUpperCase(), honoPath(fullPath(op)), auth, async (c) => {
@@ -362,11 +451,22 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   // [[CHN5]] D15, D87: Pub/Sub's push. A plain route at the root: its credential is the OIDC bearer token, checked first.
   app.post(
     PUSH_PATH,
-    gmailPushHandler({ push, fetch: gmail?.fetch ?? ((input, init) => fetch(input, init)), ...(gmail?.instances ? { instances: gmail.instances } : {}), storage: options.storage, clock: options.clock, newId: options.newId }),
+    gmailPushHandler({
+      push,
+      fetch: gmail?.fetch ?? ((input, init) => fetch(input, init)),
+      ...(gmail?.instances ? { instances: gmail.instances } : {}),
+      storage: options.storage,
+      clock: options.clock,
+      newId: options.newId,
+    }),
   )
 
   // Plain route, not an operation: the Svix signature is its only credential, and it is not documented.
-  if (options.authAdapter) app.post('/webhooks/clerk', clerkWebhookHandler(options.authAdapter, { clock: options.clock, newId: options.newId }))
+  if (options.authAdapter)
+    app.post(
+      '/webhooks/clerk',
+      clerkWebhookHandler(options.authAdapter, { clock: options.clock, newId: options.newId }),
+    )
 
   // [[API32]] D4: one document per surface, unauthenticated; there is no root document (D5).
   for (const surface of SURFACES) {

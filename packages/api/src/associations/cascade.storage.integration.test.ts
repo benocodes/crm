@@ -44,9 +44,13 @@ describe.each(PARENTS)('$type.delete cascades the edges (D15)', ({ type, make, o
     expect(await live()).toEqual([unrelated.id])
     const rows = await a.edges(false)
     const at = (rows.find((r) => r.id === onA.id) as Rec).deleted_at
-    for (const r of [onA, onB, cross]) expect(rows.find((x) => x.id === r.id)).toMatchObject({ deleted_at: at, updated_at: at })
+    for (const r of [onA, onB, cross])
+      expect(rows.find((x) => x.id === r.id)).toMatchObject({ deleted_at: at, updated_at: at })
     const evs = (await e.rows('events')).slice(mark)
-    expect(evs[0]).toMatchObject({ type: `${row === 'tasks' ? 'task' : row === 'contacts' ? 'contact' : 'company'}.deleted`, resource_id: p[1] })
+    expect(evs[0]).toMatchObject({
+      type: `${row === 'tasks' ? 'task' : row === 'contacts' ? 'contact' : 'company'}.deleted`,
+      resource_id: p[1],
+    })
     const edgeEvents = evs.filter((x) => x.type === 'association.deleted')
     expect(edgeEvents.map((x) => x.resource_id).sort()).toEqual([onA.id, onB.id, cross.id].sort())
     for (const ev of edgeEvents) {
@@ -73,7 +77,10 @@ describe.each(PARENTS)('$type.delete cascades the edges (D15)', ({ type, make, o
     e.betweenPlanAndCommit(async () => {
       await e.insert('associations', { a_type: type, a_id: p[1], b_type: type, b_id: r[1], relation: 'related_to' })
     })
-    const err = await a.call(`${type}.delete`, { params: { id: p[1] } }).then(() => undefined, (x: unknown) => x)
+    const err = await a.call(`${type}.delete`, { params: { id: p[1] } }).then(
+      () => undefined,
+      (x: unknown) => x,
+    )
     expect(err).toBeDefined()
     expect((await e.rows(row)).find((r) => r.id === p[1])!.deleted_at).toBeNull()
     expect((await a.edges()).find((r) => r.id === keep.id)).toBeDefined()
@@ -83,28 +90,32 @@ describe.each(PARENTS)('$type.delete cascades the edges (D15)', ({ type, make, o
 })
 
 describe('the set limit', () => {
-  it.each(['contacts', 'companies', 'tasks'] as const)('%s.delete with more live edges than the set limit is 400 set_limit_exceeded and changes nothing', async (type) => {
-    const small = await openD1Engine({ maxSetSize: 2 })
-    try {
-      const k = assocKit(small)
-      const p = await k.ent[type === 'contacts' ? 'contact' : type === 'companies' ? 'company' : 'task']()
-      const ids: string[] = []
-      for (let i = 0; i < 3; i++) ids.push((await k.link(p, await k.ent.thread())).id)
-      const mark = (await small.rows('events')).length
-      const err = await k.fail(`${type}.delete`, { params: { id: p[1] } })
-      expect([err.status, err.code]).toEqual([400, 'set_limit_exceeded'])
-      expect((await small.rows(type)).find((r) => r.id === p[1])!.deleted_at).toBeNull()
-      expect(await k.edges()).toHaveLength(3)
-      expect((await small.rows('events')).length).toBe(mark)
-    } finally {
-      await small.close()
-    }
-  })
+  it.each(['contacts', 'companies', 'tasks'] as const)(
+    '%s.delete with more live edges than the set limit is 400 set_limit_exceeded and changes nothing',
+    async (type) => {
+      const small = await openD1Engine({ maxSetSize: 2 })
+      try {
+        const k = assocKit(small)
+        const p = await k.ent[type === 'contacts' ? 'contact' : type === 'companies' ? 'company' : 'task']()
+        const ids: string[] = []
+        for (let i = 0; i < 3; i++) ids.push((await k.link(p, await k.ent.thread())).id)
+        const mark = (await small.rows('events')).length
+        const err = await k.fail(`${type}.delete`, { params: { id: p[1] } })
+        expect([err.status, err.code]).toEqual([400, 'set_limit_exceeded'])
+        expect((await small.rows(type)).find((r) => r.id === p[1])!.deleted_at).toBeNull()
+        expect(await k.edges()).toHaveLength(3)
+        expect((await small.rows('events')).length).toBe(mark)
+      } finally {
+        await small.close()
+      }
+    },
+  )
 })
 
 describe('contacts.merge re-points the edges (D16)', () => {
   const merge = (survivor: Ent, source: Ent) => a.k.run((env) => mergeOperation(env, survivor[1], source[1]))
-  const assocEvents = async (mark: number) => (await e.rows('events')).slice(mark).filter((x) => x.type.startsWith('association.'))
+  const assocEvents = async (mark: number) =>
+    (await e.rows('events')).slice(mark).filter((x) => x.type.startsWith('association.'))
 
   it('soft-deletes the source-survivor edge and an edge duplicating a live survivor edge; re-points the rest with association.updated', async () => {
     const s = await a.ent.contact('S')
@@ -124,9 +135,20 @@ describe('contacts.merge re-points the edges (D16)', () => {
     const byId = (id: string) => rows.find((x) => x.id === id) as Rec
     expect(byId(direct.id).deleted_at).not.toBeNull()
     expect(byId(dupCompany.id).deleted_at).not.toBeNull()
-    expect(byId(moving.id)).toMatchObject({ a_type: 'contacts', a_id: s[1], b_type: 'tasks', b_id: t2[1], deleted_at: null })
+    expect(byId(moving.id)).toMatchObject({
+      a_type: 'contacts',
+      a_id: s[1],
+      b_type: 'tasks',
+      b_id: t2[1],
+      deleted_at: null,
+    })
     const evs = await assocEvents(mark)
-    expect(evs.filter((x) => x.type === 'association.deleted').map((x) => x.resource_id).sort()).toEqual([direct.id, dupCompany.id].sort())
+    expect(
+      evs
+        .filter((x) => x.type === 'association.deleted')
+        .map((x) => x.resource_id)
+        .sort(),
+    ).toEqual([direct.id, dupCompany.id].sort())
     const upd = evs.filter((x) => x.type === 'association.updated')
     expect(upd.map((x) => x.resource_id)).toEqual([moving.id])
     expect(upd[0]!.before).toEqual(moving)
@@ -134,7 +156,9 @@ describe('contacts.merge re-points the edges (D16)', () => {
     expect(upd[0]).toMatchObject({ actor_id: e.userId })
     expect(evs).toHaveLength(3)
     // the survivor now reads the moved edge
-    expect((await a.list('contacts', s[1])).data.map((x) => x.neighbour_id).sort()).toEqual([co[1], t1[1], t2[1]].sort())
+    expect((await a.list('contacts', s[1])).data.map((x) => x.neighbour_id).sort()).toEqual(
+      [co[1], t1[1], t2[1]].sort(),
+    )
     expect((await a.list('contacts', r[1])).data).toEqual([])
   })
 
@@ -172,9 +196,20 @@ describe('contacts.merge re-points the edges (D16)', () => {
     const mark = (await e.rows('events')).length
     // plan sees no survivor edge to the company, so it would re-point `dup`; the survivor edge then appears
     e.betweenPlanAndCommit(async () => {
-      await e.insert('associations', { a_type: 'companies', a_id: co[1], b_type: 'contacts', b_id: s[1], relation: 'related_to' })
+      await e.insert('associations', {
+        a_type: 'companies',
+        a_id: co[1],
+        b_type: 'contacts',
+        b_id: s[1],
+        relation: 'related_to',
+      })
     })
-    const err = await a.k.run((env) => mergeOperation(env, s[1], r[1])).then(() => undefined, (x: unknown) => x)
+    const err = await a.k
+      .run((env) => mergeOperation(env, s[1], r[1]))
+      .then(
+        () => undefined,
+        (x: unknown) => x,
+      )
     expect(err).toBeDefined()
     expect((await e.rows('contacts')).find((c) => c.id === r[1])!.deleted_at).toBeNull()
     expect((await a.edges()).find((q) => q.id === dup.id)).toMatchObject({ a_id: co[1], b_id: r[1] })

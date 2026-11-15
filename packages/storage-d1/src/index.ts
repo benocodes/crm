@@ -42,7 +42,9 @@ const CONSTRAINT: Array<[RegExp, ConstraintKind]> = [
  * Tells a statement failure (D1 rejected the batch and rolled it back) from a lost transport (the commit may or
  * may not have happened). A SQLite error token means the database answered; anything else is unknown.
  */
-export function classifyD1Error(err: unknown): { drift: true } | { statement: true; kind: ConstraintKind } | { statement: false } {
+export function classifyD1Error(
+  err: unknown,
+): { drift: true } | { statement: true; kind: ConstraintKind } | { statement: false } {
   const message = `${(err as Error | null)?.message ?? ''} ${((err as Error | null)?.cause as Error | undefined)?.message ?? ''}`
   // A failed commit-time assertion (CORE36 D4) is drift, tested before the generic CHECK pattern: the batch rolled back.
   if (message.includes(`CHECK constraint failed: ${UNIT_ASSERTION_CONSTRAINT}`)) return { drift: true }
@@ -72,7 +74,8 @@ export interface D1RuntimeOptions {
 export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime {
   const maxSetSize = options.maxSetSize ?? DEFAULT_MAX_SET_SIZE
   const prepare = (sql: string, parameters: readonly unknown[]): D1PreparedLike => {
-    if (parameters.length > D1_MAX_PARAMETERS) throw new StorageError(`a statement binds ${parameters.length} parameters; D1 allows ${D1_MAX_PARAMETERS}`)
+    if (parameters.length > D1_MAX_PARAMETERS)
+      throw new StorageError(`a statement binds ${parameters.length} parameters; D1 allows ${D1_MAX_PARAMETERS}`)
     return d1.prepare(sql).bind(...parameters.map(encode))
   }
   return {
@@ -138,11 +141,57 @@ export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime 
 }
 
 export function d1Binding(d1: D1Like, options: D1RuntimeOptions): D1Binding {
-  return { kind: 'd1', runtime: createD1Runtime(d1, options), organizationId: options.organizationId, authProvider: options.authProvider, authOrgId: options.authOrgId }
+  return {
+    kind: 'd1',
+    runtime: createD1Runtime(d1, options),
+    organizationId: options.organizationId,
+    authProvider: options.authProvider,
+    authOrgId: options.authOrgId,
+  }
 }
 export { MIGRATIONS } from './migrations-manifest.js'
-export { compareMigrations, readMigrationState, type MigrationDiff, type MigrationState, type MigrationStatus } from './migration-state.js'
+export {
+  compareMigrations,
+  readMigrationState,
+  type MigrationDiff,
+  type MigrationState,
+  type MigrationStatus,
+} from './migration-state.js'
 export { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
-export { acceptInvitation, findAdoptableInvitation, findLiveInvitationByToken, hasLiveInvitationForToken, controlAuthDatabase, createInvitation, listInvitations, openControlDb, reissueOwnerInvitation, revokeInvitation, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, readControlMigrations, recordResetLinkIssued, revokeSubjectCredentials, writeControlMarker, type AuthJwk, type ControlDb, type InvitationDelivery, type InvitationRecord, type InvitationRole, type NewInvitation } from './control-store.js'
+export {
+  acceptInvitation,
+  findAdoptableInvitation,
+  findLiveInvitationByToken,
+  hasLiveInvitationForToken,
+  controlAuthDatabase,
+  createInvitation,
+  listInvitations,
+  openControlDb,
+  reissueOwnerInvitation,
+  revokeInvitation,
+  readAuthJwks,
+  readAuthProfile,
+  readControlMarker,
+  readOAuthClientName,
+  readControlMigrations,
+  recordResetLinkIssued,
+  revokeSubjectCredentials,
+  writeControlMarker,
+  type AuthJwk,
+  type ControlDb,
+  type InvitationDelivery,
+  type InvitationRecord,
+  type InvitationRole,
+  type NewInvitation,
+} from './control-store.js'
 export { SWEEP_CONTROL_READ, SWEEP_CRM_READ, runAuthSweep, type AuthSweepOutcome } from './control-store.js'
-export { ORPHAN_AGE_MS, classifySweep, orphanCutoff, parseSweepControlRows, parseSweepCrmRows, type SweepControlFacts, type SweepCrmFacts, type SweepPlan } from './auth-sweep.js'
+export {
+  ORPHAN_AGE_MS,
+  classifySweep,
+  orphanCutoff,
+  parseSweepControlRows,
+  parseSweepCrmRows,
+  type SweepControlFacts,
+  type SweepCrmFacts,
+  type SweepPlan,
+} from './auth-sweep.js'

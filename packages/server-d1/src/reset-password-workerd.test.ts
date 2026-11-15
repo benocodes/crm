@@ -25,9 +25,11 @@ const start = async (bindings: Record<string, string> = {}) => {
   return w
 }
 /** Better Auth limits sign-in and sign-up per IP; every call here comes from its own address (CORE287). */
-const call = (w: Workerd, path: string, init: { body?: unknown; cookie?: string; method?: string } = {}) => w.call(path, { ...init, headers: { 'cf-connecting-ip': `198.51.100.${(ip++ % 250) + 1}` } })
+const call = (w: Workerd, path: string, init: { body?: unknown; cookie?: string; method?: string } = {}) =>
+  w.call(path, { ...init, headers: { 'cf-connecting-ip': `198.51.100.${(ip++ % 250) + 1}` } })
 const cookieOf = (res: Response) => res.headers.get('set-cookie')!.split(';')[0]!
-const sessionOf = async (w: Workerd, cookie: string) => (await (await call(w, '/auth/get-session', { cookie })).json()) as { user?: { email: string } } | null
+const sessionOf = async (w: Workerd, cookie: string) =>
+  (await (await call(w, '/auth/get-session', { cookie })).json()) as { user?: { email: string } } | null
 
 /** An account with two browser sessions, and a reset token Better Auth issued for it. */
 async function account(w: Workerd, email: string) {
@@ -54,8 +56,12 @@ describe('a Better Auth-issued reset token (test composition)', () => {
     const done = await call(w, '/auth/reset-password', { body: { newPassword: NEW, token } })
     expect(done.status, await done.clone().text()).toBe(200)
 
-    expect((await call(w, '/auth/sign-in/email', { body: { email: 'reset@auth.test', password: NEW } })).status).toBe(200)
-    expect((await call(w, '/auth/sign-in/email', { body: { email: 'reset@auth.test', password: OLD } })).status).toBe(401)
+    expect((await call(w, '/auth/sign-in/email', { body: { email: 'reset@auth.test', password: NEW } })).status).toBe(
+      200,
+    )
+    expect((await call(w, '/auth/sign-in/email', { body: { email: 'reset@auth.test', password: OLD } })).status).toBe(
+      401,
+    )
     // revokeSessionsOnPasswordReset: the user's sessions from before the reset do not survive it.
     expect(await sessionOf(w, first)).toBeNull()
     expect(await sessionOf(w, second)).toBeNull()
@@ -93,7 +99,9 @@ describe('a Better Auth-issued reset token (test composition)', () => {
 describe('the shipped composition', () => {
   it('still refuses /auth/request-password-reset (no sendResetPassword) and issues nothing', async () => {
     const w = await start({ OPEN_ADMISSION: '1', SHIPPED: '1' })
-    const up = await call(w, '/auth/sign-up/email', { body: { name: 'Shipped', email: 'shipped@auth.test', password: OLD } })
+    const up = await call(w, '/auth/sign-up/email', {
+      body: { name: 'Shipped', email: 'shipped@auth.test', password: OLD },
+    })
     expect(up.status).toBe(200)
     const res = await call(w, '/auth/request-password-reset', { body: { email: 'shipped@auth.test' } })
     expect(res.status).toBeGreaterThanOrEqual(400)

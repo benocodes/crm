@@ -15,7 +15,14 @@ beforeEach(() => w.reset())
 
 const BASE = 'https://w.test'
 async function agent(scopes: string[]) {
-  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'sorter', scopes })
+  const b = await bootstrapD1(w.d1, {
+    organizationName: 'Acme',
+    authProvider: 'none',
+    authOrgId: 'e2e',
+    email: 'e2e@example.com',
+    agentName: 'sorter',
+    scopes,
+  })
   const worker = composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' })
   let n = 0
   const tool = async (name: string, args: unknown) => {
@@ -55,11 +62,21 @@ describe('contacts_list over MCP', () => {
     expect(first.structuredContent.data).toHaveLength(2)
     expect(typeof first.structuredContent.next_cursor).toBe('string')
     expect(first.structuredContent.next_cursor).not.toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/)
-    const second = await a.tool('contacts_list', { sort: 'last_contacted_at', order: 'desc', limit: 2, after: first.structuredContent.next_cursor })
+    const second = await a.tool('contacts_list', {
+      sort: 'last_contacted_at',
+      order: 'desc',
+      limit: 2,
+      after: first.structuredContent.next_cursor,
+    })
     expect(second.isError).toBeFalsy()
     expect(second.structuredContent.data).toHaveLength(1)
     expect(second.structuredContent.next_cursor).toBeNull()
-    const mismatched = await a.tool('contacts_list', { sort: 'last_contacted_at', order: 'asc', limit: 2, after: first.structuredContent.next_cursor })
+    const mismatched = await a.tool('contacts_list', {
+      sort: 'last_contacted_at',
+      order: 'asc',
+      limit: 2,
+      after: first.structuredContent.next_cursor,
+    })
     expect(mismatched.isError).toBe(true)
     expect(mismatched.structuredContent.error.code).toBe('validation_error')
   })

@@ -25,14 +25,34 @@ export function eventRecord(overrides: Record<string, unknown> = {}) {
 }
 
 /** Signed with the vault's own signing code: the receiver is tested against the sender's side, not a copy of it. */
-export async function signedRequest(a: { body?: string; secrets?: string[]; id?: string; timestamp?: number; method?: string; omit?: string[]; headers?: Record<string, string> } = {}): Promise<Request> {
+export async function signedRequest(
+  a: {
+    body?: string
+    secrets?: string[]
+    id?: string
+    timestamp?: number
+    method?: string
+    omit?: string[]
+    headers?: Record<string, string>
+  } = {},
+): Promise<Request> {
   const body = a.body ?? JSON.stringify(eventRecord())
   const id = a.id ?? EVENT_ID
   const timestamp = a.timestamp ?? Math.floor(NOW_MS / 1000)
   const signature = await signatureHeader({ secrets: a.secrets ?? [SECRET], id, timestamp, body })
-  const headers: Record<string, string> = { 'content-type': 'application/json', 'webhook-id': id, 'webhook-timestamp': String(timestamp), 'webhook-signature': signature, ...a.headers }
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'webhook-id': id,
+    'webhook-timestamp': String(timestamp),
+    'webhook-signature': signature,
+    ...a.headers,
+  }
   for (const h of a.omit ?? []) delete headers[h]
-  return new Request('http://receiver.test/hook', { method: a.method ?? 'POST', headers, ...((a.method ?? 'POST') === 'GET' ? {} : { body }) })
+  return new Request('http://receiver.test/hook', {
+    method: a.method ?? 'POST',
+    headers,
+    ...((a.method ?? 'POST') === 'GET' ? {} : { body }),
+  })
 }
 
 /** Keeps instances by id like the platform: a second `create` with a used id throws. */

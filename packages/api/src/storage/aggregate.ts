@@ -18,7 +18,12 @@ export const FUNCTION_KINDS: Readonly<Record<AggregateFunction, readonly FilterK
   min: ['integer', 'timestamp', 'text'],
   max: ['integer', 'timestamp', 'text'],
 }
-const KIND_PHRASE: Readonly<Record<AggregateFunction, string>> = { sum: 'an integer', avg: 'an integer', min: 'an integer, timestamp or text', max: 'an integer, timestamp or text' }
+const KIND_PHRASE: Readonly<Record<AggregateFunction, string>> = {
+  sum: 'an integer',
+  avg: 'an integer',
+  min: 'an integer, timestamp or text',
+  max: 'an integer, timestamp or text',
+}
 /** D13: at most this many field terms across the four functions. */
 export const MAX_TERMS = 10
 /** D14: a sum beyond this is not an exact JSON number. Spelled out as a literal in SQL, so no bind can round it. */
@@ -31,25 +36,47 @@ export type AggregateSpec = {
   readonly fields: Readonly<Record<AggregateFunction, readonly string[]>>
   readonly money: Readonly<Record<string, string>>
 }
-type Aggregatable = Pick<PreparedResource, 'name' | 'eventName'> & { readonly aggregate?: AggregateSpec; readonly derived?: Readonly<Record<string, unknown>>; readonly record: { readonly shape: Readonly<Record<string, unknown>> }; readonly columnFilters?: Readonly<Record<string, { readonly kind: FilterKind }>> }
+type Aggregatable = Pick<PreparedResource, 'name' | 'eventName'> & {
+  readonly aggregate?: AggregateSpec
+  readonly derived?: Readonly<Record<string, unknown>>
+  readonly record: { readonly shape: Readonly<Record<string, unknown>> }
+  readonly columnFilters?: Readonly<Record<string, { readonly kind: FilterKind }>>
+}
 
 /**
  * Explicit opt-in to aggregation for a list that already adopted `withColumnFilters`: the fields each function takes are the filterable columns of the
  * kinds D14 allows, in record field order. `money` declares money fields with their currency column (D15). Load errors (plain `Error`): no column
  * filters, a filter or column named `count`, `sum`, `avg`, `min` or `max`, and a money declaration that is not an integer column paired with a text column.
  */
-export function withAggregate<T extends PreparedResource>(def: T, money: Readonly<Record<string, string>> = {}): T & { readonly aggregate: AggregateSpec } {
+export function withAggregate<T extends PreparedResource>(
+  def: T,
+  money: Readonly<Record<string, string>> = {},
+): T & { readonly aggregate: AggregateSpec } {
   const columns = (def as Aggregatable).columnFilters
   if (!columns) throw new Error(`aggregate on ${def.name} needs withColumnFilters`)
   for (const name of RESERVED) {
-    if (Object.hasOwn(columns, name) || Object.hasOwn(def.customFilters ?? {}, name) || Object.hasOwn(def.filters ?? {}, name)) {
+    if (
+      Object.hasOwn(columns, name) ||
+      Object.hasOwn(def.customFilters ?? {}, name) ||
+      Object.hasOwn(def.filters ?? {}, name)
+    ) {
       throw new Error(`"${name}" is an aggregate parameter and cannot also be a filter of ${def.name}`)
     }
   }
   for (const [field, currency] of Object.entries(money)) {
-    if (columns[field]?.kind !== 'integer' || columns[currency]?.kind !== 'text') throw new Error(`money declaration ${field} -> ${currency} of ${def.name} needs an integer column and a text column`)
+    if (columns[field]?.kind !== 'integer' || columns[currency]?.kind !== 'text')
+      throw new Error(
+        `money declaration ${field} -> ${currency} of ${def.name} needs an integer column and a text column`,
+      )
   }
-  const fields = Object.fromEntries(AGGREGATE_FUNCTIONS.map((fn) => [fn, Object.entries(columns).filter(([, c]) => FUNCTION_KINDS[fn].includes(c.kind)).map(([name]) => name)])) as Record<AggregateFunction, string[]>
+  const fields = Object.fromEntries(
+    AGGREGATE_FUNCTIONS.map((fn) => [
+      fn,
+      Object.entries(columns)
+        .filter(([, c]) => FUNCTION_KINDS[fn].includes(c.kind))
+        .map(([name]) => name),
+    ]),
+  ) as Record<AggregateFunction, string[]>
   return { ...def, aggregate: Object.freeze({ fields: Object.freeze(fields), money: Object.freeze({ ...money }) }) }
 }
 
@@ -62,7 +89,10 @@ const refuse = (message: string) => new ApiError(400, 'validation_error', messag
  * with an empty term, or naming a field twice is refused (a repeat is a mistake, not a wish: folding it would hide one); more than 10 terms in all is refused.
  * Every refusal for a field names the fields the function takes.
  */
-export function parseAggregateTerms(def: Aggregatable, raw: Partial<Record<AggregateFunction, unknown>>): AggregateTerms {
+export function parseAggregateTerms(
+  def: Aggregatable,
+  raw: Partial<Record<AggregateFunction, unknown>>,
+): AggregateTerms {
   const spec = def.aggregate
   if (!spec) throw new Error(`${def.name} does not aggregate`)
   const out: AggregateTerms = { sum: [], avg: [], min: [], max: [] }
@@ -71,7 +101,9 @@ export function parseAggregateTerms(def: Aggregatable, raw: Partial<Record<Aggre
   for (const fn of AGGREGATE_FUNCTIONS) {
     const value = raw[fn]
     if (value === undefined || value === null) continue
-    const parts = String(value).split(',').map((p) => p.trim())
+    const parts = String(value)
+      .split(',')
+      .map((p) => p.trim())
     total += parts.length === 1 && parts[0] === '' ? 0 : parts.length
     text[fn] = parts
   }
@@ -85,7 +117,8 @@ export function parseAggregateTerms(def: Aggregatable, raw: Partial<Record<Aggre
     for (const field of parts) {
       if (field === '') throw refuse(`${fn} has an empty term`)
       if (!spec.fields[fn].includes(field)) {
-        const kind = def.columnFilters && Object.hasOwn(def.columnFilters, field) ? def.columnFilters[field]!.kind : undefined
+        const kind =
+          def.columnFilters && Object.hasOwn(def.columnFilters, field) ? def.columnFilters[field]!.kind : undefined
         const why = Object.hasOwn(def.derived ?? {}, field)
           ? `${field} is derived`
           : kind
@@ -111,7 +144,9 @@ const described = (def: Aggregatable, fn: AggregateFunction): string => {
 
 /** The `sum`, `avg`, `min` and `max` query parameters, described from the same field lists that validate them (D19). */
 export function aggregateParams(def: Aggregatable): Record<AggregateFunction, z.ZodType> {
-  return Object.fromEntries(AGGREGATE_FUNCTIONS.map((fn) => [fn, z.string().describe(described(def, fn)).optional()])) as unknown as Record<AggregateFunction, z.ZodType>
+  return Object.fromEntries(
+    AGGREGATE_FUNCTIONS.map((fn) => [fn, z.string().describe(described(def, fn)).optional()]),
+  ) as unknown as Record<AggregateFunction, z.ZodType>
 }
 
 /** The answer of `<list>.aggregate` (D13): `count` always, each requested function as an object keyed by field, and `currency` beside money fields. */
@@ -121,7 +156,12 @@ export const aggregateAnswer = z.object({
   avg: z.record(z.string(), z.number().nullable()).optional(),
   min: z.record(z.string(), z.union([z.number(), z.string()]).nullable()).optional(),
   max: z.record(z.string(), z.union([z.number(), z.string()]).nullable()).optional(),
-  currency: z.record(z.string(), z.string().nullable()).optional().describe('For each money field a function was asked of: the one currency of its amounts, or null when there are none.'),
+  currency: z
+    .record(z.string(), z.string().nullable())
+    .optional()
+    .describe(
+      'For each money field a function was asked of: the one currency of its amounts, or null when there are none.',
+    ),
 })
 export type AggregateAnswer = z.infer<typeof aggregateAnswer>
 
@@ -142,8 +182,17 @@ export function aggregateDescription(def: Aggregatable & { readonly eventName: s
 }
 
 /** One aliased select item per requested term, plus what the money rule and the safe-integer check need. Aliases are positional, never a field name. */
-export type AggregateColumn = { readonly fn: AggregateFunction; readonly field: string; readonly kind: FilterKind; readonly alias: string; readonly overflow?: string }
-export type AggregatePlan = { readonly columns: readonly AggregateColumn[]; readonly money: ReadonlyArray<{ readonly field: string; readonly currencies: string }> }
+export type AggregateColumn = {
+  readonly fn: AggregateFunction
+  readonly field: string
+  readonly kind: FilterKind
+  readonly alias: string
+  readonly overflow?: string
+}
+export type AggregatePlan = {
+  readonly columns: readonly AggregateColumn[]
+  readonly money: ReadonlyArray<{ readonly field: string; readonly currencies: string }>
+}
 
 /** What to compute for the parsed terms: the columns in answer order, and for each money field a function is asked of, the alias of its distinct currencies. */
 export function planAggregate(def: Aggregatable, terms: AggregateTerms): AggregatePlan {
@@ -153,7 +202,13 @@ export function planAggregate(def: Aggregatable, terms: AggregateTerms): Aggrega
   for (const fn of AGGREGATE_FUNCTIONS) {
     for (const field of terms[fn]) {
       const n = columns.length
-      columns.push({ fn, field, kind: def.columnFilters![field]!.kind, alias: `v${n}`, ...(fn === 'sum' ? { overflow: `o${n}` } : {}) })
+      columns.push({
+        fn,
+        field,
+        kind: def.columnFilters![field]!.kind,
+        alias: `v${n}`,
+        ...(fn === 'sum' ? { overflow: `o${n}` } : {}),
+      })
       if (Object.hasOwn(spec.money, field)) asked.add(field)
     }
   }
@@ -164,16 +219,30 @@ export function planAggregate(def: Aggregatable, terms: AggregateTerms): Aggrega
  * D14, D15: the select list. `count(*)`, each function over its column, a 0/1 flag beside each `sum` that says whether it left the exact-integer range (judged
  * in SQL, before the value reaches JavaScript), and per money field the distinct currencies among the non-null amounts, so the money rule rides in the same statement.
  */
-export function aggregateSelect(qc: QueryContext, table: string, plan: AggregatePlan, money: Readonly<Record<string, string>>): AliasedRawBuilder<unknown, string>[] {
+export function aggregateSelect(
+  qc: QueryContext,
+  table: string,
+  plan: AggregatePlan,
+  money: Readonly<Record<string, string>>,
+): AliasedRawBuilder<unknown, string>[] {
   const ref = (c: string) => sql.ref(`${table}.${c}`)
   const out: AliasedRawBuilder<unknown, string>[] = [sql`count(*)`.as('count')]
   for (const c of plan.columns) {
     out.push(sql`${sql.raw(c.fn)}(${ref(c.field)})`.as(c.alias))
-    if (c.overflow) out.push(sql`case when abs(sum(${ref(c.field)})) > ${sql.raw(String(SAFE_INTEGER_LIMIT))} then 1 else 0 end`.as(c.overflow))
+    if (c.overflow)
+      out.push(
+        sql`case when abs(sum(${ref(c.field)})) > ${sql.raw(String(SAFE_INTEGER_LIMIT))} then 1 else 0 end`.as(
+          c.overflow,
+        ),
+      )
   }
   for (const m of plan.money) {
     const code = sql`case when ${ref(m.field)} is not null then ${ref(money[m.field]!)} end`
-    out.push((qc.dialect === 'd1' ? sql`group_concat(distinct ${code})` : sql`string_agg(distinct ${code}, ',')`).as(m.currencies))
+    out.push(
+      (qc.dialect === 'd1' ? sql`group_concat(distinct ${code})` : sql`string_agg(distinct ${code}, ',')`).as(
+        m.currencies,
+      ),
+    )
   }
   return out
 }
@@ -182,15 +251,31 @@ export function aggregateSelect(qc: QueryContext, table: string, plan: Aggregate
 export function decodeAggregate(plan: AggregatePlan, row: Record<string, unknown>): AggregateAnswer {
   const currency: Record<string, string | null> = {}
   for (const m of plan.money) {
-    const codes = typeof row[m.currencies] === 'string' ? [...new Set((row[m.currencies] as string).split(','))].sort() : []
-    if (codes.length > 1) throw refuse(`${m.field} is in ${codes.length} currencies here (${codes.join(', ')}): add currency=eq.<code> to aggregate one`)
+    const codes =
+      typeof row[m.currencies] === 'string' ? [...new Set((row[m.currencies] as string).split(','))].sort() : []
+    if (codes.length > 1)
+      throw refuse(
+        `${m.field} is in ${codes.length} currencies here (${codes.join(', ')}): add currency=eq.<code> to aggregate one`,
+      )
     currency[m.field] = codes[0] ?? null
   }
   const answer: Record<string, unknown> = { count: Number(row.count) }
   for (const c of plan.columns) {
-    if (c.overflow && Number(row[c.overflow]) === 1) throw refuse(`sum of ${c.field} is above ${SAFE_INTEGER_LIMIT}, the largest exact integer; add filters to sum fewer rows`)
+    if (c.overflow && Number(row[c.overflow]) === 1)
+      throw refuse(
+        `sum of ${c.field} is above ${SAFE_INTEGER_LIMIT}, the largest exact integer; add filters to sum fewer rows`,
+      )
     const raw = row[c.alias]
-    const value = raw === null || raw === undefined ? null : c.fn === 'avg' ? Number(raw) : c.kind === 'timestamp' ? codecs.timestamp.readNullable(raw) : c.kind === 'integer' ? codecs.integer.readNullable(raw) : String(raw)
+    const value =
+      raw === null || raw === undefined
+        ? null
+        : c.fn === 'avg'
+          ? Number(raw)
+          : c.kind === 'timestamp'
+            ? codecs.timestamp.readNullable(raw)
+            : c.kind === 'integer'
+              ? codecs.integer.readNullable(raw)
+              : String(raw)
     const bucket = (answer[c.fn] ??= {}) as Record<string, unknown>
     bucket[c.field] = value
   }

@@ -10,7 +10,14 @@ const ISO = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\
 function parseTimestamp(value: string): string {
   const m = ISO.exec(value)
   if (!m) throw new CodecError(`not a timestamp with a time and zone: ${JSON.stringify(value)}`)
-  const zone = m[8] === 'Z' ? 'Z' : m[8]!.length === 3 ? `${m[8]}:00` : m[8]!.includes(':') ? m[8]! : `${m[8]!.slice(0, 3)}:${m[8]!.slice(3)}`
+  const zone =
+    m[8] === 'Z'
+      ? 'Z'
+      : m[8]!.length === 3
+        ? `${m[8]}:00`
+        : m[8]!.includes(':')
+          ? m[8]!
+          : `${m[8]!.slice(0, 3)}:${m[8]!.slice(3)}`
   const ms = Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${(m[7] ?? '').slice(0, 4)}${zone}`)
   if (Number.isNaN(ms)) throw new CodecError(`not a valid timestamp: ${JSON.stringify(value)}`)
   return new Date(ms).toISOString()
@@ -50,13 +57,15 @@ const booleanRead = (value: unknown): boolean => {
 
 const stringArrayRead = (value: unknown): string[] => {
   const parsed = typeof value === 'string' ? jsonRead(value) : value
-  if (!Array.isArray(parsed) || parsed.some((v) => typeof v !== 'string')) throw new CodecError('not an array of strings')
+  if (!Array.isArray(parsed) || parsed.some((v) => typeof v !== 'string'))
+    throw new CodecError('not an array of strings')
   return parsed as string[]
 }
 
 const integerRead = (value: unknown): number => {
   // `pg` returns bigint as a decimal string; D1 and Postgres integer give a JS number. Anything else is refused.
-  const n = typeof value === 'number' ? value : typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : Number.NaN
+  const n =
+    typeof value === 'number' ? value : typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : Number.NaN
   if (!Number.isSafeInteger(n)) throw new CodecError(`not a safe integer: ${JSON.stringify(value)}`)
   return n
 }
@@ -86,6 +95,7 @@ export const codecs = {
   stringArray: {
     read: stringArrayRead,
     readNullable: nullable(stringArrayRead),
-    write: (value: readonly string[], dialect: Dialect): readonly string[] | string => (dialect === 'd1' ? JSON.stringify(value) : value),
+    write: (value: readonly string[], dialect: Dialect): readonly string[] | string =>
+      dialect === 'd1' ? JSON.stringify(value) : value,
   },
 } as const

@@ -19,13 +19,18 @@ beforeAll(async () => {
 afterAll(async () => {
   await e?.close()
 })
-const token = (scopes: string[]) => mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
+const token = (scopes: string[]) =>
+  mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes, kind: 'agent' })
 const get = async (path: string, scopes = ['schema:read', 'deals:read']) => {
   const res = await app.request(path, { headers: { authorization: `Bearer ${token(scopes)}` } })
   return { status: res.status, body: (await res.json()) as any }
 }
 const rpc = async (method: string, params: unknown, scopes = ['deals:read', 'tags:read', 'associations:read']) => {
-  const res = await app.request('/mcp', { method: 'POST', headers: { authorization: `Bearer ${token(scopes)}`, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })
+  const res = await app.request('/mcp', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token(scopes)}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  })
   return (await res.json()) as any
 }
 const tableOf = (doc: any, name: string) => doc.tables.find((t: any) => t.name === name)
@@ -38,18 +43,29 @@ describe('schema.get says which lists aggregate (D19)', () => {
     const r = await get('/meta/v1/schema')
     expect(r.status).toBe(200)
     expect(() => schemaDocument.parse(r.body)).not.toThrow()
-    expect(tableOf(r.body, 'deals').resource.aggregate).toEqual({ sum: ['amount_minor'], avg: ['amount_minor'], min: MINMAX, max: MINMAX, money: { amount_minor: 'currency' } })
+    expect(tableOf(r.body, 'deals').resource.aggregate).toEqual({
+      sum: ['amount_minor'],
+      avg: ['amount_minor'],
+      min: MINMAX,
+      max: MINMAX,
+      money: { amount_minor: 'currency' },
+    })
     expect(tableOf(r.body, 'deals').resource.operations).toContain('deals.aggregate')
   })
   it('every other list has aggregate null, so null on all resources but deals', async () => {
     const r = await get('/meta/v1/schema')
     const resources = r.body.tables.filter((t: any) => t.resource !== null)
     expect(resources.length).toBeGreaterThan(15)
-    for (const t of resources) expect(t.resource.aggregate, t.name).toBe(t.name === 'deals' ? tableOf(r.body, 'deals').resource.aggregate : null)
+    for (const t of resources)
+      expect(t.resource.aggregate, t.name).toBe(t.name === 'deals' ? tableOf(r.body, 'deals').resource.aggregate : null)
   })
   it('without a money declaration the discovery has no money fields (the declaration is what discovery reads)', () => {
     const without = { ...(deals as object), aggregate: { ...(deals as any).aggregate, money: {} } }
-    const doc = buildSchemaDocument({ columns: [{ table_name: 'deals', cid: 0, name: 'id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 1 }], foreignKeys: [], resources: [without as never] })
+    const doc = buildSchemaDocument({
+      columns: [{ table_name: 'deals', cid: 0, name: 'id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 1 }],
+      foreignKeys: [],
+      resources: [without as never],
+    })
     expect(tableOf(doc, 'deals').resource.aggregate.money).toEqual({})
   })
 })
@@ -60,7 +76,21 @@ describe('the operation in OpenAPI and MCP (D13, D16)', () => {
     const op = r.body.paths['/api/v1/deals/aggregate'].get
     expect(op.operationId).toBe('deals.aggregate')
     const names = op.parameters.map((p: any) => p.name)
-    expect(names).toEqual(expect.arrayContaining(['sum', 'avg', 'min', 'max', 'amount_minor', 'currency', 'name', 'tag', 'tag_id', 'status', 'company_id']))
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'sum',
+        'avg',
+        'min',
+        'max',
+        'amount_minor',
+        'currency',
+        'name',
+        'tag',
+        'tag_id',
+        'status',
+        'company_id',
+      ]),
+    )
     for (const n of ['after', 'limit', 'sort', 'order']) expect(names, n).not.toContain(n)
     const param = (n: string) => op.parameters.find((p: any) => p.name === n).description as string
     expect(param('sum')).toContain('amount_minor')
@@ -85,21 +115,46 @@ describe('the operation in OpenAPI and MCP (D13, D16)', () => {
   })
   it('the MCP tool deals_aggregate takes flat string arguments and answers structured content; contacts has no such tool', async () => {
     const pipeline = await e.insert('pipelines', { name: 'Sales' })
-    const stage = await e.insert('pipeline_stages', { pipeline_id: pipeline.id, name: 'Open', kind: 'open', position: 1 })
-    for (const [name, amount] of [['a', 100], ['b', 250]] as const) await e.insert('deals', { name, pipeline_id: pipeline.id, stage_id: stage.id, amount_minor: amount, currency: 'USD' })
+    const stage = await e.insert('pipeline_stages', {
+      pipeline_id: pipeline.id,
+      name: 'Open',
+      kind: 'open',
+      position: 1,
+    })
+    for (const [name, amount] of [
+      ['a', 100],
+      ['b', 250],
+    ] as const)
+      await e.insert('deals', {
+        name,
+        pipeline_id: pipeline.id,
+        stage_id: stage.id,
+        amount_minor: amount,
+        currency: 'USD',
+      })
     const list = await rpc('tools/list', {})
     const names = list.result.tools.map((t: any) => t.name)
     expect(names).toContain('deals_aggregate')
     expect(names).not.toContain('contacts_aggregate')
     const tool = list.result.tools.find((t: any) => t.name === 'deals_aggregate')
-    for (const n of ['sum', 'avg', 'min', 'max', 'amount_minor', 'tag']) expect(tool.inputSchema.properties[n].type, n).toBe('string')
+    for (const n of ['sum', 'avg', 'min', 'max', 'amount_minor', 'tag'])
+      expect(tool.inputSchema.properties[n].type, n).toBe('string')
     for (const n of ['after', 'limit', 'sort', 'order']) expect(tool.inputSchema.properties[n], n).toBeUndefined()
-    const called = await rpc('tools/call', { name: 'deals_aggregate', arguments: { sum: 'amount_minor', currency: 'eq.USD' } })
+    const called = await rpc('tools/call', {
+      name: 'deals_aggregate',
+      arguments: { sum: 'amount_minor', currency: 'eq.USD' },
+    })
     expect(called.result.isError).not.toBe(true)
-    expect(called.result.structuredContent).toEqual({ count: 2, sum: { amount_minor: 350 }, currency: { amount_minor: 'USD' } })
+    expect(called.result.structuredContent).toEqual({
+      count: 2,
+      sum: { amount_minor: 350 },
+      currency: { amount_minor: 'USD' },
+    })
     const refused = await rpc('tools/call', { name: 'deals_aggregate', arguments: { sum: 'name' } })
     expect(refused.result.isError).toBe(true)
     // no deals:read, no tool
-    expect((await rpc('tools/list', {}, ['tasks:read'])).result.tools.map((t: any) => t.name)).not.toContain('deals_aggregate')
+    expect((await rpc('tools/list', {}, ['tasks:read'])).result.tools.map((t: any) => t.name)).not.toContain(
+      'deals_aggregate',
+    )
   })
 })

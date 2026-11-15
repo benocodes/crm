@@ -32,28 +32,51 @@ beforeEach(async () => {
 
 const events = () => owner.selectFrom('events').selectAll().orderBy(sql`ctid`).execute()
 const types = async () => (await events()).map((e) => e.type)
-const systemId = async () => (await owner.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirstOrThrow()).id
-const profile = (sub: string, email = `${sub}@x.test`) => kit.profiles.set(sub, clerkUser({ id: sub, email, verified: true, first: 'Ada', last: 'L' }))
+const systemId = async () =>
+  (await owner.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirstOrThrow()).id
+const profile = (sub: string, email = `${sub}@x.test`) =>
+  kit.profiles.set(sub, clerkUser({ id: sub, email, verified: true, first: 'Ada', last: 'L' }))
 const clerkOrg = (id: string, name: string, members: [string, string][]) => {
   kit.organizations.set(id, clerkOrganization({ id, name }))
-  kit.members.set(id, members.map(([userId, role]) => clerkMembership({ organizationId: id, userId, role })))
+  kit.members.set(
+    id,
+    members.map(([userId, role]) => clerkMembership({ organizationId: id, userId, role })),
+  )
 }
 /** A user known to the vault (first sight done), in an unrelated organisation so it has a row. */
 async function knownUser(sub: string, email = `${sub}@x.test`) {
   const other = await seedOrganization(db)
   return seedUser(db, { organizationId: other.id, role: 'member', authSubject: sub, email, emailVerified: true })
 }
-const linked = (ext: string) => owner.selectFrom('organizations').selectAll().where('auth_org_id', '=', ext).executeTakeFirst()
+const linked = (ext: string) =>
+  owner.selectFrom('organizations').selectAll().where('auth_org_id', '=', ext).executeTakeFirst()
 const live = (organizationId: string) =>
-  owner.selectFrom('memberships').selectAll().where('organization_id', '=', organizationId).where('deleted_at', 'is', null).execute()
+  owner
+    .selectFrom('memberships')
+    .selectAll()
+    .where('organization_id', '=', organizationId)
+    .where('deleted_at', 'is', null)
+    .execute()
 const count = async (table: 'events' | 'organizations' | 'memberships') =>
-  Number((await owner.selectFrom(table).select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n)
+  Number(
+    (
+      await owner
+        .selectFrom(table)
+        .select((eb) => eb.fn.countAll().as('n'))
+        .executeTakeFirstOrThrow()
+    ).n,
+  )
 
 describe('repairMembership', () => {
   it('a new organisation, from the fetch', async () => {
     const u = await knownUser('user_a')
     clerkOrg('org_a', 'Acme', [])
-    const id = await repairMembership(storage, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: null } }, env())
+    const id = await repairMembership(
+      storage,
+      kit.adapter,
+      { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: null } },
+      env(),
+    )
     const org = await linked('org_a')
     expect(org).toMatchObject({ id, name: 'Acme', auth_provider: 'clerk' })
     const m = await live(id)
@@ -67,7 +90,12 @@ describe('repairMembership', () => {
   it('a known organisation, a new member: no fetch', async () => {
     const o = await seedOrganization(db, { authOrgId: 'org_a' })
     const u = await knownUser('user_a')
-    await repairMembership(storage, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'member', known: { organizationId: o.id } }, env())
+    await repairMembership(
+      storage,
+      kit.adapter,
+      { userId: u.id, externalId: 'org_a', role: 'member', known: { organizationId: o.id } },
+      env(),
+    )
     expect(await types()).toEqual(['membership.created'])
     expect(kit.fetch.calls).toHaveLength(0)
   })
@@ -75,7 +103,12 @@ describe('repairMembership', () => {
   it('a role change', async () => {
     const o = await seedOrganization(db, { authOrgId: 'org_a' })
     const u = await seedUser(db, { organizationId: o.id, role: 'member', authSubject: 'user_a' })
-    await repairMembership(storage, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: o.id } }, env())
+    await repairMembership(
+      storage,
+      kit.adapter,
+      { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: o.id } },
+      env(),
+    )
     const [ev] = await events()
     expect(ev).toMatchObject({ type: 'membership.updated', actor_id: await systemId() })
     expect((ev!.before as { role: string }).role).toBe('member')
@@ -85,7 +118,12 @@ describe('repairMembership', () => {
   it('an organisation Clerk no longer has', async () => {
     const u = await knownUser('user_a')
     const before = await count('organizations')
-    const err = await repairMembership(storage, kit.adapter, { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: null } }, env()).catch((e) => e)
+    const err = await repairMembership(
+      storage,
+      kit.adapter,
+      { userId: u.id, externalId: 'org_a', role: 'owner', known: { organizationId: null } },
+      env(),
+    ).catch((e) => e)
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ status: 403, code: 'organization_forbidden' })
     expect(await count('organizations')).toBe(before)
@@ -96,12 +134,22 @@ describe('repairMembership', () => {
     const a = await knownUser('user_a')
     const b = await knownUser('user_b')
     clerkOrg('org_a', 'Acme', [])
-    const args = (userId: string) => ({ userId, externalId: 'org_a', role: 'member' as const, known: { organizationId: null } })
-    const ids = await Promise.all([repairMembership(storage, kit.adapter, args(a.id), env()), repairMembership(storage, kit.adapter, args(b.id), env())])
+    const args = (userId: string) => ({
+      userId,
+      externalId: 'org_a',
+      role: 'member' as const,
+      known: { organizationId: null },
+    })
+    const ids = await Promise.all([
+      repairMembership(storage, kit.adapter, args(a.id), env()),
+      repairMembership(storage, kit.adapter, args(b.id), env()),
+    ])
     expect(ids[0]).toBe(ids[1])
     expect(await live(ids[0])).toHaveLength(2)
     expect((await types()).filter((t) => t === 'organization.created')).toHaveLength(1)
-    expect((await owner.selectFrom('organizations').selectAll().where('auth_org_id', '=', 'org_a').execute())).toHaveLength(1)
+    expect(
+      await owner.selectFrom('organizations').selectAll().where('auth_org_id', '=', 'org_a').execute(),
+    ).toHaveLength(1)
   })
 })
 
@@ -109,7 +157,10 @@ describe('reconcileOrganization', () => {
   it('copies a whole organisation', async () => {
     const a = await knownUser('user_a')
     profile('user_b')
-    clerkOrg('org_a', 'Acme', [['user_a', 'org:admin'], ['user_b', 'org:member']])
+    clerkOrg('org_a', 'Acme', [
+      ['user_a', 'org:admin'],
+      ['user_b', 'org:member'],
+    ])
     const s = await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     expect(s).toMatchObject({ created: 2, updated: 0, deleted: 0 })
     const org = (await linked('org_a'))!
@@ -123,7 +174,10 @@ describe('reconcileOrganization', () => {
   it('applies a role change and a removal', async () => {
     const a = await knownUser('user_a')
     profile('user_b')
-    clerkOrg('org_a', 'Acme', [['user_a', 'org:admin'], ['user_b', 'org:member']])
+    clerkOrg('org_a', 'Acme', [
+      ['user_a', 'org:admin'],
+      ['user_b', 'org:member'],
+    ])
     await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     const before = await count('events')
     clerkOrg('org_a', 'Acme', [['user_a', 'org:member']])
@@ -162,7 +216,10 @@ describe('reconcileOrganization', () => {
     await knownUser('user_taken', 'taken@x.test')
     profile('user_c', 'taken@x.test')
     profile('user_d')
-    clerkOrg('org_a', 'Acme', [['user_c', 'org:member'], ['user_d', 'org:member']])
+    clerkOrg('org_a', 'Acme', [
+      ['user_c', 'org:member'],
+      ['user_d', 'org:member'],
+    ])
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const s = await reconcileOrganization(storage, kit.adapter, 'org_a', env())
     expect(s.created).toBe(1)
@@ -200,7 +257,9 @@ describe('reconcileOrganization', () => {
     await knownUser('user_a')
     clerkOrg('org_a', 'Acme', [['user_a', 'org:admin']])
     kit.fetch.fail.members = 500
-    await expect(reconcileOrganization(storage, kit.adapter, 'org_a', env())).rejects.toThrow('clerk membership list failed: 500')
+    await expect(reconcileOrganization(storage, kit.adapter, 'org_a', env())).rejects.toThrow(
+      'clerk membership list failed: 500',
+    )
     expect(await linked('org_a')).toBeUndefined()
     expect(await count('events')).toBe(0)
   })
@@ -209,7 +268,10 @@ describe('reconcileOrganization', () => {
 describe('refreshUser', () => {
   it('updates the profile, without an event', async () => {
     const u = await knownUser('user_a', 'old@x.test')
-    kit.profiles.set('user_a', clerkUser({ id: 'user_a', email: 'new@x.test', verified: true, first: 'Grace', last: 'H' }))
+    kit.profiles.set(
+      'user_a',
+      clerkUser({ id: 'user_a', email: 'new@x.test', verified: true, first: 'Grace', last: 'H' }),
+    )
     expect(await refreshUser(storage, kit.adapter, 'user_a', env())).toBe('updated')
     const row = await owner.selectFrom('users').selectAll().where('id', '=', u.id).executeTakeFirstOrThrow()
     expect(row).toMatchObject({ email: 'new@x.test', name: 'Grace H' })
@@ -230,7 +292,11 @@ describe('refreshUser', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(await refreshUser(storage, kit.adapter, 'user_a', env())).toBe('conflict')
     expect(warn).toHaveBeenCalled()
-    const row = await owner.selectFrom('users').select('email').where('auth_subject', '=', 'user_a').executeTakeFirstOrThrow()
+    const row = await owner
+      .selectFrom('users')
+      .select('email')
+      .where('auth_subject', '=', 'user_a')
+      .executeTakeFirstOrThrow()
     expect(row.email).toBe('a@x.test')
   })
 })

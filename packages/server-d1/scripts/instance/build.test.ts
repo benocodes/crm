@@ -24,7 +24,11 @@ describe('OPS240 D21 the server program as bundled (cli/server.js in a package d
     const file = join(pkg.dir, 'cli', 'server.js')
     mkdirSync(join(pkg.dir, 'cli'), { recursive: true })
     await buildInstance({ outfile: file })
-    return { pkg, file, release: JSON.parse(readFileSync(join(pkg.dir, 'release.json'), 'utf8')) as { version: string; commit: string } }
+    return {
+      pkg,
+      file,
+      release: JSON.parse(readFileSync(join(pkg.dir, 'release.json'), 'utf8')) as { version: string; commit: string },
+    }
   }
   it('is a node script with a shebang (it is the package bin)', async () => {
     const { file } = await installed()
@@ -32,7 +36,9 @@ describe('OPS240 D21 the server program as bundled (cli/server.js in a package d
   })
   it('--version prints vibase-server/<version> (<commit>) from the release.json beside the package', async () => {
     const { file, release } = await installed()
-    expect(execFileSync('node', [file, '--version'], { encoding: 'utf8', cwd: mkTmp() })).toBe(`vibase-server/${release.version} (${release.commit})\n`)
+    expect(execFileSync('node', [file, '--version'], { encoding: 'utf8', cwd: mkTmp() })).toBe(
+      `vibase-server/${release.version} (${release.commit})\n`,
+    )
   })
   it('--help lists the three commands under vibase-server, exit 0; an unknown command exits 2 with the help', async () => {
     const { file } = await installed()
@@ -47,7 +53,9 @@ describe('OPS240 D21 the server program as bundled (cli/server.js in a package d
     const { pkg, file, release } = await installed()
     const copy = mkTmp()
     cpSync(pkg.dir, copy, { recursive: true })
-    expect(execFileSync('node', [join(copy, 'cli', 'server.js'), '--version'], { encoding: 'utf8', cwd: mkTmp() })).toBe(`vibase-server/${release.version} (${release.commit})\n`)
+    expect(
+      execFileSync('node', [join(copy, 'cli', 'server.js'), '--version'], { encoding: 'utf8', cwd: mkTmp() }),
+    ).toBe(`vibase-server/${release.version} (${release.commit})\n`)
     void file
   })
 })

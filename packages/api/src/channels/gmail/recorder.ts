@@ -34,7 +34,8 @@ export function parseRecordingSwitch(raw: string | undefined, now: Date): Record
   const text = raw.trim()
   const at = ISO_UTC.test(text) ? Date.parse(text) : Number.NaN
   // A date that rolls over (February 30th) is not an instant: it must print back as what was written.
-  if (Number.isNaN(at) || new Date(at).toISOString().slice(0, 19) !== text.slice(0, 19)) return { until: null, problem: 'malformed' }
+  if (Number.isNaN(at) || new Date(at).toISOString().slice(0, 19) !== text.slice(0, 19))
+    return { until: null, problem: 'malformed' }
   if (at <= now.getTime()) return { until: null, problem: null }
   if (at - now.getTime() > RECORDING_MAX_DAYS * 86_400_000) return { until: null, problem: 'too_far' }
   return { until: new Date(at), problem: null }
@@ -59,7 +60,8 @@ export function maskText(s: string): string {
   return out
 }
 
-const SAFE_CHARSET = /^(utf-8|us-ascii|iso-8859-\d{1,2}|windows-125\d|gb2312|gbk|gb18030|big5|koi8-[ru]|shift_jis|euc-jp|euc-kr|iso-2022-jp|utf-7)$/i
+const SAFE_CHARSET =
+  /^(utf-8|us-ascii|iso-8859-\d{1,2}|windows-125\d|gb2312|gbk|gb18030|big5|koi8-[ru]|shift_jis|euc-jp|euc-kr|iso-2022-jp|utf-7)$/i
 const WORD = /=\?([^?\s]{1,40})\?([BbQq])\?([^?\s]*)\?=/g
 
 /** A header value, masked; an RFC 2047 encoded word keeps its frame (`=?charset?B|Q?` and `?=`, the charset only when it is a known one) and masks its text. */
@@ -105,7 +107,22 @@ export const isMediaType = (s: string): boolean => MEDIA_TYPE.test(s)
  * use). A sender chooses any other name, so any other name is masked by character class (its presence and length survive). A name is matched case-insensitively
  * and may carry an RFC 2231 continuation or encoding suffix (`name*0`, `filename*`, `filename*1*`). Add a name here when a shape question needs it.
  */
-const KNOWN_PARAMETERS = new Set(['boundary', 'charset', 'name', 'filename', 'format', 'delsp', 'type', 'start', 'protocol', 'micalg', 'size', 'creation-date', 'modification-date', 'read-date'])
+const KNOWN_PARAMETERS = new Set([
+  'boundary',
+  'charset',
+  'name',
+  'filename',
+  'format',
+  'delsp',
+  'type',
+  'start',
+  'protocol',
+  'micalg',
+  'size',
+  'creation-date',
+  'modification-date',
+  'read-date',
+])
 const knownParameter = (name: string): boolean => {
   const m = /^\s*([A-Za-z-]{1,30})(\*\d{0,3}\*?)?\s*$/.exec(name)
   return m !== null && KNOWN_PARAMETERS.has(m[1]!.toLowerCase())
@@ -171,7 +188,16 @@ export class Pseudonyms {
       for (let i = 0; i < original.length; i++) {
         const ch = original[i]!
         const b = bytes[i]!
-        candidate += ch >= '0' && ch <= '9' ? String(b % 10) : ch >= 'a' && ch <= 'z' ? String.fromCharCode(97 + (b % 26)) : ch >= 'A' && ch <= 'Z' ? String.fromCharCode(65 + (b % 26)) : /\P{ASCII}/u.test(ch) ? 'x' : ch
+        candidate +=
+          ch >= '0' && ch <= '9'
+            ? String(b % 10)
+            : ch >= 'a' && ch <= 'z'
+              ? String.fromCharCode(97 + (b % 26))
+              : ch >= 'A' && ch <= 'Z'
+                ? String.fromCharCode(65 + (b % 26))
+                : /\P{ASCII}/u.test(ch)
+                  ? 'x'
+                  : ch
       }
       out = candidate
       if (candidate !== original && !this.used.has(candidate)) break
@@ -234,7 +260,11 @@ function redactHeader(h: Json, ctx: RedactCtx, path: string[]): Json {
   const out: { [k: string]: Json } = {}
   for (const [k, v] of Object.entries(h)) {
     if (k === 'name' && typeof v === 'string') out[k] = /^[A-Za-z0-9-]{1,64}$/.test(v) ? v : maskText(v)
-    else if (k === 'value' && typeof v === 'string') out[k] = name !== null && STRUCTURED_HEADERS.has(name.toLowerCase()) ? maskStructured(v, name.toLowerCase()) : maskHeaderValue(v)
+    else if (k === 'value' && typeof v === 'string')
+      out[k] =
+        name !== null && STRUCTURED_HEADERS.has(name.toLowerCase())
+          ? maskStructured(v, name.toLowerCase())
+          : maskHeaderValue(v)
     else out[k] = redactValue(v, [...path, k], ctx)
   }
   return out
@@ -243,9 +273,11 @@ function redactHeader(h: Json, ctx: RedactCtx, path: string[]): Json {
 function redactString(key: string, path: string[], v: string, ctx: RedactCtx): Json {
   if (path.length === 1 && TOKEN_MEMBERS.has(key)) return '<redacted>'
   // A part's media type is kept only when it is well formed ([[CHN5]] D85).
-  if (key === 'mimeType' && /^payload(\.parts)*\.mimeType$/.test(path.join('.'))) return isMediaType(v) ? v : maskText(v)
+  if (key === 'mimeType' && /^payload(\.parts)*\.mimeType$/.test(path.join('.')))
+    return isMediaType(v) ? v : maskText(v)
   if (path.length === 1 && key === 'id_token') return idTokenSummary(v)
-  if ((key === 'raw' || key === 'data') && path.length >= 1) return { ...(v.startsWith(SENTINEL) ? parseSentinel(v) : summarizeBase64(v)) }
+  if ((key === 'raw' || key === 'data') && path.length >= 1)
+    return { ...(v.startsWith(SENTINEL) ? parseSentinel(v) : summarizeBase64(v)) }
   if (ID_KEYS.has(key)) return ctx.pseudo.of(v)
   const full = path.join('.')
   if (key === 'labelIds' || ALLOWED_PATHS.some((re) => re.test(full))) return v
@@ -254,8 +286,12 @@ function redactString(key: string, path: string[], v: string, ctx: RedactCtx): J
 }
 
 function redactValue(v: Json, path: string[], ctx: RedactCtx): Json {
-  if (Array.isArray(v)) return path.at(-1) === 'headers' ? v.map((h) => redactHeader(h, ctx, path)) : v.map((e) => redactValue(e, path, ctx))
-  if (v !== null && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, val]) => [k, redactValue(val, [...path, k], ctx)]))
+  if (Array.isArray(v))
+    return path.at(-1) === 'headers'
+      ? v.map((h) => redactHeader(h, ctx, path))
+      : v.map((e) => redactValue(e, path, ctx))
+  if (v !== null && typeof v === 'object')
+    return Object.fromEntries(Object.entries(v).map(([k, val]) => [k, redactValue(val, [...path, k], ctx)]))
   if (typeof v === 'string') return redactString(path.at(-1) ?? '', path, v, ctx)
   return v
 }
@@ -369,17 +405,50 @@ export class BodyScanner {
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 // One exchange
 
-export type CallKind = 'token_refresh' | 'token_exchange' | 'token_other' | 'profile' | 'send_as' | 'history_list' | 'messages_list' | 'message_full' | 'message_raw' | 'attachment_get' | 'watch' | 'stop' | 'other'
+export type CallKind =
+  | 'token_refresh'
+  | 'token_exchange'
+  | 'token_other'
+  | 'profile'
+  | 'send_as'
+  | 'history_list'
+  | 'messages_list'
+  | 'message_full'
+  | 'message_raw'
+  | 'attachment_get'
+  | 'watch'
+  | 'stop'
+  | 'other'
 
 /** What a recording file holds: the request's shape and the response's, redacted. `source` marks it for the replay (D80). */
 export interface RecordedExchange {
   source: 'recorded' | 'synthetic'
   kind: CallKind
-  request: { method: string; host: string; path: string; query: Array<[string, string]>; form: Record<string, string> | null }
+  request: {
+    method: string
+    host: string
+    path: string
+    query: Array<[string, string]>
+    form: Record<string, string> | null
+  }
   response: { status: number; headers: Record<string, string>; body: Json | { non_json: true; bytes: number } | null }
 }
 
-const PATH_WORDS = new Set(['gmail', 'v1', 'users', 'me', 'profile', 'settings', 'sendAs', 'history', 'messages', 'attachments', 'token', 'watch', 'stop'])
+const PATH_WORDS = new Set([
+  'gmail',
+  'v1',
+  'users',
+  'me',
+  'profile',
+  'settings',
+  'sendAs',
+  'history',
+  'messages',
+  'attachments',
+  'token',
+  'watch',
+  'stop',
+])
 const KEEP_QUERY_VALUE = new Set(['format', 'maxResults', 'historyTypes', 'q'])
 const ID_QUERY = new Set(['startHistoryId', 'pageToken'])
 
@@ -401,7 +470,12 @@ function kindOf(host: string, path: string, query: URLSearchParams, form: URLSea
   return 'other'
 }
 
-function redactRequest(url: URL, method: string, form: URLSearchParams | null, pseudo: Pseudonyms): RecordedExchange['request'] {
+function redactRequest(
+  url: URL,
+  method: string,
+  form: URLSearchParams | null,
+  pseudo: Pseudonyms,
+): RecordedExchange['request'] {
   const path = url.pathname
     .split('/')
     .map((seg) => (seg === '' || PATH_WORDS.has(seg) ? seg : pseudo.of(decodeURIComponent(seg))))
@@ -411,7 +485,15 @@ function redactRequest(url: URL, method: string, form: URLSearchParams | null, p
     KEEP_QUERY_VALUE.has(k) ? v : ID_QUERY.has(k) ? pseudo.of(v) : maskText(v),
   ])
   // D79 rule 3: the token POST keeps its form keys and only `grant_type`'s value.
-  const formOut = form === null ? null : Object.fromEntries([...form.keys()].map((k) => [/^[A-Za-z0-9_]{1,40}$/.test(k) ? k : maskText(k), k === 'grant_type' ? maskGrant(form.get(k)!) : '<redacted>']))
+  const formOut =
+    form === null
+      ? null
+      : Object.fromEntries(
+          [...form.keys()].map((k) => [
+            /^[A-Za-z0-9_]{1,40}$/.test(k) ? k : maskText(k),
+            k === 'grant_type' ? maskGrant(form.get(k)!) : '<redacted>',
+          ]),
+        )
   return { method, host: url.host, path, query, form: formOut }
 }
 const maskGrant = (g: string): string => (g === 'refresh_token' || g === 'authorization_code' ? g : maskText(g))
@@ -483,18 +565,24 @@ export function createRecordingFetch(d: RecordingFetchDeps): typeof fetch {
       },
       (err) => d.log(`[recording] could not read the index: ${err instanceof Error ? err.name : 'error'}`),
     ))
-  const capKey = (kind: CallKind, status: number): string => (status >= 200 && status < 300 ? `ok:${kind}` : `${kind}:${status}`)
-  const bump = (kind: CallKind, status: number): void => void counts.set(capKey(kind, status), (counts.get(capKey(kind, status)) ?? 0) + 1)
+  const capKey = (kind: CallKind, status: number): string =>
+    status >= 200 && status < 300 ? `ok:${kind}` : `${kind}:${status}`
+  const bump = (kind: CallKind, status: number): void =>
+    void counts.set(capKey(kind, status), (counts.get(capKey(kind, status)) ?? 0) + 1)
 
   const withTimeout = <T>(p: Promise<T>): Promise<T> => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<never>((_, rej) => void (timer = setTimeout(() => rej(new Error('timeout')), RECORDING_TIMEOUT_MS)))
+    const timeout = new Promise<never>(
+      (_, rej) => void (timer = setTimeout(() => rej(new Error('timeout')), RECORDING_TIMEOUT_MS)),
+    )
     return Promise.race([p, timeout]).finally(() => clearTimeout(timer))
   }
 
   const write = async (key: string, entry: IndexEntry, record: RecordedExchange): Promise<void> => {
     try {
-      await withTimeout(d.bucket.put(key, JSON.stringify(record, null, 2), { httpMetadata: { contentType: 'application/json' } }))
+      await withTimeout(
+        d.bucket.put(key, JSON.stringify(record, null, 2), { httpMetadata: { contentType: 'application/json' } }),
+      )
       // Read, extend, write. A failed read skips the write (never overwrite the index with a partial one) and is logged by error name only.
       chain = chain.then(async () => {
         let entries: IndexEntry[]
@@ -505,7 +593,9 @@ export function createRecordingFetch(d: RecordingFetchDeps): typeof fetch {
           return
         }
         if (!entries.some((e) => e.key === key)) entries.push(entry)
-        await d.bucket.put(RECORDINGS_INDEX_KEY, JSON.stringify({ version: 1, objects: entries }, null, 2), { httpMetadata: { contentType: 'application/json' } })
+        await d.bucket.put(RECORDINGS_INDEX_KEY, JSON.stringify({ version: 1, objects: entries }, null, 2), {
+          httpMetadata: { contentType: 'application/json' },
+        })
       })
       await withTimeout(chain)
     } catch (err) {
@@ -518,10 +608,17 @@ export function createRecordingFetch(d: RecordingFetchDeps): typeof fetch {
   const inspect = async (input: RequestInfo | URL, init: RequestInit | undefined, res: Response): Promise<Response> => {
     if (d.clock().getTime() >= d.until.getTime()) return res
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
-    const method = (init?.method ?? (typeof input === 'object' && 'method' in input ? input.method : 'GET')).toUpperCase()
+    const method = (
+      init?.method ?? (typeof input === 'object' && 'method' in input ? input.method : 'GET')
+    ).toUpperCase()
     const rawBody = init?.body
     // A JSON body (the watch's) is never read as a form: its topic name and labels are request content, not shape, and are not recorded.
-    const form = typeof rawBody === 'string' && !rawBody.trimStart().startsWith('{') ? new URLSearchParams(rawBody) : rawBody instanceof URLSearchParams ? rawBody : null
+    const form =
+      typeof rawBody === 'string' && !rawBody.trimStart().startsWith('{')
+        ? new URLSearchParams(rawBody)
+        : rawBody instanceof URLSearchParams
+          ? rawBody
+          : null
     const kind = kindOf(url.hostname, url.pathname, url.searchParams, form)
     if (kind === null) return res
     await load()
@@ -533,8 +630,13 @@ export function createRecordingFetch(d: RecordingFetchDeps): typeof fetch {
     const key = `${prefix}${String(++seq).padStart(3, '0')}-${kind}-${status}-${hex(d.random(3))}.json`
     const finish = async (scan: ReturnType<BodyScanner['finish']> | null): Promise<void> => {
       let body: RecordedExchange['response']['body'] = null
-      if (scan) body = scan.json !== undefined ? redactBody(scan.json, pseudo) : { non_json: true, bytes: scan.bytes ?? 0 }
-      await write(key, { key, kind, status }, { source: 'recorded', kind, request, response: { status, headers, body } })
+      if (scan)
+        body = scan.json !== undefined ? redactBody(scan.json, pseudo) : { non_json: true, bytes: scan.bytes ?? 0 }
+      await write(
+        key,
+        { key, kind, status },
+        { source: 'recorded', kind, request, response: { status, headers, body } },
+      )
     }
     if (res.body === null) {
       await finish(null)
@@ -559,7 +661,11 @@ export function createRecordingFetch(d: RecordingFetchDeps): typeof fetch {
         }
       },
     })
-    return new Response(res.body.pipeThrough(through), { status: res.status, statusText: res.statusText, headers: res.headers })
+    return new Response(res.body.pipeThrough(through), {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    })
   }
 
   return async (input, init) => {
@@ -589,7 +695,11 @@ export interface GoogleRecordingDeps {
 }
 
 /** Parsed once per isolate. `fetchFor` hands over `plain` itself (unwrapped) while recording is off. */
-export function googleRecording(d: GoogleRecordingDeps): { on: boolean; problem: RecordingSwitch['problem']; fetchFor(run: RecordingRun): typeof fetch | undefined } {
+export function googleRecording(d: GoogleRecordingDeps): {
+  on: boolean
+  problem: RecordingSwitch['problem']
+  fetchFor(run: RecordingRun): typeof fetch | undefined
+} {
   const sw = parseRecordingSwitch(d.raw, d.clock())
   const log = d.log ?? ((line: string) => console.log(line))
   if (sw.problem) log(recordingProblemNotice(sw.problem))
@@ -599,7 +709,15 @@ export function googleRecording(d: GoogleRecordingDeps): { on: boolean; problem:
     problem: sw.problem,
     fetchFor: (run) =>
       on
-        ? createRecordingFetch({ plain: d.plain ?? ((i, n) => fetch(i, n)), bucket: d.bucket!, run, clock: d.clock, until: sw.until!, random: d.random ?? ((n) => crypto.getRandomValues(new Uint8Array(n))), log })
+        ? createRecordingFetch({
+            plain: d.plain ?? ((i, n) => fetch(i, n)),
+            bucket: d.bucket!,
+            run,
+            clock: d.clock,
+            until: sw.until!,
+            random: d.random ?? ((n) => crypto.getRandomValues(new Uint8Array(n))),
+            log,
+          })
         : d.plain,
   }
 }

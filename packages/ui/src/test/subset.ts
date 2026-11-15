@@ -30,10 +30,12 @@ function* sources(dir: string): Generator<string> {
   }
 }
 
-const stripComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+const stripComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
 
 /** An import is allowed when it is `react`, a relative path (a sibling source or the stylesheet). */
-const allowedImport = (specifier: string): boolean => specifier === 'react' || specifier.startsWith('./') || specifier.startsWith('../')
+const allowedImport = (specifier: string): boolean =>
+  specifier === 'react' || specifier.startsWith('./') || specifier.startsWith('../')
 
 /** Scans the non-test `.ts`/`.tsx` files under `srcDir` and returns every violation of the subset. */
 export function checkSubset(srcDir: string): SubsetViolation[] {

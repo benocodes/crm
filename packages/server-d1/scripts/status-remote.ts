@@ -7,7 +7,24 @@ import { fileURLToPath } from 'node:url'
 import { unstable_readConfig } from 'wrangler'
 import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
 import { readSweepCounts, sweepCountLines } from './sweep-counts.js'
-import { CONFIG_PATH, PACKAGE_DIR, controlNotConfigured, RemoteRefusal, formatMigrationDiff, loadRootEnv, parseEnvFlag, parseTrackerOutput, requireConfirm, resolveTarget, statusExitCode, statusOf, trackerReadCommand, type Cmd, type ConfigLike, type Target } from './remote.js'
+import {
+  CONFIG_PATH,
+  PACKAGE_DIR,
+  controlNotConfigured,
+  RemoteRefusal,
+  formatMigrationDiff,
+  loadRootEnv,
+  parseEnvFlag,
+  parseTrackerOutput,
+  requireConfirm,
+  resolveTarget,
+  statusExitCode,
+  statusOf,
+  trackerReadCommand,
+  type Cmd,
+  type ConfigLike,
+  type Target,
+} from './remote.js'
 
 export const EXPECTED = MIGRATIONS.map((m) => m.name)
 /** The control plane's shipped set ([[CORE259]] D4): "current" is applied equals this, exactly. */
@@ -24,14 +41,22 @@ export const realDeps: StatusDeps = {
   loadEnv: () => loadRootEnv(),
   readConfig: (envName) => unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike,
   exec: (cmd) => {
-    const r = spawnSync(cmd.command, cmd.args, { cwd: PACKAGE_DIR, encoding: 'utf-8', env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' } })
+    const r = spawnSync(cmd.command, cmd.args, {
+      cwd: PACKAGE_DIR,
+      encoding: 'utf-8',
+      env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' },
+    })
     return { status: r.status, stdout: r.stdout ?? '' }
   },
   log: (line) => console.log(line),
 }
 
 /** The guards every remote script runs first ([[OPS4]] C3, C4): the env flag, the confirmation, credentials, the target. */
-export function guardedTarget(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Pick<StatusDeps, 'loadEnv' | 'readConfig'>): Target {
+export function guardedTarget(
+  argv: string[],
+  procEnv: NodeJS.ProcessEnv,
+  deps: Pick<StatusDeps, 'loadEnv' | 'readConfig'>,
+): Target {
   const envName = parseEnvFlag(argv)
   requireConfirm(procEnv)
   deps.loadEnv()
@@ -39,7 +64,11 @@ export function guardedTarget(argv: string[], procEnv: NodeJS.ProcessEnv, deps: 
 }
 
 /** Reads the applied names (`null`: no tracker). A failed read throws. */
-export function readApplied(envName: string, deps: Pick<StatusDeps, 'exec'>, binding: 'DB' | 'CONTROL_DB' = 'DB'): string[] | null {
+export function readApplied(
+  envName: string,
+  deps: Pick<StatusDeps, 'exec'>,
+  binding: 'DB' | 'CONTROL_DB' = 'DB',
+): string[] | null {
   const r = deps.exec(trackerReadCommand(envName, binding))
   return parseTrackerOutput(r.stdout)
 }
@@ -52,13 +81,30 @@ export function runStatus(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Stat
   const target = guardedTarget(argv, procEnv, deps)
   let code = 0
   if (target.control) {
-    deps.log(`target: env ${target.env}, control database ${target.control.databaseName} (${target.control.databaseId})`)
+    deps.log(
+      `target: env ${target.env}, control database ${target.control.databaseName} (${target.control.databaseId})`,
+    )
     const applied = readApplied(target.env, deps, 'CONTROL_DB')
     for (const line of formatMigrationDiff(applied, CONTROL_EXPECTED)) deps.log(`[control] ${line}`)
     code = Math.max(code, statusExitCode(statusOf(applied, CONTROL_EXPECTED)))
     // [[CORE289]] P6: what the next repair sweep would do; two read-only SELECTs, never part of the exit code.
     const counts = readSweepCounts((binding, sql) => {
-      const r = deps.exec({ command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'execute', binding, '--remote', '--env', target.env, '--json', '--command', sql] })
+      const r = deps.exec({
+        command: 'pnpm',
+        args: [
+          'exec',
+          'wrangler',
+          'd1',
+          'execute',
+          binding,
+          '--remote',
+          '--env',
+          target.env,
+          '--json',
+          '--command',
+          sql,
+        ],
+      })
       if (r.status !== 0) throw new Error('wrangler d1 execute failed')
       return r.stdout
     }, new Date())

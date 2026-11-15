@@ -11,7 +11,10 @@ import { SignInPage } from './sign-in-page.js'
 // already gone); a failed callback comes back as /sign-in?error=<code> and shows D4's message or one generic message, never the code or the description.
 const TOKEN = 'tok_ABC-123_xyz'
 const NO_SESSION = { status: 200, json: null }
-const DISCOVERY = (methods: unknown) => ({ status: 200, json: { auth: { provider: 'better-auth', sign_in_methods: methods } } })
+const DISCOVERY = (methods: unknown) => ({
+  status: 200,
+  json: { auth: { provider: 'better-auth', sign_in_methods: methods } },
+})
 const GOOGLE_URL = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x&state=s'
 afterEach(() => {
   cleanup()
@@ -58,17 +61,28 @@ describe('the button follows discovery (D7, P2)', () => {
 
 describe('starting Google sign-in (D8)', () => {
   it('/sign-in posts exactly { provider, callbackURL, errorCallbackURL } (no token) and follows the returned Google URL', async () => {
-    const f = fakeFetch({ 'GET /auth/get-session': NO_SESSION, 'GET /.well-known/vibase': DISCOVERY(['password', 'google']), 'POST /auth/sign-in/social': { status: 200, json: { url: GOOGLE_URL, redirect: true } } })
+    const f = fakeFetch({
+      'GET /auth/get-session': NO_SESSION,
+      'GET /.well-known/vibase': DISCOVERY(['password', 'google']),
+      'POST /auth/sign-in/social': { status: 200, json: { url: GOOGLE_URL, redirect: true } },
+    })
     const navigate = vi.fn()
     render(<SignInPage navigate={navigate} />)
     await userEvent.setup().click(await screen.findByRole('button', { name: MESSAGES.googleButton }))
     await waitFor(() => expect(navigate).toHaveBeenCalledWith(GOOGLE_URL))
-    expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({ provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in' })
+    expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
+      provider: 'google',
+      callbackURL: '/sign-in',
+      errorCallbackURL: '/sign-in',
+    })
   })
 
   it('/invite also sends invitation_token, and the fragment is already gone from the address', async () => {
     history.replaceState(null, '', `/invite#token=${TOKEN}`)
-    const f = fakeFetch({ 'GET /.well-known/vibase': DISCOVERY(['password', 'google']), 'POST /auth/sign-in/social': { status: 200, json: { url: GOOGLE_URL, redirect: true } } })
+    const f = fakeFetch({
+      'GET /.well-known/vibase': DISCOVERY(['password', 'google']),
+      'POST /auth/sign-in/social': { status: 200, json: { url: GOOGLE_URL, redirect: true } },
+    })
     const navigate = vi.fn()
     render(<InvitePage navigate={navigate} />)
     const user = userEvent.setup()
@@ -76,7 +90,12 @@ describe('starting Google sign-in (D8)', () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledWith(GOOGLE_URL))
     expect(location.hash).toBe('')
     expect(location.href).not.toContain(TOKEN)
-    expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({ provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in', invitation_token: TOKEN })
+    expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
+      provider: 'google',
+      callbackURL: '/sign-in',
+      errorCallbackURL: '/sign-in',
+      invitation_token: TOKEN,
+    })
   })
 
   it.each([
@@ -85,7 +104,11 @@ describe('starting Google sign-in (D8)', () => {
     ['an answer with a javascript: URL', { status: 200, json: { url: 'javascript:alert(1)', redirect: true } }],
     ['an answer with no URL', { status: 200, json: { redirect: true } }],
   ])('%s: navigates nowhere, shows the page text and never the server message', async (_n, reply) => {
-    fakeFetch({ 'GET /auth/get-session': NO_SESSION, 'GET /.well-known/vibase': DISCOVERY(['password', 'google']), 'POST /auth/sign-in/social': reply })
+    fakeFetch({
+      'GET /auth/get-session': NO_SESSION,
+      'GET /.well-known/vibase': DISCOVERY(['password', 'google']),
+      'POST /auth/sign-in/social': reply,
+    })
     const navigate = vi.fn()
     render(<SignInPage navigate={navigate} />)
     await userEvent.setup().click(await screen.findByRole('button', { name: MESSAGES.googleButton }))
@@ -102,17 +125,22 @@ describe('the callback error on /sign-in (P1)', () => {
     render(<SignInPage />)
     await screen.findByLabelText('Email')
   }
-  it('error=invitation_required shows D4\'s refusal message and the form stays', async () => {
+  it("error=invitation_required shows D4's refusal message and the form stays", async () => {
     await open('?error=invitation_required')
     expect(screen.getByRole('alert').textContent).toBe(MESSAGES.invitationRefused)
     expect(screen.getByLabelText('Password')).toBeTruthy()
   })
-  it.each(['account_not_linked', 'access_denied', 'x'])('any other error (%s) shows the one generic message', async (code) => {
-    await open(`?error=${code}`)
-    expect(screen.getByRole('alert').textContent).toBe(MESSAGES.googleFailed)
-  })
+  it.each(['account_not_linked', 'access_denied', 'x'])(
+    'any other error (%s) shows the one generic message',
+    async (code) => {
+      await open(`?error=${code}`)
+      expect(screen.getByRole('alert').textContent).toBe(MESSAGES.googleFailed)
+    },
+  )
   it('a crafted error and error_description never reach the DOM', async () => {
-    await open(`?error=${encodeURIComponent('<b id="pwned">x</b>')}&error_description=${encodeURIComponent('<img src=x onerror="window.__pwned=1">pwned')}`)
+    await open(
+      `?error=${encodeURIComponent('<b id="pwned">x</b>')}&error_description=${encodeURIComponent('<img src=x onerror="window.__pwned=1">pwned')}`,
+    )
     expect(screen.getByRole('alert').textContent).toBe(MESSAGES.googleFailed)
     expect(document.getElementById('pwned')).toBeNull()
     expect(document.querySelector('img')).toBeNull()
@@ -132,7 +160,11 @@ describe('a Google error does not mask a later error (review round 1)', () => {
   const DISC = { 'GET /.well-known/vibase': DISCOVERY(['password', 'google']) }
   it('/sign-in?error=invitation_required then a wrong password: the alert is the wrong-credentials message, and the error left the address', async () => {
     history.replaceState(null, '', '/sign-in?error=invitation_required&error_description=x&return_to=%2Fdevice')
-    fakeFetch({ 'GET /auth/get-session': NO_SESSION, ...DISC, 'POST /auth/sign-in/email': { status: 401, json: { code: 'INVALID_EMAIL_OR_PASSWORD' } } })
+    fakeFetch({
+      'GET /auth/get-session': NO_SESSION,
+      ...DISC,
+      'POST /auth/sign-in/email': { status: 401, json: { code: 'INVALID_EMAIL_OR_PASSWORD' } },
+    })
     render(<SignInPage />)
     const user = userEvent.setup()
     await user.type(await screen.findByLabelText('Email'), 'ann@x.test')
@@ -142,7 +174,12 @@ describe('a Google error does not mask a later error (review round 1)', () => {
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(MESSAGES.wrongCredentials))
   })
   it('after a failed Google start, a wrong-password submit shows wrong-credentials', async () => {
-    fakeFetch({ 'GET /auth/get-session': NO_SESSION, ...DISC, 'POST /auth/sign-in/social': { status: 500, text: 'boom' }, 'POST /auth/sign-in/email': { status: 401, json: { code: 'X' } } })
+    fakeFetch({
+      'GET /auth/get-session': NO_SESSION,
+      ...DISC,
+      'POST /auth/sign-in/social': { status: 500, text: 'boom' },
+      'POST /auth/sign-in/email': { status: 401, json: { code: 'X' } },
+    })
     render(<SignInPage />)
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: MESSAGES.googleButton }))
@@ -154,7 +191,11 @@ describe('a Google error does not mask a later error (review round 1)', () => {
   })
   it('/invite: after a failed Google start, a sign-up refusal shows the sign-up message', async () => {
     history.replaceState(null, '', `/invite#token=${TOKEN}`)
-    fakeFetch({ ...DISC, 'POST /auth/sign-in/social': { status: 500, text: 'boom' }, 'POST /auth/sign-up/email': { status: 403, json: { code: 'invitation_required' } } })
+    fakeFetch({
+      ...DISC,
+      'POST /auth/sign-in/social': { status: 500, text: 'boom' },
+      'POST /auth/sign-up/email': { status: 403, json: { code: 'invitation_required' } },
+    })
     render(<InvitePage />)
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: MESSAGES.googleButton }))

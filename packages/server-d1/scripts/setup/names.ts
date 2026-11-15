@@ -30,11 +30,16 @@ export function applyRecordedNames(opts: SetupOptions, record: RecordedNames, wh
     if (recorded === undefined) continue
     const given = opts.nameFlags?.[key]
     if (given !== undefined && given !== recorded) {
-      throw new RemoteRefusal(`${flag} ${given}: this instance already records ${label} ${recorded} in ${where}; renaming an instance is a cutover, not a setup re-run (drop the flag)`)
+      throw new RemoteRefusal(
+        `${flag} ${given}: this instance already records ${label} ${recorded} in ${where}; renaming an instance is a cutover, not a setup re-run (drop the flag)`,
+      )
     }
     out[key] = recorded
   }
   checkDistinctDatabases(out.d1Name, out.controlD1Name)
-  if (record.d1Id !== undefined && record.d1Id === record.controlD1Id) throw new RemoteRefusal(`${where} records the same database id ${record.d1Id} for the CRM and the control database: the control plane is its own database`)
+  if (record.d1Id !== undefined && record.d1Id === record.controlD1Id)
+    throw new RemoteRefusal(
+      `${where} records the same database id ${record.d1Id} for the CRM and the control database: the control plane is its own database`,
+    )
   return out
 }

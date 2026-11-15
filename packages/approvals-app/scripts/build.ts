@@ -8,7 +8,10 @@ import { csp, resolveConfig } from '../src/config.js'
 const SRC = fileURLToPath(new URL('../src/', import.meta.url))
 export const OUT = fileURLToPath(new URL('../dist', import.meta.url))
 
-export async function buildApp(env: Record<string, string | undefined> = process.env, out: string = OUT): Promise<void> {
+export async function buildApp(
+  env: Record<string, string | undefined> = process.env,
+  out: string = OUT,
+): Promise<void> {
   const config = resolveConfig(env)
   rmSync(out, { recursive: true, force: true })
   mkdirSync(out, { recursive: true })

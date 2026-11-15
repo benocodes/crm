@@ -120,6 +120,10 @@ export interface D1Binding {
 export type StorageBinding = PostgresBinding | D1Binding
 
 /** Runs a mutation or read unit on the binding. No replay of unknown outcomes. */
-export function execute<T>(binding: StorageBinding, identity: StorageIdentity, prepared: PreparedOperation<T>): Promise<ExecutionResult<T>> {
+export function execute<T>(
+  binding: StorageBinding,
+  identity: StorageIdentity,
+  prepared: PreparedOperation<T>,
+): Promise<ExecutionResult<T>> {
   return binding.runtime.execute(identity, prepared)
 }

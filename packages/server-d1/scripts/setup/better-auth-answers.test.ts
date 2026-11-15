@@ -19,16 +19,30 @@ beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
-  await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE }, { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) })
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
+  await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE },
+    { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) },
+  )
 })
 
 const get = async (path: string, over: Record<string, string> = {}) => {
-  const res = await composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, ...over }).fetch(new Request(AUTH_BASE + path))
+  const res = await composeD1Worker({
+    DB: w.d1,
+    CONTROL_DB: w.control,
+    AUTH_PROVIDER: 'better-auth',
+    AUTH_SECRET,
+    PUBLIC_BASE_URL: AUTH_BASE,
+    ...over,
+  }).fetch(new Request(AUTH_BASE + path))
   return { status: res.status, json: (await res.json()) as any }
 }
 
-describe('the kit answers are the Worker\'s', () => {
+describe("the kit answers are the Worker's", () => {
   it('/.well-known/vibase: the auth block is exactly the fake one (password only)', async () => {
     const r = await get('/.well-known/vibase')
     expect(r.status).toBe(200)

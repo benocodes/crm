@@ -6,7 +6,9 @@ import type { AccountEnv, AccountOperation } from '../registry.js'
 const role = z.enum(['owner', 'member'])
 const meResponse = z.object({
   principal: z.object({ id: z.uuid(), kind: z.enum(['user', 'agent']) }),
-  user: z.object({ id: z.uuid(), email: z.string(), name: z.string().nullable(), email_verified: z.boolean() }).nullable(),
+  user: z
+    .object({ id: z.uuid(), email: z.string(), name: z.string().nullable(), email_verified: z.boolean() })
+    .nullable(),
   agent: z
     .object({
       id: z.uuid(),
@@ -37,12 +39,21 @@ export function meOperation(env: AccountEnv): PreparedOperation<MeResponse> {
     name: 'me.get',
     mutates: false,
     reads: (qc) => ({
-      user: readOne(qc.db.selectFrom('users').select(['users.id', 'users.email', 'users.name', 'users.email_verified']).where('users.id', '=', env.actor.id)),
+      user: readOne(
+        qc.db
+          .selectFrom('users')
+          .select(['users.id', 'users.email', 'users.name', 'users.email_verified'])
+          .where('users.id', '=', env.actor.id),
+      ),
       memberships: readAll(
         qc.db
           .selectFrom('memberships')
           .innerJoin('organizations', 'organizations.id', 'memberships.organization_id')
-          .select(['organizations.id as organization_id', 'organizations.name as organization_name', 'memberships.role'])
+          .select([
+            'organizations.id as organization_id',
+            'organizations.name as organization_name',
+            'memberships.role',
+          ])
           .where('memberships.user_id', '=', env.actor.id)
           .where('memberships.deleted_at', 'is', null)
           .orderBy('organizations.name')
@@ -63,27 +74,62 @@ export function meOperation(env: AccountEnv): PreparedOperation<MeResponse> {
           const active = memberships.find((m) => m.organization_id === env.organizationId)
           return meResponse.parse({
             principal: { id: env.actor.id, kind: 'user' },
-            user: { id: user.id, email: user.email, name: user.name, email_verified: codecs.boolean.read(user.email_verified) },
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              email_verified: codecs.boolean.read(user.email_verified),
+            },
             agent: null,
             client_id: null,
             memberships,
-            active_organization: active ? { id: active.organization_id, role: active.role, scopes: env.scopes.toStrings() } : null,
+            active_organization: active
+              ? { id: active.organization_id, role: active.role, scopes: env.scopes.toStrings() }
+              : null,
           })
         },
       }),
   })
 }
 
-function workspaceMeOperation(env: AccountEnv, workspace: { role: Role | null; clientId: string | null }): PreparedOperation<MeResponse> {
+function workspaceMeOperation(
+  env: AccountEnv,
+  workspace: { role: Role | null; clientId: string | null },
+): PreparedOperation<MeResponse> {
   const isUser = env.actor.kind === 'user'
   return defineOperation<MeResponse>({
     name: 'me.get',
     mutates: false,
     reads: (qc) => ({
-      org: readMaybe(qc.db.selectFrom('organizations').select(['organizations.id', 'organizations.name']).where('organizations.id', '=', env.organizationId ?? '')),
+      org: readMaybe(
+        qc.db
+          .selectFrom('organizations')
+          .select(['organizations.id', 'organizations.name'])
+          .where('organizations.id', '=', env.organizationId ?? ''),
+      ),
       ...(isUser
-        ? { user: readOne(qc.db.selectFrom('users').select(['users.id', 'users.email', 'users.name', 'users.email_verified']).where('users.id', '=', env.actor.id)) }
-        : { agent: readOne(qc.db.selectFrom('agents').select(['agents.id', 'agents.name', 'agents.delegated_by', 'agents.auth_client_id', 'agents.auth_subject']).where('agents.id', '=', env.actor.id)) }),
+        ? {
+            user: readOne(
+              qc.db
+                .selectFrom('users')
+                .select(['users.id', 'users.email', 'users.name', 'users.email_verified'])
+                .where('users.id', '=', env.actor.id),
+            ),
+          }
+        : {
+            agent: readOne(
+              qc.db
+                .selectFrom('agents')
+                .select([
+                  'agents.id',
+                  'agents.name',
+                  'agents.delegated_by',
+                  'agents.auth_client_id',
+                  'agents.auth_subject',
+                ])
+                .where('agents.id', '=', env.actor.id),
+            ),
+          }),
     }),
     build: (found) =>
       unit({
@@ -92,13 +138,31 @@ function workspaceMeOperation(env: AccountEnv, workspace: { role: Role | null; c
         decode: () => {
           const org = found.maybe('org')
           const role = isUser ? workspace.role : null
-          const memberships = isUser && org && role ? [{ organization_id: org.id as string, organization_name: org.name as string, role }] : []
+          const memberships =
+            isUser && org && role
+              ? [{ organization_id: org.id as string, organization_name: org.name as string, role }]
+              : []
           const user = isUser ? found.one('user') : null
           const agent = isUser ? null : found.one('agent')
           return meResponse.parse({
             principal: { id: env.actor.id, kind: env.actor.kind },
-            user: user ? { id: user.id, email: user.email, name: user.name, email_verified: codecs.boolean.read(user.email_verified) } : null,
-            agent: agent ? { id: agent.id, name: agent.name, delegated_by: agent.delegated_by, auth_client_id: agent.auth_client_id, auth_subject: agent.auth_subject } : null,
+            user: user
+              ? {
+                  id: user.id,
+                  email: user.email,
+                  name: user.name,
+                  email_verified: codecs.boolean.read(user.email_verified),
+                }
+              : null,
+            agent: agent
+              ? {
+                  id: agent.id,
+                  name: agent.name,
+                  delegated_by: agent.delegated_by,
+                  auth_client_id: agent.auth_client_id,
+                  auth_subject: agent.auth_subject,
+                }
+              : null,
             client_id: workspace.clientId,
             memberships,
             active_organization: org ? { id: org.id, role, scopes: env.scopes.toStrings() } : null,

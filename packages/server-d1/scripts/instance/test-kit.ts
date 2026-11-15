@@ -3,7 +3,6 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { MIGRATIONS } from '@vibase/storage-d1'
 import { sources } from '../../../release/src/fixtures.js'
 import { stageServer } from '../../../release/src/stage.js'
 import { composeD1Worker } from '../../src/compose.js'
@@ -21,8 +20,14 @@ export const ACCOUNT = 'e2e-acct-0000'
 export const WRANGLER_BASE = readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8')
 
 const dirs: string[] = []
-export const cleanup = () => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) }
-export const mkTmp = (prefix = 'ops231-') => { const d = mkdtempSync(join(tmpdir(), prefix)); dirs.push(d); return d }
+export const cleanup = () => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+}
+export const mkTmp = (prefix = 'ops231-') => {
+  const d = mkdtempSync(join(tmpdir(), prefix))
+  dirs.push(d)
+  return d
+}
 
 /** The `/health` body exactly as `compose.ts` returns it, captured from the real Worker on a migrated test database. */
 export async function captureHealthBody(): Promise<Record<string, any>> {
@@ -36,9 +41,11 @@ export async function captureHealthBody(): Promise<Record<string, any>> {
 }
 
 /** `wrangler d1 execute --json` output of `select name from d1_migrations`, in the recorded shape. */
-export const trackerJson = (names: string[]): string => JSON.stringify([{ results: names.map((name) => ({ name })), success: true, meta: { duration: 0 } }])
+export const trackerJson = (names: string[]): string =>
+  JSON.stringify([{ results: names.map((name) => ({ name })), success: true, meta: { duration: 0 } }])
 /** The recorded error output of a database with no tracker table (`scripts/fixtures/d1-execute-missing-table.json` shape, the remote wording). */
-export const NO_TRACKER_JSON = '{"error":{"text":"A request to the Cloudflare API (/accounts/a/d1/database/b/query) failed.","notes":[{"text":"no such table: d1_migrations: SQLITE_ERROR [code: 7500]"}],"code":7500}}'
+export const NO_TRACKER_JSON =
+  '{"error":{"text":"A request to the Cloudflare API (/accounts/a/d1/database/b/query) failed.","notes":[{"text":"no such table: d1_migrations: SQLITE_ERROR [code: 7500]"}],"code":7500}}'
 
 export interface PackageFixture {
   dir: string
@@ -55,7 +62,11 @@ export function stagedPackage(): PackageFixture {
 
 /** The first line every instance command prints (OPS240 P1, D13): the program, its version and commit, and how many files verified. */
 export function packageLine(dir: string): string {
-  const r = JSON.parse(readFileSync(join(dir, 'release.json'), 'utf8')) as { version: string; commit: string; files: Record<string, string> }
+  const r = JSON.parse(readFileSync(join(dir, 'release.json'), 'utf8')) as {
+    version: string
+    commit: string
+    files: Record<string, string>
+  }
   return `package: vibase-server/${r.version} (${r.commit}), ${Object.keys(r.files).length} files verified`
 }
 
@@ -71,9 +82,15 @@ export const validSettings = (over: Record<string, unknown> = {}): Record<string
   ...over,
 })
 
-export const controlSettings = (over: Record<string, unknown> = {}): Record<string, unknown> => validSettings({ control_d1: CONTROL_D1, ...over })
+export const controlSettings = (over: Record<string, unknown> = {}): Record<string, unknown> =>
+  validSettings({ control_d1: CONTROL_D1, ...over })
 /** The binding a fake wrangler call addresses: `d1 execute <B>` or `d1 migrations apply <B>`; null for any other call. */
-export const bindingOf = (args: string[]): string | null => (args[0] === 'd1' && args[1] === 'execute' ? args[2]! : args[0] === 'd1' && args[1] === 'migrations' && args[2] === 'apply' ? args[3]! : null)
+export const bindingOf = (args: string[]): string | null =>
+  args[0] === 'd1' && args[1] === 'execute'
+    ? args[2]!
+    : args[0] === 'd1' && args[1] === 'migrations' && args[2] === 'apply'
+      ? args[3]!
+      : null
 
 export interface WranglerCall {
   args: string[]
@@ -151,8 +168,19 @@ export function makeWorld(o: WorldOptions = {}): World {
     runWrangler: (args, opts) => {
       const c = args.indexOf('-c')
       const configPath = c >= 0 ? args[c + 1]! : null
-      wrangler.push({ args, env: opts.env, cwd: opts.cwd, input: opts.input, configPath, configText: configPath && existsSync(configPath) ? readFileSync(configPath, 'utf8') : null })
-      return (o.runner ?? (() => ({ status: 0, stdout: trackerJson(pkg.migrations), stderr: '' })))(args, opts.env, opts.input)
+      wrangler.push({
+        args,
+        env: opts.env,
+        cwd: opts.cwd,
+        input: opts.input,
+        configPath,
+        configText: configPath && existsSync(configPath) ? readFileSync(configPath, 'utf8') : null,
+      })
+      return (o.runner ?? (() => ({ status: 0, stdout: trackerJson(pkg.migrations), stderr: '' })))(
+        args,
+        opts.env,
+        opts.input,
+      )
     },
     openD1: async (opts) => {
       openD1Calls.push(opts)
@@ -167,5 +195,20 @@ export function makeWorld(o: WorldOptions = {}): World {
     now: () => clock.t,
     sleep: async (ms) => void (clock.t += ms),
   }
-  return { deps, pkg, config, settingsPath, secretsPath, tmpRoot, fetchUrls, fetchCalls, clock, wrangler, openD1Calls, out, err, all: () => [...out, ...err].join('\n') }
+  return {
+    deps,
+    pkg,
+    config,
+    settingsPath,
+    secretsPath,
+    tmpRoot,
+    fetchUrls,
+    fetchCalls,
+    clock,
+    wrangler,
+    openD1Calls,
+    out,
+    err,
+    all: () => [...out, ...err].join('\n'),
+  }
 }

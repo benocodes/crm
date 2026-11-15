@@ -35,8 +35,14 @@ export async function up(db: Kysely<any>): Promise<void> {
   await sql`
     ALTER TABLE contacts
       ADD CONSTRAINT contacts_company_fk FOREIGN KEY (organization_id, company_id) REFERENCES companies (organization_id, id),
-      ADD CONSTRAINT contacts_merged_into_fk FOREIGN KEY (organization_id, merged_into_id) REFERENCES contacts (organization_id, id)`.execute(db)
-  await db.schema.createIndex('idx_contacts_organization_id_company_id').on('contacts').columns(['organization_id', 'company_id']).execute()
+      ADD CONSTRAINT contacts_merged_into_fk FOREIGN KEY (organization_id, merged_into_id) REFERENCES contacts (organization_id, id)`.execute(
+    db,
+  )
+  await db.schema
+    .createIndex('idx_contacts_organization_id_company_id')
+    .on('contacts')
+    .columns(['organization_id', 'company_id'])
+    .execute()
 
   await common('identities')
     .addColumn('kind', 'text', (c) => c.notNull())
@@ -49,7 +55,9 @@ export async function up(db: Kysely<any>): Promise<void> {
     .execute()
   await sql`
     ALTER TABLE identities
-      ADD CONSTRAINT identities_contact_fk FOREIGN KEY (organization_id, contact_id) REFERENCES contacts (organization_id, id)`.execute(db)
+      ADD CONSTRAINT identities_contact_fk FOREIGN KEY (organization_id, contact_id) REFERENCES contacts (organization_id, id)`.execute(
+    db,
+  )
   await sql`
     CREATE UNIQUE INDEX idx_identities_address_unique ON identities (organization_id, kind, value)
     WHERE deleted_at IS NULL`.execute(db)
@@ -70,5 +78,6 @@ export async function up(db: Kysely<any>): Promise<void> {
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
-  for (const t of ['identities', 'contacts', 'companies']) await sql`DROP TABLE IF EXISTS ${sql.table(t)} CASCADE`.execute(db)
+  for (const t of ['identities', 'contacts', 'companies'])
+    await sql`DROP TABLE IF EXISTS ${sql.table(t)} CASCADE`.execute(db)
 }

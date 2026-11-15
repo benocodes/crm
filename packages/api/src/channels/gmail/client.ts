@@ -1,16 +1,28 @@
 // `GmailClient` ([[CHN5]] D23, D44, D46): the REST calls the Gmail channel reads with. Cycle 1 has three; later cycles add their own
 // with their first caller. The two streaming calls return the response body UNDECODED (Gmail's JSON with one base64url member).
-import type { GmailHistoryPage, GmailMessageList, GmailMessageResource, GmailProfile, GmailSendAs, GmailWatch } from './types.js'
+import type {
+  GmailHistoryPage,
+  GmailMessageList,
+  GmailMessageResource,
+  GmailProfile,
+  GmailSendAs,
+  GmailWatch,
+} from './types.js'
 
 export interface GmailClient {
-  sendMessage(raw:string,threadId?:string):Promise<{id:string;threadId:string}>
-  getMessageMetadata(id:string):Promise<GmailMessageResource>
+  sendMessage(raw: string, threadId?: string): Promise<{ id: string; threadId: string }>
+  getMessageMetadata(id: string): Promise<GmailMessageResource>
   /** `users.getProfile`: the address and the current history id (the cursor the connect flow saves, [[CHN5]] D9). */
   getProfile(): Promise<GmailProfile>
   /** `users.settings.sendAs.list` ([[CHN5]] D10): the primary address and the aliases; an empty answer is an empty list. */
   listSendAs(): Promise<GmailSendAs[]>
   /** `users.history.list` ([[CHN5]] D12): one page of history records after `startHistoryId`. A start id Gmail no longer holds is a `GmailApiError` with status 404. */
-  listHistory(p: { startHistoryId: string; pageToken?: string | null; maxResults: number; historyTypes: readonly string[] }): Promise<GmailHistoryPage>
+  listHistory(p: {
+    startHistoryId: string
+    pageToken?: string | null
+    maxResults: number
+    historyTypes: readonly string[]
+  }): Promise<GmailHistoryPage>
   /** `users.messages.list` ([[CHN5]] D13, D67): one page of message ids matching `q`. */
   listMessages(p: { q: string; pageToken?: string | null; maxResults: number }): Promise<GmailMessageList>
   /** `users.messages.get?format=full`, parsed. */
@@ -37,8 +49,16 @@ export class GmailApiError extends Error {
   readonly retryAfter: string | null
   /** `retryAfter` as whole seconds from now (a delay or an HTTP date); null when absent or unparseable. */
   readonly retryAfterSeconds: number | null
-  constructor(init: { status: number; gmailStatus?: string | null; reason?: string | null; retryAfter?: string | null; retryAfterSeconds?: number | null }) {
-    super(`Gmail API error ${init.status}${init.gmailStatus ? ` ${init.gmailStatus}` : ''}${init.reason ? ` (${init.reason})` : ''}`)
+  constructor(init: {
+    status: number
+    gmailStatus?: string | null
+    reason?: string | null
+    retryAfter?: string | null
+    retryAfterSeconds?: number | null
+  }) {
+    super(
+      `Gmail API error ${init.status}${init.gmailStatus ? ` ${init.gmailStatus}` : ''}${init.reason ? ` (${init.reason})` : ''}`,
+    )
     this.status = init.status
     this.gmailStatus = init.gmailStatus ?? null
     this.reason = init.reason ?? null
@@ -49,10 +69,13 @@ export class GmailApiError extends Error {
 
 const RATE_REASONS = ['rateLimitExceeded', 'userRateLimitExceeded']
 /** A `429`, or a `403` whose reason is a rate one (Gmail sends the per-minute quota as a `403`, [[CHN5]] D16, D82 g): a throttle, whatever call it came from. */
-export const isGmailThrottle = (err: unknown): err is GmailApiError => err instanceof GmailApiError && (err.status === 429 || (err.status === 403 && err.reason !== null && RATE_REASONS.includes(err.reason)))
+export const isGmailThrottle = (err: unknown): err is GmailApiError =>
+  err instanceof GmailApiError &&
+  (err.status === 429 || (err.status === 403 && err.reason !== null && RATE_REASONS.includes(err.reason)))
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
-const obj = (v: unknown): Record<string, unknown> => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
+const obj = (v: unknown): Record<string, unknown> =>
+  v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
 
 /** Parses a `users.history.list` body leniently ([[CHN5]] D72): absent arrays are empty, unknown fields are ignored, only `messagesAdded` is read. */
@@ -65,7 +88,17 @@ export function parseHistoryList(body: unknown): GmailHistoryPage {
       const id = str(m.id)
       if (id === null) return []
       const threadId = str(m.threadId)
-      return [{ message: { id, ...(threadId ? { threadId } : {}), ...(Array.isArray(m.labelIds) ? { labelIds: m.labelIds.filter((l): l is string => typeof l === 'string') } : {}) } }]
+      return [
+        {
+          message: {
+            id,
+            ...(threadId ? { threadId } : {}),
+            ...(Array.isArray(m.labelIds)
+              ? { labelIds: m.labelIds.filter((l): l is string => typeof l === 'string') }
+              : {}),
+          },
+        },
+      ]
     })
     return [{ id: str(rec.id) ?? '', messagesAdded }]
   })
@@ -110,7 +143,9 @@ async function apiError(res: Response): Promise<GmailApiError> {
   let gmailStatus: string | null = null
   let reason: string | null = null
   try {
-    const parsed = JSON.parse(await res.text()) as { error?: { status?: unknown; errors?: Array<{ reason?: unknown }> } }
+    const parsed = JSON.parse(await res.text()) as {
+      error?: { status?: unknown; errors?: Array<{ reason?: unknown }> }
+    }
     if (typeof parsed.error?.status === 'string') gmailStatus = parsed.error.status
     const r = parsed.error?.errors?.[0]?.reason
     if (typeof r === 'string') reason = r
@@ -118,21 +153,30 @@ async function apiError(res: Response): Promise<GmailApiError> {
     // not JSON
   }
   const retryAfter = res.headers.get('retry-after')
-  return new GmailApiError({ status: res.status, gmailStatus, reason, retryAfter, retryAfterSeconds: retryAfterSeconds(retryAfter) })
+  return new GmailApiError({
+    status: res.status,
+    gmailStatus,
+    reason,
+    retryAfter,
+    retryAfterSeconds: retryAfterSeconds(retryAfter),
+  })
 }
 
 export class HttpGmailClient implements GmailClient {
-  async sendMessage(raw:string,threadId?:string):Promise<{id:string;threadId:string}> {
-    const encoded=btoa(Array.from(new TextEncoder().encode(raw),b=>String.fromCharCode(b)).join('')).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'')
-    const res=await this.send('/messages/send',{raw:encoded,...(threadId?{threadId}:{})})
-    const body=obj(await res.json())
-    if(!str(body.id)||!str(body.threadId))throw new GmailApiError({status:200,reason:'bad_send_response'})
-    return {id:String(body.id),threadId:String(body.threadId)}
+  async sendMessage(raw: string, threadId?: string): Promise<{ id: string; threadId: string }> {
+    const encoded = btoa(Array.from(new TextEncoder().encode(raw), (b) => String.fromCharCode(b)).join(''))
+      .replaceAll('+', '-')
+      .replaceAll('/', '_')
+      .replace(/=+$/, '')
+    const res = await this.send('/messages/send', { raw: encoded, ...(threadId ? { threadId } : {}) })
+    const body = obj(await res.json())
+    if (!str(body.id) || !str(body.threadId)) throw new GmailApiError({ status: 200, reason: 'bad_send_response' })
+    return { id: String(body.id), threadId: String(body.threadId) }
   }
-  async getMessageMetadata(id:string):Promise<GmailMessageResource> {
-    const q=new URLSearchParams({format:'metadata'})
-    for(const name of ['Message-ID','References','Subject'])q.append('metadataHeaders',name)
-    return await (await this.get(`/messages/${encodeURIComponent(id)}?${q}`)).json() as GmailMessageResource
+  async getMessageMetadata(id: string): Promise<GmailMessageResource> {
+    const q = new URLSearchParams({ format: 'metadata' })
+    for (const name of ['Message-ID', 'References', 'Subject']) q.append('metadataHeaders', name)
+    return (await (await this.get(`/messages/${encodeURIComponent(id)}?${q}`)).json()) as GmailMessageResource
   }
   private readonly accessToken: () => Promise<string>
   private readonly doFetch: typeof fetch
@@ -150,7 +194,11 @@ export class HttpGmailClient implements GmailClient {
     this.signal?.throwIfAborted()
     const token = await this.accessToken()
     this.signal?.throwIfAborted()
-    const res = await this.doFetch(`${this.base}${path}`, { method: 'GET', headers: { authorization: `Bearer ${token}` },...(this.signal?{signal:this.signal}:{}) })
+    const res = await this.doFetch(`${this.base}${path}`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${token}` },
+      ...(this.signal ? { signal: this.signal } : {}),
+    })
     if (!res.ok) throw await apiError(res)
     return res
   }
@@ -167,7 +215,12 @@ export class HttpGmailClient implements GmailClient {
     this.signal?.throwIfAborted()
     const headers: Record<string, string> = { authorization: `Bearer ${token}` }
     if (body !== undefined) headers['content-type'] = 'application/json'
-    const res = await this.doFetch(`${this.base}${path}`, { method: 'POST', headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),...(this.signal?{signal:this.signal}:{}) })
+    const res = await this.doFetch(`${this.base}${path}`, {
+      method: 'POST',
+      headers,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(this.signal ? { signal: this.signal } : {}),
+    })
     if (!res.ok) throw await apiError(res)
     return res
   }
@@ -177,7 +230,11 @@ export class HttpGmailClient implements GmailClient {
    * guide's example writes `INCLUDE`; a `400` on the first real watch is the sign the other casing is needed, and this is the one place to change).
    */
   async watch(p: { topicName: string }): Promise<GmailWatch> {
-    const res = await this.send('/watch', { topicName: p.topicName, labelIds: WATCH_LABELS, labelFilterBehavior: LABEL_FILTER_BEHAVIOR })
+    const res = await this.send('/watch', {
+      topicName: p.topicName,
+      labelIds: WATCH_LABELS,
+      labelFilterBehavior: LABEL_FILTER_BEHAVIOR,
+    })
     let body: Record<string, unknown> = {}
     try {
       body = obj(await res.json())
@@ -187,7 +244,8 @@ export class HttpGmailClient implements GmailClient {
     const historyId = str(body.historyId)
     const expiration = str(body.expiration)
     // Both are strings in Google's reference; an expiration that is not epoch milliseconds is never turned into a guessed expiry.
-    if (historyId === null || expiration === null || !/^\d{10,16}$/.test(expiration)) throw new GmailApiError({ status: res.status, reason: 'bad_watch_response' })
+    if (historyId === null || expiration === null || !/^\d{10,16}$/.test(expiration))
+      throw new GmailApiError({ status: res.status, reason: 'bad_watch_response' })
     return { historyId, expiration }
   }
   /** `users.stop` ([[CHN5]] D91): an empty body; any 2xx is success. */
@@ -203,7 +261,12 @@ export class HttpGmailClient implements GmailClient {
     return body.sendAs ?? []
   }
 
-  async listHistory(p: { startHistoryId: string; pageToken?: string | null; maxResults: number; historyTypes: readonly string[] }): Promise<GmailHistoryPage> {
+  async listHistory(p: {
+    startHistoryId: string
+    pageToken?: string | null
+    maxResults: number
+    historyTypes: readonly string[]
+  }): Promise<GmailHistoryPage> {
     const q = new URLSearchParams({ startHistoryId: p.startHistoryId, maxResults: String(p.maxResults) })
     for (const t of p.historyTypes) q.append('historyTypes', t)
     if (p.pageToken) q.set('pageToken', p.pageToken)
@@ -216,7 +279,9 @@ export class HttpGmailClient implements GmailClient {
   }
 
   async getMessageFull(messageId: string): Promise<GmailMessageResource> {
-    return (await (await this.get(`/messages/${encodeURIComponent(messageId)}?format=full`)).json()) as GmailMessageResource
+    return (await (
+      await this.get(`/messages/${encodeURIComponent(messageId)}?format=full`)
+    ).json()) as GmailMessageResource
   }
   getMessageRaw(messageId: string): Promise<ReadableStream<Uint8Array>> {
     return this.stream(`/messages/${encodeURIComponent(messageId)}?format=raw`)

@@ -14,4 +14,6 @@ const port = Number(process.env.PORT ?? 8787)
 
 const { rows } = await sql<{ current_database: string }>`SELECT current_database()`.execute(db)
 serve({ fetch: app.fetch, port })
-console.log(`[dev] listening on http://localhost:${port} (database ${rows[0]!.current_database}, auth ${authAdapter?.provider ?? 'none'})`)
+console.log(
+  `[dev] listening on http://localhost:${port} (database ${rows[0]!.current_database}, auth ${authAdapter?.provider ?? 'none'})`,
+)

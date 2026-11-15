@@ -12,11 +12,18 @@ const entry = fileURLToPath(new URL('../packages/cli/dist/vibase.js', import.met
 const cwd = process.env.INIT_CWD || process.cwd()
 
 if (!existsSync(entry)) {
-  process.stderr.write('vibase: packages/cli/dist/vibase.js is missing, building it with `pnpm -C packages/cli build`\n')
+  process.stderr.write(
+    'vibase: packages/cli/dist/vibase.js is missing, building it with `pnpm -C packages/cli build`\n',
+  )
   // The build's output goes to stderr so stdout stays the CLI's alone.
-  const build = spawnSync('pnpm', ['-C', cliDir, 'build'], { cwd: repoRoot, stdio: ['ignore', process.stderr, process.stderr] })
+  const build = spawnSync('pnpm', ['-C', cliDir, 'build'], {
+    cwd: repoRoot,
+    stdio: ['ignore', process.stderr, process.stderr],
+  })
   if (build.status !== 0 || !existsSync(entry)) {
-    process.stderr.write('vibase: the build failed; run `pnpm install && pnpm -C packages/cli build` from the repo root\n')
+    process.stderr.write(
+      'vibase: the build failed; run `pnpm install && pnpm -C packages/cli build` from the repo root\n',
+    )
     process.exit(2)
   }
 }

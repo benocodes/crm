@@ -8,11 +8,17 @@ const setup = (shimOptions: Parameters<typeof makeWorkerdStepShim>[0] = {}) => {
   const vibase = new FakeVibase()
   const shim = makeWorkerdStepShim({ retries: 0, ...shimOptions })
   const refusals: string[] = []
-  const deps = { baseUrl: 'http://vibase.test', apiKey: vibase.apiKey, fetch: vibase.fetch, nonRetryable: (m: string) => (refusals.push(m), new Error(m)) }
+  const deps = {
+    baseUrl: 'http://vibase.test',
+    apiKey: vibase.apiKey,
+    fetch: vibase.fetch,
+    nonRetryable: (m: string) => (refusals.push(m), new Error(m)),
+  }
   const run = () => runReply({ payload: eventRecord() }, shim.step, deps)
   return { vibase, shim, refusals, run }
 }
-const proposals = (v: FakeVibase) => v.requests.filter((r) => r.method === 'POST' && r.path === '/api/v1/action-requests')
+const proposals = (v: FakeVibase) =>
+  v.requests.filter((r) => r.method === 'POST' && r.path === '/api/v1/action-requests')
 
 describe('workflow: an inbound email interaction (D21)', () => {
   it('reads the message and its content with its own key, then proposes exactly one reply', async () => {
@@ -20,12 +26,24 @@ describe('workflow: an inbound email interaction (D21)', () => {
     const out = await run()
     expect(out).toMatchObject({ outcome: 'proposed', created: true })
     const paths = vibase.requests.map((r) => `${r.method} ${r.path}`)
-    expect(paths).toEqual(expect.arrayContaining([`GET /api/v1/interactions/${IDS.interaction}`, `GET /api/v1/messages/${IDS.message}`, `GET /api/v1/messages/${IDS.message}/content`]))
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        `GET /api/v1/interactions/${IDS.interaction}`,
+        `GET /api/v1/messages/${IDS.message}`,
+        `GET /api/v1/messages/${IDS.message}/content`,
+      ]),
+    )
     expect(vibase.authorizations()).toEqual(new Set([`Bearer ${vibase.apiKey}`]))
     expect(proposals(vibase)).toHaveLength(1)
     expect(proposals(vibase)[0]!.body).toEqual({
       operation: 'messages.send',
-      arguments: { connection_id: IDS.connection, mode: 'reply', thread_id: IDS.thread, to: ['customer@example.test'], body: expect.any(String) },
+      arguments: {
+        connection_id: IDS.connection,
+        mode: 'reply',
+        thread_id: IDS.thread,
+        to: ['customer@example.test'],
+        body: expect.any(String),
+      },
       reason: expect.any(String),
       interaction_id: IDS.interaction,
     })
@@ -45,17 +63,26 @@ describe('workflow: an inbound email interaction (D21)', () => {
   })
   it('chooses the active connection whose mailbox received the message, among several', async () => {
     const { vibase, run } = setup()
-    vibase.connections = [{ id: IDS.otherConnection, identity_id: IDS.otherIdentity, status: 'active' }, ...vibase.connections]
+    vibase.connections = [
+      { id: IDS.otherConnection, identity_id: IDS.otherIdentity, status: 'active' },
+      ...vibase.connections,
+    ]
     await run()
     expect((proposals(vibase)[0]!.body as any).arguments.connection_id).toBe(IDS.connection)
   })
   it('uses the sole active connection when no mailbox matches, and skips when several are active and none matches or none is active', async () => {
     const a = setup()
-    a.vibase.connections = [{ id: IDS.otherConnection, identity_id: IDS.otherIdentity, status: 'active' }, { id: IDS.connection, identity_id: IDS.mailboxIdentity, status: 'reauth_required' }]
+    a.vibase.connections = [
+      { id: IDS.otherConnection, identity_id: IDS.otherIdentity, status: 'active' },
+      { id: IDS.connection, identity_id: IDS.mailboxIdentity, status: 'reauth_required' },
+    ]
     await a.run()
     expect((proposals(a.vibase)[0]!.body as any).arguments.connection_id).toBe(IDS.otherConnection)
     const b = setup()
-    b.vibase.connections = [{ id: IDS.otherConnection, identity_id: IDS.otherIdentity, status: 'active' }, { id: IDS.connection, identity_id: IDS.senderIdentity, status: 'active' }]
+    b.vibase.connections = [
+      { id: IDS.otherConnection, identity_id: IDS.otherIdentity, status: 'active' },
+      { id: IDS.connection, identity_id: IDS.senderIdentity, status: 'active' },
+    ]
     expect(await b.run()).toEqual({ outcome: 'skipped', reason: 'no_matching_connection' })
     const c = setup()
     c.vibase.connections = []
@@ -63,7 +90,12 @@ describe('workflow: an inbound email interaction (D21)', () => {
     expect(proposals(b.vibase).length + proposals(c.vibase).length).toBe(0)
   })
   it('re-running the propose step after its create committed creates no second request', async () => {
-    const { vibase, run } = setup({ retries: 1, afterCommit: (name, attempt) => { if (name === 'propose-reply' && attempt === 0) throw new Error('lost the step result') } })
+    const { vibase, run } = setup({
+      retries: 1,
+      afterCommit: (name, attempt) => {
+        if (name === 'propose-reply' && attempt === 0) throw new Error('lost the step result')
+      },
+    })
     const out = await run()
     expect(out).toMatchObject({ outcome: 'proposed', created: false })
     expect(vibase.actionRequests).toHaveLength(1)
@@ -85,8 +117,20 @@ describe('workflow: an inbound email interaction (D21)', () => {
     await expect(a.run()).rejects.toThrow(/503/)
     expect(a.refusals).toHaveLength(0)
     const b = setup()
-    const failing = { ...b.vibase, fetch: (async () => { throw new TypeError('network down') }) as typeof fetch }
-    await expect(runReply({ payload: eventRecord() }, b.shim.step, { baseUrl: 'http://vibase.test', apiKey: 'k', fetch: failing.fetch, nonRetryable: (m) => (b.refusals.push(m), new Error(m)) })).rejects.toThrow(/network down/)
+    const failing = {
+      ...b.vibase,
+      fetch: (async () => {
+        throw new TypeError('network down')
+      }) as typeof fetch,
+    }
+    await expect(
+      runReply({ payload: eventRecord() }, b.shim.step, {
+        baseUrl: 'http://vibase.test',
+        apiKey: 'k',
+        fetch: failing.fetch,
+        nonRetryable: (m) => (b.refusals.push(m), new Error(m)),
+      }),
+    ).rejects.toThrow(/network down/)
     expect(b.refusals).toHaveLength(0)
   })
   it('a 429 and a 409 from the vault are retryable', async () => {

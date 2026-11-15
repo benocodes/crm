@@ -4,7 +4,16 @@
 // bundles this file. Not in the production barrel.
 import { connectOperation } from '../connections/connect.js'
 import { sealToken } from '../connections/credentials.js'
-import { beginScan, captureHistoryPage, captureScanPage, loadSyncState, type GmailSyncDeps, type Outcome, type PageDone, type Scan } from '../channels/gmail/sync.js'
+import {
+  beginScan,
+  captureHistoryPage,
+  captureScanPage,
+  loadSyncState,
+  type GmailSyncDeps,
+  type Outcome,
+  type PageDone,
+  type Scan,
+} from '../channels/gmail/sync.js'
 import type { Engine } from './engines.js'
 
 /** What seeding needs of an engine: the unit environment, a runner and (for `lastSyncedAt`) raw D1. The workerd smoke passes its own. */
@@ -33,7 +42,11 @@ export async function seedGmailConnection(e: SeedTarget, p: SeedGmailConnection)
     history_id: p.historyId ?? '1000',
   })
   const id = (await e.run(op)).value.connection_id
-  if (p.lastSyncedAt) await e.d1!.prepare('update mail_sync_cursors set last_synced_at = ? where connection_id = ?').bind(p.lastSyncedAt, id).run()
+  if (p.lastSyncedAt)
+    await e
+      .d1!.prepare('update mail_sync_cursors set last_synced_at = ? where connection_id = ?')
+      .bind(p.lastSyncedAt, id)
+      .run()
   return id
 }
 
@@ -48,7 +61,11 @@ export interface SyncRun {
 }
 
 /** Runs pages to completion. `maxPages` (default 200) turns a loop bug into a failure instead of a hang. */
-export async function runGmailSync(deps: GmailSyncDeps, connectionId: string, opts: { maxPages?: number } = {}): Promise<SyncRun> {
+export async function runGmailSync(
+  deps: GmailSyncDeps,
+  connectionId: string,
+  opts: { maxPages?: number } = {},
+): Promise<SyncRun> {
   const max = opts.maxPages ?? 200
   const run: SyncRun = { outcome: 'complete', pages: 0, captured: 0, existing: 0, skipped: 0, scans: [] }
   const take = (r: PageDone): void => {

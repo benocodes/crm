@@ -3,7 +3,13 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
 import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
-import { createInvitation, listInvitations, openControlDb, revokeInvitation, type NewInvitation } from './control-store.js'
+import {
+  createInvitation,
+  listInvitations,
+  openControlDb,
+  revokeInvitation,
+  type NewInvitation,
+} from './control-store.js'
 import { CONTROL_MIGRATIONS_DIR, openLocalD1, splitStatements, type LocalD1 } from './test/index.js'
 
 // [[CORE248]] D3: control 0003 adds `invitations.delivery` (not null default 'link', check link|email); the store writes and reads it; the audit rows carry it.
@@ -22,14 +28,35 @@ let n = 0
 const hex = (k: number) => k.toString(16).padStart(12, '0')
 const nextId = () => `0190b2c4-0000-7000-8000-${hex(++n)}`
 const hash = () => `${String(++n).padStart(8, '0')}${'a'.repeat(56)}`
-const rows = async (d1: D1Like, text: string, ...binds: unknown[]) => ((await d1.prepare(text).bind(...binds).all()).results ?? []) as Array<Record<string, any>>
-const run = (d1: D1Like, text: string, ...binds: unknown[]) => d1.prepare(text).bind(...binds).run().then(() => null, (e: Error) => e.message)
-const files = readdirSync(CONTROL_MIGRATIONS_DIR).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort()
+const rows = async (d1: D1Like, text: string, ...binds: unknown[]) =>
+  ((
+    await d1
+      .prepare(text)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as Array<Record<string, any>>
+const run = (d1: D1Like, text: string, ...binds: unknown[]) =>
+  d1
+    .prepare(text)
+    .bind(...binds)
+    .run()
+    .then(
+      () => null,
+      (e: Error) => e.message,
+    )
+const files = readdirSync(CONTROL_MIGRATIONS_DIR)
+  .filter((f) => /^\d{4}_.+\.sql$/.test(f))
+  .sort()
 const apply = async (d1: D1Like, only: (f: string) => boolean) => {
-  for (const f of files.filter(only)) await d1.batch(splitStatements(readFileSync(join(CONTROL_MIGRATIONS_DIR, f), 'utf-8')).map((s) => d1.prepare(s)))
+  for (const f of files.filter(only))
+    await d1.batch(splitStatements(readFileSync(join(CONTROL_MIGRATIONS_DIR, f), 'utf-8')).map((s) => d1.prepare(s)))
 }
 const insert = (d1: D1Like, email: string, extra = '') =>
-  run(d1, `insert into invitations (id, organization_id, email, role, token_hash, expires_at, created_by, created_at, accepted_at, revoked_at${extra ? ', delivery' : ''}) values (?, ?, ?, 'member', ?, ?, ?, ?, null, ${email.startsWith('revoked') ? "'" + plus(NOW, 1000) + "'" : 'null'}${extra ? ', ?' : ''})`, ...[nextId(), ORG, email, hash(), plus(NOW, 7 * DAY), ACTOR, NOW, ...(extra ? [extra] : [])])
+  run(
+    d1,
+    `insert into invitations (id, organization_id, email, role, token_hash, expires_at, created_by, created_at, accepted_at, revoked_at${extra ? ', delivery' : ''}) values (?, ?, ?, 'member', ?, ?, ?, ?, null, ${email.startsWith('revoked') ? "'" + plus(NOW, 1000) + "'" : 'null'}${extra ? ', ?' : ''})`,
+    ...[nextId(), ORG, email, hash(), plus(NOW, 7 * DAY), ACTOR, NOW, ...(extra ? [extra] : [])],
+  )
 
 describe('control migration 0003', () => {
   it('is the third control migration and is listed in the manifest', () => {
@@ -44,7 +71,10 @@ describe('control migration 0003', () => {
     expect(await insert(d1, 'revoked@x.test')).toBeNull()
     await apply(d1, (f) => f.startsWith('0003_'))
     const got = await rows(d1, 'select email, delivery from invitations order by email')
-    expect(got).toEqual([{ email: 'pending@x.test', delivery: 'link' }, { email: 'revoked@x.test', delivery: 'link' }])
+    expect(got).toEqual([
+      { email: 'pending@x.test', delivery: 'link' },
+      { email: 'revoked@x.test', delivery: 'link' },
+    ])
   })
 
   it('migrates a database with no invitations cleanly, and the check refuses another value', async () => {
@@ -60,8 +90,20 @@ describe('control migration 0003', () => {
 })
 
 describe('the control store and delivery', () => {
-  const inv = (over: Partial<NewInvitation> = {}): NewInvitation => ({ id: nextId(), auditId: nextId(), organizationId: ORG, email: `s${n}@x.test`, role: 'member', tokenHash: hash(), expiresAt: plus(NOW, 7 * DAY), createdBy: ACTOR, now: NOW, ...over })
-  const audit = (id: string) => rows(local.bindings.NEW!, 'select * from control_audit where target_id = ? order by id', id)
+  const inv = (over: Partial<NewInvitation> = {}): NewInvitation => ({
+    id: nextId(),
+    auditId: nextId(),
+    organizationId: ORG,
+    email: `s${n}@x.test`,
+    role: 'member',
+    tokenHash: hash(),
+    expiresAt: plus(NOW, 7 * DAY),
+    createdBy: ACTOR,
+    now: NOW,
+    ...over,
+  })
+  const audit = (id: string) =>
+    rows(local.bindings.NEW!, 'select * from control_audit where target_id = ? order by id', id)
   beforeAll(async () => {
     await apply(local.bindings.NEW!, () => true)
   })
@@ -85,7 +127,13 @@ describe('the control store and delivery', () => {
     const b = inv()
     await createInvitation(c, a)
     await createInvitation(c, b)
-    await revokeInvitation(c, { id: a.id, auditId: nextId(), actorId: ACTOR, now: plus(NOW, 1000), reason: 'email_failed' })
+    await revokeInvitation(c, {
+      id: a.id,
+      auditId: nextId(),
+      actorId: ACTOR,
+      now: plus(NOW, 1000),
+      reason: 'email_failed',
+    })
     await revokeInvitation(c, { id: b.id, auditId: nextId(), actorId: ACTOR, now: plus(NOW, 1000) })
     expect(JSON.parse((await audit(a.id))[1]!.detail)).toMatchObject({ reason: 'email_failed' })
     expect(JSON.parse((await audit(b.id))[1]!.detail)).not.toHaveProperty('reason')

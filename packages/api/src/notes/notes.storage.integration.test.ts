@@ -59,7 +59,15 @@ describe('notes events and attribution (D8, D17)', () => {
   it('create, update and delete each emit exactly one note.* event with the editor as actor', async () => {
     const n = await create({ title: 't', content: 'c' })
     expect(n).toMatchObject({ organization_id: e.organizationId, created_by: e.userId, title: 't', content: 'c' })
-    expect(Object.keys(n).sort()).toEqual(['content', 'created_at', 'created_by', 'id', 'organization_id', 'title', 'updated_at'])
+    expect(Object.keys(n).sort()).toEqual([
+      'content',
+      'created_at',
+      'created_by',
+      'id',
+      'organization_id',
+      'title',
+      'updated_at',
+    ])
     const upd = await a.call('notes.update', { params: { id: n.id }, body: { content: 'edited' } }, { as: 'agent' })
     expect(upd).toMatchObject({ content: 'edited', created_by: e.userId })
     await a.call('notes.delete', { params: { id: n.id } })
@@ -92,20 +100,31 @@ describe('notes events and attribution (D8, D17)', () => {
 })
 
 describe('notes are associable (D9)', () => {
-  it.each(['contact', 'company', 'task', 'thread', 'interaction'] as const)('a note links to a %s and each lists the other', async (kind) => {
-    const note = await a.ent.note()
-    const other = await a.ent[kind]()
-    const edge = await a.link(note, other)
-    expect(edge).toMatchObject({ created_by: e.userId })
-    expect((await a.list('notes', note[1])).data).toEqual([expect.objectContaining({ id: edge.id, neighbour_type: other[0], neighbour_id: other[1] })])
-    expect((await a.list(other[0], other[1])).data).toEqual([expect.objectContaining({ id: edge.id, neighbour_type: 'notes', neighbour_id: note[1] })])
-  })
+  it.each(['contact', 'company', 'task', 'thread', 'interaction'] as const)(
+    'a note links to a %s and each lists the other',
+    async (kind) => {
+      const note = await a.ent.note()
+      const other = await a.ent[kind]()
+      const edge = await a.link(note, other)
+      expect(edge).toMatchObject({ created_by: e.userId })
+      expect((await a.list('notes', note[1])).data).toEqual([
+        expect.objectContaining({ id: edge.id, neighbour_type: other[0], neighbour_id: other[1] }),
+      ])
+      expect((await a.list(other[0], other[1])).data).toEqual([
+        expect.objectContaining({ id: edge.id, neighbour_type: 'notes', neighbour_id: note[1] }),
+      ])
+    },
+  )
 
   it('a caller without notes:read cannot link a note (403) and does not see note edges in a list', async () => {
     const note = await a.ent.note()
     const c = await a.ent.contact()
     const noRead = ALL_READ.filter((s) => s !== 'notes:read')
-    const err = await a.fail('associations.create', { body: { a_type: 'contacts', a_id: c[1], b_type: 'notes', b_id: note[1] } }, { as: 'agent', scopes: noRead })
+    const err = await a.fail(
+      'associations.create',
+      { body: { a_type: 'contacts', a_id: c[1], b_type: 'notes', b_id: note[1] } },
+      { as: 'agent', scopes: noRead },
+    )
     expect([err.status, err.code]).toEqual([403, 'insufficient_scope'])
     expect(err.message).toContain('notes:read')
     await a.link(c, note)
@@ -163,7 +182,12 @@ describe('notes.delete cascades the edges (D15)', () => {
 })
 
 describe('get with include=associations (D6)', () => {
-  const get = (name: string, id: string, query: Rec = { include: 'associations' }, opts?: Parameters<AssocKit['call']>[2]) => a.call(name, { params: { id }, query }, opts)
+  const get = (
+    name: string,
+    id: string,
+    query: Rec = { include: 'associations' },
+    opts?: Parameters<AssocKit['call']>[2],
+  ) => a.call(name, { params: { id }, query }, opts)
   const KINDS = [
     ['contacts', 'contact'],
     ['companies', 'company'],
@@ -198,7 +222,14 @@ describe('get with include=associations (D6)', () => {
     await a.unlink(gone.id)
     const r = await get('contacts.get', c[1])
     expect(r.associations.map((x: Rec) => x.id)).toEqual([e2.id, e1.id])
-    expect(r.associations[0]).toEqual({ id: e2.id, relation: 'related_to', neighbour_type: 'notes', neighbour_id: n[1], created_by: e.userId, created_at: e2.created_at })
+    expect(r.associations[0]).toEqual({
+      id: e2.id,
+      relation: 'related_to',
+      neighbour_type: 'notes',
+      neighbour_id: n[1],
+      created_by: e.userId,
+      created_at: e2.created_at,
+    })
     expect(r.associations[1]).toMatchObject({ neighbour_type: 'tasks', neighbour_id: t[1] })
     expect(r.associations_truncated).toBe(false)
   })
@@ -236,10 +267,22 @@ describe('get with include=associations (D6)', () => {
 
   it('without associations:read it is 403 insufficient_scope naming associations:read', async () => {
     const c = await a.ent.contact()
-    const err = await a.fail('contacts.get', { params: { id: c[1] }, query: { include: 'associations' } }, { as: 'agent', scopes: ALL_READ.filter((s) => s !== 'associations:read') })
+    const err = await a.fail(
+      'contacts.get',
+      { params: { id: c[1] }, query: { include: 'associations' } },
+      { as: 'agent', scopes: ALL_READ.filter((s) => s !== 'associations:read') },
+    )
     expect([err.status, err.code]).toEqual([403, 'insufficient_scope'])
     expect(err.message).toContain('associations:read')
     // without the parameter the same caller is fine
-    expect((await a.call('contacts.get', { params: { id: c[1] } }, { as: 'agent', scopes: ALL_READ.filter((s) => s !== 'associations:read') })).id).toBe(c[1])
+    expect(
+      (
+        await a.call(
+          'contacts.get',
+          { params: { id: c[1] } },
+          { as: 'agent', scopes: ALL_READ.filter((s) => s !== 'associations:read') },
+        )
+      ).id,
+    ).toBe(c[1])
   })
 })

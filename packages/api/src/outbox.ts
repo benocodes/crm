@@ -1,10 +1,23 @@
 import { sql, type Expression, type Kysely, type RawBuilder, type SqlBool } from 'kysely'
-import { appliedPrev, bind, jsonRows, recordJson, type EmbedSpec, type PhysicalTable, type QueryContext, type QueryLike } from '@vibase/storage'
+import {
+  appliedPrev,
+  bind,
+  jsonRows,
+  recordJson,
+  type EmbedSpec,
+  type PhysicalTable,
+  type QueryContext,
+  type QueryLike,
+} from '@vibase/storage'
 
 // ---- prepared units ([[CORE35]]) ----------------------------------------------------------------------
 
 /** What an event's `after` is rendered from: the table, its public columns and (CORE25 D50) the embedded child sets. */
-export type EventAfter = { table: PhysicalTable; columns: readonly string[]; embeds?: Readonly<Record<string, EmbedSpec>> }
+export type EventAfter = {
+  table: PhysicalTable
+  columns: readonly string[]
+  embeds?: Readonly<Record<string, EmbedSpec>>
+}
 
 /**
  * The typed event statement a prepared unit composes (AGENTS.md invariant 5: the only other code that
@@ -47,7 +60,17 @@ export function eventStatement(
         .where(appliedPrev(qc))
     : L.selectNoFrom(values(bind(qc, 'json', null))).where(appliedPrev(qc))
   return L.insertInto('events')
-    .columns(['id', 'created_at', 'organization_id', 'type', 'resource_type', 'resource_id', 'actor_id', 'before', 'after'])
+    .columns([
+      'id',
+      'created_at',
+      'organization_id',
+      'type',
+      'resource_type',
+      'resource_id',
+      'actor_id',
+      'before',
+      'after',
+    ])
     .expression(select)
 }
 
@@ -83,7 +106,9 @@ export function eventSetStatement(
     e.rows.map((r) => ({ event_id: r.eventId, resource_id: r.resourceId, before: r.before })),
   )
   const after = e.after ? recordJson(qc, e.after.table, e.after.columns, e.after.embeds) : bind(qc, 'json', null)
-  const join = e.after ? sql`join ${sql.table(e.after.table)} on ${sql.ref(`${e.after.table}.id`)} = ${sql.ref('r.resource_id')}` : sql``
+  const join = e.after
+    ? sql`join ${sql.table(e.after.table)} on ${sql.ref(`${e.after.table}.id`)} = ${sql.ref('r.resource_id')}`
+    : sql``
   return sql`
     insert into "events" ("id", "created_at", "organization_id", "type", "resource_type", "resource_id", "actor_id", "before", "after")
     select ${sql.ref('r.event_id')}, ${bind(qc, 'timestamp', e.at)}, ${bind(qc, 'uuid', e.organizationId)}, ${bind(qc, 'text', e.type)},

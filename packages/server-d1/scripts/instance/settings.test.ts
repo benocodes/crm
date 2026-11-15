@@ -16,11 +16,15 @@ const refuses = (o: Record<string, unknown> | string, re: RegExp, env = 'demo') 
 
 describe('D9 default path', () => {
   it('is $XDG_CONFIG_HOME/vibase/instances/<env>.json', () => {
-    expect(defaultSettingsPath({ XDG_CONFIG_HOME: '/x/cfg' }, '/home/u', 'demo')).toBe('/x/cfg/vibase/instances/demo.json')
+    expect(defaultSettingsPath({ XDG_CONFIG_HOME: '/x/cfg' }, '/home/u', 'demo')).toBe(
+      '/x/cfg/vibase/instances/demo.json',
+    )
   })
   it('falls back to ~/.config when XDG_CONFIG_HOME is unset or empty', () => {
     expect(defaultSettingsPath({}, '/home/u', 'demo')).toBe('/home/u/.config/vibase/instances/demo.json')
-    expect(defaultSettingsPath({ XDG_CONFIG_HOME: '' }, '/home/u', 'demo')).toBe('/home/u/.config/vibase/instances/demo.json')
+    expect(defaultSettingsPath({ XDG_CONFIG_HOME: '' }, '/home/u', 'demo')).toBe(
+      '/home/u/.config/vibase/instances/demo.json',
+    )
   })
 })
 
@@ -43,22 +47,31 @@ describe('D9 settings validation', () => {
   })
   it('refuses text that is not JSON, naming the path', () => refuses('{nope', /\/s\/demo\.json.*JSON/))
   it('refuses an unknown top-level key by name', () => refuses(validSettings({ extra: 1 }), /unknown key "extra"/))
-  it('refuses an unknown key inside d1 by name', () => refuses(validSettings({ d1: { name: 'a', id: UUID, extra: 1 } }), /d1\.extra/))
+  it('refuses an unknown key inside d1 by name', () =>
+    refuses(validSettings({ d1: { name: 'a', id: UUID, extra: 1 } }), /d1\.extra/))
   it('refuses a version that is not 1', () => {
     refuses(validSettings({ version: 2 }), /version must be 1/)
     refuses({ ...validSettings(), version: undefined }, /version must be 1/)
   })
-  it('refuses an env that differs from --env', () => refuses(validSettings({ env: 'other' }), /env "other" does not match --env demo/))
-  it.each(['https://api.demo.invalid', 'api.demo.invalid/path', 'api.demo.invalid:8787', '', 'api demo'])('refuses api_host %j (a bare host only)', (h) => refuses(validSettings({ api_host: h }), /api_host/))
+  it('refuses an env that differs from --env', () =>
+    refuses(validSettings({ env: 'other' }), /env "other" does not match --env demo/))
+  it.each(['https://api.demo.invalid', 'api.demo.invalid/path', 'api.demo.invalid:8787', '', 'api demo'])(
+    'refuses api_host %j (a bare host only)',
+    (h) => refuses(validSettings({ api_host: h }), /api_host/),
+  )
   it('refuses a d1.id that is not a UUID', () => refuses(validSettings({ d1: { name: 'a', id: 'nope' } }), /d1\.id/))
-  it('refuses the local placeholder d1.id', () => refuses(validSettings({ d1: { name: 'a', id: '00000000-0000-0000-0000-000000000000' } }), /d1\.id.*placeholder/))
-  it.each(['worker', 'r2_bucket'])('refuses a missing %s', (k) => refuses({ ...validSettings(), [k]: undefined }, new RegExp(k)))
+  it('refuses the local placeholder d1.id', () =>
+    refuses(validSettings({ d1: { name: 'a', id: '00000000-0000-0000-0000-000000000000' } }), /d1\.id.*placeholder/))
+  it.each(['worker', 'r2_bucket'])('refuses a missing %s', (k) =>
+    refuses({ ...validSettings(), [k]: undefined }, new RegExp(k)),
+  )
   it('refuses workflow without a name and vars that are not strings', () => {
     refuses(validSettings({ workflow: {} }), /workflow\.name/)
     refuses(validSettings({ vars: { A: 1 } }), /vars\.A/)
   })
   it('refuses crons that are not a list of strings', () => refuses(validSettings({ crons: 'x' }), /crons/))
-  it('holds no version of the deployed release: a "release" or "deployed_version" key is an unknown key', () => refuses(validSettings({ deployed_version: '0.1.0' }), /deployed_version/))
+  it('holds no version of the deployed release: a "release" or "deployed_version" key is an unknown key', () =>
+    refuses(validSettings({ deployed_version: '0.1.0' }), /deployed_version/))
 })
 
 describe('OPS275 control_d1 (P1, P2, D16)', () => {
@@ -67,7 +80,7 @@ describe('OPS275 control_d1 (P1, P2, D16)', () => {
     expect(parse(validSettings({ vars: { AUTH_PROVIDER: 'clerk' } })).control_d1).toBeUndefined()
     expect(parse(validSettings({ vars: {} })).control_d1).toBeUndefined()
   })
-  it('present loads and round-trips through the settings writer\'s JSON text', () => {
+  it("present loads and round-trips through the settings writer's JSON text", () => {
     const s = parse(controlSettings())
     expect(s.control_d1).toEqual(CONTROL_D1)
     expect(parse(JSON.parse(JSON.stringify(s, null, 2)))).toEqual(s)
@@ -78,8 +91,14 @@ describe('OPS275 control_d1 (P1, P2, D16)', () => {
   it('refuses, naming the key: an unknown nested key, a non-UUID id, either placeholder, the CRM id, the CRM name, a non-object', () => {
     refuses(controlSettings({ control_d1: { ...CONTROL_D1, extra: 1 } }), /control_d1\.extra/)
     refuses(controlSettings({ control_d1: { ...CONTROL_D1, id: 'nope' } }), /control_d1\.id.*UUID/)
-    refuses(controlSettings({ control_d1: { ...CONTROL_D1, id: PLACEHOLDER_DATABASE_ID } }), /control_d1\.id.*placeholder/)
-    refuses(controlSettings({ control_d1: { ...CONTROL_D1, id: CONTROL_PLACEHOLDER_DATABASE_ID } }), /control_d1\.id.*placeholder/)
+    refuses(
+      controlSettings({ control_d1: { ...CONTROL_D1, id: PLACEHOLDER_DATABASE_ID } }),
+      /control_d1\.id.*placeholder/,
+    )
+    refuses(
+      controlSettings({ control_d1: { ...CONTROL_D1, id: CONTROL_PLACEHOLDER_DATABASE_ID } }),
+      /control_d1\.id.*placeholder/,
+    )
     refuses(controlSettings({ control_d1: { ...CONTROL_D1, id: UUID } }), /control_d1\.id.*d1\.id/)
     refuses(controlSettings({ control_d1: { ...CONTROL_D1, name: 'vault-demo' } }), /control_d1\.name.*d1\.name/)
     refuses(controlSettings({ control_d1: { id: CONTROL_D1.id } }), /control_d1\.name/)

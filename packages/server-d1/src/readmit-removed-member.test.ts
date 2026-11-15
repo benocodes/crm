@@ -2,7 +2,14 @@ import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { MIGRATIONS, createInvitation, openControlDb, revokeInvitation, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
+import {
+  MIGRATIONS,
+  createInvitation,
+  openControlDb,
+  revokeInvitation,
+  type D1Like,
+  type D1PreparedLike,
+} from '@vibase/storage-d1'
 import { createVibaseRegistry, scopesForRole } from '@vibase/api'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker } from './compose.js'
@@ -29,12 +36,25 @@ afterAll(() => w.dispose())
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 const tokenOf = (url: string) => new URL(url).hash.replace(/^#token=/, '')
 const iso = (ms: number) => new Date(ms).toISOString()
-const rows = async (d1: D1Like, text: string, ...binds: unknown[]) => ((await d1.prepare(text).bind(...binds).all()).results ?? []) as Array<Record<string, any>>
+const rows = async (d1: D1Like, text: string, ...binds: unknown[]) =>
+  ((
+    await d1
+      .prepare(text)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as Array<Record<string, any>>
 const crm = (text: string, ...binds: unknown[]) => rows(w.d1, text, ...binds)
 const ctl = (text: string, ...binds: unknown[]) => rows(w.control, text, ...binds)
 const count = async (d1: D1Like, t: string) => Number((await rows(d1, `select count(*) n from "${t}"`))[0]!.n)
 const dump = async (d1: D1Like, only?: (t: string) => boolean) => {
-  const tables = (await rows(d1, "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like '_cf_%'")).map((r) => r.name as string).filter((t) => (only ? only(t) : true))
+  const tables = (
+    await rows(
+      d1,
+      "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like '_cf_%'",
+    )
+  )
+    .map((r) => r.name as string)
+    .filter((t) => (only ? only(t) : true))
   const all: Record<string, unknown[]> = {}
   for (const t of tables) all[t] = await rows(d1, `select * from "${t}" order by 1`)
   return all
@@ -46,7 +66,16 @@ function flaky(real: D1Like, match: (sql: string) => boolean, fail: { on: boolea
   return {
     prepare(query: string) {
       const p = real.prepare(query)
-      return { bind: (...v: unknown[]) => { const b = p.bind(...v); sqlOf.set(b, query); return b }, run: () => p.run(), all: () => p.all(), first: () => p.first() } as D1PreparedLike
+      return {
+        bind: (...v: unknown[]) => {
+          const b = p.bind(...v)
+          sqlOf.set(b, query)
+          return b
+        },
+        run: () => p.run(),
+        all: () => p.all(),
+        first: () => p.first(),
+      } as D1PreparedLike
     },
     async batch(batch: D1PreparedLike[]) {
       if (fail.on && batch.some((s) => match(sqlOf.get(s) ?? ''))) throw new Error('injected failure')
@@ -69,30 +98,65 @@ const worker = () =>
     { clock: () => clock() },
   )
 let wk: ReturnType<typeof worker>
-const send = (path: string, init: { method?: string; body?: unknown; cookie?: string; bearer?: string; headers?: Record<string, string> } = {}) =>
+const send = (
+  path: string,
+  init: { method?: string; body?: unknown; cookie?: string; bearer?: string; headers?: Record<string, string> } = {},
+) =>
   wk.fetch(
     new Request(AUTH_BASE + path, {
       method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
-      headers: { origin: AUTH_BASE, 'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}`, ...(init.body === undefined ? {} : { 'content-type': 'application/json' }), ...(init.cookie ? { cookie: init.cookie } : {}), ...(init.bearer ? { authorization: `Bearer ${init.bearer}` } : {}), ...init.headers },
+      headers: {
+        origin: AUTH_BASE,
+        'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}`,
+        ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(init.cookie ? { cookie: init.cookie } : {}),
+        ...(init.bearer ? { authorization: `Bearer ${init.bearer}` } : {}),
+        ...init.headers,
+      },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     }),
   )
-const signUp = (email: string, token: string) => send('/auth/sign-up/email', { body: { name: 'Ann Tester', email, password: PASSWORD, invitation_token: token } })
-const signIn = (email: string, token?: string) => send('/auth/sign-in/email', { body: { email, password: PASSWORD }, headers: token === undefined ? {} : { [CARRIER]: token } })
+const signUp = (email: string, token: string) =>
+  send('/auth/sign-up/email', { body: { name: 'Ann Tester', email, password: PASSWORD, invitation_token: token } })
+const signIn = (email: string, token?: string) =>
+  send('/auth/sign-in/email', {
+    body: { email, password: PASSWORD },
+    headers: token === undefined ? {} : { [CARRIER]: token },
+  })
 const cookieOf = (res: Response) => res.headers.get('set-cookie')!.split(';')[0]!
-const jwtOf = async (cookie: string) => ((await (await send('/auth/token', { cookie })).json()) as { token: string }).token
+const jwtOf = async (cookie: string) =>
+  ((await (await send('/auth/token', { cookie })).json()) as { token: string }).token
 const me = async (cookie: string) => {
   const res = await send('/meta/v1/me', { bearer: await jwtOf(cookie) })
   return { status: res.status, json: (await res.json()) as any }
 }
 
-async function invite(email: string, role: 'owner' | 'member' | 'agent', o: { createdAt?: number; expiresAt?: number; state?: 'revoked' | 'accepted'; delivery?: 'link' | 'email' } = {}) {
+async function invite(
+  email: string,
+  role: 'owner' | 'member' | 'agent',
+  o: { createdAt?: number; expiresAt?: number; state?: 'revoked' | 'accepted'; delivery?: 'link' | 'email' } = {},
+) {
   const t = o.createdAt ?? Date.now()
   const id = uuidv7()
   const token = `token-${id}`
-  expect(await createInvitation(openControlDb(w.control), { id, auditId: uuidv7(), organizationId: orgId, email, role, tokenHash: sha256(token), expiresAt: iso(o.expiresAt ?? t + 7 * DAY), createdBy: systemId, now: iso(t), delivery: o.delivery })).toBe('created')
-  if (o.state === 'revoked') await revokeInvitation(openControlDb(w.control), { id, auditId: uuidv7(), actorId: systemId, now: iso(Date.now()) })
-  if (o.state === 'accepted') await w.control.prepare('update invitations set accepted_at = ? where id = ?').bind(iso(Date.now()), id).run()
+  expect(
+    await createInvitation(openControlDb(w.control), {
+      id,
+      auditId: uuidv7(),
+      organizationId: orgId,
+      email,
+      role,
+      tokenHash: sha256(token),
+      expiresAt: iso(o.expiresAt ?? t + 7 * DAY),
+      createdBy: systemId,
+      now: iso(t),
+      delivery: o.delivery,
+    }),
+  ).toBe('created')
+  if (o.state === 'revoked')
+    await revokeInvitation(openControlDb(w.control), { id, auditId: uuidv7(), actorId: systemId, now: iso(Date.now()) })
+  if (o.state === 'accepted')
+    await w.control.prepare('update invitations set accepted_at = ? where id = ?').bind(iso(Date.now()), id).run()
   return { id, token }
 }
 
@@ -112,11 +176,24 @@ beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
   failCrm.on = false
   failControl.on = false
   clock = () => new Date()
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'better-auth', authOrgId: 'better-auth', publicBaseUrl: AUTH_BASE, ownerEmail: 'owner@x.test' }, { control: openControlDb(w.control) })
+  const r = await bootstrapD1(
+    w.d1,
+    {
+      organizationName: 'Acme',
+      authProvider: 'better-auth',
+      authOrgId: 'better-auth',
+      publicBaseUrl: AUTH_BASE,
+      ownerEmail: 'owner@x.test',
+    },
+    { control: openControlDb(w.control) },
+  )
   orgId = r.organizationId
   ownerToken = tokenOf(r.ownerInvitation!.url)
   systemId = (await crm("select id from principals where kind = 'system'"))[0]!.id
@@ -130,7 +207,9 @@ describe('the token carrier (P1)', () => {
   it("Better Auth's sign-in body schema strips an `invitation_token` field, so the token cannot ride the body: only the header re-admits", async () => {
     const p = await admitAndRemove('p@x.test', 'member')
     const { token } = await invite('p@x.test', 'member')
-    const inBody = await send('/auth/sign-in/email', { body: { email: 'p@x.test', password: PASSWORD, invitation_token: token } })
+    const inBody = await send('/auth/sign-in/email', {
+      body: { email: 'p@x.test', password: PASSWORD, invitation_token: token },
+    })
     expect(inBody.status).toBe(200)
     expect(await crm('select * from memberships where user_id = ? and deleted_at is null', p.userId)).toEqual([])
     const inHeader = await signIn('p@x.test', token)
@@ -144,58 +223,84 @@ describe('re-admission by password (P1, P2)', () => {
     ['member', 'member'],
     ['member', 'owner'],
     ['owner', 'member'],
-  ] as const)('removed as %s, re-invited as %s: a new membership with the invitation role, the removed row kept, one event, one audit row', async (removedAs, invitedAs) => {
-    const p = await admitAndRemove('p@x.test', removedAs)
-    const removedRow = (await crm('select * from memberships where id = ?', p.oldMembershipId))[0]!
-    expect(removedRow.deleted_at).not.toBeNull()
-    const userBefore = (await crm('select * from users where id = ?', p.userId))[0]!
-    const principalsBefore = await count(w.d1, 'principals')
-    const usersBefore = await count(w.d1, 'users')
-    const createdBefore = (await crm("select id from events where type = 'membership.created'")).map((e) => e.id)
-    const { id: invId, token } = await invite('p@x.test', invitedAs)
+  ] as const)(
+    'removed as %s, re-invited as %s: a new membership with the invitation role, the removed row kept, one event, one audit row',
+    async (removedAs, invitedAs) => {
+      const p = await admitAndRemove('p@x.test', removedAs)
+      const removedRow = (await crm('select * from memberships where id = ?', p.oldMembershipId))[0]!
+      expect(removedRow.deleted_at).not.toBeNull()
+      const userBefore = (await crm('select * from users where id = ?', p.userId))[0]!
+      const principalsBefore = await count(w.d1, 'principals')
+      const usersBefore = await count(w.d1, 'users')
+      const createdBefore = (await crm("select id from events where type = 'membership.created'")).map((e) => e.id)
+      const { id: invId, token } = await invite('p@x.test', invitedAs)
 
-    const res = await signIn('p@x.test', token)
-    expect(res.status, await res.clone().text()).toBe(200)
-    expect(res.headers.get('set-cookie')).toContain('session')
+      const res = await signIn('p@x.test', token)
+      expect(res.status, await res.clone().text()).toBe(200)
+      expect(res.headers.get('set-cookie')).toContain('session')
 
-    const all = await crm('select * from memberships where user_id = ? order by created_at, id', p.userId)
-    expect(all).toHaveLength(2)
-    expect(all.find((m) => m.id === p.oldMembershipId)).toEqual(removedRow)
-    const fresh = all.find((m) => m.id !== p.oldMembershipId)!
-    expect(fresh).toEqual({ id: fresh.id, created_at: expect.any(String), updated_at: fresh.created_at, organization_id: orgId, user_id: p.userId, role: invitedAs, created_by: systemId, deleted_at: null })
-    const created = (await crm("select * from events where type = 'membership.created'")).filter((e) => !createdBefore.includes(e.id))
-    expect(created).toHaveLength(1)
-    expect(created[0]!.resource_id).toBe(fresh.id)
-    expect(await count(w.d1, 'principals')).toBe(principalsBefore)
-    expect(await count(w.d1, 'users')).toBe(usersBefore)
-    expect((await crm('select * from users where id = ?', p.userId))[0]).toEqual(userBefore)
+      const all = await crm('select * from memberships where user_id = ? order by created_at, id', p.userId)
+      expect(all).toHaveLength(2)
+      expect(all.find((m) => m.id === p.oldMembershipId)).toEqual(removedRow)
+      const fresh = all.find((m) => m.id !== p.oldMembershipId)!
+      expect(fresh).toEqual({
+        id: fresh.id,
+        created_at: expect.any(String),
+        updated_at: fresh.created_at,
+        organization_id: orgId,
+        user_id: p.userId,
+        role: invitedAs,
+        created_by: systemId,
+        deleted_at: null,
+      })
+      const created = (await crm("select * from events where type = 'membership.created'")).filter(
+        (e) => !createdBefore.includes(e.id),
+      )
+      expect(created).toHaveLength(1)
+      expect(created[0]!.resource_id).toBe(fresh.id)
+      expect(await count(w.d1, 'principals')).toBe(principalsBefore)
+      expect(await count(w.d1, 'users')).toBe(usersBefore)
+      expect((await crm('select * from users where id = ?', p.userId))[0]).toEqual(userBefore)
 
-    expect((await ctl('select accepted_at from invitations where id = ?', invId))[0]!.accepted_at).not.toBeNull()
-    const audit = await ctl("select * from control_audit where action = 'invitation.accepted' and target_id = ?", invId)
-    expect(audit).toHaveLength(1)
-    expect(audit[0]!.actor_id).toBe(p.userId)
-    const inv = (await ctl('select token_hash from invitations where id = ?', invId))[0]!
-    expect(audit[0]!.detail).not.toContain(token)
-    expect(audit[0]!.detail).not.toContain(inv.token_hash)
-    expect(JSON.stringify(created)).not.toContain(token)
+      expect((await ctl('select accepted_at from invitations where id = ?', invId))[0]!.accepted_at).not.toBeNull()
+      const audit = await ctl(
+        "select * from control_audit where action = 'invitation.accepted' and target_id = ?",
+        invId,
+      )
+      expect(audit).toHaveLength(1)
+      expect(audit[0]!.actor_id).toBe(p.userId)
+      const inv = (await ctl('select token_hash from invitations where id = ?', invId))[0]!
+      expect(audit[0]!.detail).not.toContain(token)
+      expect(audit[0]!.detail).not.toContain(inv.token_hash)
+      expect(JSON.stringify(created)).not.toContain(token)
 
-    const got = await me(cookieOf(await signIn('p@x.test')))
-    expect(got.status, JSON.stringify(got.json)).toBe(200)
-    expect(got.json.active_organization.role).toBe(invitedAs)
-    expect(got.json.active_organization.scopes).toEqual(scopesForRole(invitedAs, createVibaseRegistry().declaredScopes()).toStrings())
-  })
+      const got = await me(cookieOf(await signIn('p@x.test')))
+      expect(got.status, JSON.stringify(got.json)).toBe(200)
+      expect(got.json.active_organization.role).toBe(invitedAs)
+      expect(got.json.active_organization.scopes).toEqual(
+        scopesForRole(invitedAs, createVibaseRegistry().declaredScopes()).toStrings(),
+      )
+    },
+  )
 
   it('an invitation with delivery "email" turns email_verified true; a link one leaves it as it was (false stays false, true stays true)', async () => {
     const a = await admitAndRemove('a@x.test', 'member')
     const b = await admitAndRemove('b@x.test', 'member')
     const c = await admitAndRemove('c@x.test', 'member')
     await w.d1.prepare('update users set email_verified = 1 where id = ?').bind(c.userId).run()
-    expect((await signIn('a@x.test', (await invite('a@x.test', 'member', { delivery: 'email' })).token)).status).toBe(200)
-    expect((await signIn('b@x.test', (await invite('b@x.test', 'member', { delivery: 'link' })).token)).status).toBe(200)
-    expect((await signIn('c@x.test', (await invite('c@x.test', 'member', { delivery: 'link' })).token)).status).toBe(200)
+    expect((await signIn('a@x.test', (await invite('a@x.test', 'member', { delivery: 'email' })).token)).status).toBe(
+      200,
+    )
+    expect((await signIn('b@x.test', (await invite('b@x.test', 'member', { delivery: 'link' })).token)).status).toBe(
+      200,
+    )
+    expect((await signIn('c@x.test', (await invite('c@x.test', 'member', { delivery: 'link' })).token)).status).toBe(
+      200,
+    )
     const verified = async (id: string) => (await crm('select email_verified v from users where id = ?', id))[0]!.v
     expect([await verified(a.userId), await verified(b.userId), await verified(c.userId)]).toEqual([1, 0, 1])
-    for (const id of [a.userId, b.userId, c.userId]) expect(await crm('select id from memberships where user_id = ? and deleted_at is null', id)).toHaveLength(1)
+    for (const id of [a.userId, b.userId, c.userId])
+      expect(await crm('select id from memberships where user_id = ? and deleted_at is null', id)).toHaveLength(1)
   })
 })
 
@@ -211,17 +316,63 @@ describe('tokens that do not re-admit are ignored (P3)', () => {
   type Arranged = { email: string; token?: string; meStatus: number }
   const removed = async () => (await admitAndRemove('p@x.test', 'member'), 'p@x.test')
   const cases: Array<[string, () => Promise<Arranged>]> = [
-    ['no invitations at all (the empty state)', async () => (await removed(), await w.control.prepare('delete from invitations').run(), { email: 'p@x.test', token: 'anything', meStatus: 403 })],
-    ['no token (a live invitation exists)', async () => (await removed(), await invite('p@x.test', 'member'), { email: 'p@x.test', meStatus: 403 })],
-    ['an unknown token', async () => (await removed(), await invite('p@x.test', 'member'), { email: 'p@x.test', token: 'not-a-token', meStatus: 403 })],
-    ['a live token for another email', async () => (await removed(), { email: 'p@x.test', token: (await invite('other@x.test', 'member')).token, meStatus: 403 })],
+    [
+      'no invitations at all (the empty state)',
+      async () => (
+        await removed(),
+        await w.control.prepare('delete from invitations').run(),
+        { email: 'p@x.test', token: 'anything', meStatus: 403 }
+      ),
+    ],
+    [
+      'no token (a live invitation exists)',
+      async () => (await removed(), await invite('p@x.test', 'member'), { email: 'p@x.test', meStatus: 403 }),
+    ],
+    [
+      'an unknown token',
+      async () => (
+        await removed(), await invite('p@x.test', 'member'), { email: 'p@x.test', token: 'not-a-token', meStatus: 403 }
+      ),
+    ],
+    [
+      'a live token for another email',
+      async () => (
+        await removed(), { email: 'p@x.test', token: (await invite('other@x.test', 'member')).token, meStatus: 403 }
+      ),
+    ],
     [
       'an expired token (its expiry passed)',
-      async () => (await removed(), { email: 'p@x.test', token: (await invite('p@x.test', 'member', { createdAt: Date.now() - 9 * DAY, expiresAt: Date.now() - 2 * DAY })).token, meStatus: 403 }),
+      async () => (
+        await removed(),
+        {
+          email: 'p@x.test',
+          token: (
+            await invite('p@x.test', 'member', { createdAt: Date.now() - 9 * DAY, expiresAt: Date.now() - 2 * DAY })
+          ).token,
+          meStatus: 403,
+        }
+      ),
     ],
-    ['a revoked token', async () => (await removed(), { email: 'p@x.test', token: (await invite('p@x.test', 'member', { state: 'revoked' })).token, meStatus: 403 })],
-    ['an already accepted token', async () => (await removed(), { email: 'p@x.test', token: (await invite('p@x.test', 'member', { state: 'accepted' })).token, meStatus: 403 })],
-    ['an agent invitation for the removed human\'s email', async () => (await removed(), { email: 'p@x.test', token: (await invite('p@x.test', 'agent')).token, meStatus: 403 })],
+    [
+      'a revoked token',
+      async () => (
+        await removed(),
+        { email: 'p@x.test', token: (await invite('p@x.test', 'member', { state: 'revoked' })).token, meStatus: 403 }
+      ),
+    ],
+    [
+      'an already accepted token',
+      async () => (
+        await removed(),
+        { email: 'p@x.test', token: (await invite('p@x.test', 'member', { state: 'accepted' })).token, meStatus: 403 }
+      ),
+    ],
+    [
+      "an agent invitation for the removed human's email",
+      async () => (
+        await removed(), { email: 'p@x.test', token: (await invite('p@x.test', 'agent')).token, meStatus: 403 }
+      ),
+    ],
     [
       'a subject with a live membership presenting a live token for its email (role unchanged, invitation stays pending)',
       async () => {
@@ -284,7 +435,9 @@ describe('tokens that do not re-admit are ignored (P3)', () => {
 
   it('the tie: an invitation created in the same millisecond as the removal is ignored, one a millisecond later re-admits (strictly after)', async () => {
     const p = await admitAndRemove('p@x.test', 'member')
-    const removedAt = Date.parse((await crm('select max(deleted_at) d from memberships where user_id = ?', p.userId))[0]!.d)
+    const removedAt = Date.parse(
+      (await crm('select max(deleted_at) d from memberships where user_id = ?', p.userId))[0]!.d,
+    )
     const tie = await invite('p@x.test', 'member', { createdAt: removedAt })
     const crmBefore = await dump(w.d1)
     expect((await signIn('p@x.test', tie.token)).status).toBe(200)
@@ -306,8 +459,10 @@ describe('tokens that do not re-admit are ignored (P3)', () => {
 })
 
 describe('partial states and races (P4)', () => {
-  const liveCount = (userId: string) => crm('select id from memberships where user_id = ? and deleted_at is null', userId)
-  const acceptedAudit = (invId: string) => ctl("select * from control_audit where action = 'invitation.accepted' and target_id = ?", invId)
+  const liveCount = (userId: string) =>
+    crm('select id from memberships where user_id = ? and deleted_at is null', userId)
+  const acceptedAudit = (invId: string) =>
+    ctl("select * from control_audit where action = 'invitation.accepted' and target_id = ?", invId)
 
   it('an injected CRM failure: invitation_acceptance_failed, no session, no membership, invitation pending, no audit row; the next token sign-in re-admits exactly once', async () => {
     const p = await admitAndRemove('p@x.test', 'member')
@@ -355,7 +510,10 @@ describe('partial states and races (P4)', () => {
     const { id, token } = await invite('p@x.test', 'member')
     failCrm.on = true
     await signIn('p@x.test', token)
-    expect((await ctl('select accepted_at, revoked_at from invitations where id = ?', id))[0]).toEqual({ accepted_at: null, revoked_at: null })
+    expect((await ctl('select accepted_at, revoked_at from invitations where id = ?', id))[0]).toEqual({
+      accepted_at: null,
+      revoked_at: null,
+    })
   })
 
   it('two concurrent token sign-ins converge on one live membership, one membership.created and one audit row', async () => {
@@ -365,7 +523,12 @@ describe('partial states and races (P4)', () => {
     const [a, b] = await Promise.all([signIn('p@x.test', token), signIn('p@x.test', token)])
     expect([a.status, b.status]).toEqual([200, 200])
     expect(await liveCount(p.userId)).toHaveLength(1)
-    expect(await crm("select id from events where type = 'membership.created' and resource_id in (select id from memberships where user_id = ?)", p.userId)).toHaveLength(2)
+    expect(
+      await crm(
+        "select id from events where type = 'membership.created' and resource_id in (select id from memberships where user_id = ?)",
+        p.userId,
+      ),
+    ).toHaveLength(2)
     expect(await count(w.d1, 'events')).toBe(createdBefore + 1)
     expect(await acceptedAudit(id)).toHaveLength(1)
   })
@@ -375,13 +538,27 @@ describe('partial states and races (P4)', () => {
     const { id, token } = await invite('p@x.test', 'member')
     // The competing sign-in's membership, committed (without an event, to tell the two apart) just before ours.
     let hook: (() => Promise<void>) | null = async () => {
-      await w.d1.prepare('insert into memberships (id, created_at, updated_at, organization_id, user_id, role, created_by) values (?, ?, ?, ?, ?, ?, ?)').bind(uuidv7(), iso(Date.now()), iso(Date.now()), orgId, p.userId, 'member', systemId).run()
+      await w.d1
+        .prepare(
+          'insert into memberships (id, created_at, updated_at, organization_id, user_id, role, created_by) values (?, ?, ?, ?, ?, ?, ?)',
+        )
+        .bind(uuidv7(), iso(Date.now()), iso(Date.now()), orgId, p.userId, 'member', systemId)
+        .run()
     }
     const sqlOf = new WeakMap<object, string>()
     const racing: D1Like = {
       prepare(query: string) {
         const q = w.d1.prepare(query)
-        return { bind: (...v: unknown[]) => { const b = q.bind(...v); sqlOf.set(b, query); return b }, run: () => q.run(), all: () => q.all(), first: () => q.first() } as D1PreparedLike
+        return {
+          bind: (...v: unknown[]) => {
+            const b = q.bind(...v)
+            sqlOf.set(b, query)
+            return b
+          },
+          run: () => q.run(),
+          all: () => q.all(),
+          first: () => q.first(),
+        } as D1PreparedLike
       },
       async batch(batch: D1PreparedLike[]) {
         if (hook && batch.some((s) => /insert\s+into\s+"?memberships"?/i.test(sqlOf.get(s) ?? ''))) {
@@ -392,19 +569,35 @@ describe('partial states and races (P4)', () => {
         return w.d1.batch(batch)
       },
     }
-    const racer = composeD1Worker({ DB: racing, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE }, { clock: () => clock() })
+    const racer = composeD1Worker(
+      { DB: racing, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE },
+      { clock: () => clock() },
+    )
     const eventsBefore = await count(w.d1, 'events')
-    const res = await racer.fetch(new Request(AUTH_BASE + '/auth/sign-in/email', { method: 'POST', headers: { origin: AUTH_BASE, 'content-type': 'application/json', 'cf-connecting-ip': '198.51.100.9', [CARRIER]: token }, body: JSON.stringify({ email: 'p@x.test', password: PASSWORD }) }))
+    const res = await racer.fetch(
+      new Request(AUTH_BASE + '/auth/sign-in/email', {
+        method: 'POST',
+        headers: {
+          origin: AUTH_BASE,
+          'content-type': 'application/json',
+          'cf-connecting-ip': '198.51.100.9',
+          [CARRIER]: token,
+        },
+        body: JSON.stringify({ email: 'p@x.test', password: PASSWORD }),
+      }),
+    )
     expect(res.status, await res.clone().text()).toBe(200)
     expect(await liveCount(p.userId)).toHaveLength(1)
     expect(await count(w.d1, 'events')).toBe(eventsBefore)
     expect(await acceptedAudit(id)).toHaveLength(1)
   })
 
-  it("the new bound (a live invitation created no later than the live membership), pinned within one second: an invitation made 300 ms before re-admission is completed, one made 300 ms after is not", async () => {
+  it('the new bound (a live invitation created no later than the live membership), pinned within one second: an invitation made 300 ms before re-admission is completed, one made 300 ms after is not', async () => {
     const p = await admitAndRemove('p@x.test', 'member')
     // The first whole second after the removal, plus 100 ms: strictly after the removal (P1), and T, T + 300 (the re-admission) and T + 600 (the late invitation) share one second on every run.
-    const removedAt = Date.parse((await crm('select max(deleted_at) d from memberships where user_id = ?', p.userId))[0]!.d)
+    const removedAt = Date.parse(
+      (await crm('select max(deleted_at) d from memberships where user_id = ?', p.userId))[0]!.d,
+    )
     const T = (Math.floor(removedAt / 1000) + 1) * 1000 + 100
     const before = await invite('p@x.test', 'member', { createdAt: T })
     clock = () => new Date(T + 300)
@@ -417,7 +610,11 @@ describe('partial states and races (P4)', () => {
     // Same second, later: not the admitting invitation. The admitting invitation must predate the real account (Better Auth stamps it with the real clock, not the injected one), so it is made 5 s ago; the membership still lands at T + 300.
     const after = await invite('m2@x.test', 'member', { createdAt: Date.now() - 5000 })
     expect((await signUp('m2@x.test', after.token)).status).toBe(200)
-    const membershipAt = Date.parse((await crm("select created_at from memberships where user_id = (select id from users where email = 'm2@x.test')"))[0]!.created_at)
+    const membershipAt = Date.parse(
+      (
+        await crm("select created_at from memberships where user_id = (select id from users where email = 'm2@x.test')")
+      )[0]!.created_at,
+    )
     const late = await invite('m2@x.test', 'owner', { createdAt: membershipAt + 300 })
     expect((await signIn('m2@x.test')).status).toBe(200)
     expect((await ctl('select accepted_at from invitations where id = ?', late.id))[0]!.accepted_at).toBeNull()
@@ -431,6 +628,10 @@ describe('the original acceptance on the sign-in path (CORE287 P5 under the new 
     expect((await signUp('n@x.test', (await invite('n@x.test', 'member')).token)).status).toBeGreaterThanOrEqual(400)
     failControl.on = false
     expect((await signIn('n@x.test')).status).toBe(200)
-    expect(await ctl("select * from control_audit where action = 'invitation.accepted' and json_extract(detail, '$.email') = 'n@x.test'")).toHaveLength(1)
+    expect(
+      await ctl(
+        "select * from control_audit where action = 'invitation.accepted' and json_extract(detail, '$.email') = 'n@x.test'",
+      ),
+    ).toHaveLength(1)
   })
 })

@@ -17,8 +17,16 @@ beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
 })
-const boot = () => bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW) })
-const schema = (key: string) => composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' }).fetch(new Request('https://w.test/meta/v1/schema', { headers: { authorization: `Bearer ${key}` } }))
+const boot = () =>
+  bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
+const schema = (key: string) =>
+  composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' }).fetch(
+    new Request('https://w.test/meta/v1/schema', { headers: { authorization: `Bearer ${key}` } }),
+  )
 
 describe('GET /meta/v1/schema in the Worker', () => {
   it('current: 200 with the default agent key (schema:read is agent-grantable, so bootstrap grants it)', async () => {
@@ -35,6 +43,8 @@ describe('GET /meta/v1/schema in the Worker', () => {
     await recordMigrations(w.d1, NAMES.slice(0, -1))
     const res = await schema(r.key)
     expect(res.status).toBe(503)
-    expect(await res.json()).toEqual({ error: { code: 'migrations_pending', message: 'apply the database migrations first' } })
+    expect(await res.json()).toEqual({
+      error: { code: 'migrations_pending', message: 'apply the database migrations first' },
+    })
   })
 })

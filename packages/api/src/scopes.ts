@@ -43,7 +43,12 @@ export class ScopeSet {
 
   /** [[AGT8]] D31: parses `strings` closed under `write => request_approval` ([[closeScopes]]). */
   static closed(strings: readonly string[], declared?: ReadonlySet<string> | readonly string[]): ScopeSet {
-    return ScopeSet.parse(closeScopes(strings.map((s) => formatScope(parseScope(s))), declared))
+    return ScopeSet.parse(
+      closeScopes(
+        strings.map((s) => formatScope(parseScope(s))),
+        declared,
+      ),
+    )
   }
 
   has(required: Scope): boolean {

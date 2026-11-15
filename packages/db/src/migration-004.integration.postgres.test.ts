@@ -44,7 +44,12 @@ const org = async (c: pg.PoolClient) =>
   (await c.query(`INSERT INTO organizations (name) VALUES ('o') RETURNING id`)).rows[0].id as string
 const user = async (c: pg.PoolClient, email: string, provider: string | null = null, subject: string | null = null) => {
   const id = await principal(c)
-  await c.query(`INSERT INTO users (id, email, auth_provider, auth_subject) VALUES ($1, $2, $3, $4)`, [id, email, provider, subject])
+  await c.query(`INSERT INTO users (id, email, auth_provider, auth_subject) VALUES ($1, $2, $3, $4)`, [
+    id,
+    email,
+    provider,
+    subject,
+  ])
   return id
 }
 

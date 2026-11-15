@@ -1,14 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql, type Kysely, type Transaction } from 'kysely'
 import { TenancyContextError, withOrganization, withServiceRole } from './tenancy.js'
-import {
-  createOwnerTestDb,
-  createTestDb,
-  seedAgent,
-  seedOrganization,
-  seedUser,
-  truncateAll,
-} from './test/index.js'
+import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from './test/index.js'
 import type { Database } from './types.js'
 
 type Tenant = { orgId: string; userId: string; agentId: string; taskId: string }
@@ -52,7 +45,9 @@ describe('tenancy wrappers', () => {
 
   const settings = (d: Kysely<Database>) =>
     sql<{ o: string | null; p: string | null }>`
-      SELECT current_setting('app.organization_id', true) AS o, current_setting('app.principal_id', true) AS p`.execute(d)
+      SELECT current_setting('app.organization_id', true) AS o, current_setting('app.principal_id', true) AS p`.execute(
+      d,
+    )
 
   it('service role sees all', async () => {
     const rows = await withServiceRole(db, (trx) => trx.selectFrom('tasks').select('id').execute())
@@ -154,7 +149,9 @@ describe('tenancy wrappers', () => {
           .execute()
       }
     })
-    const rows = await withOrganization(db, ctx(A), (trx) => trx.selectFrom('events').select('organization_id').execute())
+    const rows = await withOrganization(db, ctx(A), (trx) =>
+      trx.selectFrom('events').select('organization_id').execute(),
+    )
     expect(rows).toEqual([{ organization_id: A.orgId }])
   })
 
@@ -174,7 +171,9 @@ describe('tenancy wrappers', () => {
   })
 
   it('memberships and agents scoped', async () => {
-    const m = await withOrganization(db, ctx(A), (trx) => trx.selectFrom('memberships').select('organization_id').execute())
+    const m = await withOrganization(db, ctx(A), (trx) =>
+      trx.selectFrom('memberships').select('organization_id').execute(),
+    )
     const a = await withOrganization(db, ctx(A), (trx) => trx.selectFrom('agents').select('id').execute())
     expect(m).toEqual([{ organization_id: A.orgId }])
     expect(a).toEqual([{ id: A.agentId }])
@@ -199,7 +198,9 @@ describe('tenancy wrappers', () => {
 
   it('context functions', async () => {
     const { rows } = await withOrganization(db, ctx(A, A.agentId), (trx) =>
-      sql<{ o: string; p: string }>`SELECT app.current_organization_id() AS o, app.current_principal_id() AS p`.execute(trx),
+      sql<{ o: string; p: string }>`SELECT app.current_organization_id() AS o, app.current_principal_id() AS p`.execute(
+        trx,
+      ),
     )
     expect(rows[0]).toEqual({ o: A.orgId, p: A.agentId })
   })
@@ -207,11 +208,16 @@ describe('tenancy wrappers', () => {
   it('rollback on throw', async () => {
     await expect(
       withOrganization(db, ctx(A), async (trx) => {
-        await trx.insertInto('tasks').values({ organization_id: A.orgId, title: 'ghost', created_by: A.userId }).execute()
+        await trx
+          .insertInto('tasks')
+          .values({ organization_id: A.orgId, title: 'ghost', created_by: A.userId })
+          .execute()
         throw new Error('boom')
       }),
     ).rejects.toThrow('boom')
-    const rows = await withServiceRole(db, (trx) => trx.selectFrom('tasks').select('id').where('title', '=', 'ghost').execute())
+    const rows = await withServiceRole(db, (trx) =>
+      trx.selectFrom('tasks').select('id').where('title', '=', 'ghost').execute(),
+    )
     expect(rows).toEqual([])
   })
 
@@ -265,7 +271,9 @@ describe('tenancy wrappers: connection reuse', () => {
 
   const read = async () => {
     const { rows } = await sql<{ o: string | null; p: string | null }>`
-      SELECT current_setting('app.organization_id', true) AS o, current_setting('app.principal_id', true) AS p`.execute(one)
+      SELECT current_setting('app.organization_id', true) AS o, current_setting('app.principal_id', true) AS p`.execute(
+      one,
+    )
     return rows[0]!
   }
 
@@ -289,7 +297,8 @@ describe('tenancy wrappers: connection reuse', () => {
   })
 
   it("role doesn't leak", async () => {
-    const who = async () => (await sql<{ current_user: string }>`SELECT current_user`.execute(one)).rows[0]!.current_user
+    const who = async () =>
+      (await sql<{ current_user: string }>`SELECT current_user`.execute(one)).rows[0]!.current_user
     await withOrganization(one, { principalId: user, organizationId: org }, async () => 1)
     expect(await who()).toBe('vault_app')
     await withServiceRole(one, async () => 1)

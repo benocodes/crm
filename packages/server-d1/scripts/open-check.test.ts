@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { classifyPackages, openManifest, productionTsconfig, type PackageJson } from './open-check.js'
 
 const REPO = ['api', 'auth', 'db', 'server-d1', 'server-postgres', 'storage', 'storage-d1', 'storage-postgres']
-const apiManifest = (): PackageJson => JSON.parse(readFileSync(new URL('../../api/package.json', import.meta.url), 'utf-8'))
+const apiManifest = (): PackageJson =>
+  JSON.parse(readFileSync(new URL('../../api/package.json', import.meta.url), 'utf-8'))
 
 describe('open-check pure parts', () => {
   it("classifies the repo's packages", () => {
@@ -17,7 +18,14 @@ describe('open-check pure parts', () => {
   it('strips enterprise devDependencies', () => {
     // In the open-check copy the api manifest is already stripped, so the enterprise entries are added explicitly.
     const real = apiManifest()
-    const before: PackageJson = { ...real, devDependencies: { ...real.devDependencies, '@vibase/db': 'workspace:*', '@vibase/storage-postgres': 'workspace:*' } }
+    const before: PackageJson = {
+      ...real,
+      devDependencies: {
+        ...real.devDependencies,
+        '@vibase/db': 'workspace:*',
+        '@vibase/storage-postgres': 'workspace:*',
+      },
+    }
     const after = openManifest(before)
     expect(after.devDependencies).not.toHaveProperty('@vibase/db')
     expect(after.devDependencies).not.toHaveProperty('@vibase/storage-postgres')
@@ -26,7 +34,9 @@ describe('open-check pure parts', () => {
     expect(after.exports).toEqual(before.exports)
   })
   it('refuses an enterprise production dependency', () => {
-    expect(() => openManifest({ name: 'x', dependencies: { pg: '8.23.1' } })).toThrow('x depends on enterprise package pg in dependencies')
+    expect(() => openManifest({ name: 'x', dependencies: { pg: '8.23.1' } })).toThrow(
+      'x depends on enterprise package pg in dependencies',
+    )
   })
   it('the auth package ([[CORE243]] D21) has no enterprise dependency in any production field', () => {
     const auth: PackageJson = JSON.parse(readFileSync(new URL('../../auth/package.json', import.meta.url), 'utf-8'))
@@ -34,9 +44,14 @@ describe('open-check pure parts', () => {
     expect(auth.name).toBe('@vibase/auth')
   })
   it('refuses a workspace enterprise package in dependencies', () => {
-    expect(() => openManifest({ name: 'x', dependencies: { '@vibase/db': 'workspace:*' } })).toThrow('x depends on enterprise package @vibase/db in dependencies')
+    expect(() => openManifest({ name: 'x', dependencies: { '@vibase/db': 'workspace:*' } })).toThrow(
+      'x depends on enterprise package @vibase/db in dependencies',
+    )
   })
   it('production tsconfig', () => {
-    expect(productionTsconfig()).toEqual({ extends: './tsconfig.json', exclude: ['**/*.test.ts', '**/*.typecheck.ts', '**/test/**', 'vitest.config.ts'] })
+    expect(productionTsconfig()).toEqual({
+      extends: './tsconfig.json',
+      exclude: ['**/*.test.ts', '**/*.typecheck.ts', '**/test/**', 'vitest.config.ts'],
+    })
   })
 })

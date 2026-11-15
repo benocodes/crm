@@ -16,7 +16,10 @@ import { parseInstanceSetupArgs } from './setup-args.js'
 const DOCS = fileURLToPath(new URL('../../../docs/src/content/docs/', import.meta.url))
 const page = (p: string) => readFileSync(`${DOCS}${p}.md`, 'utf8')
 
-interface Line { line: string; heading: string }
+interface Line {
+  line: string
+  heading: string
+}
 
 /** The shell lines of a page's ```bash blocks, continuations joined, each with the `##` heading it sits under. */
 export function shellLines(md: string): Line[] {
@@ -48,7 +51,8 @@ export function shellLines(md: string): Line[] {
 }
 
 const stripEnv = (l: string) => l.replace(/^(?:[A-Z_][A-Z0-9_]*=\S+\s+)+/, '')
-const flagsOf = (words: string[]) => words.filter((w) => w.startsWith('--') && w.length > 2).map((w) => w.split('=')[0]!)
+const flagsOf = (words: string[]) =>
+  words.filter((w) => w.startsWith('--') && w.length > 2).map((w) => w.split('=')[0]!)
 
 const SERVER_COMMANDS = ['status', 'upgrade', 'setup', 'owner-reset']
 const probes = new Map<string, Promise<boolean>>()
@@ -56,19 +60,26 @@ const probes = new Map<string, Promise<boolean>>()
 function accepts(command: string, flag: string): Promise<boolean> {
   const key = `${command} ${flag}`
   if (!probes.has(key)) {
-    probes.set(key, (async () => {
-      if (command === 'setup') {
-        try {
-          parseInstanceSetupArgs([flag])
-        } catch (e) {
-          return !/Unknown option/.test(e instanceof Error ? e.message : '')
+    probes.set(
+      key,
+      (async () => {
+        if (command === 'setup') {
+          try {
+            parseInstanceSetupArgs([flag])
+          } catch (e) {
+            return !/Unknown option/.test(e instanceof Error ? e.message : '')
+          }
+          return true
         }
-        return true
-      }
-      const err: string[] = []
-      await runInstance([command, flag], { stdout: () => {}, stderr: (t) => void err.push(t), env: {} }, '/nonexistent-package-dir')
-      return !/Unknown option/.test(err.join(''))
-    })())
+        const err: string[] = []
+        await runInstance(
+          [command, flag],
+          { stdout: () => {}, stderr: (t) => void err.push(t), env: {} },
+          '/nonexistent-package-dir',
+        )
+        return !/Unknown option/.test(err.join(''))
+      })(),
+    )
   }
   return probes.get(key)!
 }
@@ -76,19 +87,37 @@ function accepts(command: string, flag: string): Promise<boolean> {
 async function serverProblems(rest: string[], where: string): Promise<string[]> {
   const [command, ...args] = rest
   if (command === '--version') return args.length ? [`${where}: --version takes no arguments`] : []
-  if (!command || !SERVER_COMMANDS.includes(command)) return [`${where}: "${command ?? ''}" is not a vibase-server command`]
+  if (!command || !SERVER_COMMANDS.includes(command))
+    return [`${where}: "${command ?? ''}" is not a vibase-server command`]
   const out: string[] = []
-  for (const f of flagsOf(args)) if (!(await accepts(command, f))) out.push(`${where}: vibase-server ${command} does not accept ${f}`)
+  for (const f of flagsOf(args))
+    if (!(await accepts(command, f))) out.push(`${where}: vibase-server ${command} does not accept ${f}`)
   return out
 }
 
 let clientCommands: Promise<ReturnType<typeof deriveCommands>> | undefined
-const derived = () => (clientCommands ??= (async () => {
-  const app = createApp({ workspace: {}, storage: () => ({ kind: 'd1', organizationId: '00000000-0000-7000-8000-000000000000', authProvider: '', authOrgId: '', runtime: { dialect: 'd1', maxSetSize: 0, execute: async () => { throw new Error('no storage') } } }) } as never)
-  const docs = []
-  for (const s of SURFACES) docs.push({ source: s, doc: await (await app.request(openApiPath(s))).json() })
-  return deriveCommands(mergeDocuments(docs))
-})())
+const derived = () =>
+  (clientCommands ??= (async () => {
+    const app = createApp({
+      workspace: {},
+      storage: () => ({
+        kind: 'd1',
+        organizationId: '00000000-0000-7000-8000-000000000000',
+        authProvider: '',
+        authOrgId: '',
+        runtime: {
+          dialect: 'd1',
+          maxSetSize: 0,
+          execute: async () => {
+            throw new Error('no storage')
+          },
+        },
+      }),
+    } as never)
+    const docs = []
+    for (const s of SURFACES) docs.push({ source: s, doc: await (await app.request(openApiPath(s))).json() })
+    return deriveCommands(mergeDocuments(docs))
+  })())
 
 const HAND = ['login', 'logout', 'config', 'events']
 const flagNames = (text: string) => [...text.matchAll(/--([a-z][a-z-]*)/g)].map((m) => `--${m[1]}`)
@@ -99,16 +128,29 @@ async function clientProblems(rest: string[], where: string): Promise<string[]> 
   for (let i = 0; i < rest.length; i++) {
     const w = rest[i]!
     if (w.startsWith('--')) {
-      if (valued.has(w) || (!['--api-key', '--version', '--help', '--refresh', '--all', '--follow'].includes(w) && rest[i + 1] && !rest[i + 1]!.startsWith('--') && false)) i++
+      if (
+        valued.has(w) ||
+        (!['--api-key', '--version', '--help', '--refresh', '--all', '--follow'].includes(w) &&
+          rest[i + 1] &&
+          !rest[i + 1]!.startsWith('--') &&
+          false)
+      )
+        i++
       continue
     }
     words.push(w)
   }
-  const global = flagNames(GLOBAL_FLAGS).concat(RESERVED_FLAGS.map((r) => `--${r}`), ['--version'])
-  if (words.length === 0) return flags.every((f) => global.includes(f)) ? [] : [`${where}: unknown global flag in ${flags.join(' ')}`]
+  const global = flagNames(GLOBAL_FLAGS).concat(
+    RESERVED_FLAGS.map((r) => `--${r}`),
+    ['--version'],
+  )
+  if (words.length === 0)
+    return flags.every((f) => global.includes(f)) ? [] : [`${where}: unknown global flag in ${flags.join(' ')}`]
   const [first, second] = words as [string, string | undefined]
   if (HAND.includes(first)) {
-    const row = HAND_COMMANDS.split('\n').filter((l) => l.trim().startsWith(`vibase ${first}`)).join(' ')
+    const row = HAND_COMMANDS.split('\n')
+      .filter((l) => l.trim().startsWith(`vibase ${first}`))
+      .join(' ')
     const allowed = [...flagNames(row), ...global]
     return flags.filter((f) => !allowed.includes(f)).map((f) => `${where}: vibase ${first} does not accept ${f}`)
   }
@@ -116,7 +158,9 @@ async function clientProblems(rest: string[], where: string): Promise<string[]> 
   const cmd = cmds.find((c) => c.resource === first && c.action === second)
   if (!cmd) return [`${where}: "vibase ${first} ${second ?? ''}" is not a client command`]
   const allowed = [...cmd.flags.map((f) => `--${f.name}`), ...global]
-  return flags.filter((f) => !allowed.includes(f)).map((f) => `${where}: vibase ${first} ${second} does not accept ${f}`)
+  return flags
+    .filter((f) => !allowed.includes(f))
+    .map((f) => `${where}: vibase ${first} ${second} does not accept ${f}`)
 }
 
 /** Every problem of a page's shell lines. */
@@ -125,17 +169,23 @@ export async function pageProblems(md: string, name: string): Promise<string[]> 
   for (const { line, heading } of shellLines(md)) {
     const where = `${name} [${heading}] \`${line}\``
     const cmd = stripEnv(line)
-    for (const t of line.match(/\S*\.tgz/g) ?? []) if (!/^\.\/vibase-(cli|server-d1)-<version>\.tgz$/.test(t)) out.push(`${where}: tarball ${t} is not D2's name vibase-cli-<version>.tgz / vibase-server-d1-<version>.tgz`)
-    if (/packages\/server-d1|setup:remote|db:migrate:remote|deploy:remote/.test(line) && heading !== 'From source') out.push(`${where}: the repository-script path belongs under "From source"`)
+    for (const t of line.match(/\S*\.tgz/g) ?? [])
+      if (!/^\.\/vibase-(cli|server-d1)-<version>\.tgz$/.test(t))
+        out.push(`${where}: tarball ${t} is not D2's name vibase-cli-<version>.tgz / vibase-server-d1-<version>.tgz`)
+    if (/packages\/server-d1|setup:remote|db:migrate:remote|deploy:remote/.test(line) && heading !== 'From source')
+      out.push(`${where}: the repository-script path belongs under "From source"`)
     let m: RegExpExecArray | null
     if ((m = /^npx @vibase\/server-d1@(\S+) (.*)$/.exec(cmd))) {
       if (m[1] !== '<version>') out.push(`${where}: the version must be the literal <version>`)
       out.push(...(await serverProblems(m[2]!.split(/\s+/), where)))
-    } else if ((m = /^npx --package \.\/vibase-server-d1-<version>\.tgz vibase-server (.*)$/.exec(cmd))) out.push(...(await serverProblems(m[1]!.split(/\s+/), where)))
+    } else if ((m = /^npx --package \.\/vibase-server-d1-<version>\.tgz vibase-server (.*)$/.exec(cmd)))
+      out.push(...(await serverProblems(m[1]!.split(/\s+/), where)))
     else if ((m = /^vibase-server (.*)$/.exec(cmd))) out.push(...(await serverProblems(m[1]!.split(/\s+/), where)))
-    else if (/vibase-server|@vibase\/server-d1/.test(cmd)) out.push(`${where}: a line that names the server package but is not one of its forms`)
+    else if (/vibase-server|@vibase\/server-d1/.test(cmd))
+      out.push(`${where}: a line that names the server package but is not one of its forms`)
     else if ((m = /^npm i(?:nstall)? -g (\S+)$/.exec(cmd))) {
-      if (!/^(@vibase\/cli@<version>|\.\/vibase-cli-<version>\.tgz)$/.test(m[1]!)) out.push(`${where}: the client installs as @vibase/cli@<version> or ./vibase-cli-<version>.tgz`)
+      if (!/^(@vibase\/cli@<version>|\.\/vibase-cli-<version>\.tgz)$/.test(m[1]!))
+        out.push(`${where}: the client installs as @vibase/cli@<version> or ./vibase-cli-<version>.tgz`)
     } else if ((m = /^vibase (.*)$/.exec(cmd))) out.push(...(await clientProblems(m[1]!.split(/\s+/), where)))
     else if (/^pnpm vibase\b/.test(cmd)) out.push(`${where}: use the installed \`vibase\`, not \`pnpm vibase\``)
   }
@@ -161,8 +211,10 @@ describe('the docs name only what the programs have (D20, P4)', () => {
     expect(s).toMatch(/until the packages are on npm/i)
     expect(s).toMatch(/SHA256SUMS/)
     expect(s).toMatch(/^## From source$/m)
-    for (const sub of ['setup', 'status', 'upgrade']) expect(s).toMatch(new RegExp(`@vibase/server-d1@<version> ${sub} `))
-    for (const w of ['vibase_role', 'device', 'dynamic client registration']) expect(s.toLowerCase()).toContain(w.toLowerCase())
+    for (const sub of ['setup', 'status', 'upgrade'])
+      expect(s).toMatch(new RegExp(`@vibase/server-d1@<version> ${sub} `))
+    for (const w of ['vibase_role', 'device', 'dynamic client registration'])
+      expect(s.toLowerCase()).toContain(w.toLowerCase())
   })
   it('names where versions are listed and has no Deploy to Cloudflare section (P5)', () => {
     for (const p of PAGES) expect(page(p)).not.toMatch(/Deploy to Cloudflare/i)
@@ -177,7 +229,8 @@ describe('the docs name only what the programs have (D20, P4)', () => {
       expect((await pageProblems(bad, 'self-hosting')).join('\n')).toMatch(/does not accept --secret-file/)
     })
     it('an unknown subcommand, a pinned version, a tarball of another name and a repo script outside "From source" are reported', async () => {
-      const lines = '## Elsewhere\n\n```bash\nvibase-server frobnicate --env x\nnpx @vibase/server-d1@0.1.0 status --env x\nnpm i -g ./vibase-0.1.0.tgz\npnpm -C packages/server-d1 setup:remote -- --env x\nvibase contacts nope\n```\n'
+      const lines =
+        '## Elsewhere\n\n```bash\nvibase-server frobnicate --env x\nnpx @vibase/server-d1@0.1.0 status --env x\nnpm i -g ./vibase-0.1.0.tgz\npnpm -C packages/server-d1 setup:remote -- --env x\nvibase contacts nope\n```\n'
       const p = (await pageProblems(lines, 'x')).join('\n')
       expect(p).toMatch(/"frobnicate" is not a vibase-server command/)
       expect(p).toMatch(/literal <version>/)
@@ -192,9 +245,12 @@ describe('the docs name only what the programs have (D20, P4)', () => {
 const read = (url: string) => readFileSync(fileURLToPath(new URL(url, import.meta.url)), 'utf8')
 const README = () => read('../../README.md')
 const AGENTS = () => read('../../../../AGENTS.md')
-const FREE_PLAN = "one password hash may exceed the Workers Free plan's 10 ms CPU limit; Workers Paid is the safe plan for password sign-in until it is measured on Cloudflare"
-const has = (md: string, text: string) => md.replace(/\s+/g, ' ').toLowerCase().includes(text.replace(/\s+/g, ' ').toLowerCase())
-const setupLines = (md: string) => shellLines(md).filter((l) => / setup(:remote)? /.test(l.line) || /setup:remote/.test(l.line))
+const FREE_PLAN =
+  "one password hash may exceed the Workers Free plan's 10 ms CPU limit; Workers Paid is the safe plan for password sign-in until it is measured on Cloudflare"
+const has = (md: string, text: string) =>
+  md.replace(/\s+/g, ' ').toLowerCase().includes(text.replace(/\s+/g, ' ').toLowerCase())
+const setupLines = (md: string) =>
+  shellLines(md).filter((l) => / setup(:remote)? /.test(l.line) || /setup:remote/.test(l.line))
 const CLERK_HEADING = /clerk/i
 
 describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
@@ -203,7 +259,8 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
     const lines = setupLines(s())
     expect(lines.length).toBeGreaterThan(0)
     expect(lines[0]!.line).not.toContain('--auth clerk')
-    for (const l of lines.filter((x) => !CLERK_HEADING.test(x.heading))) expect(l.line, l.heading).not.toContain('--auth clerk')
+    for (const l of lines.filter((x) => !CLERK_HEADING.test(x.heading)))
+      expect(l.line, l.heading).not.toContain('--auth clerk')
   })
   it('self-hosting: every setup command in the Clerk section carries --auth clerk, and there is one', () => {
     const lines = setupLines(s()).filter((x) => CLERK_HEADING.test(x.heading))
@@ -219,11 +276,17 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
     expect(clerk).toBeGreaterThan(betterAuth)
     expect(md.split(/^## Prepare your accounts$/m)[1]!.split(/^## /m)[0]).not.toMatch(/Clerk/)
   })
-  it.each([['self-hosting', () => s()], ['the server-d1 README', () => README()]])('%s: the no-email statement is the program\'s constant, the Google redirect URI form and the Free-plan sentence are there', (_n, md) => {
-    expect(has(md(), NO_EMAIL_STATEMENT)).toBe(true)
-    expect(md()).toContain('/auth/callback/google')
-    expect(has(md(), FREE_PLAN)).toBe(true)
-  })
+  it.each([
+    ['self-hosting', () => s()],
+    ['the server-d1 README', () => README()],
+  ])(
+    "%s: the no-email statement is the program's constant, the Google redirect URI form and the Free-plan sentence are there",
+    (_n, md) => {
+      expect(has(md(), NO_EMAIL_STATEMENT)).toBe(true)
+      expect(md()).toContain('/auth/callback/google')
+      expect(has(md(), FREE_PLAN)).toBe(true)
+    },
+  )
   it('the server-d1 README: the first setup command has no --auth clerk, and a Clerk command carries it', () => {
     const lines = setupLines(README())
     expect(lines[0]!.line).not.toContain('--auth clerk')
@@ -232,36 +295,48 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
   it('self-hosting names the owner invitation link printed once', () => {
     expect(s()).toMatch(/shown once|printed once/i)
   })
-  it.each([['self-hosting', () => s()], ['the server-d1 README', () => README()]])('%s: an owner-reset section gives the command, says what it prints once, and why the secrets file must be kept (OPS307 D13)', (_n, md) => {
-    const text = md()
-    const section = /^#{2,3}\s+.*(owner-reset|recover).*$/im.exec(text)
-    expect(section, 'a heading naming owner-reset or recovery').not.toBeNull()
-    const body = text.slice(section!.index).split(/^## /m)[0]!
-    expect(body).toContain('owner-reset --env <name>')
-    expect(body).toMatch(/--email/)
-    expect(has(body, 'reset link')).toBe(true)
-    expect(has(body, 'invitation')).toBe(true)
-    expect(has(body, 'printed once')).toBe(true)
-    expect(has(body, 'AUTH_SECRET')).toBe(true)
-    expect(has(body, 'keep')).toBe(true)
-    expect(has(body, 'Cloudflare credentials')).toBe(true)
-    expect(body).toMatch(/--dry-run/)
-  })
+  it.each([
+    ['self-hosting', () => s()],
+    ['the server-d1 README', () => README()],
+  ])(
+    '%s: an owner-reset section gives the command, says what it prints once, and why the secrets file must be kept (OPS307 D13)',
+    (_n, md) => {
+      const text = md()
+      const section = /^#{2,3}\s+.*(owner-reset|recover).*$/im.exec(text)
+      expect(section, 'a heading naming owner-reset or recovery').not.toBeNull()
+      const body = text.slice(section!.index).split(/^## /m)[0]!
+      expect(body).toContain('owner-reset --env <name>')
+      expect(body).toMatch(/--email/)
+      expect(has(body, 'reset link')).toBe(true)
+      expect(has(body, 'invitation')).toBe(true)
+      expect(has(body, 'printed once')).toBe(true)
+      expect(has(body, 'AUTH_SECRET')).toBe(true)
+      expect(has(body, 'keep')).toBe(true)
+      expect(has(body, 'Cloudflare credentials')).toBe(true)
+      expect(body).toMatch(/--dry-run/)
+    },
+  )
   it('self-hosting: the source path under "From source" carries the bootstrap --owner-reset command line', () => {
     const lines = shellLines(s()).filter((l) => l.line.includes('--owner-reset'))
     expect(lines.length).toBeGreaterThan(0)
     for (const l of lines) {
       expect(l.heading).toBe('From source')
-      expect(l.line).toContain('CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset')
+      expect(l.line).toContain(
+        'CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset',
+      )
     }
   })
   it('AGENTS.md lists the owner-reset command line', () => {
-    const line = AGENTS().split('\n').find((l) => l.includes('bootstrap -- --remote --env <name> --owner-reset'))
+    const line = AGENTS()
+      .split('\n')
+      .find((l) => l.includes('bootstrap -- --remote --env <name> --owner-reset'))
     expect(line).toBeDefined()
     expect(line).toContain('vibase-server owner-reset --env <name>')
   })
   it('AGENTS.md: setup:remote takes [--auth better-auth|clerk|none] and says better-auth is the default for a new instance', () => {
-    const line = AGENTS().split('\n').find((l) => l.includes('setup:remote -- --env <name>'))!
+    const line = AGENTS()
+      .split('\n')
+      .find((l) => l.includes('setup:remote -- --env <name>'))!
     expect(line).toContain('[--auth better-auth|clerk|none]')
     expect(line).toMatch(/`?better-auth`? is the default for a new instance/)
   })
@@ -275,7 +350,7 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
 describe('the docs and help agree with the program on workers.dev (OPS308 D13)', () => {
   const s = () => page('deployment/self-hosting')
   const USAGE = '(--api-host <host> | --workers-dev)'
-  it('self-hosting has the no-domain path with --workers-dev, the registration flag as the operator\'s one-time step, and the move section with its consequences', () => {
+  it("self-hosting has the no-domain path with --workers-dev, the registration flag as the operator's one-time step, and the move section with its consequences", () => {
     const md = s()
     expect(md).toMatch(/npx @vibase\/server-d1@<version> setup --env \S+ --workers-dev /)
     expect(has(md, '--register-workers-subdomain')).toBe(true)
@@ -287,17 +362,21 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
     for (const w of ['sign in again', 'vibase login', 'reconnect', 'redirect URI']) expect(has(md, w), w).toBe(true)
     expect(body.length).toBeGreaterThan(0)
   })
-  it('the server-d1 README has the no-domain path and the move, and AGENTS.md\'s setup:remote line takes the host flag pair', () => {
+  it("the server-d1 README has the no-domain path and the move, and AGENTS.md's setup:remote line takes the host flag pair", () => {
     expect(README()).toMatch(/--workers-dev/)
     expect(README()).toMatch(/--change-host/)
-    const line = AGENTS().split('\n').find((l) => l.includes('setup:remote -- --env <name>'))!
+    const line = AGENTS()
+      .split('\n')
+      .find((l) => l.includes('setup:remote -- --env <name>'))!
     expect(line).toContain(USAGE)
   })
-  it('both usage lines and the setup:remote header name the pair; release:check\'s help assertion requires it and sees an edited line', () => {
+  it("both usage lines and the setup:remote header name the pair; release:check's help assertion requires it and sees an edited line", () => {
     expect(INSTANCE_HELP).toContain(`vibase-server setup --env <name> ${USAGE}`)
     expect(read('../setup-remote.ts')).toContain(USAGE)
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
-    expect(serverHelpProblems(INSTANCE_HELP.replace(USAGE, '--api-host <host>'))).toEqual([`setup --env <name> ${USAGE}`])
+    expect(serverHelpProblems(INSTANCE_HELP.replace(USAGE, '--api-host <host>'))).toEqual([
+      `setup --env <name> ${USAGE}`,
+    ])
   })
   it('the setup usage line of the program (printed on a refusal) names the pair', async () => {
     const { runSetup } = await import('./setup.js')

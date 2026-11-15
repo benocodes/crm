@@ -32,7 +32,11 @@ import { openEngines, type Engine, type EngineName } from '../test/engines.js'
 
 const LABELS: readonly StatementLabel[] = ['first-mutation', 'first-event', 'result']
 const NOW = new Date('2026-10-22T10:00:00.000Z')
-const settle = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e)
+const settle = (p: Promise<unknown>) =>
+  p.then(
+    () => null,
+    (e: unknown) => e,
+  )
 
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
@@ -55,7 +59,9 @@ export function engineSuite(engineName: EngineName): void {
 
     describe.each(LABELS)('a real constraint fault after %s', (label) => {
       it('rolls back a create: no task, no event', async () => {
-        const err = await settle(e.run(withFault(createOperation(tasks, e.env({ now: NOW }), { title: 'x' }), { after: label })))
+        const err = await settle(
+          e.run(withFault(createOperation(tasks, e.env({ now: NOW }), { title: 'x' }), { after: label })),
+        )
         expect(err).toBeInstanceOf(StatementFailed)
         expect((err as StatementFailed).kind).toBe('not_null')
         expect(await e.tasks()).toHaveLength(0)
@@ -66,7 +72,13 @@ export function engineSuite(engineName: EngineName): void {
         const id = uuidv7()
         await e.insertTask({ id, title: 'before' })
         const before = await e.tasks()
-        const err = await settle(e.run(withFault(updateOperation(tasks, e.env({ now: NOW }), id, { title: 'after', status: 'done' }), { after: label })))
+        const err = await settle(
+          e.run(
+            withFault(updateOperation(tasks, e.env({ now: NOW }), id, { title: 'after', status: 'done' }), {
+              after: label,
+            }),
+          ),
+        )
         expect(err).toBeInstanceOf(StatementFailed)
         expect(await e.tasks()).toEqual(before)
         expect(await e.events()).toHaveLength(0)
@@ -84,7 +96,10 @@ export function engineSuite(engineName: EngineName): void {
           return unit({
             steps: [
               step(
-                qc.db.updateTable('tasks').set({ status: 'done', updated_at: NOW.toISOString() }).where(memberOf(qc, 'tasks', 'id', boundIds(qc, ids))),
+                qc.db
+                  .updateTable('tasks')
+                  .set({ status: 'done', updated_at: NOW.toISOString() })
+                  .where(memberOf(qc, 'tasks', 'id', boundIds(qc, ids))),
                 'first-mutation',
               ),
             ],
@@ -94,9 +109,23 @@ export function engineSuite(engineName: EngineName): void {
         },
       })
       const small: StorageBinding =
-        name === 'postgres' ? postgresBinding(e.app!, { maxSetSize: 4 }) : d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId, maxSetSize: 4 })
+        name === 'postgres'
+          ? postgresBinding(e.app!, { maxSetSize: 4 })
+          : d1Binding(e.d1!, {
+              organizationId: e.organizationId,
+              authProvider: e.authProvider,
+              authOrgId: e.authOrgId,
+              maxSetSize: 4,
+            })
       const big: StorageBinding =
-        name === 'postgres' ? postgresBinding(e.app!, { maxSetSize: 500 }) : d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId, maxSetSize: 500 })
+        name === 'postgres'
+          ? postgresBinding(e.app!, { maxSetSize: 500 })
+          : d1Binding(e.d1!, {
+              organizationId: e.organizationId,
+              authProvider: e.authProvider,
+              authOrgId: e.authOrgId,
+              maxSetSize: 500,
+            })
       const identity = { kind: 'tenant' as const, actorId: e.userId, organizationId: e.organizationId }
       const { execute } = await import('@vibase/storage')
       const err = await settle(execute(small, identity, completeAll))
@@ -109,7 +138,10 @@ export function engineSuite(engineName: EngineName): void {
     if (name === 'postgres') {
       it('a malformed final record rolls the whole unit back before commit', async () => {
         const op = createOperation(tasks, e.env({ now: NOW }), { title: 'x' })
-        const invalid: PreparedOperation<unknown> = { ...op, build: (found, qc) => ({ ...op.build(found, qc), decode: () => tasks.record.parse({ id: 'not a record' }) }) }
+        const invalid: PreparedOperation<unknown> = {
+          ...op,
+          build: (found, qc) => ({ ...op.build(found, qc), decode: () => tasks.record.parse({ id: 'not a record' }) }),
+        }
         const err = await settle(e.run(invalid))
         expect(err).toBeDefined()
         expect(await e.tasks()).toHaveLength(0)
@@ -120,7 +152,10 @@ export function engineSuite(engineName: EngineName): void {
     if (name === 'd1') {
       it('a decode failure after a valid commit is committed_result_invalid: the unit is committed, never replayed', async () => {
         const op = createOperation(tasks, e.env({ now: NOW }), { title: 'x' })
-        const invalid: PreparedOperation<unknown> = { ...op, build: (found, qc) => ({ ...op.build(found, qc), decode: () => tasks.record.parse({ id: 'not a record' }) }) }
+        const invalid: PreparedOperation<unknown> = {
+          ...op,
+          build: (found, qc) => ({ ...op.build(found, qc), decode: () => tasks.record.parse({ id: 'not a record' }) }),
+        }
         const err = await settle(e.run(invalid))
         expect(err).toBeInstanceOf(CommittedResultInvalid)
         expect(await e.tasks()).toHaveLength(1)
@@ -139,9 +174,19 @@ export function engineSuite(engineName: EngineName): void {
             return results
           },
         }
-        const binding = d1Binding(flaky, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId })
+        const binding = d1Binding(flaky, {
+          organizationId: e.organizationId,
+          authProvider: e.authProvider,
+          authOrgId: e.authOrgId,
+        })
         const { execute } = await import('@vibase/storage')
-        const err = await settle(execute(binding, { kind: 'tenant', actorId: e.userId, organizationId: e.organizationId }, createOperation(tasks, e.env({ now: NOW }), { title: 'x' })))
+        const err = await settle(
+          execute(
+            binding,
+            { kind: 'tenant', actorId: e.userId, organizationId: e.organizationId },
+            createOperation(tasks, e.env({ now: NOW }), { title: 'x' }),
+          ),
+        )
         expect(err).toBeInstanceOf(CommitOutcomeUnknown)
         expect(batches).toBe(1) // an assignee-free create has no plan-phase reads: exactly one batch ran, and it was not replayed
         expect(await e.tasks()).toHaveLength(1)
@@ -158,7 +203,10 @@ export function engineSuite(engineName: EngineName): void {
       name: `${op.name}+fault-after-last`,
       build: (found, qc) => {
         const built = op.build(found, qc)
-        const fault = step(sql`insert into "tasks" ("id", "organization_id") select null, "id" from "organizations"`.compile(qc.db), 'fault')
+        const fault = step(
+          sql`insert into "tasks" ("id", "organization_id") select null, "id" from "organizations"`.compile(qc.db),
+          'fault',
+        )
         return unit({ ...built, steps: [...built.steps, fault] })
       },
     }
@@ -173,7 +221,14 @@ export function engineSuite(engineName: EngineName): void {
       await e.reset()
     })
     const internal = { kind: 'internal', organizationId: null } as const
-    const state = async () => Object.fromEntries(await Promise.all(['organizations', 'principals', 'users', 'memberships', 'events'].map(async (t) => [t, await e.rows(t)] as const)))
+    const state = async () =>
+      Object.fromEntries(
+        await Promise.all(
+          ['organizations', 'principals', 'users', 'memberships', 'events'].map(
+            async (t) => [t, await e.rows(t)] as const,
+          ),
+        ),
+      )
     const env = { now: NOW, newId: () => uuidv7(NOW) }
     const loneUser = async (subject: string) => {
       const id = uuidv7()
@@ -181,7 +236,11 @@ export function engineSuite(engineName: EngineName): void {
       await e.insert('users', { id, email: `${subject}@x.test`, auth_provider: 'clerk', auth_subject: subject })
       return id
     }
-    const roll = async (op: PreparedOperation<unknown>, identity: Parameters<Engine['runAs']>[0], expectedKind = 'not_null') => {
+    const roll = async (
+      op: PreparedOperation<unknown>,
+      identity: Parameters<Engine['runAs']>[0],
+      expectedKind = 'not_null',
+    ) => {
       const before = await state()
       const err = await settle(e.runAs(identity, op))
       expect(err).toBeInstanceOf(StatementFailed)
@@ -191,7 +250,15 @@ export function engineSuite(engineName: EngineName): void {
 
     describe.each(['first-mutation', 'result'] as const)('first sight, a fault after %s', (label) => {
       it('rolls back: no principal, no user', async () => {
-        const op = firstSightOperation({ provider: 'clerk', subject: 'user_new', email: 'new@x.test', name: null, emailVerified: false, principalId: uuidv7(), now: NOW })
+        const op = firstSightOperation({
+          provider: 'clerk',
+          subject: 'user_new',
+          email: 'new@x.test',
+          name: null,
+          emailVerified: false,
+          principalId: uuidv7(),
+          now: NOW,
+        })
         await roll(withFault(op, { after: label }), internal)
       })
     })
@@ -203,19 +270,37 @@ export function engineSuite(engineName: EngineName): void {
           provider: 'clerk',
           externalId: e.authOrgId,
           organization: { name: 'Renamed' },
-          members: [{ subject: e.userSubject, role: 'member' }, { subject: 'user_x', role: 'member' }], // re-role u1, create user_x, delete user2
+          members: [
+            { subject: e.userSubject, role: 'member' },
+            { subject: 'user_x', role: 'member' },
+          ], // re-role u1, create user_x, delete user2
           newOrganizationId: uuidv7(),
           env,
         })
-        await roll(label === 'last' ? withTrailingFault(op) : withFault(op, { after: label }), { kind: 'internal', organizationId: e.organizationId })
+        await roll(label === 'last' ? withTrailingFault(op) : withFault(op, { after: label }), {
+          kind: 'internal',
+          organizationId: e.organizationId,
+        })
       })
     })
 
     describe.each(['first-mutation', 'first-event', 'last'] as const)('repair, a fault after %s', (label) => {
       it('rolls back the system principal, the membership and its event', async () => {
         const userId = await loneUser('user_x')
-        const op = repairOperation({ provider: 'clerk', externalId: e.authOrgId, userId, role: 'member', knownOrganizationId: e.organizationId, fetchedName: null, newOrganizationId: uuidv7(), env })
-        await roll(label === 'last' ? withTrailingFault(op) : withFault(op, { after: label }), { kind: 'internal', organizationId: e.organizationId })
+        const op = repairOperation({
+          provider: 'clerk',
+          externalId: e.authOrgId,
+          userId,
+          role: 'member',
+          knownOrganizationId: e.organizationId,
+          fetchedName: null,
+          newOrganizationId: uuidv7(),
+          env,
+        })
+        await roll(label === 'last' ? withTrailingFault(op) : withFault(op, { after: label }), {
+          kind: 'internal',
+          organizationId: e.organizationId,
+        })
       })
     })
 
@@ -223,7 +308,9 @@ export function engineSuite(engineName: EngineName): void {
       const { hash, prefix } = await generateApiKey(() => crypto.getRandomValues(new Uint8Array(32)))
       await e.insert('api_keys', { agent_id: e.agentId, key_hash: hash, prefix })
       const before = await e.rows('api_keys')
-      const err = await settle(e.runAs(internal, withFault(apiKeyAuthOperation(hash, NOW), { after: 'first-mutation' })))
+      const err = await settle(
+        e.runAs(internal, withFault(apiKeyAuthOperation(hash, NOW), { after: 'first-mutation' })),
+      )
       expect(err).toBeInstanceOf(StatementFailed)
       expect(await e.rows('api_keys')).toEqual(before)
     })

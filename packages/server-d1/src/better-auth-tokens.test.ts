@@ -29,8 +29,15 @@ beforeEach(async () => {
   await w.reset()
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', email: 'boot@x.test', agentName: 'bot', authProvider: 'none', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) })
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
+  const r = await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', email: 'boot@x.test', agentName: 'bot', authProvider: 'none', authOrgId: 'org_acme' },
+    { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) },
+  )
   orgId = r.organizationId
   bootUser = r.userId!
   bootKey = r.key
@@ -39,21 +46,66 @@ beforeEach(async () => {
   otherClient = await kit.registerClient('Claude Desktop')
 })
 
-const env = (over: Partial<D1WorkerEnv> = {}, control: D1WorkerEnv['CONTROL_DB'] = w.control): D1WorkerEnv => ({ DB: w.d1, CONTROL_DB: control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, AUTH_CLI_CLIENT_ID: cliClient, ...over })
+const env = (over: Partial<D1WorkerEnv> = {}, control: D1WorkerEnv['CONTROL_DB'] = w.control): D1WorkerEnv => ({
+  DB: w.d1,
+  CONTROL_DB: control,
+  AUTH_PROVIDER: 'better-auth',
+  AUTH_SECRET,
+  PUBLIC_BASE_URL: AUTH_BASE,
+  AUTH_CLI_CLIENT_ID: cliClient,
+  ...over,
+})
 const worker = (over: Partial<D1WorkerEnv> = {}) => composeD1Worker(env(over))
 type Res = { status: number; json: any }
-const call = async (wk: ReturnType<typeof worker>, method: string, path: string, tok: string | null, body?: unknown, host = AUTH_BASE): Promise<Res> => {
-  const res = await wk.fetch(new Request(host + path, { method, headers: { ...(tok ? { authorization: `Bearer ${tok}` } : {}), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }))
+const call = async (
+  wk: ReturnType<typeof worker>,
+  method: string,
+  path: string,
+  tok: string | null,
+  body?: unknown,
+  host = AUTH_BASE,
+): Promise<Res> => {
+  const res = await wk.fetch(
+    new Request(host + path, {
+      method,
+      headers: {
+        ...(tok ? { authorization: `Bearer ${tok}` } : {}),
+        ...(body ? { 'content-type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+  )
   const text = await res.text()
   return { status: res.status, json: text ? JSON.parse(text) : null }
 }
 const me = (wk: ReturnType<typeof worker>, tok: string | null) => call(wk, 'GET', '/meta/v1/me', tok)
-const rows = async (sqlText: string, ...binds: unknown[]) => (await w.d1.prepare(sqlText).bind(...binds).all()).results as Array<Record<string, any>>
-const count = async (t: string) => Number(((await w.d1.prepare(`select count(*) n from "${t}"`).first()) as { n: number }).n)
-const state = async () => ({ users: await count('users'), principals: await count('principals'), agents: await count('agents'), events: await count('events'), memberships: await count('memberships') })
+const rows = async (sqlText: string, ...binds: unknown[]) =>
+  (
+    await w.d1
+      .prepare(sqlText)
+      .bind(...binds)
+      .all()
+  ).results as Array<Record<string, any>>
+const count = async (t: string) =>
+  Number(((await w.d1.prepare(`select count(*) n from "${t}"`).first()) as { n: number }).n)
+const state = async () => ({
+  users: await count('users'),
+  principals: await count('principals'),
+  agents: await count('agents'),
+  events: await count('events'),
+  memberships: await count('memberships'),
+})
 const decode = (t: string) => JSON.parse(Buffer.from(t.split('.')[1]!, 'base64url').toString()) as Record<string, any>
 
-type Subject = 'owner' | 'member' | 'no membership' | 'membership removed' | 'no users row' | 'agent account' | 'agent disabled' | 'agent with a membership'
+type Subject =
+  | 'owner'
+  | 'member'
+  | 'no membership'
+  | 'membership removed'
+  | 'no users row'
+  | 'agent account'
+  | 'agent disabled'
+  | 'agent with a membership'
 /** A Better Auth account plus whatever the vault holds for it in `state`; the three credentials of that account. */
 async function subject(state: Subject, email = `${state.replace(/ /g, '-')}@x.test`) {
   const { userId, cookie } = await kit.signUp(email)
@@ -63,14 +115,23 @@ async function subject(state: Subject, email = `${state.replace(/ /g, '-')}@x.te
     await seedPrincipal(w.d1, { id, kind: 'user', email, ...link })
     if (role) {
       const m = await seedMembership(w.d1, { organizationId: orgId, userId: id, role })
-      if (removed) await w.d1.prepare('update memberships set deleted_at = ? where id = ?').bind(NOW.toISOString(), m).run()
+      if (removed)
+        await w.d1.prepare('update memberships set deleted_at = ? where id = ?').bind(NOW.toISOString(), m).run()
     }
     return id
   }
   const agent = async (disabled: boolean) => {
     const id = uuidv7(NOW)
-    await seedAgent(w.d1, { id, organizationId: orgId, createdBy: bootUser, scopes: ['contacts:read', 'contacts:write'] })
-    await w.d1.prepare('update agents set auth_provider = ?, auth_subject = ?, disabled_at = ? where id = ?').bind('better-auth', userId, disabled ? NOW.toISOString() : null, id).run()
+    await seedAgent(w.d1, {
+      id,
+      organizationId: orgId,
+      createdBy: bootUser,
+      scopes: ['contacts:read', 'contacts:write'],
+    })
+    await w.d1
+      .prepare('update agents set auth_provider = ?, auth_subject = ?, disabled_at = ? where id = ?')
+      .bind('better-auth', userId, disabled ? NOW.toISOString() : null, id)
+      .run()
     return id
   }
   let humanId: string | null = null
@@ -80,14 +141,15 @@ async function subject(state: Subject, email = `${state.replace(/ /g, '-')}@x.te
   else if (state === 'membership removed') humanId = await human('member', true)
   else if (state === 'agent account') agentId = await agent(false)
   else if (state === 'agent disabled') agentId = await agent(true)
-  else if (state === 'agent with a membership') (humanId = await human('member'), (agentId = await agent(false)))
+  else if (state === 'agent with a membership') (humanId = await human('member')), (agentId = await agent(false))
   return {
     userId,
     cookie,
     humanId,
     agentId,
     session: () => kit.sessionJwt(cookie),
-    oauth: async (client: string, scope = 'openid contacts:read contacts:write') => (await kit.deviceTokens(cookie, client, scope)).access_token,
+    oauth: async (client: string, scope = 'openid contacts:read contacts:write') =>
+      (await kit.deviceTokens(cookie, client, scope)).access_token,
   }
 }
 
@@ -96,7 +158,11 @@ const MEMBER_SCOPES = () => scopesForRole('member', declared).toStrings()
 const WRITE_CONTACTS = ['contacts:read', 'contacts:request_approval', 'contacts:write']
 
 type Cred = 'session' | 'cli' | 'other'
-type Expect = { status: 200; kind: 'user'; role: 'owner' | 'member'; scopes: string[] } | { status: 200; kind: 'agent'; scopes: string[]; delegated?: boolean } | { status: 401 } | { status: 403; code: 'organization_forbidden' }
+type Expect =
+  | { status: 200; kind: 'user'; role: 'owner' | 'member'; scopes: string[] }
+  | { status: 200; kind: 'agent'; scopes: string[]; delegated?: boolean }
+  | { status: 401 }
+  | { status: 403; code: 'organization_forbidden' }
 const matrix: Array<[Cred, Subject, Expect]> = [
   ['session', 'owner', { status: 200, kind: 'user', role: 'owner', scopes: [] }],
   ['session', 'member', { status: 200, kind: 'user', role: 'member', scopes: [] }],
@@ -142,17 +208,33 @@ describe('the principal matrix: credential path x subject state (D7, D9, D20 age
     if (want.kind === 'user') {
       expect(res.json.principal.id).toBe(s.humanId)
       expect(res.json.active_organization.role).toBe(want.role)
-      expect(res.json.active_organization.scopes).toEqual(want.scopes.length > 0 ? want.scopes : want.role === 'owner' ? OWNER_SCOPES() : MEMBER_SCOPES())
+      expect(res.json.active_organization.scopes).toEqual(
+        want.scopes.length > 0 ? want.scopes : want.role === 'owner' ? OWNER_SCOPES() : MEMBER_SCOPES(),
+      )
       expect(res.json.client_id).toBe(cred === 'cli' ? cliClient : null)
       expect(await state()).toEqual(before)
     } else {
       expect(res.json.active_organization.scopes).toEqual(want.scopes)
       if (want.delegated) {
-        expect(res.json.agent).toMatchObject({ delegated_by: s.humanId, auth_client_id: otherClient, auth_subject: null })
+        expect(res.json.agent).toMatchObject({
+          delegated_by: s.humanId,
+          auth_client_id: otherClient,
+          auth_subject: null,
+        })
         // first sight: one agents row, its principal and its event, nothing else
         const after = await state()
-        expect(after).toEqual({ ...before, agents: before.agents + 1, principals: before.principals + 1, events: before.events + 1 })
-        expect(await rows("select type, actor_id from events where type = 'agent.created' and resource_id = ?", res.json.principal.id)).toEqual([{ type: 'agent.created', actor_id: s.humanId }])
+        expect(after).toEqual({
+          ...before,
+          agents: before.agents + 1,
+          principals: before.principals + 1,
+          events: before.events + 1,
+        })
+        expect(
+          await rows(
+            "select type, actor_id from events where type = 'agent.created' and resource_id = ?",
+            res.json.principal.id,
+          ),
+        ).toEqual([{ type: 'agent.created', actor_id: s.humanId }])
         expect(res.json.agent.name).toBe(`Claude Desktop (${which}@x.test)`)
       } else {
         expect(res.json.principal.id).toBe(s.agentId)
@@ -167,7 +249,7 @@ describe('the principal matrix: credential path x subject state (D7, D9, D20 age
     const a = await me(wk, await s.oauth(otherClient))
     const b = await me(wk, await s.oauth(otherClient, 'openid contacts:read'))
     expect(b.json.principal.id).toBe(a.json.principal.id)
-    expect((await rows("select id from agents where auth_client_id = ?", otherClient)).length).toBe(1)
+    expect((await rows('select id from agents where auth_client_id = ?', otherClient)).length).toBe(1)
     expect((await rows("select id from events where type = 'agent.created'")).length).toBe(1)
   })
 
@@ -193,7 +275,10 @@ describe('the role is read on every request (D7)', () => {
     expect(demoted.status).toBe(403)
     expect(demoted.json.error.code).toBe('insufficient_scope')
     expect((await me(wk, tok)).json.active_organization.role).toBe('member')
-    await w.d1.prepare('update memberships set deleted_at = ? where user_id = ?').bind(NOW.toISOString(), s.humanId).run()
+    await w.d1
+      .prepare('update memberships set deleted_at = ? where user_id = ?')
+      .bind(NOW.toISOString(), s.humanId)
+      .run()
     const removed = await me(wk, tok)
     expect(removed.status).toBe(403)
     expect(removed.json.error.code).toBe('organization_forbidden')
@@ -230,7 +315,13 @@ describe('real tokens and the warm path (D8, D19, D23, P1)', () => {
       const res = await wk.fetch(new Request(AUTH_BASE + path, { headers: { cookie: s.cookie } }))
       expect(res.status, path).toBe(401)
     }
-    const mcp = await wk.fetch(new Request(AUTH_BASE + '/mcp', { method: 'POST', headers: { cookie: s.cookie, 'content-type': 'application/json' }, body: '{}' }))
+    const mcp = await wk.fetch(
+      new Request(AUTH_BASE + '/mcp', {
+        method: 'POST',
+        headers: { cookie: s.cookie, 'content-type': 'application/json' },
+        body: '{}',
+      }),
+    )
     expect(mcp.status).toBe(401)
   })
 
@@ -238,7 +329,9 @@ describe('real tokens and the warm path (D8, D19, D23, P1)', () => {
     const s = await subject('owner')
     const tok = await s.session()
     expect((await call(worker(), 'GET', '/meta/v1/me', tok, undefined, 'https://preview.workers.dev')).status).toBe(200)
-    expect((await call(worker({ PUBLIC_BASE_URL: 'https://elsewhere.test' }), 'GET', '/meta/v1/me', tok)).status).toBe(401)
+    expect((await call(worker({ PUBLIC_BASE_URL: 'https://elsewhere.test' }), 'GET', '/meta/v1/me', tok)).status).toBe(
+      401,
+    )
   })
 
   it('a warm request reads CONTROL_DB zero times; an unknown key id re-reads at most once in 30 seconds (P1)', async () => {
@@ -278,6 +371,9 @@ describe('real tokens and the warm path (D8, D19, D23, P1)', () => {
 
 describe('the two packages agree on the session marker (D8)', () => {
   it('@vibase/api (the verifier) and @vibase/auth (the minter) name the same claim and value', () => {
-    expect([SESSION_TOKEN_CLAIM, SESSION_TOKEN_VALUE]).toEqual([provider.SESSION_TOKEN_CLAIM, provider.SESSION_TOKEN_VALUE])
+    expect([SESSION_TOKEN_CLAIM, SESSION_TOKEN_VALUE]).toEqual([
+      provider.SESSION_TOKEN_CLAIM,
+      provider.SESSION_TOKEN_VALUE,
+    ])
   })
 })

@@ -1,6 +1,16 @@
 // The golden fixture list and the engine differences a fixture names ([[CORE35]] D17, [[CORE36]] D12, D22). Open test data:
 // the replays (D1 and Postgres) and the D1 generator (packages/api/scripts/golden.ts, [[CORE72]]) all read it from here.
-import { administrationScenarios, authScenarios, dealScenarios, directoryScenarios, identityModelScenarios, messagingScenarios, schemaScenarios, tagScenarios, taskScenarios } from './scenarios.js'
+import {
+  administrationScenarios,
+  authScenarios,
+  dealScenarios,
+  directoryScenarios,
+  identityModelScenarios,
+  messagingScenarios,
+  schemaScenarios,
+  tagScenarios,
+  taskScenarios,
+} from './scenarios.js'
 
 /**
  * The engine differences a fixture names ([[CORE72]], [[CORE69]] D20). D1 is the oracle that generates every fixture and its replay

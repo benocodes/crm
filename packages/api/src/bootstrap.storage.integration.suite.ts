@@ -38,10 +38,17 @@ export function engineSuite(engineName: EngineName): void {
     })
     afterEach(() => vi.restoreAllMocks())
 
-    const state = async () => Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const)))
+    const state = async () =>
+      Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const)))
     let n = 0
     const env = () => ({ now: NOW, newId: () => uuidv7(NOW), randomBytes: (k: number) => new Uint8Array(k).fill(++n) })
-    const OPTS = { organizationName: 'Acme', email: 'Owner@Acme.test', userName: 'Owner', agentName: 'bot', scopes: ['tasks:read'] }
+    const OPTS = {
+      organizationName: 'Acme',
+      email: 'Owner@Acme.test',
+      userName: 'Owner',
+      agentName: 'bot',
+      scopes: ['tasks:read'],
+    }
 
     it('creates the organisation, the user, the owner membership, the agent and the key, with no event; every stamp is now', async () => {
       const r = await bootstrap(e.binding, OPTS, env())
@@ -49,14 +56,49 @@ export function engineSuite(engineName: EngineName): void {
       expect(s.events).toEqual([])
       const org = s.organizations.find((o) => o.id === r.organizationId)!
       expect(org).toMatchObject({ name: 'Acme', created_at: NOW.toISOString(), updated_at: NOW.toISOString() })
-      expect(s.users.find((u) => u.id === r.userId)).toMatchObject({ email: 'owner@acme.test', name: 'Owner', auth_provider: null, auth_subject: null, created_at: NOW.toISOString(), updated_at: NOW.toISOString() })
-      expect(s.memberships.filter((m) => m.user_id === r.userId)).toMatchObject([{ organization_id: r.organizationId, role: 'owner', created_by: r.userId, created_at: NOW.toISOString(), deleted_at: null }])
-      expect(s.agents.find((a) => a.id === r.agentId)).toMatchObject({ organization_id: r.organizationId, name: 'bot', scopes: ['tasks:read'], created_by: r.userId, created_at: NOW.toISOString() })
+      expect(s.users.find((u) => u.id === r.userId)).toMatchObject({
+        email: 'owner@acme.test',
+        name: 'Owner',
+        auth_provider: null,
+        auth_subject: null,
+        created_at: NOW.toISOString(),
+        updated_at: NOW.toISOString(),
+      })
+      expect(s.memberships.filter((m) => m.user_id === r.userId)).toMatchObject([
+        {
+          organization_id: r.organizationId,
+          role: 'owner',
+          created_by: r.userId,
+          created_at: NOW.toISOString(),
+          deleted_at: null,
+        },
+      ])
+      expect(s.agents.find((a) => a.id === r.agentId)).toMatchObject({
+        organization_id: r.organizationId,
+        name: 'bot',
+        scopes: ['tasks:read'],
+        created_by: r.userId,
+        created_at: NOW.toISOString(),
+      })
       const key = s.api_keys.find((k) => k.id === r.apiKeyId)!
-      expect(key).toMatchObject({ agent_id: r.agentId, organization_id: r.organizationId, prefix: r.key.slice(0, 11), expires_at: null, last_used_at: null, revoked_at: null, created_by: r.userId, created_at: NOW.toISOString() })
+      expect(key).toMatchObject({
+        agent_id: r.agentId,
+        organization_id: r.organizationId,
+        prefix: r.key.slice(0, 11),
+        expires_at: null,
+        last_used_at: null,
+        revoked_at: null,
+        created_by: r.userId,
+        created_at: NOW.toISOString(),
+      })
       expect(key.key_hash).toBe(await hashApiKey(r.key))
       expect(JSON.stringify(s)).not.toContain(r.key)
-      expect(s.principals.filter((p) => [r.userId, r.agentId].includes(p.id as string)).map((p) => p.kind).sort()).toEqual(['agent', 'user'])
+      expect(
+        s.principals
+          .filter((p) => [r.userId, r.agentId].includes(p.id as string))
+          .map((p) => p.kind)
+          .sort(),
+      ).toEqual(['agent', 'user'])
     })
 
     it('the id of the organisation and its link: Postgres mints one and leaves it unlinked, D1 uses the deployment link', async () => {
@@ -86,7 +128,9 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     it('the plaintext key is returned once and never logged', async () => {
-      const spies = (['log', 'warn', 'error', 'info'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
+      const spies = (['log', 'warn', 'error', 'info'] as const).map((m) =>
+        vi.spyOn(console, m).mockImplementation(() => {}),
+      )
       const r = await bootstrap(e.binding, OPTS, env())
       for (const s of spies) expect(JSON.stringify(s.mock.calls)).not.toContain(r.key)
     })
@@ -94,7 +138,9 @@ export function engineSuite(engineName: EngineName): void {
     describe('refusals write nothing (a snapshot after each)', () => {
       it('an unknown scope', async () => {
         const before = await state()
-        await expect(bootstrap(e.binding, { ...OPTS, scopes: ['nope:read'] }, env())).rejects.toThrow('unknown scope: nope:read')
+        await expect(bootstrap(e.binding, { ...OPTS, scopes: ['nope:read'] }, env())).rejects.toThrow(
+          'unknown scope: nope:read',
+        )
         expect(await state()).toEqual(before)
       })
       it('a scope an agent may not hold', async () => {
@@ -104,17 +150,28 @@ export function engineSuite(engineName: EngineName): void {
       })
       it('a non-ASCII email', async () => {
         const before = await state()
-        await expect(bootstrap(e.binding, { ...OPTS, email: 'ñ@acme.test' }, env())).rejects.toThrow('non-ASCII email addresses are not supported')
+        await expect(bootstrap(e.binding, { ...OPTS, email: 'ñ@acme.test' }, env())).rejects.toThrow(
+          'non-ASCII email addresses are not supported',
+        )
         expect(await state()).toEqual(before)
       })
       it('a login that belongs to another user, and a user linked to another login', async () => {
         await e.insert('principals', { id: uuidv7(), kind: 'user' }).then(async (p) => {
-          await e.insert('users', { id: p.id, email: 'holder@acme.test', auth_provider: 'clerk', auth_subject: 'user_taken' })
+          await e.insert('users', {
+            id: p.id,
+            email: 'holder@acme.test',
+            auth_provider: 'clerk',
+            auth_subject: 'user_taken',
+          })
         })
         const before = await state()
-        await expect(bootstrap(e.binding, { ...OPTS, authSubject: 'user_taken' }, env())).rejects.toThrow('login clerk:user_taken belongs to another user')
+        await expect(bootstrap(e.binding, { ...OPTS, authSubject: 'user_taken' }, env())).rejects.toThrow(
+          'login clerk:user_taken belongs to another user',
+        )
         expect(await state()).toEqual(before)
-        await expect(bootstrap(e.binding, { ...OPTS, email: 'holder@acme.test', authSubject: 'user_other' }, env())).rejects.toThrow('user holder@acme.test is linked to another login')
+        await expect(
+          bootstrap(e.binding, { ...OPTS, email: 'holder@acme.test', authSubject: 'user_other' }, env()),
+        ).rejects.toThrow('user holder@acme.test is linked to another login')
         expect(await state()).toEqual(before)
       })
     })
@@ -125,14 +182,21 @@ export function engineSuite(engineName: EngineName): void {
       await e.insert('users', { id: p, email: 'owner@acme.test' })
       const r = await bootstrap(e.binding, { ...OPTS, authSubject: 'user_boot' }, env())
       expect(r.userId).toBe(p)
-      expect((await e.rows('users')).find((u) => u.id === p)).toMatchObject({ auth_provider: 'clerk', auth_subject: 'user_boot', updated_at: NOW.toISOString(), created_at: '2026-10-22T08:00:00.000Z' })
+      expect((await e.rows('users')).find((u) => u.id === p)).toMatchObject({
+        auth_provider: 'clerk',
+        auth_subject: 'user_boot',
+        updated_at: NOW.toISOString(),
+        created_at: '2026-10-22T08:00:00.000Z',
+      })
     })
 
     if (name === 'd1') {
       it('an organisation row that already exists is refused and nothing is written (D1)', async () => {
         await bootstrap(e.binding, OPTS, env())
         const before = await state()
-        await expect(bootstrap(e.binding, { ...OPTS, email: 'second@acme.test' }, env())).rejects.toThrow(`organization ${e.organizationId} is already initialised`)
+        await expect(bootstrap(e.binding, { ...OPTS, email: 'second@acme.test' }, env())).rejects.toThrow(
+          `organization ${e.organizationId} is already initialised`,
+        )
         expect(await state()).toEqual(before)
       })
     } else {

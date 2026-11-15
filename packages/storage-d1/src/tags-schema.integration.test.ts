@@ -22,10 +22,29 @@ afterAll(async () => {
   await local.dispose()
 })
 
-const tag = (over: Record<string, unknown> = {}) => ({ id: id(1), organization_id: ORG, created_by: USER, created_at: AT, updated_at: AT, name: 'Prospects', ...over })
+const tag = (over: Record<string, unknown> = {}) => ({
+  id: id(1),
+  organization_id: ORG,
+  created_by: USER,
+  created_at: AT,
+  updated_at: AT,
+  name: 'Prospects',
+  ...over,
+})
 const refused = async (row: Record<string, unknown>) => {
   const cols = Object.keys(row)
-  return d1.batch([d1.prepare(`INSERT INTO "tags" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...Object.values(row))]).then(() => null, (e: Error) => e.message)
+  return d1
+    .batch([
+      d1
+        .prepare(
+          `INSERT INTO "tags" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+        )
+        .bind(...Object.values(row)),
+    ])
+    .then(
+      () => null,
+      (e: Error) => e.message,
+    )
 }
 
 describe('migration 0008_tags over a database at 0007 with data', () => {
@@ -36,13 +55,21 @@ describe('migration 0008_tags over a database at 0007 with data', () => {
     await applyMigrations(d1, dir)
     await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
     await seedPrincipal(d1, { id: USER, kind: 'user' })
-    await d1.prepare('INSERT INTO tasks (id, organization_id, title, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').bind(id(50), ORG, 'keep me', USER, AT, AT).run()
+    await d1
+      .prepare(
+        'INSERT INTO tasks (id, organization_id, title, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .bind(id(50), ORG, 'keep me', USER, AT, AT)
+      .run()
     expect((await d1.prepare("select name from sqlite_master where name = 'tags'").all()).results).toEqual([])
     const only = mkdtempSync(join(tmpdir(), 'mig8-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0008'))) cpSync(join(MIGRATIONS_DIR, f), join(only, f))
+    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0008')))
+      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
     expect(await applyMigrations(d1, only)).toEqual(['0008_tags.sql'])
     expect((await d1.prepare('select title from tasks').all()).results).toEqual([{ title: 'keep me' }])
-    expect((await d1.prepare("select name from sqlite_master where name = 'tags'").all()).results).toEqual([{ name: 'tags' }])
+    expect((await d1.prepare("select name from sqlite_master where name = 'tags'").all()).results).toEqual([
+      { name: 'tags' },
+    ])
   })
 
   it('constrains the table: name 1..100, description null or 1..1000, uuid id, ISO stamps, declared FKs', async () => {
@@ -54,7 +81,9 @@ describe('migration 0008_tags over a database at 0007 with data', () => {
     expect(await refused(tag({ id: id(3), name: 'ok', description: 'y'.repeat(1001) }))).toMatch(/CHECK/)
     expect(await refused(tag({ id: 'not-a-uuid', name: 'ok' }))).toMatch(/CHECK/)
     expect(await refused(tag({ id: id(3), name: 'ok', created_at: 'yesterday' }))).toMatch(/CHECK/)
-    const fks = (await d1.prepare("select \"table\" as t from pragma_foreign_key_list('tags') order by 1").all()).results!.map((r) => (r as { t: string }).t)
+    const fks = (
+      await d1.prepare('select "table" as t from pragma_foreign_key_list(\'tags\') order by 1').all()
+    ).results!.map((r) => (r as { t: string }).t)
     expect(fks).toEqual(['organizations', 'principals'])
   })
 

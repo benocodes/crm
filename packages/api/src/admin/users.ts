@@ -1,6 +1,14 @@
 import { sql, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import { defineOperation, readAll, readMaybe, ts, unit, type PreparedOperation, type QueryContext } from '@vibase/storage'
+import {
+  defineOperation,
+  readAll,
+  readMaybe,
+  ts,
+  unit,
+  type PreparedOperation,
+  type QueryContext,
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import type { PreparedEnv } from '../storage/definition.js'
 
@@ -58,7 +66,10 @@ export function listUsersOperation(
         decode: () => {
           const rows = found.all('page')
           const page = rows.slice(0, limit)
-          return { data: page.map((r) => userRecord.parse(r)), next_cursor: rows.length > limit ? (page[page.length - 1]!.id as string) : null }
+          return {
+            data: page.map((r) => userRecord.parse(r)),
+            next_cursor: rows.length > limit ? (page[page.length - 1]!.id as string) : null,
+          }
         },
       }),
   })

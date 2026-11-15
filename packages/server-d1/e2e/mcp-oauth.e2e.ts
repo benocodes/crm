@@ -4,7 +4,11 @@ import { expect, test, type APIRequestContext } from '@playwright/test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { auth, extractWWWAuthenticateParams, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
+import type {
+  OAuthClientInformationMixed,
+  OAuthClientMetadata,
+  OAuthTokens,
+} from '@modelcontextprotocol/sdk/shared/auth.js'
 
 // [[API115]] E2E (API106 cycle 2; Milestone A pass P1 and P4 with a real token): a standard MCP client, given only `<origin>/mcp`, discovers Clerk,
 // registers by DCR, gets a person's consent and works through /mcp as that person's delegated agent, which an owner then disables.
@@ -29,9 +33,17 @@ const email = (who: string) => `api115-${who}-${stamp}+clerk_test@example.com`
 const LEFT_OUT = 'tasks:write'
 
 type Role = 'owner' | 'member'
-const users: Record<Role, { id?: string; email: string }> = { owner: { email: email('o') }, member: { email: email('m') } }
+const users: Record<Role, { id?: string; email: string }> = {
+  owner: { email: email('o') },
+  member: { email: email('m') },
+}
 
-const bapi = async (request: APIRequestContext, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, data?: unknown) => {
+const bapi = async (
+  request: APIRequestContext,
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  data?: unknown,
+) => {
   const res = await request.fetch(`${BAPI}${path}`, { method, headers: { authorization: `Bearer ${SECRET}` }, data })
   expect(res.ok(), `${method} ${path}`).toBe(true)
   return (await res.json()) as any
@@ -39,7 +51,11 @@ const bapi = async (request: APIRequestContext, method: 'GET' | 'POST' | 'PATCH'
 
 /** The local D1 of the running `wrangler dev` (same persisted state as `wrangler d1 execute --local`). */
 const sql = (query: string): Array<Record<string, any>> => {
-  const out = execFileSync('pnpm', ['exec', 'wrangler', 'd1', 'execute', 'DB', '--local', '--json', '--command', query], { encoding: 'utf8', env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' } })
+  const out = execFileSync(
+    'pnpm',
+    ['exec', 'wrangler', 'd1', 'execute', 'DB', '--local', '--json', '--command', query],
+    { encoding: 'utf8', env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' } },
+  )
   return JSON.parse(out.slice(out.indexOf('[')))[0].results
 }
 
@@ -50,7 +66,13 @@ class Provider implements OAuthClientProvider {
   verifier = ''
   authorizeUrl?: URL
   readonly redirectUrl = REDIRECT
-  readonly clientMetadata: OAuthClientMetadata = { client_name: CLIENT_NAME, redirect_uris: [REDIRECT], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' }
+  readonly clientMetadata: OAuthClientMetadata = {
+    client_name: CLIENT_NAME,
+    redirect_uris: [REDIRECT],
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+    token_endpoint_auth_method: 'none',
+  }
   state = () => 'api115-state'
   clientInformation = () => this.info
   saveClientInformation = (i: OAuthClientInformationMixed) => void (this.info = i)
@@ -64,16 +86,31 @@ class Provider implements OAuthClientProvider {
 test.beforeAll(async ({ request }) => {
   // Initial state on the dev instance: DCR on (the scopes are the instance's custom catalog, proven by the Vibase CLI application).
   const settings = await bapi(request, 'GET', '/instance/oauth_application_settings')
-  if (!settings.dynamic_oauth_client_registration) await bapi(request, 'PATCH', '/instance/oauth_application_settings', { dynamic_oauth_client_registration: true })
+  if (!settings.dynamic_oauth_client_registration)
+    await bapi(request, 'PATCH', '/instance/oauth_application_settings', { dynamic_oauth_client_registration: true })
   for (const role of Object.keys(users) as Role[]) {
-    const u = await bapi(request, 'POST', '/users', { email_address: [users[role].email], skip_password_requirement: true, public_metadata: { vibase_role: role } })
+    const u = await bapi(request, 'POST', '/users', {
+      email_address: [users[role].email],
+      skip_password_requirement: true,
+      public_metadata: { vibase_role: role },
+    })
     users[role].id = u.id
   }
 })
 test.afterAll(async ({ request }) => {
-  for (const u of Object.values(users)) if (u.id) await request.fetch(`${BAPI}/users/${u.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${SECRET}` } })
-  const apps = await request.fetch(`${BAPI}/oauth_applications?limit=100`, { headers: { authorization: `Bearer ${SECRET}` } })
-  if (apps.ok()) for (const a of ((await apps.json()) as any).data ?? []) if (a.name === CLIENT_NAME) await request.fetch(`${BAPI}/oauth_applications/${a.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${SECRET}` } })
+  for (const u of Object.values(users))
+    if (u.id)
+      await request.fetch(`${BAPI}/users/${u.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${SECRET}` } })
+  const apps = await request.fetch(`${BAPI}/oauth_applications?limit=100`, {
+    headers: { authorization: `Bearer ${SECRET}` },
+  })
+  if (apps.ok())
+    for (const a of ((await apps.json()) as any).data ?? [])
+      if (a.name === CLIENT_NAME)
+        await request.fetch(`${BAPI}/oauth_applications/${a.id}`, {
+          method: 'DELETE',
+          headers: { authorization: `Bearer ${SECRET}` },
+        })
 })
 
 const provider = new Provider()
@@ -84,16 +121,28 @@ let delegatedAgentId = ''
 
 test('1. an unauthenticated initialize is 401 with the /mcp challenge', async ({ request, baseURL }) => {
   serverUrl = `${baseURL}/mcp`
-  const res = await request.post('/mcp', { headers: { 'content-type': 'application/json' }, data: { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'e2e', version: '1' } } } })
+  const res = await request.post('/mcp', {
+    headers: { 'content-type': 'application/json' },
+    data: {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'e2e', version: '1' } },
+    },
+  })
   expect(res.status()).toBe(401)
   const header = res.headers()['www-authenticate']!
-  const m = new RegExp(`^Bearer resource_metadata="${baseURL!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/\\.well-known/oauth-protected-resource/mcp", scope="([a-z_:]+(?: [a-z_:]+)*)"$`).exec(header)
+  const m = new RegExp(
+    `^Bearer resource_metadata="${baseURL!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/\\.well-known/oauth-protected-resource/mcp", scope="([a-z_:]+(?: [a-z_:]+)*)"$`,
+  ).exec(header)
   expect(m, header).not.toBeNull()
   challengeScopes = m![1]!.split(' ')
   expect(challengeScopes).toContain('contacts:write')
   expect(challengeScopes).toContain(LEFT_OUT)
   for (const human of ['agents:write', 'agents:read', 'members:read']) expect(challengeScopes).not.toContain(human)
-  const parsed = extractWWWAuthenticateParams(new Response(null, { status: 401, headers: { 'www-authenticate': header } }))
+  const parsed = extractWWWAuthenticateParams(
+    new Response(null, { status: 401, headers: { 'www-authenticate': header } }),
+  )
   expect(parsed.resourceMetadataUrl?.href).toBe(`${baseURL}/.well-known/oauth-protected-resource/mcp`)
 })
 
@@ -102,18 +151,29 @@ test('2. the SDK discovers the document and Clerk, and registers by DCR', async 
   expect(doc.resource).toBe(`${baseURL}/mcp`)
   expect(doc.authorization_servers).toEqual([ISSUER])
   const narrowed = challengeScopes.filter((s) => s !== LEFT_OUT).join(' ')
-  const result = await auth(provider, { serverUrl, resourceMetadataUrl: new URL(`${baseURL}/.well-known/oauth-protected-resource/mcp`), scope: narrowed })
+  const result = await auth(provider, {
+    serverUrl,
+    resourceMetadataUrl: new URL(`${baseURL}/.well-known/oauth-protected-resource/mcp`),
+    scope: narrowed,
+  })
   expect(result).toBe('REDIRECT')
   expect(provider.info?.client_id).toBeTruthy()
   const url = provider.authorizeUrl!
   expect(url.origin).toBe(new URL(ISSUER).origin)
   expect(url.searchParams.get('resource')).toBe(`${baseURL}/mcp`)
   expect(url.searchParams.get('scope')!.split(' ')).not.toContain(LEFT_OUT)
-  const apps = (await bapi(request, 'GET', '/oauth_applications?limit=100')).data as Array<{ name: string; dynamically_registered?: boolean }>
+  const apps = (await bapi(request, 'GET', '/oauth_applications?limit=100')).data as Array<{
+    name: string
+    dynamically_registered?: boolean
+  }>
   expect(apps.some((a) => a.name === CLIENT_NAME)).toBe(true)
 })
 
-test('3. the member signs in with a sign-in ticket, consents on Clerk, and the code becomes tokens', async ({ page, context, request }) => {
+test('3. the member signs in with a sign-in ticket, consents on Clerk, and the code becomes tokens', async ({
+  page,
+  context,
+  request,
+}) => {
   await setupClerkTestingToken({ context })
   let callback: URL | undefined
   // The redirect to the loopback is made by the server's 302, so a route handler never fires: observe the request instead.
@@ -121,10 +181,15 @@ test('3. the member signs in with a sign-in ticket, consents on Clerk, and the c
     if (r.url().startsWith('http://127.0.0.1:43111/')) callback = new URL(r.url())
   })
   await page.goto(provider.authorizeUrl!.href)
-  await page.waitForURL((u) => u.origin !== new URL(ISSUER).origin && (u.searchParams.has('redirect_url') || u.hash.includes('redirect_url')))
+  await page.waitForURL(
+    (u) =>
+      u.origin !== new URL(ISSUER).origin && (u.searchParams.has('redirect_url') || u.hash.includes('redirect_url')),
+  )
   // Clerk's dev-browser redirect aborts the first navigation carrying the ticket: ignore that, let the page settle, then retry with a fresh token.
   const ticketed = async (): Promise<void> => {
-    const { token } = (await bapi(request, 'POST', '/sign_in_tokens', { user_id: users.member.id })) as { token: string }
+    const { token } = (await bapi(request, 'POST', '/sign_in_tokens', { user_id: users.member.id })) as {
+      token: string
+    }
     const u = new URL(page.url())
     u.searchParams.set('__clerk_ticket', token)
     await page.goto(u.href).catch(() => {})
@@ -143,7 +208,11 @@ test('3. the member signs in with a sign-in ticket, consents on Clerk, and the c
   expect(callback!.searchParams.get('state')).toBe('api115-state')
   const code = callback!.searchParams.get('code')!
   expect(code).toBeTruthy()
-  const result = await auth(provider, { serverUrl, authorizationCode: code, scope: challengeScopes.filter((s) => s !== LEFT_OUT).join(' ') })
+  const result = await auth(provider, {
+    serverUrl,
+    authorizationCode: code,
+    scope: challengeScopes.filter((s) => s !== LEFT_OUT).join(' '),
+  })
   expect(result).toBe('AUTHORIZED')
   expect(provider.saved?.access_token).toBeTruthy()
 })
@@ -160,7 +229,10 @@ test('4. initialize returns the instructions; tools/list holds no human-only too
 })
 
 test('5. contacts_create succeeds and its event names a new delegated agent for the member, named after the client', async () => {
-  const res = (await client.callTool({ name: 'contacts_create', arguments: { name: `Ada ${stamp}` } })) as { isError?: boolean; structuredContent?: { id: string } }
+  const res = (await client.callTool({ name: 'contacts_create', arguments: { name: `Ada ${stamp}` } })) as {
+    isError?: boolean
+    structuredContent?: { id: string }
+  }
   expect(res.isError).toBeFalsy()
   const contactId = res.structuredContent!.id
   const event = sql(`select actor_id from events where type = 'contact.created' and resource_id = '${contactId}'`)
@@ -172,26 +244,50 @@ test('5. contacts_create succeeds and its event names a new delegated agent for 
   expect(agent[0]!.disabled_at).toBeNull()
 })
 
-test('6. a tool outside the granted scopes is a tool error insufficient_scope with HTTP 200, no 403', async ({ request }) => {
-  const res = (await client.callTool({ name: 'tasks_create', arguments: { title: 'denied' } })) as { isError?: boolean; structuredContent?: { error: { code: string } } }
+test('6. a tool outside the granted scopes is a tool error insufficient_scope with HTTP 200, no 403', async ({
+  request,
+}) => {
+  const res = (await client.callTool({ name: 'tasks_create', arguments: { title: 'denied' } })) as {
+    isError?: boolean
+    structuredContent?: { error: { code: string } }
+  }
   expect(res.isError).toBe(true)
   expect(res.structuredContent?.error.code).toBe('insufficient_scope')
-  const raw = await request.post('/mcp', { headers: { authorization: `Bearer ${provider.saved!.access_token}`, 'content-type': 'application/json' }, data: { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'tasks_create', arguments: { title: 'denied' } } } })
+  const raw = await request.post('/mcp', {
+    headers: { authorization: `Bearer ${provider.saved!.access_token}`, 'content-type': 'application/json' },
+    data: {
+      jsonrpc: '2.0',
+      id: 9,
+      method: 'tools/call',
+      params: { name: 'tasks_create', arguments: { title: 'denied' } },
+    },
+  })
   expect(raw.status()).toBe(200)
   expect((await raw.json()).result.isError).toBe(true)
 })
 
-test('7. the owner disables the agent and the client\'s next tools/list is 401 with the /mcp challenge', async ({ page, request }) => {
+test("7. the owner disables the agent and the client's next tools/list is 401 with the /mcp challenge", async ({
+  page,
+  request,
+}) => {
   await setupClerkTestingToken({ context: page.context() })
   await page.goto('/connect')
   await clerk.loaded({ page })
   await clerk.signIn({ page, emailAddress: users.owner.email })
   await page.goto('/connect')
   await page.waitForFunction(() => (window as any).Clerk?.session, null, { timeout: 30000 })
-  const owner = await page.evaluate(() => (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken())
-  const patched = await request.patch(`/meta/v1/agents/${delegatedAgentId}`, { headers: { authorization: `Bearer ${owner}` }, data: { disabled: true } })
+  const owner = await page.evaluate(() =>
+    (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken(),
+  )
+  const patched = await request.patch(`/meta/v1/agents/${delegatedAgentId}`, {
+    headers: { authorization: `Bearer ${owner}` },
+    data: { disabled: true },
+  })
   expect(patched.status()).toBe(200)
-  const raw = await request.post('/mcp', { headers: { authorization: `Bearer ${provider.saved!.access_token}`, 'content-type': 'application/json' }, data: { jsonrpc: '2.0', id: 10, method: 'tools/list' } })
+  const raw = await request.post('/mcp', {
+    headers: { authorization: `Bearer ${provider.saved!.access_token}`, 'content-type': 'application/json' },
+    data: { jsonrpc: '2.0', id: 10, method: 'tools/list' },
+  })
   expect(raw.status()).toBe(401)
   expect(raw.headers()['www-authenticate']).toContain('resource_metadata="')
   expect(raw.headers()['www-authenticate']).toContain('oauth-protected-resource/mcp", scope="')
@@ -199,4 +295,3 @@ test('7. the owner disables the agent and the client\'s next tools/list is 401 w
   await expect(client.listTools()).rejects.toThrow()
   expect(sql(`select disabled_at from agents where id = '${delegatedAgentId}'`)[0]!.disabled_at).not.toBeNull()
 })
-

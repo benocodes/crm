@@ -1,7 +1,13 @@
 // A small client for the vault's REST API with the Workflow's own agent key. It never logs or returns the key.
 
 /** The scopes the Workflow's agent needs; the guide and the setup instructions list the same ones. */
-export const REQUIRED_SCOPES = ['interactions:read', 'messages:read', 'connections:read', 'action_requests:read', 'messages:request_approval']
+export const REQUIRED_SCOPES = [
+  'interactions:read',
+  'messages:read',
+  'connections:read',
+  'action_requests:read',
+  'messages:request_approval',
+]
 
 export interface VibaseDeps {
   /** The vault's origin, for example `https://api.example.com`. */
@@ -24,7 +30,11 @@ export function createVibase(deps: VibaseDeps): Vibase {
   const call = async <T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> => {
     const res = await deps.fetch(new URL(path, deps.baseUrl).href, {
       method,
-      headers: { authorization: `Bearer ${deps.apiKey}`, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: {
+        authorization: `Bearer ${deps.apiKey}`,
+        accept: 'application/json',
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
     if (res.ok) return (await res.json()) as T

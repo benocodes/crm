@@ -14,15 +14,42 @@ const bare = <T extends { sorts?: unknown; sortKinds?: unknown }>(def: T): Omit<
 
 const metadata: SortMetadata = {
   name: 'future_table',
-  columns: { id: 'uuid', created_at: 'timestamp', updated_at: 'timestamp', launch_count: 'integer', secret: 'text', flag: 'boolean', payload: 'json', labels: 'string_array' },
-  record: { shape: { id: {}, created_at: {}, updated_at: {}, launch_count: {}, flag: {}, payload: {}, labels: {}, age: {}, ghost: {} } },
+  columns: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    launch_count: 'integer',
+    secret: 'text',
+    flag: 'boolean',
+    payload: 'json',
+    labels: 'string_array',
+  },
+  record: {
+    shape: {
+      id: {},
+      created_at: {},
+      updated_at: {},
+      launch_count: {},
+      flag: {},
+      payload: {},
+      labels: {},
+      age: {},
+      ghost: {},
+    },
+  },
   derived: { age: { kind: 'integer' } },
   sorts: ['launch_count', 'age'],
 }
 
 describe('column sort metadata (CORE170 D3/D11)', () => {
   it('resolves a newly supplied typed column and a derived field after conventions without resource code', () => {
-    expect(resolveSorts(metadata)).toEqual({ id: 'uuid', created_at: 'timestamp', updated_at: 'timestamp', launch_count: 'integer', age: 'integer' })
+    expect(resolveSorts(metadata)).toEqual({
+      id: 'uuid',
+      created_at: 'timestamp',
+      updated_at: 'timestamp',
+      launch_count: 'integer',
+      age: 'integer',
+    })
     expect(resolveSorts({ ...metadata, columns: { id: 'uuid' }, sorts: [] })).toEqual({ id: 'uuid' })
   })
   it('opts in a copy of a real definition, reading kinds from COLUMN_KINDS', () => {
@@ -30,7 +57,13 @@ describe('column sort metadata (CORE170 D3/D11)', () => {
     expect(sorted.sorts).toEqual(['id', 'created_at', 'updated_at', 'title', 'due_at'])
     expect(sorted).toHaveProperty('sortKinds.title', COLUMN_KINDS.tasks.title)
     expect('sorts' in bare(tasks)).toBe(false)
-    expect(withColumnSorts(bare(contacts), ['last_contacted_at', 'last_interacted_at']).sorts).toEqual(['id', 'created_at', 'updated_at', 'last_contacted_at', 'last_interacted_at'])
+    expect(withColumnSorts(bare(contacts), ['last_contacted_at', 'last_interacted_at']).sorts).toEqual([
+      'id',
+      'created_at',
+      'updated_at',
+      'last_contacted_at',
+      'last_interacted_at',
+    ])
   })
   for (const [title, sorts, error] of [
     ['unknown column', ['missing'], /missing.*unknown/],
@@ -48,10 +81,24 @@ describe('column sort metadata (CORE170 D3/D11)', () => {
     expect(() => resolveSorts({ ...metadata, columns: { ...metadata.columns, id: 'json' } })).toThrow(/id.*json/)
     expect(() => resolveSorts({ ...metadata, record: { shape: { id: {} } } })).toThrow(/created_at.*record/)
     expect(() => resolveSorts({ ...metadata, derived: { age: { kind: 'boolean' } } })).toThrow(/age.*boolean/)
-    expect(() => resolveSorts({ ...metadata, record: { shape: { ...metadata.record.shape, age: undefined } }, derived: { other: { kind: 'text' } }, sorts: ['other'] })).toThrow(/other.*record/)
+    expect(() =>
+      resolveSorts({
+        ...metadata,
+        record: { shape: { ...metadata.record.shape, age: undefined } },
+        derived: { other: { kind: 'text' } },
+        sorts: ['other'],
+      }),
+    ).toThrow(/other.*record/)
   })
   it('refuses sort/order filter collisions on the opt-in capability', () => {
-    expect(() => withColumnSorts({ ...bare(tasks), filters: { sort: { schema: z.string() } } } as never)).toThrow(/sort.*filter/)
-    expect(() => withColumnSorts({ ...bare(tasks), customFilters: { order: { schema: z.string(), where: () => sql<boolean>`1` } } })).toThrow(/order.*filter/)
+    expect(() => withColumnSorts({ ...bare(tasks), filters: { sort: { schema: z.string() } } } as never)).toThrow(
+      /sort.*filter/,
+    )
+    expect(() =>
+      withColumnSorts({
+        ...bare(tasks),
+        customFilters: { order: { schema: z.string(), where: () => sql<boolean>`1` } },
+      }),
+    ).toThrow(/order.*filter/)
   })
 })

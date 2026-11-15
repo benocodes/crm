@@ -24,13 +24,19 @@ export interface McpDeps {
 
 type Id = string | number | null
 const rpcError = (id: Id, code: number, message: string) => ({ jsonrpc: '2.0' as const, id, error: { code, message } })
-const httpError = (c: Context<AppEnv>, status: 400 | 405 | 413 | 415, code: string, message: string, headers?: Record<string, string>) =>
-  c.json({ error: { code, message } }, status, headers)
+const httpError = (
+  c: Context<AppEnv>,
+  status: 400 | 405 | 413 | 415,
+  code: string,
+  message: string,
+  headers?: Record<string, string>,
+) => c.json({ error: { code, message } }, status, headers)
 
 /** API117: the body was not one JSON-RPC message, so there is no request id to echo. */
-const envelopeFault = (c: Context<AppEnv>, code: -32700 | -32600, message: string) => c.json(rpcError(null, code, message), 400)
+const envelopeFault = (c: Context<AppEnv>, code: -32700 | -32600, message: string) =>
+  c.json(rpcError(null, code, message), 400)
 
-const isObject =(v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
 /** Reads the body, refusing past the cap without buffering the rest. `undefined` means over the cap. */
 async function readCapped(req: Request): Promise<string | undefined> {
@@ -60,7 +66,8 @@ async function readCapped(req: Request): Promise<string | undefined> {
 }
 
 /** D1: `GET`, `DELETE` and anything else but `POST`. */
-export const mcpMethodNotAllowed = (c: Context<AppEnv>) => httpError(c, 405, 'method_not_allowed', 'POST a JSON-RPC message to this endpoint', { Allow: 'POST' })
+export const mcpMethodNotAllowed = (c: Context<AppEnv>) =>
+  httpError(c, 405, 'method_not_allowed', 'POST a JSON-RPC message to this endpoint', { Allow: 'POST' })
 
 /**
  * D1, D3, D10: one stateless JSON-RPC message per `POST`. A body that is not one JSON-RPC message (an envelope fault: -32700,
@@ -71,9 +78,11 @@ export const mcpMethodNotAllowed = (c: Context<AppEnv>) => httpError(c, 405, 'me
 export function mcpPost(deps: McpDeps) {
   return async (c: Context<AppEnv>): Promise<Response> => {
     const type = (c.req.header('content-type') ?? '').split(';')[0]!.trim().toLowerCase()
-    if (type !== 'application/json') return httpError(c, 415, 'unsupported_media_type', 'Content-Type must be application/json')
+    if (type !== 'application/json')
+      return httpError(c, 415, 'unsupported_media_type', 'Content-Type must be application/json')
     const text = await readCapped(c.req.raw)
-    if (text === undefined) return c.json({ error: { code: 'payload_too_large', message: 'a message is at most 1 MiB' } }, 413)
+    if (text === undefined)
+      return c.json({ error: { code: 'payload_too_large', message: 'a message is at most 1 MiB' } }, 413)
     let message: unknown
     try {
       message = JSON.parse(text)
@@ -84,7 +93,8 @@ export function mcpPost(deps: McpDeps) {
     if (!isObject(message) || message.jsonrpc !== '2.0') return envelopeFault(c, -32600, 'not a JSON-RPC 2.0 message')
     const hasId = 'id' in message
     const id = message.id
-    if (hasId && typeof id !== 'string' && typeof id !== 'number') return envelopeFault(c, -32600, 'id must be a string or a number')
+    if (hasId && typeof id !== 'string' && typeof id !== 'number')
+      return envelopeFault(c, -32600, 'id must be a string or a number')
     if (typeof message.method !== 'string') {
       // A response from the client (to a server request we never send) is accepted and ignored.
       if (hasId && ('result' in message || 'error' in message)) return c.body(null, 202)
@@ -92,8 +102,17 @@ export function mcpPost(deps: McpDeps) {
     }
     const method = message.method
     const version = c.req.header('mcp-protocol-version')
-    if (method !== 'initialize' && version !== undefined && !(SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(version)) {
-      return httpError(c, 400, 'unsupported_protocol_version', `MCP-Protocol-Version ${version} is not supported; use ${SUPPORTED_PROTOCOL_VERSIONS.join(', ')}`)
+    if (
+      method !== 'initialize' &&
+      version !== undefined &&
+      !(SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(version)
+    ) {
+      return httpError(
+        c,
+        400,
+        'unsupported_protocol_version',
+        `MCP-Protocol-Version ${version} is not supported; use ${SUPPORTED_PROTOCOL_VERSIONS.join(', ')}`,
+      )
     }
     if (!hasId) return c.body(null, 202) // notifications/initialized, notifications/cancelled and any other: nothing to answer
     const rid = id as Id
@@ -101,7 +120,8 @@ export function mcpPost(deps: McpDeps) {
     switch (method) {
       case 'initialize': {
         const asked = isObject(params) ? params.protocolVersion : undefined
-        const protocolVersion = (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).find((v) => v === asked) ?? SUPPORTED_PROTOCOL_VERSIONS[0]
+        const protocolVersion =
+          (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).find((v) => v === asked) ?? SUPPORTED_PROTOCOL_VERSIONS[0]
         return c.json({
           jsonrpc: '2.0',
           id: rid,
@@ -123,7 +143,8 @@ export function mcpPost(deps: McpDeps) {
         return c.json({ jsonrpc: '2.0', id: rid, result: { tools } })
       }
       case 'tools/call': {
-        if (!isObject(params) || typeof params.name !== 'string') return c.json(rpcError(rid, -32602, 'name is required'))
+        if (!isObject(params) || typeof params.name !== 'string')
+          return c.json(rpcError(rid, -32602, 'name is required'))
         const args = params.arguments ?? {}
         if (!isObject(args)) return c.json(rpcError(rid, -32602, 'arguments must be an object'))
         const entry = deriveTools(deps.registry).find((e) => e.tool.name === params.name)

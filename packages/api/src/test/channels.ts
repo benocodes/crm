@@ -2,7 +2,13 @@
 // every `fetchAttachment` call, which is how a test proves an existing message fetched nothing. Not in the production barrel.
 import { toPlainText } from '../channels/markdown.js'
 import { parseMarkdown } from './markdown.js'
-import { AttachmentFetchError, type ChannelMessage, type ChannelPort, type ConnectionRef, type ParticipantRole } from '../channels/port.js'
+import {
+  AttachmentFetchError,
+  type ChannelMessage,
+  type ChannelPort,
+  type ConnectionRef,
+  type ParticipantRole,
+} from '../channels/port.js'
 
 export interface FakeAttachmentScript {
   name?: string
@@ -51,7 +57,8 @@ export interface FakeMessageScript {
 }
 
 const encoder = new TextEncoder()
-const streamOf = (bytes: Uint8Array): ReadableStream<Uint8Array> => new Blob([bytes.slice()]).stream() as ReadableStream<Uint8Array>
+const streamOf = (bytes: Uint8Array): ReadableStream<Uint8Array> =>
+  new Blob([bytes.slice()]).stream() as ReadableStream<Uint8Array>
 
 export class FakeChannel implements ChannelPort<ConnectionRef> {
   readonly channel = 'email' as const
@@ -112,15 +119,17 @@ export class FakeChannel implements ChannelPort<ConnectionRef> {
         provider_thread_id: s.providerThreadId ?? `t-${s.providerMessageId}`,
         occurred_at: s.occurredAt ?? '2026-10-22T09:00:00.000Z',
         subject: s.subject === undefined ? `Subject ${s.providerMessageId}` : s.subject,
-        participants:
-          s.participants ??
-          [
-            { kind: 'email', value: from, name: from.split('@')[0]!, role: 'from' },
-            ...(s.to ?? ['owner@vibase.test']).map((value) => ({ kind: 'email' as const, value, role: 'to' as const })),
-            ...(s.cc ?? []).map((value) => ({ kind: 'email' as const, value, role: 'cc' as const })),
-          ],
+        participants: s.participants ?? [
+          { kind: 'email', value: from, name: from.split('@')[0]!, role: 'from' },
+          ...(s.to ?? ['owner@vibase.test']).map((value) => ({ kind: 'email' as const, value, role: 'to' as const })),
+          ...(s.cc ?? []).map((value) => ({ kind: 'email' as const, value, role: 'cc' as const })),
+        ],
         sent_by_connection: s.sentByConnection ?? false,
-        attachments: attachments.map((a, position) => ({ position, inline: a.inline ?? false, content_id: a.contentId ?? null })),
+        attachments: attachments.map((a, position) => ({
+          position,
+          inline: a.inline ?? false,
+          content_id: a.contentId ?? null,
+        })),
       },
       raw: {
         ext: s.raw?.ext ?? 'eml',
@@ -134,7 +143,10 @@ export class FakeChannel implements ChannelPort<ConnectionRef> {
     }
   }
 
-  async fetchAttachment(conn: ConnectionRef, fetchMetadata: Record<string, string>): Promise<{ body: ReadableStream<Uint8Array>; size: number }> {
+  async fetchAttachment(
+    conn: ConnectionRef,
+    fetchMetadata: Record<string, string>,
+  ): Promise<{ body: ReadableStream<Uint8Array>; size: number }> {
     this.fetches.push({ conn, metadata: fetchMetadata })
     const [id, index] = (fetchMetadata.key ?? '').split(':') as [string, string]
     const a = this.scripts.get(id)?.attachments?.[Number(index)]
@@ -145,25 +157,71 @@ export class FakeChannel implements ChannelPort<ConnectionRef> {
 }
 
 /** Deterministic bytes of a given length. */
-export const bytesOf = (length: number, seed = 1): Uint8Array => Uint8Array.from({ length }, (_, i) => (i * 31 + seed) & 255)
+export const bytesOf = (length: number, seed = 1): Uint8Array =>
+  Uint8Array.from({ length }, (_, i) => (i * 31 + seed) & 255)
 
 /** One message per scripted case of D13, with the ids the pipeline tests name. */
 export function standardScripts(): Record<string, FakeMessageScript> {
   const many = Array.from({ length: 101 }, (_, i) => `r${i}@bulk.test`)
   return {
     plain: { providerMessageId: 'plain' },
-    withAttachment: { providerMessageId: 'with-attachment', attachments: [{ name: 'a.pdf', mimeType: 'application/pdf', bytes: bytesOf(300) }] },
+    withAttachment: {
+      providerMessageId: 'with-attachment',
+      attachments: [{ name: 'a.pdf', mimeType: 'application/pdf', bytes: bytesOf(300) }],
+    },
     reaction: { providerMessageId: 'reaction', kind: 'reaction', markdown: '👍', inReplyTo: '<plain@fake.test>' },
-    reply: { providerMessageId: 'reply', inReplyTo: '<parent@fake.test>', threadHints: ['<parent@fake.test>'], occurredAt: '2026-10-22T09:05:00.000Z', providerThreadId: 't-conversation' },
+    reply: {
+      providerMessageId: 'reply',
+      inReplyTo: '<parent@fake.test>',
+      threadHints: ['<parent@fake.test>'],
+      occurredAt: '2026-10-22T09:05:00.000Z',
+      providerThreadId: 't-conversation',
+    },
     parent: { providerMessageId: 'parent', occurredAt: '2026-10-22T09:00:00.000Z', providerThreadId: 't-conversation' },
-    nonAscii: { providerMessageId: 'non-ascii', participants: [{ kind: 'email', value: 'jane@acme.test', role: 'from' }, { kind: 'email', value: 'jörg@bücher.test', role: 'to' }, { kind: 'email', value: 'ok@vibase.test', role: 'to' }] },
-    noSender: { providerMessageId: 'no-sender', participants: [{ kind: 'email', value: 'jörg@bücher.test', role: 'from' }, { kind: 'email', value: 'ok@vibase.test', role: 'to' }] },
+    nonAscii: {
+      providerMessageId: 'non-ascii',
+      participants: [
+        { kind: 'email', value: 'jane@acme.test', role: 'from' },
+        { kind: 'email', value: 'jörg@bücher.test', role: 'to' },
+        { kind: 'email', value: 'ok@vibase.test', role: 'to' },
+      ],
+    },
+    noSender: {
+      providerMessageId: 'no-sender',
+      participants: [
+        { kind: 'email', value: 'jörg@bücher.test', role: 'from' },
+        { kind: 'email', value: 'ok@vibase.test', role: 'to' },
+      ],
+    },
     overCap: { providerMessageId: 'over-cap', to: many },
-    failingAttachment: { providerMessageId: 'failing-attachment', attachments: [{ name: 'gone.pdf', bytes: bytesOf(10), fail: new AttachmentFetchError('not_found', 'https://mail.example/secret-token') }] },
-    brokenAttachment: { providerMessageId: 'broken-attachment', attachments: [{ name: 'x.bin', bytes: bytesOf(10), fail: new Error('socket hang up for https://mail.example/token=abc') }] },
-    hugeAttachment: { providerMessageId: 'huge-attachment', attachments: [{ name: 'big.bin', bytes: bytesOf(8), declaredSize: 60 * 1024 * 1024 }] },
-    hugeFetched: { providerMessageId: 'huge-fetched', attachments: [{ name: 'big2.bin', bytes: bytesOf(8), declaredSize: null, reportedSize: 60 * 1024 * 1024 }] },
-    mismatch: { providerMessageId: 'mismatch', attachments: [{ name: 'liar.bin', bytes: bytesOf(100), reportedSize: 120 }] },
+    failingAttachment: {
+      providerMessageId: 'failing-attachment',
+      attachments: [
+        {
+          name: 'gone.pdf',
+          bytes: bytesOf(10),
+          fail: new AttachmentFetchError('not_found', 'https://mail.example/secret-token'),
+        },
+      ],
+    },
+    brokenAttachment: {
+      providerMessageId: 'broken-attachment',
+      attachments: [
+        { name: 'x.bin', bytes: bytesOf(10), fail: new Error('socket hang up for https://mail.example/token=abc') },
+      ],
+    },
+    hugeAttachment: {
+      providerMessageId: 'huge-attachment',
+      attachments: [{ name: 'big.bin', bytes: bytesOf(8), declaredSize: 60 * 1024 * 1024 }],
+    },
+    hugeFetched: {
+      providerMessageId: 'huge-fetched',
+      attachments: [{ name: 'big2.bin', bytes: bytesOf(8), declaredSize: null, reportedSize: 60 * 1024 * 1024 }],
+    },
+    mismatch: {
+      providerMessageId: 'mismatch',
+      attachments: [{ name: 'liar.bin', bytes: bytesOf(100), reportedSize: 120 }],
+    },
     bigOriginal: { providerMessageId: 'big-original', raw: { size: 'unknown', bytes: bytesOf(5 * 1024 * 1024 + 123) } },
     skipped: { providerMessageId: 'skipped', skip: 'draft' },
   }

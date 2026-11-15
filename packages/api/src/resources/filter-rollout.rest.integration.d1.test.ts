@@ -6,8 +6,19 @@ import { d1Backend } from '../test/d1-backend.js'
 // [[CORE201]] on the D1 app over REST: the column filter grammar on lists other than deals (rollout, compatibility, collation) and tag by name on
 // companies, contacts and tasks.
 const FULL = [
-  'companies:read', 'companies:write', 'contacts:read', 'contacts:write', 'tasks:read', 'tasks:write', 'tags:read', 'tags:write', 'associations:read', 'associations:write',
-  'pipelines:read', 'pipelines:write', 'files:read',
+  'companies:read',
+  'companies:write',
+  'contacts:read',
+  'contacts:write',
+  'tasks:read',
+  'tasks:write',
+  'tags:read',
+  'tags:write',
+  'associations:read',
+  'associations:write',
+  'pipelines:read',
+  'pipelines:write',
+  'files:read',
 ]
 let s: ContractSession
 let t: ContractTenant
@@ -77,8 +88,20 @@ describe('compatibility: every bare call keeps its meaning (D10)', () => {
     expect(r.body.error.message).toContain('filter domain')
   })
   it('files?sha256 is still lower-cased; an invalid digest is still a 400', async () => {
-    await s.insert(t, 'files', { name: 'a.pdf', mime_type: 'application/pdf', size_bytes: 1, sha256: 'ab'.repeat(32), storage_key: 'files/a' })
-    await s.insert(t, 'files', { name: 'b.pdf', mime_type: 'application/pdf', size_bytes: 1, sha256: 'cd'.repeat(32), storage_key: 'files/b' })
+    await s.insert(t, 'files', {
+      name: 'a.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 1,
+      sha256: 'ab'.repeat(32),
+      storage_key: 'files/a',
+    })
+    await s.insert(t, 'files', {
+      name: 'b.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 1,
+      sha256: 'cd'.repeat(32),
+      storage_key: 'files/b',
+    })
     expect(await list('/api/v1/files', `sha256=${'AB'.repeat(32)}`)).toEqual(['a.pdf'])
     expect(await list('/api/v1/files', `sha256=eq.${'AB'.repeat(32)}`)).toEqual(['a.pdf'])
     expect(await list('/api/v1/files', `sha256=neq.${'AB'.repeat(32)}`)).toEqual(['b.pdf'])
@@ -92,7 +115,10 @@ describe('compatibility: every bare call keeps its meaning (D10)', () => {
     expect(await list('/api/v1/identities', 'kind=email&value=ADA@Example.com')).toEqual(['ada@example.com'])
     expect(await list('/api/v1/identities', 'kind=email&value=eq.ADA@Example.com')).toEqual(['ada@example.com'])
     expect(await list('/api/v1/identities', 'kind=email')).toEqual(['ada@example.com', 'lovelace@example.com'])
-    expect(await list('/api/v1/identities', 'kind=email&value=in.(Ada@example.com,LOVELACE@example.com)')).toEqual(['ada@example.com', 'lovelace@example.com'])
+    expect(await list('/api/v1/identities', 'kind=email&value=in.(Ada@example.com,LOVELACE@example.com)')).toEqual([
+      'ada@example.com',
+      'lovelace@example.com',
+    ])
     expect(await list('/api/v1/identities', 'kind=email&value=ilike.*love*')).toEqual(['lovelace@example.com'])
     expect(await list('/api/v1/identities', 'own=false&kind=phone')).toEqual(['+14155550101'])
     const noKind = await refused('/api/v1/identities', 'value=ada@example.com')
@@ -118,7 +144,8 @@ describe('compatibility: every bare call keeps its meaning (D10)', () => {
   })
   it('the generated parameters are grammar strings: a UUID filter is no longer format uuid, and free-text descriptions state the eq. escape', async () => {
     const doc = (await (await s.call(t, 'agent', FULL, 'GET', '/api/v1/openapi.json')).json()) as any
-    const params = (path: string) => Object.fromEntries((doc.paths[path].get.parameters as any[]).map((p) => [p.name, p]))
+    const params = (path: string) =>
+      Object.fromEntries((doc.paths[path].get.parameters as any[]).map((p) => [p.name, p]))
     const tasks = params('/api/v1/tasks')
     expect(tasks.assignee_id.schema.type).toBe('string')
     expect(tasks.assignee_id.schema.format).toBeUndefined()
@@ -139,7 +166,12 @@ describe('collation of text filters (D18)', () => {
     expect(await list('/api/v1/tags', 'name=in.(PARTNER,nothing)')).toEqual(['Partner'])
     expect(await list('/api/v1/tags', 'name=neq.CONSULTANCY')).toEqual(['Partner'])
     expect(await list('/meta/v1/pipelines', 'name=in.(SALES,renewals)')).toEqual(['Renewals', 'Sales'])
-    const stage = await must('POST', '/meta/v1/pipeline-stages', { pipeline_id: p.id, name: 'Open', kind: 'open', position: 1 })
+    const stage = await must('POST', '/meta/v1/pipeline-stages', {
+      pipeline_id: p.id,
+      name: 'Open',
+      kind: 'open',
+      position: 1,
+    })
     await must('POST', '/api/v1/deals', { name: 'Acme pilot', stage_id: stage.id }, [...FULL, 'deals:write'])
     expect(await list('/api/v1/deals', 'name=eq.Acme pilot', [...FULL, 'deals:read'])).toEqual(['Acme pilot'])
     expect(await list('/api/v1/deals', 'name=eq.ACME PILOT', [...FULL, 'deals:read'])).toEqual([])
@@ -153,7 +185,13 @@ describe('collation of text filters (D18)', () => {
 })
 
 describe.each([
-  { list: 'companies', path: '/api/v1/companies', scope: 'companies', body: (n: string) => ({ name: n }), column: 'name' },
+  {
+    list: 'companies',
+    path: '/api/v1/companies',
+    scope: 'companies',
+    body: (n: string) => ({ name: n }),
+    column: 'name',
+  },
   { list: 'contacts', path: '/api/v1/contacts', scope: 'contacts', body: (n: string) => ({ name: n }), column: 'name' },
   { list: 'tasks', path: '/api/v1/tasks', scope: 'tasks', body: (n: string) => ({ title: n }), column: 'title' },
 ])('tag by name on $list (D7)', ({ list: kind, path, scope, body, column }) => {
@@ -162,7 +200,10 @@ describe.each([
     const a = await must('POST', path, body('Alpha'))
     const b = await must('POST', path, body('Beta'))
     await must('POST', path, body('Gamma'))
-    const link = async (row: { id: string }, tagId = tag.id) => (await must('POST', '/api/v1/associations', { a_type: kind, a_id: row.id, b_type: 'tags', b_id: tagId })) as { id: string }
+    const link = async (row: { id: string }, tagId = tag.id) =>
+      (await must('POST', '/api/v1/associations', { a_type: kind, a_id: row.id, b_type: 'tags', b_id: tagId })) as {
+        id: string
+      }
     const edgeA = await link(a)
     await link(b)
     return { tag, a, b, edgeA, link }
@@ -186,7 +227,13 @@ describe.each([
     expect(await q('tag=consultancy')).toEqual(['Beta'])
     const ghost = await s.insert(t, 'tags', { name: 'ghost', deleted_at: '2026-11-02T00:00:00.000Z' })
     const [tagFirst] = ['tags', kind].sort()
-    await s.insert(t, 'associations', tagFirst === 'tags' ? { a_type: 'tags', a_id: ghost.id, b_type: kind, b_id: b.id } : { a_type: kind, a_id: b.id, b_type: 'tags', b_id: ghost.id })
+    await s.insert(
+      t,
+      'associations',
+      tagFirst === 'tags'
+        ? { a_type: 'tags', a_id: ghost.id, b_type: kind, b_id: b.id }
+        : { a_type: kind, a_id: b.id, b_type: 'tags', b_id: ghost.id },
+    )
     expect(await q('tag=ghost')).toEqual([])
     expect((await call(FULL, 'DELETE', `/api/v1/tags/${tag.id}`)).status).toBe(204)
     expect(await q('tag=consultancy')).toEqual([])
@@ -194,13 +241,25 @@ describe.each([
   it('needs tags:read and associations:read: 403 insufficient_scope naming the scope', async () => {
     await tagged()
     for (const missing of ['tags:read', 'associations:read']) {
-      const r = await refused(path, 'tag=consultancy', FULL.filter((x) => x !== missing))
+      const r = await refused(
+        path,
+        'tag=consultancy',
+        FULL.filter((x) => x !== missing),
+      )
       expect(r.status, missing).toBe(403)
       expect(r.body.error.code).toBe('insufficient_scope')
       expect(r.body.error.message).toContain(missing)
     }
     // without the tag filter the same caller still lists
-    expect((await refused(path, '', FULL.filter((x) => x !== 'tags:read'))).status).toBe(200)
+    expect(
+      (
+        await refused(
+          path,
+          '',
+          FULL.filter((x) => x !== 'tags:read'),
+        )
+      ).status,
+    ).toBe(200)
     expect(scope).toBeTruthy()
   })
   it('ANDs with a column filter and with the grammar on another column', async () => {

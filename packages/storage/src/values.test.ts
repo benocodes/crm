@@ -39,7 +39,12 @@ describe('json', () => {
 
 describe('booleans and arrays', () => {
   it('reads true booleans and 0/1', () => {
-    expect([codecs.boolean.read(true), codecs.boolean.read(false), codecs.boolean.read(1), codecs.boolean.read(0)]).toEqual([true, false, true, false])
+    expect([
+      codecs.boolean.read(true),
+      codecs.boolean.read(false),
+      codecs.boolean.read(1),
+      codecs.boolean.read(0),
+    ]).toEqual([true, false, true, false])
     expect(() => codecs.boolean.read(2)).toThrow(CodecError)
     expect(() => codecs.boolean.read('yes')).toThrow(CodecError)
   })

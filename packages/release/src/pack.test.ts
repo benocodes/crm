@@ -11,10 +11,20 @@ import { packRelease, verifySums } from './pack.js'
 import { stageClient, stageServer } from './stage.js'
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
-const tmp = (p: string) => { const d = mkdtempSync(join(tmpdir(), p)); dirs.push(d); return d }
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
+const tmp = (p: string) => {
+  const d = mkdtempSync(join(tmpdir(), p))
+  dirs.push(d)
+  return d
+}
 const sha = (f: string) => createHash('sha256').update(readFileSync(f)).digest('hex')
-const tarList = (tgz: string) => execFileSync('tar', ['-tzf', tgz], { encoding: 'utf8' }).split('\n').filter((l) => l !== '').sort()
+const tarList = (tgz: string) =>
+  execFileSync('tar', ['-tzf', tgz], { encoding: 'utf8' })
+    .split('\n')
+    .filter((l) => l !== '')
+    .sort()
 
 function built() {
   const s = sources()
@@ -32,14 +42,26 @@ describe('the build output, per package (the matrix: client x server)', () => {
     const { s, clientDir, serverDir, dist } = built()
     writeFileSync(join(dist, `vibase-${s.version}.tgz`), 'stale single tarball')
     const out = packRelease({ clientDir, serverDir, dist, version: s.version })
-    expect(readdirSync(dist).sort()).toEqual([`vibase-cli-${s.version}.tgz`, `vibase-server-d1-${s.version}.tgz`, 'SHA256SUMS'].sort())
-    expect(out).toEqual({ client: join(dist, `vibase-cli-${s.version}.tgz`), server: join(dist, `vibase-server-d1-${s.version}.tgz`), sums: join(dist, 'SHA256SUMS') })
+    expect(readdirSync(dist).sort()).toEqual(
+      [`vibase-cli-${s.version}.tgz`, `vibase-server-d1-${s.version}.tgz`, 'SHA256SUMS'].sort(),
+    )
+    expect(out).toEqual({
+      client: join(dist, `vibase-cli-${s.version}.tgz`),
+      server: join(dist, `vibase-server-d1-${s.version}.tgz`),
+      sums: join(dist, 'SHA256SUMS'),
+    })
   })
-  it('each tarball holds D3\'s list and nothing else', () => {
+  it("each tarball holds D3's list and nothing else", () => {
     const { s, clientDir, serverDir, dist } = built()
     const out = packRelease({ clientDir, serverDir, dist, version: s.version })
-    expect(tarList(out.client)).toEqual(['LICENSE', 'README.md', 'cli/vibase.js', 'package.json'].map((f) => `package/${f}`).sort())
-    expect(tarList(out.server)).toEqual(listFiles(serverDir).map((f) => `package/${f}`).sort())
+    expect(tarList(out.client)).toEqual(
+      ['LICENSE', 'README.md', 'cli/vibase.js', 'package.json'].map((f) => `package/${f}`).sort(),
+    )
+    expect(tarList(out.server)).toEqual(
+      listFiles(serverDir)
+        .map((f) => `package/${f}`)
+        .sort(),
+    )
     expect(tarList(out.server)).toContain('package/release.json')
     expect(tarList(out.client)).not.toContain('package/release.json')
   })
@@ -47,7 +69,10 @@ describe('the build output, per package (the matrix: client x server)', () => {
     const { s, clientDir, serverDir, dist } = built()
     const out = packRelease({ clientDir, serverDir, dist, version: s.version })
     const lines = readFileSync(out.sums, 'utf8').trimEnd().split('\n')
-    expect(lines).toEqual([`${sha(out.client)}  vibase-cli-${s.version}.tgz`, `${sha(out.server)}  vibase-server-d1-${s.version}.tgz`])
+    expect(lines).toEqual([
+      `${sha(out.client)}  vibase-cli-${s.version}.tgz`,
+      `${sha(out.server)}  vibase-server-d1-${s.version}.tgz`,
+    ])
     expect(verifySums(dist)).toEqual([])
   })
   it('verifySums names a tarball whose bytes changed, one that is missing, and one the file does not list', () => {

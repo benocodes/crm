@@ -50,25 +50,40 @@ export async function checkBetterAuthIssuer(base: string, r: DiscoveryReads): Pr
       const a = await read(r.fetch, url)
       if (a.kind === 'final') return a
       if (r.dryRun) return `${url} ${a.detail}`
-      if (r.now() - start >= DISCOVERY_BOUND_MS) return `${url} still ${a.detail} after ${Math.round((r.now() - start) / 1000)}s in total`
+      if (r.now() - start >= DISCOVERY_BOUND_MS)
+        return `${url} still ${a.detail} after ${Math.round((r.now() - start) / 1000)}s in total`
       await r.sleep(DISCOVERY_INTERVAL_MS)
     }
   }
   const disc = await fetchFinal('/.well-known/vibase')
   if (typeof disc === 'string') return { ok: false, detail: disc }
   if (disc.status !== 200) return { ok: false, detail: `${base}/.well-known/vibase answered ${disc.status}` }
-  const auth = (disc.json as { auth?: { provider?: unknown; issuer?: unknown; sign_in_methods?: unknown } | null } | null)?.auth
-  if (!auth) return { ok: false, detail: `${base}/.well-known/vibase reports no auth provider: the Worker is not on better-auth (is AUTH_PROVIDER deployed, and the secrets in place?)` }
+  const auth = (
+    disc.json as { auth?: { provider?: unknown; issuer?: unknown; sign_in_methods?: unknown } | null } | null
+  )?.auth
+  if (!auth)
+    return {
+      ok: false,
+      detail: `${base}/.well-known/vibase reports no auth provider: the Worker is not on better-auth (is AUTH_PROVIDER deployed, and the secrets in place?)`,
+    }
   const bad: string[] = []
-  if (auth.provider !== 'better-auth') bad.push(`auth.provider is ${String(auth.provider)}, setup configured better-auth`)
+  if (auth.provider !== 'better-auth')
+    bad.push(`auth.provider is ${String(auth.provider)}, setup configured better-auth`)
   if (auth.issuer !== issuer) bad.push(`auth.issuer is ${String(auth.issuer)}, setup configured ${issuer}`)
   if (bad.length) return { ok: false, detail: `${base}/.well-known/vibase disagrees: ${bad.join('; ')}` }
   const meta = await fetchFinal('/.well-known/oauth-authorization-server/auth')
   if (typeof meta === 'string') return { ok: false, detail: meta }
-  if (meta.status !== 200) return { ok: false, detail: `${base}/.well-known/oauth-authorization-server/auth answered ${meta.status}` }
+  if (meta.status !== 200)
+    return { ok: false, detail: `${base}/.well-known/oauth-authorization-server/auth answered ${meta.status}` }
   const metaIssuer = (meta.json as { issuer?: unknown } | null)?.issuer
-  if (metaIssuer !== issuer) return { ok: false, detail: `${base}/.well-known/oauth-authorization-server/auth disagrees: issuer is ${String(metaIssuer)}, setup configured ${issuer}` }
-  const methods = Array.isArray(auth.sign_in_methods) ? auth.sign_in_methods.filter((m): m is string => typeof m === 'string') : []
+  if (metaIssuer !== issuer)
+    return {
+      ok: false,
+      detail: `${base}/.well-known/oauth-authorization-server/auth disagrees: issuer is ${String(metaIssuer)}, setup configured ${issuer}`,
+    }
+  const methods = Array.isArray(auth.sign_in_methods)
+    ? auth.sign_in_methods.filter((m): m is string => typeof m === 'string')
+    : []
   return { ok: true, signInMethods: methods }
 }
 
@@ -77,7 +92,9 @@ export async function checkBetterAuthIssuer(base: string, r: DiscoveryReads): Pr
  * wrangler.jsonc (`setup:remote`); `vibase-server`'s settings file cannot hold a binding, so it never calls this and always prints the statement.
  */
 export function emailConfigured(block: { send_email?: unknown; vars?: Record<string, unknown> } | undefined): boolean {
-  const binding = Array.isArray(block?.send_email) && block.send_email.some((b) => typeof b === 'object' && b !== null && (b as { name?: unknown }).name === 'EMAIL')
+  const binding =
+    Array.isArray(block?.send_email) &&
+    block.send_email.some((b) => typeof b === 'object' && b !== null && (b as { name?: unknown }).name === 'EMAIL')
   const from = block?.vars?.AUTH_EMAIL_FROM
   return binding && typeof from === 'string' && from.trim() !== ''
 }

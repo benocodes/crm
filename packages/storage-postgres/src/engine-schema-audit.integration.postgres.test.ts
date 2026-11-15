@@ -2,7 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createOwnerTestDb } from '@vibase/db/test'
 import { COLUMN_KINDS } from '@vibase/storage'
 import { openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
-import { ENGINE_DIFFERENCES, NOT_COMPARED, d1Shape, diffShapes, postgresShape, type EngineDifference, type SchemaShape } from './test/schema-audit.js'
+import {
+  ENGINE_DIFFERENCES,
+  NOT_COMPARED,
+  d1Shape,
+  diffShapes,
+  postgresShape,
+  type EngineDifference,
+  type SchemaShape,
+} from './test/schema-audit.js'
 
 // Spec CORE38 D10: the physical constraints of the two engines are bound to each other, and every difference is
 // named. Only the enterprise side may import both engines (invariant 10), hence this file lives here.
@@ -71,8 +79,14 @@ describe('engine schema audit (Postgres vs D1)', () => {
 
   it('composite intra-organisation keys match', () => {
     for (const t of ['contacts', 'identities']) expect(d1.byTable[t]!.foreignKeys).toEqual(pg.byTable[t]!.foreignKeys)
-    expect(d1.byTable.contacts!.foreignKeys).toContain('(organization_id, company_id) -> companies(organization_id, id) on delete no action')
-    expect(d1.byTable.contacts!.foreignKeys).toContain('(organization_id, merged_into_id) -> contacts(organization_id, id) on delete no action')
-    expect(d1.byTable.identities!.foreignKeys).toContain('(organization_id, contact_id) -> contacts(organization_id, id) on delete no action')
+    expect(d1.byTable.contacts!.foreignKeys).toContain(
+      '(organization_id, company_id) -> companies(organization_id, id) on delete no action',
+    )
+    expect(d1.byTable.contacts!.foreignKeys).toContain(
+      '(organization_id, merged_into_id) -> contacts(organization_id, id) on delete no action',
+    )
+    expect(d1.byTable.identities!.foreignKeys).toContain(
+      '(organization_id, contact_id) -> contacts(organization_id, id) on delete no action',
+    )
   })
 })

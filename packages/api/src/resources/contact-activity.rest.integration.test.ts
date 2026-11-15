@@ -10,7 +10,15 @@ const C1 = '0190b2c4-0000-7000-8000-0000000000c1'
 const OWNER = 'owner@vibase.test'
 const BASE = ['contacts:read', 'contacts:write']
 const WITH = [...BASE, 'interactions:read']
-const FULL = [...WITH, 'tags:read', 'tags:write', 'associations:read', 'associations:write', 'companies:read', 'companies:write']
+const FULL = [
+  ...WITH,
+  'tags:read',
+  'tags:write',
+  'associations:read',
+  'associations:write',
+  'companies:read',
+  'companies:write',
+]
 const FIELDS = ['last_contacted_at', 'last_interacted_at'] as const
 
 let s: ContractSession
@@ -64,8 +72,16 @@ const T_D = '2026-09-01T00:00:00.000Z' // D: old outbound
 /** A inbound-only, B outbound, C never, D old outbound. Returns the ids by name. */
 async function seedFour(): Promise<Record<'A' | 'B' | 'C' | 'D', string>> {
   await must(FULL, 'POST', '/api/v1/identities', { kind: 'email', value: OWNER, own: true })
-  const ids = { A: await addContact('A', 'a@x.test'), B: await addContact('B', 'b@x.test'), C: await addContact('C', 'c@x.test'), D: await addContact('D', 'd@x.test') }
-  await s.capture(t, { connection_id: C1, messages: [messageFrom('a@x.test', T_A), messageTo('b@x.test', T_B), messageTo('d@x.test', T_D)] })
+  const ids = {
+    A: await addContact('A', 'a@x.test'),
+    B: await addContact('B', 'b@x.test'),
+    C: await addContact('C', 'c@x.test'),
+    D: await addContact('D', 'd@x.test'),
+  }
+  await s.capture(t, {
+    connection_id: C1,
+    messages: [messageFrom('a@x.test', T_A), messageTo('b@x.test', T_B), messageTo('d@x.test', T_D)],
+  })
   return ids
 }
 const names = (ids: Record<string, string>, body: any): string[] => {
@@ -87,12 +103,42 @@ describe('visibility by interactions:read (D5, D6)', () => {
   // Every operation of D6 that returns a contact, both fields, with and without the scope (B has T_B for both; merge takes C then D).
   type Run = (scopes: string[], ids: Record<string, string>, source: string) => Promise<any>
   const operations: Array<{ name: string; extra: string[]; expectValue: boolean; run: Run }> = [
-    { name: 'contacts.list', extra: [], expectValue: true, run: async (sc, ids) => (await must(sc, 'GET', '/api/v1/contacts')).data.find((c: any) => c.id === ids.B) },
-    { name: 'contacts.get', extra: [], expectValue: true, run: (sc, ids) => must(sc, 'GET', `/api/v1/contacts/${ids.B}`) },
-    { name: 'contacts.get include=associations', extra: ['associations:read'], expectValue: true, run: (sc, ids) => must(sc, 'GET', `/api/v1/contacts/${ids.B}?include=associations`) },
-    { name: 'contacts.create', extra: [], expectValue: false, run: (sc) => must(sc, 'POST', '/api/v1/contacts', { name: 'New' }) },
-    { name: 'contacts.update', extra: [], expectValue: true, run: (sc, ids) => must(sc, 'PATCH', `/api/v1/contacts/${ids.B}`, { name: 'B2' }) },
-    { name: 'contacts.merge', extra: [], expectValue: true, run: (sc, ids, source) => must(sc, 'POST', `/api/v1/contacts/${ids.B}/merge`, { source_id: source }) },
+    {
+      name: 'contacts.list',
+      extra: [],
+      expectValue: true,
+      run: async (sc, ids) => (await must(sc, 'GET', '/api/v1/contacts')).data.find((c: any) => c.id === ids.B),
+    },
+    {
+      name: 'contacts.get',
+      extra: [],
+      expectValue: true,
+      run: (sc, ids) => must(sc, 'GET', `/api/v1/contacts/${ids.B}`),
+    },
+    {
+      name: 'contacts.get include=associations',
+      extra: ['associations:read'],
+      expectValue: true,
+      run: (sc, ids) => must(sc, 'GET', `/api/v1/contacts/${ids.B}?include=associations`),
+    },
+    {
+      name: 'contacts.create',
+      extra: [],
+      expectValue: false,
+      run: (sc) => must(sc, 'POST', '/api/v1/contacts', { name: 'New' }),
+    },
+    {
+      name: 'contacts.update',
+      extra: [],
+      expectValue: true,
+      run: (sc, ids) => must(sc, 'PATCH', `/api/v1/contacts/${ids.B}`, { name: 'B2' }),
+    },
+    {
+      name: 'contacts.merge',
+      extra: [],
+      expectValue: true,
+      run: (sc, ids, source) => must(sc, 'POST', `/api/v1/contacts/${ids.B}/merge`, { source_id: source }),
+    },
   ]
   for (const op of operations) {
     for (const field of FIELDS) {
@@ -109,11 +155,18 @@ describe('visibility by interactions:read (D5, D6)', () => {
 
   it('the contact nested in identities.resolve and the association neighbours never carry them, whatever the scopes', async () => {
     const ids = await seedFour()
-    const resolved = await must(FULL, 'POST', '/api/v1/identities/resolve', { identities: [{ kind: 'email', value: 'b@x.test' }] })
+    const resolved = await must(FULL, 'POST', '/api/v1/identities/resolve', {
+      identities: [{ kind: 'email', value: 'b@x.test' }],
+    })
     expect(resolved.data[0].contact.id).toBe(ids.B)
     for (const f of FIELDS) expect(f in resolved.data[0].contact).toBe(false)
     const co = await must(FULL, 'POST', '/api/v1/companies', { name: 'Acme' })
-    await must(FULL, 'POST', '/api/v1/associations', { a_type: 'companies', a_id: co.id, b_type: 'contacts', b_id: ids.B })
+    await must(FULL, 'POST', '/api/v1/associations', {
+      a_type: 'companies',
+      a_id: co.id,
+      b_type: 'contacts',
+      b_id: ids.B,
+    })
     const edges = await must(FULL, 'GET', `/api/v1/associations?type=companies&id=${co.id}`)
     expect(edges.data).toHaveLength(1)
     for (const f of FIELDS) expect(f in edges.data[0]).toBe(false)
@@ -124,12 +177,20 @@ describe('visibility by interactions:read (D5, D6)', () => {
     await must(FULL, 'PATCH', `/api/v1/contacts/${ids.B}`, { name: 'Renamed' })
     const events = await s.eventsOf(ids.B)
     expect(events.length).toBeGreaterThan(0)
-    for (const ev of events) for (const side of [ev.before, ev.after]) for (const f of FIELDS) expect(side && f in side).toBeFalsy()
+    for (const ev of events)
+      for (const side of [ev.before, ev.after]) for (const f of FIELDS) expect(side && f in side).toBeFalsy()
   })
 })
 
 describe('filters are refused without interactions:read (D5)', () => {
-  const FILTERS = ['contacted_since=2026-10-01T00:00:00Z', 'not_contacted_since=2026-10-01T00:00:00Z', 'never_contacted=true', 'interacted_since=2026-10-01T00:00:00Z', 'not_interacted_since=2026-10-01T00:00:00Z', 'never_interacted=true']
+  const FILTERS = [
+    'contacted_since=2026-10-01T00:00:00Z',
+    'not_contacted_since=2026-10-01T00:00:00Z',
+    'never_contacted=true',
+    'interacted_since=2026-10-01T00:00:00Z',
+    'not_interacted_since=2026-10-01T00:00:00Z',
+    'never_interacted=true',
+  ]
   for (const f of FILTERS) {
     it(`${f.split('=')[0]} answers 403 insufficient_scope naming interactions:read and runs no query`, async () => {
       await seedFour()
@@ -177,7 +238,8 @@ describe('the six filters (D7)', () => {
   it('a filter ANDs with tag_id', async () => {
     const ids = await seedFour()
     const tag = await must(FULL, 'POST', '/api/v1/tags', { name: 'Prospects' })
-    for (const id of [ids.B, ids.C]) await must(FULL, 'POST', '/api/v1/associations', { a_type: 'contacts', a_id: id, b_type: 'tags', b_id: tag.id })
+    for (const id of [ids.B, ids.C])
+      await must(FULL, 'POST', '/api/v1/associations', { a_type: 'contacts', a_id: id, b_type: 'tags', b_id: tag.id })
     const res = await call(FULL, 'GET', `/api/v1/contacts?tag_id=${tag.id}&never_contacted=true`)
     expect(res.status).toBe(200)
     expect(names(ids, res.body)).toEqual(['C'])
@@ -188,12 +250,22 @@ describe('the six filters (D7)', () => {
     const offset = encodeURIComponent('2026-10-15T14:00:00+02:00')
     expect(names(ids, (await list(`contacted_since=${offset}`)).body)).toEqual(['B'])
     expect(names(ids, (await list(`not_contacted_since=${offset}`)).body)).toEqual(['A', 'C', 'D'])
-    expect(names(ids, (await list(`contacted_since=${encodeURIComponent('2026-10-15T14:00:01+02:00')}`)).body)).toEqual([])
+    expect(names(ids, (await list(`contacted_since=${encodeURIComponent('2026-10-15T14:00:01+02:00')}`)).body)).toEqual(
+      [],
+    )
   })
 
   it('a date alone, a relative value and a non-true/false boolean are 400 validation_error', async () => {
     await seedFour()
-    for (const q of ['contacted_since=2026-10-15', 'not_contacted_since=30d', 'interacted_since=yesterday', 'never_contacted=1', 'never_contacted=yes', 'never_interacted=TRUE', 'never_interacted=']) {
+    for (const q of [
+      'contacted_since=2026-10-15',
+      'not_contacted_since=30d',
+      'interacted_since=yesterday',
+      'never_contacted=1',
+      'never_contacted=yes',
+      'never_interacted=TRUE',
+      'never_interacted=',
+    ]) {
       const res = await list(q)
       expect([res.status, res.body.error.code], q).toEqual([400, 'validation_error'])
     }
@@ -218,7 +290,14 @@ describe('the OpenAPI document (D12)', () => {
     const doc = (await res.json()) as any
     const get = doc.paths['/api/v1/contacts'].get
     const params = Object.fromEntries(get.parameters.map((p: any) => [p.name, p]))
-    for (const f of ['contacted_since', 'not_contacted_since', 'never_contacted', 'interacted_since', 'not_interacted_since', 'never_interacted']) {
+    for (const f of [
+      'contacted_since',
+      'not_contacted_since',
+      'never_contacted',
+      'interacted_since',
+      'not_interacted_since',
+      'never_interacted',
+    ]) {
       expect(params[f], f).toBeDefined()
       expect(String(params[f].description ?? params[f].schema?.description ?? ''), `${f} description`).not.toBe('')
       expect(params[f].required).not.toBe(true)

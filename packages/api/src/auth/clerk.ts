@@ -68,7 +68,14 @@ export const toProviderScope = (scope: string): string => scope
 export const fromProviderScope = (scope: string): string => scope
 
 /** Clerk's own OAuth scopes: they say nothing about the vault and are dropped from every token ([[CORE77]] D13). */
-const PROVIDER_OWN_SCOPES: ReadonlySet<string> = new Set(['openid', 'profile', 'email', 'public_metadata', 'private_metadata', 'offline_access'])
+const PROVIDER_OWN_SCOPES: ReadonlySet<string> = new Set([
+  'openid',
+  'profile',
+  'email',
+  'public_metadata',
+  'private_metadata',
+  'offline_access',
+])
 /** RFC 9068's `typ` header values for a JWT access token. */
 const ACCESS_TOKEN_TYPES: ReadonlySet<string> = new Set(['at+jwt', 'application/at+jwt'])
 
@@ -122,11 +129,19 @@ export function createClerkAdapter(config: ClerkConfig): AuthAdapter {
       // against the same key and issuer; it has no `azp` to check, and it carries no role (the profile does).
       const typ = typeof protectedHeader.typ === 'string' ? protectedHeader.typ.toLowerCase() : ''
       if (config.oauth && (ACCESS_TOKEN_TYPES.has(typ) || 'client_id' in payload)) {
-        if (typeof payload.client_id !== 'string' || payload.client_id === '' || typeof payload.iat !== 'number') return { ok: false, reason: 'claims' }
+        if (typeof payload.client_id !== 'string' || payload.client_id === '' || typeof payload.iat !== 'number')
+          return { ok: false, reason: 'claims' }
         const scopeClaim: unknown = payload.scope
-        const scopes: string[] = typeof scopeClaim === 'string' ? scopeClaim.split(/\s+/).filter((s: string) => s !== '') : []
+        const scopes: string[] =
+          typeof scopeClaim === 'string' ? scopeClaim.split(/\s+/).filter((s: string) => s !== '') : []
         const mapped: string[] = scopes.filter((s) => !PROVIDER_OWN_SCOPES.has(s)).map(fromProviderScope)
-        return { ok: true, kind: 'oauth', subject: payload.sub, clientId: payload.client_id, scopes: [...new Set(mapped)] }
+        return {
+          ok: true,
+          kind: 'oauth',
+          subject: payload.sub,
+          clientId: payload.client_id,
+          scopes: [...new Set(mapped)],
+        }
       }
       // azp (the requesting origin) may be absent; when present it must be exactly an authorised party.
       if ('azp' in payload && (typeof payload.azp !== 'string' || !config.authorizedParties.includes(payload.azp))) {
@@ -135,10 +150,19 @@ export function createClerkAdapter(config: ClerkConfig): AuthAdapter {
       if (typeof payload.iat !== 'number') return { ok: false, reason: 'claims' }
       const issuedAt = new Date(payload.iat * 1000)
       const role = payload[roleClaim]
-      if (!('o' in payload)) return { ok: true, kind: 'session', subject: payload.sub, issuedAt, organization: null, role }
+      if (!('o' in payload))
+        return { ok: true, kind: 'session', subject: payload.sub, issuedAt, organization: null, role }
       const o = payload.o as { id?: unknown; rol?: unknown } | null
-      if (typeof o !== 'object' || o === null || typeof o.id !== 'string' || o.id === '') return { ok: false, reason: 'claims' }
-      return { ok: true, kind: 'session', subject: payload.sub, issuedAt, organization: { externalId: o.id, role: mapClerkRole(o.rol) }, role }
+      if (typeof o !== 'object' || o === null || typeof o.id !== 'string' || o.id === '')
+        return { ok: false, reason: 'claims' }
+      return {
+        ok: true,
+        kind: 'session',
+        subject: payload.sub,
+        issuedAt,
+        organization: { externalId: o.id, role: mapClerkRole(o.rol) },
+        role,
+      }
     },
 
     async fetchProfile(subject): Promise<AuthProfile> {
@@ -150,7 +174,10 @@ export function createClerkAdapter(config: ClerkConfig): AuthAdapter {
       if (!res.ok) throw new Error(`clerk profile fetch failed: ${res.status}`)
       const user = (await res.json()) as ClerkUser
       const primary = user.email_addresses?.find((e) => e.id === user.primary_email_address_id)
-      const name = [user.first_name, user.last_name].map((p) => p?.trim()).filter((p): p is string => !!p).join(' ')
+      const name = [user.first_name, user.last_name]
+        .map((p) => p?.trim())
+        .filter((p): p is string => !!p)
+        .join(' ')
       return {
         email: primary?.email_address ?? null,
         emailVerified: primary ? primary.verification?.status === 'verified' : false,
@@ -230,18 +257,27 @@ export function createClerkAdapter(config: ClerkConfig): AuthAdapter {
         return { ok: false, reason: 'payload' }
       }
       if (typeof event !== 'object' || event === null) return { ok: false, reason: 'payload' }
-      const { type, data } = event as { type?: unknown; data?: { id?: unknown; organization?: { id?: unknown } | null } | null }
+      const { type, data } = event as {
+        type?: unknown
+        data?: { id?: unknown; organization?: { id?: unknown } | null } | null
+      }
       if (typeof type !== 'string') return { ok: false, reason: 'payload' }
       const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v !== ''
       if (/^organization\.(created|updated|deleted)$/.test(type)) {
-        return nonEmpty(data?.id) ? { ok: true, change: { kind: 'organization', externalId: data.id } } : { ok: false, reason: 'payload' }
+        return nonEmpty(data?.id)
+          ? { ok: true, change: { kind: 'organization', externalId: data.id } }
+          : { ok: false, reason: 'payload' }
       }
       if (/^organizationMembership\.(created|updated|deleted)$/.test(type)) {
         const externalId = data?.organization?.id
-        return nonEmpty(externalId) ? { ok: true, change: { kind: 'organization', externalId } } : { ok: false, reason: 'payload' }
+        return nonEmpty(externalId)
+          ? { ok: true, change: { kind: 'organization', externalId } }
+          : { ok: false, reason: 'payload' }
       }
       if (type === 'user.updated') {
-        return nonEmpty(data?.id) ? { ok: true, change: { kind: 'user', subject: data.id } } : { ok: false, reason: 'payload' }
+        return nonEmpty(data?.id)
+          ? { ok: true, change: { kind: 'user', subject: data.id } }
+          : { ok: false, reason: 'payload' }
       }
       return { ok: true, change: { kind: 'ignored', type } }
     },

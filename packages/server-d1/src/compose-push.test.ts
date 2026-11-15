@@ -14,8 +14,18 @@ import { NOW, openWorkerD1, type WorkerD1 } from './test/kit.js'
 
 // [[CHN155]] / [[CHN5]] D87, D89, D92: the composed Worker's push gate, the cron's watch renewal and the recorder's run name, over a local D1 with Google faked at the `fetch` seam.
 const KEY = new Uint8Array(32).fill(7)
-const GMAIL_ENV = { GOOGLE_CLIENT_ID: 'fake-client-id.apps.test', GOOGLE_CLIENT_SECRET: 'fake-client-secret', OAUTH_STATE_SECRET: 'state-secret', CREDENTIALS_KEY: Buffer.from(KEY).toString('base64') }
-const PUSH_ENV = { GMAIL_TOPIC_NAME: 'projects/p/topics/gmail.watch', GMAIL_PUSH_SUBSCRIPTION: 'projects/p/subscriptions/gmail.push', GMAIL_PUSH_SERVICE_ACCOUNT: 'push@p.iam.gserviceaccount.com', PUBLIC_BASE_URL: 'https://w.test' }
+const GMAIL_ENV = {
+  GOOGLE_CLIENT_ID: 'fake-client-id.apps.test',
+  GOOGLE_CLIENT_SECRET: 'fake-client-secret',
+  OAUTH_STATE_SECRET: 'state-secret',
+  CREDENTIALS_KEY: Buffer.from(KEY).toString('base64'),
+}
+const PUSH_ENV = {
+  GMAIL_TOPIC_NAME: 'projects/p/topics/gmail.watch',
+  GMAIL_PUSH_SUBSCRIPTION: 'projects/p/subscriptions/gmail.push',
+  GMAIL_PUSH_SERVICE_ACCOUNT: 'push@p.iam.gserviceaccount.com',
+  PUBLIC_BASE_URL: 'https://w.test',
+}
 const CRON = '*/15 * * * *'
 const BASE = 'https://w.test'
 const AHEAD = new Date(NOW.getTime() + 86_400_000).toISOString()
@@ -26,7 +36,10 @@ let created: Array<{ id: string; params: { connection_id: string } }>
 const binding = { create: async (o: { id: string; params: { connection_id: string } }) => void created.push(o) }
 beforeAll(async () => {
   w = await openWorkerD1()
-  google = await FakeGoogle.create({ clientId: GMAIL_ENV.GOOGLE_CLIENT_ID, clientSecret: GMAIL_ENV.GOOGLE_CLIENT_SECRET })
+  google = await FakeGoogle.create({
+    clientId: GMAIL_ENV.GOOGLE_CLIENT_ID,
+    clientSecret: GMAIL_ENV.GOOGLE_CLIENT_SECRET,
+  })
 }, 30_000) // Starting workerd and applying migrations can exceed the default 10 s under suite load.
 afterAll(() => w?.dispose())
 beforeEach(async () => {
@@ -36,38 +49,85 @@ beforeEach(async () => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-const env = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({ DB: w.d1, AUTH_PROVIDER: '', ...GMAIL_ENV, MAIL_SYNC: binding, BODIES: undefined, ...extra })
+const env = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({
+  DB: w.d1,
+  AUTH_PROVIDER: '',
+  ...GMAIL_ENV,
+  MAIL_SYNC: binding,
+  BODIES: undefined,
+  ...extra,
+})
 const logs = () => {
   const lines: string[] = []
-  for (const k of ['log', 'info', 'warn', 'error'] as const) vi.spyOn(console, k).mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
+  for (const k of ['log', 'info', 'warn', 'error'] as const)
+    vi.spyOn(console, k).mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
   return lines
 }
 async function boot() {
-  await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW) })
+  await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
   const link = (await readDeployment(w.d1))!
   const owner = uuidv7(NOW)
   await w.d1.batch([
-    w.d1.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(owner, 'user', NOW.toISOString()),
-    w.d1.prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)').bind(owner, NOW.toISOString(), NOW.toISOString(), 'owner@w.test'),
+    w.d1
+      .prepare('insert into principals (id, kind, created_at) values (?, ?, ?)')
+      .bind(owner, 'user', NOW.toISOString()),
+    w.d1
+      .prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)')
+      .bind(owner, NOW.toISOString(), NOW.toISOString(), 'owner@w.test'),
   ])
   const b = d1Binding(w.d1, link)
-  const env0 = { actor: { id: owner, kind: 'user' as const }, organizationId: link.organizationId, scopes: ScopeSet.parse([]), now: NOW, newId: () => uuidv7(NOW), randomBytes: (n: number) => crypto.getRandomValues(new Uint8Array(n)) }
-  return { owner, target: { env: () => env0, run: (op: never) => execute(b, { kind: 'tenant', actorId: owner, organizationId: link.organizationId }, op), d1: w.d1 } }
-}
-const seed = (t: Awaited<ReturnType<typeof boot>>) => seedGmailConnection(t.target as never, { key: KEY, refreshToken: google.issueRefreshToken(), historyId: '1000', lastSyncedAt: null })
-const fake = (gmail: FakeGmail, jwksCalls: string[] = []) => (async (input: RequestInfo | URL, init?: RequestInit) => {
-  const req = new Request(input as RequestInfo, init)
-  const url = new URL(req.url)
-  if (url.origin === 'https://oauth2.googleapis.com') return google.fetch(`${FAKE_GOOGLE_ORIGIN}${url.pathname}${url.search}`, { method: req.method, headers: req.headers, body: req.method === 'POST' ? await req.text() : undefined })
-  if (url.origin === 'https://gmail.googleapis.com') return gmail.handle(req, (tok) => google.isAccessToken(tok))
-  if (url.href === 'https://www.googleapis.com/oauth2/v3/certs') {
-    jwksCalls.push(url.href)
-    return google.fetch(`${FAKE_GOOGLE_ORIGIN}${url.pathname}`)
+  const env0 = {
+    actor: { id: owner, kind: 'user' as const },
+    organizationId: link.organizationId,
+    scopes: ScopeSet.parse([]),
+    now: NOW,
+    newId: () => uuidv7(NOW),
+    randomBytes: (n: number) => crypto.getRandomValues(new Uint8Array(n)),
   }
-  throw new Error(`no network: ${url.origin}`)
-}) as typeof fetch
-const watches = async () => (await w.d1.prepare('select * from gmail_watches').all()).results as Array<Record<string, unknown>>
-const tick = (extra: Partial<D1WorkerEnv>, gmail: FakeGmail, time = NOW.getTime()) => composeD1Worker(env(extra), { fetch: fake(gmail), clock: () => new Date(time) }).scheduled({ cron: CRON, scheduledTime: time })
+  return {
+    owner,
+    target: {
+      env: () => env0,
+      run: (op: never) => execute(b, { kind: 'tenant', actorId: owner, organizationId: link.organizationId }, op),
+      d1: w.d1,
+    },
+  }
+}
+const seed = (t: Awaited<ReturnType<typeof boot>>) =>
+  seedGmailConnection(t.target as never, {
+    key: KEY,
+    refreshToken: google.issueRefreshToken(),
+    historyId: '1000',
+    lastSyncedAt: null,
+  })
+const fake = (gmail: FakeGmail, jwksCalls: string[] = []) =>
+  (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const req = new Request(input as RequestInfo, init)
+    const url = new URL(req.url)
+    if (url.origin === 'https://oauth2.googleapis.com')
+      return google.fetch(`${FAKE_GOOGLE_ORIGIN}${url.pathname}${url.search}`, {
+        method: req.method,
+        headers: req.headers,
+        body: req.method === 'POST' ? await req.text() : undefined,
+      })
+    if (url.origin === 'https://gmail.googleapis.com') return gmail.handle(req, (tok) => google.isAccessToken(tok))
+    if (url.href === 'https://www.googleapis.com/oauth2/v3/certs') {
+      jwksCalls.push(url.href)
+      return google.fetch(`${FAKE_GOOGLE_ORIGIN}${url.pathname}`)
+    }
+    throw new Error(`no network: ${url.origin}`)
+  }) as typeof fetch
+const watches = async () =>
+  (await w.d1.prepare('select * from gmail_watches').all()).results as Array<Record<string, unknown>>
+const tick = (extra: Partial<D1WorkerEnv>, gmail: FakeGmail, time = NOW.getTime()) =>
+  composeD1Worker(env(extra), { fetch: fake(gmail), clock: () => new Date(time) }).scheduled({
+    cron: CRON,
+    scheduledTime: time,
+  })
 const watchCalls = (g: FakeGmail) => g.calls.filter((c) => c.op === 'watch').length
 
 describe('the cron with push on (D89)', () => {
@@ -78,11 +138,27 @@ describe('the cron with push on (D89)', () => {
     gmail.watchClock = () => NOW.getTime()
     await tick(PUSH_ENV, gmail)
     expect(watchCalls(gmail)).toBe(1)
-    expect(gmail.watchRequests[0]).toEqual({ topicName: PUSH_ENV.GMAIL_TOPIC_NAME, labelIds: ['INBOX', 'SENT'], labelFilterBehavior: 'include' })
-    expect(await watches()).toEqual([expect.objectContaining({ connection_id: id, expires_at: new Date(NOW.getTime() + 7 * 86_400_000).toISOString() })])
+    expect(gmail.watchRequests[0]).toEqual({
+      topicName: PUSH_ENV.GMAIL_TOPIC_NAME,
+      labelIds: ['INBOX', 'SENT'],
+      labelFilterBehavior: 'include',
+    })
+    expect(await watches()).toEqual([
+      expect.objectContaining({
+        connection_id: id,
+        expires_at: new Date(NOW.getTime() + 7 * 86_400_000).toISOString(),
+      }),
+    ])
     expect(created.map((c) => c.params.connection_id)).toEqual([id])
   })
-  it.each([[{ GMAIL_TOPIC_NAME: undefined }], [{ GMAIL_PUSH_SUBSCRIPTION: undefined }], [{ GMAIL_PUSH_SERVICE_ACCOUNT: undefined }], [{ PUBLIC_BASE_URL: undefined }], [{ MAIL_SYNC: undefined }], [{}]] as const)('push off (%j): the cron makes no watch call and writes no row', async (missing) => {
+  it.each([
+    [{ GMAIL_TOPIC_NAME: undefined }],
+    [{ GMAIL_PUSH_SUBSCRIPTION: undefined }],
+    [{ GMAIL_PUSH_SERVICE_ACCOUNT: undefined }],
+    [{ PUBLIC_BASE_URL: undefined }],
+    [{ MAIL_SYNC: undefined }],
+    [{}],
+  ] as const)('push off (%j): the cron makes no watch call and writes no row', async (missing) => {
     const t = await boot()
     await seed(t)
     const gmail = new FakeGmail()
@@ -94,7 +170,10 @@ describe('the cron with push on (D89)', () => {
   it('a watch that fails does not stop the tick: the sync request is still made and the tick does not throw', async () => {
     const t = await boot()
     const id = await seed(t)
-    const gmail = new FakeGmail().failWhen((c) => c.op === 'watch', new (await import('@vibase/api')).GmailApiError({ status: 403, reason: 'forbidden' }))
+    const gmail = new FakeGmail().failWhen(
+      (c) => c.op === 'watch',
+      new (await import('@vibase/api')).GmailApiError({ status: 403, reason: 'forbidden' }),
+    )
     const lines = logs()
     await expect(tick(PUSH_ENV, gmail)).resolves.toBeUndefined()
     expect(watchCalls(gmail)).toBe(1)
@@ -102,7 +181,7 @@ describe('the cron with push on (D89)', () => {
     expect(await watches()).toEqual([])
     expect(lines.some((l) => l.includes('misconfigured'))).toBe(true)
   })
-  it('records the cron\'s watch under its own run name (cron-<scheduled time>), with no token or topic in the recording', async () => {
+  it("records the cron's watch under its own run name (cron-<scheduled time>), with no token or topic in the recording", async () => {
     const t = await boot()
     await seed(t)
     const bucket = fakeR2Bucket()
@@ -118,7 +197,8 @@ describe('the cron with push on (D89)', () => {
 })
 
 describe('POST /gmail/push through the composition', () => {
-  const push = (worker: ReturnType<typeof composeD1Worker>, headers: Record<string, string> = {}) => worker.fetch(new Request(`${BASE}/gmail/push`, { method: 'POST', headers, body: '{}' }))
+  const push = (worker: ReturnType<typeof composeD1Worker>, headers: Record<string, string> = {}) =>
+    worker.fetch(new Request(`${BASE}/gmail/push`, { method: 'POST', headers, body: '{}' }))
   it('is 404 when push is off, whatever the credentials', async () => {
     await boot()
     expect((await push(composeD1Worker(env()))).status).toBe(404)
@@ -137,6 +217,9 @@ describe('POST /gmail/push through the composition', () => {
     await createMigrationTracker(w.d1)
     await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name).slice(0, -1))
     const res = await push(composeD1Worker(env(PUSH_ENV)))
-    expect([res.status, ((await res.json()) as { error: { code: string } }).error.code]).toEqual([503, 'migrations_pending'])
+    expect([res.status, ((await res.json()) as { error: { code: string } }).error.code]).toEqual([
+      503,
+      'migrations_pending',
+    ])
   })
 })

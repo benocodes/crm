@@ -10,7 +10,7 @@ import { FakeGmail, type BuiltGmailMessage } from '../test/gmail.js'
 import { gmailFixture } from '../test/gmail-fixtures.js'
 import { seedGmailConnection } from '../test/gmail-sync.js'
 import { nodeStreams } from '../test/streams.js'
-import { makeWorkerdStepShim, type ShimOptions } from '../test/workerd-boundary.js'
+import { makeWorkerdStepShim } from '../test/workerd-boundary.js'
 import { claimLease, extendLease, finishPass, LEASE_MS } from './lease.js'
 import { runMailSync, type MailSyncRuntime } from './workflow-run.js'
 import type { MailSyncParams } from './request.js'
@@ -18,7 +18,14 @@ import type { MailSyncParams } from './request.js'
 // [[CHN141]] / [[CHN5]] cycle 4: the sync run (`runMailSync`) on local D1 over the real page service, FakeGmail, FakeGoogle's token endpoint and
 // the workerd step shim. Nothing reaches the network.
 const KEY = new Uint8Array(32).fill(3)
-const CONFIG = { clientId: 'fake-client-id.apps.test', clientSecret: 'fake-client-secret', credentialsKey: KEY, keyVersion: 1, backfillDays: 30, attachmentMaxBytes: 50 * 1024 * 1024 }
+const CONFIG = {
+  clientId: 'fake-client-id.apps.test',
+  clientSecret: 'fake-client-secret',
+  credentialsKey: KEY,
+  keyVersion: 1,
+  backfillDays: 30,
+  attachmentMaxBytes: 50 * 1024 * 1024,
+}
 const NOW = new Date('2026-11-05T10:00:00.000Z')
 const SYNCED = '2026-11-04T10:00:00.000Z'
 const ONE_HOUR = 3_600_000
@@ -52,7 +59,8 @@ const mk = (id: string, over: { labels?: string[]; internalDate?: number } = {})
     ...(over.labels ? { labels: over.labels } : {}),
     internalDate: over.internalDate ?? NOW.getTime() - ONE_HOUR,
   }))
-const many = (n: number, prefix: string): BuiltGmailMessage[] => Array.from({ length: n }, (_, i) => mk(`${prefix}${String(i).padStart(3, '0')}`))
+const many = (n: number, prefix: string): BuiltGmailMessage[] =>
+  Array.from({ length: n }, (_, i) => mk(`${prefix}${String(i).padStart(3, '0')}`))
 
 interface Setup {
   gmail: FakeGmail
@@ -63,9 +71,25 @@ interface Setup {
   created: Array<{ id: string; params: MailSyncParams }>
   state: { behind: boolean; roles: Map<string, Role | null>; roleFailure: boolean; policy: ScopePolicy }
 }
-async function setup(opts: { messages?: BuiltGmailMessage[]; synced?: string | null; historyId?: string; noProvider?: boolean; mailbox?: string; sub?: string } = {}): Promise<Setup> {
+async function setup(
+  opts: {
+    messages?: BuiltGmailMessage[]
+    synced?: string | null
+    historyId?: string
+    noProvider?: boolean
+    mailbox?: string
+    sub?: string
+  } = {},
+): Promise<Setup> {
   const refreshToken = google.issueRefreshToken()
-  const id = await seedGmailConnection(e, { key: KEY, refreshToken, historyId: opts.historyId ?? '1000', lastSyncedAt: opts.synced === undefined ? SYNCED : opts.synced, ...(opts.mailbox ? { mailbox: opts.mailbox } : {}), ...(opts.sub ? { sub: opts.sub } : {}) })
+  const id = await seedGmailConnection(e, {
+    key: KEY,
+    refreshToken,
+    historyId: opts.historyId ?? '1000',
+    lastSyncedAt: opts.synced === undefined ? SYNCED : opts.synced,
+    ...(opts.mailbox ? { mailbox: opts.mailbox } : {}),
+    ...(opts.sub ? { sub: opts.sub } : {}),
+  })
   const gmail = new FakeGmail(opts.messages ?? [], { chunk: 2048 })
   const pages: GmailSyncDeps = {
     binding: e.binding,
@@ -81,7 +105,12 @@ async function setup(opts: { messages?: BuiltGmailMessage[]; synced?: string | n
     clientFor: (accessToken) => gmail.withToken(accessToken, (t) => google.isAccessToken(t)),
   }
   const created: Setup['created'] = []
-  const state: Setup['state'] = { behind: false, roles: new Map([['user_engine_1', 'owner']]), roleFailure: false, policy: SCOPE_POLICY }
+  const state: Setup['state'] = {
+    behind: false,
+    roles: new Map([['user_engine_1', 'owner']]),
+    roleFailure: false,
+    policy: SCOPE_POLICY,
+  }
   const rt: MailSyncRuntime = {
     pages,
     gate: async () => {
@@ -101,15 +130,27 @@ async function setup(opts: { messages?: BuiltGmailMessage[]; synced?: string | n
   }
   return { gmail, pages, rt, id, refreshToken, created, state }
 }
-const run = (s: Setup, shim = makeWorkerdStepShim()) => runMailSync({ payload: { connection_id: s.id } }, shim.step, () => s.rt)
-const addHistory = (g: FakeGmail, id: string, added: string[]) => g.history.push({ id, added: added.map((a) => ({ id: a, labels: ['INBOX'] })) })
+const run = (s: Setup, shim = makeWorkerdStepShim()) =>
+  runMailSync({ payload: { connection_id: s.id } }, shim.step, () => s.rt)
+const addHistory = (g: FakeGmail, id: string, added: string[]) =>
+  g.history.push({ id, added: added.map((a) => ({ id: a, labels: ['INBOX'] })) })
 const stateRow = async () => (await e.rows('mail_sync_state'))[0]!
 const cursor = async () => (await e.rows('mail_sync_cursors'))[0]!
 const eventsOf = async (type: string) => (await e.rows('events')).filter((r) => r.type === type)
 const connection = async () => (await e.rows('channel_connections'))[0]!
-const raw = (sqlText: string, ...binds: unknown[]) => e.d1!.prepare(sqlText).bind(...binds).run()
+const raw = (sqlText: string, ...binds: unknown[]) =>
+  e
+    .d1!.prepare(sqlText)
+    .bind(...binds)
+    .run()
 const calls = (g: FakeGmail, op: string) => g.calls.filter((c) => c.op === op)
-const snapshot = async () => ({ state: await e.rows('mail_sync_state'), cursor: await e.rows('mail_sync_cursors'), events: (await e.rows('events')).length, messages: (await e.rows('messages')).length, conn: await e.rows('channel_connections') })
+const snapshot = async () => ({
+  state: await e.rows('mail_sync_state'),
+  cursor: await e.rows('mail_sync_cursors'),
+  events: (await e.rows('events')).length,
+  messages: (await e.rows('messages')).length,
+  conn: await e.rows('channel_connections'),
+})
 
 describe('step returns (invariant 7)', () => {
   it('every step of a full run (backfill, history, finish) returns plain ids, counts, tokens, bounds and outcomes that survive the workerd shim, and no secret', async () => {
@@ -121,12 +162,38 @@ describe('step returns (invariant 7)', () => {
     const out = await run(s, shim)
     expect(out).toEqual({ end: 'complete', passes: 1 })
     expect(shim.names).toEqual(['seed', 'claim', 'p1-begin-backfill', 'p1-backfill-1', 'p1-history-1', 'p1-finish'])
-    const allowed = new Set(['run_id', 'started_at', 'claimed', 'reason', 'owner_id', 'needs_backfill', 'outcome', 'scan', 'kind', 'after', 'history_id', 'next_page_token', 'captured', 'existing', 'skipped', 'retry_after_seconds', 'again', 'requested', 'at'])
-    const keys = (v: unknown): string[] => (v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => [k, ...keys(x)]) : [])
+    const allowed = new Set([
+      'run_id',
+      'started_at',
+      'claimed',
+      'reason',
+      'owner_id',
+      'needs_backfill',
+      'outcome',
+      'scan',
+      'kind',
+      'after',
+      'history_id',
+      'next_page_token',
+      'captured',
+      'existing',
+      'skipped',
+      'retry_after_seconds',
+      'again',
+      'requested',
+      'at',
+    ])
+    const keys = (v: unknown): string[] =>
+      v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => [k, ...keys(x)]) : []
     for (const r of shim.returns) for (const k of keys(r.value)) expect(allowed.has(k), `${r.name}.${k}`).toBe(true)
     const text = JSON.stringify(shim.returns)
-    for (const secret of [s.refreshToken, ...google.refreshTokens, ...google.accessTokens, CONFIG.clientSecret]) expect(text).not.toContain(secret)
-    expect(shim.returns.find((r) => r.name === 'claim')!.value).toEqual({ claimed: true, owner_id: e.userId, needs_backfill: true })
+    for (const secret of [s.refreshToken, ...google.refreshTokens, ...google.accessTokens, CONFIG.clientSecret])
+      expect(text).not.toContain(secret)
+    expect(shim.returns.find((r) => r.name === 'claim')!.value).toEqual({
+      claimed: true,
+      owner_id: e.userId,
+      needs_backfill: true,
+    })
   })
 })
 
@@ -135,13 +202,19 @@ describe('lease (D11)', () => {
   it('claims a free lease, refuses a held one with nothing written, takes an expired one over, and takes back its own', async () => {
     const s = await setup()
     expect(await claimLease(lease(), s.id, 'run-a')).toBe(true)
-    expect(await stateRow()).toMatchObject({ run_id: 'run-a', lease_until: new Date(now.getTime() + LEASE_MS).toISOString() })
+    expect(await stateRow()).toMatchObject({
+      run_id: 'run-a',
+      lease_until: new Date(now.getTime() + LEASE_MS).toISOString(),
+    })
     const held = await stateRow()
     now = new Date(now.getTime() + 60_000)
     expect(await claimLease(lease(), s.id, 'run-b')).toBe(false)
     expect(await stateRow()).toEqual(held)
     expect(await claimLease(lease(), s.id, 'run-a')).toBe(true) // its own, retried after its unit committed
-    expect(await stateRow()).toMatchObject({ run_id: 'run-a', lease_until: new Date(now.getTime() + LEASE_MS).toISOString() }) // and pushed it out again
+    expect(await stateRow()).toMatchObject({
+      run_id: 'run-a',
+      lease_until: new Date(now.getTime() + LEASE_MS).toISOString(),
+    }) // and pushed it out again
     now = new Date(now.getTime() + LEASE_MS + 1)
     expect(await claimLease(lease(), s.id, 'run-b')).toBe(true) // expired
     expect((await stateRow()).run_id).toBe('run-b')
@@ -207,7 +280,11 @@ describe('lease (D11)', () => {
     addHistory(s.gmail, '1001', ['m1'])
     const shim = makeWorkerdStepShim({
       beforeStep: async (name) => {
-        if (name === 'p1-history-1') await raw("update mail_sync_state set run_id = 'thief', lease_until = ?", new Date(now.getTime() + LEASE_MS).toISOString())
+        if (name === 'p1-history-1')
+          await raw(
+            "update mail_sync_state set run_id = 'thief', lease_until = ?",
+            new Date(now.getTime() + LEASE_MS).toISOString(),
+          )
       },
     })
     expect(await run(s, shim)).toEqual({ end: 'lease_lost', passes: 1 })
@@ -266,7 +343,8 @@ describe('again (D11)', () => {
   const requestDuring = (at: (n: number) => string, stepName: (pass: number) => string) =>
     makeWorkerdStepShim({
       beforeStep: async (name) => {
-        for (const pass of [1, 2, 3]) if (name === stepName(pass)) await raw('update mail_sync_state set sync_requested_at = ?', at(pass))
+        for (const pass of [1, 2, 3])
+          if (name === stepName(pass)) await raw('update mail_sync_state set sync_requested_at = ?', at(pass))
       },
     })
   it('a request later than the pass start gives one more pass; at most 3, then a new instance is created for what is still requested', async () => {
@@ -317,7 +395,14 @@ const onceWhen = (g: FakeGmail, match: Parameters<FakeGmail['failWhen']>[0], err
 describe('throttle (D16)', () => {
   const throttle = (g: FakeGmail, times: number, retryAfterSeconds: number | null) => {
     let n = 0
-    g.failWhen((c) => c.op === 'history' && n++ < times, new GmailApiError({ status: 429, gmailStatus: 'RESOURCE_EXHAUSTED', ...(retryAfterSeconds !== null ? { retryAfter: String(retryAfterSeconds), retryAfterSeconds } : {}) }))
+    g.failWhen(
+      (c) => c.op === 'history' && n++ < times,
+      new GmailApiError({
+        status: 429,
+        gmailStatus: 'RESOURCE_EXHAUSTED',
+        ...(retryAfterSeconds !== null ? { retryAfter: String(retryAfterSeconds), retryAfterSeconds } : {}),
+      }),
+    )
   }
   it('sleeps the Retry-After and retries the same page', async () => {
     const s = await setup({ messages: [mk('m1')] })
@@ -326,7 +411,10 @@ describe('throttle (D16)', () => {
     const shim = makeWorkerdStepShim()
     expect((await run(s, shim)).end).toBe('complete')
     expect(shim.sleeps.map((x) => x.duration)).toEqual(['7 seconds'])
-    expect(calls(s.gmail, 'history').map((c) => [c.startHistoryId, c.pageToken])).toEqual([['1000', null], ['1000', null]])
+    expect(calls(s.gmail, 'history').map((c) => [c.startHistoryId, c.pageToken])).toEqual([
+      ['1000', null],
+      ['1000', null],
+    ])
     expect((await e.rows('messages')).length).toBe(1)
   })
   it('grows the sleep when Google sent no Retry-After: 30, 60, 120 seconds on the first three throttles of one page (D84)', async () => {
@@ -341,7 +429,15 @@ describe('throttle (D16)', () => {
     const s = await setup({ messages: [mk('m1')] })
     addHistory(s.gmail, '1001', ['m1'])
     // One rule per throttle, each consumed once, in order.
-    for (const sec of [null, 7, null, null]) onceWhen(s.gmail, (c) => c.op === 'history', new GmailApiError({ status: 429, ...(sec === null ? {} : { retryAfter: String(sec), retryAfterSeconds: sec }) }))
+    for (const sec of [null, 7, null, null])
+      onceWhen(
+        s.gmail,
+        (c) => c.op === 'history',
+        new GmailApiError({
+          status: 429,
+          ...(sec === null ? {} : { retryAfter: String(sec), retryAfterSeconds: sec }),
+        }),
+      )
     const shim = makeWorkerdStepShim()
     expect((await run(s, shim)).end).toBe('complete')
     expect(shim.sleeps.map((x) => x.duration)).toEqual(['30 seconds', '7 seconds', '120 seconds', '240 seconds'])
@@ -360,7 +456,13 @@ describe('throttle (D16)', () => {
     throttle(s.gmail, 99, null)
     const shim = makeWorkerdStepShim()
     await expect(run(s, shim)).rejects.toThrow(/throttled/i)
-    expect(shim.sleeps.map((x) => x.duration)).toEqual(['30 seconds', '60 seconds', '120 seconds', '240 seconds', '480 seconds'])
+    expect(shim.sleeps.map((x) => x.duration)).toEqual([
+      '30 seconds',
+      '60 seconds',
+      '120 seconds',
+      '240 seconds',
+      '480 seconds',
+    ])
   })
 })
 
@@ -368,13 +470,33 @@ describe('step count (D84)', () => {
   // seed + claim + per pass (begin when it scans, one per scan page, one per history page, finish) + 2 per throttle (the repeated page step and its sleep) + at most one of record-failure or chain.
   /** The shim lists a sleep among `names` as well, as Cloudflare counts it a step. */
   const steps = (shim: ReturnType<typeof makeWorkerdStepShim>): number => shim.names.length
-  const formula = (o: { scanPages: number; historyPages: number; passes: number; throttles: number; scanned: boolean; ending?: 'record-failure' | 'chain' }): number =>
-    2 + o.passes * 1 /* finish */ + (o.scanned ? 1 + o.scanPages : 0) + o.passes * o.historyPages + 2 * o.throttles + (o.ending ? 1 : 0)
+  const formula = (o: {
+    scanPages: number
+    historyPages: number
+    passes: number
+    throttles: number
+    scanned: boolean
+    ending?: 'record-failure' | 'chain'
+  }): number =>
+    2 +
+    o.passes * 1 /* finish */ +
+    (o.scanned ? 1 + o.scanPages : 0) +
+    o.passes * o.historyPages +
+    2 * o.throttles +
+    (o.ending ? 1 : 0)
 
   it('a backfill of N=3 scan pages with K=2 throttles on different pages takes seed + claim + begin + N + 1 history page + finish + 2K steps', async () => {
     const s = await setup({ messages: many(60, 'b'), synced: null })
-    onceWhen(s.gmail, (c) => c.op === 'list' && c.pageToken === null, new GmailApiError({ status: 429, retryAfter: '5', retryAfterSeconds: 5 }))
-    onceWhen(s.gmail, (c) => c.op === 'list' && c.pageToken === 'm50', new GmailApiError({ status: 429, retryAfter: '5', retryAfterSeconds: 5 }))
+    onceWhen(
+      s.gmail,
+      (c) => c.op === 'list' && c.pageToken === null,
+      new GmailApiError({ status: 429, retryAfter: '5', retryAfterSeconds: 5 }),
+    )
+    onceWhen(
+      s.gmail,
+      (c) => c.op === 'list' && c.pageToken === 'm50',
+      new GmailApiError({ status: 429, retryAfter: '5', retryAfterSeconds: 5 }),
+    )
     const shim = makeWorkerdStepShim()
     expect(await run(s, shim)).toEqual({ end: 'complete', passes: 1 })
     expect(shim.sleeps).toHaveLength(2)
@@ -401,7 +523,15 @@ describe('expired history (D13)', () => {
     const shim = makeWorkerdStepShim({})
     const out = await run(s, shim)
     expect(out.end).toBe('complete')
-    expect(shim.names).toEqual(['seed', 'claim', 'p1-history-1', 'p1-begin-recovery', 'p1-recovery-1', 'p1-history-2', 'p1-finish'])
+    expect(shim.names).toEqual([
+      'seed',
+      'claim',
+      'p1-history-1',
+      'p1-begin-recovery',
+      'p1-recovery-1',
+      'p1-history-2',
+      'p1-finish',
+    ])
     expect((await cursor()).history_id).toBe('2500')
     expect((await e.rows('messages')).length).toBe(2)
   })
@@ -482,7 +612,9 @@ describe('gate (D37)', () => {
     await expect(run(s, atClaim)).rejects.toThrow(/behind/)
     expect(await stateRow()).toMatchObject({ run_id: null, lease_until: null })
     s.state.behind = false
-    const atFinish = makeWorkerdStepShim({ beforeStep: (name) => void (name === 'p1-finish' && (s.state.behind = true)) })
+    const atFinish = makeWorkerdStepShim({
+      beforeStep: (name) => void (name === 'p1-finish' && (s.state.behind = true)),
+    })
     await expect(run(s, atFinish)).rejects.toThrow(/behind/)
     expect((await stateRow()).last_success_at).toBeNull()
   })
@@ -523,7 +655,8 @@ describe('gate on the failure and chain steps (D37)', () => {
 describe('secrecy', () => {
   it('no access or refresh token in a step return, a row, a log line or an error message across a full run, rotation included', async () => {
     const lines: string[] = []
-    for (const k of ['log', 'info', 'warn', 'error', 'debug'] as const) vi.spyOn(console, k).mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
+    for (const k of ['log', 'info', 'warn', 'error', 'debug'] as const)
+      vi.spyOn(console, k).mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
     const s = await setup({ messages: [...many(3, 'b'), mk('h1')], synced: null })
     addHistory(s.gmail, '1001', ['h1'])
     s.gmail.profile.historyId = '1002'
@@ -534,8 +667,22 @@ describe('secrecy', () => {
     const t = await setup({ messages: [], mailbox: 'second@vibase.test', sub: 'sub-second' })
     google.revoke(t.refreshToken)
     const failed = await run(t).catch((err: Error) => err.message)
-    const secrets = [s.refreshToken, t.refreshToken, ...google.refreshTokens, ...google.accessTokens, CONFIG.clientSecret]
-    const haystack = [JSON.stringify(shim.returns), lines.join('\n'), String(failed), JSON.stringify(await e.rows('mail_sync_state')), JSON.stringify(await e.rows('mail_sync_cursors')), JSON.stringify(await e.rows('events')), JSON.stringify(await e.rows('channel_credentials'))].join('\n')
+    const secrets = [
+      s.refreshToken,
+      t.refreshToken,
+      ...google.refreshTokens,
+      ...google.accessTokens,
+      CONFIG.clientSecret,
+    ]
+    const haystack = [
+      JSON.stringify(shim.returns),
+      lines.join('\n'),
+      String(failed),
+      JSON.stringify(await e.rows('mail_sync_state')),
+      JSON.stringify(await e.rows('mail_sync_cursors')),
+      JSON.stringify(await e.rows('events')),
+      JSON.stringify(await e.rows('channel_credentials')),
+    ].join('\n')
     for (const secret of secrets) expect(haystack).not.toContain(secret)
     expect(secrets.length).toBeGreaterThan(3)
   })

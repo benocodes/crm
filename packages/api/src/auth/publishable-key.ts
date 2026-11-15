@@ -36,6 +36,7 @@ export function parsePublishableKey(env: AuthEnv): string | undefined {
   } catch {
     throw new Error('CLERK_PUBLISHABLE_KEY cannot be checked: CLERK_ISSUER is not a URL')
   }
-  if (host.toLowerCase() !== issuerHost.toLowerCase()) throw new Error('CLERK_PUBLISHABLE_KEY belongs to another Clerk instance than CLERK_ISSUER')
+  if (host.toLowerCase() !== issuerHost.toLowerCase())
+    throw new Error('CLERK_PUBLISHABLE_KEY belongs to another Clerk instance than CLERK_ISSUER')
   return key
 }

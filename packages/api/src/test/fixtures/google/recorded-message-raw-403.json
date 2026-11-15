@@ -7,12 +7,7 @@
       "method": "GET",
       "host": "gmail.googleapis.com",
       "path": "/gmail/v1/users/me/messages/5t52v025t5j51429",
-      "query": [
-        [
-          "format",
-          "raw"
-        ]
-      ],
+      "query": [["format", "raw"]],
       "form": null
     },
     "response": {

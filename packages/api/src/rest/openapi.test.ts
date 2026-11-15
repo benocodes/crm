@@ -23,7 +23,10 @@ describe('GET /api/v1/openapi.json', () => {
     expect(d.paths['/api/v1/tags/{id}'].patch.operationId).toBe('tags.update')
     expect(d.paths['/api/v1/tags/{id}'].delete.operationId).toBe('tags.delete')
     for (const path of ['companies', 'contacts', 'tasks']) {
-      expect(d.paths[`/api/v1/${path}`].get.parameters.map((p: any) => p.name), path).toContain('tag_id')
+      expect(
+        d.paths[`/api/v1/${path}`].get.parameters.map((p: any) => p.name),
+        path,
+      ).toContain('tag_id')
     }
     expect(d.paths['/api/v1/notes'].get.parameters.map((p: any) => p.name)).not.toContain('tag_id')
   })
@@ -32,7 +35,9 @@ describe('GET /api/v1/openapi.json', () => {
     expect(d.paths['/api/v1/deals'].get.operationId).toBe('deals.list')
     expect(d.paths['/api/v1/deals/{id}'].patch.operationId).toBe('deals.update')
     expect(d.paths['/api/v1/deals/{id}/move-stage'].post.operationId).toBe('deals.move_stage')
-    expect(d.paths['/api/v1/deals'].get.parameters.map((p: any) => p.name)).toEqual(expect.arrayContaining(['pipeline_id', 'stage_id', 'owner_id', 'created_by', 'status']))
+    expect(d.paths['/api/v1/deals'].get.parameters.map((p: any) => p.name)).toEqual(
+      expect.arrayContaining(['pipeline_id', 'stage_id', 'owner_id', 'created_by', 'status']),
+    )
     expect(Object.keys(d.paths).filter((p) => /pipeline/.test(p))).toEqual([])
   })
   it('names operations', async () => {

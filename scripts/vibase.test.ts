@@ -1,5 +1,15 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -19,7 +29,10 @@ if (args[0] === 'err') { process.stderr.write('to-stderr'); process.exit(0) }
 process.stdout.write(JSON.stringify({ cwd: process.cwd(), args }))
 `
 
-const run = (args: string[], opts: { cwd?: string; env?: Record<string, string | undefined>; input?: string; wrapper?: string } = {}) =>
+const run = (
+  args: string[],
+  opts: { cwd?: string; env?: Record<string, string | undefined>; input?: string; wrapper?: string } = {},
+) =>
   spawnSync(process.execPath, [opts.wrapper ?? join(root, 'scripts/vibase.mjs'), ...args], {
     cwd: opts.cwd ?? root,
     env: { ...process.env, INIT_CWD: undefined, ...opts.env },
@@ -94,7 +107,9 @@ describe('root vibase wrapper', () => {
     const env = () => ({ PATH: `${bin}:${process.env.PATH}`, INIT_CWD: callerDir })
 
     it('builds first, says so on stderr, then runs the CLI', () => {
-      fakePnpm(`mkdir -p ${bare}/packages/cli/dist && printf '%s' "process.stdout.write('built-ok')" > ${bare}/packages/cli/dist/vibase.js`)
+      fakePnpm(
+        `mkdir -p ${bare}/packages/cli/dist && printf '%s' "process.stdout.write('built-ok')" > ${bare}/packages/cli/dist/vibase.js`,
+      )
       const r = run(['a'], { wrapper: join(bare, 'scripts/vibase.mjs'), env: env() })
       expect(r.stderr).toMatch(/building/i)
       expect(r.stdout).toBe('built-ok')

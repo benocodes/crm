@@ -35,7 +35,8 @@ beforeEach(async () => {
 
 const env = (scopes: readonly string[] = READ) => e.env({ scopes: ScopeSet.parse([...scopes]) })
 const contact = async (name: string) => (await e.insert('contacts', { name })).id as string
-const identity = async (contactId: string, value: string) => (await e.insert('identities', { kind: 'email', value, contact_id: contactId, own: false })).id as string
+const identity = async (contactId: string, value: string) =>
+  (await e.insert('identities', { kind: 'email', value, contact_id: contactId, own: false })).id as string
 /** An inbound message from `from` to the owner at `at`. */
 const inbound = (from: string, at: string, over: CaptureOverrides = {}) =>
   runCapture(e, {
@@ -53,7 +54,12 @@ const inbound = (from: string, at: string, over: CaptureOverrides = {}) =>
     ],
   })
 /** A message the connection sent, from the owner to `to` (cc and bcc as given). */
-const outbound = (to: string[], at: string, extra: { cc?: string[]; bcc?: string[] } = {}, over: CaptureOverrides = {}) =>
+const outbound = (
+  to: string[],
+  at: string,
+  extra: { cc?: string[]; bcc?: string[] } = {},
+  over: CaptureOverrides = {},
+) =>
   runCapture(e, {
     connection_id: C1,
     messages: [
@@ -71,7 +77,8 @@ const outbound = (to: string[], at: string, extra: { cc?: string[]; bcc?: string
       }),
     ],
   })
-const get = async (id: string, scopes: readonly string[] = READ): Promise<Record<string, unknown>> => (await e.run(getOperation(contacts, env(scopes), id))).value as Record<string, unknown>
+const get = async (id: string, scopes: readonly string[] = READ): Promise<Record<string, unknown>> =>
+  (await e.run(getOperation(contacts, env(scopes), id))).value as Record<string, unknown>
 const activity = async (id: string) => {
   const c = await get(id)
   return [c.last_contacted_at, c.last_interacted_at]
@@ -85,7 +92,7 @@ describe('derivation (D3)', () => {
     expect(await activity(a)).toEqual([null, '2026-10-20T08:00:00.000Z'])
   })
 
-  it('an outbound message sets both, and the value is the MAX over the contact\'s several identities', async () => {
+  it("an outbound message sets both, and the value is the MAX over the contact's several identities", async () => {
     const a = await contact('Ada')
     await identity(a, 'ada@x.test')
     await identity(a, 'ada@home.test')
@@ -110,7 +117,8 @@ describe('derivation (D3)', () => {
     await identity(bcc, 'bcc@x.test')
     await identity(to, 'to@x.test')
     await outbound(['to@x.test'], '2026-10-21T09:00:00.000Z', { cc: ['cc@x.test'], bcc: ['bcc@x.test'] })
-    for (const id of [cc, bcc, to]) expect(await activity(id)).toEqual(['2026-10-21T09:00:00.000Z', '2026-10-21T09:00:00.000Z'])
+    for (const id of [cc, bcc, to])
+      expect(await activity(id)).toEqual(['2026-10-21T09:00:00.000Z', '2026-10-21T09:00:00.000Z'])
   })
 
   it('a reaction interaction counts', async () => {
@@ -126,7 +134,9 @@ describe('derivation (D3)', () => {
     await outbound(['ada@x.test'], '2026-10-21T09:00:00.000Z')
     const [message] = await e.rows('messages')
     // `messages` is append-only (trigger) and capture cannot yet write a retraction: lift the trigger for this one update, then restore it.
-    const trigger = (await e.d1!.prepare("select sql from sqlite_schema where type = 'trigger' and name = 'messages_append_only'").first()) as { sql: string }
+    const trigger = (await e
+      .d1!.prepare("select sql from sqlite_schema where type = 'trigger' and name = 'messages_append_only'")
+      .first()) as { sql: string }
     await e.d1!.prepare('drop trigger messages_append_only').run()
     try {
       await e.update('messages', message!.id as string, { retracted_at: '2026-10-22T09:00:00.000Z' })
@@ -183,7 +193,7 @@ describe('the identity carries the history (D4)', () => {
     expect(await activity(a)).toEqual([null, null])
   })
 
-  it('contacts.merge returns the survivor with values covering the source\'s interactions', async () => {
+  it("contacts.merge returns the survivor with values covering the source's interactions", async () => {
     const survivor = await contact('Survivor')
     const source = await contact('Source')
     await identity(survivor, 'survivor@x.test')
@@ -206,11 +216,14 @@ describe('events never carry a derived key (D2)', () => {
     await identity(source, 'source@x.test')
     await outbound(['survivor@x.test'], '2026-10-21T09:00:00.000Z')
     expect((await get(survivor.id)).last_contacted_at).toBe('2026-10-21T09:00:00.000Z')
-    const updated = (await e.run(updateOperation(contacts, env(), survivor.id, { name: 'Survivor 2' }))).value as Record<string, unknown>
+    const updated = (await e.run(updateOperation(contacts, env(), survivor.id, { name: 'Survivor 2' })))
+      .value as Record<string, unknown>
     expect(updated.last_contacted_at).toBe('2026-10-21T09:00:00.000Z') // the response shows it
     await e.run(mergeOperation(env(), survivor.id, source))
     const events = (await e.rows('events')).filter((r) => String(r.type).startsWith('contact.'))
-    expect(events.map((r) => r.type)).toEqual(expect.arrayContaining(['contact.created', 'contact.updated', 'contact.merged']))
+    expect(events.map((r) => r.type)).toEqual(
+      expect.arrayContaining(['contact.created', 'contact.updated', 'contact.merged']),
+    )
     for (const ev of events) {
       for (const side of [ev.before, ev.after]) {
         if (side === null || side === undefined) continue
@@ -223,7 +236,7 @@ describe('events never carry a derived key (D2)', () => {
 })
 
 describe('cascade children events (D2)', () => {
-  it('companies.delete as an actor with interactions:read: the unlinked contact\'s contact.updated carries no derived key', async () => {
+  it("companies.delete as an actor with interactions:read: the unlinked contact's contact.updated carries no derived key", async () => {
     const company = (await e.insert('companies', { name: 'Acme' })).id as string
     const a = (await e.insert('contacts', { name: 'Ada', company_id: company })).id as string
     await identity(a, 'ada@x.test')
@@ -246,7 +259,9 @@ describe('scope projection at the operation (D5, D6)', () => {
     const keys = (r: unknown) => Object.keys(r as object)
     const withScope = env(READ)
     const without = env(['contacts:read', 'contacts:write'])
-    expect(keys((await e.run(getOperation(contacts, withScope, a))).value)).toEqual(expect.arrayContaining(['last_contacted_at', 'last_interacted_at']))
+    expect(keys((await e.run(getOperation(contacts, withScope, a))).value)).toEqual(
+      expect.arrayContaining(['last_contacted_at', 'last_interacted_at']),
+    )
     expect(keys((await e.run(getOperation(contacts, without, a))).value)).not.toContain('last_contacted_at')
     const page = (await e.run(listOperation(contacts, without, {}))).value as { data: object[] }
     expect(keys(page.data[0])).not.toContain('last_interacted_at')
@@ -257,19 +272,30 @@ describe('query plan (D10)', () => {
   const planOf = async (op: Parameters<typeof compileOperation>[0]): Promise<string[]> => {
     const compiled = compileOperation(op, 'd1')
     const read = compiled.reads[0]!
-    const rows = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results as Array<{ detail: string }>
+    const rows = (
+      await e
+        .d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`)
+        .bind(...read.parameters)
+        .all()
+    ).results as Array<{ detail: string }>
     return rows.map((r) => r.detail)
   }
   const assertSearches = (plan: string[]) => {
     const text = plan.join('\n')
     for (const table of ['identities', 'interaction_participants', 'interactions']) {
       expect(text, `${table} is touched`).toMatch(new RegExp(`SEARCH ${table}\\b`))
-      expect(plan.filter((l) => new RegExp(`\\bSCAN ${table}\\b`).test(l)), `${table} is never scanned:\n${text}`).toEqual([])
+      expect(
+        plan.filter((l) => new RegExp(`\\bSCAN ${table}\\b`).test(l)),
+        `${table} is never scanned:\n${text}`,
+      ).toEqual([])
     }
-    for (const line of plan.filter((l) => /SEARCH (identities|interaction_participants|interactions)\b/.test(l))) expect(line, line).toMatch(/USING/)
+    for (const line of plan.filter((l) => /SEARCH (identities|interaction_participants|interactions)\b/.test(l)))
+      expect(line, line).toMatch(/USING/)
     // The walk of D10, not just any index: identities by contact, participants by identity, interactions by id.
     expect(text).toMatch(/SEARCH identities USING INDEX idx_identities_contact_id \(contact_id=\?\)/)
-    expect(text).toMatch(/SEARCH interaction_participants USING COVERING INDEX idx_interaction_participants_identity \(organization_id=\? AND identity_id=\?\)/)
+    expect(text).toMatch(
+      /SEARCH interaction_participants USING COVERING INDEX idx_interaction_participants_identity \(organization_id=\? AND identity_id=\?\)/,
+    )
     expect(text).toMatch(/SEARCH interactions USING INDEX \w+ \(organization_id=\? AND id=\?\)/)
   }
   it('a get, a page and a list with not_contacted_since search the three tables by index', async () => {
@@ -277,7 +303,9 @@ describe('query plan (D10)', () => {
     const scoped = env(READ)
     const get = await planOf(getOperation(contacts, scoped, id))
     const page = await planOf(listOperation(contacts, scoped, { limit: 20 }))
-    const filtered = await planOf(listOperation(contacts, scoped, { filters: { not_contacted_since: '2026-10-05T00:00:00.000Z' } }))
+    const filtered = await planOf(
+      listOperation(contacts, scoped, { filters: { not_contacted_since: '2026-10-05T00:00:00.000Z' } }),
+    )
     assertSearches(get)
     assertSearches(page)
     assertSearches(filtered)
@@ -285,7 +313,12 @@ describe('query plan (D10)', () => {
 })
 
 describe('the mechanism beyond contacts (D1)', () => {
-  const tasksRecord = z.object({ id: z.uuid(), title: z.string(), title_length: z.number().int().nullable().optional(), shout: z.string().nullable().optional() })
+  const tasksRecord = z.object({
+    id: z.uuid(),
+    title: z.string(),
+    title_length: z.number().int().nullable().optional(),
+    shout: z.string().nullable().optional(),
+  })
 
   it('a second definition (tasks) with derived fields renders them through the same core, gated by its own scope', async () => {
     const def = definePreparedResource({
@@ -296,17 +329,27 @@ describe('the mechanism beyond contacts (D1)', () => {
       record: tasksRecord,
       derived: {
         title_length: { kind: 'integer', expression: (_qc, parent) => sql`length(${parent('title')})` },
-        shout: { kind: 'timestamp', requires: [{ resource: 'notes', action: 'read' }], expression: (_qc, parent) => sql`(select max(${sql.ref('tasks.created_at')}) where ${parent('id')} is not null)` },
+        shout: {
+          kind: 'timestamp',
+          requires: [{ resource: 'notes', action: 'read' }],
+          expression: (_qc, parent) =>
+            sql`(select max(${sql.ref('tasks.created_at')}) where ${parent('id')} is not null)`,
+        },
       },
     }) as unknown as Parameters<typeof getOperation>[0]
     await e.insertTask({ id: '0190b2c4-0000-7000-8000-0000000000b1', title: 'hello' })
-    const plain = (await e.run(getOperation(def, env(['tasks:read']), '0190b2c4-0000-7000-8000-0000000000b1'))).value as Record<string, unknown>
+    const plain = (await e.run(getOperation(def, env(['tasks:read']), '0190b2c4-0000-7000-8000-0000000000b1')))
+      .value as Record<string, unknown>
     expect(plain.title_length).toBe(5)
     expect('shout' in plain).toBe(false)
-    const full = (await e.run(getOperation(def, env(['tasks:read', 'notes:read']), '0190b2c4-0000-7000-8000-0000000000b1'))).value as Record<string, unknown>
+    const full = (
+      await e.run(getOperation(def, env(['tasks:read', 'notes:read']), '0190b2c4-0000-7000-8000-0000000000b1'))
+    ).value as Record<string, unknown>
     expect(full.title_length).toBe(5)
     expect(typeof full.shout).toBe('string')
-    const page = (await e.run(listOperation(def, env(['tasks:read']), {}))).value as { data: Array<Record<string, unknown>> }
+    const page = (await e.run(listOperation(def, env(['tasks:read']), {}))).value as {
+      data: Array<Record<string, unknown>>
+    }
     expect(page.data[0]!.title_length).toBe(5)
   })
 })

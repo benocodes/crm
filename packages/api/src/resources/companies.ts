@@ -40,36 +40,46 @@ const update = create.partial()
  * domain refuses the write in the plan (`409 domain_exists`); the partial unique index is the commit-time re-check.
  * Delete unlinks the company's live contacts as a set (`identity/cascades.ts`).
  */
-export const companies = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'api',
-  name: 'companies',
-  eventName: 'company',
-  table: 'companies',
-  associable: true,
-  customFilters: { tag_id: tagIdFilter('companies'), tag: tagNameFilter('companies') },
-  record,
-  create,
-  update,
-  filters: { domain: { schema: z.string().max(253), normalize: (v) => normalizeDomain(v as string) } },
-  prepare: ({ values }) => (typeof values.domain === 'string' ? { domain: normalizeDomain(values.domain) } : {}),
-  conflicts: ({ qc, env, id, values }) => {
-    const domain = values.domain
-    if (typeof domain !== 'string') return []
-    let q = qc.db
-      .selectFrom('companies')
-      .select('companies.id')
-      .where('companies.organization_id', '=', env.organizationId)
-      .where('companies.domain', '=', domain)
-      .where('companies.deleted_at', 'is', null)
-    if (id) q = q.where('companies.id', '!=', id)
-    return [
-      {
-        read: readMaybe(q.limit(1)),
-        refuse: (row) => {
-          if (row) throw new ApiError(409, 'domain_exists', `a company with domain ${domain} already exists (${String(row.id)})`)
-        },
+export const companies = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'api',
+      name: 'companies',
+      eventName: 'company',
+      table: 'companies',
+      associable: true,
+      customFilters: { tag_id: tagIdFilter('companies'), tag: tagNameFilter('companies') },
+      record,
+      create,
+      update,
+      filters: { domain: { schema: z.string().max(253), normalize: (v) => normalizeDomain(v as string) } },
+      prepare: ({ values }) => (typeof values.domain === 'string' ? { domain: normalizeDomain(values.domain) } : {}),
+      conflicts: ({ qc, env, id, values }) => {
+        const domain = values.domain
+        if (typeof domain !== 'string') return []
+        let q = qc.db
+          .selectFrom('companies')
+          .select('companies.id')
+          .where('companies.organization_id', '=', env.organizationId)
+          .where('companies.domain', '=', domain)
+          .where('companies.deleted_at', 'is', null)
+        if (id) q = q.where('companies.id', '!=', id)
+        return [
+          {
+            read: readMaybe(q.limit(1)),
+            refuse: (row) => {
+              if (row)
+                throw new ApiError(
+                  409,
+                  'domain_exists',
+                  `a company with domain ${domain} already exists (${String(row.id)})`,
+                )
+            },
+          },
+        ]
       },
-    ]
-  },
-  override: { delete: (env, id) => deleteCompanyOperation(env, id as string) },
-}), ['name']))
+      override: { delete: (env, id) => deleteCompanyOperation(env, id as string) },
+    }),
+    ['name'],
+  ),
+)

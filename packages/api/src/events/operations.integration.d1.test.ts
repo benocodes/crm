@@ -28,9 +28,18 @@ beforeEach(async () => {
   app = createApp({ registry, storage: () => e.binding, userAuthenticator: fakeUserAuthenticator() })
 })
 
-const call = async (scopes: string[], path: string, init: { method?: string; body?: unknown; actor?: 'user' | 'agent' } = {}) => {
+const call = async (
+  scopes: string[],
+  path: string,
+  init: { method?: string; body?: unknown; actor?: 'user' | 'agent' } = {},
+) => {
   const actor = init.actor ?? 'user'
-  const token = mintTestUserToken({ userId: actor === 'agent' ? e.agentId : e.userId, organizationId: e.organizationId, scopes, kind: actor })
+  const token = mintTestUserToken({
+    userId: actor === 'agent' ? e.agentId : e.userId,
+    organizationId: e.organizationId,
+    scopes,
+    kind: actor,
+  })
   const res = await app.request(path, {
     method: init.method ?? 'GET',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
@@ -44,15 +53,42 @@ const must = async (path: string, init: Parameters<typeof call>[2]) => {
   expect(r.status, `${init?.method} ${path}: ${r.text}`).toBeLessThan(300)
   return r.body
 }
-const KEYS = ['actor_id', 'after', 'before', 'created_at', 'id', 'organization_id', 'resource_id', 'resource_type', 'type']
+const KEYS = [
+  'actor_id',
+  'after',
+  'before',
+  'created_at',
+  'id',
+  'organization_id',
+  'resource_id',
+  'resource_type',
+  'type',
+]
 const list = async (scopes: string[], query = '') => call(scopes, `/api/v1/events${query ? `?${query}` : ''}`)
 const ids = (r: { body: { data: { id: string }[] } }) => r.body.data.map((x) => x.id)
 /** A raw event row (setup only), in insert order, which is `seq` order. */
-const rawEvent = async (type: string, resourceType: string, resourceId = uuidv7(), extra: { before?: unknown; after?: unknown } = {}) => {
+const rawEvent = async (
+  type: string,
+  resourceType: string,
+  resourceId = uuidv7(),
+  extra: { before?: unknown; after?: unknown } = {},
+) => {
   const id = uuidv7()
   await e
-    .d1!.prepare('INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, AT, e.organizationId, type, resourceType, resourceId, e.userId, extra.before === undefined ? null : JSON.stringify(extra.before), extra.after === undefined ? null : JSON.stringify(extra.after))
+    .d1!.prepare(
+      'INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .bind(
+      id,
+      AT,
+      e.organizationId,
+      type,
+      resourceType,
+      resourceId,
+      e.userId,
+      extra.before === undefined ? null : JSON.stringify(extra.before),
+      extra.after === undefined ? null : JSON.stringify(extra.after),
+    )
     .run()
   return id
 }
@@ -61,7 +97,10 @@ const TASKS = ['events:read', 'tasks:read']
 describe('scope and surfaces (D4, D17)', () => {
   it('events.list and events.get need events:read: 403 insufficient_scope naming it, whatever else the caller holds', async () => {
     for (const path of ['/api/v1/events', `/api/v1/events/${NO_SUCH}`]) {
-      const r = await call(ALL.filter((s) => s !== 'events:read'), path)
+      const r = await call(
+        ALL.filter((s) => s !== 'events:read'),
+        path,
+      )
       expect([r.status, r.body.error.code], path).toEqual([403, 'insufficient_scope'])
       expect(r.body.error.message).toContain('events:read')
     }
@@ -85,8 +124,20 @@ describe('scope and surfaces (D4, D17)', () => {
   })
 
   it('both operations are MCP tools for a holder of events:read', async () => {
-    const token = mintTestUserToken({ userId: e.agentId, organizationId: e.organizationId, scopes: ['events:read'], kind: 'agent' })
-    const rpc = async (method: string, params: unknown) => (await (await app.request('/mcp', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json()) as any
+    const token = mintTestUserToken({
+      userId: e.agentId,
+      organizationId: e.organizationId,
+      scopes: ['events:read'],
+      kind: 'agent',
+    })
+    const rpc = async (method: string, params: unknown) =>
+      (await (
+        await app.request('/mcp', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        })
+      ).json()) as any
     const names = (await rpc('tools/list', {})).result.tools.map((t: any) => t.name)
     expect(names).toEqual(expect.arrayContaining(['events_list', 'events_get']))
     const out = await rpc('tools/call', { name: 'events_list', arguments: {} })
@@ -95,7 +146,8 @@ describe('scope and surfaces (D4, D17)', () => {
 
   it('a binding that is not D1 answers 501 not_implemented, after the scope check and before any unit', async () => {
     const cold = createApp({ storage: coldStorage(), registry, userAuthenticator: fakeUserAuthenticator() })
-    const token = (scopes: string[]) => mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes, kind: 'user' })
+    const token = (scopes: string[]) =>
+      mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes, kind: 'user' })
     for (const path of ['/api/v1/events', `/api/v1/events/${NO_SUCH}`]) {
       const res = await cold.request(path, { headers: { authorization: `Bearer ${token(ALL)}` } })
       expect([res.status, ((await res.json()) as any).error.code], path).toEqual([501, 'not_implemented'])
@@ -114,7 +166,8 @@ describe('paging and cursor (D2, D5)', () => {
   it('pages across limit with each filter alone and combined, reaching every matching event once in seq order', async () => {
     const t1 = uuidv7()
     const seeded: { id: string; type: string; resourceType: string; resourceId: string }[] = []
-    const add = async (type: string, resourceType: string, resourceId = uuidv7()) => void seeded.push({ id: await rawEvent(type, resourceType, resourceId), type, resourceType, resourceId })
+    const add = async (type: string, resourceType: string, resourceId = uuidv7()) =>
+      void seeded.push({ id: await rawEvent(type, resourceType, resourceId), type, resourceType, resourceId })
     await add('task.created', 'task', t1)
     await add('note.created', 'note')
     await add('task.updated', 'task', t1)
@@ -147,7 +200,8 @@ describe('paging and cursor (D2, D5)', () => {
       ['type=note.created&resource_type=task', []],
     ]
     for (const [query, expected] of cases) {
-      for (const limit of [1, 2, 50]) expect(await walk(query, limit), `${query || '(none)'} limit ${limit}`).toEqual(expected)
+      for (const limit of [1, 2, 50])
+        expect(await walk(query, limit), `${query || '(none)'} limit ${limit}`).toEqual(expected)
     }
   })
 
@@ -211,7 +265,12 @@ describe('record shape and get (D3, D6)', () => {
     for (const ev of r.body.data) {
       expect(Object.keys(ev).sort()).toEqual(KEYS)
       expect(ev.created_at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/)
-      expect([ev.organization_id, ev.actor_id, ev.resource_type, ev.resource_id]).toEqual([e.organizationId, e.userId, 'task', task.id])
+      expect([ev.organization_id, ev.actor_id, ev.resource_type, ev.resource_id]).toEqual([
+        e.organizationId,
+        e.userId,
+        'task',
+        task.id,
+      ])
       expect(ev.after).toEqual(expect.objectContaining({ id: task.id }))
     }
     expect(r.body.data[0].before).toBeNull()
@@ -228,7 +287,12 @@ describe('record shape and get (D3, D6)', () => {
     const scopes = ['events:read', 'interactions:read', 'messages:read', 'files:read']
     const r = await list(scopes)
     const created = (type: string) => r.body.data.find((x: any) => x.type === type)
-    expect(r.body.data.map((x: any) => x.type)).toEqual(['thread.created', 'message.created', 'file.created', 'interaction.created'])
+    expect(r.body.data.map((x: any) => x.type)).toEqual([
+      'thread.created',
+      'message.created',
+      'file.created',
+      'interaction.created',
+    ])
     for (const [type, path] of [
       ['message.created', 'messages'],
       ['interaction.created', 'interactions'],
@@ -267,16 +331,30 @@ describe('record shape and get (D3, D6)', () => {
     bodies.push(task, await must(`/api/v1/tasks/${task.id}`, { method: 'PATCH', body: { title: 'y' } }))
     const contact = await must('/api/v1/contacts', { method: 'POST', body: { name: 'Ada' } })
     const company = await must('/api/v1/companies', { method: 'POST', body: { name: 'Acme' } })
-    bodies.push(contact, company, await must('/api/v1/associations', { method: 'POST', body: { a_type: 'companies', a_id: company.id, b_type: 'contacts', b_id: contact.id } }))
+    bodies.push(
+      contact,
+      company,
+      await must('/api/v1/associations', {
+        method: 'POST',
+        body: { a_type: 'companies', a_id: company.id, b_type: 'contacts', b_id: contact.id },
+      }),
+    )
     await must(`/api/v1/tasks/${task.id}`, { method: 'DELETE' })
     const eventIds = new Set((await e.events()).map((x) => String(x.id)))
     expect(eventIds.size).toBeGreaterThanOrEqual(6)
-    const strings = (v: unknown): string[] => (typeof v === 'string' ? [v] : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : [])
+    const strings = (v: unknown): string[] =>
+      typeof v === 'string' ? [v] : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : []
     expect(strings(bodies).filter((s) => eventIds.has(s))).toEqual([])
-    const keys = (v: unknown): string[] => (v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => [k, ...keys(x)]) : [])
+    const keys = (v: unknown): string[] =>
+      v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => [k, ...keys(x)]) : []
     for (const op of registry.operations()) {
       if (op.method === 'get' || !op.response.schema) continue
-      expect(keys(z.toJSONSchema(op.response.schema, { io: 'output', unrepresentable: 'any' })).filter((k) => /^events?(_ids?)?$/.test(k)), op.name).toEqual([])
+      expect(
+        keys(z.toJSONSchema(op.response.schema, { io: 'output', unrepresentable: 'any' })).filter((k) =>
+          /^events?(_ids?)?$/.test(k),
+        ),
+        op.name,
+      ).toEqual([])
     }
   })
 })

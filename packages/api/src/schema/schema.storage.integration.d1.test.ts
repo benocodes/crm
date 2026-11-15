@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createVibaseRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
-import { ApiError } from '../errors.js'
 import { openEngines, type Engine } from '../test/engines.js'
 import { CATALOG, HIDDEN_TABLES } from './catalog.js'
 
@@ -24,15 +23,50 @@ const run = async (e: Engine) => e.run(await op().prepare(e.env(), { params: {},
 const getDoc = async (): Promise<any> => (await run(d1)).value
 const table = (doc: any, name: string) => doc.tables.find((t: any) => t.name === name)
 const column = (doc: any, t: string, c: string) => table(doc, t).columns.find((x: any) => x.name === c)
-const all = async (sqlText: string, ...binds: unknown[]) => ((await d1.d1!.prepare(sqlText).bind(...binds).all()).results as Record<string, any>[])
+const all = async (sqlText: string, ...binds: unknown[]) =>
+  (
+    await d1
+      .d1!.prepare(sqlText)
+      .bind(...binds)
+      .all()
+  ).results as Record<string, any>[]
 
 // Written out, independent of the code under test.
-const HIDDEN = ['deployment', 'unit_assertion', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'webhook_secrets', 'webhook_dispatch_state']
-const PRESENT = ['events', 'principals', 'api_keys', 'notes', 'associations', 'organizations', 'users', 'memberships', 'agents']
+const HIDDEN = [
+  'deployment',
+  'unit_assertion',
+  'message_sources',
+  'thread_sources',
+  'channel_credentials',
+  'gmail_watches',
+  'mail_sync_state',
+  'mail_sync_cursors',
+  'webhook_secrets',
+  'webhook_dispatch_state',
+]
+const PRESENT = [
+  'events',
+  'principals',
+  'api_keys',
+  'notes',
+  'associations',
+  'organizations',
+  'users',
+  'memberships',
+  'agents',
+]
 const realTables = async () =>
   (await all("select name from sqlite_schema where type = 'table' order by name")).map((r) => r.name as string)
 const shownReal = async () =>
-  (await realTables()).filter((n) => !n.startsWith('_cf_') && !n.startsWith('sqlite_') && n !== 'd1_migrations' && !n.startsWith('auth_') && !/^(companies|notes|tasks)_search(_|$)/.test(n) && !HIDDEN.includes(n))
+  (await realTables()).filter(
+    (n) =>
+      !n.startsWith('_cf_') &&
+      !n.startsWith('sqlite_') &&
+      n !== 'd1_migrations' &&
+      !n.startsWith('auth_') &&
+      !/^(companies|notes|tasks)_search(_|$)/.test(n) &&
+      !HIDDEN.includes(n),
+  )
 
 describe('schema.get on the migrated D1 (D9)', () => {
   it('lists exactly the real tables minus the engine tables and the hidden machinery list, sorted', async () => {
@@ -68,7 +102,10 @@ describe('schema.get on the migrated D1 (D9)', () => {
   it('lists every column of every table in cid order with the declared type, nullability, default and primary key', async () => {
     const doc = await getDoc()
     for (const name of await shownReal()) {
-      const rows = await all('select cid, name, type, "notnull", dflt_value, pk from pragma_table_info(?) order by cid', name)
+      const rows = await all(
+        'select cid, name, type, "notnull", dflt_value, pk from pragma_table_info(?) order by cid',
+        name,
+      )
       expect(table(doc, name).columns.map((c: any) => [c.name, c.type, !c.nullable, c.default, c.primary_key])).toEqual(
         rows.map((r) => [r.name, r.type, r.notnull === 1, r.dflt_value, r.pk > 0]),
       )
@@ -87,8 +124,16 @@ describe('foreign keys on the migrated D1 (D13)', () => {
     const doc = await getDoc()
     expect(column(doc, 'contacts', 'company_id').references).toEqual({ table: 'companies', column: 'id' })
     expect(column(doc, 'contacts', 'organization_id').references).toEqual({ table: 'organizations', column: 'id' })
-    expect(table(doc, 'contacts').foreign_keys).toContainEqual({ columns: ['organization_id', 'company_id'], references: { table: 'companies', columns: ['organization_id', 'id'] }, on_delete: 'NO ACTION' })
-    expect(table(doc, 'contacts').foreign_keys).toContainEqual({ columns: ['organization_id'], references: { table: 'organizations', columns: ['id'] }, on_delete: 'CASCADE' })
+    expect(table(doc, 'contacts').foreign_keys).toContainEqual({
+      columns: ['organization_id', 'company_id'],
+      references: { table: 'companies', columns: ['organization_id', 'id'] },
+      on_delete: 'NO ACTION',
+    })
+    expect(table(doc, 'contacts').foreign_keys).toContainEqual({
+      columns: ['organization_id'],
+      references: { table: 'organizations', columns: ['id'] },
+      on_delete: 'CASCADE',
+    })
   })
   it('interactions.thread_id references threads.id, not messages.thread_id', async () => {
     const doc = await getDoc()
@@ -103,13 +148,19 @@ describe('foreign keys on the migrated D1 (D13)', () => {
   it('reports every foreign key the database declares, in declaration order (the per-table count and first columns match the pragma)', async () => {
     const doc = await getDoc()
     for (const name of await shownReal()) {
-      const rows = await all('select id, seq, "table", "from" from pragma_foreign_key_list(?) order by id desc, seq', name)
+      const rows = await all(
+        'select id, seq, "table", "from" from pragma_foreign_key_list(?) order by id desc, seq',
+        name,
+      )
       const expected: string[][] = []
       for (const r of rows) {
         if (r.seq === 0) expected.push([r.table])
         expected[expected.length - 1]!.push(r.from)
       }
-      expect(table(doc, name).foreign_keys.map((f: any) => [f.references.table, ...f.columns]), name).toEqual(expected)
+      expect(
+        table(doc, name).foreign_keys.map((f: any) => [f.references.table, ...f.columns]),
+        name,
+      ).toEqual(expected)
     }
   })
 })
@@ -122,7 +173,8 @@ describe('catalog completeness (D16)', () => {
       expect(entry, `catalog entry for ${name}`).toBeDefined()
       expect(entry!.label.length, `${name} label`).toBeGreaterThan(0)
       expect(entry!.description.length, `${name} description`).toBeGreaterThan(0)
-      for (const c of table(doc, name).columns) expect(typeof c.description, `${name}.${c.name} description`).toBe('string')
+      for (const c of table(doc, name).columns)
+        expect(typeof c.description, `${name}.${c.name} description`).toBe('string')
     }
   })
   it('every catalog entry names an existing table and existing columns', async () => {
@@ -146,7 +198,9 @@ describe('catalog completeness (D16)', () => {
   it('the fixed CORE62 texts are literal', async () => {
     const doc = await getDoc()
     expect(column(doc, 'contacts', 'company_id').label).toBe('Primary company')
-    expect(column(doc, 'tasks', 'notes').description).toBe("The task's own description. Research and context belong in associated notes.")
+    expect(column(doc, 'tasks', 'notes').description).toBe(
+      "The task's own description. Research and context belong in associated notes.",
+    )
     expect(table(doc, 'notes').description).toBeTruthy()
     expect(table(doc, 'associations').description).toBeTruthy()
   })
@@ -155,7 +209,12 @@ describe('catalog completeness (D16)', () => {
     expect(column(doc, 'tasks', 'status').values).toEqual(['open', 'done'])
     expect(column(doc, 'tasks', 'title').values).toBeNull()
     expect(column(doc, 'tasks', 'title').exposed).toBe(true)
-    for (const [t, c] of [['api_keys', 'key_hash'], ['messages', 'content_key'], ['files', 'storage_key']] as const) expect(column(doc, t, c), `${t}.${c}`).toMatchObject({ exposed: false })
+    for (const [t, c] of [
+      ['api_keys', 'key_hash'],
+      ['messages', 'content_key'],
+      ['files', 'storage_key'],
+    ] as const)
+      expect(column(doc, t, c), `${t}.${c}`).toMatchObject({ exposed: false })
     expect(table(doc, 'tasks').resource.path).toBe('/api/v1/tasks')
     expect(table(doc, 'events').resource).toBeNull()
   })
@@ -169,7 +228,9 @@ describe('derived fields ([[CORE131]] D11)', () => {
   it('every table lists derived, an empty array where it has none', async () => {
     const doc = await getDoc()
     for (const t of doc.tables) expect(Array.isArray(t.derived), `${t.name}.derived`).toBe(true)
-    for (const t of doc.tables) if (!['contacts', 'deals', 'channel_connections', 'action_requests'].includes(t.name)) expect(t.derived, t.name).toEqual([])
+    for (const t of doc.tables)
+      if (!['contacts', 'deals', 'channel_connections', 'action_requests'].includes(t.name))
+        expect(t.derived, t.name).toEqual([])
   })
   it('contacts lists the two fields in the spec shape, apart from the columns, with sortable true ([[CORE133]] D11)', async () => {
     const doc = await getDoc()
@@ -188,16 +249,21 @@ describe('derived fields ([[CORE131]] D11)', () => {
         sortable: true,
       })
       expect(d.description.length, d.name).toBeGreaterThan(10)
-      expect(table(doc, 'contacts').columns.map((c: any) => c.name), 'derived fields are not columns').not.toContain(d.name)
+      expect(
+        table(doc, 'contacts').columns.map((c: any) => c.name),
+        'derived fields are not columns',
+      ).not.toContain(d.name)
     }
     expect(derived[0].label).toBe('Last contacted at')
-    expect(derived[0].description).toBe("When the latest outbound interaction with any of the contact's identities happened; null if none.")
+    expect(derived[0].description).toBe(
+      "When the latest outbound interaction with any of the contact's identities happened; null if none.",
+    )
   })
   it('the catalog describes every derived field of every registered resource (completeness)', async () => {
     for (const def of registry.resources()) {
       const names = Object.keys((def as { derived?: object }).derived ?? {})
       for (const n of names) {
-        const entry = (CATALOG.tables[def.table]?.derived ?? {})[n]
+        const entry = CATALOG.tables[def.table]?.derived?.[n]
         expect(entry, `catalog text for ${def.table}.${n}`).toBeDefined()
         expect(typeof entry === 'string' ? entry : entry!.description, `${def.table}.${n}`).toBeTruthy()
       }
@@ -213,10 +279,29 @@ describe('deals and pipelines ([[CORE130]] D18)', () => {
       expect(table(doc, name).description.length, name).toBeGreaterThan(10)
       expect(table(doc, name).origin).toBe('built_in')
     }
-    expect(table(doc, 'pipelines').resource).toMatchObject({ surface: 'meta', path: '/meta/v1/pipelines', read_scope: 'pipelines:read', write_scope: 'pipelines:write' })
-    expect(table(doc, 'pipeline_stages').resource).toMatchObject({ surface: 'meta', path: '/meta/v1/pipeline-stages', read_scope: 'pipelines:read', write_scope: 'pipelines:write' })
-    expect(table(doc, 'deals').resource).toMatchObject({ surface: 'api', path: '/api/v1/deals', read_scope: 'deals:read', write_scope: 'deals:write' })
-    expect(table(doc, 'deals').foreign_keys).toContainEqual({ columns: ['pipeline_id', 'stage_id'], references: { table: 'pipeline_stages', columns: ['pipeline_id', 'id'] }, on_delete: 'NO ACTION' })
+    expect(table(doc, 'pipelines').resource).toMatchObject({
+      surface: 'meta',
+      path: '/meta/v1/pipelines',
+      read_scope: 'pipelines:read',
+      write_scope: 'pipelines:write',
+    })
+    expect(table(doc, 'pipeline_stages').resource).toMatchObject({
+      surface: 'meta',
+      path: '/meta/v1/pipeline-stages',
+      read_scope: 'pipelines:read',
+      write_scope: 'pipelines:write',
+    })
+    expect(table(doc, 'deals').resource).toMatchObject({
+      surface: 'api',
+      path: '/api/v1/deals',
+      read_scope: 'deals:read',
+      write_scope: 'deals:write',
+    })
+    expect(table(doc, 'deals').foreign_keys).toContainEqual({
+      columns: ['pipeline_id', 'stage_id'],
+      references: { table: 'pipeline_stages', columns: ['pipeline_id', 'id'] },
+      on_delete: 'NO ACTION',
+    })
     expect(column(doc, 'deals', 'pipeline_id').references).toEqual({ table: 'pipelines', column: 'id' })
     expect(column(doc, 'deals', 'owner_id').references).toEqual({ table: 'principals', column: 'id' })
     expect(column(doc, 'pipeline_stages', 'pipeline_id').references).toEqual({ table: 'pipelines', column: 'id' })
@@ -234,7 +319,17 @@ describe('deals and pipelines ([[CORE130]] D18)', () => {
     const doc = await getDoc()
     const derived = table(doc, 'deals').derived
     expect(derived).toEqual([
-      { name: 'status', kind: 'text', nullable: true, writable: false, label: 'Status', description: expect.any(String), requires: null, filters: ['status'], sortable: false },
+      {
+        name: 'status',
+        kind: 'text',
+        nullable: true,
+        writable: false,
+        label: 'Status',
+        description: expect.any(String),
+        requires: null,
+        filters: ['status'],
+        sortable: false,
+      },
     ])
     expect(derived[0].description).toMatch(/open.*won.*lost/s)
     expect(table(doc, 'deals').columns.map((c: any) => c.name)).not.toContain('status')
@@ -243,7 +338,16 @@ describe('deals and pipelines ([[CORE130]] D18)', () => {
   })
   it('deals are associable (CORE136, CORE130 D18); pipelines and stages are not', async () => {
     const doc = await getDoc()
-    expect(doc.associations.associable).toEqual(['companies', 'contacts', 'deals', 'interactions', 'notes', 'tags', 'tasks', 'threads'])
+    expect(doc.associations.associable).toEqual([
+      'companies',
+      'contacts',
+      'deals',
+      'interactions',
+      'notes',
+      'tags',
+      'tasks',
+      'threads',
+    ])
     expect(table(doc, 'deals').associable).toBe(true)
     expect(table(doc, 'pipelines').associable).toBe(false)
     expect(table(doc, 'pipeline_stages').associable).toBe(false)

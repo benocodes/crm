@@ -7,8 +7,24 @@ import { FIXTURE_CONFIG_PATH } from './test/world.js'
 
 const real = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const UUID = '13f7fb64-d909-44e7-9ce7-cc3c753bb3bc'
-const smoked1: DesiredEnv = { env: 'smoked1', workerName: 'vault-smoked1', d1Name: 'vault-smoked1', d1Id: UUID, r2Name: 'vault-smoked1-bodies', apiHost: 'api.smoked1.vibase.ai', corsOrigins: '' }
-const acme: DesiredEnv = { env: 'acme', workerName: 'vb-acme', d1Name: 'vb-crm-acme', d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', r2Name: 'vb-bodies-acme', apiHost: 'api.acme.vibase.ai', corsOrigins: 'https://app.example.com' }
+const smoked1: DesiredEnv = {
+  env: 'smoked1',
+  workerName: 'vault-smoked1',
+  d1Name: 'vault-smoked1',
+  d1Id: UUID,
+  r2Name: 'vault-smoked1-bodies',
+  apiHost: 'api.smoked1.vibase.ai',
+  corsOrigins: '',
+}
+const acme: DesiredEnv = {
+  env: 'acme',
+  workerName: 'vb-acme',
+  d1Name: 'vb-crm-acme',
+  d1Id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b',
+  r2Name: 'vb-bodies-acme',
+  apiHost: 'api.acme.vibase.ai',
+  corsOrigins: 'https://app.example.com',
+}
 
 /** True when `a` is `b` with characters only added (no edits, no deletions). */
 const onlyAdditions = (a: string, b: string) => {
@@ -30,7 +46,13 @@ describe('reconcileEnvBlock (D9)', () => {
     expect(r.mismatches).toEqual([])
     expect(r.changed.length).toBeGreaterThan(0)
     expect(onlyAdditions(real, r.text)).toBe(true)
-    for (const keep of ['// There is deliberately no account_id', '// vars, d1_databases, r2_buckets and routes are not inherited', '// Local R2 (no account needed)', '// nodejs_compat:']) expect(r.text).toContain(keep)
+    for (const keep of [
+      '// There is deliberately no account_id',
+      '// vars, d1_databases, r2_buckets and routes are not inherited',
+      '// Local R2 (no account needed)',
+      '// nodejs_compat:',
+    ])
+      expect(r.text).toContain(keep)
     const cfg = parse(r.text) as { env: Record<string, Record<string, unknown>> }
     expect(cfg.env.smoked1).toEqual((parse(real) as typeof cfg).env.smoked1)
     expect(cfg.env.acme).toEqual({
@@ -39,7 +61,15 @@ describe('reconcileEnvBlock (D9)', () => {
       preview_urls: false,
       routes: [{ pattern: 'api.acme.vibase.ai', custom_domain: true }],
       observability: { enabled: true },
-      d1_databases: [{ binding: 'DB', database_name: 'vb-crm-acme', database_id: acme.d1Id, migrations_dir: '../storage-d1/migrations', remote: true }],
+      d1_databases: [
+        {
+          binding: 'DB',
+          database_name: 'vb-crm-acme',
+          database_id: acme.d1Id,
+          migrations_dir: '../storage-d1/migrations',
+          remote: true,
+        },
+      ],
       r2_buckets: [{ binding: 'BODIES', bucket_name: 'vb-bodies-acme' }],
       vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: 'https://app.example.com' },
     })
@@ -63,11 +93,26 @@ describe('reconcileEnvBlock (D9)', () => {
 
   describe('a present value that differs is a mismatch naming the key; the text is returned unchanged', () => {
     const cases: [string, string, DesiredEnv, string][] = [
-      ['resource id', real.replace(UUID, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'), smoked1, 'env.smoked1.d1_databases.DB.database_id'],
+      [
+        'resource id',
+        real.replace(UUID, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'),
+        smoked1,
+        'env.smoked1.d1_databases.DB.database_id',
+      ],
       ['name', real.replace('"name": "vault-smoked1"', '"name": "hand-tuned"'), smoked1, 'env.smoked1.name'],
       ['var', real, { ...smoked1, corsOrigins: 'https://app.example.com' }, 'env.smoked1.vars.CORS_ALLOWED_ORIGINS'],
-      ['bucket name', real.replace('"bucket_name": "vault-smoked1-bodies"', '"bucket_name": "other"'), smoked1, 'env.smoked1.r2_buckets.BODIES.bucket_name'],
-      ['route', real.replace('"pattern": "api.smoked1.vibase.ai"', '"pattern": "elsewhere.example.com"'), smoked1, 'env.smoked1.routes'],
+      [
+        'bucket name',
+        real.replace('"bucket_name": "vault-smoked1-bodies"', '"bucket_name": "other"'),
+        smoked1,
+        'env.smoked1.r2_buckets.BODIES.bucket_name',
+      ],
+      [
+        'route',
+        real.replace('"pattern": "api.smoked1.vibase.ai"', '"pattern": "elsewhere.example.com"'),
+        smoked1,
+        'env.smoked1.routes',
+      ],
     ]
     it.each(cases)('%s', (_n, text, desired, key) => {
       const r = reconcileEnvBlock(text, desired)
@@ -88,7 +133,14 @@ describe('reconcileEnvBlock, the Clerk vars of the connect page ([[UI30]] D7)', 
   const API = 'https://api.acme.vibase.ai'
   const clerk = (over: Partial<NonNullable<DesiredEnv['authVars']>> = {}): DesiredEnv => ({
     ...acme,
-    authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: 'https://acme-test-12.clerk.accounts.dev', CLERK_PUBLISHABLE_KEY: PK, CLERK_AUTHORIZED_PARTIES: API, AUTH_CLI_CLIENT_ID: 'cli_1', ...over },
+    authVars: {
+      AUTH_PROVIDER: 'clerk',
+      CLERK_ISSUER: 'https://acme-test-12.clerk.accounts.dev',
+      CLERK_PUBLISHABLE_KEY: PK,
+      CLERK_AUTHORIZED_PARTIES: API,
+      AUTH_CLI_CLIENT_ID: 'cli_1',
+      ...over,
+    },
   })
   const vars = (text: string) => (parse(text) as { env: { acme: { vars: Record<string, string> } } }).env.acme.vars
 
@@ -117,7 +169,10 @@ describe('reconcileEnvBlock, the Clerk vars of the connect page ([[UI30]] D7)', 
   })
 
   it('a different publishable key is a mismatch naming the variable', () => {
-    const base = reconcileEnvBlock(real, clerk({ CLERK_PUBLISHABLE_KEY: ['pk', 'test', btoa('other.clerk.accounts.dev$')].join('_') })).text
+    const base = reconcileEnvBlock(
+      real,
+      clerk({ CLERK_PUBLISHABLE_KEY: ['pk', 'test', btoa('other.clerk.accounts.dev$')].join('_') }),
+    ).text
     const r = reconcileEnvBlock(base, clerk())
     expect(r.mismatches).toEqual(['env.acme.vars.CLERK_PUBLISHABLE_KEY'])
     expect(r.text).toBe(base)

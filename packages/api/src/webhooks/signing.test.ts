@@ -11,7 +11,11 @@ const S1 = 'whsec_' + Buffer.from(KEY).toString('base64')
 const S2 = 'whsec_' + Buffer.from(Uint8Array.from({ length: 32 }, (_, i) => i * 3 + 1)).toString('base64')
 const BODY = JSON.stringify({ id: 'evt', type: 'task.created', after: { title: 'a "quoted" é task' } })
 const nowSec = () => Math.floor(Date.now() / 1000)
-const headers = (signature: string, id = 'msg_1', timestamp = nowSec()) => ({ 'webhook-id': id, 'webhook-timestamp': String(timestamp), 'webhook-signature': signature })
+const headers = (signature: string, id = 'msg_1', timestamp = nowSec()) => ({
+  'webhook-id': id,
+  'webhook-timestamp': String(timestamp),
+  'webhook-signature': signature,
+})
 
 describe('signatureHeader (D7)', () => {
   it('is v1, base64 HMAC-SHA256 of "<id>.<timestamp>.<body>" under the decoded key (an independent computation), and the library verifies it', async () => {
@@ -48,7 +52,11 @@ describe('signatureHeader (D7)', () => {
     expect(parts).toHaveLength(2)
     expect(parts.every((p) => /^v1,[A-Za-z0-9+/]{43}=$/.test(p))).toBe(true)
     expect(parts[0]).toBe(one)
-    for (const [secret, part] of [[S2, parts[0]!], [S1, parts[1]!]] as const) expect(new Webhook(secret).verify(BODY, headers(part, 'msg_1', ts))).toEqual(JSON.parse(BODY))
+    for (const [secret, part] of [
+      [S2, parts[0]!],
+      [S1, parts[1]!],
+    ] as const)
+      expect(new Webhook(secret).verify(BODY, headers(part, 'msg_1', ts))).toEqual(JSON.parse(BODY))
     expect(new Webhook(S1).verify(BODY, headers(both, 'msg_1', ts))).toEqual(JSON.parse(BODY))
     expect(new Webhook(S2).verify(BODY, headers(both, 'msg_1', ts))).toEqual(JSON.parse(BODY))
   })
@@ -57,7 +65,8 @@ describe('signatureHeader (D7)', () => {
 describe('secretsInForce (D12)', () => {
   const at = (ms: number) => new Date(Date.parse('2026-11-12T10:00:00.000Z') + ms).toISOString()
   const NOW = new Date('2026-11-12T10:00:00.000Z')
-  const rows = (...ages: number[]) => ages.map((age, i) => ({ created_at: new Date(NOW.getTime() - age).toISOString(), n: i }))
+  const rows = (...ages: number[]) =>
+    ages.map((age, i) => ({ created_at: new Date(NOW.getTime() - age).toISOString(), n: i }))
 
   it('a single secret is the only one, however old', () => {
     expect(secretsInForce(rows(400 * 86_400_000), NOW).map((r) => r.n)).toEqual([0])

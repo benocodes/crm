@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, CodeInput, FormLayout, ScopeList, normaliseCode } from '@vibase/ui'
-import { approveDevice, claimDeviceCode, denyDevice, getClientName, getSession, signOut, type ApiFailure, type SessionUser } from './auth-api.js'
+import {
+  approveDevice,
+  claimDeviceCode,
+  denyDevice,
+  getClientName,
+  getSession,
+  signOut,
+  type ApiFailure,
+  type SessionUser,
+} from './auth-api.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { goTo, type PageProps } from './page.js'
 import { scopeItems } from './scope-text.js'
@@ -86,7 +95,11 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
     }
     const client = await getClientName(r.data.clientId)
     setBusy(undefined)
-    setReview({ code, clientName: client.ok && client.data.name ? client.data.name : r.data.clientId, scopes: (r.data.scope ?? '').split(/\s+/).filter(Boolean) })
+    setReview({
+      code,
+      clientName: client.ok && client.data.name ? client.data.name : r.data.clientId,
+      scopes: (r.data.scope ?? '').split(/\s+/).filter(Boolean),
+    })
     return undefined
   }
 
@@ -113,7 +126,12 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
     </Alert>
   ) : null
 
-  if (outcome) return <Card title={outcome === 'approved' ? 'Approved' : 'Denied'}>{outcome === 'approved' ? <p>{MESSAGES.deviceApproved}</p> : <p>{MESSAGES.deviceDenied}</p>}</Card>
+  if (outcome)
+    return (
+      <Card title={outcome === 'approved' ? 'Approved' : 'Denied'}>
+        {outcome === 'approved' ? <p>{MESSAGES.deviceApproved}</p> : <p>{MESSAGES.deviceDenied}</p>}
+      </Card>
+    )
 
   const account = (
     <div>
@@ -153,7 +171,16 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
   }
 
   return (
-    <FormLayout title="Sign in from your terminal" onSubmit={claim} error={error} actions={<Button type="submit" busy={busy === 'claim'}>Check code</Button>}>
+    <FormLayout
+      title="Sign in from your terminal"
+      onSubmit={claim}
+      error={error}
+      actions={
+        <Button type="submit" busy={busy === 'claim'}>
+          Check code
+        </Button>
+      }
+    >
       {account}
       <CodeInput label={MESSAGES.deviceCodeLabel} name="user_code" value={code} onChange={setCode} error={codeError} />
     </FormLayout>

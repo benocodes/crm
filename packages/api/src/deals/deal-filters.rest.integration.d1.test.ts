@@ -5,7 +5,16 @@ import type { ContractSession, ContractTenant } from '../test/contract.js'
 import { d1Backend } from '../test/d1-backend.js'
 
 // [[CORE200]] on the D1 app over REST: the column filter grammar on deals (operator x kind, patterns, money), tag by name, surfaces and paging.
-const FULL = ['deals:read', 'deals:write', 'pipelines:read', 'pipelines:write', 'tags:read', 'tags:write', 'associations:read', 'associations:write']
+const FULL = [
+  'deals:read',
+  'deals:write',
+  'pipelines:read',
+  'pipelines:write',
+  'tags:read',
+  'tags:write',
+  'associations:read',
+  'associations:write',
+]
 let s: ContractSession
 let t: ContractTenant
 beforeAll(async () => {
@@ -40,13 +49,33 @@ const list = async (query: string, scopes = FULL) => {
  */
 async function seed() {
   const p = await must('POST', '/meta/v1/pipelines', { name: 'Sales' })
-  const open = await must('POST', '/meta/v1/pipeline-stages', { pipeline_id: p.id, name: 'Open', kind: 'open', position: 10 })
-  const won = await must('POST', '/meta/v1/pipeline-stages', { pipeline_id: p.id, name: 'Won', kind: 'won', position: 90 })
+  const open = await must('POST', '/meta/v1/pipeline-stages', {
+    pipeline_id: p.id,
+    name: 'Open',
+    kind: 'open',
+    position: 10,
+  })
+  const won = await must('POST', '/meta/v1/pipeline-stages', {
+    pipeline_id: p.id,
+    name: 'Won',
+    kind: 'won',
+    position: 90,
+  })
   const P = await s.principalId(t, 'agent', FULL)
-  const make = async (body: Record<string, unknown>) => (await must('POST', '/api/v1/deals', { stage_id: open.id, ...body })) as { id: string; name: string }
+  const make = async (body: Record<string, unknown>) =>
+    (await must('POST', '/api/v1/deals', { stage_id: open.id, ...body })) as { id: string; name: string }
   // A and E are inserted directly: their closed_at is a chosen instant, which the API never takes.
-  const direct = async (row: Record<string, unknown>) => (await s.insert(t, 'deals', { pipeline_id: p.id, ...row })) as { id: string; name: string }
-  const A = await direct({ name: 'Acme pilot', stage_id: open.id, amount_minor: 600000, currency: 'USD', expected_close_date: '2026-11-01', owner_id: P, closed_at: '2026-11-01T00:00:00.000Z' })
+  const direct = async (row: Record<string, unknown>) =>
+    (await s.insert(t, 'deals', { pipeline_id: p.id, ...row })) as { id: string; name: string }
+  const A = await direct({
+    name: 'Acme pilot',
+    stage_id: open.id,
+    amount_minor: 600000,
+    currency: 'USD',
+    expected_close_date: '2026-11-01',
+    owner_id: P,
+    closed_at: '2026-11-01T00:00:00.000Z',
+  })
   const B = await make({ name: 'Beta_100%', amount_minor: 400000, currency: 'USD', expected_close_date: '2026-12-15' })
   const C = await make({ name: 'Gamma', amount_minor: 700000, currency: 'EUR' })
   const D = await make({ name: 'acme renewal', expected_close_date: '2026-10-20' })
@@ -129,7 +158,11 @@ describe('operator x kind on deals (D3, D8)', () => {
     expect(await list(`stage_id=${won.id}`)).toEqual(['José'])
     expect(await list(`stage_id=in.(${won.id},${open.id})&status=won`)).toEqual(['José'])
     const bad = await call(FULL, 'GET', '/api/v1/deals?pipeline_id=not-a-uuid')
-    expect([bad.status, bad.body.error.code, bad.body.error.message]).toEqual([400, 'validation_error', 'filter pipeline_id: "not-a-uuid" is not a UUID'])
+    expect([bad.status, bad.body.error.code, bad.body.error.message]).toEqual([
+      400,
+      'validation_error',
+      'filter pipeline_id: "not-a-uuid" is not a UUID',
+    ])
   })
 
   it('one refused operator per kind is a 400 listing the operators that are available', async () => {
@@ -139,13 +172,25 @@ describe('operator x kind on deals (D3, D8)', () => {
       expect([r.status, r.body.error.code]).toEqual([400, 'validation_error'])
       return r.body.error.message as string
     }
-    expect(await refusal('amount_minor=like.5*')).toBe('filter amount_minor: like is not available for integer (available: eq, neq, gt, gte, lt, lte, in, is)')
-    expect(await refusal('owner_id=gt.x')).toBe('filter owner_id: gt is not available for uuid (available: eq, neq, in, is)')
-    expect(await refusal('closed_at=like.2026*')).toBe('filter closed_at: like is not available for timestamp (available: eq, neq, gt, gte, lt, lte, in, is)')
-    expect(await refusal('name=is.null')).toBe('filter name: is is not available for text (available: eq, neq, gt, gte, lt, lte, in, like, ilike)')
-    expect(await refusal('created_at=is.null')).toBe('filter created_at: is is not available for timestamp (available: eq, neq, gt, gte, lt, lte, in)')
+    expect(await refusal('amount_minor=like.5*')).toBe(
+      'filter amount_minor: like is not available for integer (available: eq, neq, gt, gte, lt, lte, in, is)',
+    )
+    expect(await refusal('owner_id=gt.x')).toBe(
+      'filter owner_id: gt is not available for uuid (available: eq, neq, in, is)',
+    )
+    expect(await refusal('closed_at=like.2026*')).toBe(
+      'filter closed_at: like is not available for timestamp (available: eq, neq, gt, gte, lt, lte, in, is)',
+    )
+    expect(await refusal('name=is.null')).toBe(
+      'filter name: is is not available for text (available: eq, neq, gt, gte, lt, lte, in, like, ilike)',
+    )
+    expect(await refusal('created_at=is.null')).toBe(
+      'filter created_at: is is not available for timestamp (available: eq, neq, gt, gte, lt, lte, in)',
+    )
     expect(await refusal('amount_minor=gt.lots')).toBe('filter amount_minor: "lots" is not a safe integer')
-    expect(await refusal('amount_minor=not.')).toBe('filter amount_minor: not. needs an operator after it, as in not.eq.x')
+    expect(await refusal('amount_minor=not.')).toBe(
+      'filter amount_minor: not. needs an operator after it, as in not.eq.x',
+    )
     expect(await refusal('organization_id=eq.x')).toBe('unknown filter: organization_id')
     expect(await refusal('nonsense=1')).toBe('unknown filter: nonsense')
   })
@@ -191,7 +236,10 @@ describe('tag by name (D7)', () => {
   const tagged = async () => {
     const seeded = await seed()
     const tag = await must('POST', '/api/v1/tags', { name: 'consultancy' })
-    const link = async (deal: { id: string }, tagId = tag.id) => (await must('POST', '/api/v1/associations', { a_type: 'deals', a_id: deal.id, b_type: 'tags', b_id: tagId })) as { id: string }
+    const link = async (deal: { id: string }, tagId = tag.id) =>
+      (await must('POST', '/api/v1/associations', { a_type: 'deals', a_id: deal.id, b_type: 'tags', b_id: tagId })) as {
+        id: string
+      }
     const edgeA = await link(seeded.A)
     await link(seeded.B)
     await link(seeded.C)
@@ -232,10 +280,22 @@ describe('tag by name (D7)', () => {
   it('needs tags:read and associations:read: 403 insufficient_scope naming the scope', async () => {
     await tagged()
     for (const missing of ['tags:read', 'associations:read']) {
-      const r = await call(FULL.filter((x) => x !== missing), 'GET', '/api/v1/deals?tag=consultancy')
+      const r = await call(
+        FULL.filter((x) => x !== missing),
+        'GET',
+        '/api/v1/deals?tag=consultancy',
+      )
       expect([r.status, r.body.error.code]).toEqual([403, 'insufficient_scope'])
       expect(r.body.error.message).toContain(missing)
-      expect((await call(FULL.filter((x) => x !== missing), 'GET', '/api/v1/deals')).status).toBe(200)
+      expect(
+        (
+          await call(
+            FULL.filter((x) => x !== missing),
+            'GET',
+            '/api/v1/deals',
+          )
+        ).status,
+      ).toBe(200)
     }
   })
   it('an empty tag name is a 400', async () => {
@@ -251,9 +311,18 @@ describe('surfaces (D9)', () => {
     const doc = (await (await s.call(t, 'agent', FULL, 'GET', '/api/v1/openapi.json')).json()) as any
     const params = Object.fromEntries((doc.paths['/api/v1/deals'].get.parameters as any[]).map((p) => [p.name, p]))
     const column: Array<[string, 'uuid' | 'text' | 'integer' | 'timestamp', boolean]> = [
-      ['id', 'uuid', false], ['name', 'text', false], ['pipeline_id', 'uuid', false], ['stage_id', 'uuid', false], ['amount_minor', 'integer', true],
-      ['currency', 'text', true], ['expected_close_date', 'text', true], ['owner_id', 'uuid', true], ['closed_at', 'timestamp', true],
-      ['created_by', 'uuid', false], ['created_at', 'timestamp', false], ['updated_at', 'timestamp', false],
+      ['id', 'uuid', false],
+      ['name', 'text', false],
+      ['pipeline_id', 'uuid', false],
+      ['stage_id', 'uuid', false],
+      ['amount_minor', 'integer', true],
+      ['currency', 'text', true],
+      ['expected_close_date', 'text', true],
+      ['owner_id', 'uuid', true],
+      ['closed_at', 'timestamp', true],
+      ['created_by', 'uuid', false],
+      ['created_at', 'timestamp', false],
+      ['updated_at', 'timestamp', false],
     ]
     for (const [name, kind, nullable] of column) {
       expect(params[name], name).toBeDefined()

@@ -123,7 +123,12 @@ export function compileOperation<T>(
     reads,
     statements: unit.steps.map((s) => {
       const c = toCompiled(s.query)
-      return { ...(s.label ? { label: s.label } : {}), sql: c.sql, parameters: c.parameters, ...(s.expect ? { expect: s.expect } : {}) }
+      return {
+        ...(s.label ? { label: s.label } : {}),
+        sql: c.sql,
+        parameters: c.parameters,
+        ...(s.expect ? { expect: s.expect } : {}),
+      }
     }),
     events: unit.events,
     found: foundRows,

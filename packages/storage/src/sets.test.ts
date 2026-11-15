@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { sql } from 'kysely'
-import { bind, jsonRows, queryContext, recordJson, toCompiled } from './index.js'
+import { bind, jsonRows, queryContext, recordJson } from './index.js'
 
 const rows = (n: number) =>
-  Array.from({ length: n }, (_, i) => ({ id: `0190b2c4-0000-7000-8000-${String(i).padStart(12, '0')}`, own: i % 2 === 0, before: { n: i } }))
+  Array.from({ length: n }, (_, i) => ({
+    id: `0190b2c4-0000-7000-8000-${String(i).padStart(12, '0')}`,
+    own: i % 2 === 0,
+    before: { n: i },
+  }))
 const columns = { id: 'uuid', own: 'boolean', before: 'json' } as const
 const select = (dialect: 'd1' | 'postgres', n: number) => {
   const qc = queryContext(dialect)

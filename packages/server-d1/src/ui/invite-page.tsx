@@ -95,8 +95,28 @@ export function InvitePage({ navigate = goTo }: PageProps) {
         </Button>
       }
     >
-      {signingIn ? null : <Field label="Name" name="name" autoComplete="name" value={name} onChange={setName} error={errors.name} required />}
-      <Field label="Email" name="email" type="email" autoComplete="email" hint="The address the invitation was sent to." value={email} onChange={setEmail} error={errors.email} required />
+      {signingIn ? null : (
+        <Field
+          label="Name"
+          name="name"
+          autoComplete="name"
+          value={name}
+          onChange={setName}
+          error={errors.name}
+          required
+        />
+      )}
+      <Field
+        label="Email"
+        name="email"
+        type="email"
+        autoComplete="email"
+        hint="The address the invitation was sent to."
+        value={email}
+        onChange={setEmail}
+        error={errors.email}
+        required
+      />
       <Field
         label="Password"
         name="password"

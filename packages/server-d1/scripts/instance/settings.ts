@@ -6,14 +6,28 @@ import { isWorkersDevHost } from '../setup/host.js'
 import { InstanceRefusal, type InstanceSettings } from './types.js'
 
 /** The config root of the vibase CLI: `$XDG_CONFIG_HOME`, else `~/.config`. */
-export const configRoot = (env: Record<string, string | undefined>, homedir: string): string => (env.XDG_CONFIG_HOME ? env.XDG_CONFIG_HOME : join(homedir, '.config'))
-export const instancesDir = (env: Record<string, string | undefined>, homedir: string): string => join(configRoot(env, homedir), 'vibase', 'instances')
+export const configRoot = (env: Record<string, string | undefined>, homedir: string): string =>
+  env.XDG_CONFIG_HOME ? env.XDG_CONFIG_HOME : join(homedir, '.config')
+export const instancesDir = (env: Record<string, string | undefined>, homedir: string): string =>
+  join(configRoot(env, homedir), 'vibase', 'instances')
 
 export function defaultSettingsPath(env: Record<string, string | undefined>, homedir: string, envName: string): string {
   return join(instancesDir(env, homedir), `${envName}.json`)
 }
 
-const KEYS = ['version', 'env', 'worker', 'api_host', 'workers_dev', 'd1', 'control_d1', 'r2_bucket', 'workflow', 'vars', 'crons']
+const KEYS = [
+  'version',
+  'env',
+  'worker',
+  'api_host',
+  'workers_dev',
+  'd1',
+  'control_d1',
+  'r2_bucket',
+  'workflow',
+  'vars',
+  'crons',
+]
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const BARE_HOST = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i
 
@@ -33,7 +47,8 @@ export function parseSettings(text: string, envName: string, path: string): Inst
   for (const k of Object.keys(json)) if (!KEYS.includes(k)) fail(`unknown key "${k}"`)
   if (json.version !== 1) fail('version must be 1')
   if (json.env !== envName) fail(`env ${JSON.stringify(json.env)} does not match --env ${envName}`)
-  const str = (v: unknown, key: string): string => (typeof v === 'string' && v !== '' ? v : fail(`${key} must be a non-empty string`))
+  const str = (v: unknown, key: string): string =>
+    typeof v === 'string' && v !== '' ? v : fail(`${key} must be a non-empty string`)
   const worker = str(json.worker, 'worker')
   const api_host = str(json.api_host, 'api_host')
   if (!BARE_HOST.test(api_host)) fail('api_host must be a bare host such as api.example.com (no scheme, port or path)')
@@ -52,7 +67,8 @@ export function parseSettings(text: string, envName: string, path: string): Inst
     if (!isObject(json.control_d1)) return fail('control_d1 must be an object with name and id')
     for (const k of Object.keys(json.control_d1)) if (k !== 'name' && k !== 'id') fail(`unknown key "control_d1.${k}"`)
     control_d1 = { name: str(json.control_d1.name, 'control_d1.name'), id: str(json.control_d1.id, 'control_d1.id') }
-    if (control_d1.id === PLACEHOLDER_DATABASE_ID || control_d1.id === CONTROL_PLACEHOLDER_DATABASE_ID) fail('control_d1.id is a local placeholder: use the id of the real control database')
+    if (control_d1.id === PLACEHOLDER_DATABASE_ID || control_d1.id === CONTROL_PLACEHOLDER_DATABASE_ID)
+      fail('control_d1.id is a local placeholder: use the id of the real control database')
     if (!UUID.test(control_d1.id)) fail('control_d1.id must be a UUID')
     if (control_d1.id === d1.id) fail('control_d1.id equals d1.id: the control plane is its own database')
     if (control_d1.name === d1.name) fail('control_d1.name equals d1.name: the control plane is its own database')
@@ -67,10 +83,25 @@ export function parseSettings(text: string, envName: string, path: string): Inst
     vars[k] = v as string
   }
   // P2: a Better Auth Worker answers 500 on every non-health request without its control database ([[CORE259]] D6).
-  if (vars.AUTH_PROVIDER === 'better-auth' && !control_d1) fail('vars.AUTH_PROVIDER is better-auth but control_d1 is missing: that instance needs its control database (name and id)')
-  const out: InstanceSettings = { version: 1, env: envName, worker, api_host, ...(workers_dev ? { workers_dev } : {}), d1, ...(control_d1 ? { control_d1 } : {}), r2_bucket, workflow, vars }
+  if (vars.AUTH_PROVIDER === 'better-auth' && !control_d1)
+    fail(
+      'vars.AUTH_PROVIDER is better-auth but control_d1 is missing: that instance needs its control database (name and id)',
+    )
+  const out: InstanceSettings = {
+    version: 1,
+    env: envName,
+    worker,
+    api_host,
+    ...(workers_dev ? { workers_dev } : {}),
+    d1,
+    ...(control_d1 ? { control_d1 } : {}),
+    r2_bucket,
+    workflow,
+    vars,
+  }
   if (json.crons !== undefined) {
-    if (!Array.isArray(json.crons) || json.crons.some((c) => typeof c !== 'string' || c === '')) fail('crons must be a list of cron expressions')
+    if (!Array.isArray(json.crons) || json.crons.some((c) => typeof c !== 'string' || c === ''))
+      fail('crons must be a list of cron expressions')
     out.crons = json.crons as string[]
   }
   return out
@@ -81,7 +112,9 @@ export function loadSettings(path: string, envName: string): InstanceSettings {
   try {
     text = readFileSync(path, 'utf8')
   } catch {
-    throw new InstanceRefusal(`no settings file at ${path}: create it (vibase-server setup, or by hand) or pass --settings <path>`)
+    throw new InstanceRefusal(
+      `no settings file at ${path}: create it (vibase-server setup, or by hand) or pass --settings <path>`,
+    )
   }
   return parseSettings(text, envName, path)
 }

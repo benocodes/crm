@@ -34,7 +34,8 @@ export function parseTickBudget(raw: string | undefined): { limit: number; probl
   if (raw === undefined || raw.trim() === '') return { limit: DEFAULT_TICK_BUDGET, problem: null }
   const text = raw.trim()
   const n = /^\d{1,4}$/.test(text) ? Number(text) : NaN
-  if (!Number.isInteger(n) || n < MIN_TICK_BUDGET || n > MAX_TICK_BUDGET) return { limit: DEFAULT_TICK_BUDGET, problem: 'CRON_TICK_BUDGET' }
+  if (!Number.isInteger(n) || n < MIN_TICK_BUDGET || n > MAX_TICK_BUDGET)
+    return { limit: DEFAULT_TICK_BUDGET, problem: 'CRON_TICK_BUDGET' }
   return { limit: n, problem: null }
 }
 

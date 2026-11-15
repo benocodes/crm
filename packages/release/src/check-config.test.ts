@@ -7,7 +7,13 @@ import { deriveBaseConfig } from './stage.js'
 import { checkConfig } from './check-config.js'
 
 const SOURCE = readFileSync(new URL('../../server-d1/wrangler.jsonc', import.meta.url), 'utf8')
-const base = (): Record<string, any> => deriveBaseConfig(SOURCE, { main: 'worker/worker.js', assetsDirectory: 'assets', migrationsDir: 'migrations', controlMigrationsDir: 'control-migrations' })
+const base = (): Record<string, any> =>
+  deriveBaseConfig(SOURCE, {
+    main: 'worker/worker.js',
+    assetsDirectory: 'assets',
+    migrationsDir: 'migrations',
+    controlMigrationsDir: 'control-migrations',
+  })
 const INSTALLED = '/x/node_modules/@vibase/server-d1'
 
 describe('checkConfig', () => {

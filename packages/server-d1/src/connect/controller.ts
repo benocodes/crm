@@ -14,7 +14,12 @@ export interface Page {
 const ok = (r: ApiResult<unknown>): boolean => r.status >= 200 && r.status < 300 && r.body !== null
 
 /** `clerk` is the sign-in seam, or `null` when sign-in is unavailable ([[UI297]] D7). */
-export function createPage(deps: { clerk: ClerkLike | null; api: Api; origin: string; onChange?: (s: PageState) => void }): Page {
+export function createPage(deps: {
+  clerk: ClerkLike | null
+  api: Api
+  origin: string
+  onChange?: (s: PageState) => void
+}): Page {
   const { clerk, api, origin } = deps
   let state: PageState = { kind: 'loading' }
   const set = (s: PageState) => {
@@ -91,7 +96,8 @@ export function createPage(deps: { clerk: ClerkLike | null; api: Api; origin: st
         await clerk?.signOut()
       } catch {
         // UI297 D7: a refused sign-out (the session is still live) is not "signed out": keep the state, say so on a signed-in page.
-        if (state.kind === 'signed-in') set({ ...state, error: 'Sign-out did not complete. Reload the page and try again.' })
+        if (state.kind === 'signed-in')
+          set({ ...state, error: 'Sign-out did not complete. Reload the page and try again.' })
         return
       }
       set({ kind: 'signed-out' })

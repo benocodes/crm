@@ -3,13 +3,20 @@
 import { deployCommands, migrateCommands, parseTrackerOutput, trackerReadCommand, type Cmd } from '../remote.js'
 import type { SetupCmd } from './types.js'
 
-const wrangler = (args: string[]): SetupCmd => ({ command: 'pnpm', args: ['exec', 'wrangler', ...args], cwd: 'package' })
+const wrangler = (args: string[]): SetupCmd => ({
+  command: 'pnpm',
+  args: ['exec', 'wrangler', ...args],
+  cwd: 'package',
+})
 
 export const d1ListCommand = (): SetupCmd => wrangler(['d1', 'list', '--json'])
 export const d1CreateCommand = (name: string): SetupCmd => wrangler(['d1', 'create', name])
 export const r2ListCommand = (): SetupCmd => wrangler(['r2', 'bucket', 'list'])
 export const r2CreateCommand = (name: string): SetupCmd => wrangler(['r2', 'bucket', 'create', name])
-export const trackerCommand = (env: string, binding: 'DB' | 'CONTROL_DB' = 'DB'): SetupCmd => ({ ...trackerReadCommand(env, binding), cwd: 'package' })
+export const trackerCommand = (env: string, binding: 'DB' | 'CONTROL_DB' = 'DB'): SetupCmd => ({
+  ...trackerReadCommand(env, binding),
+  cwd: 'package',
+})
 /** `migrations list` then `apply` of ONE database ([[OPS279]]): the step applies control first, then CRM, each only when it is behind. */
 export const migrateStepCommands = (env: string, binding: 'DB' | 'CONTROL_DB' = 'DB'): SetupCmd[] =>
   migrateCommands(env, { control: binding === 'CONTROL_DB' })
@@ -19,31 +26,51 @@ export const gitHead = (): SetupCmd => ({ command: 'git', args: ['rev-parse', 'H
 export const gitStatus = (): SetupCmd => ({ command: 'git', args: ['status', '--porcelain'], cwd: 'root' })
 /** `deploy:remote`'s own commands (the page build, typecheck, the suite, `wrangler deploy --var VERSION:<sha>`), with its working directories ([[OPS4]] D12). */
 export const deployStepCommands = (env: string, sha: string): SetupCmd[] =>
-  deployCommands(env, sha).map((c: Cmd) => ({ ...c, cwd: c.args.includes('deploy') ? ('package' as const) : ('root' as const), inherit: true }))
+  deployCommands(env, sha).map((c: Cmd) => ({
+    ...c,
+    cwd: c.args.includes('deploy') ? ('package' as const) : ('root' as const),
+    inherit: true,
+  }))
 /** The marker row and whether an organisation exists (D39), in one read. */
-export const MARKER_SQL = 'select organization_id, auth_provider, auth_org_id, (select count(*) from organizations) as organizations from deployment where singleton = 1'
-export const markerCommand = (env: string): SetupCmd => wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', MARKER_SQL])
+export const MARKER_SQL =
+  'select organization_id, auth_provider, auth_org_id, (select count(*) from organizations) as organizations from deployment where singleton = 1'
+export const markerCommand = (env: string): SetupCmd =>
+  wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', MARKER_SQL])
 /** The control marker ([[CORE259]] D7): the one organisation the control plane serves. */
 export const CONTROL_MARKER_SQL = 'select organization_id from control_deployment where singleton = 1'
-export const controlMarkerCommand = (env: string): SetupCmd => wrangler(['d1', 'execute', 'CONTROL_DB', '--remote', '--env', env, '--json', '--command', CONTROL_MARKER_SQL])
+export const controlMarkerCommand = (env: string): SetupCmd =>
+  wrangler(['d1', 'execute', 'CONTROL_DB', '--remote', '--env', env, '--json', '--command', CONTROL_MARKER_SQL])
 /**
  * The owner state ([[OPS249]] D7), two reads: whether an owner membership exists in the CRM database, and the newest live owner invitation in the control database
  * (live = not accepted, not revoked, `expires_at` in the future by the database's own clock, [[CORE245]]).
  */
 export const OWNERS_SQL = "select count(*) as owners from memberships where role = 'owner' and deleted_at is null"
-export const OWNER_INVITATIONS_SQL = "select email, expires_at from invitations where role = 'owner' and accepted_at is null and revoked_at is null and expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now') order by created_at desc"
-export const ownersCommand = (env: string): SetupCmd => wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', OWNERS_SQL])
-export const ownerInvitationsCommand = (env: string): SetupCmd => wrangler(['d1', 'execute', 'CONTROL_DB', '--remote', '--env', env, '--json', '--command', OWNER_INVITATIONS_SQL])
+export const OWNER_INVITATIONS_SQL =
+  "select email, expires_at from invitations where role = 'owner' and accepted_at is null and revoked_at is null and expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now') order by created_at desc"
+export const ownersCommand = (env: string): SetupCmd =>
+  wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', OWNERS_SQL])
+export const ownerInvitationsCommand = (env: string): SetupCmd =>
+  wrangler(['d1', 'execute', 'CONTROL_DB', '--remote', '--env', env, '--json', '--command', OWNER_INVITATIONS_SQL])
 /** `wrangler secret list --format json`: `[{name, type}]`, the names only are read. */
-export const secretListCommand = (env: string): SetupCmd => wrangler(['secret', 'list', '--env', env, '--format', 'json'])
+export const secretListCommand = (env: string): SetupCmd =>
+  wrangler(['secret', 'list', '--env', env, '--format', 'json'])
 /** `wrangler secret bulk --env <name>`: the JSON object `{NAME: value}` goes on stdin, never argv (D12). */
-export const secretBulkCommand = (env: string, json: string): SetupCmd => ({ ...wrangler(['secret', 'bulk', '--env', env]), input: json })
+export const secretBulkCommand = (env: string, json: string): SetupCmd => ({
+  ...wrangler(['secret', 'bulk', '--env', env]),
+  input: json,
+})
 
 /** Commands that create, apply or deploy: never issued in a dry run. */
 export function isWriteCommand(cmd: SetupCmd): boolean {
   if (cmd.command !== 'pnpm') return false
   const a = cmd.args.join(' ')
-  return /\bwrangler d1 create\b/.test(a) || /\bwrangler r2 bucket create\b/.test(a) || /\bwrangler d1 migrations apply\b/.test(a) || /\bwrangler deploy\b/.test(a) || /\bwrangler secret bulk\b/.test(a)
+  return (
+    /\bwrangler d1 create\b/.test(a) ||
+    /\bwrangler r2 bucket create\b/.test(a) ||
+    /\bwrangler d1 migrations apply\b/.test(a) ||
+    /\bwrangler deploy\b/.test(a) ||
+    /\bwrangler secret bulk\b/.test(a)
+  )
 }
 
 /** `wrangler d1 list --json`: `[ { uuid, name, ... } ]`. */
@@ -57,7 +84,8 @@ export function parseD1List(stdout: string): { uuid: string; name: string }[] {
   if (!Array.isArray(json)) throw new Error('unexpected output shape from wrangler d1 list')
   return json.map((d) => {
     const { uuid, name } = (d ?? {}) as { uuid?: unknown; name?: unknown }
-    if (typeof uuid !== 'string' || typeof name !== 'string') throw new Error('unexpected row shape from wrangler d1 list')
+    if (typeof uuid !== 'string' || typeof name !== 'string')
+      throw new Error('unexpected row shape from wrangler d1 list')
     return { uuid, name }
   })
 }
@@ -86,7 +114,9 @@ function rowsOf(stdout: string): Record<string, unknown>[] | 'no-table' {
   if (error) {
     const text = typeof error.text === 'string' ? error.text : ''
     // wrangler puts the SQLite message in `notes` on a real remote; `text` is only the API wrapper.
-    const notes = Array.isArray(error.notes) ? error.notes.map((n) => (typeof n?.text === 'string' ? n.text : '')).join(' ') : ''
+    const notes = Array.isArray(error.notes)
+      ? error.notes.map((n) => (typeof n?.text === 'string' ? n.text : '')).join(' ')
+      : ''
     if (/no such table/i.test(`${text} ${notes}`)) return 'no-table'
     throw new Error(`wrangler d1 execute failed: ${text || 'unknown error'}`)
   }
@@ -102,8 +132,14 @@ export function parseMarkerOutput(stdout: string): MarkerRow | null | 'no-table'
   const row = rows[0]
   if (!row) return null
   const { organization_id: organizationId, auth_provider: authProvider, auth_org_id: authOrgId } = row
-  if (typeof organizationId !== 'string' || typeof authProvider !== 'string' || typeof authOrgId !== 'string') throw new Error('unexpected marker row shape')
-  return { organizationId, authProvider, authOrgId, organizations: typeof row.organizations === 'number' ? row.organizations : 0 }
+  if (typeof organizationId !== 'string' || typeof authProvider !== 'string' || typeof authOrgId !== 'string')
+    throw new Error('unexpected marker row shape')
+  return {
+    organizationId,
+    authProvider,
+    authOrgId,
+    organizations: typeof row.organizations === 'number' ? row.organizations : 0,
+  }
 }
 
 /** The control marker read ([[OPS279]]): `null` when no organisation is paired, `'no-table'` when the control database is not migrated. */
@@ -124,7 +160,8 @@ export function parseOwnerState(ownersStdout: string, invitationsStdout: string)
   const inv = rowsOf(invitationsStdout)
   if (inv === 'no-table' || inv.length === 0) return { kind: 'none' }
   const { email, expires_at: expiresAt } = inv[0]!
-  if (typeof email !== 'string' || typeof expiresAt !== 'string') throw new Error('unexpected owner invitation row shape')
+  if (typeof email !== 'string' || typeof expiresAt !== 'string')
+    throw new Error('unexpected owner invitation row shape')
   return { kind: 'pending', email, expiresAt }
 }
 

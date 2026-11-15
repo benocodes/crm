@@ -7,12 +7,7 @@
       "method": "GET",
       "host": "gmail.googleapis.com",
       "path": "/gmail/v1/users/me/messages/59m6h5yx82e6h8z1",
-      "query": [
-        [
-          "format",
-          "raw"
-        ]
-      ],
+      "query": [["format", "raw"]],
       "form": null
     },
     "response": {
@@ -23,10 +18,7 @@
       "body": {
         "id": "59m6h5yx82e6h8z1",
         "threadId": "59m6h5yx82e6h8z1",
-        "labelIds": [
-          "INBOX",
-          "UNREAD"
-        ],
+        "labelIds": ["INBOX", "UNREAD"],
         "sizeEstimate": 6481,
         "snippet": "Xxxxx Xxxxx, xxx xxxxxx xx xxxxxxxx.",
         "raw": {

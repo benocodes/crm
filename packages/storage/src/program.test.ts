@@ -32,21 +32,30 @@ const program = defineOperation<string>({
   build: (_found, qc) =>
     unit({
       steps: [
-        step(qc.db.updateTable('tasks').set({ title: HASH, updated_at: NOW }).where(eq('tasks', 'id', ID)), 'first-mutation', { expect: 'affected' }),
+        step(
+          qc.db
+            .updateTable('tasks')
+            .set({ title: HASH, updated_at: NOW })
+            .where(eq('tasks', 'id', ID)),
+          'first-mutation',
+          { expect: 'affected' },
+        ),
         step(
           qc.db
             .insertInto('events')
             .columns(['id', 'organization_id', 'type', 'resource_type', 'resource_id', 'actor_id', 'created_at'])
             .expression((eb) =>
-              eb.selectFrom('tasks').select([
-                bind(qc, 'uuid', EVENT).as('id'),
-                'tasks.organization_id as organization_id',
-                bind(qc, 'text', 'task.updated').as('type'),
-                bind(qc, 'text', 'task').as('resource_type'),
-                'tasks.id as resource_id',
-                'tasks.created_by as actor_id',
-                bind(qc, 'timestamp', NOW).as('created_at'),
-              ]),
+              eb
+                .selectFrom('tasks')
+                .select([
+                  bind(qc, 'uuid', EVENT).as('id'),
+                  'tasks.organization_id as organization_id',
+                  bind(qc, 'text', 'task.updated').as('type'),
+                  bind(qc, 'text', 'task').as('resource_type'),
+                  'tasks.id as resource_id',
+                  'tasks.created_by as actor_id',
+                  bind(qc, 'timestamp', NOW).as('created_at'),
+                ]),
             ),
           'first-event',
         ),
@@ -99,12 +108,21 @@ describe('program composition', () => {
     const update = () => qc.db.updateTable('tasks').set({ title: 'x' })
     const base = { events: [], decode: () => null }
     expect(() => unit({ ...base, steps: [step(select(), 'result'), step(select(), 'result')] })).toThrow(/result/)
-    expect(() => unit({ ...base, steps: [step(update(), 'first-event'), step(update(), 'first-mutation')] })).toThrow(/order/)
-    expect(() => unit({ ...base, steps: [step(select(), 'result'), step(update(), 'first-mutation')] })).toThrow(/order/)
+    expect(() => unit({ ...base, steps: [step(update(), 'first-event'), step(update(), 'first-mutation')] })).toThrow(
+      /order/,
+    )
+    expect(() => unit({ ...base, steps: [step(select(), 'result'), step(update(), 'first-mutation')] })).toThrow(
+      /order/,
+    )
   })
 
   it('reads that need no rows can be absent', () => {
-    const op = defineOperation<null>({ name: 'noop', mutates: false, reads: () => ({ a: readMaybe(selectColumns(queryContext('d1'), 'tasks', ['id'])) }), build: () => unit({ steps: [], events: [], decode: () => null }) })
+    const op = defineOperation<null>({
+      name: 'noop',
+      mutates: false,
+      reads: () => ({ a: readMaybe(selectColumns(queryContext('d1'), 'tasks', ['id'])) }),
+      build: () => unit({ steps: [], events: [], decode: () => null }),
+    })
     expect(compileOperation(op, 'd1', { a: null }).statements).toEqual([])
   })
 })
@@ -113,13 +131,17 @@ describe('administration columns (CORE40 C1)', () => {
   const scopes = ['tasks:read', 'tasks:write']
 
   it('binds a string_array with a text[] cast on Postgres', () => {
-    const c = queryContext('postgres').db.selectNoFrom(bind(queryContext('postgres'), 'string_array', scopes).as('scopes')).compile()
+    const c = queryContext('postgres')
+      .db.selectNoFrom(bind(queryContext('postgres'), 'string_array', scopes).as('scopes'))
+      .compile()
     expect(c.sql).toContain('cast($1 as text[])')
     expect(c.parameters).toEqual([scopes])
   })
 
   it('binds a string_array plain on D1 (the runtime encodes it as JSON text)', () => {
-    const c = queryContext('d1').db.selectNoFrom(bind(queryContext('d1'), 'string_array', scopes).as('scopes')).compile()
+    const c = queryContext('d1')
+      .db.selectNoFrom(bind(queryContext('d1'), 'string_array', scopes).as('scopes'))
+      .compile()
     expect(c.sql).toBe('select ? as "scopes"')
     expect(c.parameters).toEqual([scopes])
   })
@@ -157,7 +179,18 @@ describe('integer columns (CORE25 P5)', () => {
 
   it('models the ten messaging tables in COLUMN_KINDS with the integer kind', () => {
     const kinds = COLUMN_KINDS as Record<string, Record<string, string>>
-    for (const t of ['threads', 'messages', 'interactions', 'files', 'contact_files', 'company_files', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources']) {
+    for (const t of [
+      'threads',
+      'messages',
+      'interactions',
+      'files',
+      'contact_files',
+      'company_files',
+      'interaction_participants',
+      'message_attachments',
+      'message_sources',
+      'thread_sources',
+    ]) {
       expect(kinds[t], t).toBeDefined()
     }
     expect(kinds.files?.size_bytes).toBe('integer')

@@ -2,7 +2,20 @@
 // Vitest file (never discovered); `pnpm typecheck` includes it. Every `@ts-expect-error` sits on the exact
 // offending expression and has a positive sibling; no `any` is involved around a call.
 import { type Expression, type ExpressionBuilder, type SqlBool } from 'kysely'
-import { eq, projectAs, publicSelect, selectColumns, type ColumnOf, type PublicColumn, type QueryContext, type StorageDatabase, type StorageIdentity, type SyncHook, type Table, type ValueOf } from './index.js'
+import {
+  eq,
+  projectAs,
+  publicSelect,
+  selectColumns,
+  type ColumnOf,
+  type PublicColumn,
+  type QueryContext,
+  type StorageDatabase,
+  type StorageIdentity,
+  type SyncHook,
+  type Table,
+  type ValueOf,
+} from './index.js'
 
 declare const qc: QueryContext
 
@@ -70,7 +83,10 @@ defineHook((input) => ({ title: input.title }))
 defineHook(async (input) => ({ title: input.title }))
 
 // an extension guard referencing another table's column
-declare function guard<T extends Table>(table: T, make: (eb: ExpressionBuilder<StorageDatabase, T>) => Expression<SqlBool>): void
+declare function guard<T extends Table>(
+  table: T,
+  make: (eb: ExpressionBuilder<StorageDatabase, T>) => Expression<SqlBool>,
+): void
 guard('tasks', (eb) => eb('tasks.title', '=', 'x'))
 // @ts-expect-error companies is not in scope of a tasks guard
 guard('tasks', (eb) => eb('companies.name', '=', 'x'))
@@ -91,7 +107,14 @@ const noKind: StorageIdentity = { actorId: 'a', organizationId: 'o' }
 // @ts-expect-error an account identity has no organizationId
 const accountWithOrganisation: StorageIdentity = { kind: 'account', actorId: 'a', organizationId: 'o' }
 
-export { okTenantIdentity, okAccountIdentity, okInternalIdentity, okInternalOrganisation, noKind, accountWithOrganisation }
+export {
+  okTenantIdentity,
+  okAccountIdentity,
+  okInternalIdentity,
+  okInternalOrganisation,
+  noKind,
+  accountWithOrganisation,
+}
 export { inferred, okFilter, okNullable, okProjection, okPublic, publicColumns, status, columns }
 
 // hidden messaging columns ([[CORE58]] P5)

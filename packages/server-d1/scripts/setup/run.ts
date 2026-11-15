@@ -44,22 +44,37 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     return { exitCode: 1, results: [], stoppedAfterConfigWrite: false }
   }
   const { opts } = ctx
-  const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)) && !(s === 'secrets' && opts.only === undefined && opts.auth === 'none' && !ctx.gmail))
-  deps.log(`setup:remote env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
+  const selected = STEP_NAMES.filter(
+    (s) =>
+      (opts.only === undefined || opts.only.includes(s)) &&
+      (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)) &&
+      !(s === 'secrets' && opts.only === undefined && opts.auth === 'none' && !ctx.gmail),
+  )
+  deps.log(
+    `setup:remote env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}${opts.dryRun ? ' (dry run: reads only)' : ''}`,
+  )
   for (const n of opts.hostNotes ?? []) deps.log(n)
-  if (opts.move) for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined, ctx.gmail != null)) deps.log(l)
+  if (opts.move)
+    for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined, ctx.gmail != null))
+      deps.log(l)
   if (ctx.keys) {
     const k = ctx.keys
-    deps.log(`clerk instance: ${k.kind}${k.kind === 'development' ? ' (warning: a development instance is a test instance, with Clerk\'s user cap and dev-browser handshake)' : ''}, issuer ${k.issuer}, keys from ${k.file}`)
+    deps.log(
+      `clerk instance: ${k.kind}${k.kind === 'development' ? " (warning: a development instance is a test instance, with Clerk's user cap and dev-browser handshake)" : ''}, issuer ${k.issuer}, keys from ${k.file}`,
+    )
   }
   deps.log(
     ctx.gmail
-      ? `gmail: on, from ${ctx.gmail.file}: secrets ${GMAIL_SECRET_NAMES.join(', ')}; vars ${Object.keys(ctx.gmail.vars).sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never)).join(', ')}`
+      ? `gmail: on, from ${ctx.gmail.file}: secrets ${GMAIL_SECRET_NAMES.join(', ')}; vars ${Object.keys(ctx.gmail.vars)
+          .sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never))
+          .join(', ')}`
       : 'gmail: skipped (none of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_STATE_SECRET, CREDENTIALS_KEY in the env file)',
   )
   if (ctx.betterAuth) {
     const b = ctx.betterAuth
-    deps.log(`better-auth: PUBLIC_BASE_URL https://${opts.apiHost}; AUTH_SECRET ${b.authSecret ? `from ${b.file}` : `not in ${b.file} (generated and written there when the Worker lacks it)`}; Google sign-in secrets ${b.google ? `from ${b.file}` : 'not set'}`)
+    deps.log(
+      `better-auth: PUBLIC_BASE_URL https://${opts.apiHost}; AUTH_SECRET ${b.authSecret ? `from ${b.file}` : `not in ${b.file} (generated and written there when the Worker lacks it)`}; Google sign-in secrets ${b.google ? `from ${b.file}` : 'not set'}`,
+    )
   }
   const results: StepResult[] = []
   let registered = false
@@ -81,13 +96,24 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     for (const l of r.lines ?? []) deps.log(`        ${l}`)
     if (r.status === 'fail' || ctx.stop) break
   }
-  const manual = [...results.filter((r) => r.status === 'manual').map((r) => `${r.step}: ${r.detail}`), ...results.flatMap((r) => r.manual ?? [])]
+  const manual = [
+    ...results.filter((r) => r.status === 'manual').map((r) => `${r.step}: ${r.detail}`),
+    ...results.flatMap((r) => r.manual ?? []),
+  ]
   if (manual.length > 0) {
     deps.log('manual:')
     for (const m of manual) deps.log(`  ${m}`)
   }
   const failed = results.some((r) => r.status === 'fail')
-  deps.log(failed ? 'setup: failed' : ctx.stop ? 'setup: stopped after writing wrangler.jsonc; commit it and re-run' : opts.dryRun ? 'setup: dry run complete, nothing was changed' : 'setup: done')
+  deps.log(
+    failed
+      ? 'setup: failed'
+      : ctx.stop
+        ? 'setup: stopped after writing wrangler.jsonc; commit it and re-run'
+        : opts.dryRun
+          ? 'setup: dry run complete, nothing was changed'
+          : 'setup: done',
+  )
   return { exitCode: failed ? 1 : 0, results, stoppedAfterConfigWrite: ctx.stop === true }
 }
 
@@ -117,10 +143,20 @@ export function recordedAuth(configText: string, env: string) {
   if (typeof block !== 'object' || block === null) return null
   const where = `env.${env} in wrangler.jsonc`
   const routes: unknown[] = Array.isArray(block.routes) ? block.routes : []
-  const route = routes.find((r) => typeof r === 'object' && r !== null && (r as { custom_domain?: unknown }).custom_domain === true && typeof (r as { pattern?: unknown }).pattern === 'string') as { pattern: string } | undefined
+  const route = routes.find(
+    (r) =>
+      typeof r === 'object' &&
+      r !== null &&
+      (r as { custom_domain?: unknown }).custom_domain === true &&
+      typeof (r as { pattern?: unknown }).pattern === 'string',
+  ) as { pattern: string } | undefined
   const base = typeof block.vars?.PUBLIC_BASE_URL === 'string' ? safeHost(block.vars.PUBLIC_BASE_URL) : undefined
   // [[OPS308]]: the host is the custom route, else the recorded PUBLIC_BASE_URL (a workers.dev instance has no route); `none` on workers.dev records neither, so only the flag is known.
-  return { provider: providerFromVars(block.vars, where), where, host: { apiHost: route?.pattern ?? base, workersDev: block.workers_dev === true } }
+  return {
+    provider: providerFromVars(block.vars, where),
+    where,
+    host: { apiHost: route?.pattern ?? base, workersDev: block.workers_dev === true },
+  }
 }
 
 function safeHost(url: string): string | undefined {

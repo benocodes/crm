@@ -10,7 +10,14 @@ import type { D1Binding } from '@vibase/storage'
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url))
 
 /** Where the identifier may appear: release tooling ([[OPS260]]: maps the CONTROL_DB binding to control-migrations/ and, in the local release:check only, reads its migration tracker; it is never composed into a Worker or reached by an operation), the composition (Worker, bootstrap, their scripts) and the control store itself (and its package index, which re-exports it). */
-export const ALLOWED = [/^server-d1\/src\/compose\.ts$/, /^server-d1\/src\/bootstrap-d1\.ts$/, /^server-d1\/scripts\//, /^storage-d1\/src\/control-store\.ts$/, /^storage-d1\/src\/index\.ts$/, /^release\/(src|scripts)\//]
+export const ALLOWED = [
+  /^server-d1\/src\/compose\.ts$/,
+  /^server-d1\/src\/bootstrap-d1\.ts$/,
+  /^server-d1\/scripts\//,
+  /^storage-d1\/src\/control-store\.ts$/,
+  /^storage-d1\/src\/index\.ts$/,
+  /^release\/(src|scripts)\//,
+]
 const REACH = /\bCONTROL_DB\b|\bopenControlDb\b|\bControlDb\b|\bcontrolAuthDatabase\b|control-store/
 
 function* sources(dir: string): Generator<string> {
@@ -18,7 +25,8 @@ function* sources(dir: string): Generator<string> {
     if (name === 'node_modules' || name === 'dist' || name === '.wrangler') continue
     const path = join(dir, name)
     if (statSync(path).isDirectory()) yield* sources(path)
-    else if (/\.ts$/.test(name) && !/\.(test|suite|typecheck)\.ts$/.test(name) && !/[\\/]test[\\/]/.test(path)) yield path
+    else if (/\.ts$/.test(name) && !/\.(test|suite|typecheck)\.ts$/.test(name) && !/[\\/]test[\\/]/.test(path))
+      yield path
   }
 }
 
@@ -53,7 +61,10 @@ describe('the control binding boundary (D5)', () => {
   it('the check sees a violation (an operation module reaching the binding is reported)', () => {
     const root = mkdtempSync(join(tmpdir(), 'control-boundary-'))
     mkdirSync(join(root, 'api/src/contacts'), { recursive: true })
-    writeFileSync(join(root, 'api/src/contacts/list.ts'), 'export const x = (env: { CONTROL_DB: unknown }) => env.CONTROL_DB')
+    writeFileSync(
+      join(root, 'api/src/contacts/list.ts'),
+      'export const x = (env: { CONTROL_DB: unknown }) => env.CONTROL_DB',
+    )
     mkdirSync(join(root, 'api/src/other'), { recursive: true })
     writeFileSync(join(root, 'api/src/other/y.ts'), "import { openControlDb } from '@vibase/storage-d1'")
     expect(controlReachViolations(root).sort()).toEqual(['api/src/contacts/list.ts', 'api/src/other/y.ts'])

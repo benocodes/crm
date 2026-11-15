@@ -1,5 +1,16 @@
 import { randomBytes } from 'node:crypto'
-import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeSync } from 'node:fs'
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import { usage } from './errors.js'
 import type { Deps } from './types.js'
@@ -33,7 +44,8 @@ export interface Config {
   profiles: Record<string, Profile>
 }
 
-export const configPath = (deps: Deps) => join(deps.env.XDG_CONFIG_HOME || join(deps.homedir, '.config'), 'vibase', 'config.json')
+export const configPath = (deps: Deps) =>
+  join(deps.env.XDG_CONFIG_HOME || join(deps.homedir, '.config'), 'vibase', 'config.json')
 export const cacheDirPath = (deps: Deps) => join(deps.env.XDG_CACHE_HOME || join(deps.homedir, '.cache'), 'vibase')
 
 const PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
@@ -54,8 +66,12 @@ export function serverOrigin(input: string): string {
     throw usage(`"${input}" is not a URL: --server takes an origin such as https://vibase.example.com`)
   }
   const loopback = u.hostname === 'localhost' || u.hostname === '127.0.0.1'
-  if (u.protocol !== 'https:' && !(u.protocol === 'http:' && loopback)) throw usage(`--server must be an https origin (http is allowed only for localhost and 127.0.0.1), got ${u.protocol}//${u.host}`)
-  if (u.username || u.password || (u.pathname !== '/' && u.pathname !== '') || u.search || u.hash) throw usage('--server is an origin: no path, query or credentials (for example https://vibase.example.com)')
+  if (u.protocol !== 'https:' && !(u.protocol === 'http:' && loopback))
+    throw usage(
+      `--server must be an https origin (http is allowed only for localhost and 127.0.0.1), got ${u.protocol}//${u.host}`,
+    )
+  if (u.username || u.password || (u.pathname !== '/' && u.pathname !== '') || u.search || u.hash)
+    throw usage('--server is an origin: no path, query or credentials (for example https://vibase.example.com)')
   return u.origin
 }
 
@@ -65,15 +81,28 @@ const empty = (): Config => ({ version: 1, profiles: {} })
 export function loadConfig(path: string): Config {
   if (!existsSync(path)) return empty()
   const mode = statSync(path).mode & 0o777
-  if (mode & 0o077) throw usage(`${path} has permissions ${mode.toString(8).padStart(4, '0')}: it holds credentials and must be mode 0600 (chmod 600 ${path})`, 'config_permissions')
+  if (mode & 0o077)
+    throw usage(
+      `${path} has permissions ${mode.toString(8).padStart(4, '0')}: it holds credentials and must be mode 0600 (chmod 600 ${path})`,
+      'config_permissions',
+    )
   let raw: any
   try {
     raw = JSON.parse(readFileSync(path, 'utf8'))
   } catch {
     throw usage(`${path} is not valid JSON`, 'config_invalid')
   }
-  const bad = () => usage(`${path} does not have the expected shape ({ version: 1, default_profile?, profiles })`, 'config_invalid')
-  if (typeof raw !== 'object' || raw === null || raw.version !== 1 || typeof raw.profiles !== 'object' || raw.profiles === null || Array.isArray(raw.profiles)) throw bad()
+  const bad = () =>
+    usage(`${path} does not have the expected shape ({ version: 1, default_profile?, profiles })`, 'config_invalid')
+  if (
+    typeof raw !== 'object' ||
+    raw === null ||
+    raw.version !== 1 ||
+    typeof raw.profiles !== 'object' ||
+    raw.profiles === null ||
+    Array.isArray(raw.profiles)
+  )
+    throw bad()
   const cfg: Config = { version: 1, profiles: {} }
   if (raw.default_profile !== undefined) {
     if (typeof raw.default_profile !== 'string') throw bad()
@@ -81,14 +110,25 @@ export function loadConfig(path: string): Config {
   }
   for (const [name, p] of Object.entries<any>(raw.profiles)) {
     if (!PROFILE_NAME.test(name) || typeof p !== 'object' || p === null || typeof p.server !== 'string') throw bad()
-    if (p.kind === 'api_key' && typeof p.api_key === 'string') cfg.profiles[name] = { kind: 'api_key', server: p.server, api_key: p.api_key }
+    if (p.kind === 'api_key' && typeof p.api_key === 'string')
+      cfg.profiles[name] = { kind: 'api_key', server: p.server, api_key: p.api_key }
     else if (
       p.kind === 'oauth' &&
       ['issuer', 'client_id', 'access_token', 'refresh_token', 'scope'].every((k) => typeof p[k] === 'string') &&
       typeof p.expires_at === 'number' &&
       Number.isFinite(p.expires_at)
     ) {
-      cfg.profiles[name] = { kind: 'oauth', server: p.server, issuer: p.issuer, client_id: p.client_id, access_token: p.access_token, refresh_token: p.refresh_token, expires_at: p.expires_at, scope: p.scope, ...(typeof p.resource === 'string' && p.resource !== '' ? { resource: p.resource } : {}) }
+      cfg.profiles[name] = {
+        kind: 'oauth',
+        server: p.server,
+        issuer: p.issuer,
+        client_id: p.client_id,
+        access_token: p.access_token,
+        refresh_token: p.refresh_token,
+        expires_at: p.expires_at,
+        scope: p.scope,
+        ...(typeof p.resource === 'string' && p.resource !== '' ? { resource: p.resource } : {}),
+      }
     } else throw bad()
   }
   return cfg
@@ -123,13 +163,23 @@ export function resolveConnection(
   flags: { server?: string; profile?: string },
   env: Record<string, string | undefined>,
   opts: { needKey: boolean },
-): { server: string; key?: string; profile: string; /** Set when the credential is the profile's OAuth grant: it is refreshed, and the key is its access token. */ oauth?: OAuthProfile } {
+): {
+  server: string
+  key?: string
+  profile: string /** Set when the credential is the profile's OAuth grant: it is refreshed, and the key is its access token. */
+  oauth?: OAuthProfile
+} {
   const explicit = flags.profile ?? (env.VIBASE_PROFILE || undefined)
   const name = profileName(explicit ?? cfg.default_profile ?? 'default')
   const profile = Object.hasOwn(cfg.profiles, name) ? cfg.profiles[name] : undefined
-  if (flags.profile !== undefined && !profile) throw usage(`no profile named "${name}" (vibase login --api-key --server <url> --profile ${name})`, 'no_profile')
+  if (flags.profile !== undefined && !profile)
+    throw usage(`no profile named "${name}" (vibase login --api-key --server <url> --profile ${name})`, 'no_profile')
   const rawServer = flags.server ?? (env.VIBASE_SERVER || undefined) ?? profile?.server
-  if (!rawServer) throw usage('no server: pass --server, set VIBASE_SERVER, or run `vibase login --api-key --server <url>`', 'no_server')
+  if (!rawServer)
+    throw usage(
+      'no server: pass --server, set VIBASE_SERVER, or run `vibase login --api-key --server <url>`',
+      'no_server',
+    )
   const server = serverOrigin(rawServer)
   let key = env.VIBASE_API_KEY || undefined
   let oauth: OAuthProfile | undefined
@@ -140,6 +190,10 @@ export function resolveConnection(
       key = profile.access_token
     }
   }
-  if (opts.needKey && !key) throw usage(`no credential for ${server}: run \`vibase login --server ${server}\` (or \`--api-key\`), or set VIBASE_API_KEY`, 'no_credential')
+  if (opts.needKey && !key)
+    throw usage(
+      `no credential for ${server}: run \`vibase login --server ${server}\` (or \`--api-key\`), or set VIBASE_API_KEY`,
+      'no_credential',
+    )
   return { server, key, profile: name, oauth }
 }

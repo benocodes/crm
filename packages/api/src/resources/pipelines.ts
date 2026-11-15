@@ -34,33 +34,43 @@ const update = create.partial()
  * case-insensitively (the column's NOCASE collation): a live duplicate refuses the write in the plan (`409 pipeline_exists`), the partial
  * unique index is the commit-time backstop. Delete is refused while a live deal is in the pipeline and otherwise cascades its stages.
  */
-export const pipelines = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'meta',
-  name: 'pipelines',
-  eventName: 'pipeline',
-  table: 'pipelines',
-  override: { delete: (env, id) => deletePipelineOperation(env, id as string) },
-  record,
-  create,
-  update,
-  filters: { name: { schema: z.string().trim().min(1).max(100) } },
-  conflicts: ({ qc, env, id, values }) => {
-    const name = values.name
-    if (typeof name !== 'string') return []
-    let q = qc.db
-      .selectFrom('pipelines')
-      .select('pipelines.id')
-      .where('pipelines.organization_id', '=', env.organizationId)
-      .where('pipelines.name', '=', name)
-      .where('pipelines.deleted_at', 'is', null)
-    if (id) q = q.where('pipelines.id', '!=', id)
-    return [
-      {
-        read: readMaybe(q.limit(1)),
-        refuse: (row) => {
-          if (row) throw new ApiError(409, 'pipeline_exists', `a pipeline named "${name}" already exists (${String(row.id)})`)
-        },
+export const pipelines = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'meta',
+      name: 'pipelines',
+      eventName: 'pipeline',
+      table: 'pipelines',
+      override: { delete: (env, id) => deletePipelineOperation(env, id as string) },
+      record,
+      create,
+      update,
+      filters: { name: { schema: z.string().trim().min(1).max(100) } },
+      conflicts: ({ qc, env, id, values }) => {
+        const name = values.name
+        if (typeof name !== 'string') return []
+        let q = qc.db
+          .selectFrom('pipelines')
+          .select('pipelines.id')
+          .where('pipelines.organization_id', '=', env.organizationId)
+          .where('pipelines.name', '=', name)
+          .where('pipelines.deleted_at', 'is', null)
+        if (id) q = q.where('pipelines.id', '!=', id)
+        return [
+          {
+            read: readMaybe(q.limit(1)),
+            refuse: (row) => {
+              if (row)
+                throw new ApiError(
+                  409,
+                  'pipeline_exists',
+                  `a pipeline named "${name}" already exists (${String(row.id)})`,
+                )
+            },
+          },
+        ]
       },
-    ]
-  },
-}), ['name']))
+    }),
+    ['name'],
+  ),
+)

@@ -13,12 +13,27 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { wireResponse, type RecordingFixture } from '../../test/recording-replay.js'
 import { GmailApiError, HttpGmailClient } from './client.js'
-import { beginScan, captureHistoryPage, captureScanPage, type GmailSyncDeps, type PageResult, type Scan, type ScanStart } from './sync.js'
+import {
+  beginScan,
+  captureHistoryPage,
+  captureScanPage,
+  type GmailSyncDeps,
+  type PageResult,
+  type Scan,
+  type ScanStart,
+} from './sync.js'
 
 // [[CHN149]] / [[CHN5]] cycle 3: the capture pages (history, backfill, recovery) and the token resolver on local D1, over FakeGmail (wire forms), FakeGoogle's
 // token endpoint and a memory object store. Nothing reaches the network: the only `fetch` is FakeGoogle's, and it refuses every other origin.
 const KEY = new Uint8Array(32).fill(3)
-const CONFIG = { clientId: 'fake-client-id.apps.test', clientSecret: 'fake-client-secret', credentialsKey: KEY, keyVersion: 1, backfillDays: 30, attachmentMaxBytes: 50 * 1024 * 1024 }
+const CONFIG = {
+  clientId: 'fake-client-id.apps.test',
+  clientSecret: 'fake-client-secret',
+  credentialsKey: KEY,
+  keyVersion: 1,
+  backfillDays: 30,
+  attachmentMaxBytes: 50 * 1024 * 1024,
+}
 const NOW = new Date('2026-11-05T10:00:00.000Z')
 const SYNCED = '2026-11-04T10:00:00.000Z'
 const DAY = 86_400_000
@@ -49,7 +64,10 @@ const mk = (id: string, over: { labels?: string[]; internalDate?: number; from?:
     ...s,
     id,
     threadId: `t-${id}`,
-    headers: s.headers.map(([k, v]): [string, string] => [k, k === 'Message-ID' ? `<${id}@acme.test>` : k === 'From' && over.from ? over.from : v]),
+    headers: s.headers.map(([k, v]): [string, string] => [
+      k,
+      k === 'Message-ID' ? `<${id}@acme.test>` : k === 'From' && over.from ? over.from : v,
+    ]),
     ...(over.labels ? { labels: over.labels } : {}),
     ...(over.internalDate !== undefined ? { internalDate: over.internalDate } : {}),
   }))
@@ -61,7 +79,18 @@ interface Setup {
   refreshToken: string
   objects: ReturnType<typeof recordingObjectStore>
 }
-async function setup(opts: { messages?: BuiltGmailMessage[]; synced?: string | null; historyId?: string; keyVersion?: number; config?: Partial<GmailSyncDeps['config']>; engine?: Engine; mailbox?: string; sub?: string } = {}): Promise<Setup> {
+async function setup(
+  opts: {
+    messages?: BuiltGmailMessage[]
+    synced?: string | null
+    historyId?: string
+    keyVersion?: number
+    config?: Partial<GmailSyncDeps['config']>
+    engine?: Engine
+    mailbox?: string
+    sub?: string
+  } = {},
+): Promise<Setup> {
   const eng = opts.engine ?? e
   const refreshToken = google.issueRefreshToken()
   const id = await seedGmailConnection(eng, {
@@ -107,37 +136,84 @@ const page = (r: PageResult) => {
 
 describe('history page', () => {
   it('captures INBOX and SENT, skips DRAFT, SPAM, TRASH, CHAT, ignores label-only and delete records, fetches a repeated id once, as the owner', async () => {
-    const msgs = [mk('in1'), mk('sent1', { labels: ['SENT'] }), mk('dr', { labels: ['DRAFT', 'INBOX'] }), mk('sp', { labels: ['SPAM'] }), mk('tr', { labels: ['TRASH', 'INBOX'] }), mk('ch', { labels: ['CHAT', 'INBOX'] }), mk('only-label'), mk('gone')]
+    const msgs = [
+      mk('in1'),
+      mk('sent1', { labels: ['SENT'] }),
+      mk('dr', { labels: ['DRAFT', 'INBOX'] }),
+      mk('sp', { labels: ['SPAM'] }),
+      mk('tr', { labels: ['TRASH', 'INBOX'] }),
+      mk('ch', { labels: ['CHAT', 'INBOX'] }),
+      mk('only-label'),
+      mk('gone'),
+    ]
     const s = await setup({ messages: msgs })
     addHistory(s.gmail, '1001', ['in1'])
-    addHistory(s.gmail, '1002', [{ id: 'sent1', labels: ['SENT'] }, { id: 'dr', labels: ['DRAFT', 'INBOX'] }])
-    addHistory(s.gmail, '1003', [{ id: 'sp', labels: ['SPAM'] }, { id: 'tr', labels: ['TRASH', 'INBOX'] }, { id: 'ch', labels: ['CHAT', 'INBOX'] }])
+    addHistory(s.gmail, '1002', [
+      { id: 'sent1', labels: ['SENT'] },
+      { id: 'dr', labels: ['DRAFT', 'INBOX'] },
+    ])
+    addHistory(s.gmail, '1003', [
+      { id: 'sp', labels: ['SPAM'] },
+      { id: 'tr', labels: ['TRASH', 'INBOX'] },
+      { id: 'ch', labels: ['CHAT', 'INBOX'] },
+    ])
     s.gmail.history.push({ id: '1004', labelsAdded: [{ id: 'only-label', labelIds: ['STARRED'] }] })
     s.gmail.history.push({ id: '1005', deleted: ['gone'] })
     addHistory(s.gmail, '1006', ['in1'])
     s.gmail.profile.historyId = '1010'
 
     const r = page(await captureHistoryPage(s.deps, s.id))
-    expect(r).toEqual({ outcome: 'page', next_page_token: null, history_id: '1010', captured: 2, existing: 0, skipped: 4 })
+    expect(r).toEqual({
+      outcome: 'page',
+      next_page_token: null,
+      history_id: '1010',
+      captured: 2,
+      existing: 0,
+      skipped: 4,
+    })
     expect((await e.rows('messages')).map((m) => m.external_id).sort()).toEqual(['in1@acme.test', 'sent1@acme.test'])
-    expect(calls(s.gmail, 'full').map((c) => c.messageId).sort()).toEqual(['in1', 'sent1'])
+    expect(
+      calls(s.gmail, 'full')
+        .map((c) => c.messageId)
+        .sort(),
+    ).toEqual(['in1', 'sent1'])
     // The owner is the actor of every row and event.
-    for (const t of ['messages', 'threads', 'interactions', 'message_sources']) for (const row of await e.rows(t)) expect(row.created_by, t).toBe(e.userId)
+    for (const t of ['messages', 'threads', 'interactions', 'message_sources'])
+      for (const row of await e.rows(t)) expect(row.created_by, t).toBe(e.userId)
     const events = await e.rows('events')
     expect(events.length).toBeGreaterThan(0)
     expect(events.every((ev) => ev.actor_id === e.userId)).toBe(true)
   })
 
   it('a record without labelIds is fetched and the label rule runs on the fetched message; a record with labels is still filtered before any fetch', async () => {
-    const msgs = [mk('nl-in'), mk('nl-sent', { labels: ['SENT'] }), mk('nl-spam', { labels: ['SPAM', 'INBOX'] }), mk('nl-archived', { labels: ['IMPORTANT'] }), mk('labelled-spam', { labels: ['SPAM'] })]
+    const msgs = [
+      mk('nl-in'),
+      mk('nl-sent', { labels: ['SENT'] }),
+      mk('nl-spam', { labels: ['SPAM', 'INBOX'] }),
+      mk('nl-archived', { labels: ['IMPORTANT'] }),
+      mk('labelled-spam', { labels: ['SPAM'] }),
+    ]
     const s = await setup({ messages: msgs })
-    addHistory(s.gmail, '1001', [{ id: 'nl-in', labels: null }, { id: 'nl-sent', labels: null }, { id: 'nl-spam', labels: null }, { id: 'nl-archived', labels: null }, { id: 'labelled-spam', labels: ['SPAM'] }])
+    addHistory(s.gmail, '1001', [
+      { id: 'nl-in', labels: null },
+      { id: 'nl-sent', labels: null },
+      { id: 'nl-spam', labels: null },
+      { id: 'nl-archived', labels: null },
+      { id: 'labelled-spam', labels: ['SPAM'] },
+    ])
     s.gmail.profile.historyId = '1002'
     const r = page(await captureHistoryPage(s.deps, s.id))
     expect(r).toMatchObject({ captured: 2, skipped: 3 })
-    expect((await e.rows('messages')).map((m) => m.external_id).sort()).toEqual(['nl-in@acme.test', 'nl-sent@acme.test'])
+    expect((await e.rows('messages')).map((m) => m.external_id).sort()).toEqual([
+      'nl-in@acme.test',
+      'nl-sent@acme.test',
+    ])
     // The unlabelled records were fetched (that is how the rule saw them); the labelled one was not.
-    expect(calls(s.gmail, 'full').map((c) => c.messageId).sort()).toEqual(['nl-archived', 'nl-in', 'nl-sent', 'nl-spam'])
+    expect(
+      calls(s.gmail, 'full')
+        .map((c) => c.messageId)
+        .sort(),
+    ).toEqual(['nl-archived', 'nl-in', 'nl-sent', 'nl-spam'])
   })
 
   it('a middle page writes page_token and keeps history_id; the last writes the response historyId, clears page_token and sets last_synced_at', async () => {
@@ -163,7 +239,11 @@ describe('cursor atomicity', () => {
     const s = await setup({ messages: [mk('c1'), mk('c2')] })
     addHistory(s.gmail, '1001', ['c1', 'c2'])
     s.gmail.profile.historyId = '1005'
-    await e.d1!.prepare("create trigger fail_cursor before update on mail_sync_cursors begin select raise(abort, 'cursor refused'); end").run()
+    await e
+      .d1!.prepare(
+        "create trigger fail_cursor before update on mail_sync_cursors begin select raise(abort, 'cursor refused'); end",
+      )
+      .run()
     try {
       await expect(captureHistoryPage(s.deps, s.id)).rejects.toThrow()
     } finally {
@@ -180,7 +260,14 @@ describe('cursor atomicity', () => {
     const s = await setup()
     s.gmail.profile.historyId = '1005'
     const before = await count('events')
-    expect(page(await captureHistoryPage(s.deps, s.id))).toEqual({ outcome: 'page', next_page_token: null, history_id: '1005', captured: 0, existing: 0, skipped: 0 })
+    expect(page(await captureHistoryPage(s.deps, s.id))).toEqual({
+      outcome: 'page',
+      next_page_token: null,
+      history_id: '1005',
+      captured: 0,
+      existing: 0,
+      skipped: 0,
+    })
     expect(await cursor()).toMatchObject({ history_id: '1005', page_token: null, last_synced_at: now.toISOString() })
     expect(await count('events')).toBe(before)
   })
@@ -231,7 +318,9 @@ describe('source check', () => {
 
 describe('backfill', () => {
   it('scans after:<clock - days> {in:inbox in:sent} with the same query on every page; only the last page writes the cursor; a following history page adds newer mail with no duplicate', async () => {
-    const recent = Array.from({ length: 30 }, (_, i) => mk(`b${i}`, { internalDate: NOW.getTime() - (i + 1) * 3600_000 }))
+    const recent = Array.from({ length: 30 }, (_, i) =>
+      mk(`b${i}`, { internalDate: NOW.getTime() - (i + 1) * 3600_000 }),
+    )
     const old = mk('old', { internalDate: NOW.getTime() - 45 * DAY })
     const s = await setup({ messages: [...recent, old], synced: null })
     s.gmail.extraListed.push('b-hidden')
@@ -245,7 +334,10 @@ describe('backfill', () => {
     now = new Date(NOW.getTime() + 5000)
     const last = page(await captureScanPage(s.deps, s.id, scanOf(start), 'm25'))
     expect(last).toMatchObject({ next_page_token: null, history_id: '1000', captured: 5, skipped: 1 })
-    expect(calls(s.gmail, 'list').map((c) => c.q)).toEqual([`after:${after} {in:inbox in:sent}`, `after:${after} {in:inbox in:sent}`])
+    expect(calls(s.gmail, 'list').map((c) => c.q)).toEqual([
+      `after:${after} {in:inbox in:sent}`,
+      `after:${after} {in:inbox in:sent}`,
+    ])
     expect(await cursor()).toMatchObject({ history_id: '1000', page_token: null, last_synced_at: now.toISOString() })
     expect(await count('messages')).toBe(30)
     expect(calls(s.gmail, 'full').map((c) => c.messageId)).not.toContain('old')
@@ -273,7 +365,13 @@ describe('backfill', () => {
   })
 
   it('a message fetched without INBOX or SENT is a skip', async () => {
-    const s = await setup({ messages: [mk('good', { internalDate: NOW.getTime() - 1000 }), mk('imp', { labels: ['IMPORTANT'], internalDate: NOW.getTime() - 2000 })], synced: null })
+    const s = await setup({
+      messages: [
+        mk('good', { internalDate: NOW.getTime() - 1000 }),
+        mk('imp', { labels: ['IMPORTANT'], internalDate: NOW.getTime() - 2000 }),
+      ],
+      synced: null,
+    })
     s.gmail.extraListed.push('imp')
     const run = await runGmailSync(s.deps, s.id)
     expect(run).toMatchObject({ outcome: 'complete', captured: 1, skipped: 1 })
@@ -284,7 +382,9 @@ describe('backfill', () => {
 describe('recovery', () => {
   const OLD_SYNC = '2026-11-03T12:00:00.000Z'
   async function expiredSetup(count = 30) {
-    const msgs = Array.from({ length: count }, (_, i) => mk(`r${i}`, { internalDate: Date.parse(OLD_SYNC) + (i + 1) * 60_000 }))
+    const msgs = Array.from({ length: count }, (_, i) =>
+      mk(`r${i}`, { internalDate: Date.parse(OLD_SYNC) + (i + 1) * 60_000 }),
+    )
     const s = await setup({ messages: msgs, synced: OLD_SYNC })
     s.gmail.expireHistoryBefore = 1500
     s.gmail.profile.historyId = '2000'
@@ -338,7 +438,9 @@ describe('recovery', () => {
   it('without a last_synced_at the recovery scan falls back to the backfill window', async () => {
     const s = await setup({ synced: null })
     s.gmail.profile.historyId = '2000'
-    expect(await beginScan(s.deps, s.id, 'recovery')).toMatchObject({ scan: { after: unix(NOW.getTime() - 30 * DAY), history_id: '2000' } })
+    expect(await beginScan(s.deps, s.id, 'recovery')).toMatchObject({
+      scan: { after: unix(NOW.getTime() - 30 * DAY), history_id: '2000' },
+    })
   })
 })
 
@@ -348,7 +450,14 @@ describe('token resolver and refresh', () => {
     addHistory(s.gmail, '1001', ['t1', 't2', 't3'])
     s.gmail.profile.historyId = '1002'
     await captureHistoryPage(s.deps, s.id)
-    expect(google.refreshRequests.filter((r) => r.refresh_token === s.refreshToken)).toEqual([{ grant_type: 'refresh_token', refresh_token: s.refreshToken, client_id: CONFIG.clientId, client_secret: CONFIG.clientSecret }])
+    expect(google.refreshRequests.filter((r) => r.refresh_token === s.refreshToken)).toEqual([
+      {
+        grant_type: 'refresh_token',
+        refresh_token: s.refreshToken,
+        client_id: CONFIG.clientId,
+        client_secret: CONFIG.clientSecret,
+      },
+    ])
     expect(calls(s.gmail, 'full')).toHaveLength(3)
     // A second page refreshes again: the access token lives for one page only.
     await e.d1!.prepare("update mail_sync_cursors set history_id = '1000'").run()
@@ -399,7 +508,13 @@ describe('invalid_grant and other refresh failures', () => {
     expect(await captureHistoryPage(s.deps, s.id)).toEqual({ outcome: 'reauth' })
     const conn = (await e.rows('channel_connections'))[0]!
     expect(conn.status).toBe('reauth_required')
-    expect(await e.rows('mail_sync_state')).toEqual([expect.objectContaining({ connection_id: s.id, last_error_code: 'invalid_grant', last_error_at: now.toISOString() })])
+    expect(await e.rows('mail_sync_state')).toEqual([
+      expect.objectContaining({
+        connection_id: s.id,
+        last_error_code: 'invalid_grant',
+        last_error_at: now.toISOString(),
+      }),
+    ])
     const updated = await eventsOf('connection.updated')
     expect(updated).toHaveLength(1)
     expect(updated[0]).toMatchObject({ actor_id: e.userId, resource_id: s.id })
@@ -428,7 +543,11 @@ describe('invalid_grant and other refresh failures', () => {
   ])('%s changes nothing and throws', async (_name, mode, code) => {
     const s = await setup()
     google.failRefresh(mode)
-    const before = { conn: await e.rows('channel_connections'), events: await count('events'), state: await e.rows('mail_sync_state') }
+    const before = {
+      conn: await e.rows('channel_connections'),
+      events: await count('events'),
+      state: await e.rows('mail_sync_state'),
+    }
     const requests = google.refreshRequests.length
     await expect(captureHistoryPage(s.deps, s.id)).rejects.toMatchObject({ name: 'GoogleRefreshError', code })
     expect(google.refreshRequests.length).toBe(requests + 1)
@@ -448,13 +567,22 @@ describe('inactive connections', () => {
     const s = await setup({ messages: [mk('i1')], synced: null })
     addHistory(s.gmail, '1001', ['i1'])
     await e.update('channel_connections', s.id, patch)
-    const snapshot = async () => ({ events: await count('events'), cursor: await cursor(), conn: await e.rows('channel_connections'), state: await e.rows('mail_sync_state'), creds: await e.rows('channel_credentials'), messages: await count('messages') })
+    const snapshot = async () => ({
+      events: await count('events'),
+      cursor: await cursor(),
+      conn: await e.rows('channel_connections'),
+      state: await e.rows('mail_sync_state'),
+      creds: await e.rows('channel_credentials'),
+      messages: await count('messages'),
+    })
     const before = await snapshot()
     const requests = google.refreshRequests.length
     expect(await captureHistoryPage(s.deps, s.id)).toEqual({ outcome: 'inactive' })
     expect(await beginScan(s.deps, s.id, 'backfill')).toEqual({ outcome: 'inactive' })
     expect(await beginScan(s.deps, s.id, 'recovery')).toEqual({ outcome: 'inactive' })
-    expect(await captureScanPage(s.deps, s.id, { kind: 'backfill', after: 1, history_id: null }, null)).toEqual({ outcome: 'inactive' })
+    expect(await captureScanPage(s.deps, s.id, { kind: 'backfill', after: 1, history_id: null }, null)).toEqual({
+      outcome: 'inactive',
+    })
     expect(await snapshot()).toEqual(before)
     expect(s.gmail.calls).toEqual([])
     expect(s.gmail.accountCalls).toEqual([])
@@ -468,7 +596,8 @@ describe('inactive connections', () => {
 })
 
 describe('throttle', () => {
-  const err = (status: number, reason: string | null = null, retryAfterSeconds: number | null = null) => new GmailApiError({ status, reason, retryAfterSeconds })
+  const err = (status: number, reason: string | null = null, retryAfterSeconds: number | null = null) =>
+    new GmailApiError({ status, reason, retryAfterSeconds })
 
   it.each([
     ['429 with Retry-After', err(429, null, 12), 12],
@@ -485,7 +614,10 @@ describe('throttle', () => {
   it('throttles on a scan list and on a message get', async () => {
     const s = await setup({ messages: [mk('th1')], synced: null })
     s.gmail.failWhen((c) => c.op === 'list', err(429, null, 3))
-    expect(await captureScanPage(s.deps, s.id, { kind: 'backfill', after: 1, history_id: null }, null)).toEqual({ outcome: 'throttled', retry_after_seconds: 3 })
+    expect(await captureScanPage(s.deps, s.id, { kind: 'backfill', after: 1, history_id: null }, null)).toEqual({
+      outcome: 'throttled',
+      retry_after_seconds: 3,
+    })
     const g = await setup({ messages: [mk('th2')] })
     addHistory(g.gmail, '1001', ['th2'])
     g.gmail.failWhen((c) => c.op === 'full', err(429, null, 4))
@@ -535,16 +667,33 @@ describe('secrecy and step returns', () => {
     const s = await setup({ messages: [mk('s1')], synced: null })
     addHistory(s.gmail, '1001', ['s1'])
     s.gmail.profile.historyId = '1002'
-    const allowed = new Set(['outcome', 'next_page_token', 'history_id', 'captured', 'existing', 'skipped', 'retry_after_seconds', 'scan', 'kind', 'after'])
+    const allowed = new Set([
+      'outcome',
+      'next_page_token',
+      'history_id',
+      'captured',
+      'existing',
+      'skipped',
+      'retry_after_seconds',
+      'scan',
+      'kind',
+      'after',
+    ])
     const results: unknown[] = []
     const start = await beginScan(s.deps, s.id, 'backfill')
-    results.push(start, await captureScanPage(s.deps, s.id, scanOf(start), null), await captureHistoryPage(s.deps, s.id), await captureHistoryPage(s.deps, uuidv7(now)))
+    results.push(
+      start,
+      await captureScanPage(s.deps, s.id, scanOf(start), null),
+      await captureHistoryPage(s.deps, s.id),
+      await captureHistoryPage(s.deps, uuidv7(now)),
+    )
     s.gmail.expireHistoryBefore = 5000
     results.push(await captureHistoryPage(s.deps, s.id))
     for (const r of results) {
       expect(structuredClone(r)).toEqual(r)
       const walk = (v: unknown): void => {
-        if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) (expect(allowed.has(k), `key ${k}`).toBe(true), walk(x))
+        if (v && typeof v === 'object')
+          for (const [k, x] of Object.entries(v)) expect(allowed.has(k), `key ${k}`).toBe(true), walk(x)
       }
       walk(r)
     }
@@ -552,7 +701,8 @@ describe('secrecy and step returns', () => {
 
   it('no access or refresh token appears in a row, a result, a log line or an error message', async () => {
     const logs: string[] = []
-    for (const m of ['log', 'info', 'warn', 'error', 'debug'] as const) vi.spyOn(console, m).mockImplementation((...a: unknown[]) => void logs.push(a.map(String).join(' ')))
+    for (const m of ['log', 'info', 'warn', 'error', 'debug'] as const)
+      vi.spyOn(console, m).mockImplementation((...a: unknown[]) => void logs.push(a.map(String).join(' ')))
     const s = await setup({ messages: [mk('z1')] })
     addHistory(s.gmail, '1001', ['z1'])
     google.rotateRefreshTokens(true)
@@ -561,7 +711,9 @@ describe('secrecy and step returns', () => {
     const errors: string[] = []
     for (const mode of ['invalid_client', 503, 'network'] as const) {
       google.failRefresh(mode)
-      await captureHistoryPage(s.deps, s.id).catch((err: Error) => errors.push(`${err.name} ${err.message} ${err.stack ?? ''}`))
+      await captureHistoryPage(s.deps, s.id).catch((err: Error) =>
+        errors.push(`${err.name} ${err.message} ${err.stack ?? ''}`),
+      )
     }
     google.failRefresh(null)
     for (const rt of google.refreshTokens) google.revoke(rt)
@@ -569,11 +721,30 @@ describe('secrecy and step returns', () => {
     expect(errors).toHaveLength(3)
     const secrets = [...google.refreshTokens, ...google.accessTokens, CONFIG.clientSecret]
     expect(secrets.length).toBeGreaterThan(3)
-    const tables = ['messages', 'threads', 'interactions', 'message_sources', 'events', 'channel_connections', 'mail_sync_state', 'mail_sync_cursors', 'identities', 'files', 'attachments']
+    const tables = [
+      'messages',
+      'threads',
+      'interactions',
+      'message_sources',
+      'events',
+      'channel_connections',
+      'mail_sync_state',
+      'mail_sync_cursors',
+      'identities',
+      'files',
+      'attachments',
+    ]
     const rows = JSON.stringify(await Promise.all(tables.map((t) => e.rows(t).catch(() => []))))
     const creds = JSON.stringify(await e.rows('channel_credentials'))
     for (const secret of secrets) {
-      for (const [where, text] of Object.entries({ rows, creds, results: outputs.join('\n'), logs: logs.join('\n'), errors: errors.join('\n') })) expect(text.includes(secret), `${where} holds a secret`).toBe(false)
+      for (const [where, text] of Object.entries({
+        rows,
+        creds,
+        results: outputs.join('\n'),
+        logs: logs.join('\n'),
+        errors: errors.join('\n'),
+      }))
+        expect(text.includes(secret), `${where} holds a secret`).toBe(false)
     }
   })
 })
@@ -581,7 +752,8 @@ describe('secrecy and step returns', () => {
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 // [[CHN5]] D70, D82, D83 ([[CHN153b]]): the recorded `hq` pages served to the real client and the page service.
 const FIXTURES = fileURLToPath(new URL('../../test/fixtures/google/', import.meta.url))
-const recorded = (name: string): RecordingFixture => JSON.parse(readFileSync(`${FIXTURES}${name}.json`, 'utf8')) as RecordingFixture
+const recorded = (name: string): RecordingFixture =>
+  JSON.parse(readFileSync(`${FIXTURES}${name}.json`, 'utf8')) as RecordingFixture
 /** A client over HTTP: the fake serves every request, except those `override` answers (a fresh Response per call, so a body is never read twice). */
 const viaHttp = (gmail: FakeGmail, override: (url: URL) => Response | null) => (accessToken: () => Promise<string>) =>
   new HttpGmailClient({
@@ -595,15 +767,32 @@ const viaHttp = (gmail: FakeGmail, override: (url: URL) => Response | null) => (
 describe('the recorded history page (D70, D82)', () => {
   it('INBOX and SENT records are fetched; DRAFT and SPAM records are skipped with no fetch, counted as label', async () => {
     const rec = recorded('recorded-history-list-200')
-    const records = (rec.recording.response.body as { history: Array<{ messagesAdded: Array<{ message: { id: string; threadId: string; labelIds: string[] } }> }> }).history
+    const records = (
+      rec.recording.response.body as {
+        history: Array<{ messagesAdded: Array<{ message: { id: string; threadId: string; labelIds: string[] } }> }>
+      }
+    ).history
     const messages = records.map((r) => r.messagesAdded[0]!.message)
     const s = await setup({ messages: messages.map((m) => mk(m.id, { labels: m.labelIds })) })
-    s.deps.clientFor = viaHttp(s.gmail, (url) => (url.pathname.endsWith('/history') ? wireResponse(rec.recording) : null))
+    s.deps.clientFor = viaHttp(s.gmail, (url) =>
+      url.pathname.endsWith('/history') ? wireResponse(rec.recording) : null,
+    )
     const r = page(await captureHistoryPage(s.deps, s.id))
-    const fetched = messages.filter((m) => m.labelIds.includes('INBOX') || m.labelIds.includes('SENT')).map((m) => m.id).sort()
+    const fetched = messages
+      .filter((m) => m.labelIds.includes('INBOX') || m.labelIds.includes('SENT'))
+      .map((m) => m.id)
+      .sort()
     expect(fetched).toHaveLength(8)
-    expect(calls(s.gmail, 'full').map((c) => c.messageId).sort()).toEqual(fetched)
-    expect(calls(s.gmail, 'raw').map((c) => c.messageId).sort()).toEqual(fetched)
+    expect(
+      calls(s.gmail, 'full')
+        .map((c) => c.messageId)
+        .sort(),
+    ).toEqual(fetched)
+    expect(
+      calls(s.gmail, 'raw')
+        .map((c) => c.messageId)
+        .sort(),
+    ).toEqual(fetched)
     expect(r).toMatchObject({ outcome: 'page', next_page_token: null, captured: 8, existing: 0, skipped: 12 })
     expect(await count('messages')).toBe(8)
   })
@@ -622,8 +811,14 @@ describe('a quota 403 is a throttle on every call kind the page makes (D83)', ()
 
   it.each([
     ['a scan list', (url: URL) => url.pathname.endsWith('/messages')],
-    ['a message get (format=full)', (url: URL) => /\/messages\/[^/]+$/.test(url.pathname) && url.searchParams.get('format') === 'full'],
-    ['a message get (format=raw)', (url: URL) => /\/messages\/[^/]+$/.test(url.pathname) && url.searchParams.get('format') === 'raw'],
+    [
+      'a message get (format=full)',
+      (url: URL) => /\/messages\/[^/]+$/.test(url.pathname) && url.searchParams.get('format') === 'full',
+    ],
+    [
+      'a message get (format=raw)',
+      (url: URL) => /\/messages\/[^/]+$/.test(url.pathname) && url.searchParams.get('format') === 'raw',
+    ],
     ['an attachment get', (url: URL) => url.pathname.includes('/attachments/')],
   ])('%s', async (_name, hit) => {
     const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
@@ -642,7 +837,9 @@ describe('a quota 403 is a throttle on every call kind the page makes (D83)', ()
   it('an attachment throttle leaves no failed link; the retry captures the message with its attachment stored', async () => {
     const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
     let hits = 1
-    s.deps.clientFor = viaHttp(s.gmail, (url) => (url.pathname.includes('/attachments/') && hits-- > 0 ? quota() : null))
+    s.deps.clientFor = viaHttp(s.gmail, (url) =>
+      url.pathname.includes('/attachments/') && hits-- > 0 ? quota() : null,
+    )
     expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual(throttled)
     expect(await count('message_attachments')).toBe(0)
     const again = page(await captureScanPage(s.deps, s.id, scan, null))
@@ -654,23 +851,32 @@ describe('a quota 403 is a throttle on every call kind the page makes (D83)', ()
 
   it('a 429 on an attachment is a throttle too, and its Retry-After is carried', async () => {
     const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
-    s.gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 429, gmailStatus: 'RESOURCE_EXHAUSTED', retryAfter: '11', retryAfterSeconds: 11 }))
+    s.gmail.failWhen(
+      (c) => c.op === 'attachment',
+      new GmailApiError({ status: 429, gmailStatus: 'RESOURCE_EXHAUSTED', retryAfter: '11', retryAfterSeconds: 11 }),
+    )
     expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual({ outcome: 'throttled', retry_after_seconds: 11 })
     expect(await count('messages')).toBe(0)
   })
 
   it('a 403 that is not a rate reason on an attachment stays access_denied (stored as a failed link; the message is captured)', async () => {
     const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
-    s.gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'forbidden' }))
+    s.gmail.failWhen(
+      (c) => c.op === 'attachment',
+      new GmailApiError({ status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'forbidden' }),
+    )
     expect(page(await captureScanPage(s.deps, s.id, scan, null))).toMatchObject({ captured: 1 })
-    expect((await e.rows('message_attachments')).map((a) => [a.fetch_status, a.fetch_error])).toEqual([['failed', 'access_denied']])
+    expect((await e.rows('message_attachments')).map((a) => [a.fetch_status, a.fetch_error])).toEqual([
+      ['failed', 'access_denied'],
+    ])
   })
 
   it('a 404 and a 5xx on an attachment keep their codes', async () => {
     const s = await setup({ messages: [gmailFixture('attachment', (m) => ({ ...m, id: 'qa' }))], synced: null })
     s.gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 503 }))
     expect(page(await captureScanPage(s.deps, s.id, scan, null))).toMatchObject({ captured: 1 })
-    expect((await e.rows('message_attachments')).map((a) => [a.fetch_status, a.fetch_error])).toEqual([['failed', 'http_503']])
+    expect((await e.rows('message_attachments')).map((a) => [a.fetch_status, a.fetch_error])).toEqual([
+      ['failed', 'http_503'],
+    ])
   })
 })
-

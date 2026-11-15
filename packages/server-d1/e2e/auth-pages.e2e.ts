@@ -16,10 +16,15 @@ const SHOTS = join(PKG, 'e2e-screenshots')
 mkdirSync(SHOTS, { recursive: true })
 const PASSWORD = 'a long enough password 123'
 const REDIRECT_URI = 'http://localhost:8787/auth/callback/google'
-const EXACT_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+const EXACT_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 
 const controlRows = (sql: string): Array<Record<string, unknown>> => {
-  const out = execFileSync('pnpm', ['exec', 'wrangler', 'd1', 'execute', 'CONTROL_DB', '--local', '--json', '--command', sql], { cwd: PKG, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  const out = execFileSync(
+    'pnpm',
+    ['exec', 'wrangler', 'd1', 'execute', 'CONTROL_DB', '--local', '--json', '--command', sql],
+    { cwd: PKG, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+  )
   const parsed = JSON.parse(out.slice(out.indexOf('['))) as Array<{ results: Array<Record<string, unknown>> }>
   return parsed[0]!.results
 }
@@ -42,7 +47,10 @@ const axeAndShot = async (page: Page, name: string, scheme: 'light' | 'dark') =>
   await page.emulateMedia({ colorScheme: scheme })
   await page.screenshot({ path: join(SHOTS, `${name}--${scheme}.png`), fullPage: true })
   const results = await new AxeBuilder({ page }).analyze()
-  expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`), `axe ${name} ${scheme}`).toEqual([])
+  expect(
+    results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+    `axe ${name} ${scheme}`,
+  ).toEqual([])
 }
 const axeBoth = async (page: Page, name: string) => {
   await axeAndShot(page, name, 'light')
@@ -88,7 +96,11 @@ const fakeGoogleDoor = async () => {
   const seen: string[] = []
   await page.route('https://accounts.google.com/**', (route) => {
     seen.push(route.request().url())
-    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>fake google</title><h1>fake google</h1>' })
+    return route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><title>fake google</title><h1>fake google</h1>',
+    })
   })
   return seen
 }
@@ -196,7 +208,12 @@ test('6. a wrong password is the one message; the right one signs in', async () 
   expect(text).toBe('The email or password is wrong.')
   await expect(page.getByRole('alert')).toBeFocused()
   await attempt(PASSWORD)
-  if (await page.getByText(/Too many attempts/).isVisible().catch(() => false)) {
+  if (
+    await page
+      .getByText(/Too many attempts/)
+      .isVisible()
+      .catch(() => false)
+  ) {
     console.log('NOTE: a 429 appeared on the right-password attempt; waited 11 s')
     await page.waitForTimeout(11_000)
     await attempt(PASSWORD)

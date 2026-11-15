@@ -17,7 +17,13 @@ export interface GoldenBackend {
   /** Per scenario, after `reset`: replaces the fake Clerk's users, organisations and members and seeds the fixed API keys when asked (CORE41 P15). */
   load(scenario: GoldenScenario): Promise<void>
   /** One request as `actor`; the backend injects `clock` into the unit it runs. */
-  send(actor: GoldenActor, method: string, path: string, body: unknown, clock: string): Promise<{ status: number; body: unknown }>
+  send(
+    actor: GoldenActor,
+    method: string,
+    path: string,
+    body: unknown,
+    clock: string,
+  ): Promise<{ status: number; body: unknown }>
   /** Every event in write order. */
   events(): Promise<EventView[]>
 }
@@ -46,7 +52,8 @@ const fill = (template: string, saved: Map<string, string>): string =>
 const fillDeep = (value: unknown, saved: Map<string, string>): unknown => {
   if (typeof value === 'string') return /^\{\w+\}$/.test(value) ? fill(value, saved) : value
   if (Array.isArray(value)) return value.map((v) => fillDeep(v, saved))
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fillDeep(v, saved)]))
+  if (value && typeof value === 'object')
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fillDeep(v, saved)]))
   return value
 }
 
@@ -64,7 +71,10 @@ export async function runScenario(backend: GoldenBackend, scenario: GoldenScenar
     if (step.save && res.status < 300) saved.set(step.save, (res.body as { id: string }).id)
     for (const [name, pick] of Object.entries(step.pick ?? {})) {
       const id = res.status < 300 ? pick(res.body) : undefined
-      if (id === undefined) throw new Error(`scenario ${scenario.name}: pick "${name}" found nothing in the response to ${step.method} ${path}`)
+      if (id === undefined)
+        throw new Error(
+          `scenario ${scenario.name}: pick "${name}" found nothing in the response to ${step.method} ${path}`,
+        )
       saved.set(name, id)
     }
     const events = await backend.events()

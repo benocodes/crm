@@ -12,7 +12,12 @@ export function pgStorage(db: Kysely<Database>): () => StorageBinding {
 
 /** A read-only prepared unit with no statements that returns `value`: the probe tenant operations of the routing and auth suites return it. */
 export function probeUnit<T>(value: T, name = 'probe.run'): PreparedOperation<T> {
-  return defineOperation<T>({ name, mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => value }) })
+  return defineOperation<T>({
+    name,
+    mutates: false,
+    reads: () => ({}),
+    build: () => unit({ steps: [], events: [], decode: () => value }),
+  })
 }
 
 /**

@@ -21,7 +21,9 @@ export async function down(db: Kysely<any>): Promise<void> {
   await sql`DROP INDEX idx_memberships_user_id`.execute(db)
   await sql`DROP INDEX idx_memberships_live_unique`.execute(db)
   await sql`ALTER TABLE memberships DROP COLUMN deleted_at`.execute(db)
-  await sql`ALTER TABLE memberships ADD CONSTRAINT memberships_organization_id_user_id_key UNIQUE (organization_id, user_id)`.execute(db)
+  await sql`ALTER TABLE memberships ADD CONSTRAINT memberships_organization_id_user_id_key UNIQUE (organization_id, user_id)`.execute(
+    db,
+  )
   await sql`
     ALTER TABLE users
       DROP CONSTRAINT users_auth_provider_subject_key,

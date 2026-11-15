@@ -13,7 +13,11 @@ const SETUP_DIR = fileURLToPath(new URL('.', import.meta.url))
 export const readersOfRealConfig = (files: Record<string, string>): string[] =>
   Object.entries(files)
     .filter(([name]) => !name.endsWith('config-fixture.test.ts'))
-    .filter(([, text]) => /(?<!\w)\.\.\/(?:\.\.\/)*wrangler\.jsonc/.test(text) || /new URL\(\s*['"][^'"]*(?<!fixture\.)wrangler\.jsonc/.test(text))
+    .filter(
+      ([, text]) =>
+        /(?<!\w)\.\.\/(?:\.\.\/)*wrangler\.jsonc/.test(text) ||
+        /new URL\(\s*['"][^'"]*(?<!fixture\.)wrangler\.jsonc/.test(text),
+    )
     .map(([name]) => name)
 
 const ownFiles = (dir: string): Record<string, string> => {
@@ -32,7 +36,11 @@ describe('the setup tests are independent of the committed wrangler.jsonc', () =
   })
 
   it('absence mutation: a test that reads the repo file is detected', () => {
-    const bad = { 'x.test.ts': "const p = new URL('../../../wrangler.jsonc', import.meta.url)", 'y.ts': "readFileSync('../../wrangler.jsonc')", 'ok.ts': "new URL('./wrangler.fixture.jsonc', import.meta.url)" }
+    const bad = {
+      'x.test.ts': "const p = new URL('../../../wrangler.jsonc', import.meta.url)",
+      'y.ts': "readFileSync('../../wrangler.jsonc')",
+      'ok.ts': "new URL('./wrangler.fixture.jsonc', import.meta.url)",
+    }
     expect(readersOfRealConfig(bad)).toEqual(['x.test.ts', 'y.ts'])
   })
 

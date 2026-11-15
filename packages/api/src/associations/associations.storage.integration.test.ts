@@ -19,8 +19,19 @@ beforeEach(async () => {
 })
 
 const key = (t: [string, string]) => `${t[0]}:${t[1]}`
-const canon = (x: [string, string], y: [string, string]): [[string, string], [string, string]] => (key(x) < key(y) ? [x, y] : [y, x])
-const RECORD_KEYS = ['id', 'a_type', 'a_id', 'b_type', 'b_id', 'relation', 'created_by', 'created_at', 'updated_at'].sort()
+const canon = (x: [string, string], y: [string, string]): [[string, string], [string, string]] =>
+  key(x) < key(y) ? [x, y] : [y, x]
+const RECORD_KEYS = [
+  'id',
+  'a_type',
+  'a_id',
+  'b_type',
+  'b_id',
+  'relation',
+  'created_by',
+  'created_at',
+  'updated_at',
+].sort()
 
 describe('associations.create', () => {
   it('stores one row in canonical order whichever order is given, and returns the record', async () => {
@@ -28,11 +39,25 @@ describe('associations.create', () => {
     const t = await a.ent.task()
     const r = await a.link(t, c)
     expect(Object.keys(r).sort()).toEqual(RECORD_KEYS)
-    expect(r).toMatchObject({ a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t[1], relation: 'related_to', created_by: e.userId })
+    expect(r).toMatchObject({
+      a_type: 'contacts',
+      a_id: c[1],
+      b_type: 'tasks',
+      b_id: t[1],
+      relation: 'related_to',
+      created_by: e.userId,
+    })
     expect(r.created_at).toBe(r.updated_at)
     const rows = await a.edges()
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ id: r.id, a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t[1], organization_id: e.organizationId })
+    expect(rows[0]).toMatchObject({
+      id: r.id,
+      a_type: 'contacts',
+      a_id: c[1],
+      b_type: 'tasks',
+      b_id: t[1],
+      organization_id: e.organizationId,
+    })
     // the other order too
     const c2 = await a.ent.contact()
     const r2 = await a.link(c2, t)
@@ -53,7 +78,9 @@ describe('associations.create', () => {
     const first = await a.link(c, t)
     const rows = (await a.edges(false)).length
     const evs = (await a.events()).length
-    const err = await a.fail('associations.create', { body: { a_type: 'tasks', a_id: t[1], b_type: 'contacts', b_id: c[1] } })
+    const err = await a.fail('associations.create', {
+      body: { a_type: 'tasks', a_id: t[1], b_type: 'contacts', b_id: c[1] },
+    })
     expect([err.status, err.code]).toEqual([409, 'association_exists'])
     expect(err.message).toContain(first.id)
     expect((await a.edges(false)).length).toBe(rows)
@@ -72,17 +99,32 @@ describe('associations.create', () => {
     const t = await a.ent.task()
     expect((await a.link(c, t, {}, 'related_to')).relation).toBe('related_to')
     const t2 = await a.ent.task()
-    const err = await a.fail('associations.create', { body: { a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t2[1], relation: 'champion' } })
+    const err = await a.fail('associations.create', {
+      body: { a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t2[1], relation: 'champion' },
+    })
     expect([err.status, err.code]).toEqual([400, 'validation_error'])
   })
 
   it('refuses an unknown, non-associable or malformed type as 400 validation_error and writes nothing', async () => {
     const c = await a.ent.contact()
     const t = await a.ent.task()
-    for (const bad of ['messages', 'files', 'identities', 'agents', 'nope', 'Contacts', 'contacts; drop table tasks', '']) {
-      const err = await a.fail('associations.create', { body: { a_type: bad, a_id: c[1], b_type: 'tasks', b_id: t[1] } })
+    for (const bad of [
+      'messages',
+      'files',
+      'identities',
+      'agents',
+      'nope',
+      'Contacts',
+      'contacts; drop table tasks',
+      '',
+    ]) {
+      const err = await a.fail('associations.create', {
+        body: { a_type: bad, a_id: c[1], b_type: 'tasks', b_id: t[1] },
+      })
       expect([err.status, err.code], bad).toEqual([400, 'validation_error'])
-      const err2 = await a.fail('associations.create', { body: { a_type: 'contacts', a_id: c[1], b_type: bad, b_id: t[1] } })
+      const err2 = await a.fail('associations.create', {
+        body: { a_type: 'contacts', a_id: c[1], b_type: bad, b_id: t[1] },
+      })
       expect([err2.status, err2.code], bad).toEqual([400, 'validation_error'])
     }
     expect(await a.edges(false)).toHaveLength(0)
@@ -92,7 +134,9 @@ describe('associations.create', () => {
   it('refuses the same endpoint twice as 400 self_association (id case-insensitive)', async () => {
     const c = await a.ent.contact()
     for (const b of [c, ['contacts', c[1].toUpperCase()] as [string, string]]) {
-      const err = await a.fail('associations.create', { body: { a_type: 'contacts', a_id: c[1], b_type: b[0], b_id: b[1] } })
+      const err = await a.fail('associations.create', {
+        body: { a_type: 'contacts', a_id: c[1], b_type: b[0], b_id: b[1] },
+      })
       expect([err.status, err.code]).toEqual([400, 'self_association'])
     }
     expect(await a.edges(false)).toHaveLength(0)
@@ -106,7 +150,13 @@ describe('associations.create', () => {
     await e.update('tasks', goneTask[1], { deleted_at: '2026-10-22T10:00:00.000Z' })
     const t = await a.ent.task()
     const body = (x: [string, string], y: [string, string]) => ({ a_type: x[0], a_id: x[1], b_type: y[0], b_id: y[1] })
-    for (const [x, y] of [[c, ['tasks', uuidv7()]], [gone, t], [c, goneTask], [['threads', uuidv7()], t], [['interactions', uuidv7()], t]] as Array<[[string, string], [string, string]]>) {
+    for (const [x, y] of [
+      [c, ['tasks', uuidv7()]],
+      [gone, t],
+      [c, goneTask],
+      [['threads', uuidv7()], t],
+      [['interactions', uuidv7()], t],
+    ] as Array<[[string, string], [string, string]]>) {
       const err = await a.fail('associations.create', { body: body(x, y) })
       expect([err.status, err.code], `${x} ${y}`).toEqual([400, 'invalid_reference'])
     }
@@ -128,16 +178,26 @@ describe('associations.create', () => {
   it('requires read on both endpoint types: 403 insufficient_scope naming the type; write on an endpoint is not required', async () => {
     const c = await a.ent.contact()
     const th = await a.ent.thread()
-    const err = await a.fail('associations.create', { body: { a_type: 'contacts', a_id: c[1], b_type: 'threads', b_id: th[1] } }, { as: 'agent', scopes: NO_MESSAGES })
+    const err = await a.fail(
+      'associations.create',
+      { body: { a_type: 'contacts', a_id: c[1], b_type: 'threads', b_id: th[1] } },
+      { as: 'agent', scopes: NO_MESSAGES },
+    )
     expect([err.status, err.code]).toEqual([403, 'insufficient_scope'])
     expect(err.message).toContain('threads')
     expect(err.message).toContain('messages:read')
-    const err2 = await a.fail('associations.create', { body: { a_type: 'contacts', a_id: c[1], b_type: 'threads', b_id: th[1] } }, { as: 'agent', scopes: ALL_READ.filter((s) => s !== 'contacts:read') })
+    const err2 = await a.fail(
+      'associations.create',
+      { body: { a_type: 'contacts', a_id: c[1], b_type: 'threads', b_id: th[1] } },
+      { as: 'agent', scopes: ALL_READ.filter((s) => s !== 'contacts:read') },
+    )
     expect(err2.message).toContain('contacts')
     expect(await a.edges(false)).toHaveLength(0)
     // read scopes only plus associations:write: allowed (no contacts:write, tasks:write held)
     const t = await a.ent.task()
-    expect(await a.link(c, t, { as: 'agent', scopes: ['contacts:read', 'tasks:read', 'associations:write'] })).toMatchObject({ created_by: e.agentId })
+    expect(
+      await a.link(c, t, { as: 'agent', scopes: ['contacts:read', 'tasks:read', 'associations:write'] }),
+    ).toMatchObject({ created_by: e.agentId })
   })
 
   it('emits exactly one association.created in the same unit: actor, after = the record, the unit clock', async () => {
@@ -146,7 +206,15 @@ describe('associations.create', () => {
     const r = await a.link(c, t, { as: 'agent' })
     const evs = await a.events()
     expect(evs).toHaveLength(1)
-    expect(evs[0]).toMatchObject({ type: 'association.created', resource_type: 'association', resource_id: r.id, actor_id: e.agentId, before: null, after: r, created_at: r.created_at })
+    expect(evs[0]).toMatchObject({
+      type: 'association.created',
+      resource_type: 'association',
+      resource_id: r.id,
+      actor_id: e.agentId,
+      before: null,
+      after: r,
+      created_at: r.created_at,
+    })
   })
 
   it('an endpoint deleted between plan and commit aborts the create: no edge, no event', async () => {
@@ -156,7 +224,9 @@ describe('associations.create', () => {
     e.betweenPlanAndCommit(async () => {
       await e.update('tasks', t[1], { deleted_at: '2026-10-22T10:00:01.000Z' })
     })
-    const err = await a.fail('associations.create', { body: { a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t[1] } })
+    const err = await a.fail('associations.create', {
+      body: { a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t[1] },
+    })
     expect(err.status).toBe(409)
     expect(await a.edges(false)).toHaveLength(0)
     expect((await e.rows('events')).length).toBe(mark)
@@ -166,9 +236,17 @@ describe('associations.create', () => {
     const c = await a.ent.contact()
     const t = await a.ent.task()
     e.betweenPlanAndCommit(async () => {
-      await e.insert('associations', { a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t[1], relation: 'related_to' })
+      await e.insert('associations', {
+        a_type: 'contacts',
+        a_id: c[1],
+        b_type: 'tasks',
+        b_id: t[1],
+        relation: 'related_to',
+      })
     })
-    const err = await a.fail('associations.create', { body: { a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t[1] } })
+    const err = await a.fail('associations.create', {
+      body: { a_type: 'contacts', a_id: c[1], b_type: 'tasks', b_id: t[1] },
+    })
     expect(err.status).toBe(409)
     expect(await a.edges(false)).toHaveLength(1)
   })
@@ -224,7 +302,10 @@ describe('associations.get and associations.delete', () => {
     const r = await a.link(c, t)
     const before = (await a.events()).length
     e.betweenPlanAndCommit(async () => {
-      await e.update('associations', r.id, { deleted_at: '2026-10-22T10:00:01.000Z', updated_at: '2026-10-22T10:00:01.000Z' })
+      await e.update('associations', r.id, {
+        deleted_at: '2026-10-22T10:00:01.000Z',
+        updated_at: '2026-10-22T10:00:01.000Z',
+      })
     })
     const err = await a.fail('associations.delete', { params: { id: r.id } })
     expect(err.status).toBe(409)
@@ -245,12 +326,28 @@ describe('associations.list (hop by hop)', () => {
     expect(page.next_cursor).toBeNull()
     expect(page.data.map((x) => x.id)).toEqual([e1.id, e2.id, e3.id].sort())
     const byId = Object.fromEntries(page.data.map((x) => [x.id, x]))
-    expect(byId[e1.id]).toEqual({ id: e1.id, relation: 'related_to', neighbour_type: 'tasks', neighbour_id: t[1], created_by: e.userId, created_at: e1.created_at })
+    expect(byId[e1.id]).toEqual({
+      id: e1.id,
+      relation: 'related_to',
+      neighbour_type: 'tasks',
+      neighbour_id: t[1],
+      created_by: e.userId,
+      created_at: e1.created_at,
+    })
     expect(byId[e2.id]).toMatchObject({ neighbour_type: 'companies', neighbour_id: co[1] })
     expect(byId[e3.id]).toMatchObject({ neighbour_type: 'contacts', neighbour_id: c2[1] })
     // from the other end the same edge is oriented the other way
     const back = await a.list('tasks', t[1])
-    expect(back.data).toEqual([{ id: e1.id, relation: 'related_to', neighbour_type: 'contacts', neighbour_id: c[1], created_by: e.userId, created_at: e1.created_at }])
+    expect(back.data).toEqual([
+      {
+        id: e1.id,
+        relation: 'related_to',
+        neighbour_type: 'contacts',
+        neighbour_id: c[1],
+        created_by: e.userId,
+        created_at: e1.created_at,
+      },
+    ])
     expect((await a.list('contacts', c2[1])).data[0]).toMatchObject({ neighbour_id: c[1] })
   })
 
@@ -285,8 +382,12 @@ describe('associations.list (hop by hop)', () => {
     await a.link(c, await a.ent.task())
     await a.link(c, await a.ent.company())
     await a.link(c, await a.ent.thread())
-    expect((await a.list('contacts', c[1], { neighbour_type: 'companies' })).data.map((x) => x.neighbour_type)).toEqual(['companies'])
-    expect((await a.list('contacts', c[1], { neighbour_type: 'threads' }, { as: 'agent', scopes: NO_MESSAGES })).data).toEqual([])
+    expect((await a.list('contacts', c[1], { neighbour_type: 'companies' })).data.map((x) => x.neighbour_type)).toEqual(
+      ['companies'],
+    )
+    expect(
+      (await a.list('contacts', c[1], { neighbour_type: 'threads' }, { as: 'agent', scopes: NO_MESSAGES })).data,
+    ).toEqual([])
     const err = await a.fail('associations.list', { query: { type: 'contacts', id: c[1], neighbour_type: 'files' } })
     expect([err.status, err.code]).toEqual([400, 'validation_error'])
   })
@@ -299,7 +400,11 @@ describe('associations.list (hop by hop)', () => {
     expect((await a.list('contacts', c[1])).data).toEqual([])
     const bad = await a.fail('associations.list', { query: { type: 'messages', id: c[1] } })
     expect([bad.status, bad.code]).toEqual([400, 'validation_error'])
-    const denied = await a.fail('associations.list', { query: { type: 'threads', id: (await a.ent.thread())[1] } }, { as: 'agent', scopes: NO_MESSAGES })
+    const denied = await a.fail(
+      'associations.list',
+      { query: { type: 'threads', id: (await a.ent.thread())[1] } },
+      { as: 'agent', scopes: NO_MESSAGES },
+    )
     expect([denied.status, denied.code]).toEqual([403, 'insufficient_scope'])
     expect(denied.message).toContain('threads')
   })

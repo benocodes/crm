@@ -22,7 +22,11 @@ beforeEach(async () => {
 
 type Ent = [string, string]
 const create = (body: Rec, opts?: Parameters<AssocKit['call']>[2]) => a.call('tags.create', { body }, opts)
-const failure = async (name: string, input: Parameters<AssocKit['fail']>[1], opts?: Parameters<AssocKit['fail']>[2]) => {
+const failure = async (
+  name: string,
+  input: Parameters<AssocKit['fail']>[1],
+  opts?: Parameters<AssocKit['fail']>[2],
+) => {
   const err = await a.fail(name, input, opts)
   return [err.status, err.code, err.message] as const
 }
@@ -33,8 +37,21 @@ const ids = (page: { data: Rec[] }) => page.data.map((r) => r.id as string).sort
 describe('tags validation and shape (D3, D4, D5, D13)', () => {
   it('creates a tag in the record shape, trimmed, attributed to the caller', async () => {
     const t = await create({ name: '  Prospects  ', description: ' GTM list ' })
-    expect(t).toMatchObject({ organization_id: e.organizationId, created_by: e.userId, name: 'Prospects', description: 'GTM list' })
-    expect(Object.keys(t).sort()).toEqual(['created_at', 'created_by', 'description', 'id', 'name', 'organization_id', 'updated_at'])
+    expect(t).toMatchObject({
+      organization_id: e.organizationId,
+      created_by: e.userId,
+      name: 'Prospects',
+      description: 'GTM list',
+    })
+    expect(Object.keys(t).sort()).toEqual([
+      'created_at',
+      'created_by',
+      'description',
+      'id',
+      'name',
+      'organization_id',
+      'updated_at',
+    ])
     expect((await create({ name: 'No description' })).description).toBeNull()
   })
 
@@ -157,17 +174,26 @@ describe('the taggable set (D8)', () => {
     expect((await a.list('tags', u[1])).data.map((x) => x.neighbour_id)).toEqual([r2[1]])
   })
 
-  it.each(['tag to tag', 'tag to thread', 'tag to interaction'])('refuses %s in both orders with 400 validation_error naming the allowed types', async (name) => {
-    const t = await a.ent.tag('T')
-    const t2 = await a.ent.tag('T2')
-    const partner: Ent = name === 'tag to tag' ? t2 : name === 'tag to thread' ? await a.ent.thread() : await a.ent.interaction()
-    for (const [x, y] of [[t, partner], [partner, t]] as Array<[Ent, Ent]>) {
-      const err = await a.fail('associations.create', { body: { a_type: x[0], a_id: x[1], b_type: y[0], b_id: y[1] } })
-      expect([err.status, err.code]).toEqual([400, 'validation_error'])
-      for (const allowed of ['companies', 'contacts', 'tasks', 'notes']) expect(err.message).toContain(allowed)
-    }
-    expect(await a.edges(false)).toEqual([])
-  })
+  it.each(['tag to tag', 'tag to thread', 'tag to interaction'])(
+    'refuses %s in both orders with 400 validation_error naming the allowed types',
+    async (name) => {
+      const t = await a.ent.tag('T')
+      const t2 = await a.ent.tag('T2')
+      const partner: Ent =
+        name === 'tag to tag' ? t2 : name === 'tag to thread' ? await a.ent.thread() : await a.ent.interaction()
+      for (const [x, y] of [
+        [t, partner],
+        [partner, t],
+      ] as Array<[Ent, Ent]>) {
+        const err = await a.fail('associations.create', {
+          body: { a_type: x[0], a_id: x[1], b_type: y[0], b_id: y[1] },
+        })
+        expect([err.status, err.code]).toEqual([400, 'validation_error'])
+        for (const allowed of ['companies', 'contacts', 'tasks', 'notes']) expect(err.message).toContain(allowed)
+      }
+      expect(await a.edges(false)).toEqual([])
+    },
+  )
 
   it('a pair of other associable types is unchanged', async () => {
     const link = await a.link(await a.ent.company(), await a.ent.thread())
@@ -183,7 +209,11 @@ describe('tagging scopes (D6)', () => {
     const scopes = ['associations:write', 'associations:read', 'tags:read', 'companies:read']
     const edge = await a.link(t, co, { as: 'agent', scopes })
     expect(edge.created_by).toBe(e.agentId)
-    const err = await a.fail('associations.create', { body: { a_type: 'tags', a_id: t[1], b_type: 'companies', b_id: co[1] } }, { as: 'agent', scopes: scopes.filter((s) => s !== 'tags:read') })
+    const err = await a.fail(
+      'associations.create',
+      { body: { a_type: 'tags', a_id: t[1], b_type: 'companies', b_id: co[1] } },
+      { as: 'agent', scopes: scopes.filter((s) => s !== 'tags:read') },
+    )
     expect([err.status, err.code]).toEqual([403, 'insufficient_scope'])
     expect(err.message).toContain('tags:read')
   })
@@ -191,41 +221,46 @@ describe('tagging scopes (D6)', () => {
 
 describe('the tag_id list filter (D9)', () => {
   // ids are time-ordered, so tags < tasks makes the tag side `a` for tasks, and side `b` for companies, contacts and notes
-  const listOf = (type: 'companies' | 'contacts' | 'tasks', query: Rec = {}, opts?: Parameters<AssocKit['call']>[2]) => a.call(`${type}.list`, { query }, opts)
+  const listOf = (type: 'companies' | 'contacts' | 'tasks', query: Rec = {}, opts?: Parameters<AssocKit['call']>[2]) =>
+    a.call(`${type}.list`, { query }, opts)
 
   it.each([
     ['companies', 'b', () => a.ent.company('Co')],
     ['contacts', 'b', () => a.ent.contact('Ct')],
     ['tasks', 'a', () => a.ent.task('Ta')],
-  ] as const)('%s.list?tag_id returns exactly the members (the tag is side %s), excluding untagged and soft-deleted edges', async (type, side, make) => {
-    const t = await a.ent.tag('T')
-    const other = await a.ent.tag('Other')
-    const m1 = await make()
-    const m2 = await make()
-    const untagged = await make()
-    const otherTag = await make()
-    const unlinked = await make()
-    const e1 = await a.link(t, m1)
-    await a.link(m2, t)
-    await a.link(other, otherTag)
-    const gone = await a.link(t, unlinked)
-    await a.unlink(gone.id)
-    const edge = (await a.edges()).find((x) => x.id === e1.id)!
-    expect(side === 'a' ? edge.a_type : edge.b_type).toBe('tags')
-    expect(ids(await listOf(type, { tag_id: t[1] }))).toEqual([m1[1], m2[1]].sort())
-    expect(ids(await listOf(type, { tag_id: t[1].toUpperCase() }))).toEqual([m1[1], m2[1]].sort())
-    expect(ids(await listOf(type))).toHaveLength(5)
-    expect(untagged[1]).toBeDefined()
-  })
+  ] as const)(
+    '%s.list?tag_id returns exactly the members (the tag is side %s), excluding untagged and soft-deleted edges',
+    async (type, side, make) => {
+      const t = await a.ent.tag('T')
+      const other = await a.ent.tag('Other')
+      const m1 = await make()
+      const m2 = await make()
+      const untagged = await make()
+      const otherTag = await make()
+      const unlinked = await make()
+      const e1 = await a.link(t, m1)
+      await a.link(m2, t)
+      await a.link(other, otherTag)
+      const gone = await a.link(t, unlinked)
+      await a.unlink(gone.id)
+      const edge = (await a.edges()).find((x) => x.id === e1.id)!
+      expect(side === 'a' ? edge.a_type : edge.b_type).toBe('tags')
+      expect(ids(await listOf(type, { tag_id: t[1] }))).toEqual([m1[1], m2[1]].sort())
+      expect(ids(await listOf(type, { tag_id: t[1].toUpperCase() }))).toEqual([m1[1], m2[1]].sort())
+      expect(ids(await listOf(type))).toHaveLength(5)
+      expect(untagged[1]).toBeDefined()
+    },
+  )
 
-  it('an unknown id, a deleted tag and another type\'s id return an empty page, not an error', async () => {
+  it("an unknown id, a deleted tag and another type's id return an empty page, not an error", async () => {
     const t = await a.ent.tag('T')
     const co = await a.ent.company()
     await a.link(t, co)
     const doomed = await a.ent.tag('Doomed')
     await a.link(doomed, await a.ent.company())
     await a.call('tags.delete', { params: { id: doomed[1] } })
-    for (const id of [uuidv7(), doomed[1], co[1]]) expect(await a.call('companies.list', { query: { tag_id: id } })).toEqual({ data: [], next_cursor: null })
+    for (const id of [uuidv7(), doomed[1], co[1]])
+      expect(await a.call('companies.list', { query: { tag_id: id } })).toEqual({ data: [], next_cursor: null })
   })
 
   it('is ANDed with another filter and pages across the boundary', async () => {
@@ -254,14 +289,26 @@ describe('the tag_id list filter (D9)', () => {
     await a.link(t, co)
     const base = ['companies:read', 'tags:read', 'associations:read']
     for (const missing of ['tags:read', 'associations:read']) {
-      const err = await a.fail('companies.list', { query: { tag_id: t[1] } }, { as: 'agent', scopes: base.filter((s) => s !== missing) })
+      const err = await a.fail(
+        'companies.list',
+        { query: { tag_id: t[1] } },
+        { as: 'agent', scopes: base.filter((s) => s !== missing) },
+      )
       expect([err.status, err.code]).toEqual([403, 'insufficient_scope'])
       expect(err.message).toContain(missing)
     }
-    const both = await a.fail('companies.list', { query: { tag_id: t[1] } }, { as: 'agent', scopes: ['companies:read'] })
+    const both = await a.fail(
+      'companies.list',
+      { query: { tag_id: t[1] } },
+      { as: 'agent', scopes: ['companies:read'] },
+    )
     expect(both.message).toContain('tags:read')
-    expect(ids(await a.call('companies.list', { query: {} }, { as: 'agent', scopes: ['companies:read'] }))).toEqual([co[1]])
-    expect(ids(await a.call('companies.list', { query: { tag_id: t[1] } }, { as: 'agent', scopes: base }))).toEqual([co[1]])
+    expect(ids(await a.call('companies.list', { query: {} }, { as: 'agent', scopes: ['companies:read'] }))).toEqual([
+      co[1],
+    ])
+    expect(ids(await a.call('companies.list', { query: { tag_id: t[1] } }, { as: 'agent', scopes: base }))).toEqual([
+      co[1],
+    ])
   })
 
   it('a malformed tag_id is 400 validation_error', async () => {
@@ -286,12 +333,24 @@ describe('tags.delete cascades the live edges (D11)', () => {
     for (const m of members) expect((await e.rows(m[0])).find((r) => r.id === m[1])!.deleted_at).toBeNull()
     const evs = (await e.rows('events')).slice(mark)
     expect(evs[0]).toMatchObject({ type: 'tag.deleted', resource_id: t[1] })
-    expect(evs.filter((x) => x.type === 'association.deleted').map((x) => x.resource_id).sort()).toEqual(links.map((l) => l.id).sort())
+    expect(
+      evs
+        .filter((x) => x.type === 'association.deleted')
+        .map((x) => x.resource_id)
+        .sort(),
+    ).toEqual(links.map((l) => l.id).sort())
     expect(evs).toHaveLength(1 + links.length)
   })
 
   const edgeRows = async (tagId: string, n: number) => {
-    for (let i = 0; i < n; i++) await e.insert('associations', { a_type: 'companies', a_id: uuidv7(), b_type: 'tags', b_id: tagId, relation: 'related_to' })
+    for (let i = 0; i < n; i++)
+      await e.insert('associations', {
+        a_type: 'companies',
+        a_id: uuidv7(),
+        b_type: 'tags',
+        b_id: tagId,
+        relation: 'related_to',
+      })
   }
   it('exactly 100 live edges succeed; 101 is 400 set_limit_exceeded and nothing changes', async () => {
     const ok = await a.ent.tag('Hundred')
@@ -315,9 +374,15 @@ describe('tags.delete cascades the live edges (D11)', () => {
     await a.link(t, await a.ent.company())
     const mark = (await e.rows('events')).length
     e.betweenPlanAndCommit(async () => {
-      await e.update('associations', l1.id, { deleted_at: '2026-10-22T11:00:00.000Z', updated_at: '2026-10-22T11:00:00.000Z' })
+      await e.update('associations', l1.id, {
+        deleted_at: '2026-10-22T11:00:00.000Z',
+        updated_at: '2026-10-22T11:00:00.000Z',
+      })
     })
-    const err = await a.call('tags.delete', { params: { id: t[1] } }).then(() => undefined, (x: unknown) => x)
+    const err = await a.call('tags.delete', { params: { id: t[1] } }).then(
+      () => undefined,
+      (x: unknown) => x,
+    )
     expect(err).toBeDefined()
     expect((await e.rows('tags'))[0]!.deleted_at).toBeNull()
     expect((await a.edges()).filter((r) => r.id !== l1.id)).toHaveLength(1)

@@ -38,7 +38,10 @@ function testRegistry() {
         query: z.strictObject({ n: z.coerce.number().int().optional() }),
         body: z.strictObject({ msg: z.string() }),
       },
-      response: { status: 201, schema: z.object({ id: z.string(), n: z.number().optional(), msg: z.string(), org: z.string() }) },
+      response: {
+        status: 201,
+        schema: z.object({ id: z.string(), n: z.number().optional(), msg: z.string(), org: z.string() }),
+      },
       prepare: (env, input) =>
         probeUnit(
           {
@@ -77,7 +80,12 @@ function testRegistry() {
           name: 'account.whoami',
           mutates: false,
           reads: (qc) => ({ orgs: readAll(qc.db.selectFrom('organizations').select('organizations.id')) }),
-          build: (found) => unit({ steps: [], events: [], decode: () => ({ actor_id: env.actor.id, organizations: found.all('orgs').length }) }),
+          build: (found) =>
+            unit({
+              steps: [],
+              events: [],
+              decode: () => ({ actor_id: env.actor.id, organizations: found.all('orgs').length }),
+            }),
         }),
     })
 }
@@ -87,8 +95,17 @@ const agentHeaders = () => ({ authorization: `Bearer ${key}` })
 const userHeaders = (t: Tenant, organizationId: string | null = t.organizationId) => ({
   authorization: `Bearer ${mintTestUserToken({ userId: t.userId, organizationId, scopes: ['tasks:read', 'tasks:write'] })}`,
 })
-const post = (app: ReturnType<typeof mkApp>, path: string, body?: unknown, headers: Record<string, string> = agentHeaders()) =>
-  app.request(path, { method: 'POST', headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) })
+const post = (
+  app: ReturnType<typeof mkApp>,
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = agentHeaders(),
+) =>
+  app.request(path, {
+    method: 'POST',
+    headers,
+    body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
+  })
 const UUID = '0190b2c4-0000-7000-8000-000000000001'
 
 beforeAll(() => {
@@ -104,7 +121,11 @@ beforeEach(async () => {
   await truncateAll(owner)
   A = await seedTenant(db, 'A')
   B = await seedTenant(db, 'B')
-  const agent = await seedAgent(db, { organizationId: A.organizationId, createdBy: A.userId, scopes: ['tasks:read', 'tasks:write'] })
+  const agent = await seedAgent(db, {
+    organizationId: A.organizationId,
+    createdBy: A.userId,
+    scopes: ['tasks:read', 'tasks:write'],
+  })
   agentId = agent.id
   key = (await seedApiKey(db, { organizationId: A.organizationId, agentId: agent.id, createdBy: A.userId })).key
 })
@@ -186,13 +207,18 @@ describe('principal and organisation', () => {
   it('an account op refuses agents', async () => {
     const res = await mkApp().request('/meta/v1/account/whoami', { headers: agentHeaders() })
     expect(res.status).toBe(403)
-    expect(await res.json()).toEqual({ error: { code: 'user_required', message: 'this operation requires a signed-in user' } })
+    expect(await res.json()).toEqual({
+      error: { code: 'user_required', message: 'this operation requires a signed-in user' },
+    })
   })
   it('a tenant op needs an organisation', async () => {
     const res = await mkApp().request('/api/v1/tasks', { headers: userHeaders(A, null) })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({
-      error: { code: 'organization_required', message: 'an organisation is required (sign in with an active organisation)' },
+      error: {
+        code: 'organization_required',
+        message: 'an organisation is required (sign in with an active organisation)',
+      },
     })
   })
 })
@@ -210,7 +236,10 @@ describe('errors', () => {
   })
   it('unknown routes are 404', async () => {
     const app = mkApp()
-    for (const [m, p] of [['GET', '/nope'], ['PUT', '/api/v1/tasks']]) {
+    for (const [m, p] of [
+      ['GET', '/nope'],
+      ['PUT', '/api/v1/tasks'],
+    ]) {
       const res = await app.request(p!, { method: m, headers: agentHeaders() })
       expect(res.status).toBe(404)
       expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'no such route' } })
@@ -255,7 +284,9 @@ describe('CORS ([[CORE3]] C4)', () => {
     })
 
   it('sends no CORS headers by default', async () => {
-    const res = await createApp({ storage: coldStorage() }).request('/api/v1/openapi.json', { headers: { origin: ORIGIN } })
+    const res = await createApp({ storage: coldStorage() }).request('/api/v1/openapi.json', {
+      headers: { origin: ORIGIN },
+    })
     expect(res.headers.get('access-control-allow-origin')).toBeNull()
   })
 
@@ -314,7 +345,12 @@ describe('auth options and the account context ([[CORE3]])', () => {
           name: 'probe.ctx',
           mutates: false,
           reads: () => ({}),
-          build: () => unit({ steps: [], events: [], decode: () => ({ org: env.organizationId, scopes: env.scopes.toStrings() }) }),
+          build: () =>
+            unit({
+              steps: [],
+              events: [],
+              decode: () => ({ org: env.organizationId, scopes: env.scopes.toStrings() }),
+            }),
         }),
     })
     const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(db) })

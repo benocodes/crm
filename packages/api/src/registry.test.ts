@@ -40,10 +40,22 @@ describe('resourceOperations', () => {
     ])
     expect(ops.map((o) => o.response.status)).toEqual([200, 200, 201, 200, 204])
     expect(ops.every((o) => o.validation === 'handler')).toBe(true)
-    expect(ops.map((o) => o.summary)).toEqual(['List tasks', 'Get a task', 'Create a task', 'Update a task', 'Delete a task'])
+    expect(ops.map((o) => o.summary)).toEqual([
+      'List tasks',
+      'Get a task',
+      'Create a task',
+      'Update a task',
+      'Delete a task',
+    ])
   })
   it('subset', () => {
-    const ro = { ...tasks, name: 'task_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
+    const ro = {
+      ...tasks,
+      name: 'task_views',
+      operations: ['list', 'get'],
+      create: undefined,
+      update: undefined,
+    } as never
     const ops = resourceOperations(ro)
     expect(ops.map((o) => o.name)).toEqual(['task_views.list', 'task_views.get'])
     expect(ops.map((o) => o.path)).toEqual(['/task-views', '/task-views/{id}'])
@@ -62,7 +74,8 @@ describe('resourceOperations', () => {
 
 describe('Registry.register', () => {
   it('rejects bad names', () => {
-    for (const name of ['Tasks.list', 'tasks', 'tasks..x']) expect(() => new Registry().register(op({ name }))).toThrow()
+    for (const name of ['Tasks.list', 'tasks', 'tasks..x'])
+      expect(() => new Registry().register(op({ name }))).toThrow()
   })
   it('rejects a long tool name', () => {
     const name = 'a.' + 'b'.repeat(63)
@@ -74,7 +87,9 @@ describe('Registry.register', () => {
   })
   it('rejects duplicates', () => {
     expect(() => new Registry().register(op()).register(op({ path: '/y' }))).toThrow('duplicate operation probe.one')
-    expect(() => new Registry().register(op()).register(op({ name: 'probe.two' }))).toThrow('duplicate route GET /api/v1/x')
+    expect(() => new Registry().register(op()).register(op({ name: 'probe.two' }))).toThrow(
+      'duplicate route GET /api/v1/x',
+    )
   })
   it('enforces the response schema rule', () => {
     expect(() => new Registry().register(op({ response: { status: 200 } }))).toThrow()
@@ -83,7 +98,8 @@ describe('Registry.register', () => {
   })
   it('enforces the binary output rules (CORE58)', () => {
     const stage = async (v: unknown) => v
-    const bin = (over: Record<string, unknown> = {}) => op({ output: 'binary', response: { status: 200 }, objects: stage, ...over } as never)
+    const bin = (over: Record<string, unknown> = {}) =>
+      op({ output: 'binary', response: { status: 200 }, objects: stage, ...over } as never)
     expect(() => new Registry().register(bin({ objects: undefined }))).toThrow()
     expect(() => new Registry().register(bin({ response: { status: 200, schema: z.object({}) } }))).toThrow()
     expect(() => new Registry().register(bin({ response: { status: 201 } }))).toThrow()
@@ -105,7 +121,13 @@ describe('Registry.register', () => {
       method: 'get',
       path: '/account/whoami',
       response: { status: 200, schema: z.object({}) },
-      prepare: () => defineOperation({ name: 'account.whoami', mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => ({}) }) }),
+      prepare: () =>
+        defineOperation({
+          name: 'account.whoami',
+          mutates: false,
+          reads: () => ({}),
+          build: () => unit({ steps: [], events: [], decode: () => ({}) }),
+        }),
     })
     // tasks has proposable writes, so its request_approval is declared too ([[AGT8]] D30).
     expect(r.declaredScopes()).toEqual(['tasks:read', 'tasks:request_approval', 'tasks:write'])

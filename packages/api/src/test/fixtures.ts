@@ -3,15 +3,38 @@ import type { ContractFixture, FixtureKit } from './contract.js'
 
 export const fixtures: Record<string, ContractFixture> = {
   tasks: { input: async () => ({ title: 'Contract task' }), patch: async () => ({ title: 'Renamed' }) },
-  notes: { input: async () => ({ title: 'Contract note', content: '# Contract\n\nA note.' }), patch: async () => ({ content: 'Edited' }) },
-  tags: { input: async () => ({ name: `Contract tag ${randomUUID()}`, description: 'A contract list' }), patch: async () => ({ description: 'Edited' }) },
+  notes: {
+    input: async () => ({ title: 'Contract note', content: '# Contract\n\nA note.' }),
+    patch: async () => ({ content: 'Edited' }),
+  },
+  tags: {
+    input: async () => ({ name: `Contract tag ${randomUUID()}`, description: 'A contract list' }),
+    patch: async () => ({ description: 'Edited' }),
+  },
   // Connections (CHN140): read plus delete; a connection exists only through the OAuth callback, so the fixture seeds one the way a connect leaves it
   // (an own identity, the connection, its four machinery rows). `delete` is human-only (connections:write is not agent-grantable).
   connections: {
     async make(kit) {
-      const own = await kit.insert('identities', { kind: 'email', value: `own-${randomUUID()}@contract.test`, contact_id: null, own: true })
-      const c = await kit.insert('channel_connections', { provider: 'google', account_id: `sub-${randomUUID()}`, identity_id: own.id, owner_id: kit.tenant.userId, status: 'active', granted_scopes: ['openid', 'email'], connected_at: '2026-11-05T09:00:00.000Z' })
-      await kit.insert('channel_credentials', { connection_id: c.id, refresh_token_ciphertext: 'c2VhbGVk', key_version: 1 })
+      const own = await kit.insert('identities', {
+        kind: 'email',
+        value: `own-${randomUUID()}@contract.test`,
+        contact_id: null,
+        own: true,
+      })
+      const c = await kit.insert('channel_connections', {
+        provider: 'google',
+        account_id: `sub-${randomUUID()}`,
+        identity_id: own.id,
+        owner_id: kit.tenant.userId,
+        status: 'active',
+        granted_scopes: ['openid', 'email'],
+        connected_at: '2026-11-05T09:00:00.000Z',
+      })
+      await kit.insert('channel_credentials', {
+        connection_id: c.id,
+        refresh_token_ciphertext: 'c2VhbGVk',
+        key_version: 1,
+      })
       await kit.insert('mail_sync_state', { connection_id: c.id })
       await kit.insert('mail_sync_cursors', { connection_id: c.id, history_id: '1' })
       return { id: c.id as string }
@@ -19,9 +42,17 @@ export const fixtures: Record<string, ContractFixture> = {
     actors: ['user'],
   },
   // Deals and pipelines (CORE130): a stage needs a pipeline and a deal needs a stage, created through the public API as prerequisites.
-  pipelines: { input: async () => ({ name: `Contract pipeline ${randomUUID()}` }), patch: async () => ({ name: `Renamed pipeline ${randomUUID()}` }) },
+  pipelines: {
+    input: async () => ({ name: `Contract pipeline ${randomUUID()}` }),
+    patch: async () => ({ name: `Renamed pipeline ${randomUUID()}` }),
+  },
   pipeline_stages: {
-    input: async (kit) => ({ pipeline_id: (await kit.post('/meta/v1/pipelines', { name: `P ${randomUUID()}` })).id, name: 'Researched', kind: 'open', position: 10 }),
+    input: async (kit) => ({
+      pipeline_id: (await kit.post('/meta/v1/pipelines', { name: `P ${randomUUID()}` })).id,
+      name: 'Researched',
+      kind: 'open',
+      position: 10,
+    }),
     patch: async () => ({ name: `Renamed stage ${randomUUID()}`, position: 20 }),
   },
   deals: {
@@ -66,17 +97,26 @@ export const fixtures: Record<string, ContractFixture> = {
   interactions: { make: async (kit) => ({ id: (await kit.capture()).captured[0]!.interaction_id }) },
   files: { make: async (kit) => ({ id: await storedFileId(kit) }) },
   contact_files: {
-    input: async (kit) => ({ contact_id: (await kit.post('/api/v1/contacts', { name: 'Linked' })).id, file_id: await storedFileId(kit) }),
+    input: async (kit) => ({
+      contact_id: (await kit.post('/api/v1/contacts', { name: 'Linked' })).id,
+      file_id: await storedFileId(kit),
+    }),
   },
   company_files: {
-    input: async (kit) => ({ company_id: (await kit.post('/api/v1/companies', { name: 'Linked co', domain: `l-${randomUUID()}.example.com` })).id, file_id: await storedFileId(kit) }),
+    input: async (kit) => ({
+      company_id: (await kit.post('/api/v1/companies', { name: 'Linked co', domain: `l-${randomUUID()}.example.com` }))
+        .id,
+      file_id: await storedFileId(kit),
+    }),
   },
 }
 
 /** A fresh pipeline with one open stage, through the public API; returns the stage id. */
 async function stageId(kit: FixtureKit): Promise<string> {
   const p = await kit.post('/meta/v1/pipelines', { name: `P ${randomUUID()}` })
-  return (await kit.post('/meta/v1/pipeline-stages', { pipeline_id: p.id, name: 'Researched', kind: 'open', position: 10 })).id
+  return (
+    await kit.post('/meta/v1/pipeline-stages', { pipeline_id: p.id, name: 'Researched', kind: 'open', position: 10 })
+  ).id
 }
 
 /** Captures a message with one stored attachment and returns the id of its file (read back through the public message). */

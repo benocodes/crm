@@ -1,18 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { sql, type Kysely } from 'kysely'
+import { type Kysely } from 'kysely'
 import type { Database } from '@vibase/db'
 import { uuidv7 } from '@vibase/storage'
 import type { AnyResource, Registry } from '../registry.js'
 import { fullPath, openApiPath } from '../surfaces.js'
 import { CRUD_ACTIONS, crudActions, resourcePath, scopeResourceOf, type CrudAction } from '../resources/define.js'
-import { createApp, type AppEnv } from '../rest/app.js'
+import { type AppEnv } from '../rest/app.js'
 import type { CaptureInput, CaptureResult } from '../messaging/capture.js'
-import { captureAs, captureMessage, type CaptureOverrides } from './capture-kit.js'
-import { withTenantDefaults } from './insert.js'
-import { seedApiKey } from './keys.js'
-import { seedTenant, type Tenant } from './tenant.js'
-import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
+import { captureMessage, type CaptureOverrides } from './capture-kit.js'
+import { type Tenant } from './tenant.js'
 
 export type ContractActor = 'agent' | 'user'
 export type ContractGrant = 'full' | 'read' | 'none'
@@ -65,7 +62,14 @@ export interface ContractEnv {
   a: ContractTenant
   b: ContractTenant
   /** One request as the tenant's principal; `grant` picks its scopes. */
-  call(t: ContractTenant, actor: ContractActor, grant: ContractGrant, method: string, path: string, body?: unknown): Promise<Response>
+  call(
+    t: ContractTenant,
+    actor: ContractActor,
+    grant: ContractGrant,
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<Response>
   /** The id of the principal `call` uses for this actor and grant (what events record as `actor_id`). */
   principalId(t: ContractTenant, actor: ContractActor, grant: ContractGrant): Promise<string>
   /** The fixture kit of a tenant: prerequisite rows over the public API. */
@@ -85,7 +89,14 @@ export interface ContractSession {
   /** Empties the stores and seeds tenants A and B (one store per tenant on D1: never two tenants in one). */
   reset(): Promise<{ a: ContractTenant; b: ContractTenant }>
   close(): Promise<void>
-  call(t: ContractTenant, actor: ContractActor, scopes: string[], method: string, path: string, body?: unknown): Promise<Response>
+  call(
+    t: ContractTenant,
+    actor: ContractActor,
+    scopes: string[],
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<Response>
   principalId(t: ContractTenant, actor: ContractActor, scopes: string[]): Promise<string>
   /** Seeds a user with a live membership in the tenant's organisation. */
   seedMember(t: ContractTenant, role: 'owner' | 'member'): Promise<{ userId: string; membershipId: string }>
@@ -103,7 +114,10 @@ export interface ContractBackend {
 }
 
 /** The catalog case: every registered definition has a fixture and every fixture a definition. */
-export function assertFixturesCoverRegistry(registry: Registry, fixtures: Readonly<Record<string, ContractFixture>>): void {
+export function assertFixturesCoverRegistry(
+  registry: Registry,
+  fixtures: Readonly<Record<string, ContractFixture>>,
+): void {
   const defined = new Set(registry.resources().map((d) => d.name))
   const fixed = new Set(Object.keys(fixtures))
   const missing = [...defined].filter((n) => !fixed.has(n))
@@ -116,9 +130,18 @@ export function assertFixturesCoverRegistry(registry: Registry, fixtures: Readon
 }
 
 const NO_SUCH = '0190b2c4-0000-7000-8000-00000000dead'
-const METHOD: Record<CrudAction, string> = { list: 'GET', get: 'GET', create: 'POST', update: 'PATCH', delete: 'DELETE' }
+const METHOD: Record<CrudAction, string> = {
+  list: 'GET',
+  get: 'GET',
+  create: 'POST',
+  update: 'PATCH',
+  delete: 'DELETE',
+}
 const pathOf = (def: AnyResource, action: CrudAction, id = NO_SUCH): string =>
-  fullPath({ surface: def.surface, path: action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/${id}` })
+  fullPath({
+    surface: def.surface,
+    path: action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/${id}`,
+  })
 
 export function runContractSuite(opts: {
   registry: Registry
@@ -166,7 +189,8 @@ export function runContractSuite(opts: {
       describe(def.name, () => {
         let env: ContractEnv
         beforeEach(() => {
-          const call: ContractEnv['call'] = (t, actor, grant, method, path, body) => session.call(t, actor, scopeSets[grant], method, path, body)
+          const call: ContractEnv['call'] = (t, actor, grant, method, path, body) =>
+            session.call(t, actor, scopeSets[grant], method, path, body)
           env = {
             app,
             db,
@@ -179,7 +203,8 @@ export function runContractSuite(opts: {
               tenant: t,
               async post(path, body) {
                 const res = await session.call(t, 'user', registry.declaredScopes(), 'POST', path, body)
-                if (res.status < 200 || res.status >= 300) throw new Error(`fixture post ${path} failed: ${res.status} ${await res.text()}`)
+                if (res.status < 200 || res.status >= 300)
+                  throw new Error(`fixture post ${path} failed: ${res.status} ${await res.text()}`)
                 return (await res.json()) as { id: string }
               },
               seedMember: (role = 'member') => session.seedMember(t, role),
@@ -189,7 +214,8 @@ export function runContractSuite(opts: {
                 if (res.status !== 200) throw new Error(`fixture get ${path} failed: ${res.status} ${await res.text()}`)
                 return res.json()
               },
-              capture: (over = {}) => session.capture(t, { connection_id: uuidv7(), messages: [captureMessage(t.organizationId, over)] }),
+              capture: (over = {}) =>
+                session.capture(t, { connection_id: uuidv7(), messages: [captureMessage(t.organizationId, over)] }),
             }),
             eventsOf: session.eventsOf,
             countEvents: session.countEvents,
@@ -212,8 +238,12 @@ export function runContractSuite(opts: {
         const make = (t: ContractTenant): Promise<{ id: string }> => env.make(t, def, fixture)
         const eventCount = () => env.countEvents()
         /** An event carries the stored record: the definition's derived fields are on reads only ([[CORE131]] D2). */
-        const recordOfEvent = (record: unknown) => Object.fromEntries(Object.entries(record as Record<string, unknown>).filter(([k]) => !(k in (def.derived ?? {}))))
-        const types = (events: EventRow[], action: string) => events.filter((e) => e.type === `${def.eventName}.${action}`)
+        const recordOfEvent = (record: unknown) =>
+          Object.fromEntries(
+            Object.entries(record as Record<string, unknown>).filter(([k]) => !(k in (def.derived ?? {}))),
+          )
+        const types = (events: EventRow[], action: string) =>
+          events.filter((e) => e.type === `${def.eventName}.${action}`)
         const error = async (res: Response, status: number, code: string) => {
           expect(res.status).toBe(status)
           expect(((await res.json()) as any).error.code).toBe(code)
@@ -294,14 +324,22 @@ export function runContractSuite(opts: {
               const snapshot = () => env.read(b, def, row.id)
               const before = await snapshot()
               const eventsBefore = await env.eventsOf(row.id)
-              if (has('get')) await error(await env.call(a, actor, 'full', 'GET', pathOf(def, 'get', row.id)), 404, 'not_found')
+              if (has('get'))
+                await error(await env.call(a, actor, 'full', 'GET', pathOf(def, 'get', row.id)), 404, 'not_found')
               if (has('update')) {
                 const patch = await fixture.patch!(env.kit(a, def))
-                await error(await env.call(a, actor, 'full', 'PATCH', pathOf(def, 'update', row.id), patch), 404, 'not_found')
+                await error(
+                  await env.call(a, actor, 'full', 'PATCH', pathOf(def, 'update', row.id), patch),
+                  404,
+                  'not_found',
+                )
               }
-              if (has('delete')) await error(await env.call(a, actor, 'full', 'DELETE', pathOf(def, 'delete', row.id)), 404, 'not_found')
+              if (has('delete'))
+                await error(await env.call(a, actor, 'full', 'DELETE', pathOf(def, 'delete', row.id)), 404, 'not_found')
               if (has('list')) {
-                const list = (await (await env.call(a, actor, 'full', 'GET', pathOf(def, 'list'))).json()) as { data: { id: string }[] }
+                const list = (await (await env.call(a, actor, 'full', 'GET', pathOf(def, 'list'))).json()) as {
+                  data: { id: string }[]
+                }
                 expect(list.data.map((r) => r.id)).not.toContain(row.id)
               }
               expect(await snapshot()).toEqual(before)
@@ -316,13 +354,21 @@ export function runContractSuite(opts: {
                   total = await eventCount() // the fixture may create prerequisite rows (and their events) through the kit
                   const rows = async () => ({ n: await env.countRows(def.table) })
                   const n = (await rows()).n
-                  await error(await env.call(a, actor, 'full', 'POST', pathOf(def, 'create'), { ...input, zz_unknown: 1 }), 400, 'validation_error')
+                  await error(
+                    await env.call(a, actor, 'full', 'POST', pathOf(def, 'create'), { ...input, zz_unknown: 1 }),
+                    400,
+                    'validation_error',
+                  )
                   expect((await rows()).n).toBe(n)
                 }
                 if (has('update')) {
                   const row = await make(a)
                   const after = await eventCount()
-                  await error(await env.call(a, actor, 'full', 'PATCH', pathOf(def, 'update', row.id), { zz_unknown: 1 }), 400, 'validation_error')
+                  await error(
+                    await env.call(a, actor, 'full', 'PATCH', pathOf(def, 'update', row.id), { zz_unknown: 1 }),
+                    400,
+                    'validation_error',
+                  )
                   expect(await eventCount()).toBe(after)
                 } else {
                   expect(await eventCount()).toBe(total)
@@ -346,10 +392,18 @@ export function runContractSuite(opts: {
               const row = await make(a)
               for (const action of ['create', 'update', 'delete'] as const) {
                 if (!has(action)) continue
-                const res = await env.call(a, actor, 'read', METHOD[action], pathOf(def, action, row.id), await bodyFor(action))
+                const res = await env.call(
+                  a,
+                  actor,
+                  'read',
+                  METHOD[action],
+                  pathOf(def, action, row.id),
+                  await bodyFor(action),
+                )
                 await error(res, 403, 'insufficient_scope')
               }
-              if (has('get')) expect((await env.call(a, actor, 'read', 'GET', pathOf(def, 'get', row.id))).status).toBe(200)
+              if (has('get'))
+                expect((await env.call(a, actor, 'read', 'GET', pathOf(def, 'get', row.id))).status).toBe(200)
               if (has('list')) expect((await env.call(a, actor, 'read', 'GET', pathOf(def, 'list'))).status).toBe(200)
             })
 
@@ -365,9 +419,19 @@ export function runContractSuite(opts: {
               it('not generated', async () => {
                 const doc = (await (await app.request(openApiPath(def.surface))).json()) as any
                 for (const action of absent) {
-                  const res = await env.call(a, actor, 'full', METHOD[action], pathOf(def, action), await bodyFor(action))
+                  const res = await env.call(
+                    a,
+                    actor,
+                    'full',
+                    METHOD[action],
+                    pathOf(def, action),
+                    await bodyFor(action),
+                  )
                   await error(res, 404, 'not_found')
-                  const docPath = fullPath({ surface: def.surface, path: action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/{id}` })
+                  const docPath = fullPath({
+                    surface: def.surface,
+                    path: action === 'list' || action === 'create' ? resourcePath(def) : `${resourcePath(def)}/{id}`,
+                  })
                   expect(doc.paths[docPath]?.[METHOD[action].toLowerCase()]).toBeUndefined()
                 }
               })

@@ -26,14 +26,23 @@ beforeEach(async () => {
 const AR = '/api/v1/action-requests'
 let n = 0
 /** A direct enqueue (the runner is not started: the tests drive it). */
-const enqueue = async (op: keyof typeof TEST_OPS = 'reconcile', args: Record<string, unknown> = {}): Promise<string> => {
+const enqueue = async (
+  op: keyof typeof TEST_OPS = 'reconcile',
+  args: Record<string, unknown> = {},
+): Promise<string> => {
   const r = await k.enqueue(writer, { text: 'x', ...args, idempotency_key: `k${++n}` }, op)
   expect(r.status).toBe(202)
   return r.body.id
 }
 /** A proposal approved by the writer: an execution linked to a request, authorised by the writer, created by the proposer. */
 const approved = async (args: Record<string, unknown> = {}): Promise<{ requestId: string; id: string }> => {
-  const requestId = (await k.call(proposer, 'POST', AR, { operation: TEST_OPS.reconcile, arguments: { text: 'x', ...args }, reason: 'r' })).body.id as string
+  const requestId = (
+    await k.call(proposer, 'POST', AR, {
+      operation: TEST_OPS.reconcile,
+      arguments: { text: 'x', ...args },
+      reason: 'r',
+    })
+  ).body.id as string
   const r = await k.call(writer, 'POST', `${AR}/${requestId}/approve`)
   expect(r.status).toBe(200)
   return { requestId, id: r.body.execution_id }
@@ -54,9 +63,23 @@ describe('the happy path and the machinery (D53, D56)', () => {
     k.setNow(at(1))
     expect(await k.run(id)).toMatchObject({ outcome: 'done' })
     expect(k.transport.dispatches).toHaveLength(1)
-    expect(k.transport.dispatches[0]).toMatchObject({ executionId: id, operation: TEST_OPS.reconcile, arguments: { text: 'x' }, resolution: { anchor: 'anchor-1' }, attempt: 1 })
+    expect(k.transport.dispatches[0]).toMatchObject({
+      executionId: id,
+      operation: TEST_OPS.reconcile,
+      arguments: { text: 'x' },
+      resolution: { anchor: 'anchor-1' },
+      attempt: 1,
+    })
     expect(k.transport.dispatches[0]!.clientRef).toBe(`${id}@test.invalid`)
-    expect(await row(id)).toMatchObject({ status: 'done', result: { message_id: 'm-1' }, attempts: 1, error_code: null, lease_token: null, lease_until: null, done_at: at(1).toISOString() })
+    expect(await row(id)).toMatchObject({
+      status: 'done',
+      result: { message_id: 'm-1' },
+      attempts: 1,
+      error_code: null,
+      lease_token: null,
+      lease_until: null,
+      done_at: at(1).toISOString(),
+    })
     expect(await ev('action_execution.created')).toHaveLength(1)
     const completed = await ev('action_execution.completed')
     expect(completed).toHaveLength(1)
@@ -73,7 +96,14 @@ describe('the happy path and the machinery (D53, D56)', () => {
     k.setNow(at(1))
     expect(await k.run(id)).toMatchObject({ outcome: 'retry' })
     const r = await row(id)
-    expect(r).toMatchObject({ status: 'queued', attempts: 1, dispatched_at: null, last_error_code: 'retryable', lease_token: null, lease_until: null })
+    expect(r).toMatchObject({
+      status: 'queued',
+      attempts: 1,
+      dispatched_at: null,
+      last_error_code: 'retryable',
+      lease_token: null,
+      lease_until: null,
+    })
     expect(r.updated_at).toBe(created.updated_at)
     expect((await k.events()).length).toBe(eventsBefore)
   })
@@ -177,7 +207,12 @@ describe('lease and stale finisher (D28)', () => {
   it('a crash before the dispatch stamp is recovered by dispatching: the stamp is what decides', async () => {
     const id = await enqueue()
     // A claim whose runner died before anything else: claimed, lease running, never stamped.
-    await k.d1.prepare(`update action_executions set status = 'claimed', attempts = 1, lease_token = 'dead', lease_until = ? where id = ?`).bind(at(60).toISOString(), id).run()
+    await k.d1
+      .prepare(
+        `update action_executions set status = 'claimed', attempts = 1, lease_token = 'dead', lease_until = ? where id = ?`,
+      )
+      .bind(at(60).toISOString(), id)
+      .run()
     k.setNow(at(30))
     expect(await k.run(id)).toMatchObject({ outcome: 'skipped' })
     k.setNow(at(61))
@@ -278,7 +313,11 @@ describe('retry policy matrix (D53)', () => {
     ['a longer retry_after is honoured', 120_000, 120],
   ])('retryable at attempt 1, %s', async (_name, retryAfterMs, seconds) => {
     const id = await enqueue()
-    k.transport.willDispatch({ kind: 'not_sent', code: 'retryable', ...(retryAfterMs !== undefined ? { retryAfterMs } : {}) })
+    k.transport.willDispatch({
+      kind: 'not_sent',
+      code: 'retryable',
+      ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+    })
     k.setNow(at(0))
     await k.run(id)
     expect(await next(id)).toBe(seconds)
@@ -298,7 +337,9 @@ describe('retry policy matrix (D53)', () => {
 
   it('the backoff is 30 * 2^(n-1) seconds from the attempt (n = 3: 120 s) when no floor applies', async () => {
     const id = await enqueue()
-    k.transport.willDispatch(...Array.from({ length: 3 }, () => ({ kind: 'not_sent', code: 'retryable', retryAfterMs: 1 }) as const))
+    k.transport.willDispatch(
+      ...Array.from({ length: 3 }, () => ({ kind: 'not_sent', code: 'retryable', retryAfterMs: 1 }) as const),
+    )
     const waits: number[] = []
     for (let i = 0; i < 3; i++) {
       k.setNow(new Date(Date.parse((await row(id)).next_attempt_at as string)))
@@ -439,7 +480,9 @@ describe('terminal classifications (D14, D53)', () => {
 
   it('attempts_exhausted after five definite not_sent attempts', async () => {
     const id = await enqueue()
-    k.transport.willDispatch(...Array.from({ length: 6 }, () => ({ kind: 'not_sent', code: 'retryable', retryAfterMs: 1 }) as const))
+    k.transport.willDispatch(
+      ...Array.from({ length: 6 }, () => ({ kind: 'not_sent', code: 'retryable', retryAfterMs: 1 }) as const),
+    )
     let last: Awaited<ReturnType<RailKit['run']>> | undefined
     for (let i = 0; i < 5; i++) {
       k.setNow(new Date(Math.max(k.now().getTime(), Date.parse((await row(id)).next_attempt_at as string))))
@@ -528,7 +571,13 @@ describe('finish atomicity and attribution (D50, D56, invariant 5)', () => {
     k.transport.willDispatch({ kind: 'sent', result: { message_id: 'm' } })
     k.setNow(at(1))
     expect(await k.run(id)).toMatchObject({ outcome: 'done' })
-    expect(await request(requestId)).toMatchObject({ status: 'executed', executed_at: at(1).toISOString(), result: { message_id: 'm' }, decided_by: writer.id, error_code: null })
+    expect(await request(requestId)).toMatchObject({
+      status: 'executed',
+      executed_at: at(1).toISOString(),
+      result: { message_id: 'm' },
+      decided_by: writer.id,
+      error_code: null,
+    })
     const completed = await ev('action_execution.completed')
     const executed = await ev('action_request.executed')
     expect(completed.map((e) => e.actor_id)).toEqual([writer.id])
@@ -548,7 +597,14 @@ describe('finish atomicity and attribution (D50, D56, invariant 5)', () => {
     expect(await k.run(id)).toMatchObject({ outcome: 'failed', code: 'permission_missing' })
     const exec = await row(id)
     const req = await request(requestId)
-    expect(req).toMatchObject({ status: 'failed', error_code: 'permission_missing', error_message: exec.error_message, decided_by: before.decided_by, decided_at: before.decided_at, executed_at: null })
+    expect(req).toMatchObject({
+      status: 'failed',
+      error_code: 'permission_missing',
+      error_message: exec.error_message,
+      decided_by: before.decided_by,
+      decided_at: before.decided_at,
+      executed_at: null,
+    })
     const failed = await ev('action_request.failed')
     expect(failed.map((e) => [e.actor_id, e.resource_id])).toEqual([[writer.id, requestId]])
     expect(await ev('action_execution.failed')).toHaveLength(1)

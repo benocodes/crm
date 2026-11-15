@@ -7,10 +7,22 @@
 //  - The reset link is Better Auth's own, issued in this process against the remote control database (D10): `issueResetToken`, then the `user.reset_link_issued` audit row, and only then is the link returned.
 //    If the audit write fails nothing is returned and the unused verification row expires (P3 a). It never writes the CRM database.
 // Nothing here prints: it returns the outcome; `AUTH_SECRET` is only ever handed to `createAuth`, and no error message holds a token or a URL.
-import { INVITATION_TTL_MS, invitationUrl, newInvitationToken, normaliseInvitationEmail, passwordResetUrl } from '@vibase/api'
+import {
+  INVITATION_TTL_MS,
+  invitationUrl,
+  newInvitationToken,
+  normaliseInvitationEmail,
+  passwordResetUrl,
+} from '@vibase/api'
 import { createAuth } from '@vibase/auth'
 import { uuidv7 } from '@vibase/storage'
-import { controlAuthDatabase, openControlDb, recordResetLinkIssued, reissueOwnerInvitation, type D1Like } from '@vibase/storage-d1'
+import {
+  controlAuthDatabase,
+  openControlDb,
+  recordResetLinkIssued,
+  reissueOwnerInvitation,
+  type D1Like,
+} from '@vibase/storage-d1'
 import { AUTH_SECRET_MIN_LENGTH } from '../src/auth-config.js'
 
 /** Refused before any write: nothing was changed. */
@@ -53,10 +65,22 @@ const message = (e: unknown) => (e instanceof Error ? e.message : 'unknown error
 
 /** The record checks, in order, before anything is opened. */
 function checkRecord(r: OwnerResetRecord): string {
-  if (r.authProvider === 'clerk') throw new OwnerResetRefusal('this instance signs in through Clerk: recover the owner through Clerk (owner-reset is for better-auth instances)')
-  if (r.authProvider !== 'better-auth') throw new OwnerResetRefusal(`this instance's provider is ${r.authProvider === 'none' ? 'none (API keys only)' : r.authProvider}: it has no Better Auth accounts to recover (owner-reset is for better-auth instances)`)
-  if (!r.hasControl) throw new OwnerResetRefusal('the instance record binds no control database (CONTROL_DB): a better-auth instance keeps its accounts there')
-  if (!r.publicBaseUrl) throw new OwnerResetRefusal('the instance record has no PUBLIC_BASE_URL: it is the origin of the link and of the Better Auth issuer')
+  if (r.authProvider === 'clerk')
+    throw new OwnerResetRefusal(
+      'this instance signs in through Clerk: recover the owner through Clerk (owner-reset is for better-auth instances)',
+    )
+  if (r.authProvider !== 'better-auth')
+    throw new OwnerResetRefusal(
+      `this instance's provider is ${r.authProvider === 'none' ? 'none (API keys only)' : r.authProvider}: it has no Better Auth accounts to recover (owner-reset is for better-auth instances)`,
+    )
+  if (!r.hasControl)
+    throw new OwnerResetRefusal(
+      'the instance record binds no control database (CONTROL_DB): a better-auth instance keeps its accounts there',
+    )
+  if (!r.publicBaseUrl)
+    throw new OwnerResetRefusal(
+      'the instance record has no PUBLIC_BASE_URL: it is the origin of the link and of the Better Auth issuer',
+    )
   return r.publicBaseUrl.replace(/\/+$/, '')
 }
 
@@ -72,45 +96,89 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
       const newId = p.newId ?? (() => uuidv7())
       const one = async (sql: string) => (await crm.prepare(sql).first()) as Record<string, unknown> | null
       const owners = (
-        (await crm.prepare("select u.email, u.auth_provider, u.auth_subject from memberships m join users u on u.id = m.user_id where m.role = 'owner' and m.deleted_at is null order by u.email").all()).results ?? []
+        (
+          await crm
+            .prepare(
+              "select u.email, u.auth_provider, u.auth_subject from memberships m join users u on u.id = m.user_id where m.role = 'owner' and m.deleted_at is null order by u.email",
+            )
+            .all()
+        ).results ?? []
       ).map((r) => r as { email: string; auth_provider: string | null; auth_subject: string | null })
       const system = (await one("select id from principals where kind = 'system' limit 1"))?.id as string | undefined
-      if (!system) throw new OwnerResetRefusal('the CRM database has no system principal: the organisation is not initialised')
+      if (!system)
+        throw new OwnerResetRefusal('the CRM database has no system principal: the organisation is not initialised')
 
       // No owner of any provider: an owner invitation (D11, P2).
       if (owners.length === 0) {
-        if (wanted === undefined) throw new OwnerResetRefusal('--email <address> is required: this instance has no owner, so owner-reset issues an owner invitation for that address')
+        if (wanted === undefined)
+          throw new OwnerResetRefusal(
+            '--email <address> is required: this instance has no owner, so owner-reset issues an owner invitation for that address',
+          )
         const org = (await one('select id from organizations limit 1'))?.id as string | undefined
         if (!org) throw new OwnerResetRefusal('the CRM database has no organisation: initialise it first (bootstrap)')
         if (p.dryRun) return { kind: 'dry-run', action: 'invitation', email: wanted! }
-        const { token, hash } = await newInvitationToken(p.randomBytes ?? ((n) => crypto.getRandomValues(new Uint8Array(n))))
+        const { token, hash } = await newInvitationToken(
+          p.randomBytes ?? ((n) => crypto.getRandomValues(new Uint8Array(n))),
+        )
         const id = newId()
         const expiresAt = new Date(now.getTime() + INVITATION_TTL_MS).toISOString()
         wrote = true
-        const out = await reissueOwnerInvitation(openControlDb(control), { id, auditId: newId(), newAuditId: newId, organizationId: org, email: wanted!, role: 'owner', tokenHash: hash, expiresAt, createdBy: system, now: now.toISOString() })
+        const out = await reissueOwnerInvitation(openControlDb(control), {
+          id,
+          auditId: newId(),
+          newAuditId: newId,
+          organizationId: org,
+          email: wanted!,
+          role: 'owner',
+          tokenHash: hash,
+          expiresAt,
+          createdBy: system,
+          now: now.toISOString(),
+        })
         if (out.result === 'live_exists') {
           wrote = false
-          throw new OwnerResetRefusal(`a live invitation for ${wanted} already exists with another role: revoke it (invitations.revoke) and run again; nothing was changed`)
+          throw new OwnerResetRefusal(
+            `a live invitation for ${wanted} already exists with another role: revoke it (invitations.revoke) and run again; nothing was changed`,
+          )
         }
-        return { kind: 'invitation', email: wanted!, url: invitationUrl(baseUrl, token), expiresAt, revoked: out.revoked }
+        return {
+          kind: 'invitation',
+          email: wanted!,
+          url: invitationUrl(baseUrl, token),
+          expiresAt,
+          revoked: out.revoked,
+        }
       }
 
       // Owners exist: only a better-auth owner can be reset.
       const targets = owners.filter((o) => o.auth_provider === 'better-auth')
       if (targets.length === 0) {
         const providers = [...new Set(owners.map((o) => o.auth_provider ?? 'none'))].join(', ')
-        throw new OwnerResetRefusal(`this instance's owners sign in through ${providers}, not better-auth: recover through ${providers}; owner-reset issues no invitation beside a working owner`)
+        throw new OwnerResetRefusal(
+          `this instance's owners sign in through ${providers}, not better-auth: recover through ${providers}; owner-reset issues no invitation beside a working owner`,
+        )
       }
       let target = targets[0]!
       if (wanted !== undefined) {
         const hit = targets.find((o) => o.email === wanted)
-        if (!hit) throw new OwnerResetRefusal(`--email ${wanted} is not an owner of this instance on better-auth (owners: ${targets.map((o) => o.email).join(', ')})`)
+        if (!hit)
+          throw new OwnerResetRefusal(
+            `--email ${wanted} is not an owner of this instance on better-auth (owners: ${targets.map((o) => o.email).join(', ')})`,
+          )
         target = hit
       } else if (targets.length > 1) {
-        throw new OwnerResetRefusal(`this instance has ${targets.length} better-auth owners: pass --email <address> with one of ${targets.map((o) => o.email).join(', ')}`)
+        throw new OwnerResetRefusal(
+          `this instance has ${targets.length} better-auth owners: pass --email <address> with one of ${targets.map((o) => o.email).join(', ')}`,
+        )
       }
-      if (!p.authSecret) throw new OwnerResetRefusal(`AUTH_SECRET is not in ${p.secretsFile}: owner-reset needs it to compose Better Auth as the Worker does. If the Worker has one, copy it into that file; a new value would sign everyone out`)
-      if (p.authSecret.length < AUTH_SECRET_MIN_LENGTH) throw new OwnerResetRefusal(`AUTH_SECRET in ${p.secretsFile} is shorter than ${AUTH_SECRET_MIN_LENGTH} characters: it is not the value the Worker holds`)
+      if (!p.authSecret)
+        throw new OwnerResetRefusal(
+          `AUTH_SECRET is not in ${p.secretsFile}: owner-reset needs it to compose Better Auth as the Worker does. If the Worker has one, copy it into that file; a new value would sign everyone out`,
+        )
+      if (p.authSecret.length < AUTH_SECRET_MIN_LENGTH)
+        throw new OwnerResetRefusal(
+          `AUTH_SECRET in ${p.secretsFile} is shorter than ${AUTH_SECRET_MIN_LENGTH} characters: it is not the value the Worker holds`,
+        )
       // `users` holds `auth_provider` and `auth_subject` both or neither (a CHECK), so a better-auth owner always has a subject.
       const subject = target.auth_subject as string
       if (p.dryRun) return { kind: 'dry-run', action: 'reset', email: target.email }
@@ -121,7 +189,9 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
       try {
         issued = await auth.issueResetToken(target.email)
       } catch (e) {
-        throw new OwnerResetFailure(`the reset link could not be issued (${message(e)}): nothing was printed; run again`)
+        throw new OwnerResetFailure(
+          `the reset link could not be issued (${message(e)}): nothing was printed; run again`,
+        )
       }
       if (!issued) {
         wrote = false
@@ -130,9 +200,18 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
       const expiresAt = issued.expiresAt.toISOString()
       // The audit row comes before the answer: a link nobody can account for is never returned. A failure leaves an unreturned verification row, inert until it expires.
       try {
-        await recordResetLinkIssued(openControlDb(control), { auditId: newId(), actorId: system, subject, expiresAt, now: now.toISOString(), via: 'owner-reset' })
+        await recordResetLinkIssued(openControlDb(control), {
+          auditId: newId(),
+          actorId: system,
+          subject,
+          expiresAt,
+          now: now.toISOString(),
+          via: 'owner-reset',
+        })
       } catch (e) {
-        throw new OwnerResetFailure(`the reset link was not recorded in the audit log (${message(e)}): nothing was printed; the unused link expires, run again`)
+        throw new OwnerResetFailure(
+          `the reset link was not recorded in the audit log (${message(e)}): nothing was printed; the unused link expires, run again`,
+        )
       }
       return { kind: 'reset', email: target.email, url: passwordResetUrl(baseUrl, issued.token), expiresAt }
     })
@@ -146,8 +225,16 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
 /** The lines a front-end prints for a result. The link or invitation URL appears in exactly one line, once. */
 export function ownerResetLines(r: OwnerResetResult): string[] {
   if (r.kind === 'dry-run') {
-    return [r.action === 'reset' ? `dry run: would issue an owner reset link for ${r.email}` : `dry run: this instance has no owner: would issue an owner invitation for ${r.email}`, 'dry run: nothing was written']
+    return [
+      r.action === 'reset'
+        ? `dry run: would issue an owner reset link for ${r.email}`
+        : `dry run: this instance has no owner: would issue an owner invitation for ${r.email}`,
+      'dry run: nothing was written',
+    ]
   }
-  if (r.kind === 'reset') return [`owner reset link for ${r.email} (expires ${r.expiresAt}; shown once, stored nowhere): ${r.url}`]
-  return [`owner invitation for ${r.email} (expires ${r.expiresAt}; shown once, stored nowhere${r.revoked > 0 ? `; it replaced ${r.revoked} live owner invitation${r.revoked === 1 ? '' : 's'}` : ''}): ${r.url}`]
+  if (r.kind === 'reset')
+    return [`owner reset link for ${r.email} (expires ${r.expiresAt}; shown once, stored nowhere): ${r.url}`]
+  return [
+    `owner invitation for ${r.email} (expires ${r.expiresAt}; shown once, stored nowhere${r.revoked > 0 ? `; it replaced ${r.revoked} live owner invitation${r.revoked === 1 ? '' : 's'}` : ''}): ${r.url}`,
+  ]
 }

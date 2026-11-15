@@ -31,7 +31,17 @@ export interface CodeInputProps {
 }
 
 /** The device user code as one text input (one box per character handles paste and screen readers badly). */
-export function CodeInput({ label, value, onChange, groupLength = DEFAULT_GROUP_LENGTH, hint, error, name, disabled, ref }: CodeInputProps) {
+export function CodeInput({
+  label,
+  value,
+  onChange,
+  groupLength = DEFAULT_GROUP_LENGTH,
+  hint,
+  error,
+  name,
+  disabled,
+  ref,
+}: CodeInputProps) {
   const id = useId()
   const hintId = `${id}-hint`
   const errorId = error ? `${id}-error` : undefined

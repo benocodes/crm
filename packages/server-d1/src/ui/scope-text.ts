@@ -17,7 +17,14 @@ export function scopeItems(names: readonly string[]): ScopeItem[] {
   for (const name of names) {
     if (name === '' || seen.has(name)) continue
     seen.add(name)
-    items.push({ name, description: Object.hasOwn(OIDC, name) ? OIDC[name]! : Object.hasOwn(SCOPE_DESCRIPTIONS, name) ? SCOPE_DESCRIPTIONS[name]! : MESSAGES.noDescription })
+    items.push({
+      name,
+      description: Object.hasOwn(OIDC, name)
+        ? OIDC[name]!
+        : Object.hasOwn(SCOPE_DESCRIPTIONS, name)
+          ? SCOPE_DESCRIPTIONS[name]!
+          : MESSAGES.noDescription,
+    })
   }
   return items
 }

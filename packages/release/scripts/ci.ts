@@ -13,7 +13,11 @@ try {
   const [command] = process.argv.slice(2)
   if (command === 'tag') {
     const d = decideTag({ refType: process.env.GITHUB_REF_TYPE, refName: process.env.GITHUB_REF_NAME }, version)
-    console.log(d.mode === 'release' ? `tag ${d.tag} matches release version ${version}: this run ends in a draft release` : `no tag: a build-only run of version ${version}`)
+    console.log(
+      d.mode === 'release'
+        ? `tag ${d.tag} matches release version ${version}: this run ends in a draft release`
+        : `no tag: a build-only run of version ${version}`,
+    )
   } else if (command === 'assets') {
     for (const f of releaseAssets(join(PKG, 'dist'), version)) console.log(f)
   } else {

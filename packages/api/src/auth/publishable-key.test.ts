@@ -26,7 +26,12 @@ describe('publishableKeyHost', () => {
 describe('parsePublishableKey', () => {
   it('returns the trimmed key when its host is the issuer host (case-insensitive)', () => {
     expect(parsePublishableKey({ CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: ` ${pk(HOST)} ` })).toBe(pk(HOST))
-    expect(parsePublishableKey({ CLERK_ISSUER: ISSUER.toUpperCase().replace('HTTPS', 'https'), CLERK_PUBLISHABLE_KEY: pk(HOST) })).toBe(pk(HOST))
+    expect(
+      parsePublishableKey({
+        CLERK_ISSUER: ISSUER.toUpperCase().replace('HTTPS', 'https'),
+        CLERK_PUBLISHABLE_KEY: pk(HOST),
+      }),
+    ).toBe(pk(HOST))
   })
   it('unset or blank is undefined', () => {
     expect(parsePublishableKey({ CLERK_ISSUER: ISSUER })).toBeUndefined()
@@ -34,7 +39,9 @@ describe('parsePublishableKey', () => {
   })
   it('a key for another host throws naming the variable and never the value', () => {
     const key = pk('other.clerk.accounts.dev')
-    expect(() => parsePublishableKey({ CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: key })).toThrow(/CLERK_PUBLISHABLE_KEY/)
+    expect(() => parsePublishableKey({ CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: key })).toThrow(
+      /CLERK_PUBLISHABLE_KEY/,
+    )
     try {
       parsePublishableKey({ CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: key })
     } catch (e) {
@@ -45,7 +52,9 @@ describe('parsePublishableKey', () => {
   })
   it('a malformed key throws naming the variable and never the value', () => {
     const key = 'pk_test_' + 'x'.repeat(10) + '!!'
-    expect(() => parsePublishableKey({ CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: key })).toThrow(/CLERK_PUBLISHABLE_KEY/)
+    expect(() => parsePublishableKey({ CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: key })).toThrow(
+      /CLERK_PUBLISHABLE_KEY/,
+    )
     try {
       parsePublishableKey({ CLERK_ISSUER: ISSUER, CLERK_PUBLISHABLE_KEY: key })
     } catch (e) {

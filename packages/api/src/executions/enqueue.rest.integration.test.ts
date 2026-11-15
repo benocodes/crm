@@ -23,7 +23,9 @@ beforeEach(async () => {
 })
 const AR = '/api/v1/action-requests'
 const code = (r: { status: number; body: any }) => [r.status, r.body?.error?.code]
-const propose = async (args: Record<string, unknown>, extra: Record<string, unknown> = {}) => (await k.call(proposer, 'POST', AR, { operation: TEST_OPS.reconcile, arguments: args, reason: 'please', ...extra })).body.id as string
+const propose = async (args: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+  (await k.call(proposer, 'POST', AR, { operation: TEST_OPS.reconcile, arguments: args, reason: 'please', ...extra }))
+    .body.id as string
 const events = async (type: string) => k.events(type)
 
 describe('direct enqueue and idempotency (D51)', () => {
@@ -53,13 +55,26 @@ describe('direct enqueue and idempotency (D51)', () => {
     })
     const rows = await k.execs()
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ id: r.body.id, status: 'queued', attempts: 0, resolution: { anchor: 'anchor-1' }, action_request_id: null, lease_token: null, dispatched_at: null })
+    expect(rows[0]).toMatchObject({
+      id: r.body.id,
+      status: 'queued',
+      attempts: 0,
+      resolution: { anchor: 'anchor-1' },
+      action_request_id: null,
+      lease_token: null,
+      dispatched_at: null,
+    })
     expect(rows[0]!.client_ref).toBe(`${r.body.id}@test.invalid`)
     expect(Date.parse(rows[0]!.deadline_at as string) - k.now().getTime()).toBe(10 * 60_000)
     expect(rows[0]!.input_hash).toMatch(/^[0-9a-f]{64}$/)
     const created = await events('action_execution.created')
     expect(created).toHaveLength(1)
-    expect(created[0]).toMatchObject({ actor_id: writer.id, resource_type: 'action_execution', resource_id: r.body.id, before: null })
+    expect(created[0]).toMatchObject({
+      actor_id: writer.id,
+      resource_type: 'action_execution',
+      resource_id: r.body.id,
+      before: null,
+    })
     expect((created[0]!.after as Record<string, unknown>).status).toBe('queued')
     expect(k.starts).toBe(1)
   })
@@ -124,9 +139,15 @@ describe('direct enqueue and idempotency (D51)', () => {
     expect(first.status).toBe(202)
     const again = await k.enqueue(writer, { text: 'x', once: 'tok', idempotency_key: 'k1' })
     expect([again.status, again.body.id]).toEqual([202, first.body.id])
-    expect(code(await k.enqueue(writer, { text: 'y', once: 'tok', idempotency_key: 'k1' }))).toEqual([409, 'idempotency_key_reused'])
+    expect(code(await k.enqueue(writer, { text: 'y', once: 'tok', idempotency_key: 'k1' }))).toEqual([
+      409,
+      'idempotency_key_reused',
+    ])
     // A NEW key with the same token is authorised, and refused.
-    expect(code(await k.enqueue(writer, { text: 'x', once: 'tok', idempotency_key: 'k2' }))).toEqual([409, 'anchor_retracted'])
+    expect(code(await k.enqueue(writer, { text: 'x', once: 'tok', idempotency_key: 'k2' }))).toEqual([
+      409,
+      'anchor_retracted',
+    ])
     expect(await k.execs()).toHaveLength(1)
   })
 
@@ -141,7 +162,10 @@ describe('direct enqueue and idempotency (D51)', () => {
   })
 
   it('an unknown argument is a 400 and writes nothing', async () => {
-    expect(code(await k.enqueue(writer, { text: 'x', nope: 1, idempotency_key: 'k' }))).toEqual([400, 'validation_error'])
+    expect(code(await k.enqueue(writer, { text: 'x', nope: 1, idempotency_key: 'k' }))).toEqual([
+      400,
+      'validation_error',
+    ])
     expect(await k.execs()).toEqual([])
   })
 })
@@ -153,7 +177,12 @@ describe('queued approval is one unit (D49)', () => {
     const r = await k.call(writer, 'POST', `${AR}/${id}/approve`)
     expect(r.status).toBe(200)
     const executionId = r.body.execution_id as string
-    expect(r.body).toMatchObject({ status: 'approved', decided_by: writer.id, executed_at: null, execution_id: executionId })
+    expect(r.body).toMatchObject({
+      status: 'approved',
+      decided_by: writer.id,
+      executed_at: null,
+      execution_id: executionId,
+    })
     const rows = await k.execs()
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
@@ -181,7 +210,10 @@ describe('queued approval is one unit (D49)', () => {
     const r = await k.call(owner, 'POST', `${AR}/${id}/approve`, { edited_arguments: { text: 'edited' } })
     expect(r.status).toBe(200)
     expect((await k.execs())[0]).toMatchObject({ arguments: { text: 'edited' } })
-    expect((await k.rows('action_requests', 'id = ?', id))[0]).toMatchObject({ arguments: { text: 'original' }, edited_arguments: { text: 'edited' } })
+    expect((await k.rows('action_requests', 'id = ?', id))[0]).toMatchObject({
+      arguments: { text: 'original' },
+      edited_arguments: { text: 'edited' },
+    })
   })
 
   it('an idempotency_key in the proposal is ignored: an approved execution carries none', async () => {
@@ -195,7 +227,11 @@ describe('queued approval is one unit (D49)', () => {
     const eventsBefore = (await k.events()).length
     const r = await k.call(owner, 'POST', `${AR}/${id}/approve`, { edited_arguments: { text: 'x', refuse: true } })
     expect(code(r)).toEqual([409, 'test_refused'])
-    expect((await k.rows('action_requests', 'id = ?', id))[0]).toMatchObject({ status: 'pending', decided_by: null, decided_at: null })
+    expect((await k.rows('action_requests', 'id = ?', id))[0]).toMatchObject({
+      status: 'pending',
+      decided_by: null,
+      decided_at: null,
+    })
     expect(await k.execs()).toEqual([])
     expect((await k.events()).length).toBe(eventsBefore)
     expect(k.starts).toBe(0)
@@ -268,7 +304,9 @@ describe('discovery (D40, D51, D57)', () => {
     expect(body.required).toContain('idempotency_key')
     expect(body.properties.idempotency_key).toMatchObject({ type: 'string', minLength: 1, maxLength: 200 })
     expect(op['x-vibase-proposal']).toMatchObject({ eligible: true, request_scope: 'tasks:request_approval' })
-    const enumValues = (doc.paths['/api/v1/action-requests'].post.requestBody.content['application/json'].schema.properties.operation.enum as string[]) ?? []
+    const enumValues =
+      (doc.paths['/api/v1/action-requests'].post.requestBody.content['application/json'].schema.properties.operation
+        .enum as string[]) ?? []
     expect(enumValues).toContain(TEST_OPS.reconcile)
   })
 

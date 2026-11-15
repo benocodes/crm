@@ -14,13 +14,18 @@ function harness(respond: (n: number) => Response, tokens: string[] = [TOKEN]) {
   const client = new HttpGmailClient({
     accessToken: async () => tokens[Math.min(tokenCalls++, tokens.length - 1)]!,
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
-      seen.push({ url: String(input), method: init?.method, authorization: new Headers(init?.headers).get('authorization') })
+      seen.push({
+        url: String(input),
+        method: init?.method,
+        authorization: new Headers(init?.headers).get('authorization'),
+      })
       return respond(seen.length)
     }) as typeof fetch,
   })
   return { client, seen, tokenCalls: () => tokenCalls }
 }
-const json = (body: unknown, init: ResponseInit = {}): Response => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' }, ...init })
+const json = (body: unknown, init: ResponseInit = {}): Response =>
+  new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' }, ...init })
 const B = 'https://gmail.googleapis.com/gmail/v1/users/me/messages'
 
 describe('HttpGmailClient requests', () => {
@@ -52,9 +57,21 @@ describe('HttpGmailClient requests', () => {
   })
 
   it('returns a streaming body without reading it (raw and attachment)', async () => {
-    for (const call of [(c: HttpGmailClient) => c.getMessageRaw('a'), (c: HttpGmailClient) => c.getAttachment('a', 'b')]) {
+    for (const call of [
+      (c: HttpGmailClient) => c.getMessageRaw('a'),
+      (c: HttpGmailClient) => c.getAttachment('a', 'b'),
+    ]) {
       let pulls = 0
-      const body = new ReadableStream<Uint8Array>({ pull(c) { pulls++; c.enqueue(new TextEncoder().encode('{"raw":"QQ"}')); c.close() } }, { highWaterMark: 0 })
+      const body = new ReadableStream<Uint8Array>(
+        {
+          pull(c) {
+            pulls++
+            c.enqueue(new TextEncoder().encode('{"raw":"QQ"}'))
+            c.close()
+          },
+        },
+        { highWaterMark: 0 },
+      )
       const h = harness(() => new Response(body))
       const stream = await call(h.client)
       expect(pulls).toBe(0)
@@ -66,12 +83,29 @@ describe('HttpGmailClient requests', () => {
 
 describe('HttpGmailClient errors', () => {
   it('a non-2xx is a GmailApiError with status, Gmail status and reason, and Retry-After', async () => {
-    const body = { error: { code: 429, message: 'User-rate limit exceeded', status: 'RESOURCE_EXHAUSTED', errors: [{ reason: 'userRateLimitExceeded', message: 'x' }] } }
+    const body = {
+      error: {
+        code: 429,
+        message: 'User-rate limit exceeded',
+        status: 'RESOURCE_EXHAUSTED',
+        errors: [{ reason: 'userRateLimitExceeded', message: 'x' }],
+      },
+    }
     const h = harness(() => json(body, { status: 429, headers: { 'retry-after': '30' } }))
-    for (const call of [() => h.client.getMessageFull('a'), () => h.client.getMessageRaw('a'), () => h.client.getAttachment('a', 'b')]) {
+    for (const call of [
+      () => h.client.getMessageFull('a'),
+      () => h.client.getMessageRaw('a'),
+      () => h.client.getAttachment('a', 'b'),
+    ]) {
       const err = await call().catch((e: unknown) => e)
       expect(err).toBeInstanceOf(GmailApiError)
-      expect(err).toMatchObject({ status: 429, gmailStatus: 'RESOURCE_EXHAUSTED', reason: 'userRateLimitExceeded', retryAfter: '30', retryAfterSeconds: 30 })
+      expect(err).toMatchObject({
+        status: 429,
+        gmailStatus: 'RESOURCE_EXHAUSTED',
+        reason: 'userRateLimitExceeded',
+        retryAfter: '30',
+        retryAfterSeconds: 30,
+      })
     }
   })
 
@@ -86,18 +120,43 @@ describe('HttpGmailClient errors', () => {
   it('a non-JSON error body still gives the status', async () => {
     const h = harness(() => new Response('<html>bad gateway</html>', { status: 502 }))
     const err = (await h.client.getMessageFull('a').catch((e: unknown) => e)) as GmailApiError
-    expect(err).toMatchObject({ status: 502, gmailStatus: null, reason: null, retryAfter: null, retryAfterSeconds: null })
+    expect(err).toMatchObject({
+      status: 502,
+      gmailStatus: null,
+      reason: null,
+      retryAfter: null,
+      retryAfterSeconds: null,
+    })
   })
 
   it('404 carries NOT_FOUND', async () => {
-    const h = harness(() => json({ error: { code: 404, status: 'NOT_FOUND', errors: [{ reason: 'notFound' }] } }, { status: 404 }))
-    expect(await h.client.getMessageFull('a').catch((e: unknown) => e)).toMatchObject({ status: 404, gmailStatus: 'NOT_FOUND', reason: 'notFound' })
+    const h = harness(() =>
+      json({ error: { code: 404, status: 'NOT_FOUND', errors: [{ reason: 'notFound' }] } }, { status: 404 }),
+    )
+    expect(await h.client.getMessageFull('a').catch((e: unknown) => e)).toMatchObject({
+      status: 404,
+      gmailStatus: 'NOT_FOUND',
+      reason: 'notFound',
+    })
   })
 
   it('the token never appears in an error, its message, its string form or its JSON, even when the response echoes it', async () => {
-    const h = harness(() => json({ error: { code: 401, status: 'UNAUTHENTICATED', message: `Bearer ${TOKEN} is invalid`, errors: [{ reason: 'authError' }] } }, { status: 401 }))
+    const h = harness(() =>
+      json(
+        {
+          error: {
+            code: 401,
+            status: 'UNAUTHENTICATED',
+            message: `Bearer ${TOKEN} is invalid`,
+            errors: [{ reason: 'authError' }],
+          },
+        },
+        { status: 401 },
+      ),
+    )
     const err = (await h.client.getMessageFull('a').catch((e: unknown) => e)) as GmailApiError
-    for (const text of [err.message, String(err), JSON.stringify(err), err.stack ?? '', Object.values(err).join('|')]) expect(text).not.toContain(TOKEN)
+    for (const text of [err.message, String(err), JSON.stringify(err), err.stack ?? '', Object.values(err).join('|')])
+      expect(text).not.toContain(TOKEN)
     expect(err.message).toContain('401')
   })
 })
@@ -107,14 +166,26 @@ describe('HttpGmailClient account calls (CHN140)', () => {
   const U = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
   it('getProfile: GET users/me/profile with the bearer token, parsed', async () => {
-    const h = harness(() => json({ emailAddress: 'ann@example.test', historyId: '4242', messagesTotal: 3, threadsTotal: 2 }))
+    const h = harness(() =>
+      json({ emailAddress: 'ann@example.test', historyId: '4242', messagesTotal: 3, threadsTotal: 2 }),
+    )
     expect(await h.client.getProfile()).toMatchObject({ emailAddress: 'ann@example.test', historyId: '4242' })
     expect(h.seen).toEqual([{ url: `${U}/profile`, method: 'GET', authorization: `Bearer ${TOKEN}` }])
   })
 
   it('listSendAs: GET users/me/settings/sendAs and returns the entries (an empty answer is an empty list)', async () => {
-    const h = harness(() => json({ sendAs: [{ sendAsEmail: 'ann@example.test', isPrimary: true }, { sendAsEmail: 'sales@example.test', verificationStatus: 'accepted' }] }))
-    expect(await h.client.listSendAs()).toEqual([{ sendAsEmail: 'ann@example.test', isPrimary: true }, { sendAsEmail: 'sales@example.test', verificationStatus: 'accepted' }])
+    const h = harness(() =>
+      json({
+        sendAs: [
+          { sendAsEmail: 'ann@example.test', isPrimary: true },
+          { sendAsEmail: 'sales@example.test', verificationStatus: 'accepted' },
+        ],
+      }),
+    )
+    expect(await h.client.listSendAs()).toEqual([
+      { sendAsEmail: 'ann@example.test', isPrimary: true },
+      { sendAsEmail: 'sales@example.test', verificationStatus: 'accepted' },
+    ])
     expect(h.seen[0]!.url).toBe(`${U}/settings/sendAs`)
     expect(await harness(() => json({})).client.listSendAs()).toEqual([])
   })
@@ -131,7 +202,10 @@ describe('HttpGmailClient account calls (CHN140)', () => {
 
   it('the FakeGmail counterparts answer the same shapes and record their calls', async () => {
     const { FakeGmail } = await import('../../test/gmail.js')
-    const fake = new FakeGmail([], { profile: { emailAddress: 'ann@example.test', historyId: '77' }, sendAs: [{ sendAsEmail: 'ann@example.test', isPrimary: true }] })
+    const fake = new FakeGmail([], {
+      profile: { emailAddress: 'ann@example.test', historyId: '77' },
+      sendAs: [{ sendAsEmail: 'ann@example.test', isPrimary: true }],
+    })
     expect(await fake.getProfile()).toEqual({ emailAddress: 'ann@example.test', historyId: '77' })
     expect(await fake.listSendAs()).toEqual([{ sendAsEmail: 'ann@example.test', isPrimary: true }])
     expect(fake.accountCalls).toEqual(['profile', 'send_as'])
@@ -161,7 +235,11 @@ describe('HttpGmailClient watch and stop', () => {
     expect(h.seen[0]!.method).toBe('POST')
     expect(h.seen[0]!.headers.get('authorization')).toBe(`Bearer ${TOKEN}`)
     expect(h.seen[0]!.headers.get('content-type')).toBe('application/json')
-    expect(JSON.parse(h.seen[0]!.body as string)).toEqual({ topicName: 'projects/p/topics/t', labelIds: ['INBOX', 'SENT'], labelFilterBehavior: 'include' })
+    expect(JSON.parse(h.seen[0]!.body as string)).toEqual({
+      topicName: 'projects/p/topics/t',
+      labelIds: ['INBOX', 'SENT'],
+      labelFilterBehavior: 'include',
+    })
   })
   it.each([
     ['no expiration', { historyId: '1' }],
@@ -171,10 +249,15 @@ describe('HttpGmailClient watch and stop', () => {
     ['an empty object', {}],
   ])('watch: %s is a failure, never a guessed expiry', async (_n, body) => {
     const h = post(() => json(body))
-    await expect(h.client.watch({ topicName: 't' })).rejects.toMatchObject({ name: 'GmailApiError', reason: 'bad_watch_response' })
+    await expect(h.client.watch({ topicName: 't' })).rejects.toMatchObject({
+      name: 'GmailApiError',
+      reason: 'bad_watch_response',
+    })
   })
   it('watch: a non-2xx is a GmailApiError with status and reason, carrying neither the topic nor the token', async () => {
-    const h = post(() => json({ error: { code: 403, status: 'PERMISSION_DENIED', errors: [{ reason: 'forbidden' }] } }, { status: 403 }))
+    const h = post(() =>
+      json({ error: { code: 403, status: 'PERMISSION_DENIED', errors: [{ reason: 'forbidden' }] } }, { status: 403 }),
+    )
     const err = await h.client.watch({ topicName: 'projects/secret/topics/t' }).catch((x) => x)
     expect(err).toBeInstanceOf(GmailApiError)
     expect(err).toMatchObject({ status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'forbidden' })

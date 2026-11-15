@@ -28,7 +28,11 @@ describe('the written workers.dev block under wrangler', () => {
       expect(cfg.routes ?? []).toEqual([])
       expect(cfg.name).toBe('vb-acme')
 
-      const moved = await runSetup(['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai', '--change-host'], { CONFIRM_REMOTE: '1' }, w.deps)
+      const moved = await runSetup(
+        ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai', '--change-host'],
+        { CONFIRM_REMOTE: '1' },
+        w.deps,
+      )
       expect(moved.exitCode, w.logs.join('\n')).toBe(0)
       writeFileSync(COPY, w.state.configText)
       const after = unstable_readConfig({ config: COPY, env: 'acme' })

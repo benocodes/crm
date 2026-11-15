@@ -51,14 +51,20 @@ const ORG: Col = ['organization_id', 'uuid', false, false]
 const SHAPES: Record<string, Col[]> = {
   principals: [ID, CREATED, ['kind', 'text', false, false]],
   agents: [
-    ID_NO_DEFAULT, CREATED, UPDATED, ORG,
+    ID_NO_DEFAULT,
+    CREATED,
+    UPDATED,
+    ORG,
     ['name', 'text', false, false],
     ['scopes', '_text', false, true],
     ['disabled_at', 'timestamptz', true, false],
     ['created_by', 'uuid', false, false],
   ],
   api_keys: [
-    ID, CREATED, UPDATED, ORG,
+    ID,
+    CREATED,
+    UPDATED,
+    ORG,
     ['agent_id', 'uuid', false, false],
     ['key_hash', 'text', false, false],
     ['prefix', 'text', false, false],
@@ -68,7 +74,9 @@ const SHAPES: Record<string, Col[]> = {
     ['created_by', 'uuid', false, false],
   ],
   events: [
-    ID, CREATED, ORG,
+    ID,
+    CREATED,
+    ORG,
     ['type', 'text', false, false],
     ['resource_type', 'text', false, false],
     ['resource_id', 'uuid', false, false],
@@ -77,7 +85,10 @@ const SHAPES: Record<string, Col[]> = {
     ['after', 'jsonb', true, false],
   ],
   tasks: [
-    ID, CREATED, UPDATED, ORG,
+    ID,
+    CREATED,
+    UPDATED,
+    ORG,
     ['title', 'text', false, false],
     ['notes', 'text', true, false],
     ['status', 'text', false, true],
@@ -92,7 +103,12 @@ const SHAPES: Record<string, Col[]> = {
 describe('migration 001 baseline', () => {
   for (const table of TABLES.filter((t) => t in SHAPES)) {
     it(`column shapes: ${table}`, async () => {
-      const rows = await q<{ column_name: string; udt_name: string; is_nullable: string; column_default: string | null }>(
+      const rows = await q<{
+        column_name: string
+        udt_name: string
+        is_nullable: string
+        column_default: string | null
+      }>(
         `SELECT column_name, udt_name, is_nullable, column_default FROM information_schema.columns
          WHERE table_schema = 'public' AND table_name = $1`,
         [table],
@@ -143,7 +159,10 @@ describe('migration 001 baseline', () => {
       await sqlstate(async (c) => {
         const o = await org(c)
         const u = await user(c, 'a@x.test')
-        await c.query(`INSERT INTO tasks (organization_id, title, status, created_by) VALUES ($1, 't', 'archived', $2)`, [o, u])
+        await c.query(
+          `INSERT INTO tasks (organization_id, title, status, created_by) VALUES ($1, 't', 'archived', $2)`,
+          [o, u],
+        )
       }),
     ).toBe('23514')
   })

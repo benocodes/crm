@@ -7,10 +7,18 @@ import { join } from 'node:path'
 const sha = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex')
 
 /** `npm pack` each directory into `dist` (npm's own names for the scoped packages), drop every other tarball, and write `SHA256SUMS` over the two in `sha256sum` format. */
-export function packRelease(o: { clientDir: string; serverDir: string; dist: string; version: string }): { client: string; server: string; sums: string } {
+export function packRelease(o: { clientDir: string; serverDir: string; dist: string; version: string }): {
+  client: string
+  server: string
+  sums: string
+} {
   mkdirSync(o.dist, { recursive: true })
   for (const f of readdirSync(o.dist)) if (f.endsWith('.tgz') || f === 'SHA256SUMS') rmSync(join(o.dist, f))
-  for (const dir of [o.clientDir, o.serverDir]) execFileSync('npm', ['pack', '--pack-destination', o.dist, '--ignore-scripts', '--silent'], { cwd: dir, stdio: ['ignore', 'ignore', 'inherit'] })
+  for (const dir of [o.clientDir, o.serverDir])
+    execFileSync('npm', ['pack', '--pack-destination', o.dist, '--ignore-scripts', '--silent'], {
+      cwd: dir,
+      stdio: ['ignore', 'ignore', 'inherit'],
+    })
   const client = join(o.dist, `vibase-cli-${o.version}.tgz`)
   const server = join(o.dist, `vibase-server-d1-${o.version}.tgz`)
   for (const t of [client, server]) if (!existsSync(t)) throw new Error(`npm pack did not produce ${t}`)

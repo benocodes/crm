@@ -41,7 +41,11 @@ export interface InstanceDeps {
   /** Runs the package's own wrangler with `args` (never a global, never `pnpm exec`). `env` is the whole child environment; `input` goes on stdin (`secret bulk`), never argv. */
   runWrangler(args: string[], opts: { cwd: string; env: Record<string, string>; input?: string }): RunResult
   /** `setup`'s bootstrap ([[OPS232]] P3): the instance's remote D1 through the installed package's own wrangler `getPlatformProxy`, on the generated config. `env` carries the two Cloudflare values. */
-  openD1(o: OpenD1Options): Promise<{ d1: D1Like; /** `CONTROL_DB`, when the generated config binds one ([[OPS279]]). */ control?: D1Like; dispose(): Promise<void> }>
+  openD1(o: OpenD1Options): Promise<{
+    d1: D1Like /** `CONTROL_DB`, when the generated config binds one ([[OPS279]]). */
+    control?: D1Like
+    dispose(): Promise<void>
+  }>
   /** The process environment (XDG_CONFIG_HOME, CLOUDFLARE_*, PATH, HOME). */
   env: Record<string, string | undefined>
   homedir: string
@@ -55,4 +59,5 @@ export interface InstanceDeps {
 }
 
 /** A refusal of either kind: `InstanceRefusal`, or `RemoteRefusal` from `resolveTarget` / `requireConfirm` (it has its own class in `remote.ts`). */
-export const isRefusal = (e: unknown): e is Error => e instanceof InstanceRefusal || (e instanceof Error && e.name === 'RemoteRefusal')
+export const isRefusal = (e: unknown): e is Error =>
+  e instanceof InstanceRefusal || (e instanceof Error && e.name === 'RemoteRefusal')

@@ -17,7 +17,17 @@ const me = (name: string | null = 'o@x.test'): Me => ({
   memberships: [],
   active_organization: { id: ID(9), role: 'owner', scopes: ['agents:read', 'agents:write', EVIL] },
 })
-const agent = (over: Partial<AgentRecord> = {}): AgentRecord => ({ id: ID(10), name: 'a', scopes: [], disabled_at: null, created_at: 'c', auth_subject: null, auth_client_id: null, delegated_by: null, ...over })
+const agent = (over: Partial<AgentRecord> = {}): AgentRecord => ({
+  id: ID(10),
+  name: 'a',
+  scopes: [],
+  disabled_at: null,
+  created_at: 'c',
+  auth_subject: null,
+  auth_client_id: null,
+  delegated_by: null,
+  ...over,
+})
 const noop = { signIn: vi.fn(), signOut: vi.fn(), toggle: vi.fn() }
 let root: HTMLElement
 beforeEach(() => {
@@ -25,7 +35,8 @@ beforeEach(() => {
   root = document.getElementById('app')!
   vi.clearAllMocks()
 })
-const show = (state: PageState, extra: { mcpUrl?: string | null; profileUrl?: string | null } = {}) => render(root, buildView(state, { origin: ORIGIN, ...extra }), noop)
+const show = (state: PageState, extra: { mcpUrl?: string | null; profileUrl?: string | null } = {}) =>
+  render(root, buildView(state, { origin: ORIGIN, ...extra }), noop)
 
 describe('the Clerk-only profile link (UI297 R5)', () => {
   it('renders from an https profile URL, and not at all without one', () => {
@@ -38,7 +49,12 @@ describe('the Clerk-only profile link (UI297 R5)', () => {
 
 describe('text only (D10)', () => {
   it('an agent name, a scope, an error and a user email shaped like markup render as text: no element is created from them', () => {
-    show({ kind: 'signed-in', me: me(EVIL), agents: [agent({ name: EVIL, scopes: [EVIL], auth_subject: EVIL, delegated_by: EVIL, auth_client_id: 'c' })], error: EVIL })
+    show({
+      kind: 'signed-in',
+      me: me(EVIL),
+      agents: [agent({ name: EVIL, scopes: [EVIL], auth_subject: EVIL, delegated_by: EVIL, auth_client_id: 'c' })],
+      error: EVIL,
+    })
     expect(root.querySelectorAll('img').length).toBe(0)
     expect(root.querySelectorAll('[onerror]').length).toBe(0)
     expect(root.textContent).toContain(EVIL)
@@ -50,7 +66,9 @@ describe('text only (D10)', () => {
     show({ kind: 'signed-in', me: me(), agents: [] }, { profileUrl: 'javascript:alert(1)' })
     expect([...root.querySelectorAll('a')].some((a) => a.getAttribute('href')?.startsWith('javascript:'))).toBe(false)
     show({ kind: 'signed-in', me: me(), agents: [] }, { profileUrl: 'https://accounts.example/user' })
-    expect([...root.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toContain('https://accounts.example/user')
+    expect([...root.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toContain(
+      'https://accounts.example/user',
+    )
   })
 })
 
@@ -75,7 +93,10 @@ describe('render', () => {
     expect(buttons.map((b) => b.textContent)).toEqual(['Disable', 'Enable'])
     buttons[0]!.click()
     buttons[1]!.click()
-    expect(noop.toggle.mock.calls).toEqual([[ID(10), true], [ID(11), false]])
+    expect(noop.toggle.mock.calls).toEqual([
+      [ID(10), true],
+      [ID(11), false],
+    ])
     root.querySelector<HTMLButtonElement>('[data-action="sign-out"]')!.click()
     expect(noop.signOut).toHaveBeenCalledOnce()
   })

@@ -7,8 +7,14 @@ import { buildCli } from './build.js'
 
 const CLI_PKG = new URL('../package.json', import.meta.url).pathname
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
-const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'ops210-cli-')); dirs.push(d); return d }
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
+const tmp = () => {
+  const d = mkdtempSync(join(tmpdir(), 'ops210-cli-'))
+  dirs.push(d)
+  return d
+}
 const version = (file: string) => execFileSync('node', [file, '--version'], { encoding: 'utf8' }).trim()
 
 describe('D1 one product version (OPS237: the fixed group of the two workspace packages)', () => {

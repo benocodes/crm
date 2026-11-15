@@ -6,7 +6,12 @@ import type { UserAuthenticator } from '../auth/types.js'
 const b64 = (s: string) => Buffer.from(s).toString('base64url')
 
 /** A JWT-shaped string with an unverified payload. `kind: 'agent'` makes the principal an agent (storage-level suites that have no API-key table). */
-export function mintTestUserToken(args: { userId: string; organizationId: string | null; scopes: string[]; kind?: 'user' | 'agent' }): string {
+export function mintTestUserToken(args: {
+  userId: string
+  organizationId: string | null
+  scopes: string[]
+  kind?: 'user' | 'agent'
+}): string {
   return `${b64('{"alg":"none"}')}.${b64(JSON.stringify(args))}.x`
 }
 
@@ -20,7 +25,11 @@ export function fakeUserAuthenticator(): UserAuthenticator {
         scopes: string[]
         kind?: 'user' | 'agent'
       }
-      return { actor: { id: p.userId, kind: p.kind ?? 'user' }, organizationId: p.organizationId, scopes: ScopeSet.closed(p.scopes) }
+      return {
+        actor: { id: p.userId, kind: p.kind ?? 'user' },
+        organizationId: p.organizationId,
+        scopes: ScopeSet.closed(p.scopes),
+      }
     },
   }
 }

@@ -11,8 +11,11 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`
 }
 
-const hex = (bytes: ArrayBuffer): string => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
+const hex = (bytes: ArrayBuffer): string =>
+  [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
 
 export async function inputHash(operation: string, args: Record<string, unknown>): Promise<string> {
-  return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalJson({ operation, arguments: args }))))
+  return hex(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalJson({ operation, arguments: args }))),
+  )
 }

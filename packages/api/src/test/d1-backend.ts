@@ -45,7 +45,11 @@ export function d1Backend(): ContractBackend {
             await seedPrincipal(d1, { id: t.userId, kind: 'user' })
             await seedMembership(d1, { organizationId: t.organizationId, userId: t.userId, role: 'owner' })
             await seedAgent(d1, { id: t.agentId, organizationId: t.organizationId, createdBy: t.userId })
-            const binding = d1Binding(d1, { organizationId: t.organizationId, authProvider: 'clerk', authOrgId: CONTRACT_ORG_LINK })
+            const binding = d1Binding(d1, {
+              organizationId: t.organizationId,
+              authProvider: 'clerk',
+              authOrgId: CONTRACT_ORG_LINK,
+            })
             const app = createApp({ registry, userAuthenticator: fakeUserAuthenticator(), storage: () => binding })
             byOrg.set(t.organizationId, { d1, app, binding })
             tenants.push(t)
@@ -79,7 +83,12 @@ export function d1Backend(): ContractBackend {
           const d1 = byOrg.get(t.organizationId)!.d1
           const full = withTenantDefaults(table, row, t)
           const cols = Object.keys(full)
-          await d1.prepare(`INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...cols.map((c) => d1Value(full[c]))).run()
+          await d1
+            .prepare(
+              `INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+            )
+            .bind(...cols.map((c) => d1Value(full[c])))
+            .run()
           return full as Record<string, any>
         },
         capture: (t, input) => captureAs(byOrg.get(t.organizationId)!.binding, t, input),
@@ -87,7 +96,9 @@ export function d1Backend(): ContractBackend {
           const rows: EventRow[] = []
           for (const { d1 } of all()) {
             const r = await d1.prepare('SELECT * FROM events WHERE resource_id = ? ORDER BY seq').bind(id).all()
-            rows.push(...(r.results as EventRow[]).map((e) => ({ ...e, before: parse(e.before), after: parse(e.after) })))
+            rows.push(
+              ...(r.results as EventRow[]).map((e) => ({ ...e, before: parse(e.before), after: parse(e.after) })),
+            )
           }
           return rows
         },

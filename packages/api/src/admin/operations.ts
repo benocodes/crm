@@ -53,7 +53,8 @@ export function adminOperations(): TenantOperation[] {
       request: { body: createKeyBody },
       response: { status: 201, schema: apiKeyRecord.extend({ key: z.string() }) },
       // The only async prepare: the key is hashed (Web Crypto) before the unit is built, from the injected random source.
-      prepare: async (env, input) => issueApiKeyOperation(env, input.body as z.infer<typeof createKeyBody>, await generateApiKey(env.randomBytes)),
+      prepare: async (env, input) =>
+        issueApiKeyOperation(env, input.body as z.infer<typeof createKeyBody>, await generateApiKey(env.randomBytes)),
     },
     {
       ...base,

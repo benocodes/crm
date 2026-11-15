@@ -50,7 +50,12 @@ describe('contacts.merge preparation', () => {
 
 describe('identities.resolve preparation', () => {
   it('prefixes a normalisation failure with the entry index', () => {
-    const e = apiError(() => resolveOperation(env(), [{ kind: 'email', value: 'ok@example.com' }, { kind: 'phone', value: 'abc' }]))
+    const e = apiError(() =>
+      resolveOperation(env(), [
+        { kind: 'email', value: 'ok@example.com' },
+        { kind: 'phone', value: 'abc' },
+      ]),
+    )
     expect(e.code).toBe('invalid_identity')
     expect(e.message.startsWith('identities[1]: ')).toBe(true)
   })
@@ -61,56 +66,64 @@ describe('identities.resolve preparation', () => {
   })
   it('refuses more entries than the runtime cap', () => {
     const entries = Array.from({ length: 4 }, (_, i) => ({ kind: 'email' as const, value: `a${i}@example.com` }))
-    expect(() => compileOperation(resolveOperation(env(), entries), 'd1', {}, { maxSetSize: 3 })).toThrow(SetLimitExceeded)
+    expect(() => compileOperation(resolveOperation(env(), entries), 'd1', {}, { maxSetSize: 3 })).toThrow(
+      SetLimitExceeded,
+    )
   })
 })
 
-describe.each(['postgres', 'd1'] as const)('statement counts are constant in the set size (D5) on %s', (dialect: Dialect) => {
-  const resolveCount = (n: number) =>
-    compileOperation(
-      resolveOperation(env(), Array.from({ length: n }, (_, i) => ({ kind: 'email' as const, value: `n${i}@example.com`, name: `N${i}` }))),
-      dialect,
-    ).statements.length
+describe.each(['postgres', 'd1'] as const)(
+  'statement counts are constant in the set size (D5) on %s',
+  (dialect: Dialect) => {
+    const resolveCount = (n: number) =>
+      compileOperation(
+        resolveOperation(
+          env(),
+          Array.from({ length: n }, (_, i) => ({ kind: 'email' as const, value: `n${i}@example.com`, name: `N${i}` })),
+        ),
+        dialect,
+      ).statements.length
 
-  it('resolve: 1 new address and 10 new addresses compile to the same number of statements', () => {
-    expect(resolveCount(1)).toBeGreaterThan(0)
-    expect(resolveCount(10)).toBe(resolveCount(1))
-  })
+    it('resolve: 1 new address and 10 new addresses compile to the same number of statements', () => {
+      expect(resolveCount(1)).toBeGreaterThan(0)
+      expect(resolveCount(10)).toBe(resolveCount(1))
+    })
 
-  const contactRow = (id: string) => ({
-    id,
-    organization_id: ORG,
-    name: null,
-    company_id: null,
-    merged_into_id: null,
-    created_by: USER,
-    created_at: AT,
-    updated_at: AT,
-    __stamp: AT,
-  })
-  const identityRow = (n: number) => ({
-    id: uuid(n),
-    organization_id: ORG,
-    kind: 'email',
-    value: `m${n}@example.com`,
-    contact_id: SOURCE,
-    own: false,
-    created_by: USER,
-    created_at: AT,
-    updated_at: AT,
-  })
-  const mergeCount = (n: number) =>
-    compileOperation(mergeOperation(env(), SURVIVOR, SOURCE), dialect, {
-      [mergeReadKeys.survivor]: contactRow(SURVIVOR),
-      [mergeReadKeys.source]: contactRow(SOURCE),
-      [mergeReadKeys.refs(0)]: Array.from({ length: n }, (_, i) => identityRow(i + 1)),
-    }).statements.length
+    const contactRow = (id: string) => ({
+      id,
+      organization_id: ORG,
+      name: null,
+      company_id: null,
+      merged_into_id: null,
+      created_by: USER,
+      created_at: AT,
+      updated_at: AT,
+      __stamp: AT,
+    })
+    const identityRow = (n: number) => ({
+      id: uuid(n),
+      organization_id: ORG,
+      kind: 'email',
+      value: `m${n}@example.com`,
+      contact_id: SOURCE,
+      own: false,
+      created_by: USER,
+      created_at: AT,
+      updated_at: AT,
+    })
+    const mergeCount = (n: number) =>
+      compileOperation(mergeOperation(env(), SURVIVOR, SOURCE), dialect, {
+        [mergeReadKeys.survivor]: contactRow(SURVIVOR),
+        [mergeReadKeys.source]: contactRow(SOURCE),
+        [mergeReadKeys.refs(0)]: Array.from({ length: n }, (_, i) => identityRow(i + 1)),
+      }).statements.length
 
-  it('merge: a source with 1 identity and with 10 identities compile to the same number of statements', () => {
-    expect(mergeCount(1)).toBeGreaterThan(0)
-    expect(mergeCount(10)).toBe(mergeCount(1))
-  })
-})
+    it('merge: a source with 1 identity and with 10 identities compile to the same number of statements', () => {
+      expect(mergeCount(1)).toBeGreaterThan(0)
+      expect(mergeCount(10)).toBe(mergeCount(1))
+    })
+  },
+)
 
 describe('identities create: the owner rule is pure preparation', () => {
   it.each([
@@ -118,6 +131,10 @@ describe('identities create: the owner rule is pure preparation', () => {
     [{ kind: 'email', value: 'a@b.com' }],
   ])('refuses %j before any read', (body) => {
     const e = apiError(() => createOperation(identities, env(), body))
-    expect([e.status, e.code, e.message]).toEqual([400, 'validation_error', 'exactly one of contact_id or own: true is required'])
+    expect([e.status, e.code, e.message]).toEqual([
+      400,
+      'validation_error',
+      'exactly one of contact_id or own: true is required',
+    ])
   })
 })

@@ -68,34 +68,58 @@ export const IDENTITY_REFERENCES: readonly { table: string; column: string }[] =
  * FK scan cannot see it. `mergeOperation` re-points these itself (soft-deleting self-associations and duplicates); the
  * catalog guard finds every `<x>_type`/`<x>_id` pair on D1 and requires it here or in the exemptions.
  */
-export const CONTACT_NON_FK_REFERENCES: readonly { table: string; columns: readonly { id: string; type: string }[] }[] = [
-  { table: 'associations', columns: [{ id: 'a_id', type: 'a_type' }, { id: 'b_id', type: 'b_type' }] },
-]
+export const CONTACT_NON_FK_REFERENCES: readonly { table: string; columns: readonly { id: string; type: string }[] }[] =
+  [
+    {
+      table: 'associations',
+      columns: [
+        { id: 'a_id', type: 'a_type' },
+        { id: 'b_id', type: 'b_type' },
+      ],
+    },
+  ]
 /**
  * Polymorphic ids that merge must not touch: the audit log names records as they were, and a webhook delivery's `event_id` ([[API219]]; its `event_type` makes it look like a typed
  * reference to the scan) is a position in that log, never a contact.
  */
-export const CONTACT_NON_FK_EXEMPTIONS: readonly { table: string; column: string }[] = [{ table: 'events', column: 'resource_id' }, { table: 'webhook_deliveries', column: 'event_id' }]
+export const CONTACT_NON_FK_EXEMPTIONS: readonly { table: string; column: string }[] = [
+  { table: 'events', column: 'resource_id' },
+  { table: 'webhook_deliveries', column: 'event_id' },
+]
 
 /** FKs to contacts(id) that merge must NOT re-point: the tombstone pointer itself (D10). */
-export const CONTACT_REFERENCE_EXEMPTIONS: readonly { table: string; column: string }[] = [{ table: 'contacts', column: 'merged_into_id' }]
+export const CONTACT_REFERENCE_EXEMPTIONS: readonly { table: string; column: string }[] = [
+  { table: 'contacts', column: 'merged_into_id' },
+]
 
 /** The plan-read keys of a merge program (namespaced so it can share a unit with other programs). */
-export const mergeReadKeys = { survivor: 'merge:survivor', source: 'merge:source', refs: (i: number) => `merge:refs:${i}`, dups: (i: number) => `merge:dups:${i}`, edges: 'merge:edges' }
+export const mergeReadKeys = {
+  survivor: 'merge:survivor',
+  source: 'merge:source',
+  refs: (i: number) => `merge:refs:${i}`,
+  dups: (i: number) => `merge:dups:${i}`,
+  edges: 'merge:edges',
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 type Loose = Kysely<Record<string, Record<string, unknown>>>
 const loose = (qc: QueryContext): Loose => qc.db as never as Loose
 const notFound = () => new ApiError(404, 'not_found', 'contact not found')
 // [[CORE62]] D16: the edge's other end, and the canonical pair after the source is replaced by the survivor, computed in SQL from the old row.
-const isSource = (src: string) => sql`(${sql.ref('associations.a_type')} = 'contacts' and ${sql.ref('associations.a_id')} = ${src})`
-const otherType = (src: string) => sql`(case when ${isSource(src)} then ${sql.ref('associations.b_type')} else ${sql.ref('associations.a_type')} end)`
-const otherId = (src: string) => sql`(case when ${isSource(src)} then ${sql.ref('associations.b_id')} else ${sql.ref('associations.a_id')} end)`
-const otherFirst = (src: string, survivor: string) => sql`(${otherType(src)} < 'contacts' or (${otherType(src)} = 'contacts' and ${otherId(src)} < ${survivor}))`
+const isSource = (src: string) =>
+  sql`(${sql.ref('associations.a_type')} = 'contacts' and ${sql.ref('associations.a_id')} = ${src})`
+const otherType = (src: string) =>
+  sql`(case when ${isSource(src)} then ${sql.ref('associations.b_type')} else ${sql.ref('associations.a_type')} end)`
+const otherId = (src: string) =>
+  sql`(case when ${isSource(src)} then ${sql.ref('associations.b_id')} else ${sql.ref('associations.a_id')} end)`
+const otherFirst = (src: string, survivor: string) =>
+  sql`(${otherType(src)} < 'contacts' or (${otherType(src)} = 'contacts' and ${otherId(src)} < ${survivor}))`
 function newSide(src: string, survivor: string, column: 'a_type' | 'a_id' | 'b_type' | 'b_id') {
   const first = otherFirst(src, survivor)
   const [own, other] = column.endsWith('type') ? [sql`'contacts'`, otherType(src)] : [sql`${survivor}`, otherId(src)]
-  return column.startsWith('a') ? sql`(case when ${first} then ${other} else ${own} end)` : sql`(case when ${first} then ${own} else ${other} end)`
+  return column.startsWith('a')
+    ? sql`(case when ${first} then ${other} else ${own} end)`
+    : sql`(case when ${first} then ${own} else ${other} end)`
 }
 const eventExists = (eventId: string) => sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`
 
@@ -126,8 +150,12 @@ export function mergeOperation(
       [mergeReadKeys.edges]: readSet(
         selectRecord(associations, qc, env)
           .select([
-            sql<number>`case when ${otherType(sourceId)} = 'contacts' and ${otherId(sourceId)} = ${survivorId} then 1 else 0 end`.as('__self'),
-            sql<number>`exists (select 1 from "associations" as "s" where "s"."organization_id" = ${env.organizationId} and "s"."deleted_at" is null and "s"."relation" = "associations"."relation" and "s"."a_type" = ${newSide(sourceId, survivorId, 'a_type')} and "s"."a_id" = ${newSide(sourceId, survivorId, 'a_id')} and "s"."b_type" = ${newSide(sourceId, survivorId, 'b_type')} and "s"."b_id" = ${newSide(sourceId, survivorId, 'b_id')})`.as('__dup'),
+            sql<number>`case when ${otherType(sourceId)} = 'contacts' and ${otherId(sourceId)} = ${survivorId} then 1 else 0 end`.as(
+              '__self',
+            ),
+            sql<number>`exists (select 1 from "associations" as "s" where "s"."organization_id" = ${env.organizationId} and "s"."deleted_at" is null and "s"."relation" = "associations"."relation" and "s"."a_type" = ${newSide(sourceId, survivorId, 'a_type')} and "s"."a_id" = ${newSide(sourceId, survivorId, 'a_id')} and "s"."b_type" = ${newSide(sourceId, survivorId, 'b_type')} and "s"."b_id" = ${newSide(sourceId, survivorId, 'b_id')})`.as(
+              '__dup',
+            ),
           ])
           .where(touches('contacts', sourceId))
           .orderBy(sql.ref('associations.id')),
@@ -144,7 +172,10 @@ export function mergeOperation(
             return readSet(q.orderBy(sql.ref(`${entry.table}.id`)))
           }
           // A `uniqueWith` entry also reads the SURVIVOR's live rows, to find the source rows that would collide.
-          return [[mergeReadKeys.refs(i), referencing(sourceId)] as const, ...(entry.uniqueWith ? [[mergeReadKeys.dups(i), referencing(survivorId)] as const] : [])]
+          return [
+            [mergeReadKeys.refs(i), referencing(sourceId)] as const,
+            ...(entry.uniqueWith ? [[mergeReadKeys.dups(i), referencing(survivorId)] as const] : []),
+          ]
         }),
       ),
     }),
@@ -159,7 +190,8 @@ export function mergeOperation(
 
       // Labels mark the first statement of each stage of the unit, wherever it falls.
       const used = new Set<StatementLabel>()
-      const label = (l: 'first-mutation' | 'first-event'): StatementLabel | undefined => (used.has(l) ? undefined : (used.add(l), l))
+      const label = (l: 'first-mutation' | 'first-event'): StatementLabel | undefined =>
+        used.has(l) ? undefined : (used.add(l), l)
       const steps: Step[] = []
       const events: EventReceipt[] = []
 
@@ -170,7 +202,9 @@ export function mergeOperation(
         if (entry.uniqueWith) {
           const unique = entry.uniqueWith
           const keyOf = (r: Record<string, unknown>) => JSON.stringify(unique.map((c) => r[c]))
-          const taken = new Set(found.all(mergeReadKeys.dups(i)).map((r) => keyOf(toRecord(entry.def, r) as Record<string, unknown>)))
+          const taken = new Set(
+            found.all(mergeReadKeys.dups(i)).map((r) => keyOf(toRecord(entry.def, r) as Record<string, unknown>)),
+          )
           duplicates = rows.filter((r) => taken.has(keyOf(r as Record<string, unknown>)))
           moving = rows.filter((r) => !taken.has(keyOf(r as Record<string, unknown>)))
         }
@@ -184,18 +218,33 @@ export function mergeOperation(
           if (entry.liveOnly) q = q.where(sql<SqlBool>`${sql.ref(`${entry.table}.deleted_at`)} is null`)
           return q
         }
-        const eventsFor = (set: typeof rows) => set.map((r) => ({ eventId: env.newId(), resourceId: r.id as string, before: r as Record<string, unknown> }))
+        const eventsFor = (set: typeof rows) =>
+          set.map((r) => ({ eventId: env.newId(), resourceId: r.id as string, before: r as Record<string, unknown> }))
         const receipts = (evs: ReturnType<typeof eventsFor>, type: string): EventReceipt[] =>
           evs.map((e) => ({ id: e.eventId, type, resourceType: entry.def.eventName, resourceId: e.resourceId }))
 
         if (entry.uniqueWith) {
           // Always emitted, even for an empty set: the unit's statement count does not depend on the data (D5).
           const dupIds = duplicates.map((r) => r.id as string)
-          steps.push(...exactly(qc, step(where(dupIds).set({ deleted_at: at, updated_at: at }), label('first-mutation')), dupIds.length))
+          steps.push(
+            ...exactly(
+              qc,
+              step(where(dupIds).set({ deleted_at: at, updated_at: at }), label('first-mutation')),
+              dupIds.length,
+            ),
+          )
           const evs = eventsFor(duplicates)
           steps.push(
             step(
-              eventSetStatement(qc, { at, organizationId: env.organizationId, actorId: env.actor.id, type: eventType('deleted'), resourceType: entry.def.eventName, after: null, rows: evs }),
+              eventSetStatement(qc, {
+                at,
+                organizationId: env.organizationId,
+                actorId: env.actor.id,
+                type: eventType('deleted'),
+                resourceType: entry.def.eventName,
+                after: null,
+                rows: evs,
+              }),
               label('first-event'),
             ),
           )
@@ -203,7 +252,13 @@ export function mergeOperation(
         }
 
         const ids = moving.map((r) => r.id as string)
-        steps.push(...exactly(qc, step(where(ids).set({ [entry.column]: survivorId, updated_at: at }), label('first-mutation')), ids.length))
+        steps.push(
+          ...exactly(
+            qc,
+            step(where(ids).set({ [entry.column]: survivorId, updated_at: at }), label('first-mutation')),
+            ids.length,
+          ),
+        )
         const evs = eventsFor(moving)
         steps.push(
           step(
@@ -235,14 +290,39 @@ export function mergeOperation(
             .where(sql<SqlBool>`${sql.ref('associations.deleted_at')} is null`)
             .where(touches('contacts', sourceId))
             .where(memberOf(qc, 'associations', 'id', ids))
-        const evs = (set: typeof edges) => set.map((x) => ({ eventId: env.newId(), resourceId: x.rec.id as string, before: x.rec as Record<string, unknown> }))
-        const rec = (set: ReturnType<typeof evs>, type: string): EventReceipt[] => set.map((x) => ({ id: x.eventId, type, resourceType: 'association', resourceId: x.resourceId }))
+        const evs = (set: typeof edges) =>
+          set.map((x) => ({
+            eventId: env.newId(),
+            resourceId: x.rec.id as string,
+            before: x.rec as Record<string, unknown>,
+          }))
+        const rec = (set: ReturnType<typeof evs>, type: string): EventReceipt[] =>
+          set.map((x) => ({ id: x.eventId, type, resourceType: 'association', resourceId: x.resourceId }))
         const dropped = edges.filter((x) => x.drop)
         const moving = edges.filter((x) => !x.drop)
         const dropIds = dropped.map((x) => x.rec.id as string)
-        steps.push(...exactly(qc, step(base(dropIds).set({ deleted_at: at, updated_at: at } as never), label('first-mutation')), dropIds.length))
+        steps.push(
+          ...exactly(
+            qc,
+            step(base(dropIds).set({ deleted_at: at, updated_at: at } as never), label('first-mutation')),
+            dropIds.length,
+          ),
+        )
         const dropEvents = evs(dropped)
-        steps.push(step(eventSetStatement(qc, { at, organizationId: env.organizationId, actorId: env.actor.id, type: 'association.deleted', resourceType: 'association', after: null, rows: dropEvents }), label('first-event')))
+        steps.push(
+          step(
+            eventSetStatement(qc, {
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'association.deleted',
+              resourceType: 'association',
+              after: null,
+              rows: dropEvents,
+            }),
+            label('first-event'),
+          ),
+        )
         events.push(...rec(dropEvents, 'association.deleted'))
         const moveIds = moving.map((x) => x.rec.id as string)
         steps.push(
@@ -262,7 +342,20 @@ export function mergeOperation(
           ),
         )
         const moveEvents = evs(moving)
-        steps.push(step(eventSetStatement(qc, { at, organizationId: env.organizationId, actorId: env.actor.id, type: 'association.updated', resourceType: 'association', after: afterOf(associations), rows: moveEvents }), label('first-event')))
+        steps.push(
+          step(
+            eventSetStatement(qc, {
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'association.updated',
+              resourceType: 'association',
+              after: afterOf(associations),
+              rows: moveEvents,
+            }),
+            label('first-event'),
+          ),
+        )
         events.push(...rec(moveEvents, 'association.updated'))
       }
 
@@ -306,7 +399,9 @@ export function mergeOperation(
 
       // Tombstone the source.
       const mergedEventId = env.newId()
-      let tomb = qc.db.updateTable('contacts').set({ deleted_at: at, updated_at: at, merged_into_id: survivorId } as never)
+      let tomb = qc.db
+        .updateTable('contacts')
+        .set({ deleted_at: at, updated_at: at, merged_into_id: survivorId } as never)
       for (const g of guard(sourceId, sourceStamp)) tomb = tomb.where(g)
       steps.push(step(tomb, label('first-mutation'), { expect: 'affected' }))
       steps.push(
@@ -364,4 +459,3 @@ export function mergeOperation(
     },
   })
 }
-

@@ -1,5 +1,15 @@
 import { sql, type SqlBool } from 'kysely'
-import { appliedPrev, defineOperation, readAll, step, unit, type EventReceipt, type PreparedOperation, type Row, type Step } from '@vibase/storage'
+import {
+  appliedPrev,
+  defineOperation,
+  readAll,
+  step,
+  unit,
+  type EventReceipt,
+  type PreparedOperation,
+  type Row,
+  type Step,
+} from '@vibase/storage'
 import { eventStatement } from '../outbox.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import { afterOf, beforeRead, receipt, toRecord } from '../storage/crud.js'
@@ -29,7 +39,8 @@ export interface ExecutionRow {
 }
 
 const AE = (column: string) => sql.ref(`action_executions.${column}`)
-const parseJson = (v: unknown): Record<string, unknown> => (typeof v === 'string' ? (JSON.parse(v) as Record<string, unknown>) : ((v ?? {}) as Record<string, unknown>))
+const parseJson = (v: unknown): Record<string, unknown> =>
+  typeof v === 'string' ? (JSON.parse(v) as Record<string, unknown>) : ((v ?? {}) as Record<string, unknown>)
 const text = (v: unknown): string | null => (v === null || v === undefined ? null : String(v))
 
 export function decodeRow(row: Row): ExecutionRow {
@@ -59,7 +70,9 @@ const mine = (organizationId: string, id: string, token: string) =>
  * Takes the lease on an execution that is due (queued, its time reached) or whose lease lapsed (claimed, `lease_until` passed): counts the attempt, sets
  * a lease of `leaseMs` and a fresh token. The `result` select asks for the row under THIS token, so a claim that lost the race to another runner gets nothing.
  */
-export function claimProgram(d: Internal & { id: string; token: string; now: string; leaseUntil: string }): PreparedOperation<ExecutionRow | null> {
+export function claimProgram(
+  d: Internal & { id: string; token: string; now: string; leaseUntil: string },
+): PreparedOperation<ExecutionRow | null> {
   return defineOperation<ExecutionRow | null>({
     name: 'action_executions.claim',
     mutates: true,
@@ -70,12 +83,26 @@ export function claimProgram(d: Internal & { id: string; token: string; now: str
           step(
             qc.db
               .updateTable('action_executions')
-              .set({ status: 'claimed', attempts: sql<number>`attempts + 1` as never, lease_until: d.leaseUntil, lease_token: d.token })
+              .set({
+                status: 'claimed',
+                attempts: sql<number>`attempts + 1` as never,
+                lease_until: d.leaseUntil,
+                lease_token: d.token,
+              })
               .where(sql<SqlBool>`${AE('id')} = ${d.id}`)
               .where(sql<SqlBool>`${AE('organization_id')} = ${d.organizationId}`)
-              .where(sql<SqlBool>`((${AE('status')} = 'queued' and ${AE('next_attempt_at')} <= ${d.now}) or (${AE('status')} = 'claimed' and ${AE('lease_until')} <= ${d.now}))`),
+              .where(
+                sql<SqlBool>`((${AE('status')} = 'queued' and ${AE('next_attempt_at')} <= ${d.now}) or (${AE('status')} = 'claimed' and ${AE('lease_until')} <= ${d.now}))`,
+              ),
           ),
-          step(qc.db.selectFrom('action_executions').selectAll().where(sql<SqlBool>`${AE('id')} = ${d.id}`).where(sql<SqlBool>`${AE('lease_token')} = ${d.token}`), 'result'),
+          step(
+            qc.db
+              .selectFrom('action_executions')
+              .selectAll()
+              .where(sql<SqlBool>`${AE('id')} = ${d.id}`)
+              .where(sql<SqlBool>`${AE('lease_token')} = ${d.token}`),
+            'result',
+          ),
         ],
         events: [],
         decode: (rows) => (rows[0] ? decodeRow(rows[0]) : null),
@@ -92,8 +119,21 @@ export function stampProgram(d: Internal & { id: string; token: string; now: str
     build: (_found, qc) =>
       unit({
         steps: [
-          step(qc.db.updateTable('action_executions').set({ dispatched_at: d.now }).where(mine(d.organizationId, d.id, d.token))),
-          step(qc.db.selectFrom('action_executions').select(sql<number>`1`.as('one')).where(sql<SqlBool>`${AE('id')} = ${d.id}`).where(sql<SqlBool>`${AE('lease_token')} = ${d.token}`).where(sql<SqlBool>`${AE('dispatched_at')} = ${d.now}`), 'result'),
+          step(
+            qc.db
+              .updateTable('action_executions')
+              .set({ dispatched_at: d.now })
+              .where(mine(d.organizationId, d.id, d.token)),
+          ),
+          step(
+            qc.db
+              .selectFrom('action_executions')
+              .select(sql<number>`1`.as('one'))
+              .where(sql<SqlBool>`${AE('id')} = ${d.id}`)
+              .where(sql<SqlBool>`${AE('lease_token')} = ${d.token}`)
+              .where(sql<SqlBool>`${AE('dispatched_at')} = ${d.now}`),
+            'result',
+          ),
         ],
         events: [],
         decode: (rows) => rows.length === 1,
@@ -102,7 +142,9 @@ export function stampProgram(d: Internal & { id: string; token: string; now: str
 }
 
 /** Gives the lease back and schedules the next attempt; `keepDispatched` false clears the stamp (a definite not_sent, D53). True when the lease was still this runner's. */
-export function retryProgram(d: Internal & { id: string; token: string; nextAt: string; keepDispatched: boolean; code: string }): PreparedOperation<boolean> {
+export function retryProgram(
+  d: Internal & { id: string; token: string; nextAt: string; keepDispatched: boolean; code: string },
+): PreparedOperation<boolean> {
   return defineOperation<boolean>({
     name: 'action_executions.retry',
     mutates: true,
@@ -113,10 +155,26 @@ export function retryProgram(d: Internal & { id: string; token: string; nextAt: 
           step(
             qc.db
               .updateTable('action_executions')
-              .set({ status: 'queued', next_attempt_at: d.nextAt, lease_until: null, lease_token: null, last_error_code: d.code, ...(d.keepDispatched ? {} : { dispatched_at: null }) })
+              .set({
+                status: 'queued',
+                next_attempt_at: d.nextAt,
+                lease_until: null,
+                lease_token: null,
+                last_error_code: d.code,
+                ...(d.keepDispatched ? {} : { dispatched_at: null }),
+              })
               .where(mine(d.organizationId, d.id, d.token)),
           ),
-          step(qc.db.selectFrom('action_executions').select(sql<number>`1`.as('one')).where(sql<SqlBool>`${AE('id')} = ${d.id}`).where(sql<SqlBool>`${AE('status')} = 'queued'`).where(sql<SqlBool>`${AE('next_attempt_at')} = ${d.nextAt}`).where(sql<SqlBool>`${AE('lease_token')} is null`), 'result'),
+          step(
+            qc.db
+              .selectFrom('action_executions')
+              .select(sql<number>`1`.as('one'))
+              .where(sql<SqlBool>`${AE('id')} = ${d.id}`)
+              .where(sql<SqlBool>`${AE('status')} = 'queued'`)
+              .where(sql<SqlBool>`${AE('next_attempt_at')} = ${d.nextAt}`)
+              .where(sql<SqlBool>`${AE('lease_token')} is null`),
+            'result',
+          ),
         ],
         events: [],
         decode: (rows) => rows.length === 1,
@@ -128,7 +186,14 @@ export type Outcome = { ok: true; result: Record<string, unknown> } | { ok: fals
 
 /** An env for the helpers that render records; the runner has no caller, so no scope and the authoriser as the actor. */
 export function railEnv(d: { organizationId: string; actorId: string; now: Date; newId: () => string }): PreparedEnv {
-  return { actor: { id: d.actorId, kind: 'user' }, organizationId: d.organizationId, scopes: ScopeSet.parse([]), now: d.now, newId: d.newId, randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)) }
+  return {
+    actor: { id: d.actorId, kind: 'user' },
+    organizationId: d.organizationId,
+    scopes: ScopeSet.parse([]),
+    now: d.now,
+    newId: d.newId,
+    randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+  }
 }
 
 /**
@@ -136,16 +201,28 @@ export function railEnv(d: { organizationId: string; actorId: string; now: Date;
  * `executed|failed` and `action_request.executed|failed`, all attributed to the authoriser. A stale lease owner changes nothing: the guarded update affects no
  * row, every later statement is gated on the one before, and the result is empty (`applied: false`).
  */
-export function finishProgram(d: { env: PreparedEnv; row: ExecutionRow; token: string; at: string; outcome: Outcome; ids: { execution: string; request: string } }): PreparedOperation<{ applied: boolean }> {
+export function finishProgram(d: {
+  env: PreparedEnv
+  row: ExecutionRow
+  token: string
+  at: string
+  outcome: Outcome
+  ids: { execution: string; request: string }
+}): PreparedOperation<{ applied: boolean }> {
   const { env, row, outcome, at } = d
   const done = outcome.ok
   return defineOperation<{ applied: boolean }>({
     name: 'action_executions.finish',
     mutates: true,
-    reads: (qc) => ({ execution: beforeRead(actionExecutions, qc, env, row.id), ...(row.action_request_id ? { request: beforeRead(actionRequests, qc, env, row.action_request_id) } : {}) }),
+    reads: (qc) => ({
+      execution: beforeRead(actionExecutions, qc, env, row.id),
+      ...(row.action_request_id ? { request: beforeRead(actionRequests, qc, env, row.action_request_id) } : {}),
+    }),
     build: (found, qc) => {
       const beforeRow = found.maybe('execution')
-      const before = beforeRow ? toRecord(actionExecutions, (({ __stamp, ...rest }) => rest)(beforeRow as Record<string, unknown>) as Row) : null
+      const before = beforeRow
+        ? toRecord(actionExecutions, (({ __stamp, ...rest }) => rest)(beforeRow as Record<string, unknown>) as Row)
+        : null
       const steps: Step[] = [
         step(
           qc.db
@@ -156,14 +233,26 @@ export function finishProgram(d: { env: PreparedEnv; row: ExecutionRow; token: s
               done_at: at,
               lease_until: null,
               lease_token: null,
-              ...(outcome.ok ? { result: JSON.stringify(outcome.result) } : { error_code: outcome.code, error_message: outcome.message }),
+              ...(outcome.ok
+                ? { result: JSON.stringify(outcome.result) }
+                : { error_code: outcome.code, error_message: outcome.message }),
             } as never)
             .where(mine(row.organization_id, row.id, d.token)),
           'first-mutation',
           { expect: 'affected' },
         ),
         step(
-          eventStatement(qc, { id: d.ids.execution, at, organizationId: row.organization_id, actorId: row.authorised_by, type: `action_execution.${done ? 'completed' : 'failed'}`, resourceType: 'action_execution', resourceId: row.id, before, after: afterOf(actionExecutions) }),
+          eventStatement(qc, {
+            id: d.ids.execution,
+            at,
+            organizationId: row.organization_id,
+            actorId: row.authorised_by,
+            type: `action_execution.${done ? 'completed' : 'failed'}`,
+            resourceType: 'action_execution',
+            resourceId: row.id,
+            before,
+            after: afterOf(actionExecutions),
+          }),
           'first-event',
         ),
       ]
@@ -179,14 +268,28 @@ export function finishProgram(d: { env: PreparedEnv; row: ExecutionRow; token: s
               .set({
                 status: done ? 'executed' : 'failed',
                 updated_at: at,
-                ...(outcome.ok ? { executed_at: at, result: JSON.stringify(outcome.result) } : { error_code: outcome.code, error_message: outcome.message }),
+                ...(outcome.ok
+                  ? { executed_at: at, result: JSON.stringify(outcome.result) }
+                  : { error_code: outcome.code, error_message: outcome.message }),
               } as never)
               .where(sql<SqlBool>`${sql.ref('action_requests.id')} = ${row.action_request_id}`)
               .where(sql<SqlBool>`${sql.ref('action_requests.organization_id')} = ${row.organization_id}`)
               .where(sql<SqlBool>`${sql.ref('action_requests.status')} = 'approved'`)
               .where(appliedPrev(qc)),
           ),
-          step(eventStatement(qc, { id: d.ids.request, at, organizationId: row.organization_id, actorId: row.authorised_by, type: `action_request.${done ? 'executed' : 'failed'}`, resourceType: 'action_request', resourceId: row.action_request_id, before: request, after: afterOf(actionRequests) })),
+          step(
+            eventStatement(qc, {
+              id: d.ids.request,
+              at,
+              organizationId: row.organization_id,
+              actorId: row.authorised_by,
+              type: `action_request.${done ? 'executed' : 'failed'}`,
+              resourceType: 'action_request',
+              resourceId: row.action_request_id,
+              before: request,
+              after: afterOf(actionRequests),
+            }),
+          ),
         )
         events.push(receipt(actionRequests, d.ids.request, done ? 'executed' : 'failed', row.action_request_id))
       }
@@ -216,8 +319,12 @@ export function dueProgram(d: Internal & { now: string; limit: number }): Prepar
           .selectFrom('action_executions')
           .select(AE('id').as('id') as never)
           .where(sql<SqlBool>`${AE('organization_id')} = ${d.organizationId}`)
-          .where(sql<SqlBool>`((${AE('status')} = 'queued' and ${AE('next_attempt_at')} <= ${d.now}) or (${AE('status')} = 'claimed' and ${AE('lease_until')} <= ${d.now}))`)
-          .orderBy(sql`case when ${AE('status')} = 'queued' then ${AE('next_attempt_at')} else ${AE('lease_until')} end`)
+          .where(
+            sql<SqlBool>`((${AE('status')} = 'queued' and ${AE('next_attempt_at')} <= ${d.now}) or (${AE('status')} = 'claimed' and ${AE('lease_until')} <= ${d.now}))`,
+          )
+          .orderBy(
+            sql`case when ${AE('status')} = 'queued' then ${AE('next_attempt_at')} else ${AE('lease_until')} end`,
+          )
           .orderBy(AE('id'))
           .limit(d.limit),
       ),
@@ -225,4 +332,3 @@ export function dueProgram(d: Internal & { now: string; limit: number }): Prepar
     build: (found) => unit({ steps: [], events: [], decode: () => found.all('due').map((r) => String(r.id)) }),
   })
 }
-

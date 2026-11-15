@@ -41,26 +41,57 @@ const grantable = grantableScopes(registry.declaredScopes())
 
 async function initWorkspace() {
   const link = { organizationId: uuidv7(NOW), authProvider: 'clerk', authOrgId: kit.issuer.issuer }
-  await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+  await execute(
+    d1Binding(w.d1, link),
+    { kind: 'internal', organizationId: link.organizationId },
+    initDeploymentOperation(link),
+  )
   const at = NOW.toISOString()
-  await w.d1.prepare('insert into organizations (id, created_at, updated_at, name, auth_provider, auth_org_id) values (?, ?, ?, ?, ?, ?)').bind(link.organizationId, at, at, 'Acme', link.authProvider, link.authOrgId).run()
+  await w.d1
+    .prepare(
+      'insert into organizations (id, created_at, updated_at, name, auth_provider, auth_org_id) values (?, ?, ?, ?, ?, ?)',
+    )
+    .bind(link.organizationId, at, at, 'Acme', link.authProvider, link.authOrgId)
+    .run()
   return link
 }
 const worker = (extra: Partial<D1WorkerEnv> = {}, db = w.d1) =>
-  composeD1Worker({ DB: db, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: CLI, VERSION: 'test-sha', ...extra }, { fetch: kit.fetch, clock: () => clock })
+  composeD1Worker(
+    { DB: db, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: CLI, VERSION: 'test-sha', ...extra },
+    { fetch: kit.fetch, clock: () => clock },
+  )
 type Wk = ReturnType<typeof worker>
-const session = (sub: string, role?: unknown) => mintClerkToken(kit.issuer, { sub, extra: role === undefined ? {} : { vibase_role: role }, now: clock })
-const oauth = (sub: string, clientId: string, scope: string) => mintOAuthToken(kit.issuer, { sub, clientId, scope, now: clock })
-const profile = (sub: string, role: unknown) => kit.profiles.set(sub, clerkUser({ id: sub, email: `${sub}@x.test`, verified: true, role }))
-const rows = async (sqlText: string, ...binds: unknown[]) => (await w.d1.prepare(sqlText).bind(...binds).all()).results as Array<Record<string, any>>
+const session = (sub: string, role?: unknown) =>
+  mintClerkToken(kit.issuer, { sub, extra: role === undefined ? {} : { vibase_role: role }, now: clock })
+const oauth = (sub: string, clientId: string, scope: string) =>
+  mintOAuthToken(kit.issuer, { sub, clientId, scope, now: clock })
+const profile = (sub: string, role: unknown) =>
+  kit.profiles.set(sub, clerkUser({ id: sub, email: `${sub}@x.test`, verified: true, role }))
+const rows = async (sqlText: string, ...binds: unknown[]) =>
+  (
+    await w.d1
+      .prepare(sqlText)
+      .bind(...binds)
+      .all()
+  ).results as Array<Record<string, any>>
 
 async function rest(wk: Wk, method: string, path: string, token: string, body?: unknown) {
-  const res = await wk.fetch(new Request(BASE + path, { method, headers: { authorization: `Bearer ${token}`, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }))
+  const res = await wk.fetch(
+    new Request(BASE + path, {
+      method,
+      headers: { authorization: `Bearer ${token}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+  )
   const text = await res.text()
   return { status: res.status, json: text ? JSON.parse(text) : null }
 }
 /** An agent made by the owner, with an API key: the way a second and third agent exist on a real instance. */
-async function agentKey(wk: Wk, name: string, scopes: readonly string[] = grantable): Promise<{ id: string; key: string }> {
+async function agentKey(
+  wk: Wk,
+  name: string,
+  scopes: readonly string[] = grantable,
+): Promise<{ id: string; key: string }> {
   profile('user_owner', 'owner')
   const owner = await session('user_owner', 'owner')
   const agent = await rest(wk, 'POST', '/meta/v1/agents', owner, { name, scopes })
@@ -71,20 +102,37 @@ async function agentKey(wk: Wk, name: string, scopes: readonly string[] = granta
 }
 
 type Rpc = { status: number; headers: Headers; json: any }
-async function post(wk: Wk, token: string | undefined, message: unknown, headers: Record<string, string> = {}, raw?: string): Promise<Rpc> {
+async function post(
+  wk: Wk,
+  token: string | undefined,
+  message: unknown,
+  headers: Record<string, string> = {},
+  raw?: string,
+): Promise<Rpc> {
   const res = await wk.fetch(
     new Request(BASE + '/mcp', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers },
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
       body: raw ?? JSON.stringify(message),
     }),
   )
   const text = await res.text()
   return { status: res.status, headers: res.headers, json: text ? JSON.parse(text) : null }
 }
-const rpc = (method: string, params?: unknown, id: number = 1) => ({ jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) })
-const callTool = (wk: Wk, token: string, name: string, args: unknown = {}) => post(wk, token, rpc('tools/call', { name, arguments: args }))
-const listNames = async (wk: Wk, token: string) => ((await post(wk, token, rpc('tools/list'))).json.result.tools as Array<{ name: string }>).map((t) => t.name)
+const rpc = (method: string, params?: unknown, id: number = 1) => ({
+  jsonrpc: '2.0',
+  id,
+  method,
+  ...(params === undefined ? {} : { params }),
+})
+const callTool = (wk: Wk, token: string, name: string, args: unknown = {}) =>
+  post(wk, token, rpc('tools/call', { name, arguments: args }))
+const listNames = async (wk: Wk, token: string) =>
+  ((await post(wk, token, rpc('tools/list'))).json.result.tools as Array<{ name: string }>).map((t) => t.name)
 
 describe('interop with the reference client (D4)', () => {
   it('connect (initialize), listTools and callTool through the SDK Streamable HTTP client', async () => {
@@ -100,7 +148,9 @@ describe('interop with the reference client (D4)', () => {
     expect(client.getServerVersion()).toMatchObject({ name: 'vibase', version: 'test-sha' })
     expect(client.getInstructions()).toContain('schema_get')
     const listed = await client.listTools()
-    expect(listed.tools.map((t) => t.name)).toEqual(expect.arrayContaining(['schema_get', 'contacts_create', 'tasks_update']))
+    expect(listed.tools.map((t) => t.name)).toEqual(
+      expect.arrayContaining(['schema_get', 'contacts_create', 'tasks_update']),
+    )
     const created = await client.callTool({ name: 'companies_create', arguments: { name: 'Acme Inc' } })
     expect(created.isError).toBeFalsy()
     expect(created.structuredContent).toMatchObject({ name: 'Acme Inc' })
@@ -134,7 +184,11 @@ describe('protocol faults (D1-D3, D10)', () => {
     const wk = worker()
     const { key } = await agentKey(wk, 'a')
     for (const v of ['2025-11-25', '2025-06-18', '2025-03-26']) {
-      const r = await post(wk, key, rpc('initialize', { protocolVersion: v, capabilities: {}, clientInfo: { name: 'x', version: '1' } }))
+      const r = await post(
+        wk,
+        key,
+        rpc('initialize', { protocolVersion: v, capabilities: {}, clientInfo: { name: 'x', version: '1' } }),
+      )
       expect(r.status).toBe(200)
       expect(r.json.result.protocolVersion).toBe(v)
     }
@@ -209,8 +263,18 @@ describe('protocol faults (D1-D3, D10)', () => {
     await initWorkspace()
     const wk = worker()
     const { key } = await agentKey(wk, 'a')
-    for (const m of [{ jsonrpc: '2.0', method: 'notifications/initialized' }, { jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 1 } }, { jsonrpc: '2.0', id: 9, result: {} }]) {
-      const res = await wk.fetch(new Request(BASE + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, body: JSON.stringify(m) }))
+    for (const m of [
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      { jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 1 } },
+      { jsonrpc: '2.0', id: 9, result: {} },
+    ]) {
+      const res = await wk.fetch(
+        new Request(BASE + '/mcp', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+          body: JSON.stringify(m),
+        }),
+      )
       expect(res.status).toBe(202)
       expect(await res.text()).toBe('')
     }
@@ -235,7 +299,10 @@ describe('protocol faults (D1-D3, D10)', () => {
     const { key } = await agentKey(wk, 'a')
     const text = await post(wk, key, rpc('ping'), { 'content-type': 'text/plain' })
     expect(text.status).toBe(415)
-    expect((await post(wk, key, rpc('ping'), { 'content-type': 'application/json; charset=utf-8', accept: 'text/html' })).json.result).toEqual({})
+    expect(
+      (await post(wk, key, rpc('ping'), { 'content-type': 'application/json; charset=utf-8', accept: 'text/html' }))
+        .json.result,
+    ).toEqual({})
   })
 
   it('MCP-Protocol-Version: a supported value passes, an unknown one is 400, an absent one is accepted', async () => {
@@ -271,10 +338,24 @@ describe('Origin and CORS (D20)', () => {
     expect(ok.status).toBe(200)
     expect(ok.headers.get('access-control-allow-origin')).toBe(ALLOWED)
     expect((await post(wk, key, rpc('ping'))).status).toBe(200)
-    const pre = await wk.fetch(new Request(BASE + '/mcp', { method: 'OPTIONS', headers: { origin: ALLOWED, 'access-control-request-method': 'POST', 'access-control-request-headers': 'mcp-protocol-version,content-type,authorization' } }))
+    const pre = await wk.fetch(
+      new Request(BASE + '/mcp', {
+        method: 'OPTIONS',
+        headers: {
+          origin: ALLOWED,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'mcp-protocol-version,content-type,authorization',
+        },
+      }),
+    )
     expect(pre.status).toBe(204)
     expect(pre.headers.get('access-control-allow-headers')?.toLowerCase()).toContain('mcp-protocol-version')
-    const preEvil = await wk.fetch(new Request(BASE + '/mcp', { method: 'OPTIONS', headers: { origin: 'https://evil.example', 'access-control-request-method': 'POST' } }))
+    const preEvil = await wk.fetch(
+      new Request(BASE + '/mcp', {
+        method: 'OPTIONS',
+        headers: { origin: 'https://evil.example', 'access-control-request-method': 'POST' },
+      }),
+    )
     expect(preEvil.status).toBe(403)
   })
 
@@ -296,7 +377,10 @@ describe('gates and limits (D21)', () => {
     expect(pending.status).toBe(503)
     expect(pending.json.error.code).toBe('not_initialised')
     await createMigrationTracker(w.d1)
-    await recordMigrations(w.d1, MIGRATIONS.slice(0, -1).map((m) => m.name))
+    await recordMigrations(
+      w.d1,
+      MIGRATIONS.slice(0, -1).map((m) => m.name),
+    )
     const behind = await post(worker(), 'vk_x', rpc('ping'))
     expect(behind.status).toBe(503)
     expect(behind.json.error.code).toBe('migrations_pending')
@@ -326,7 +410,10 @@ describe('gates and limits (D21)', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => wallNow)
     await initWorkspace()
     await createMigrationTracker(w.d1)
-    await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
+    await recordMigrations(
+      w.d1,
+      MIGRATIONS.map((m) => m.name),
+    )
     const meter = meterD1(w.d1)
     const wk = worker({}, meter.d1)
     const { key } = await agentKey(wk, 'a')
@@ -351,7 +438,21 @@ describe('visibility (D6)', () => {
   const expected = (scopes: readonly string[]) =>
     registry
       .operations()
-      .filter((o) => o.output !== 'binary' && (o.kind === 'account' ? o.agents === true : o.kind === 'control' ? scopes.includes(`${o.scope.resource}:${o.scope.action}`) : (o.scope ? scopes.includes(`${o.scope.resource}:${o.scope.action}`) : closeScopes(scopes).some((s) => s.endsWith(o.authority === 'write' ? ':write' : o.authority === 'read' ? ':read' : ':request_approval')))))
+      .filter(
+        (o) =>
+          o.output !== 'binary' &&
+          (o.kind === 'account'
+            ? o.agents === true
+            : o.kind === 'control'
+              ? scopes.includes(`${o.scope.resource}:${o.scope.action}`)
+              : o.scope
+                ? scopes.includes(`${o.scope.resource}:${o.scope.action}`)
+                : closeScopes(scopes).some((s) =>
+                    s.endsWith(
+                      o.authority === 'write' ? ':write' : o.authority === 'read' ? ':read' : ':request_approval',
+                    ),
+                  )),
+      )
       .map((o) => toolName(o.name))
       .sort()
 
@@ -391,7 +492,10 @@ describe('visibility (D6)', () => {
     await initWorkspace()
     const wk = worker()
     const { key } = await agentKey(wk, 'reader', ['contacts:read'])
-    for (const [name, args] of [['contacts_create', { name: 'X' }], ['agents_list', {}]] as const) {
+    for (const [name, args] of [
+      ['contacts_create', { name: 'X' }],
+      ['agents_list', {}],
+    ] as const) {
       const r = await callTool(wk, key, name, args)
       expect(r.status).toBe(200)
       expect(r.json.result.isError).toBe(true)
@@ -488,7 +592,12 @@ describe('executor parity with REST (D12)', () => {
     await initWorkspace()
     const broken = {
       ...w.d1,
-      prepare: (q: string) => (/from "companies"/i.test(q) ? (() => { throw new Error('secret db detail') })() : w.d1.prepare(q)),
+      prepare: (q: string) =>
+        /from "companies"/i.test(q)
+          ? (() => {
+              throw new Error('secret db detail')
+            })()
+          : w.d1.prepare(q),
       batch: w.d1.batch.bind(w.d1),
     }
     const wk = worker()
@@ -509,8 +618,15 @@ describe('writes through tools are events attributed to the calling agent (invar
     const b = await agentKey(wk, 'agent-b')
     const ca = (await callTool(wk, a.key, 'contacts_create', { name: 'Ada' })).json.result.structuredContent
     const cb = (await callTool(wk, b.key, 'companies_create', { name: 'Bee Co' })).json.result.structuredContent
-    const events = await rows("select type, actor_id, resource_id from events where type in ('contact.created', 'company.created')")
-    expect(events).toEqual(expect.arrayContaining([{ type: 'contact.created', actor_id: a.id, resource_id: ca.id }, { type: 'company.created', actor_id: b.id, resource_id: cb.id }]))
+    const events = await rows(
+      "select type, actor_id, resource_id from events where type in ('contact.created', 'company.created')",
+    )
+    expect(events).toEqual(
+      expect.arrayContaining([
+        { type: 'contact.created', actor_id: a.id, resource_id: ca.id },
+        { type: 'company.created', actor_id: b.id, resource_id: cb.id },
+      ]),
+    )
     expect(events).toHaveLength(2)
     await callTool(wk, b.key, 'contacts_update', { id: ca.id, name: 'Ada L' })
     const upd = await rows("select actor_id from events where type = 'contact.updated'")
@@ -536,11 +652,23 @@ describe('revocation (D19)', () => {
 
 describe('the API-key-only deployment', () => {
   it('serves /mcp with no provider configured (bootstrap key)', async () => {
-    const boot = await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authProvider: 'none', authOrgId: 'org_acme', email: 'o@example.com' }, { now: NOW, newId: () => uuidv7(NOW) })
+    const boot = await bootstrapD1(
+      w.d1,
+      {
+        organizationName: 'Acme',
+        agentName: 'bot',
+        authProvider: 'none',
+        authOrgId: 'org_acme',
+        email: 'o@example.com',
+      },
+      { now: NOW, newId: () => uuidv7(NOW) },
+    )
     const wk = composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' })
     const names = await listNames(wk, boot.key)
     expect(names).toContain('contacts_create')
-    expect((await callTool(wk, boot.key, 'companies_create', { name: 'Solo' })).json.result.structuredContent.name).toBe('Solo')
+    expect(
+      (await callTool(wk, boot.key, 'companies_create', { name: 'Solo' })).json.result.structuredContent.name,
+    ).toBe('Solo')
     const noAuth = await post(wk, undefined, rpc('ping'))
     expect(noAuth.status).toBe(401)
     expect(noAuth.headers.get('www-authenticate')).toBeNull()

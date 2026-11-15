@@ -1,13 +1,28 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, assertStep, defineOperation, exactly, step, unit, uuidv7, type PreparedOperation, type QueryContext, type Step } from '@vibase/storage'
+import {
+  UnitDriftError,
+  assertStep,
+  defineOperation,
+  exactly,
+  step,
+  unit,
+  uuidv7,
+  type PreparedOperation,
+  type QueryContext,
+  type Step,
+} from '@vibase/storage'
 import { mapStorageError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { openEngines, type Engine, type EngineName } from '../test/engines.js'
 
 // CORE36 D4: the assertion step and exactly(n) on both engines. A failed assertion aborts the whole unit.
 const AT = '2026-10-22T10:00:00.000Z'
-const settle = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e)
+const settle = (p: Promise<unknown>) =>
+  p.then(
+    () => null,
+    (e: unknown) => e,
+  )
 
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
@@ -39,11 +54,29 @@ export function engineSuite(engineName: EngineName): void {
           unit({
             steps: [
               step(
-                qc.db.insertInto('tasks').values({ id, organization_id: e.organizationId, title: 't', status: 'open', created_by: e.userId, created_at: AT, updated_at: AT }),
+                qc.db.insertInto('tasks').values({
+                  id,
+                  organization_id: e.organizationId,
+                  title: 't',
+                  status: 'open',
+                  created_by: e.userId,
+                  created_at: AT,
+                  updated_at: AT,
+                }),
                 'first-mutation',
               ),
               step(
-                eventStatement(qc, { id: eventId, at: AT, organizationId: e.organizationId, actorId: e.userId, type: 'task.created', resourceType: 'task', resourceId: id, before: null, after: { table: 'tasks', columns: ['id', 'title'] } }),
+                eventStatement(qc, {
+                  id: eventId,
+                  at: AT,
+                  organizationId: e.organizationId,
+                  actorId: e.userId,
+                  type: 'task.created',
+                  resourceType: 'task',
+                  resourceId: id,
+                  before: null,
+                  after: { table: 'tasks', columns: ['id', 'title'] },
+                }),
                 'first-event',
               ),
               ...finish(qc, id),
@@ -70,7 +103,11 @@ export function engineSuite(engineName: EngineName): void {
 
     it('exactly(n) with the wrong n aborts the unit', async () => {
       const err = await settle(
-        e.run(unitWith((qc, id) => exactly(qc, step(qc.db.updateTable('tasks').set({ title: 'x' }).where('tasks.id', '=', id)), 2))),
+        e.run(
+          unitWith((qc, id) =>
+            exactly(qc, step(qc.db.updateTable('tasks').set({ title: 'x' }).where('tasks.id', '=', id)), 2),
+          ),
+        ),
       )
       expect(err).toBeInstanceOf(UnitDriftError)
       expect(await e.tasks()).toHaveLength(0)
@@ -78,7 +115,11 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     it('exactly(n) with the right n commits', async () => {
-      await e.run(unitWith((qc, id) => exactly(qc, step(qc.db.updateTable('tasks').set({ title: 'x' }).where('tasks.id', '=', id)), 1)))
+      await e.run(
+        unitWith((qc, id) =>
+          exactly(qc, step(qc.db.updateTable('tasks').set({ title: 'x' }).where('tasks.id', '=', id)), 1),
+        ),
+      )
       expect((await e.tasks())[0]!.title).toBe('x')
     })
   })

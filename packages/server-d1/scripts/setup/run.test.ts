@@ -7,7 +7,18 @@ import { initDeploymentOperation, readDeployment } from '../../src/init-deployme
 import { openWorkerD1, type WorkerD1 } from '../../src/test/kit.js'
 import { PLACEHOLDER_DATABASE_ID } from '../remote.js'
 import { runSetup, type SetupOutcome } from './run.js'
-import { CONTROL_EXPECTED, CREDS, EXPECTED_MIGRATIONS, OLD_SHA, FIXTURE_CONFIG_PATH, SHA, isWriteCommand, makeWorld, type World, type WorldOptions } from './test/world.js'
+import {
+  CONTROL_EXPECTED,
+  CREDS,
+  EXPECTED_MIGRATIONS,
+  OLD_SHA,
+  FIXTURE_CONFIG_PATH,
+  SHA,
+  isWriteCommand,
+  makeWorld,
+  type World,
+  type WorldOptions,
+} from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const ACME = ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai']
@@ -17,7 +28,21 @@ const realConfig = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 // OPS279 (P4): setup gives every instance a control database, so "smoked1 as recorded" now includes one.
 const SMOKED1_CTL_ID = '2b3c4d5e-6f70-4a81-9b92-a0b1c2d3e4f5'
 const withControl = (text: string): string =>
-  applyEdits(text, modify(text, ['env', 'smoked1', 'd1_databases', 1], { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: SMOKED1_CTL_ID, migrations_dir: '../storage-d1/control-migrations', remote: true }, { isArrayInsertion: true }))
+  applyEdits(
+    text,
+    modify(
+      text,
+      ['env', 'smoked1', 'd1_databases', 1],
+      {
+        binding: 'CONTROL_DB',
+        database_name: 'vb-control-smoked1',
+        database_id: SMOKED1_CTL_ID,
+        migrations_dir: '../storage-d1/control-migrations',
+        remote: true,
+      },
+      { isArrayInsertion: true },
+    ),
+  )
 const smoked1Config = withControl(realConfig)
 const pair = (w: World) => writeControlMarker(openControlDb(w.control), '0192f0a0-0000-7000-8000-000000000001')
 const states = (o: SetupOutcome) => o.results.map((r) => `${r.step}:${r.status}`)
@@ -34,9 +59,25 @@ beforeEach(async () => {
 })
 
 const world = (o: Partial<WorldOptions> = {}): World => makeWorld({ d1: db.d1, ...o })
-const smoked1World = (o: Partial<WorldOptions> = {}): World => world({ configText: smoked1Config, d1s: [{ uuid: SMOKED1_ID, name: 'vault-smoked1' }, { uuid: SMOKED1_CTL_ID, name: 'vb-control-smoked1' }], r2s: ['vault-smoked1-bodies'], applied: [...EXPECTED_MIGRATIONS], appliedControl: [...CONTROL_EXPECTED], deployedSha: SHA, ...o })
+const smoked1World = (o: Partial<WorldOptions> = {}): World =>
+  world({
+    configText: smoked1Config,
+    d1s: [
+      { uuid: SMOKED1_ID, name: 'vault-smoked1' },
+      { uuid: SMOKED1_CTL_ID, name: 'vb-control-smoked1' },
+    ],
+    r2s: ['vault-smoked1-bodies'],
+    applied: [...EXPECTED_MIGRATIONS],
+    appliedControl: [...CONTROL_EXPECTED],
+    deployedSha: SHA,
+    ...o,
+  })
 const seedMarker = (authProvider: string, authOrgId: string) =>
-  execute(d1Binding(db.d1, { organizationId: '0192f0a0-0000-7000-8000-000000000001', authProvider, authOrgId }), { kind: 'internal', organizationId: '0192f0a0-0000-7000-8000-000000000001' }, initDeploymentOperation({ organizationId: '0192f0a0-0000-7000-8000-000000000001', authProvider, authOrgId }))
+  execute(
+    d1Binding(db.d1, { organizationId: '0192f0a0-0000-7000-8000-000000000001', authProvider, authOrgId }),
+    { kind: 'internal', organizationId: '0192f0a0-0000-7000-8000-000000000001' },
+    initDeploymentOperation({ organizationId: '0192f0a0-0000-7000-8000-000000000001', authProvider, authOrgId }),
+  )
 
 describe('D8 guards', () => {
   it('neither CONFIRM_REMOTE nor --dry-run refuses before any subprocess, fetch or credential read', async () => {
@@ -58,7 +99,15 @@ describe('D8 guards', () => {
     expect(w.writes()).toEqual([])
     expect(w.state.configWrites).toBe(0)
     expect(w.state.configText).toBe(realConfig)
-    expect(states(o)).toEqual(['preflight:ok', 'config:resources:create', 'config:write:update', 'migrate:blocked', 'bootstrap:blocked', 'deploy:blocked', 'verify:blocked'])
+    expect(states(o)).toEqual([
+      'preflight:ok',
+      'config:resources:create',
+      'config:write:update',
+      'migrate:blocked',
+      'bootstrap:blocked',
+      'deploy:blocked',
+      'verify:blocked',
+    ])
   })
 
   it('--dry-run with CONFIRM_REMOTE set is still read-only', async () => {
@@ -76,7 +125,11 @@ describe('empty state: the first real run (rule 3, D10)', () => {
     expect(o.exitCode).toBe(0)
     expect(o.stoppedAfterConfigWrite).toBe(true)
     expect(states(o)).toEqual(['preflight:ok', 'config:resources:create', 'config:write:update'])
-    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual(['d1 create vb-crm-acme', 'd1 create vb-control-acme', 'bucket create vb-bodies-acme'])
+    expect(w.writes().map((c) => c.slice(-3).join(' '))).toEqual([
+      'd1 create vb-crm-acme',
+      'd1 create vb-control-acme',
+      'bucket create vb-bodies-acme',
+    ])
     const created = w.state.d1s.find((d) => d.name === 'vb-crm-acme')!
     const cfg = parse(w.state.configText) as { env: Record<string, { d1_databases: { database_id: string }[] }> }
     expect(cfg.env.acme!.d1_databases[0]!.database_id).toBe(created.uuid)
@@ -93,7 +146,15 @@ describe('idempotence', () => {
     expect((await runSetup(ACME, CONFIRM, w.deps)).stoppedAfterConfigWrite).toBe(true)
     const second = await runSetup(ACME, CONFIRM, w.deps)
     expect(second.exitCode).toBe(0)
-    expect(states(second)).toEqual(['preflight:ok', 'config:resources:ok', 'config:write:ok', 'migrate:update', 'bootstrap:create', 'deploy:update', 'verify:ok'])
+    expect(states(second)).toEqual([
+      'preflight:ok',
+      'config:resources:ok',
+      'config:write:ok',
+      'migrate:update',
+      'bootstrap:create',
+      'deploy:update',
+      'verify:ok',
+    ])
     expect(w.state.deployedSha).toBe(SHA)
     expect(await readDeployment(db.d1)).toMatchObject({ authProvider: 'none', authOrgId: 'acme' })
 
@@ -101,7 +162,15 @@ describe('idempotence', () => {
     const configBefore = w.state.configText
     const third = await runSetup(ACME, CONFIRM, w.deps)
     expect(third.exitCode).toBe(0)
-    expect(states(third)).toEqual(['preflight:ok', 'config:resources:ok', 'config:write:ok', 'migrate:ok', 'bootstrap:ok', 'deploy:ok', 'verify:ok'])
+    expect(states(third)).toEqual([
+      'preflight:ok',
+      'config:resources:ok',
+      'config:write:ok',
+      'migrate:ok',
+      'bootstrap:ok',
+      'deploy:ok',
+      'verify:ok',
+    ])
     expect(w.argv.slice(before).filter(isWriteCommand)).toEqual([])
     expect(w.state.configText).toBe(configBefore)
   })
@@ -114,7 +183,15 @@ describe('smoked1 plans no change (--auth none)', () => {
     await pair(w)
     const o = await runSetup([...SMOKED1, '--dry-run'], {}, w.deps)
     expect(o.exitCode).toBe(0)
-    expect(states(o)).toEqual(['preflight:ok', 'config:resources:ok', 'config:write:ok', 'migrate:ok', 'bootstrap:ok', 'deploy:ok', 'verify:ok'])
+    expect(states(o)).toEqual([
+      'preflight:ok',
+      'config:resources:ok',
+      'config:write:ok',
+      'migrate:ok',
+      'bootstrap:ok',
+      'deploy:ok',
+      'verify:ok',
+    ])
     expect(w.state.configText).toBe(smoked1Config)
     expect(w.writes()).toEqual([])
   })
@@ -125,7 +202,12 @@ describe('D9 refusal: a differing present value fails naming the key and stops t
     ['resource id', smoked1Config.replace(SMOKED1_ID, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'), SMOKED1, /database_id/],
     // The Worker, D1 and R2 names are the record itself now ([[OPS276]]): drift is shown on another key.
     // OPS308 P5: `workers_dev: true` beside a custom-domain route is the record of an instance moved from workers.dev, so it is no longer drift; another present key shows the rule.
-    ['preview_urls', smoked1Config.replace('"preview_urls": false', '"preview_urls": true'), SMOKED1, /smoked1\.preview_urls/],
+    [
+      'preview_urls',
+      smoked1Config.replace('"preview_urls": false', '"preview_urls": true'),
+      SMOKED1,
+      /smoked1\.preview_urls/,
+    ],
     ['var', smoked1Config, [...SMOKED1, '--web-origin', 'https://app.example.com'], /CORS_ALLOWED_ORIGINS/],
   ]
   it.each(cases)('%s', async (_n, configText, args, key) => {
@@ -163,7 +245,15 @@ describe('order and --only (D11, D6)', () => {
   it('runs the steps in the D11 order', async () => {
     await seedMarker('none', 'smoked1')
     const o = await runSetup([...SMOKED1, '--dry-run'], {}, smoked1World().deps)
-    expect(o.results.map((r) => r.step)).toEqual(['preflight', 'config:resources', 'config:write', 'migrate', 'bootstrap', 'deploy', 'verify'])
+    expect(o.results.map((r) => r.step)).toEqual([
+      'preflight',
+      'config:resources',
+      'config:write',
+      'migrate',
+      'bootstrap',
+      'deploy',
+      'verify',
+    ])
   })
   it('--only runs exactly those steps, in D11 order whatever order they were given', async () => {
     await seedMarker('none', 'smoked1')
@@ -256,7 +346,21 @@ describe('D18 bootstrap marker', () => {
     await seedMarker('none', 'smoked1')
     const w = smoked1World()
     await pair(w)
-    const o = await runSetup([...SMOKED1, '--only', 'bootstrap,verify', '--operator-agent', 'operator', '--key-env', 'SMOKED1_KEY', '--owner-email', 'owner@example.com'], CONFIRM, w.deps)
+    const o = await runSetup(
+      [
+        ...SMOKED1,
+        '--only',
+        'bootstrap,verify',
+        '--operator-agent',
+        'operator',
+        '--key-env',
+        'SMOKED1_KEY',
+        '--owner-email',
+        'owner@example.com',
+      ],
+      CONFIRM,
+      w.deps,
+    )
     expect(states(o)).toEqual(['bootstrap:ok', 'verify:ok'])
     expect(o.results[0]!.detail).toMatch(/not applied/)
     expect(w.state.envText).toBe('')
@@ -265,7 +369,9 @@ describe('D18 bootstrap marker', () => {
   it('verify without a key prints the exact repair command', async () => {
     const w = smoked1World()
     const o = await runSetup([...SMOKED1, '--only', 'verify'], CONFIRM, w.deps)
-    expect((o.results[0]!.lines ?? []).join('\n')).toContain('CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env smoked1 --key-env <NAME> --org <name> --auth-provider none --auth-org-id smoked1 --email <email> --agent <name>')
+    expect((o.results[0]!.lines ?? []).join('\n')).toContain(
+      'CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env smoked1 --key-env <NAME> --org <name> --auth-provider none --auth-org-id smoked1 --email <email> --agent <name>',
+    )
   })
   it('a different marker is a fail and writes nothing', async () => {
     await seedMarker('none', 'other')
@@ -288,7 +394,11 @@ describe('D18 bootstrap marker', () => {
   })
   it('with the operator flags the key goes to .env and nowhere else', async () => {
     const w = smoked1World()
-    const o = await runSetup([...only, '--operator-agent', 'operator', '--key-env', 'SMOKED1_KEY', '--owner-email', 'owner@example.com'], CONFIRM, w.deps)
+    const o = await runSetup(
+      [...only, '--operator-agent', 'operator', '--key-env', 'SMOKED1_KEY', '--owner-email', 'owner@example.com'],
+      CONFIRM,
+      w.deps,
+    )
     expect(states(o)).toEqual(['bootstrap:create'])
     const m = /^SMOKED1_KEY=(.+)$/m.exec(w.state.envText)
     expect(m).not.toBeNull()
@@ -298,7 +408,11 @@ describe('D18 bootstrap marker', () => {
   })
   it('a key variable already in .env is refused before anything is written', async () => {
     const w = smoked1World({ envText: 'SMOKED1_KEY=vk_existing\n' })
-    const o = await runSetup([...only, '--operator-agent', 'operator', '--key-env', 'SMOKED1_KEY', '--owner-email', 'owner@example.com'], CONFIRM, w.deps)
+    const o = await runSetup(
+      [...only, '--operator-agent', 'operator', '--key-env', 'SMOKED1_KEY', '--owner-email', 'owner@example.com'],
+      CONFIRM,
+      w.deps,
+    )
     expect(states(o)).toEqual(['bootstrap:fail'])
     expect(await readDeployment(db.d1)).toBeNull()
   })
@@ -307,7 +421,15 @@ describe('D18 bootstrap marker', () => {
 describe('no secret leaks across a full run', () => {
   it('neither the operator key nor any credential reaches an argv, stdin, a fetched url or a log line', async () => {
     const w = world()
-    const args = [...ACME, '--operator-agent', 'operator', '--key-env', 'ACME_KEY', '--owner-email', 'owner@example.com']
+    const args = [
+      ...ACME,
+      '--operator-agent',
+      'operator',
+      '--key-env',
+      'ACME_KEY',
+      '--owner-email',
+      'owner@example.com',
+    ]
     await runSetup(args, CONFIRM, w.deps)
     await runSetup(args, CONFIRM, w.deps)
     const key = /^ACME_KEY=(.+)$/m.exec(w.state.envText)?.[1]

@@ -4,7 +4,11 @@ import { ApiError } from '../errors.js'
 import { parseListQuery, resourcePath } from './define.js'
 import { tasks } from './tasks.js'
 
-const base = (over: { filters?: Record<string, { schema: z.ZodType; normalize?: (v: unknown, f: Record<string, unknown>) => unknown }> } = {}) => ({ ...over })
+const base = (
+  over: {
+    filters?: Record<string, { schema: z.ZodType; normalize?: (v: unknown, f: Record<string, unknown>) => unknown }>
+  } = {},
+) => ({ ...over })
 
 async function code(fn: () => unknown): Promise<{ status?: number; code?: string; message: string }> {
   try {
@@ -27,7 +31,10 @@ describe('parseListQuery', () => {
     expect(parseListQuery(tasks, { limit }).limit).toBe(200)
   })
   it('after must be a UUID', async () => {
-    expect(await code(() => parseListQuery(tasks, { after: 'x' }))).toMatchObject({ status: 400, code: 'validation_error' })
+    expect(await code(() => parseListQuery(tasks, { after: 'x' }))).toMatchObject({
+      status: 400,
+      code: 'validation_error',
+    })
   })
   it('unknown filter', async () => {
     expect(await code(() => parseListQuery(tasks, { filters: { colour: 'a' } }))).toMatchObject({
@@ -40,10 +47,20 @@ describe('parseListQuery', () => {
   it('a definition that declares no sorts refuses sort and order as unknown filters', async () => {
     const plain = { filters: { status: { schema: z.string() } } }
     for (const key of ['sort', 'order'] as const) {
-      expect(await code(() => parseListQuery(plain, { [key]: 'desc' }))).toMatchObject({ status: 400, code: 'validation_error', message: `unknown filter: ${key}` })
-      expect(await code(() => parseListQuery(plain, { filters: { [key]: 'desc' } }))).toMatchObject({ status: 400, code: 'validation_error', message: `unknown filter: ${key}` })
+      expect(await code(() => parseListQuery(plain, { [key]: 'desc' }))).toMatchObject({
+        status: 400,
+        code: 'validation_error',
+        message: `unknown filter: ${key}`,
+      })
+      expect(await code(() => parseListQuery(plain, { filters: { [key]: 'desc' } }))).toMatchObject({
+        status: 400,
+        code: 'validation_error',
+        message: `unknown filter: ${key}`,
+      })
     }
-    expect(parseListQuery(plain, { after: '0190b2c4-0000-7000-8000-0000000000aa' }).after).toBe('0190b2c4-0000-7000-8000-0000000000aa')
+    expect(parseListQuery(plain, { after: '0190b2c4-0000-7000-8000-0000000000aa' }).after).toBe(
+      '0190b2c4-0000-7000-8000-0000000000aa',
+    )
   })
   it('bad filter value', async () => {
     expect(await code(() => parseListQuery(tasks, { filters: { status: 'closed' } }))).toMatchObject({
@@ -52,7 +69,9 @@ describe('parseListQuery', () => {
     })
   })
   it('normaliser sees parsed siblings', () => {
-    const normalize = vi.fn((v: unknown, f: Record<string, unknown>) => (f.kind === 'email' ? String(v).toLowerCase() : v))
+    const normalize = vi.fn((v: unknown, f: Record<string, unknown>) =>
+      f.kind === 'email' ? String(v).toLowerCase() : v,
+    )
     const def = base({
       filters: { kind: { schema: z.enum(['email', 'phone']) }, value: { schema: z.string(), normalize } },
     })
@@ -71,7 +90,9 @@ describe('parseListQuery', () => {
         },
       },
     })
-    expect(await code(() => parseListQuery(def, { filters: { value: 'a' } }))).toMatchObject({ code: 'invalid_identity' })
+    expect(await code(() => parseListQuery(def, { filters: { value: 'a' } }))).toMatchObject({
+      code: 'invalid_identity',
+    })
   })
 })
 

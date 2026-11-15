@@ -22,7 +22,9 @@ beforeEach(async () => {
 })
 const AR = '/api/v1/action-requests'
 const MISSING = '0190b2c4-0000-7000-8000-00000000dead'
-const propose = async (who = proposer) => (await k.call(who, 'POST', AR, { operation: 'tasks.create', arguments: { title: 't' }, reason: 'r' })).body.id as string
+const propose = async (who = proposer) =>
+  (await k.call(who, 'POST', AR, { operation: 'tasks.create', arguments: { title: 't' }, reason: 'r' })).body
+    .id as string
 const bytes = (r: { status: number; body: unknown }) => JSON.stringify([r.status, r.body])
 const COMMANDS = ['approve', 'reject', 'withdraw'] as const
 
@@ -49,26 +51,47 @@ describe('a caller with no read of the queue and no authority learns nothing abo
   })
 })
 
-describe('every other caller keeps D46\'s order', () => {
+describe("every other caller keeps D46's order", () => {
   it('a caller with action_requests:read but no authority is told what is wrong: 409 for a decided request, 403 for a pending one', async () => {
     const reader = await k.actor('reader', 'agent', ['action_requests:read', 'tasks:read'])
     const id = await propose()
-    expect(await k.call(reader, 'POST', `${AR}/${id}/approve`)).toMatchObject({ status: 403, body: { error: { code: 'insufficient_scope' } } })
-    expect(await k.call(reader, 'POST', `${AR}/${id}/reject`)).toMatchObject({ status: 403, body: { error: { code: 'insufficient_scope' } } })
-    expect(await k.call(reader, 'POST', `${AR}/${id}/withdraw`)).toMatchObject({ status: 403, body: { error: { code: 'not_request_source' } } })
+    expect(await k.call(reader, 'POST', `${AR}/${id}/approve`)).toMatchObject({
+      status: 403,
+      body: { error: { code: 'insufficient_scope' } },
+    })
+    expect(await k.call(reader, 'POST', `${AR}/${id}/reject`)).toMatchObject({
+      status: 403,
+      body: { error: { code: 'insufficient_scope' } },
+    })
+    expect(await k.call(reader, 'POST', `${AR}/${id}/withdraw`)).toMatchObject({
+      status: 403,
+      body: { error: { code: 'not_request_source' } },
+    })
     expect((await k.call(owner, 'POST', `${AR}/${id}/reject`)).status).toBe(200)
-    expect(await k.call(reader, 'POST', `${AR}/${id}/approve`)).toMatchObject({ status: 409, body: { error: { code: 'action_request_not_pending' } } })
+    expect(await k.call(reader, 'POST', `${AR}/${id}/approve`)).toMatchObject({
+      status: 409,
+      body: { error: { code: 'action_request_not_pending' } },
+    })
     expect((await k.call(reader, 'POST', `${AR}/${MISSING}/approve`)).status).toBe(404)
   })
 
-  it('a caller with the target\'s write but no queue read keeps 409 not pending and 409 expired', async () => {
+  it("a caller with the target's write but no queue read keeps 409 not pending and 409 expired", async () => {
     const id = await propose()
     const done = await propose()
     expect((await k.call(owner, 'POST', `${AR}/${done}/reject`)).status).toBe(200)
-    expect(await k.call(writer, 'POST', `${AR}/${done}/approve`)).toMatchObject({ status: 409, body: { error: { code: 'action_request_not_pending' } } })
-    expect(await k.call(writer, 'POST', `${AR}/${done}/reject`)).toMatchObject({ status: 409, body: { error: { code: 'action_request_not_pending' } } })
+    expect(await k.call(writer, 'POST', `${AR}/${done}/approve`)).toMatchObject({
+      status: 409,
+      body: { error: { code: 'action_request_not_pending' } },
+    })
+    expect(await k.call(writer, 'POST', `${AR}/${done}/reject`)).toMatchObject({
+      status: 409,
+      body: { error: { code: 'action_request_not_pending' } },
+    })
     k.setNow(new Date(k.now().getTime() + 8 * 86_400_000))
-    expect(await k.call(writer, 'POST', `${AR}/${id}/approve`)).toMatchObject({ status: 409, body: { error: { code: 'action_request_expired' } } })
+    expect(await k.call(writer, 'POST', `${AR}/${id}/approve`)).toMatchObject({
+      status: 409,
+      body: { error: { code: 'action_request_expired' } },
+    })
     k.setNow(new Date('2026-11-06T10:00:00.000Z'))
   })
 
@@ -76,9 +99,15 @@ describe('every other caller keeps D46\'s order', () => {
     const lone = await k.actor('lone', 'agent', ['tasks:request_approval'])
     const id = await propose(lone)
     const other = await k.actor('other', 'agent', ['tasks:request_approval'])
-    expect(await k.call(other, 'POST', `${AR}/${id}/withdraw`)).toMatchObject({ status: 403, body: { error: { code: 'not_request_source' } } })
+    expect(await k.call(other, 'POST', `${AR}/${id}/withdraw`)).toMatchObject({
+      status: 403,
+      body: { error: { code: 'not_request_source' } },
+    })
     expect((await k.call(owner, 'POST', `${AR}/${id}/reject`)).status).toBe(200)
-    expect(await k.call(lone, 'POST', `${AR}/${id}/withdraw`)).toMatchObject({ status: 409, body: { error: { code: 'action_request_not_pending' } } })
+    expect(await k.call(lone, 'POST', `${AR}/${id}/withdraw`)).toMatchObject({
+      status: 409,
+      body: { error: { code: 'action_request_not_pending' } },
+    })
     // A source that has lost its authority over the target is hidden nothing: it is the source.
     const stripped = k.as(lone, ['contacts:read'])
     const id2 = await propose(lone)

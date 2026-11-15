@@ -54,10 +54,19 @@ beforeEach(async () => {
 })
 
 /** Stored order of the executions `ops` allows: null lowest, ties on id in the request's direction. */
-const reference = async (operations: string[], sort: Sort, order: 'asc' | 'desc', status?: string): Promise<string[]> => {
-  const rows = (await k.execs()).filter((r) => operations.includes(r.operation as string) && (status === undefined || r.status === status))
+const reference = async (
+  operations: string[],
+  sort: Sort,
+  order: 'asc' | 'desc',
+  status?: string,
+): Promise<string[]> => {
+  const rows = (await k.execs()).filter(
+    (r) => operations.includes(r.operation as string) && (status === undefined || r.status === status),
+  )
   const val = (r: Record<string, unknown>) => (r[sort] === null || r[sort] === undefined ? '' : String(r[sort]))
-  const asc = [...rows].sort((a, b) => (val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : (a.id as string) < (b.id as string) ? -1 : 1))
+  const asc = [...rows].sort((a, b) =>
+    val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : (a.id as string) < (b.id as string) ? -1 : 1,
+  )
   return (order === 'asc' ? asc : asc.reverse()).map((r) => r.id as string)
 }
 const walk = async (actor: Actor, query: string, limit = 2): Promise<{ ids: string[]; pages: number }> => {
@@ -104,13 +113,21 @@ describe('sorted walks under visibility: sort x order (CORE188 D1, D3, D4)', () 
   it('done_at puts the unfinished first in asc and last in desc, ties on id in the request direction', async () => {
     const asc = (await walk(both, 'sort=done_at&order=asc', 3)).ids
     const desc = (await walk(both, 'sort=done_at&order=desc', 3)).ids
-    const unfinished = (await k.execs()).filter((r) => r.done_at === null).map((r) => r.id as string).sort()
+    const unfinished = (await k.execs())
+      .filter((r) => r.done_at === null)
+      .map((r) => r.id as string)
+      .sort()
     expect(asc.slice(0, 4)).toEqual(unfinished)
     expect(desc.slice(-4)).toEqual([...unfinished].reverse())
     expect(desc[0]).toBe(seeded.H1)
   })
   it('a status filter combines with a sort and a cursor', async () => {
-    for (const [status, sort, order] of [['done', 'done_at', 'desc'], ['queued', 'created_at', 'desc'], ['failed', 'done_at', 'asc'], ['queued', 'done_at', 'asc']] as const) {
+    for (const [status, sort, order] of [
+      ['done', 'done_at', 'desc'],
+      ['queued', 'created_at', 'desc'],
+      ['failed', 'done_at', 'asc'],
+      ['queued', 'done_at', 'asc'],
+    ] as const) {
       const r = await walk(both, `status=${status}&sort=${sort}&order=${order}`, 1)
       expect(r.ids, `${status} ${sort} ${order}`).toEqual(await reference(ALL_OPS, sort, order, status))
       expect(r.ids.length).toBeGreaterThan(0)
@@ -121,7 +138,24 @@ describe('sorted walks under visibility: sort x order (CORE188 D1, D3, D4)', () 
   it('the sorted page keeps the record shape: the sort value is not added to a record', async () => {
     const r = await k.call(both, 'GET', `${LIST}?sort=done_at&order=desc&limit=1`)
     expect(Object.keys(r.body.data[0]).sort()).toEqual(
-      ['action_request_id', 'arguments', 'authorised_by', 'created_at', 'created_by', 'deadline_at', 'done_at', 'error_code', 'error_message', 'id', 'idempotency_key', 'operation', 'organization_id', 'result', 'status', 'updated_at'].sort(),
+      [
+        'action_request_id',
+        'arguments',
+        'authorised_by',
+        'created_at',
+        'created_by',
+        'deadline_at',
+        'done_at',
+        'error_code',
+        'error_message',
+        'id',
+        'idempotency_key',
+        'operation',
+        'organization_id',
+        'result',
+        'status',
+        'updated_at',
+      ].sort(),
     )
   })
 })
@@ -171,7 +205,13 @@ describe('the approval time and the queued time agree (CORE188 D2)', () => {
   it('for an approved request, the execution created_at equals the request decided_at', async () => {
     const reviewer = await k.actor('reviewer', 'agent', ['tasks:write', 'tasks:read', 'action_requests:read'])
     k.setNow(at(100))
-    const queued = (await k.call(reviewer, 'POST', '/api/v1/action-requests', { operation: TEST_OPS.reconcile, arguments: { text: 'q' }, reason: 'r' })).body
+    const queued = (
+      await k.call(reviewer, 'POST', '/api/v1/action-requests', {
+        operation: TEST_OPS.reconcile,
+        arguments: { text: 'q' },
+        reason: 'r',
+      })
+    ).body
     k.setNow(at(105))
     const approved = (await k.call(reviewer, 'POST', `/api/v1/action-requests/${queued.id}/approve`)).body
     const execution = (await k.call(both, 'GET', `${LIST}/${approved.execution_id}`)).body

@@ -10,7 +10,8 @@ import { GmailApiError } from './client.js'
 // [[CHN5]] D72, D82, D86 ([[CHN153b]]): the fake matches reality. For each recorded kind, what `FakeGmail` (and `FakeGoogle` for the token endpoint) answers to the
 // equivalent call has the same key-path set as the recorded response, apart from members listed in OPTIONAL with a reason. Array indexes are collapsed.
 const DIR = fileURLToPath(new URL('../../test/fixtures/google/', import.meta.url))
-const recorded = (name: string): RecordingFixture => JSON.parse(readFileSync(`${DIR}${name}.json`, 'utf8')) as RecordingFixture
+const recorded = (name: string): RecordingFixture =>
+  JSON.parse(readFileSync(`${DIR}${name}.json`, 'utf8')) as RecordingFixture
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json }
 function pathsOf(v: Json, at = ''): string[] {
@@ -27,7 +28,10 @@ const same = (name: string, got: unknown): void => {
   const opt = OPTIONAL[name] ?? {}
   const want = recordedPaths(name).filter((p) => !(opt.recordedOnly ?? []).includes(p))
   const have = keyPaths(got).filter((p) => !(opt.fakeOnly ?? []).includes(p))
-  expect({ missing: want.filter((p) => !have.includes(p)), extra: have.filter((p) => !want.includes(p)) }, name).toEqual({ missing: [], extra: [] })
+  expect(
+    { missing: want.filter((p) => !have.includes(p)), extra: have.filter((p) => !want.includes(p)) },
+    name,
+  ).toEqual({ missing: [], extra: [] })
 }
 
 const G = 'https://gmail.googleapis.com/gmail/v1/users/me'
@@ -41,21 +45,39 @@ const alternative = (id: string, labels: string[]): BuiltGmailMessage =>
   buildGmailMessage({
     id,
     labels,
-    headers: [['From', 'A <a@x.test>'], ['To', 'b@x.test'], ['Subject', 's'], ['Message-ID', `<${id}@x.test>`]],
-    payload: { mimeType: 'multipart/alternative', parts: [{ mimeType: 'text/plain', text: 'plain text' }, { mimeType: 'text/html', text: '<p>html</p>' }] },
+    headers: [
+      ['From', 'A <a@x.test>'],
+      ['To', 'b@x.test'],
+      ['Subject', 's'],
+      ['Message-ID', `<${id}@x.test>`],
+    ],
+    payload: {
+      mimeType: 'multipart/alternative',
+      parts: [
+        { mimeType: 'text/plain', text: 'plain text' },
+        { mimeType: 'text/html', text: '<p>html</p>' },
+      ],
+    },
   })
 
 describe('the fake matches the recorded shapes (key-path sets)', () => {
   it('messages list 200: ids, threadIds, nextPageToken and resultSizeEstimate', async () => {
     const g = new FakeGmail(Array.from({ length: 30 }, (_, i) => alternative(`l${i}`, ['INBOX'])))
-    same('recorded-messages-list-200', (await call(g, '/messages?q=after%3A1+%7Bin%3Ainbox+in%3Asent%7D&maxResults=25')).body)
+    same(
+      'recorded-messages-list-200',
+      (await call(g, '/messages?q=after%3A1+%7Bin%3Ainbox+in%3Asent%7D&maxResults=25')).body,
+    )
   })
   it('history list 200: every messagesAdded record carries labelIds and a sibling messages array', async () => {
     const g = new FakeGmail([alternative('h1', ['INBOX']), alternative('h2', ['SENT'])])
     g.history.push({ id: '2001', added: [{ id: 'h1' }] }, { id: '2002', added: [{ id: 'h2' }] })
     const { body } = await call(g, '/history?startHistoryId=1000&maxResults=25&historyTypes=messageAdded')
     same('recorded-history-list-200', body)
-    expect((body as { history: Array<{ messagesAdded: Array<{ message: { labelIds: string[] } }> }> }).history.map((r) => r.messagesAdded[0]!.message.labelIds)).toEqual([['INBOX'], ['SENT']])
+    expect(
+      (body as { history: Array<{ messagesAdded: Array<{ message: { labelIds: string[] } }> }> }).history.map(
+        (r) => r.messagesAdded[0]!.message.labelIds,
+      ),
+    ).toEqual([['INBOX'], ['SENT']])
   })
   it('a history record is labelless only on request (`labels: null`), the D73 fallback form', async () => {
     const g = new FakeGmail([alternative('n1', ['INBOX'])])
@@ -79,14 +101,23 @@ describe('the fake matches the recorded shapes (key-path sets)', () => {
   it('token refresh 200: scope, expires_in, token_type and an id_token, and no refresh_token', async () => {
     const google = await FakeGoogle.create()
     const rt = google.issueRefreshToken()
-    const res = await google.fetch(FAKE_ENDPOINTS.tokenUrl, { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: rt, client_id: google.clientId, client_secret: google.clientSecret }).toString() })
+    const res = await google.fetch(FAKE_ENDPOINTS.tokenUrl, {
+      method: 'POST',
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: rt,
+        client_id: google.clientId,
+        client_secret: google.clientSecret,
+      }).toString(),
+    })
     const body = (await res.json()) as Record<string, unknown>
     same('recorded-token-refresh-200', body)
     expect(body).not.toHaveProperty('refresh_token')
   })
 
   describe('the quota 403 (PERMISSION_DENIED, rateLimitExceeded, usageLimits, details[]) with no Retry-After', () => {
-    const quota = () => new GmailApiError({ status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'rateLimitExceeded' })
+    const quota = () =>
+      new GmailApiError({ status: 403, gmailStatus: 'PERMISSION_DENIED', reason: 'rateLimitExceeded' })
     it.each([
       ['messages list', 'recorded-messages-list-403', '/messages?q=after%3A1&maxResults=25'],
       ['message full', 'recorded-message-full-403', '/messages/q1?format=full'],
@@ -97,7 +128,13 @@ describe('the fake matches the recorded shapes (key-path sets)', () => {
       expect(res.status).toBe(403)
       expect(res.headers.get('retry-after')).toBeNull()
       same(file, body)
-      expect(body).toMatchObject({ error: { code: 403, status: 'PERMISSION_DENIED', errors: [{ reason: 'rateLimitExceeded', domain: 'usageLimits' }] } })
+      expect(body).toMatchObject({
+        error: {
+          code: 403,
+          status: 'PERMISSION_DENIED',
+          errors: [{ reason: 'rateLimitExceeded', domain: 'usageLimits' }],
+        },
+      })
     })
     it('an attachment get answers the same body', async () => {
       const g = new FakeGmail([gmailFixture('attachment')]).failWhen((c) => c.op === 'attachment', quota())
@@ -106,7 +143,10 @@ describe('the fake matches the recorded shapes (key-path sets)', () => {
       same('recorded-messages-list-403', body)
     })
     it('a Retry-After the test scripts is still sent', async () => {
-      const g = new FakeGmail([alternative('q1', ['INBOX'])]).failWhen(() => true, new GmailApiError({ status: 403, reason: 'rateLimitExceeded', retryAfter: '9', retryAfterSeconds: 9 }))
+      const g = new FakeGmail([alternative('q1', ['INBOX'])]).failWhen(
+        () => true,
+        new GmailApiError({ status: 403, reason: 'rateLimitExceeded', retryAfter: '9', retryAfterSeconds: 9 }),
+      )
       expect((await call(g, '/messages/q1?format=full')).res.headers.get('retry-after')).toBe('9')
     })
   })
@@ -120,19 +160,35 @@ describe('base64url is padded with "=" as Google pads it (D82 d)', () => {
     expect(atob(s.replace(/-/g, '+').replace(/_/g, '/')).length).toBe(bytes)
   }
   it.each(lens)('an attachment of %i bytes', (n) => {
-    const wire = JSON.parse(new TextDecoder().decode(attachmentWire(Uint8Array.from({ length: n }, (_, i) => 250 - i)))) as { data: string }
+    const wire = JSON.parse(
+      new TextDecoder().decode(attachmentWire(Uint8Array.from({ length: n }, (_, i) => 250 - i))),
+    ) as { data: string }
     ok(wire.data, n)
   })
   it.each(lens)('a raw original of %i bytes', (n) => {
-    const m = buildGmailMessage({ id: 'p', headers: [['Subject', 's']], payload: { mimeType: 'text/plain', text: 'x' }, rawOverride: Uint8Array.from({ length: n }, (_, i) => 200 + i) })
+    const m = buildGmailMessage({
+      id: 'p',
+      headers: [['Subject', 's']],
+      payload: { mimeType: 'text/plain', text: 'x' },
+      rawOverride: Uint8Array.from({ length: n }, (_, i) => 200 + i),
+    })
     ok((JSON.parse(new TextDecoder().decode(rawWire(m))) as { raw: string }).raw, n)
   })
   it.each(lens)('a body part of %i bytes', (n) => {
-    const m = buildGmailMessage({ id: 'p', headers: [['Subject', 's']], payload: { mimeType: 'text/plain', text: 'a'.repeat(n) } })
+    const m = buildGmailMessage({
+      id: 'p',
+      headers: [['Subject', 's']],
+      payload: { mimeType: 'text/plain', text: 'a'.repeat(n) },
+    })
     ok(m.resource.payload!.body!.data!, n)
   })
   it('the first three lengths show all three paddings', () => {
-    const pads = lens.map((n) => /=*$/.exec((JSON.parse(new TextDecoder().decode(attachmentWire(new Uint8Array(n)))) as { data: string }).data)![0].length)
+    const pads = lens.map(
+      (n) =>
+        /=*$/.exec(
+          (JSON.parse(new TextDecoder().decode(attachmentWire(new Uint8Array(n)))) as { data: string }).data,
+        )![0].length,
+    )
     expect(new Set(pads)).toEqual(new Set([0, 1, 2]))
   })
 })

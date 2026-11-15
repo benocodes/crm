@@ -9,13 +9,31 @@ import { postgresBackend } from './postgres-backend.js'
 import { assertFixturesCoverRegistry, runContractSuite, type ContractCheck, type ContractFixture } from './contract.js'
 
 // The one-definition variants are spread from the prepared `tasks` and renamed (CORE44 P9).
-const taskViews = { ...tasks, name: 'task_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
+const taskViews = {
+  ...tasks,
+  name: 'task_views',
+  operations: ['list', 'get'],
+  create: undefined,
+  update: undefined,
+} as never
 const assignedTasks = { ...tasks, name: 'assigned_tasks', scopeResource: 'tasks' } as never
 
 // A read-only definition whose create is served by a hand-written operation (api_keys' shape).
-const postedViews = { ...tasks, name: 'posted_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
+const postedViews = {
+  ...tasks,
+  name: 'posted_views',
+  operations: ['list', 'get'],
+  create: undefined,
+  update: undefined,
+} as never
 // A read-only definition whose rows need a second user, seeded through the kit.
-const seededViews = { ...tasks, name: 'seeded_views', operations: ['list', 'get'], create: undefined, update: undefined } as never
+const seededViews = {
+  ...tasks,
+  name: 'seeded_views',
+  operations: ['list', 'get'],
+  create: undefined,
+  update: undefined,
+} as never
 
 const registry = new Registry()
   .registerResource(tasks)
@@ -75,6 +93,8 @@ describe('suite shape', () => {
   })
   it('fails the catalog check on a missing fixture', () => {
     expect(() => assertFixturesCoverRegistry(new Registry().registerResource(tasks), {})).toThrow(/tasks/)
-    expect(() => assertFixturesCoverRegistry(new Registry().registerResource(tasks), { tasks: {}, stale: {} })).toThrow(/stale/)
+    expect(() => assertFixturesCoverRegistry(new Registry().registerResource(tasks), { tasks: {}, stale: {} })).toThrow(
+      /stale/,
+    )
   })
 })

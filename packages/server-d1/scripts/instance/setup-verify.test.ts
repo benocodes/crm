@@ -35,13 +35,23 @@ const world = (o: Partial<SetupWorldOptions> = {}): SetupWorld => setupWorld({ d
 const run = (s: SetupWorld, argv: string[] = ARGS) => runSetup(argv, s.w.deps)
 const row = (s: SetupWorld, name: string) => s.rows().find((r) => r.step === name)!
 /** The package's own version, which verify waits for. */
-const pkgVersion = (s: SetupWorld): string => (JSON.parse(readFileSync(join(s.w.pkg.dir, 'release.json'), 'utf8')) as { version: string }).version
+const pkgVersion = (s: SetupWorld): string =>
+  (JSON.parse(readFileSync(join(s.w.pkg.dir, 'release.json'), 'utf8')) as { version: string }).version
 /** An instance that is recorded, migrated and deployed at the package's version, so `--only verify` reaches verify's own work. */
 function deployed(o: { ba?: BetterAuthScript; vars?: Record<string, string> } = {}): SetupWorld {
   const s = world({
     settings: controlSettings({ vars: o.vars ?? BA_VARS }),
     secretsText: SECRETS_TEXT,
-    sim: { d1s: [{ uuid: UUID, name: 'vault-demo' }, { uuid: CONTROL_UUID, name: 'ctl-recorded-name' }], r2s: ['vault-demo-bodies'], applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL], ...(o.ba ? { ba: o.ba } : {}) },
+    sim: {
+      d1s: [
+        { uuid: UUID, name: 'vault-demo' },
+        { uuid: CONTROL_UUID, name: 'ctl-recorded-name' },
+      ],
+      r2s: ['vault-demo-bodies'],
+      applied: [...ALL_MIGRATIONS],
+      controlApplied: [...CONTROL_ALL],
+      ...(o.ba ? { ba: o.ba } : {}),
+    },
   })
   s.sim.deployed = { version: pkgVersion(s), commit: 'c' }
   return s
@@ -76,7 +86,17 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 
   it('discovery 500 then 200 within the bound: ok, after one wait', async () => {
-    const s = deployed({ ba: { vibase: [{ status: 500 }, { status: 200, body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: ['password'] } } }] } })
+    const s = deployed({
+      ba: {
+        vibase: [
+          { status: 500 },
+          {
+            status: 200,
+            body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: ['password'] } },
+          },
+        ],
+      },
+    })
     const clock0 = s.w.clock.t
     expect(await verifyOnly(s), s.w.all()).toBe(0)
     expect(calls(s, VIBASE_URL)).toBe(2)
@@ -89,7 +109,14 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 
   it('a connection failure then 200 within the bound: ok', async () => {
-    const s = deployed({ ba: { vibase: ['throw', { status: 200, body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: [] } } }] } })
+    const s = deployed({
+      ba: {
+        vibase: [
+          'throw',
+          { status: 200, body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: [] } } },
+        ],
+      },
+    })
     expect(await verifyOnly(s), s.w.all()).toBe(0)
   })
 
@@ -105,10 +132,22 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
 
   const FAIL: [string, BetterAuthScript, RegExp][] = [
     ['auth null (the Worker is still on none)', { vibase: [ok200({ auth: null })] }, /no auth provider/],
-    ['auth.provider is clerk', { vibase: [ok200({ auth: { provider: 'clerk', issuer: `${BASE}/auth` } })] }, /auth\.provider is clerk/],
-    ['wrong auth.issuer', { vibase: [ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })] }, /auth\.issuer is https:\/\/other\.example\/auth, setup configured https:\/\/api\.demo\.invalid\/auth/],
+    [
+      'auth.provider is clerk',
+      { vibase: [ok200({ auth: { provider: 'clerk', issuer: `${BASE}/auth` } })] },
+      /auth\.provider is clerk/,
+    ],
+    [
+      'wrong auth.issuer',
+      { vibase: [ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })] },
+      /auth\.issuer is https:\/\/other\.example\/auth, setup configured https:\/\/api\.demo\.invalid\/auth/,
+    ],
     ['metadata 404', { metadata: [{ status: 404 }] }, /oauth-authorization-server\/auth answered 404/],
-    ['metadata issuer differs', { metadata: [ok200({ issuer: 'https://other.example/auth' })] }, /oauth-authorization-server\/auth disagrees: issuer is https:\/\/other\.example\/auth/],
+    [
+      'metadata issuer differs',
+      { metadata: [ok200({ issuer: 'https://other.example/auth' })] },
+      /oauth-authorization-server\/auth disagrees: issuer is https:\/\/other\.example\/auth/,
+    ],
     ['discovery 404', { vibase: [{ status: 404 }] }, /\.well-known\/vibase answered 404/],
   ]
   it.each(FAIL)('%s: fail at once, naming the URL and what differed, with no wait', async (_n, script, re) => {
@@ -122,7 +161,11 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 
   it('discovery 200 with the wrong content after an earlier 500: fail without waiting out the bound', async () => {
-    const s = deployed({ ba: { vibase: [{ status: 500 }, ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })] } })
+    const s = deployed({
+      ba: {
+        vibase: [{ status: 500 }, ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })],
+      },
+    })
     const clock0 = s.w.clock.t
     expect(await verifyOnly(s)).toBe(3)
     expect(row(s, 'verify').detail).toMatch(/auth\.issuer/)
@@ -159,11 +202,17 @@ describe('2. the next steps on better-auth (D8)', () => {
     const s = world()
     expect(await run(s), s.w.all()).toBe(0)
     const l = lines(s)
-    expect(l.slice(0, 5)).toEqual([`API: ${BASE}`, CLAIM, `vibase login --server ${BASE}`, `MCP: ${BASE}/mcp`, NO_EMAIL_STATEMENT])
+    expect(l.slice(0, 5)).toEqual([
+      `API: ${BASE}`,
+      CLAIM,
+      `vibase login --server ${BASE}`,
+      `MCP: ${BASE}/mcp`,
+      NO_EMAIL_STATEMENT,
+    ])
     expect(l[5]).toMatch(/^no operator key was created in this run/)
   })
 
-  it('the invitation URL and token appear in the bootstrap step\'s lines only, never in verify\'s', async () => {
+  it("the invitation URL and token appear in the bootstrap step's lines only, never in verify's", async () => {
     const s = world()
     await run(s)
     const token = /\/invite#token=([A-Za-z0-9_-]+)/.exec(s.w.out.join('\n'))?.[1]
@@ -190,7 +239,7 @@ describe('2. the next steps on better-auth (D8)', () => {
     expect(lines(s).slice(0, 3)).toEqual([`API: ${BASE}`, `vibase login --server ${BASE}`, `MCP: ${BASE}/mcp`])
   })
 
-  it('none: the next steps are today\'s (API, then the hint) with no login, MCP, claim or statement', async () => {
+  it("none: the next steps are today's (API, then the hint) with no login, MCP, claim or statement", async () => {
     const s = deployed({ vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' } })
     await run(s, [...ARGS, '--auth', 'none', '--only', 'verify'])
     expect(lines(s)[0]).toBe(`API: ${BASE}`)
@@ -217,8 +266,10 @@ describe('3. the Google line (D4, P2)', () => {
 
 describe('4. the no-email statement (D5, P3)', () => {
   const stmt = (s: SetupWorld) => lines(s).includes(NO_EMAIL_STATEMENT)
-  it('the text is CORE243 D16\'s in full, with its owner sentence (OPS307 D5)', () => {
-    expect(NO_EMAIL_STATEMENT).toBe('Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner; an owner gets one from `vibase-server owner-reset` (needs this instance\'s Cloudflare credentials). Invitation links are printed for you to send.')
+  it("the text is CORE243 D16's in full, with its owner sentence (OPS307 D5)", () => {
+    expect(NO_EMAIL_STATEMENT).toBe(
+      "Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner; an owner gets one from `vibase-server owner-reset` (needs this instance's Cloudflare credentials). Invitation links are printed for you to send.",
+    )
     expect(NO_EMAIL_STATEMENT).toMatch(/an owner gets one from `vibase-server owner-reset`/)
   })
   it('the empty state prints it', async () => {

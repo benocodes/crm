@@ -15,8 +15,15 @@ export type InstanceRecordLookup = (env: string, settingsPath: string | undefine
 
 export function parseInstanceSetupArgs(argv: string[], record?: InstanceRecordLookup): InstanceSetupArgs {
   const values = parseSetupFlags(argv, { settings: { type: 'string' }, 'secrets-file': { type: 'string' } })
-  const opts = buildSetupOptions(values, record ? (env) => record(env, values.settings as string | undefined) : undefined)
+  const opts = buildSetupOptions(
+    values,
+    record ? (env) => record(env, values.settings as string | undefined) : undefined,
+  )
   // The Workflow's derived name is the longest of the four ([[OPS262]] D5); the settings file records it, so the check lives here.
   checkNameLengths([`vb-mail-sync-${opts.env}`])
-  return { opts, settingsPath: values.settings as string | undefined, secretsPath: values['secrets-file'] as string | undefined }
+  return {
+    opts,
+    settingsPath: values.settings as string | undefined,
+    secretsPath: values['secrets-file'] as string | undefined,
+  }
 }

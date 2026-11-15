@@ -59,7 +59,11 @@ export function assertCloneable(value: unknown, path: string, seen: Set<object> 
     return
   }
   const proto = Object.getPrototypeOf(o)
-  if (proto !== Object.prototype && proto !== null) throw new NotSerialisable(path, `Could not serialize object of type "${(o as { constructor?: { name?: string } }).constructor?.name ?? 'unknown'}"`)
+  if (proto !== Object.prototype && proto !== null)
+    throw new NotSerialisable(
+      path,
+      `Could not serialize object of type "${(o as { constructor?: { name?: string } }).constructor?.name ?? 'unknown'}"`,
+    )
   seen.add(o)
   for (const [k, v] of Object.entries(o)) assertCloneable(v, `${path}.${k}`, seen)
   seen.delete(o)
@@ -88,7 +92,8 @@ export function makeWorkerdStepShim(opts: ShimOptions = {}): StepShim {
     }
   }
   const step: WorkflowStepLike = {
-    do: ((name: string, a: StepConfig | (() => Promise<unknown>), b?: () => Promise<unknown>) => (typeof a === 'function' ? run(name, undefined, a) : run(name, a, b!))) as WorkflowStepLike['do'],
+    do: ((name: string, a: StepConfig | (() => Promise<unknown>), b?: () => Promise<unknown>) =>
+      typeof a === 'function' ? run(name, undefined, a) : run(name, a, b!)) as WorkflowStepLike['do'],
     sleep: async (name, duration) => {
       names.push(name)
       sleeps.push({ name, duration })

@@ -29,7 +29,11 @@ function unauthenticated(method: string, path: string, token: string | undefined
  * One Bearer credential per request, dispatched by shape: a JWT-shaped token goes to the user
  * authenticator ([[CORE3]]), anything else is an API key. Mounted on registry routes only.
  */
-export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator; env: (c: Context<AppEnv>) => InternalEnv; declaredScopes?: readonly string[] }): MiddlewareHandler<AppEnv> {
+export function authMiddleware(opts: {
+  userAuthenticator?: UserAuthenticator
+  env: (c: Context<AppEnv>) => InternalEnv
+  declaredScopes?: readonly string[]
+}): MiddlewareHandler<AppEnv> {
   const declared = opts.declaredScopes ? new Set(opts.declaredScopes) : undefined
   return async (c, next) => {
     const { method, path } = c.req
@@ -55,7 +59,10 @@ export function authMiddleware(opts: { userAuthenticator?: UserAuthenticator; en
     } else {
       const found = await authenticateApiKey(storage, token, env)
       if (!found) throw unauthenticated(method, path, token, 'invalid or expired credentials')
-      if (organizationHeader !== undefined && organizationHeader.toLowerCase() !== found.organizationId?.toLowerCase()) {
+      if (
+        organizationHeader !== undefined &&
+        organizationHeader.toLowerCase() !== found.organizationId?.toLowerCase()
+      ) {
         throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
       }
       // [[AGT8]] D31: a key's stored grants are closed under write => request_approval here, so an API key is checked like every other credential.

@@ -16,7 +16,17 @@ beforeEach(() => k.reset())
 /** The kit's dispatch deps with every unit's round trips spent on `b`. */
 function metered(b: TickBudget) {
   const base = k.deps().binding
-  const binding = { ...base, runtime: { ...base.runtime, execute: async (identity: any, prepared: any) => { const r = await base.runtime.execute(identity, prepared); b.spend(r.stats.roundTrips); return r } } } as StorageBinding
+  const binding = {
+    ...base,
+    runtime: {
+      ...base.runtime,
+      execute: async (identity: any, prepared: any) => {
+        const r = await base.runtime.execute(identity, prepared)
+        b.spend(r.stats.roundTrips)
+        return r
+      },
+    },
+  } as StorageBinding
   return { ...k.deps(), binding }
 }
 async function backlog(subs: number) {
@@ -45,7 +55,8 @@ describe('dispatch and the budget (D24)', () => {
 
   it('the next tick serves the deferred: every subscription ends with one row, none twice', async () => {
     const ids = await backlog(6)
-    for (let tick = 0; tick < 3; tick++) await dispatchWebhooks({ ...metered(new TickBudget(100)), budget: new TickBudget(5) })
+    for (let tick = 0; tick < 3; tick++)
+      await dispatchWebhooks({ ...metered(new TickBudget(100)), budget: new TickBudget(5) })
     expect(await k.deliveries()).toHaveLength(6)
     for (const id of ids) expect(await k.deliveries(id)).toHaveLength(1)
   })

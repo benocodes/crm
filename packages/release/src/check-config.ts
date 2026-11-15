@@ -9,14 +9,24 @@ const NAME: Readonly<Record<string, string>> = { DB: 'vb-crm', CONTROL_DB: 'vb-c
 
 export function checkConfig(base: Record<string, any>, installedDir: string): Record<string, unknown> {
   const entries = (base.d1_databases ?? []) as Array<Record<string, unknown>>
-  for (const d of entries) if (!(String(d.binding) in DIRECTORY)) throw new ReleaseRefusal(`the base config binds ${String(d.binding)}, which has no migrations directory (expected only DB and CONTROL_DB)`)
+  for (const d of entries)
+    if (!(String(d.binding) in DIRECTORY))
+      throw new ReleaseRefusal(
+        `the base config binds ${String(d.binding)}, which has no migrations directory (expected only DB and CONTROL_DB)`,
+      )
   for (const binding of Object.keys(DIRECTORY)) {
     const d = entries.find((e) => e.binding === binding)
     if (!d) throw new ReleaseRefusal(`the base config has no ${binding} d1_databases entry`)
-    if (d.database_name !== NAME[binding]) throw new ReleaseRefusal(`the base config's ${binding} database is named ${JSON.stringify(d.database_name)}, expected ${NAME[binding]}`)
+    if (d.database_name !== NAME[binding])
+      throw new ReleaseRefusal(
+        `the base config's ${binding} database is named ${JSON.stringify(d.database_name)}, expected ${NAME[binding]}`,
+      )
   }
   const ids = entries.map((d) => d.database_id)
-  if (new Set(ids).size !== ids.length) throw new ReleaseRefusal('the base config\'s d1_databases entries must have distinct database_ids (local wrangler keys the database file by id: a shared id is one database)')
+  if (new Set(ids).size !== ids.length)
+    throw new ReleaseRefusal(
+      "the base config's d1_databases entries must have distinct database_ids (local wrangler keys the database file by id: a shared id is one database)",
+    )
   return {
     ...base,
     main: join(installedDir, 'worker', 'worker.js'),

@@ -35,15 +35,24 @@ const ASSETS = {
     assetCalls.push({ method: req.method, path: url.pathname })
     const f = FILES[url.pathname]
     if (!f) return new Response('Not found', { status: 404 })
-    return new Response(req.method === 'HEAD' ? null : f.body, { status: 200, headers: { 'content-type': f.type, etag: '"x"' } })
+    return new Response(req.method === 'HEAD' ? null : f.body, {
+      status: 200,
+      headers: { 'content-type': f.type, etag: '"x"' },
+    })
   },
 }
 
-const worker = (extra: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, ASSETS, ...extra }, { fetch: kit.fetch })
+const worker = (extra: Partial<D1WorkerEnv> = {}) =>
+  composeD1Worker({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, ASSETS, ...extra }, { fetch: kit.fetch })
 /** Every `/connect*` response of a test, so the afterEach can hold each of them to the header rules. */
 const seen: { path: string; method: string; res: Response }[] = []
 const isConnect = (p: string) => p === '/connect' || p.startsWith('/connect/')
-const get = async (wk: { fetch(r: Request): Promise<Response> }, path: string, method = 'GET', headers: Record<string, string> = {}) => {
+const get = async (
+  wk: { fetch(r: Request): Promise<Response> },
+  path: string,
+  method = 'GET',
+  headers: Record<string, string> = {},
+) => {
   const res = await wk.fetch(new Request(BASE + path, { method, headers, redirect: 'manual' }))
   if (isConnect(path)) seen.push({ path, method, res })
   return res
@@ -52,7 +61,8 @@ const get = async (wk: { fetch(r: Request): Promise<Response> }, path: string, m
 const I = () => new URL(kit.issuer.issuer).origin
 const csp = (i: string) =>
   `default-src 'self'; script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com; connect-src 'self' ${i} https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; frame-src https://challenges.cloudflare.com https://*.protect.clerk.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`
-const NO_PROVIDER_CSP = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+const NO_PROVIDER_CSP =
+  "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 let expectedCsp = (): string => csp(I())
 
 // D9: the same header rules on every response kind of every test (HTML, HEAD, asset, 308, 404, 405).
@@ -66,7 +76,8 @@ afterEach(() => {
     const script = csp.split('; ').find((d) => d.startsWith('script-src'))!
     expect(script, at).not.toMatch(/unsafe-/)
     expect(csp, at).toContain("frame-ancestors 'none'")
-    if ((res.headers.get('content-type') ?? '').startsWith('text/html')) expect(res.headers.get('cache-control'), at).toBe('no-store')
+    if ((res.headers.get('content-type') ?? '').startsWith('text/html'))
+      expect(res.headers.get('cache-control'), at).toBe('no-store')
   }
   expectedCsp = () => csp(I())
   vi.restoreAllMocks()
@@ -102,7 +113,7 @@ describe('D1 serving', () => {
     expect(await res.text()).toBe('console.log(1)')
   })
 
-  it('an unknown /connect/x is the assets binding\'s 404', async () => {
+  it("an unknown /connect/x is the assets binding's 404", async () => {
     const res = await get(worker(), '/connect/nope')
     expect(res.status).toBe(404)
     expect(assetCalls).toEqual([{ method: 'GET', path: '/connect/nope' }])
@@ -131,12 +142,15 @@ describe('D1 serving', () => {
 
 describe('no asset is reachable outside /connect*', () => {
   const outside = ['/connect.js', '/index.html', '/', '/connectx', '/connect-assets/connect.js', '/api/connect.js']
-  it.each(outside)('%s is not served from assets: the assets binding is not asked, and the answer is the Worker\'s own', async (path) => {
-    const res = await worker().fetch(new Request(BASE + path))
-    expect(assetCalls).toEqual([])
-    expect(res.status).not.toBe(200)
-    expect(res.headers.get('content-security-policy')).toBeNull()
-  })
+  it.each(outside)(
+    "%s is not served from assets: the assets binding is not asked, and the answer is the Worker's own",
+    async (path) => {
+      const res = await worker().fetch(new Request(BASE + path))
+      expect(assetCalls).toEqual([])
+      expect(res.status).not.toBe(200)
+      expect(res.headers.get('content-security-policy')).toBeNull()
+    },
+  )
 
   it('/health, /api/v1, /meta/v1 and /.well-known answer as before', async () => {
     const wk = worker()

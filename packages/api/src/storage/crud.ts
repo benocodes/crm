@@ -25,11 +25,24 @@ import {
 import { ApiError } from '../errors.js'
 import { formatScope } from '../scopes.js'
 import { eventStatement } from '../outbox.js'
-import { physicalTable, softDeletes, type Conflict, type PreparedEnv, type PreparedResource, type ReferenceTarget } from './definition.js'
+import {
+  physicalTable,
+  softDeletes,
+  type Conflict,
+  type PreparedEnv,
+  type PreparedResource,
+  type ReferenceTarget,
+} from './definition.js'
 import { compileCondition, type Condition } from './column-filters.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 import { encodeCursor, type SortRequest } from '../resources/sort-cursor.js'
-import { aggregateSelect, decodeAggregate, parseAggregateTerms, planAggregate, type AggregateAnswer } from './aggregate.js'
+import {
+  aggregateSelect,
+  decodeAggregate,
+  parseAggregateTerms,
+  planAggregate,
+  type AggregateAnswer,
+} from './aggregate.js'
 
 // The generic prepared CRUD core ([[CORE35]] C4): list, get, create, update and soft delete for any
 // `PreparedResource`, as pure programs over typed Kysely fragments. Every mutation is plan -> one unit:
@@ -46,13 +59,21 @@ export type ListResult<R> = { data: R[]; next_cursor: string | null }
 /** The embeds of a definition (record fields rendered from a child table, [[CORE25]] D50). */
 export const embedsOf = (def: PreparedResource): Readonly<Record<string, EmbedSpec>> => def.embed ?? {}
 /** The physical columns of the record: its keys minus the embed and derived fields. */
-export const columnsOf = (def: PreparedResource): string[] => Object.keys(def.record.shape).filter((k) => !(k in embedsOf(def)) && !(k in (def.derived ?? {})))
+export const columnsOf = (def: PreparedResource): string[] =>
+  Object.keys(def.record.shape).filter((k) => !(k in embedsOf(def)) && !(k in (def.derived ?? {})))
 /** What an event's `after` is rendered from: the stored row's columns plus the embedded children (one rendering for reads and events). */
-export const afterOf = (def: PreparedResource) => ({ table: physicalTable(def), columns: columnsOf(def), embeds: embedsOf(def) })
+export const afterOf = (def: PreparedResource) => ({
+  table: physicalTable(def),
+  columns: columnsOf(def),
+  embeds: embedsOf(def),
+})
 /** The parent column reference a derived expression correlates on: `parent('id')` is `<table>.id`. */
 const parentOf = (def: PreparedResource) => (column: string) => sql.ref(`${def.table}.${column}`)
 /** The derived fields this caller may see ([[CORE131]] D5): those whose `requires` scopes it holds all. */
-export const visibleDerived = (def: PreparedResource, env: PreparedEnv): Array<[string, NonNullable<PreparedResource['derived']>[string]]> =>
+export const visibleDerived = (
+  def: PreparedResource,
+  env: PreparedEnv,
+): Array<[string, NonNullable<PreparedResource['derived']>[string]]> =>
   Object.entries(def.derived ?? {}).filter(([, d]) => (d.requires ?? []).every((scope) => env.scopes.has(scope)))
 /** The derived fields of a record select, aliased to their names; only the ones the caller may see. */
 export const derivedProjection = (def: PreparedResource, qc: QueryContext, env: PreparedEnv) =>
@@ -63,14 +84,18 @@ const projection = (def: PreparedResource, qc: QueryContext, env?: PreparedEnv) 
   ...Object.entries(embedsOf(def)).map(([field, spec]) => embedJson(qc, physicalTable(def), spec, 'select').as(field)),
   ...(env ? derivedProjection(def, qc, env) : []),
 ]
-const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
+const kindsOf = (def: PreparedResource): Record<string, ColumnKind> =>
+  COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
 const ref = (def: PreparedResource, column: string) => sql.ref(`${def.table}.${column}`)
 const notFound = (def: PreparedResource) => new ApiError(404, 'not_found', `${def.eventName} not found`)
 const invalidReference = () => new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
 
 /** A stored row in its public shape: timestamps already ISO text and booleans decoded (D1 reads 0/1), parsed by the definition's record schema. */
 export function toRecord<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, row: Row): R {
-  const kinds = { ...kindsOf(def), ...Object.fromEntries(Object.entries(def.derived ?? {}).map(([k, d]) => [k, d.kind])) } as Record<string, ColumnKind>
+  const kinds = {
+    ...kindsOf(def),
+    ...Object.fromEntries(Object.entries(def.derived ?? {}).map(([k, d]) => [k, d.kind])),
+  } as Record<string, ColumnKind>
   const converted: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(row)) {
     converted[k] =
@@ -100,8 +125,16 @@ const live = (def: PreparedResource, env: PreparedEnv, id?: string) => [
 ]
 
 /** A live record select. `derived: false` leaves the derived fields out: what an event's `before` is rendered from (D2). */
-export const selectRecord = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id?: string, opts: { derived?: boolean } = {}) => {
-  let q = loose(qc).selectFrom(def.table).select(projection(def, qc, opts.derived === false ? undefined : env))
+export const selectRecord = (
+  def: PreparedResource,
+  qc: QueryContext,
+  env: PreparedEnv,
+  id?: string,
+  opts: { derived?: boolean } = {},
+) => {
+  let q = loose(qc)
+    .selectFrom(def.table)
+    .select(projection(def, qc, opts.derived === false ? undefined : env))
   for (const w of live(def, env, id)) q = q.where(w)
   return q
 }
@@ -110,13 +143,16 @@ export const selectRecord = (def: PreparedResource, qc: QueryContext, env: Prepa
 function referencePredicates(spec: ReferenceTarget, value: string, env: PreparedEnv): Expression<SqlBool>[] {
   const kinds = COLUMN_KINDS[spec.table] as Record<string, ColumnKind>
   const preds = [sql<SqlBool>`${sql.ref(`${spec.table}.id`)} = ${value}`]
-  if ('organization_id' in kinds) preds.push(sql<SqlBool>`${sql.ref(`${spec.table}.organization_id`)} = ${env.organizationId}`)
+  if ('organization_id' in kinds)
+    preds.push(sql<SqlBool>`${sql.ref(`${spec.table}.organization_id`)} = ${env.organizationId}`)
   if (spec.live && 'deleted_at' in kinds) preds.push(sql<SqlBool>`${sql.ref(`${spec.table}.deleted_at`)} is null`)
   return preds
 }
 const referenced = (def: PreparedResource, values: Record<string, unknown>): Array<[string, ReferenceTarget, string]> =>
   (Object.entries(def.references ?? {}) as Array<[string, ReferenceTarget | undefined]>).flatMap(([column, spec]) =>
-    spec !== undefined && typeof values[column] === 'string' ? [[column, spec, values[column] as string] as [string, ReferenceTarget, string]] : [],
+    spec !== undefined && typeof values[column] === 'string'
+      ? [[column, spec, values[column] as string] as [string, ReferenceTarget, string]]
+      : [],
   )
 
 /** The reference checks an input needs: one read per non-null referenced column. */
@@ -130,13 +166,18 @@ function referenceReads(def: PreparedResource, qc: QueryContext, env: PreparedEn
   return reads
 }
 /** The commit-time form of the same predicates: `exists (live referenced row)`, one per non-null reference. */
-function referenceGuards(def: PreparedResource, env: PreparedEnv, values: Record<string, unknown>): Expression<SqlBool>[] {
+function referenceGuards(
+  def: PreparedResource,
+  env: PreparedEnv,
+  values: Record<string, unknown>,
+): Expression<SqlBool>[] {
   return referenced(def, values).map(([, spec, value]) => {
     const where = sql.join(referencePredicates(spec, value, env), sql` and `)
     return sql<SqlBool>`exists (select 1 from ${sql.table(spec.table)} where ${where})`
   })
 }
-const conflictReads = (conflicts: readonly Conflict[]) => Object.fromEntries(conflicts.map((c, i) => [`conflict:${i}`, c.read]))
+const conflictReads = (conflicts: readonly Conflict[]) =>
+  Object.fromEntries(conflicts.map((c, i) => [`conflict:${i}`, c.read]))
 function refuseConflicts(found: { maybe(k: string): Row | null }, conflicts: readonly Conflict[]): void {
   conflicts.forEach((c, i) => c.refuse(found.maybe(`conflict:${i}`)))
 }
@@ -156,7 +197,11 @@ function sortExpression(def: PreparedResource, qc: QueryContext, sort: SortReque
  * The keyset predicate of a sorted page ([[CORE133]] D9): rows strictly after `(value, id)`, with null lowest and direction-matched id ties.
  * Re-evaluate the expression instead of naming the select alias, which Postgres does not allow in a WHERE.
  */
-function afterPosition(def: PreparedResource, qc: QueryContext, sort: SortRequest & { position: NonNullable<SortRequest['position']> }): Expression<SqlBool> {
+function afterPosition(
+  def: PreparedResource,
+  qc: QueryContext,
+  sort: SortRequest & { position: NonNullable<SortRequest['position']> },
+): Expression<SqlBool> {
   const v = sortExpression(def, qc, sort)
   const { value, id } = sort.position
   const idRef = ref(def, 'id')
@@ -175,17 +220,30 @@ function afterPosition(def: PreparedResource, qc: QueryContext, sort: SortReques
 function checkFilterScopes(def: PreparedResource, env: PreparedEnv, filters: Record<string, unknown>): void {
   for (const column of Object.keys(filters)) {
     for (const scope of def.customFilters?.[column]?.requires ?? []) {
-      if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to filter ${def.name} by ${column}`)
+      if (!env.scopes.has(scope))
+        throw new ApiError(
+          403,
+          'insufficient_scope',
+          `requires ${formatScope(scope)} to filter ${def.name} by ${column}`,
+        )
     }
   }
 }
 
 /** The predicate of each parsed filter: a column condition, a custom filter's `where`, or plain equality; the one compilation a list and an aggregate share. */
-function filterPredicates(def: PreparedResource, qc: QueryContext, filters: Record<string, unknown>): Expression<SqlBool>[] {
+function filterPredicates(
+  def: PreparedResource,
+  qc: QueryContext,
+  filters: Record<string, unknown>,
+): Expression<SqlBool>[] {
   return Object.entries(filters).map(([column, value]) => {
     const join = def.customFilters?.[column]
     const spec = def.columnFilters?.[column]
-    return spec ? compileCondition(qc, ref(def, column), spec.kind, value as Condition) : join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`
+    return spec
+      ? compileCondition(qc, ref(def, column), spec.kind, value as Condition)
+      : join
+        ? join.where(qc, value)
+        : sql<SqlBool>`${ref(def, column)} = ${value}`
   })
 }
 
@@ -196,14 +254,24 @@ function filterPredicates(def: PreparedResource, qc: QueryContext, filters: Reco
  */
 export type ListRestriction = 'nothing' | ((qc: QueryContext) => Expression<SqlBool>)
 
-export function listOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> }, restriction?: ListRestriction): PreparedOperation<ListResult<R>> {
+export function listOperation<R extends { id: string }>(
+  def: PreparedResource<PreparedResource['table'], R>,
+  env: PreparedEnv,
+  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> },
+  restriction?: ListRestriction,
+): PreparedOperation<ListResult<R>> {
   // 400s first (a malformed query is refused whatever the caller may see), then 403s ([[CORE133]] D5); both before any query is built.
   const { after, limit, filters, sort } = prepareListQuery(def, raw)
   checkFilterScopes(def, env, filters)
   // [[CORE133]] D5: sorting by a derived field needs the scopes that show it; a caller without them never gets a cursor carrying its value.
   if (sort) {
     for (const scope of def.derived?.[sort.field]?.requires ?? []) {
-      if (!env.scopes.has(scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(scope)} to sort ${def.name} by ${sort.field}`)
+      if (!env.scopes.has(scope))
+        throw new ApiError(
+          403,
+          'insufficient_scope',
+          `requires ${formatScope(scope)} to sort ${def.name} by ${sort.field}`,
+        )
     }
   }
   return defineOperation<ListResult<R>>({
@@ -218,7 +286,10 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
       else if (after) q = q.where(sql<SqlBool>`${ref(def, 'id')} > ${after}`)
       for (const w of filterPredicates(def, qc, filters)) q = q.where(w)
       // `null` is the oldest value: first ascending, last descending. Spelled out because Postgres would put it the other way round.
-      if (sort && sort.field !== 'id') q = q.orderBy(sql`${def.sortKinds ? sortExpression(def, qc, sort) : sql.ref(sort.field)} ${sort.order === 'asc' ? sql`asc nulls first` : sql`desc nulls last`}`)
+      if (sort && sort.field !== 'id')
+        q = q.orderBy(
+          sql`${def.sortKinds ? sortExpression(def, qc, sort) : sql.ref(sort.field)} ${sort.order === 'asc' ? sql`asc nulls first` : sql`desc nulls last`}`,
+        )
       return { page: readAll(q.orderBy(ref(def, 'id'), sort?.order ?? 'asc').limit(limit + 1)) }
     },
     build: (found) =>
@@ -232,7 +303,12 @@ export function listOperation<R extends { id: string }>(def: PreparedResource<Pr
           const cursor = (): string => {
             if (!sort) return last!.id as string
             const value = last![def.sortKinds ? '__vibase_sort_value' : sort.field]
-            return encodeCursor(sort.field, sort.order, value === null || value === undefined ? null : sort.kind === 'integer' ? Number(value) : String(value), last!.id as string)
+            return encodeCursor(
+              sort.field,
+              sort.order,
+              value === null || value === undefined ? null : sort.kind === 'integer' ? Number(value) : String(value),
+              last!.id as string,
+            )
           }
           return {
             data: page.map((r) => {
@@ -255,10 +331,15 @@ const PAGING = ['after', 'limit', 'sort', 'order'] as const
  * that match: `count(*)`, the requested functions, and (for a money field) the distinct currencies the money rule judges. No `LIMIT`: it reads every
  * matching row, which the operation's description says. 400s first, then 403s, as a list does.
  */
-export function aggregateOperation(def: PreparedResource, env: PreparedEnv, query: Record<string, unknown>): PreparedOperation<AggregateAnswer> {
+export function aggregateOperation(
+  def: PreparedResource,
+  env: PreparedEnv,
+  query: Record<string, unknown>,
+): PreparedOperation<AggregateAnswer> {
   if (!def.aggregate) throw new Error(`${def.name} does not aggregate`)
   const { sum, avg, min, max, ...rest } = query
-  if (PAGING.some((key) => rest[key] !== undefined)) throw new ApiError(400, 'validation_error', 'after, limit, sort and order are not parameters of an aggregate')
+  if (PAGING.some((key) => rest[key] !== undefined))
+    throw new ApiError(400, 'validation_error', 'after, limit, sort and order are not parameters of an aggregate')
   const terms = parseAggregateTerms(def as never, { sum, avg, min, max })
   const { filters } = prepareListQuery(def, { filters: rest as Record<string, string> })
   checkFilterScopes(def, env, filters)
@@ -267,7 +348,9 @@ export function aggregateOperation(def: PreparedResource, env: PreparedEnv, quer
     name: `${def.name}.aggregate`,
     mutates: false,
     reads: (qc): Record<string, Read> => {
-      let q = loose(qc).selectFrom(def.table).select(aggregateSelect(qc, def.table, plan, def.aggregate!.money) as never)
+      let q = loose(qc)
+        .selectFrom(def.table)
+        .select(aggregateSelect(qc, def.table, plan, def.aggregate!.money) as never)
       for (const w of live(def, env)) q = q.where(w)
       for (const w of filterPredicates(def, qc, filters)) q = q.where(w)
       return { aggregate: readMaybe(q) }
@@ -276,8 +359,11 @@ export function aggregateOperation(def: PreparedResource, env: PreparedEnv, quer
   })
 }
 
-
-export function getOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, rawId: string): PreparedOperation<R> {
+export function getOperation<R extends { id: string }>(
+  def: PreparedResource<PreparedResource['table'], R>,
+  env: PreparedEnv,
+  rawId: string,
+): PreparedOperation<R> {
   const id = canonicalId(def, rawId)
   return defineOperation<R>({
     name: `${def.name}.get`,
@@ -297,7 +383,13 @@ export function getOperation<R extends { id: string }>(def: PreparedResource<Pre
 }
 
 /** Result select, gated on this unit's event having been written, so a drifted (no-op) unit returns nothing. */
-export const resultStep = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, eventId: string): Step => {
+export const resultStep = (
+  def: PreparedResource,
+  qc: QueryContext,
+  env: PreparedEnv,
+  id: string,
+  eventId: string,
+): Step => {
   const q = loose(qc)
     .selectFrom(def.table)
     .select(projection(def, qc, env))
@@ -333,7 +425,13 @@ function boundValue(qc: QueryContext, kind: ColumnKind | undefined, value: unkno
  * `INSERT ... SELECT <bound values> WHERE <every reference guard holds>`: a reference that vanished makes the insert a no-op (D4).
  * `fromRows` are columns whose value is an expression over other rows ([[CORE130]] `createComputed`), selected beside the bound ones.
  */
-function guardedInsert(def: PreparedResource, qc: QueryContext, row: Record<string, unknown>, guards: Expression<SqlBool>[], fromRows: Record<string, unknown> = {}) {
+function guardedInsert(
+  def: PreparedResource,
+  qc: QueryContext,
+  row: Record<string, unknown>,
+  guards: Expression<SqlBool>[],
+  fromRows: Record<string, unknown> = {},
+) {
   const kinds = kindsOf(def)
   const columns = [...Object.keys(row), ...Object.keys(fromRows)]
   let select = loose(qc).selectNoFrom([
@@ -344,7 +442,11 @@ function guardedInsert(def: PreparedResource, qc: QueryContext, row: Record<stri
   return loose(qc).insertInto(def.table).columns(columns).expression(select)
 }
 
-export function createOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, input: unknown): PreparedOperation<R> {
+export function createOperation<R extends { id: string }>(
+  def: PreparedResource<PreparedResource['table'], R>,
+  env: PreparedEnv,
+  input: unknown,
+): PreparedOperation<R> {
   const values = prepareCreate(def, env.actor, input)
   const stored = { ...values, ...(def.prepare?.({ values, meta: { op: 'create', now: env.now } }) ?? {}) }
   const id = env.newId()
@@ -358,13 +460,29 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
     build: (found, qc) => {
       if (missingReference(found, referenceReads(def, qc, env, stored))) throw invalidReference()
       refuseConflicts(found, conflictsOf(qc))
-      const row: Record<string, unknown> = { ...columnsOnly(def, stored), id, organization_id: env.organizationId, created_by: env.actor.id, created_at: at, updated_at: at }
+      const row: Record<string, unknown> = {
+        ...columnsOnly(def, stored),
+        id,
+        organization_id: env.organizationId,
+        created_by: env.actor.id,
+        created_at: at,
+        updated_at: at,
+      }
       const guards = referenceGuards(def, env, stored)
-      const fromRows = (def.createComputed?.({ eb: expressionBuilder<StorageDatabase, PreparedResource['table']>(), qc, env, values: stored }) ?? {}) as Record<string, unknown>
+      const fromRows = (def.createComputed?.({
+        eb: expressionBuilder<StorageDatabase, PreparedResource['table']>(),
+        qc,
+        env,
+        values: stored,
+      }) ?? {}) as Record<string, unknown>
       const guarded = guards.length > 0 || Object.keys(fromRows).length > 0
       return unit({
         steps: [
-          step(!guarded ? loose(qc).insertInto(def.table).values(row) : guardedInsert(def, qc, row, guards, fromRows), 'first-mutation', !guarded ? {} : { expect: 'affected' }),
+          step(
+            !guarded ? loose(qc).insertInto(def.table).values(row) : guardedInsert(def, qc, row, guards, fromRows),
+            'first-mutation',
+            !guarded ? {} : { expect: 'affected' },
+          ),
           step(
             eventStatement(qc, {
               id: eventId,
@@ -393,8 +511,13 @@ export function createOperation<R extends { id: string }>(def: PreparedResource<
 }
 
 /** The before row, plus its exact stored `updated_at` for the drift guard. Without derived fields: it feeds events (D2). */
-export const beforeRead = (def: PreparedResource, qc: QueryContext, env: PreparedEnv, id: string, opts: { derived?: boolean } = { derived: false }) =>
-  readMaybe(selectRecord(def, qc, env, id, opts).select(ts.exact(qc, `${def.table}.updated_at`).as('__stamp')))
+export const beforeRead = (
+  def: PreparedResource,
+  qc: QueryContext,
+  env: PreparedEnv,
+  id: string,
+  opts: { derived?: boolean } = { derived: false },
+) => readMaybe(selectRecord(def, qc, env, id, opts).select(ts.exact(qc, `${def.table}.updated_at`).as('__stamp')))
 
 /**
  * A value that depends on the before row ([[AGT186]] D5/D6): `merge` runs in `build` on the one `before` read whose stamp guards the
@@ -402,7 +525,13 @@ export const beforeRead = (def: PreparedResource, qc: QueryContext, env: Prepare
  */
 export type UpdateMerge<R> = (before: R) => Record<string, unknown> | null
 
-export function updateOperation<R extends { id: string }>(def: PreparedResource<PreparedResource['table'], R>, env: PreparedEnv, rawId: string, input: unknown, merge?: UpdateMerge<R>): PreparedOperation<R> {
+export function updateOperation<R extends { id: string }>(
+  def: PreparedResource<PreparedResource['table'], R>,
+  env: PreparedEnv,
+  rawId: string,
+  input: unknown,
+  merge?: UpdateMerge<R>,
+): PreparedOperation<R> {
   const values = prepareUpdate(def, env.actor, input)
   const id = canonicalId(def, rawId)
   const empty = merge === undefined && Object.keys(values).length === 0
@@ -414,7 +543,11 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
     name: `${def.name}.update`,
     mutates: !empty,
     // An empty patch writes nothing and answers with the record as read, derived fields included; otherwise `before` feeds the event and carries none.
-    reads: (qc) => ({ before: beforeRead(def, qc, env, id, { derived: empty }), ...referenceReads(def, qc, env, prepared), ...(empty ? {} : conflictReads(conflictsOf(qc))) }),
+    reads: (qc) => ({
+      before: beforeRead(def, qc, env, id, { derived: empty }),
+      ...referenceReads(def, qc, env, prepared),
+      ...(empty ? {} : conflictReads(conflictsOf(qc))),
+    }),
     build: (found, qc) => {
       const row = found.maybe('before')
       if (!row) throw notFound(def)
@@ -427,7 +560,13 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
       const stored = { ...prepared, ...merged }
       if (missingReference(found, referenceReads(def, qc, env, stored))) throw invalidReference()
       refuseConflicts(found, conflictsOf(qc))
-      const computed = def.computed?.({ eb: expressionBuilder<StorageDatabase, PreparedResource['table']>(), qc, values: stored, now: env.now }) ?? {}
+      const computed =
+        def.computed?.({
+          eb: expressionBuilder<StorageDatabase, PreparedResource['table']>(),
+          qc,
+          values: stored,
+          now: env.now,
+        }) ?? {}
       let update = loose(qc)
         .updateTable(def.table)
         .set({ ...columnsOnly(def, stored), ...computed, updated_at: at })
@@ -435,7 +574,8 @@ export function updateOperation<R extends { id: string }>(def: PreparedResource<
         .where(sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`)
         .where(sql<SqlBool>`${ts.exact(qc, `${def.table}.updated_at`)} = ${String(__stamp)}`)
       if (softDeletes(def)) update = update.where(sql<SqlBool>`${ref(def, 'deleted_at')} is null`)
-      for (const g of def.guards?.(expressionBuilder<StorageDatabase, PreparedResource['table']>(), env) ?? []) update = update.where(g)
+      for (const g of def.guards?.(expressionBuilder<StorageDatabase, PreparedResource['table']>(), env) ?? [])
+        update = update.where(g)
       for (const g of referenceGuards(def, env, stored)) update = update.where(g)
       return unit({
         steps: [
@@ -487,7 +627,8 @@ export function deleteOperation(def: PreparedResource, env: PreparedEnv, rawId: 
         .where(sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`)
         .where(sql<SqlBool>`${ref(def, 'deleted_at')} is null`)
         .where(sql<SqlBool>`${ts.exact(qc, `${def.table}.updated_at`)} = ${String(__stamp)}`)
-      for (const g of def.guards?.(expressionBuilder<StorageDatabase, PreparedResource['table']>(), env) ?? []) update = update.where(g)
+      for (const g of def.guards?.(expressionBuilder<StorageDatabase, PreparedResource['table']>(), env) ?? [])
+        update = update.where(g)
       const proof = loose(qc)
         .selectNoFrom(sql<number>`1`.as('applied'))
         .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`)
@@ -519,4 +660,3 @@ export function deleteOperation(def: PreparedResource, env: PreparedEnv, rawId: 
     },
   })
 }
-

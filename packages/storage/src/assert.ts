@@ -13,7 +13,8 @@ export const UNIT_ASSERTION_CONSTRAINT = 'unit_assertion_holds'
  */
 export function assertStep(qc: QueryContext, condition: Expression<SqlBool>): Step {
   // Labelled escape hatches (dialect-specific SQL; see RESULT.md inventory).
-  if (qc.dialect === 'd1') return { query: sql`insert into "unit_assertion" ("ok") select 0 where not (${condition})`.compile(qc.db) }
+  if (qc.dialect === 'd1')
+    return { query: sql`insert into "unit_assertion" ("ok") select 0 where not (${condition})`.compile(qc.db) }
   return { query: sql`select (${condition}) as "holds"`.compile(qc.db), expect: 'holds' }
 }
 

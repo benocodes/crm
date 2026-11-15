@@ -8,7 +8,8 @@ import type { GmailConnection } from './mapper.js'
 
 // [[CHN5]] D24, D25, D16, [[CORE69]] D3: GmailChannel over FakeGmail.
 const CONN: GmailConnection = { id: 'conn-1', mailbox: MAILBOX }
-const bytesOfStream = async (s: ReadableStream<Uint8Array>): Promise<Uint8Array> => new Uint8Array(await new Response(s).arrayBuffer())
+const bytesOfStream = async (s: ReadableStream<Uint8Array>): Promise<Uint8Array> =>
+  new Uint8Array(await new Response(s).arrayBuffer())
 const same = (a: Uint8Array, b: Uint8Array): boolean => Buffer.from(a).equals(Buffer.from(b))
 
 describe('readMessage', () => {
@@ -36,8 +37,14 @@ describe('readMessage', () => {
   })
 
   it('any other failure throws for the caller to classify, status intact', async () => {
-    const gmail = new FakeGmail([gmailFixture('plain')]).failWhen(() => true, new GmailApiError({ status: 429, reason: 'rateLimitExceeded', retryAfterSeconds: 7 }))
-    await expect(new GmailChannel(gmail).readMessage(CONN, 'plain')).rejects.toMatchObject({ status: 429, retryAfterSeconds: 7 })
+    const gmail = new FakeGmail([gmailFixture('plain')]).failWhen(
+      () => true,
+      new GmailApiError({ status: 429, reason: 'rateLimitExceeded', retryAfterSeconds: 7 }),
+    )
+    await expect(new GmailChannel(gmail).readMessage(CONN, 'plain')).rejects.toMatchObject({
+      status: 429,
+      retryAfterSeconds: 7,
+    })
   })
 
   it('a draft is a skip from the mapper', async () => {
@@ -79,7 +86,10 @@ describe('fetchAttachment', () => {
 
   it('a 429 is not an attachment failure: it is a ChannelThrottledError carrying Retry-After ([[CHN5]] D83)', async () => {
     const { gmail, channel, md } = await setup()
-    gmail.failWhen((c) => c.op === 'attachment', new GmailApiError({ status: 429, retryAfter: '8', retryAfterSeconds: 8 }))
+    gmail.failWhen(
+      (c) => c.op === 'attachment',
+      new GmailApiError({ status: 429, retryAfter: '8', retryAfterSeconds: 8 }),
+    )
     const err = await channel.fetchAttachment(CONN, md).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ChannelThrottledError)
     expect((err as ChannelThrottledError).retryAfterSeconds).toBe(8)
@@ -95,7 +105,11 @@ describe('fetchAttachment', () => {
   it('metadata without an attachment id or a size is bad_metadata, and nothing is requested', async () => {
     const { gmail, channel } = await setup()
     const before = gmail.calls.length
-    for (const md of [{}, { message_id: 'm', attachment_id: 'a' }, { message_id: 'm', attachment_id: 'a', size: 'x' }] as Array<Record<string, string>>) {
+    for (const md of [
+      {},
+      { message_id: 'm', attachment_id: 'a' },
+      { message_id: 'm', attachment_id: 'a', size: 'x' },
+    ] as Array<Record<string, string>>) {
       expect(await channel.fetchAttachment(CONN, md).catch((e: unknown) => e)).toMatchObject({ code: 'bad_metadata' })
     }
     expect(gmail.calls).toHaveLength(before)

@@ -8,18 +8,9 @@
       "host": "gmail.googleapis.com",
       "path": "/gmail/v1/users/me/messages",
       "query": [
-        [
-          "q",
-          "after:1791363743 {in:inbox in:sent}"
-        ],
-        [
-          "maxResults",
-          "25"
-        ],
-        [
-          "pageToken",
-          "30452129629340668877"
-        ]
+        ["q", "after:1791363743 {in:inbox in:sent}"],
+        ["maxResults", "25"],
+        ["pageToken", "30452129629340668877"]
       ],
       "form": null
     },

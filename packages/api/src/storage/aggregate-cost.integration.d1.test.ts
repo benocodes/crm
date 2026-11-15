@@ -25,21 +25,35 @@ export function searchConstraints(details: readonly string[], table: string): st
 }
 
 /** Violations of: every filter discovery marks indexed has an aggregate plan that searches deals through an index constraining that column. */
-export function aggregateCostViolations(discovery: ReadonlyArray<{ name: string; indexed: boolean }>, plans: Readonly<Record<string, readonly string[]>>): string[] {
+export function aggregateCostViolations(
+  discovery: ReadonlyArray<{ name: string; indexed: boolean }>,
+  plans: Readonly<Record<string, readonly string[]>>,
+): string[] {
   const out: string[] = []
   for (const f of discovery) {
     if (!f.indexed) continue
     const constraints = searchConstraints(plans[f.name] ?? [], 'deals')
-    if (!constraints || !constraints.includes(f.name)) out.push(`${f.name} is marked indexed but the aggregate plan does not search deals through an index constraining it`)
+    if (!constraints?.includes(f.name))
+      out.push(
+        `${f.name} is marked indexed but the aggregate plan does not search deals through an index constraining it`,
+      )
   }
   return out
 }
 
 const plan = async (query: Record<string, unknown>) => {
   const env = e.env({ scopes: ScopeSet.parse(registry.declaredScopes()) })
-  const compiled = compileOperation((await op.prepare(env, { query, params: {}, body: undefined })) as PreparedOperation<unknown>, 'd1')
+  const compiled = compileOperation(
+    (await op.prepare(env, { query, params: {}, body: undefined })) as PreparedOperation<unknown>,
+    'd1',
+  )
   const read = compiled.reads[0]!
-  const rows = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results as Array<{ detail: string }>
+  const rows = (
+    await e
+      .d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`)
+      .bind(...read.parameters)
+      .all()
+  ).results as Array<{ detail: string }>
   return { compiled, read, details: rows.map((r) => r.detail) }
 }
 
@@ -51,7 +65,9 @@ beforeAll(async () => {
   const doc = buildSchemaDocument({ columns: [column], foreignKeys: [], resources: [deals as never] })
   const filters = doc.tables.find((t) => t.name === 'deals')!.resource!.filters
   discovery = filters.filter((f) => !f.custom).map((f) => ({ name: f.name, indexed: f.indexed === true }))
-  for (const [name, spec] of Object.entries((deals as unknown as { columnFilters: Record<string, ColumnFilterSpec> }).columnFilters)) {
+  for (const [name, spec] of Object.entries(
+    (deals as unknown as { columnFilters: Record<string, ColumnFilterSpec> }).columnFilters,
+  )) {
     const operand = SAMPLES.find((c) => {
       try {
         parseCondition(name, spec, `eq.${c}`, {})
@@ -60,7 +76,13 @@ beforeAll(async () => {
         return false
       }
     })!
-    plans[name] = (await plan({ [name]: `eq.${operand}`, sum: 'amount_minor', currency: name === 'currency' ? `eq.${operand}` : 'eq.USD' })).details
+    plans[name] = (
+      await plan({
+        [name]: `eq.${operand}`,
+        sum: 'amount_minor',
+        currency: name === 'currency' ? `eq.${operand}` : 'eq.USD',
+      })
+    ).details
   }
 })
 afterAll(async () => {
@@ -86,6 +108,8 @@ describe('the aggregate reads what its description says (D16)', () => {
   it('strength: marking a non-indexed filter (name) indexed makes the check name it', () => {
     expect(discovery.find((f) => f.name === 'name')!.indexed).toBe(false)
     const lied = discovery.map((f) => (f.name === 'name' ? { ...f, indexed: true } : f))
-    expect(aggregateCostViolations(lied, plans)).toEqual(['name is marked indexed but the aggregate plan does not search deals through an index constraining it'])
+    expect(aggregateCostViolations(lied, plans)).toEqual([
+      'name is marked indexed but the aggregate plan does not search deals through an index constraining it',
+    ])
   })
 })

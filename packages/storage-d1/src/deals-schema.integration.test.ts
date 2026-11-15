@@ -30,13 +30,40 @@ afterAll(async () => {
 
 const insert = (table: string, row: Record<string, unknown>) => {
   const cols = Object.keys(row)
-  return d1.batch([d1.prepare(`INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...Object.values(row))]).then(() => null, (e: Error) => e.message)
+  return d1
+    .batch([
+      d1
+        .prepare(
+          `INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+        )
+        .bind(...Object.values(row)),
+    ])
+    .then(
+      () => null,
+      (e: Error) => e.message,
+    )
 }
 const base = { organization_id: ORG, created_by: USER, created_at: AT, updated_at: AT }
 const pipeline = (over: Record<string, unknown> = {}) => ({ id: P1, name: 'Sales', ...base, ...over })
-const stage = (over: Record<string, unknown> = {}) => ({ id: S1, pipeline_id: P1, name: 'Researched', kind: 'open', position: 10, ...base, ...over })
-const deal = (over: Record<string, unknown> = {}) => ({ id: id(30), name: 'Acme', pipeline_id: P1, stage_id: S1, ...base, ...over })
-const count = async (table: string) => ((await d1.prepare(`select count(*) as n from "${table}"`).first()) as { n: number }).n
+const stage = (over: Record<string, unknown> = {}) => ({
+  id: S1,
+  pipeline_id: P1,
+  name: 'Researched',
+  kind: 'open',
+  position: 10,
+  ...base,
+  ...over,
+})
+const deal = (over: Record<string, unknown> = {}) => ({
+  id: id(30),
+  name: 'Acme',
+  pipeline_id: P1,
+  stage_id: S1,
+  ...base,
+  ...over,
+})
+const count = async (table: string) =>
+  ((await d1.prepare(`select count(*) as n from "${table}"`).first()) as { n: number }).n
 
 describe('migration 0009_deals over a database at 0008 with data', () => {
   it('applies, keeps companies, contacts, tags and edges unchanged, and creates the three tables', async () => {
@@ -52,7 +79,9 @@ describe('migration 0009_deals over a database at 0008 with data', () => {
     expect(await insert('companies', { id: co, name: 'Acme', ...base })).toBeNull()
     expect(await insert('contacts', { id: ct, name: 'Ann', company_id: co, ...base })).toBeNull()
     expect(await insert('tags', { id: tg, name: 'Prospects', ...base })).toBeNull()
-    expect(await insert('associations', { id: id(43), a_type: 'companies', a_id: co, b_type: 'tags', b_id: tg, ...base })).toBeNull()
+    expect(
+      await insert('associations', { id: id(43), a_type: 'companies', a_id: co, b_type: 'tags', b_id: tg, ...base }),
+    ).toBeNull()
     const before = async () => ({
       companies: (await d1.prepare('select * from companies').all()).results,
       contacts: (await d1.prepare('select * from contacts').all()).results,
@@ -60,13 +89,19 @@ describe('migration 0009_deals over a database at 0008 with data', () => {
       associations: (await d1.prepare('select * from associations').all()).results,
     })
     const snapshot = await before()
-    for (const t of ['pipelines', 'pipeline_stages', 'deals']) expect((await d1.prepare('select name from sqlite_master where name = ?').bind(t).all()).results, t).toEqual([])
+    for (const t of ['pipelines', 'pipeline_stages', 'deals'])
+      expect((await d1.prepare('select name from sqlite_master where name = ?').bind(t).all()).results, t).toEqual([])
     const only = mkdtempSync(join(tmpdir(), 'mig9-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0009'))) cpSync(join(MIGRATIONS_DIR, f), join(only, f))
+    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0009')))
+      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
     expect(await applyMigrations(d1, only)).toEqual(['0009_deals.sql'])
     expect(await before()).toEqual(snapshot)
-    for (const t of ['pipelines', 'pipeline_stages', 'deals']) expect((await d1.prepare('select name from sqlite_master where name = ?').bind(t).all()).results, t).toEqual([{ name: t }])
-    for (const t of ['pipelines', 'pipeline_stages', 'deals']) expect(await count(t), `${t} starts empty (D5: nothing seeded)`).toBe(0)
+    for (const t of ['pipelines', 'pipeline_stages', 'deals'])
+      expect((await d1.prepare('select name from sqlite_master where name = ?').bind(t).all()).results, t).toEqual([
+        { name: t },
+      ])
+    for (const t of ['pipelines', 'pipeline_stages', 'deals'])
+      expect(await count(t), `${t} starts empty (D5: nothing seeded)`).toBe(0)
   })
 
   it('constrains pipelines and stages: names 1..100, kind, position >= 0, uuid ids, ISO stamps, declared FKs', async () => {
@@ -77,13 +112,22 @@ describe('migration 0009_deals over a database at 0008 with data', () => {
     expect(await insert('pipelines', pipeline({ id: 'not-a-uuid', name: 'ok' }))).toMatch(/CHECK/)
     expect(await insert('pipelines', pipeline({ id: id(12), name: 'ok', created_at: 'yesterday' }))).toMatch(/CHECK/)
     expect(await insert('pipeline_stages', stage())).toBeNull()
-    expect(await insert('pipeline_stages', stage({ id: S2, pipeline_id: P2, name: 'Won', kind: 'won', position: 0 }))).toBeNull()
-    expect(await insert('pipeline_stages', stage({ id: S1_DELETED, name: 'Old', position: 5, deleted_at: AT }))).toBeNull()
+    expect(
+      await insert('pipeline_stages', stage({ id: S2, pipeline_id: P2, name: 'Won', kind: 'won', position: 0 })),
+    ).toBeNull()
+    expect(
+      await insert('pipeline_stages', stage({ id: S1_DELETED, name: 'Old', position: 5, deleted_at: AT })),
+    ).toBeNull()
     expect(await insert('pipeline_stages', stage({ id: id(23), name: 'Bad kind', kind: 'closed' }))).toMatch(/CHECK/)
     expect(await insert('pipeline_stages', stage({ id: id(23), name: 'Negative', position: -1 }))).toMatch(/CHECK/)
     expect(await insert('pipeline_stages', stage({ id: id(23), name: '' }))).toMatch(/CHECK/)
-    expect(await insert('pipeline_stages', stage({ id: id(23), name: 'No pipeline', pipeline_id: id(99) }))).toMatch(/FOREIGN KEY/)
-    const fks = async (t: string) => (await d1.prepare(`select "table" as t from pragma_foreign_key_list('${t}') order by 1`).all()).results!.map((r) => (r as { t: string }).t)
+    expect(await insert('pipeline_stages', stage({ id: id(23), name: 'No pipeline', pipeline_id: id(99) }))).toMatch(
+      /FOREIGN KEY/,
+    )
+    const fks = async (t: string) =>
+      (await d1.prepare(`select "table" as t from pragma_foreign_key_list('${t}') order by 1`).all()).results!.map(
+        (r) => (r as { t: string }).t,
+      )
     expect(await fks('pipelines')).toEqual(['organizations', 'principals'])
     expect(await fks('pipeline_stages')).toEqual(['organizations', 'pipelines', 'principals'])
   })
@@ -100,10 +144,17 @@ describe('migration 0009_deals over a database at 0008 with data', () => {
   it('constrains deals: name 1..200, amount >= 0 and <= 2^53-1 needing a currency, currency three capitals, a calendar date', async () => {
     const ok = deal()
     expect(await insert('deals', ok)).toBeNull()
-    expect(await insert('deals', deal({ id: id(31), amount_minor: 0, currency: 'USD', expected_close_date: '2026-12-31', owner_id: USER }))).toBeNull()
+    expect(
+      await insert(
+        'deals',
+        deal({ id: id(31), amount_minor: 0, currency: 'USD', expected_close_date: '2026-12-31', owner_id: USER }),
+      ),
+    ).toBeNull()
     expect(await insert('deals', deal({ id: id(32), currency: 'EUR' }))).toBeNull() // a currency without an amount
     expect(await insert('deals', deal({ id: id(33), name: 'x'.repeat(200) }))).toBeNull()
-    expect(await insert('deals', deal({ id: id(34), amount_minor: Number.MAX_SAFE_INTEGER, currency: 'JPY' }))).toBeNull()
+    expect(
+      await insert('deals', deal({ id: id(34), amount_minor: Number.MAX_SAFE_INTEGER, currency: 'JPY' })),
+    ).toBeNull()
     for (const [what, over] of [
       ['an empty name', { name: '' }],
       ['a 201 character name', { name: 'x'.repeat(201) }],
@@ -120,10 +171,21 @@ describe('migration 0009_deals over a database at 0008 with data', () => {
       expect(await insert('deals', deal({ id: id(35), ...over })), what).toMatch(/CHECK/)
     }
     expect(await insert('deals', deal({ id: id(35), owner_id: id(98) })), 'an unknown owner').toMatch(/FOREIGN KEY/)
-    expect(await insert('deals', deal({ id: id(35), pipeline_id: id(97) })), 'an unknown pipeline').toMatch(/FOREIGN KEY/)
+    expect(await insert('deals', deal({ id: id(35), pipeline_id: id(97) })), 'an unknown pipeline').toMatch(
+      /FOREIGN KEY/,
+    )
     expect(await insert('deals', deal({ id: id(35), stage_id: id(96) })), 'an unknown stage').toMatch(/FOREIGN KEY/)
-    const fks = (await d1.prepare("select \"table\" as t from pragma_foreign_key_list('deals') order by 1").all()).results!.map((r) => (r as { t: string }).t)
-    expect(fks).toEqual(['organizations', 'pipeline_stages', 'pipeline_stages', 'pipelines', 'principals', 'principals'])
+    const fks = (
+      await d1.prepare('select "table" as t from pragma_foreign_key_list(\'deals\') order by 1').all()
+    ).results!.map((r) => (r as { t: string }).t)
+    expect(fks).toEqual([
+      'organizations',
+      'pipeline_stages',
+      'pipeline_stages',
+      'pipelines',
+      'principals',
+      'principals',
+    ])
   })
 
   it('the composite foreign key refuses a deal whose pipeline_id disagrees with its stage, and leaves nothing (D9, D21a)', async () => {
@@ -137,9 +199,21 @@ describe('migration 0009_deals over a database at 0008 with data', () => {
   })
 
   it('indexes the lookups: (organization_id, id) per table, deals by pipeline, stage and owner', async () => {
-    const idx = async (t: string) => (await d1.prepare(`select name from pragma_index_list('${t}') where name like 'idx_%'`).all()).results!.map((r) => (r as { name: string }).name).sort()
+    const idx = async (t: string) =>
+      (await d1.prepare(`select name from pragma_index_list('${t}') where name like 'idx_%'`).all())
+        .results!.map((r) => (r as { name: string }).name)
+        .sort()
     expect(await idx('pipelines')).toContain('idx_pipelines_organization_id_id')
-    expect(await idx('pipeline_stages')).toEqual(expect.arrayContaining(['idx_pipeline_stages_organization_id_id', 'idx_pipeline_stages_pipeline_id_id']))
-    expect(await idx('deals')).toEqual(expect.arrayContaining(['idx_deals_organization_id_id', 'idx_deals_organization_id_pipeline_id', 'idx_deals_organization_id_stage_id', 'idx_deals_organization_id_owner_id']))
+    expect(await idx('pipeline_stages')).toEqual(
+      expect.arrayContaining(['idx_pipeline_stages_organization_id_id', 'idx_pipeline_stages_pipeline_id_id']),
+    )
+    expect(await idx('deals')).toEqual(
+      expect.arrayContaining([
+        'idx_deals_organization_id_id',
+        'idx_deals_organization_id_pipeline_id',
+        'idx_deals_organization_id_stage_id',
+        'idx_deals_organization_id_owner_id',
+      ]),
+    )
   })
 })

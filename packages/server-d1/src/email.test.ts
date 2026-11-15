@@ -9,23 +9,45 @@ import { openWorkerPair, type WorkerPair } from './test/kit.js'
 describe('cloudflareEmailSender', () => {
   it('hands the binding exactly { to, from: { email, name: "Vibase" }, subject, text, html }', async () => {
     const fake = fakeEmail()
-    await cloudflareEmailSender(fake, 'invites@x.test').send({ to: 'ann@x.test', subject: 'S', text: 'T', html: '<p>H</p>' })
-    expect(fake.sent).toEqual([{ to: 'ann@x.test', from: { email: 'invites@x.test', name: 'Vibase' }, subject: 'S', text: 'T', html: '<p>H</p>' }])
+    await cloudflareEmailSender(fake, 'invites@x.test').send({
+      to: 'ann@x.test',
+      subject: 'S',
+      text: 'T',
+      html: '<p>H</p>',
+    })
+    expect(fake.sent).toEqual([
+      {
+        to: 'ann@x.test',
+        from: { email: 'invites@x.test', name: 'Vibase' },
+        subject: 'S',
+        text: 'T',
+        html: '<p>H</p>',
+      },
+    ])
   })
 
   it('rejects when the binding rejects', async () => {
     const fake = fakeEmail()
     fake.failing = true
-    await expect(cloudflareEmailSender(fake, 'invites@x.test').send({ to: 'a@x.test', subject: 'S', text: 'T', html: 'H' })).rejects.toThrow()
+    await expect(
+      cloudflareEmailSender(fake, 'invites@x.test').send({ to: 'a@x.test', subject: 'S', text: 'T', html: 'H' }),
+    ).rejects.toThrow()
   })
 })
 
 describe('parseEmailConfig', () => {
   it('is off with neither, on with both, and normalises the address', () => {
     expect(parseEmailConfig({})).toBeUndefined()
-    expect(parseEmailConfig({ EMAIL: fakeEmail(), AUTH_EMAIL_FROM: '  Invites@X.Test ' })).toEqual({ from: 'invites@x.test' })
+    expect(parseEmailConfig({ EMAIL: fakeEmail(), AUTH_EMAIL_FROM: '  Invites@X.Test ' })).toEqual({
+      from: 'invites@x.test',
+    })
   })
-  it.each([['no @', 'invites.x.test'], ['two @', 'a@b@x.test'], ['undotted domain', 'a@localhost'], ['blank', '   ']])('a malformed address (%s) throws naming AUTH_EMAIL_FROM and not its value', (_n, from) => {
+  it.each([
+    ['no @', 'invites.x.test'],
+    ['two @', 'a@b@x.test'],
+    ['undotted domain', 'a@localhost'],
+    ['blank', '   '],
+  ])('a malformed address (%s) throws naming AUTH_EMAIL_FROM and not its value', (_n, from) => {
     try {
       parseEmailConfig({ EMAIL: fakeEmail(), AUTH_EMAIL_FROM: from })
       throw new Error('did not throw')
@@ -86,7 +108,11 @@ describe('configuration matrix (D2), provider better-auth', () => {
     expect(r.health).toBe(200)
     expect(r.log).toMatch(/\bEMAIL\b/)
   })
-  it.each([['no @', 'invites.x.test'], ['two @', 'a@b@x.test'], ['undotted domain', 'invites@localhost']])('a malformed address (%s) fails closed naming the variable, never the value', async (_n, from) => {
+  it.each([
+    ['no @', 'invites.x.test'],
+    ['two @', 'a@b@x.test'],
+    ['undotted domain', 'invites@localhost'],
+  ])('a malformed address (%s) fails closed naming the variable, never the value', async (_n, from) => {
     const r = await attempt({ ...ba, ...BIND, AUTH_EMAIL_FROM: from })
     expect(r.other).toBe(500)
     expect(r.health).toBe(200)
@@ -96,10 +122,17 @@ describe('configuration matrix (D2), provider better-auth', () => {
 })
 
 describe('configuration matrix (D2), other providers ignore both variables', () => {
-  it.each([['clerk'], [undefined]])('provider %s with a malformed address and the binding: no email error', async (provider) => {
-    const withEmail = await attempt({ ...(provider ? { AUTH_PROVIDER: provider } : {}), ...BIND, AUTH_EMAIL_FROM: 'not an address' })
-    const without = await attempt({ ...(provider ? { AUTH_PROVIDER: provider } : {}) })
-    expect(names(withEmail.log)).toBe(false)
-    expect(withEmail.other).toBe(without.other)
-  })
+  it.each([['clerk'], [undefined]])(
+    'provider %s with a malformed address and the binding: no email error',
+    async (provider) => {
+      const withEmail = await attempt({
+        ...(provider ? { AUTH_PROVIDER: provider } : {}),
+        ...BIND,
+        AUTH_EMAIL_FROM: 'not an address',
+      })
+      const without = await attempt({ ...(provider ? { AUTH_PROVIDER: provider } : {}) })
+      expect(names(withEmail.log)).toBe(false)
+      expect(withEmail.other).toBe(without.other)
+    },
+  )
 })

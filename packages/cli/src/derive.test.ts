@@ -10,7 +10,11 @@ import type { Command } from './types.js'
 
 // [[API6]] D7: commands are derived from the merged documents; flags and positionals from each operation.
 
-const merged = () => mergeDocuments([{ source: 'api', doc: apiDoc() }, { source: 'meta', doc: metaDoc() }])
+const merged = () =>
+  mergeDocuments([
+    { source: 'api', doc: apiDoc() },
+    { source: 'meta', doc: metaDoc() },
+  ])
 const commands = () => deriveCommands(merged())
 const cmd = (id: string): Command => {
   const c = commands().find((x) => x.operationId === id)
@@ -38,7 +42,9 @@ const usageError = async (p: Promise<unknown>) => {
 describe('document merge', () => {
   it('merges both documents by operationId, records the source, and skips routes without an operationId', () => {
     const ids = merged().map((o) => o.id)
-    expect(ids).toEqual(expect.arrayContaining(['widgets.list', 'widgets.create', 'parts.get', 'me.get', 'api_keys.revoke']))
+    expect(ids).toEqual(
+      expect.arrayContaining(['widgets.list', 'widgets.create', 'parts.get', 'me.get', 'api_keys.revoke']),
+    )
     expect(ids.every(Boolean)).toBe(true)
     expect(merged().find((o) => o.id === 'me.get')?.source).toBe('meta')
     expect(commands().map((c) => c.path)).not.toContain('/api/v1/ping')
@@ -47,10 +53,15 @@ describe('document merge', () => {
 
   it('a duplicate operationId across the documents is a usage error naming both', () => {
     const meta = metaDoc()
-    meta.paths['/meta/v1/dup'] = { get: { operationId: 'widgets.list', summary: 'dup', responses: { '200': { description: 'ok' } } } }
+    meta.paths['/meta/v1/dup'] = {
+      get: { operationId: 'widgets.list', summary: 'dup', responses: { '200': { description: 'ok' } } },
+    }
     let err: unknown
     try {
-      mergeDocuments([{ source: 'api', doc: apiDoc() }, { source: 'meta', doc: meta }])
+      mergeDocuments([
+        { source: 'api', doc: apiDoc() },
+        { source: 'meta', doc: meta },
+      ])
     } catch (e) {
       err = e
     }
@@ -104,9 +115,39 @@ describe('positional path parameters', () => {
 describe('flags', () => {
   it('are kebab-case, typed from the schema (string, integer, number, boolean, JSON object and array)', async () => {
     const flags = Object.fromEntries(cmd('widgets.create').flags.map((f) => [f.name, f.type]))
-    expect(flags).toMatchObject({ name: 'string', size: 'integer', ratio: 'number', enabled: 'boolean', meta: 'json', tags: 'json', 'due-at': 'string' })
-    const inv = await parse('widgets.create', ['--name', 'plain', '--size', '3', '--ratio', '1.5', '--enabled', '--meta', '{"a":1}', '--tags', '["x","y"]', '--due-at', '2026-01-01'])
-    expect(inv.body).toEqual({ name: 'plain', size: 3, ratio: 1.5, enabled: true, meta: { a: 1 }, tags: ['x', 'y'], due_at: '2026-01-01' })
+    expect(flags).toMatchObject({
+      name: 'string',
+      size: 'integer',
+      ratio: 'number',
+      enabled: 'boolean',
+      meta: 'json',
+      tags: 'json',
+      'due-at': 'string',
+    })
+    const inv = await parse('widgets.create', [
+      '--name',
+      'plain',
+      '--size',
+      '3',
+      '--ratio',
+      '1.5',
+      '--enabled',
+      '--meta',
+      '{"a":1}',
+      '--tags',
+      '["x","y"]',
+      '--due-at',
+      '2026-01-01',
+    ])
+    expect(inv.body).toEqual({
+      name: 'plain',
+      size: 3,
+      ratio: 1.5,
+      enabled: true,
+      meta: { a: 1 },
+      tags: ['x', 'y'],
+      due_at: '2026-01-01',
+    })
   })
 
   it('--no-<flag> sets a boolean false', async () => {
@@ -125,7 +166,14 @@ describe('flags', () => {
   it('query parameters become query pairs', async () => {
     const inv = await parse('widgets.list', ['--limit', '5', '--after', 'X', '--color', 'red', '--active'])
     expect(inv.path).toBe('/api/v1/widgets')
-    expect(inv.query).toEqual(expect.arrayContaining([['limit', '5'], ['after', 'X'], ['color', 'red'], ['active', 'true']]))
+    expect(inv.query).toEqual(
+      expect.arrayContaining([
+        ['limit', '5'],
+        ['after', 'X'],
+        ['color', 'red'],
+        ['active', 'true'],
+      ]),
+    )
     expect(inv.query).toHaveLength(4)
     expect(inv.body).toBeUndefined()
   })
@@ -154,7 +202,9 @@ describe('flags', () => {
 describe('--data', () => {
   it('takes JSON inline, from @file, or from stdin', async () => {
     expect((await parse('widgets.create', ['--data', '{"name":"inline"}'])).body).toEqual({ name: 'inline' })
-    expect((await parse('widgets.create', ['--data', '@body.json'], io({ 'body.json': '{"name":"file"}' }))).body).toEqual({ name: 'file' })
+    expect(
+      (await parse('widgets.create', ['--data', '@body.json'], io({ 'body.json': '{"name":"file"}' }))).body,
+    ).toEqual({ name: 'file' })
     expect((await parse('widgets.create', ['--data', '-'], io({}, '{"name":"stdin"}'))).body).toEqual({ name: 'stdin' })
   })
 
@@ -163,7 +213,14 @@ describe('--data', () => {
     try {
       writeFileSync(join(dir, 'b.json'), '{"size":9}')
       const { readFile } = await import('node:fs/promises')
-      expect((await parse('widgets.create', ['--data', `@${join(dir, 'b.json')}`], { readFile: (p) => readFile(p, 'utf8'), readStdin: async () => '' })).body).toEqual({ size: 9 })
+      expect(
+        (
+          await parse('widgets.create', ['--data', `@${join(dir, 'b.json')}`], {
+            readFile: (p) => readFile(p, 'utf8'),
+            readStdin: async () => '',
+          })
+        ).body,
+      ).toEqual({ size: 9 })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

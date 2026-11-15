@@ -27,8 +27,11 @@ describe('api keys', () => {
   it('hashes with SHA-256', async () => {
     expect(await hashApiKey('vk_test')).toBe(createHash('sha256').update('vk_test').digest('hex'))
   })
-  it.each([['a.b.c', true], ['eyJ.eyJ.sig', true], ['a.b', false], ['a.b.c.d', false], ['a b.c.d', false]])(
-    'JWT_SHAPE %s',
-    (s, ok) => expect(JWT_SHAPE.test(s)).toBe(ok),
-  )
+  it.each([
+    ['a.b.c', true],
+    ['eyJ.eyJ.sig', true],
+    ['a.b', false],
+    ['a.b.c.d', false],
+    ['a b.c.d', false],
+  ])('JWT_SHAPE %s', (s, ok) => expect(JWT_SHAPE.test(s)).toBe(ok))
 })

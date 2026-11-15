@@ -8,7 +8,9 @@ import { stageServer } from './stage.js'
 
 const WRANGLER_JSONC = new URL('../../server-d1/wrangler.jsonc', import.meta.url).pathname
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
 function clean() {
   const s = sources()
   const outDir = mkdtempSync(join(tmpdir(), 'ops210-out-'))
@@ -16,7 +18,10 @@ function clean() {
   stageServer({ ...s, outDir })
   return outDir
 }
-const put = (dir: string, f: string, text: string) => { mkdirSync(dirname(join(dir, f)), { recursive: true }); writeFileSync(join(dir, f), text) }
+const put = (dir: string, f: string, text: string) => {
+  mkdirSync(dirname(join(dir, f)), { recursive: true })
+  writeFileSync(join(dir, f), text)
+}
 const realIds = envDatabaseIds(readFileSync(WRANGLER_JSONC, 'utf8'))
 
 describe('D8 forbidden content', () => {
@@ -51,7 +56,9 @@ describe('D8 forbidden content', () => {
     put(d, file, text)
     const found = scanForbidden(d, { databaseIds: realIds })
     expect(found).toContainEqual({ file, kind })
-    expect(() => assertNoForbidden(d, { databaseIds: realIds })).toThrow(new RegExp(`${file.replace(/[.]/g, '\\.')}.*${kind}|${kind}.*${file.replace(/[.]/g, '\\.')}`))
+    expect(() => assertNoForbidden(d, { databaseIds: realIds })).toThrow(
+      new RegExp(`${file.replace(/[.]/g, '\\.')}.*${kind}|${kind}.*${file.replace(/[.]/g, '\\.')}`),
+    )
   })
   it('refuses an env key in wrangler.base.jsonc', () => {
     const d = clean()
@@ -62,7 +69,10 @@ describe('D8 forbidden content', () => {
     for (const id of realIds) {
       const d = clean()
       put(d, 'worker/worker.js', `x("${id}")`)
-      expect(scanForbidden(d, { databaseIds: realIds })).toContainEqual({ file: 'worker/worker.js', kind: 'database-id' })
+      expect(scanForbidden(d, { databaseIds: realIds })).toContainEqual({
+        file: 'worker/worker.js',
+        kind: 'database-id',
+      })
     }
   })
 })

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { UnitDriftError, defineOperation, readMaybe, uuidv7, unit, type StorageBinding } from '@vibase/storage'
+import { UnitDriftError, defineOperation, uuidv7, unit, type StorageBinding } from '@vibase/storage'
 import { postgresBinding } from '@vibase/storage-postgres'
 import { d1Binding } from '@vibase/storage-d1'
 import { clearD1 } from '@vibase/storage-d1/test'
@@ -46,7 +46,8 @@ export function engineSuite(engineName: EngineName): void {
     const system = async () => (await e.rows('principals')).find((p) => p.kind === 'system')
     const events = async () => e.rows('events')
     const types = async () => (await events()).map((x) => x.type as string)
-    const live = async (org = e.organizationId) => (await e.rows('memberships')).filter((m) => m.organization_id === org && m.deleted_at === null)
+    const live = async (org = e.organizationId) =>
+      (await e.rows('memberships')).filter((m) => m.organization_id === org && m.deleted_at === null)
     const membershipOf = async (userId: string) => (await e.rows('memberships')).find((m) => m.user_id === userId)!
     const lastUnit = (n: string) => kit.ran.filter((r) => r.name === n).at(-1)
     const quiet = () => vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -54,7 +55,10 @@ export function engineSuite(engineName: EngineName): void {
     /** The fake Clerk's copy of an organisation: `members` are [subject, 'admin' | 'member']. */
     function clerkOrg(ext: string, orgTitle: string, members: Array<[string, 'admin' | 'member']>) {
       kit.clerk.organizations.set(ext, clerkOrganization({ id: ext, name: orgTitle }))
-      kit.clerk.members.set(ext, members.map(([userId, role]) => clerkMembership({ organizationId: ext, userId, role: `org:${role}` })))
+      kit.clerk.members.set(
+        ext,
+        members.map(([userId, role]) => clerkMembership({ organizationId: ext, userId, role: `org:${role}` })),
+      )
     }
     const standard = (extra: Array<[string, 'admin' | 'member']> = []) =>
       clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], [e.user2Subject, 'member'], ...extra])
@@ -82,17 +86,41 @@ export function engineSuite(engineName: EngineName): void {
       it('creates a new organisation and the membership: both events by the system principal, created lazily, all at now', async () => {
         const ext = await freshOrganization()
         clerkOrg(ext, 'Fresh org', [])
-        const id = await repairMembership(kit.binding, kit.clerk.adapter, { userId: e.userId, externalId: ext, role: 'owner', known: { organizationId: null } }, kit.env())
+        const id = await repairMembership(
+          kit.binding,
+          kit.clerk.adapter,
+          { userId: e.userId, externalId: ext, role: 'owner', known: { organizationId: null } },
+          kit.env(),
+        )
         if (name === 'd1') expect(id).toBe(e.organizationId)
         const org = (await e.rows('organizations')).find((o) => o.id === id)!
-        expect(org).toMatchObject({ name: 'Fresh org', auth_provider: 'clerk', auth_org_id: ext, created_at: NOW.toISOString(), updated_at: NOW.toISOString() })
+        expect(org).toMatchObject({
+          name: 'Fresh org',
+          auth_provider: 'clerk',
+          auth_org_id: ext,
+          created_at: NOW.toISOString(),
+          updated_at: NOW.toISOString(),
+        })
         const sys = (await system())!
         expect(sys.created_at).toBe(NOW.toISOString())
         const m = (await e.rows('memberships')).find((x) => x.user_id === e.userId && x.organization_id === id)!
-        expect(m).toMatchObject({ organization_id: id, role: 'owner', created_by: sys.id, created_at: NOW.toISOString(), updated_at: NOW.toISOString(), deleted_at: null })
+        expect(m).toMatchObject({
+          organization_id: id,
+          role: 'owner',
+          created_by: sys.id,
+          created_at: NOW.toISOString(),
+          updated_at: NOW.toISOString(),
+          deleted_at: null,
+        })
         const evs = await events()
         expect(evs.map((x) => x.type)).toEqual(['organization.created', 'membership.created'])
-        expect(evs[0]).toMatchObject({ resource_type: 'organization', resource_id: id, organization_id: id, before: null, after: { id, name: 'Fresh org', created_at: NOW.toISOString(), updated_at: NOW.toISOString() } })
+        expect(evs[0]).toMatchObject({
+          resource_type: 'organization',
+          resource_id: id,
+          organization_id: id,
+          before: null,
+          after: { id, name: 'Fresh org', created_at: NOW.toISOString(), updated_at: NOW.toISOString() },
+        })
         expect(evs[1]).toMatchObject({ resource_type: 'membership', resource_id: m.id, before: null })
         expect(evs[1]!.after).toMatchObject({ id: m.id, role: 'owner', user_id: e.userId, created_by: sys.id })
         await expectSystemAuthored()
@@ -101,11 +129,29 @@ export function engineSuite(engineName: EngineName): void {
 
       it('re-roles a live membership with one update: membership.updated carries the planned record as before', async () => {
         const before = await membershipOf(e.user2Id)
-        await repairMembership(kit.binding, kit.clerk.adapter, { userId: e.user2Id, externalId: e.authOrgId, role: 'owner', known: { organizationId: e.organizationId } }, kit.env())
-        expect(await membershipOf(e.user2Id)).toMatchObject({ role: 'owner', created_at: SEED, updated_at: NOW.toISOString(), deleted_at: null })
+        await repairMembership(
+          kit.binding,
+          kit.clerk.adapter,
+          { userId: e.user2Id, externalId: e.authOrgId, role: 'owner', known: { organizationId: e.organizationId } },
+          kit.env(),
+        )
+        expect(await membershipOf(e.user2Id)).toMatchObject({
+          role: 'owner',
+          created_at: SEED,
+          updated_at: NOW.toISOString(),
+          deleted_at: null,
+        })
         const evs = await events()
         expect(evs.map((x) => x.type)).toEqual(['membership.updated'])
-        expect(evs[0]!.before).toEqual({ id: before.id, organization_id: e.organizationId, user_id: e.user2Id, role: 'member', created_by: before.created_by, created_at: SEED, updated_at: SEED })
+        expect(evs[0]!.before).toEqual({
+          id: before.id,
+          organization_id: e.organizationId,
+          user_id: e.user2Id,
+          role: 'member',
+          created_by: before.created_by,
+          created_at: SEED,
+          updated_at: SEED,
+        })
         expect(evs[0]!.after).toMatchObject({ id: before.id, role: 'owner', updated_at: NOW.toISOString() })
         await expectSystemAuthored()
         expect(kit.ran.at(-1)!.identity).toEqual({ kind: 'internal', organizationId: e.organizationId })
@@ -114,7 +160,12 @@ export function engineSuite(engineName: EngineName): void {
 
       it('a membership that already matches runs no statement and creates no system principal', async () => {
         const before = await state()
-        await repairMembership(kit.binding, kit.clerk.adapter, { userId: e.userId, externalId: e.authOrgId, role: 'owner', known: { organizationId: e.organizationId } }, kit.env())
+        await repairMembership(
+          kit.binding,
+          kit.clerk.adapter,
+          { userId: e.userId, externalId: e.authOrgId, role: 'owner', known: { organizationId: e.organizationId } },
+          kit.env(),
+        )
         expect(await state()).toEqual(before)
         expect(kit.ran.at(-1)!.stats!.writes).toBe(0)
         expect(await system()).toBeUndefined()
@@ -124,15 +175,29 @@ export function engineSuite(engineName: EngineName): void {
         const lone = uuidv7()
         await e.insert('principals', { id: lone, kind: 'user' })
         await e.insert('users', { id: lone, email: 'lone@x.test', auth_provider: 'clerk', auth_subject: 'user_lone' })
-        await repairMembership(kit.binding, kit.clerk.adapter, { userId: lone, externalId: e.authOrgId, role: 'member', known: { organizationId: e.organizationId } }, kit.env())
-        expect(await membershipOf(lone)).toMatchObject({ role: 'member', deleted_at: null, created_at: NOW.toISOString() })
+        await repairMembership(
+          kit.binding,
+          kit.clerk.adapter,
+          { userId: lone, externalId: e.authOrgId, role: 'member', known: { organizationId: e.organizationId } },
+          kit.env(),
+        )
+        expect(await membershipOf(lone)).toMatchObject({
+          role: 'member',
+          deleted_at: null,
+          created_at: NOW.toISOString(),
+        })
         expect(await types()).toEqual(['membership.created'])
         await expectSystemAuthored()
       })
 
       it('an organisation the provider no longer has is 403 organization_forbidden, decided before any unit', async () => {
         const before = await state()
-        const err = await repairMembership(kit.binding, kit.clerk.adapter, { userId: e.userId, externalId: 'org_gone', role: 'owner', known: { organizationId: null } }, kit.env()).catch((x: unknown) => x)
+        const err = await repairMembership(
+          kit.binding,
+          kit.clerk.adapter,
+          { userId: e.userId, externalId: 'org_gone', role: 'owner', known: { organizationId: null } },
+          kit.env(),
+        ).catch((x: unknown) => x)
         expect(err).toMatchObject({ status: 403, code: 'organization_forbidden' })
         expect(kit.ran).toEqual([])
         expect(await state()).toEqual(before)
@@ -144,9 +209,19 @@ export function engineSuite(engineName: EngineName): void {
           await e.insert('principals', { id: lone, kind: 'user' })
           await e.insert('users', { id: lone, email: 'lone@x.test', auth_provider: 'clerk', auth_subject: 'user_lone' })
           kit.armOn('directory.repair', async () => {
-            await e.insert('memberships', { organization_id: e.organizationId, user_id: lone, role: 'member', created_by: lone })
+            await e.insert('memberships', {
+              organization_id: e.organizationId,
+              user_id: lone,
+              role: 'member',
+              created_by: lone,
+            })
           })
-          await repairMembership(kit.binding, kit.clerk.adapter, { userId: lone, externalId: e.authOrgId, role: 'member', known: { organizationId: e.organizationId } }, kit.env())
+          await repairMembership(
+            kit.binding,
+            kit.clerk.adapter,
+            { userId: lone, externalId: e.authOrgId, role: 'member', known: { organizationId: e.organizationId } },
+            kit.env(),
+          )
           expect(kit.ran.map((r) => r.name)).toEqual(['directory.repair', 'directory.repair'])
           expect((await live()).filter((m) => m.user_id === lone)).toHaveLength(1)
         })
@@ -155,9 +230,19 @@ export function engineSuite(engineName: EngineName): void {
           const ext = await freshOrganization()
           clerkOrg(ext, 'Fresh org', [])
           kit.armOn('directory.repair', async () => {
-            await e.insert('organizations', { id: e.organizationId, name: 'Racer', auth_provider: 'clerk', auth_org_id: ext })
+            await e.insert('organizations', {
+              id: e.organizationId,
+              name: 'Racer',
+              auth_provider: 'clerk',
+              auth_org_id: ext,
+            })
           })
-          const id = await repairMembership(kit.binding, kit.clerk.adapter, { userId: e.userId, externalId: ext, role: 'owner', known: { organizationId: null } }, kit.env())
+          const id = await repairMembership(
+            kit.binding,
+            kit.clerk.adapter,
+            { userId: e.userId, externalId: ext, role: 'owner', known: { organizationId: null } },
+            kit.env(),
+          )
           expect(id).toBe(e.organizationId)
           expect(await e.rows('organizations')).toHaveLength(1)
           expect(await live()).toHaveLength(1)
@@ -191,7 +276,11 @@ export function engineSuite(engineName: EngineName): void {
       it('creates, re-roles and deletes in one snapshot: the summary, three event types and the final set', async () => {
         const gone = await e.seedMember('member', { subject: 'user_gone', email: 'gone@x.test' })
         kit.profile('user_new', { email: 'new@x.test' })
-        clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], [e.user2Subject, 'admin'], ['user_new', 'member']])
+        clerkOrg(e.authOrgId, orgName, [
+          [e.userSubject, 'admin'],
+          [e.user2Subject, 'admin'],
+          ['user_new', 'member'],
+        ])
         const goneBefore = await membershipOf(gone.userId)
         const u2Before = await membershipOf(e.user2Id)
 
@@ -202,13 +291,32 @@ export function engineSuite(engineName: EngineName): void {
         const sys = (await system())!
         const roles = Object.fromEntries((await live()).map((m) => [m.user_id as string, m.role]))
         expect(roles).toEqual({ [e.userId]: 'owner', [e.user2Id]: 'owner', [newUser.id as string]: 'member' })
-        expect(await membershipOf(gone.userId)).toMatchObject({ deleted_at: NOW.toISOString(), updated_at: NOW.toISOString() })
-        expect(await membershipOf(e.user2Id)).toMatchObject({ role: 'owner', updated_at: NOW.toISOString(), created_at: SEED })
-        expect(await membershipOf(newUser.id as string)).toMatchObject({ created_by: sys.id, created_at: NOW.toISOString(), updated_at: NOW.toISOString() })
+        expect(await membershipOf(gone.userId)).toMatchObject({
+          deleted_at: NOW.toISOString(),
+          updated_at: NOW.toISOString(),
+        })
+        expect(await membershipOf(e.user2Id)).toMatchObject({
+          role: 'owner',
+          updated_at: NOW.toISOString(),
+          created_at: SEED,
+        })
+        expect(await membershipOf(newUser.id as string)).toMatchObject({
+          created_by: sys.id,
+          created_at: NOW.toISOString(),
+          updated_at: NOW.toISOString(),
+        })
 
         const evs = await events()
         expect(evs.map((x) => x.type)).toEqual(['membership.created', 'membership.updated', 'membership.deleted'])
-        const rec = (m: RawRow) => ({ id: m.id, organization_id: m.organization_id, user_id: m.user_id, role: m.role, created_by: m.created_by, created_at: m.created_at, updated_at: m.updated_at })
+        const rec = (m: RawRow) => ({
+          id: m.id,
+          organization_id: m.organization_id,
+          user_id: m.user_id,
+          role: m.role,
+          created_by: m.created_by,
+          created_at: m.created_at,
+          updated_at: m.updated_at,
+        })
         expect(evs[0]).toMatchObject({ before: null, resource_id: (await membershipOf(newUser.id as string)).id })
         expect(evs[1]!.before).toEqual(rec(u2Before))
         expect(evs[1]!.after).toMatchObject({ role: 'owner', updated_at: NOW.toISOString() })
@@ -220,7 +328,11 @@ export function engineSuite(engineName: EngineName): void {
       it('an identical second run writes nothing and emits nothing', async () => {
         standard()
         kit.profile('user_new')
-        clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], [e.user2Subject, 'member'], ['user_new', 'member']])
+        clerkOrg(e.authOrgId, orgName, [
+          [e.userSubject, 'admin'],
+          [e.user2Subject, 'member'],
+          ['user_new', 'member'],
+        ])
         await reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())
         const before = await state()
         const evCount = (await events()).length
@@ -237,7 +349,11 @@ export function engineSuite(engineName: EngineName): void {
           kit = await openAuthKit(e)
           const subs = Array.from({ length: members }, (_, i) => `user_n${i}`)
           for (const s of subs) kit.profile(s)
-          clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], [e.user2Subject, 'member'], ...subs.map((s): [string, 'member'] => [s, 'member'])])
+          clerkOrg(e.authOrgId, orgName, [
+            [e.userSubject, 'admin'],
+            [e.user2Subject, 'member'],
+            ...subs.map((s): [string, 'member'] => [s, 'member']),
+          ])
           await reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())
           expect((await live()).length).toBe(2 + members)
           return lastUnit('directory.reconcile')!.stats!.statements
@@ -251,10 +367,19 @@ export function engineSuite(engineName: EngineName): void {
         const bindingFor = (cap: number): StorageBinding =>
           name === 'postgres'
             ? postgresBinding(e.app!, { maxSetSize: cap })
-            : d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId, maxSetSize: cap })
+            : d1Binding(e.d1!, {
+                organizationId: e.organizationId,
+                authProvider: e.authProvider,
+                authOrgId: e.authOrgId,
+                maxSetSize: cap,
+              })
         const subs = ['user_a', 'user_b', 'user_c', 'user_d']
         for (const s of subs) kit.profile(s)
-        clerkOrg(e.authOrgId, orgName, subs.map((s): [string, 'member'] => [s, 'member']))
+        clerkOrg(
+          e.authOrgId,
+          orgName,
+          subs.map((s): [string, 'member'] => [s, 'member']),
+        )
 
         const small = await openAuthKit(e, { binding: bindingFor(3) })
         small.clerk.organizations.set(e.authOrgId, kit.clerk.organizations.get(e.authOrgId)!)
@@ -262,7 +387,9 @@ export function engineSuite(engineName: EngineName): void {
         for (const s of subs) small.profile(s)
         const warn = quiet()
         const before = await state()
-        const err = await reconcileOrganization(small.binding, small.clerk.adapter, e.authOrgId, small.env()).catch((x: unknown) => mapStorageError(x))
+        const err = await reconcileOrganization(small.binding, small.clerk.adapter, e.authOrgId, small.env()).catch(
+          (x: unknown) => mapStorageError(x),
+        )
         expect(err).toBeInstanceOf(ApiError)
         expect(err).toMatchObject({ status: 400, code: 'set_limit_exceeded' })
         expect(await state()).toEqual(before)
@@ -282,7 +409,10 @@ export function engineSuite(engineName: EngineName): void {
       it('a fetch failure writes nothing', async () => {
         standard()
         kit.profile('user_new')
-        clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], ['user_new', 'member']])
+        clerkOrg(e.authOrgId, orgName, [
+          [e.userSubject, 'admin'],
+          ['user_new', 'member'],
+        ])
         kit.clerk.fetch.fail.members = 500
         const before = await state()
         await expect(reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())).rejects.toThrow()
@@ -296,12 +426,22 @@ export function engineSuite(engineName: EngineName): void {
         kit.profile('user_t', { email: 'HELD@x.test' })
         kit.profile('user_ok', { email: 'ok@x.test' })
         const warn = quiet()
-        clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], [e.user2Subject, 'member'], ['user_u', 'member'], ['user_t', 'member'], ['user_ok', 'member']])
+        clerkOrg(e.authOrgId, orgName, [
+          [e.userSubject, 'admin'],
+          [e.user2Subject, 'member'],
+          ['user_u', 'member'],
+          ['user_t', 'member'],
+          ['user_ok', 'member'],
+        ])
         const summary = await reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())
         expect(summary).toMatchObject({ created: 1, deleted: 1 }) // user_holder is not in the snapshot: removed
-        const reasons = warn.mock.calls.filter((c) => c[0] === '[directory] member skipped').map((c) => (c[1] as { reason: string }).reason)
+        const reasons = warn.mock.calls
+          .filter((c) => c[0] === '[directory] member skipped')
+          .map((c) => (c[1] as { reason: string }).reason)
         expect(reasons.sort()).toEqual(['account_conflict', 'invalid_identity'])
-        expect((await e.rows('users')).filter((u) => ['user_u', 'user_t'].includes(u.auth_subject as string))).toEqual([])
+        expect((await e.rows('users')).filter((u) => ['user_u', 'user_t'].includes(u.auth_subject as string))).toEqual(
+          [],
+        )
         expect((await live()).length).toBe(2 + 1) // the two seeded members and user_ok; user_holder was not in the snapshot
       })
 
@@ -322,7 +462,9 @@ export function engineSuite(engineName: EngineName): void {
           const summary = await reconcileOrganization(kit.binding, kit.clerk.adapter, 'org_nobody', kit.env())
           expect(summary).toEqual({ organizationId: null, created: 0, updated: 0, deleted: 0 })
         } else {
-          const err = await reconcileOrganization(kit.binding, kit.clerk.adapter, 'org_nobody', kit.env()).catch((x: unknown) => x)
+          const err = await reconcileOrganization(kit.binding, kit.clerk.adapter, 'org_nobody', kit.env()).catch(
+            (x: unknown) => x,
+          )
           expect(err).toMatchObject({ status: 403, code: 'organization_forbidden' })
           expect(kit.clerk.fetch.calls).toEqual([])
         }
@@ -330,14 +472,26 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('a renamed organisation emits organization.updated with the planned record as before', async () => {
-        clerkOrg(e.authOrgId, 'Renamed', [[e.userSubject, 'admin'], [e.user2Subject, 'member']])
+        clerkOrg(e.authOrgId, 'Renamed', [
+          [e.userSubject, 'admin'],
+          [e.user2Subject, 'member'],
+        ])
         const before = (await e.rows('organizations'))[0]!
         await reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env())
-        expect((await e.rows('organizations'))[0]).toMatchObject({ name: 'Renamed', created_at: before.created_at, updated_at: NOW.toISOString() })
+        expect((await e.rows('organizations'))[0]).toMatchObject({
+          name: 'Renamed',
+          created_at: before.created_at,
+          updated_at: NOW.toISOString(),
+        })
         const evs = await events()
         expect(evs.map((x) => x.type)).toEqual(['organization.updated'])
         expect(evs[0]!.before).toEqual({ id: e.organizationId, name: orgName, created_at: SEED, updated_at: SEED })
-        expect(evs[0]!.after).toEqual({ id: e.organizationId, name: 'Renamed', created_at: SEED, updated_at: NOW.toISOString() })
+        expect(evs[0]!.after).toEqual({
+          id: e.organizationId,
+          name: 'Renamed',
+          created_at: SEED,
+          updated_at: NOW.toISOString(),
+        })
         await expectSystemAuthored()
       })
 
@@ -352,13 +506,18 @@ export function engineSuite(engineName: EngineName): void {
         const drift = (label: string, hook: () => Promise<void>) =>
           it(`drift: ${label} between plan and commit is 409 conflict and the aborted unit changes nothing (D1)`, async () => {
             kit.profile('user_new')
-            clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], ['user_new', 'member']]) // plan: create user_new, delete user2
+            clerkOrg(e.authOrgId, orgName, [
+              [e.userSubject, 'admin'],
+              ['user_new', 'member'],
+            ]) // plan: create user_new, delete user2
             let hooked: Awaited<ReturnType<typeof state>> | undefined
             kit.armOn('directory.reconcile', async () => {
               await hook()
               hooked = await state() // everything the unit starts its commit against
             })
-            const err = await reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env()).catch((x: unknown) => mapStorageError(x))
+            const err = await reconcileOrganization(kit.binding, kit.clerk.adapter, e.authOrgId, kit.env()).catch(
+              (x: unknown) => mapStorageError(x),
+            )
             expect(hooked, 'the hook ran between plan and commit').toBeDefined()
             expect(err).toBeInstanceOf(ApiError)
             expect(err).toMatchObject({ status: 409, code: 'conflict' })
@@ -432,7 +591,13 @@ export function engineSuite(engineName: EngineName): void {
         const before = await stored()
         kit.profile(e.userSubject, { email: 'New.Email@X.test', first: 'New', last: 'Name', verified: true })
         expect(await refreshUser(kit.binding, kit.clerk.adapter, e.userSubject, kit.env())).toBe('updated')
-        expect(await stored()).toMatchObject({ email: 'new.email@x.test', name: 'New Name', email_verified: true, created_at: before.created_at, updated_at: NOW.toISOString() })
+        expect(await stored()).toMatchObject({
+          email: 'new.email@x.test',
+          name: 'New Name',
+          email_verified: true,
+          created_at: before.created_at,
+          updated_at: NOW.toISOString(),
+        })
         expect(await events()).toEqual([])
         expect(lastUnit('directory.refresh')!.stats!.writes).toBeGreaterThanOrEqual(1)
       })
@@ -485,7 +650,9 @@ export function engineSuite(engineName: EngineName): void {
       it('a bad signature is 401 and nothing is fetched or written', async () => {
         quiet()
         const before = await state()
-        const res = await kit.webhook(delivery('organization.updated', { id: e.authOrgId }), { headers: { 'svix-signature': 'v1,AAAA' } })
+        const res = await kit.webhook(delivery('organization.updated', { id: e.authOrgId }), {
+          headers: { 'svix-signature': 'v1,AAAA' },
+        })
         expect(res.status).toBe(401)
         expect(kit.clerk.fetch.calls).toEqual([])
         expect(await state()).toEqual(before)
@@ -493,7 +660,11 @@ export function engineSuite(engineName: EngineName): void {
 
       it('a delivery reconciles the organisation: 200 { received: true }', async () => {
         kit.profile('user_new')
-        clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], [e.user2Subject, 'member'], ['user_new', 'member']])
+        clerkOrg(e.authOrgId, orgName, [
+          [e.userSubject, 'admin'],
+          [e.user2Subject, 'member'],
+          ['user_new', 'member'],
+        ])
         const res = await kit.webhook(delivery('organization.updated', { id: e.authOrgId }))
         expect(res.status).toBe(200)
         expect(await res.json()).toEqual({ received: true })
@@ -539,7 +710,10 @@ export function engineSuite(engineName: EngineName): void {
         it('drift is 409 conflict (D1)', async () => {
           quiet()
           kit.profile('user_new')
-          clerkOrg(e.authOrgId, orgName, [[e.userSubject, 'admin'], ['user_new', 'member']])
+          clerkOrg(e.authOrgId, orgName, [
+            [e.userSubject, 'admin'],
+            ['user_new', 'member'],
+          ])
           kit.armOn('directory.reconcile', async () => {
             await e.seedMember('member', { subject: 'user_extra', email: 'extra@x.test' })
           })
@@ -561,11 +735,19 @@ export function engineSuite(engineName: EngineName): void {
         const bindingSmall: StorageBinding =
           name === 'postgres'
             ? postgresBinding(e.app!, { maxSetSize: 1 })
-            : d1Binding(e.d1!, { organizationId: e.organizationId, authProvider: e.authProvider, authOrgId: e.authOrgId, maxSetSize: 1 })
+            : d1Binding(e.d1!, {
+                organizationId: e.organizationId,
+                authProvider: e.authProvider,
+                authOrgId: e.authOrgId,
+                maxSetSize: 1,
+              })
         const small = await openAuthKit(e, { binding: bindingSmall })
         quiet()
         small.clerk.organizations.set(e.authOrgId, clerkOrganization({ id: e.authOrgId, name: orgName }))
-        small.clerk.members.set(e.authOrgId, [clerkMembership({ organizationId: e.authOrgId, userId: e.userSubject, role: 'org:admin' }), clerkMembership({ organizationId: e.authOrgId, userId: e.user2Subject, role: 'org:member' })])
+        small.clerk.members.set(e.authOrgId, [
+          clerkMembership({ organizationId: e.authOrgId, userId: e.userSubject, role: 'org:admin' }),
+          clerkMembership({ organizationId: e.authOrgId, userId: e.user2Subject, role: 'org:member' }),
+        ])
         const res = await small.webhook(delivery('organization.updated', { id: e.authOrgId }))
         expect(res.status).toBe(400)
         expect(((await res.json()) as { error: { code: string } }).error.code).toBe('set_limit_exceeded')

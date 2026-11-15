@@ -3,7 +3,7 @@ import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding } from '@vibase/storage-d1'
 import { generateApiKey } from '@vibase/api'
 import { mintClerkToken, mintOAuthToken } from '@vibase/api/test/clerk'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import { composeD1Worker } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
 import { NOW, clerkKit, clerkUser, openWorkerD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
 
@@ -33,33 +33,79 @@ type Res = { status: number; json: any }
 
 async function initWorkspace(): Promise<{ organizationId: string }> {
   const link = { organizationId: uuidv7(NOW), authProvider: 'clerk', authOrgId: kit.issuer.issuer }
-  await execute(d1Binding(w.d1, link), { kind: 'internal', organizationId: link.organizationId }, initDeploymentOperation(link))
+  await execute(
+    d1Binding(w.d1, link),
+    { kind: 'internal', organizationId: link.organizationId },
+    initDeploymentOperation(link),
+  )
   const at = NOW.toISOString()
-  await w.d1.prepare('insert into organizations (id, created_at, updated_at, name, auth_provider, auth_org_id) values (?, ?, ?, ?, ?, ?)').bind(link.organizationId, at, at, 'Acme', link.authProvider, link.authOrgId).run()
+  await w.d1
+    .prepare(
+      'insert into organizations (id, created_at, updated_at, name, auth_provider, auth_org_id) values (?, ?, ?, ?, ?, ?)',
+    )
+    .bind(link.organizationId, at, at, 'Acme', link.authProvider, link.authOrgId)
+    .run()
   return link
 }
-const worker = () => composeD1Worker({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: CLI }, { fetch: kit.fetch, clock: () => clock })
-const session = (sub: string, role: unknown) => mintClerkToken(kit.issuer, { sub, extra: { vibase_role: role }, now: clock })
-const oauth = (sub: string, clientId: string, scope: string) => mintOAuthToken(kit.issuer, { sub, clientId, scope, now: clock })
-const call = async (wk: ReturnType<typeof worker>, method: string, path: string, tok: string, body?: unknown): Promise<Res> => {
-  const res = await wk.fetch(new Request(BASE + path, { method, headers: { authorization: `Bearer ${tok}`, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }))
+const worker = () =>
+  composeD1Worker(
+    { DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, AUTH_CLI_CLIENT_ID: CLI },
+    { fetch: kit.fetch, clock: () => clock },
+  )
+const session = (sub: string, role: unknown) =>
+  mintClerkToken(kit.issuer, { sub, extra: { vibase_role: role }, now: clock })
+const oauth = (sub: string, clientId: string, scope: string) =>
+  mintOAuthToken(kit.issuer, { sub, clientId, scope, now: clock })
+const call = async (
+  wk: ReturnType<typeof worker>,
+  method: string,
+  path: string,
+  tok: string,
+  body?: unknown,
+): Promise<Res> => {
+  const res = await wk.fetch(
+    new Request(BASE + path, {
+      method,
+      headers: { authorization: `Bearer ${tok}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+  )
   const text = await res.text()
   return { status: res.status, json: text ? JSON.parse(text) : null }
 }
-const profile = (sub: string, role: unknown) => kit.profiles.set(sub, clerkUser({ id: sub, email: `${sub}@x.test`, verified: true, role }))
-const setScopes = (agentId: string, scopes: string[]) => w.d1.prepare('update agents set scopes = ? where id = ?').bind(JSON.stringify(scopes), agentId).run()
-const rows = async (sqlText: string, ...binds: unknown[]) => (await w.d1.prepare(sqlText).bind(...binds).all()).results as Array<Record<string, any>>
+const profile = (sub: string, role: unknown) =>
+  kit.profiles.set(sub, clerkUser({ id: sub, email: `${sub}@x.test`, verified: true, role }))
+const setScopes = (agentId: string, scopes: string[]) =>
+  w.d1.prepare('update agents set scopes = ? where id = ?').bind(JSON.stringify(scopes), agentId).run()
+const rows = async (sqlText: string, ...binds: unknown[]) =>
+  (
+    await w.d1
+      .prepare(sqlText)
+      .bind(...binds)
+      .all()
+  ).results as Array<Record<string, any>>
 
 async function seedKey(org: string, scopes: string[]): Promise<string> {
   const at = NOW.toISOString()
   const found = (await rows("select id from principals where kind = 'system'"))[0]
   const system = found ? (found.id as string) : uuidv7(NOW)
-  if (!found) await w.d1.prepare("insert into principals (id, kind, created_at) values (?, 'system', ?)").bind(system, at).run()
+  if (!found)
+    await w.d1.prepare("insert into principals (id, kind, created_at) values (?, 'system', ?)").bind(system, at).run()
   const agentId = uuidv7(NOW)
   await w.d1.prepare("insert into principals (id, kind, created_at) values (?, 'agent', ?)").bind(agentId, at).run()
-  await w.d1.prepare('insert into agents (id, created_at, updated_at, organization_id, name, scopes, created_by) values (?, ?, ?, ?, ?, ?, ?)').bind(agentId, at, at, org, 'keyed', JSON.stringify(scopes), system).run()
+  await w.d1
+    .prepare(
+      'insert into agents (id, created_at, updated_at, organization_id, name, scopes, created_by) values (?, ?, ?, ?, ?, ?, ?)',
+    )
+    .bind(agentId, at, at, org, 'keyed', JSON.stringify(scopes), system)
+    .run()
   const secret = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
-  await w.d1.prepare('insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)').bind(uuidv7(NOW), at, at, org, agentId, secret.hash, secret.prefix, system).run()
+  await w.d1
+    .prepare(
+      'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .bind(uuidv7(NOW), at, at, org, agentId, secret.hash, secret.prefix, system)
+    .run()
   return secret.key
 }
 
@@ -71,7 +117,11 @@ const makeTask = async (wk: ReturnType<typeof worker>) => {
 }
 /** The case every path must show: the proposal is accepted, the direct write refused with the hint, the task untouched. */
 async function proposalOnly(wk: ReturnType<typeof worker>, tok: () => Promise<string> | string, taskId: string) {
-  const propose = await call(wk, 'POST', '/api/v1/action-requests', await tok(), { operation: 'tasks.update', arguments: { id: taskId, title: 'proposed' }, reason: 'because' })
+  const propose = await call(wk, 'POST', '/api/v1/action-requests', await tok(), {
+    operation: 'tasks.update',
+    arguments: { id: taskId, title: 'proposed' },
+    reason: 'because',
+  })
   expect(propose.status, JSON.stringify(propose.json)).toBe(201)
   expect(propose.json.status).toBe('pending')
   const direct = await call(wk, 'PATCH', `/api/v1/tasks/${taskId}`, await tok(), { title: 'direct' })
@@ -88,9 +138,18 @@ describe('a proposal-only effective set proposes and is refused the direct write
     const proposalKey = await seedKey(organizationId, ['tasks:read', 'tasks:request_approval'])
     await proposalOnly(wk, () => proposalKey, taskId)
     const writeKey = await seedKey(organizationId, ['tasks:read', 'tasks:write'])
-    const viaWrite = await call(wk, 'POST', '/api/v1/action-requests', writeKey, { operation: 'tasks.update', arguments: { id: taskId, title: 'asked' }, reason: 'review please' })
+    const viaWrite = await call(wk, 'POST', '/api/v1/action-requests', writeKey, {
+      operation: 'tasks.update',
+      arguments: { id: taskId, title: 'asked' },
+      reason: 'review please',
+    })
     expect(viaWrite.status, JSON.stringify(viaWrite.json)).toBe(201)
-    expect((await rows('select scopes from agents where name = ?', 'keyed')).map((r) => JSON.parse(r.scopes).sort())).toEqual([['tasks:read', 'tasks:request_approval'], ['tasks:read', 'tasks:write']])
+    expect(
+      (await rows('select scopes from agents where name = ?', 'keyed')).map((r) => JSON.parse(r.scopes).sort()),
+    ).toEqual([
+      ['tasks:read', 'tasks:request_approval'],
+      ['tasks:read', 'tasks:write'],
+    ])
   })
 
   it('independent agent account: stored request_approval; a stored write closes to request_approval', async () => {
@@ -104,7 +163,11 @@ describe('a proposal-only effective set proposes and is refused the direct write
     await setScopes(agent!.id, ['tasks:read', 'tasks:request_approval'])
     await proposalOnly(wk, tok, taskId)
     await setScopes(agent!.id, ['tasks:read', 'tasks:write'])
-    const viaWrite = await call(wk, 'POST', '/api/v1/action-requests', await tok(), { operation: 'tasks.update', arguments: { id: taskId, title: 'asked' }, reason: 'r' })
+    const viaWrite = await call(wk, 'POST', '/api/v1/action-requests', await tok(), {
+      operation: 'tasks.update',
+      arguments: { id: taskId, title: 'asked' },
+      reason: 'r',
+    })
     expect(viaWrite.status).toBe(201)
   })
 
@@ -123,7 +186,11 @@ describe('a proposal-only effective set proposes and is refused the direct write
     await setScopes(agentId, ['tasks:read', 'tasks:request_approval'])
     await proposalOnly(wk, () => oauth('user_b', DCR, 'tasks:read tasks:write'), taskId)
     // A token narrowed to read holds neither.
-    const readOnly = await call(wk, 'POST', '/api/v1/action-requests', await oauth('user_b', DCR, 'tasks:read'), { operation: 'tasks.update', arguments: { id: taskId, title: 'x' }, reason: 'r' })
+    const readOnly = await call(wk, 'POST', '/api/v1/action-requests', await oauth('user_b', DCR, 'tasks:read'), {
+      operation: 'tasks.update',
+      arguments: { id: taskId, title: 'x' },
+      reason: 'r',
+    })
     expect([readOnly.status, readOnly.json.error.code]).toEqual([403, 'insufficient_scope'])
   })
 
@@ -136,16 +203,32 @@ describe('a proposal-only effective set proposes and is refused the direct write
     expect(me.json.active_organization.scopes).toEqual(['tasks:request_approval', 'tasks:write'])
   })
 
-  it('human session: the role\'s write holds its request_approval (propose and write both work), and the closure is computed, not stored', async () => {
+  it("human session: the role's write holds its request_approval (propose and write both work), and the closure is computed, not stored", async () => {
     await initWorkspace()
     const wk = worker()
     const taskId = await makeTask(wk)
     const tok = await session('user_owner', 'owner')
-    expect((await call(wk, 'POST', '/api/v1/action-requests', tok, { operation: 'tasks.update', arguments: { id: taskId, title: 'asked' }, reason: 'r' })).status).toBe(201)
+    expect(
+      (
+        await call(wk, 'POST', '/api/v1/action-requests', tok, {
+          operation: 'tasks.update',
+          arguments: { id: taskId, title: 'asked' },
+          reason: 'r',
+        })
+      ).status,
+    ).toBe(201)
     expect((await call(wk, 'PATCH', `/api/v1/tasks/${taskId}`, tok, { title: 'direct' })).status).toBe(200)
     profile('user_member', 'member')
     const member = await session('user_member', 'member')
-    expect((await call(wk, 'POST', '/api/v1/action-requests', member, { operation: 'tasks.update', arguments: { id: taskId, title: 'asked' }, reason: 'r' })).status).toBe(201)
+    expect(
+      (
+        await call(wk, 'POST', '/api/v1/action-requests', member, {
+          operation: 'tasks.update',
+          arguments: { id: taskId, title: 'asked' },
+          reason: 'r',
+        })
+      ).status,
+    ).toBe(201)
     expect(await rows('select scopes from agents')).toEqual([])
   })
 })

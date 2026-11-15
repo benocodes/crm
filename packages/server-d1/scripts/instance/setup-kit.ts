@@ -9,13 +9,32 @@ import { memoryControl } from '../setup/test/world.js'
 import { scriptedAnswer, type BetterAuthScript } from '../setup/test/better-auth-answers.js'
 import { subdomainResponse, type SubdomainState } from '../setup/test/subdomain-answers.js'
 import { ISSUER, PK_TEST, SK_TEST, type FakeClerk } from '../setup/test/clerk-world.js'
-import { CONTROL_ALL, makeWorld, NO_TRACKER_JSON, SECRETS_TEXT, trackerJson, type World, type WorldOptions } from './test-kit.js'
+import {
+  CONTROL_ALL,
+  makeWorld,
+  NO_TRACKER_JSON,
+  SECRETS_TEXT,
+  trackerJson,
+  type World,
+  type WorldOptions,
+} from './test-kit.js'
 import type { OpenD1Options, RunResult } from './types.js'
 
 export const ALL_MIGRATIONS = ['0001_a.sql', '0002_b.sql']
 export const API_HOST = 'api.demo.invalid'
 export const NONE_ARGS = ['--env', 'demo', '--api-host', API_HOST, '--auth', 'none']
-export const CLERK_ARGS = ['--env', 'demo', '--auth', 'clerk', '--api-host', API_HOST, '--owner-email', 'owner@example.com', '--web-origin', 'https://app.demo.invalid']
+export const CLERK_ARGS = [
+  '--env',
+  'demo',
+  '--auth',
+  'clerk',
+  '--api-host',
+  API_HOST,
+  '--owner-email',
+  'owner@example.com',
+  '--web-origin',
+  'https://app.demo.invalid',
+]
 export const GMAIL_CREDENTIALS_KEY = Buffer.alloc(32, 7).toString('base64')
 export const GOOGLE_CLIENT_SECRET = 'gsecret-CANARY-0123456789'
 export const OAUTH_STATE_SECRET = 'oauth-state-CANARY-0123456789'
@@ -84,7 +103,13 @@ export interface SetupWorld {
 
 export const isWrite = (args: string[]): boolean => {
   const j = ` ${args.join(' ')} `
-  return j.includes(' d1 create ') || j.includes(' r2 bucket create ') || j.includes(' d1 migrations apply ') || args[0] === 'deploy' || j.includes(' secret bulk ')
+  return (
+    j.includes(' d1 create ') ||
+    j.includes(' r2 bucket create ') ||
+    j.includes(' d1 migrations apply ') ||
+    args[0] === 'deploy' ||
+    j.includes(' secret bulk ')
+  )
 }
 
 const stripConfig = (args: string[]): string[] => {
@@ -92,9 +117,13 @@ const stripConfig = (args: string[]): string[] => {
   return i < 0 ? args : [...args.slice(0, i), ...args.slice(i + 2)]
 }
 
-const markerSql = 'select organization_id, auth_provider, auth_org_id, (select count(*) from organizations) as organizations from deployment where singleton = 1'
+const markerSql =
+  'select organization_id, auth_provider, auth_org_id, (select count(*) from organizations) as organizations from deployment where singleton = 1'
 export async function readMarker(d1: WorkerD1['d1']): Promise<Marker | null> {
-  const row = await d1.prepare(markerSql).first().catch(() => null)
+  const row = await d1
+    .prepare(markerSql)
+    .first()
+    .catch(() => null)
   return row ? (row as unknown as Marker) : null
 }
 
@@ -114,15 +143,40 @@ export interface SetupWorldOptions extends Omit<WorldOptions, 'runner' | 'fetch'
 }
 
 export function setupWorld(o: SetupWorldOptions): SetupWorld {
-  const sim: Sim = { d1s: [], r2s: [], applied: null, controlApplied: null, deployed: null, marker: null, secrets: [], bulk: [], zones: ['demo.invalid'], subdomain: { subdomain: 'team', puts: [] }, opened: [], bulkFile: [], owners: 0, ownerInvitations: [], controlOrg: null, ...o.sim }
-  const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+  const sim: Sim = {
+    d1s: [],
+    r2s: [],
+    applied: null,
+    controlApplied: null,
+    deployed: null,
+    marker: null,
+    secrets: [],
+    bulk: [],
+    zones: ['demo.invalid'],
+    subdomain: { subdomain: 'team', puts: [] },
+    opened: [],
+    bulkFile: [],
+    owners: 0,
+    ownerInvitations: [],
+    controlOrg: null,
+    ...o.sim,
+  }
+  const json = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
   const control = (o.control ?? memoryControl(o.onControlInsert, o.controlMarker)) as ReturnType<typeof memoryControl>
   const ok = (stdout: string): RunResult => ({ status: 0, stdout, stderr: '' })
   const baCounters = { vibase: 0, metadata: 0 }
   const health = (): Response => {
     if (sim.deployed === null) return new Response('', { status: 522 })
-    const status = sim.applied === null ? 'unknown' : ALL_MIGRATIONS.every((n) => sim.applied!.includes(n)) ? 'current' : 'behind'
-    return json(200, { status: 'ok', version: sim.deployed.version, ...(sim.deployed.commit ? { commit: sim.deployed.commit } : {}), initialised: sim.marker !== null, migrations: { status } })
+    const status =
+      sim.applied === null ? 'unknown' : ALL_MIGRATIONS.every((n) => sim.applied!.includes(n)) ? 'current' : 'behind'
+    return json(200, {
+      status: 'ok',
+      version: sim.deployed.version,
+      ...(sim.deployed.commit ? { commit: sim.deployed.commit } : {}),
+      initialised: sim.marker !== null,
+      migrations: { status },
+    })
   }
   const world = makeWorld({
     settings: null,
@@ -137,13 +191,26 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
         const path = url.slice('https://api.cloudflare.com/client/v4/'.length)
         const sub = subdomainResponse(path, init, sim.subdomain)
         if (sub) return sub
-        if (path.startsWith('zones')) return json(200, { success: true, result: sim.zones.map((name, i) => ({ id: `z${i}`, name })) })
+        if (path.startsWith('zones'))
+          return json(200, { success: true, result: sim.zones.map((name, i) => ({ id: `z${i}`, name })) })
         return json(200, { success: true, result: [] })
       }
       if (url.endsWith('/health')) return health()
       const scripted = scriptedAnswer(url, sim.ba ?? {}, baCounters)
-      if (scripted && (sim.ba !== undefined || /"AUTH_PROVIDER":\s*"better-auth"/.test(existsSync(world.settingsPath) ? readFileSync(world.settingsPath, 'utf8') : ''))) return scripted
-      if (url.endsWith('/.well-known/vibase')) return json(200, { auth: sim.clerk ? { provider: 'clerk', issuer: ISSUER, cli_client_id: sim.clerk.state.apps[0]?.client_id ?? null } : null })
+      if (
+        scripted &&
+        (sim.ba !== undefined ||
+          /"AUTH_PROVIDER":\s*"better-auth"/.test(
+            existsSync(world.settingsPath) ? readFileSync(world.settingsPath, 'utf8') : '',
+          ))
+      )
+        return scripted
+      if (url.endsWith('/.well-known/vibase'))
+        return json(200, {
+          auth: sim.clerk
+            ? { provider: 'clerk', issuer: ISSUER, cli_client_id: sim.clerk.state.apps[0]?.client_id ?? null }
+            : null,
+        })
       return json(404, {})
     },
     runner: (args, env, input) => {
@@ -151,13 +218,26 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
       if (over) return over
       const a = stripConfig(args)
       const has = (...w: string[]) => w.every((x) => a.includes(x))
-      if (has('d1', 'list')) return ok(JSON.stringify(sim.d1s.map((d) => ({ uuid: d.uuid, name: d.name, created_at: '2026-01-01', version: 'production', num_tables: 0, file_size: 0 }))))
+      if (has('d1', 'list'))
+        return ok(
+          JSON.stringify(
+            sim.d1s.map((d) => ({
+              uuid: d.uuid,
+              name: d.name,
+              created_at: '2026-01-01',
+              version: 'production',
+              num_tables: 0,
+              file_size: 0,
+            })),
+          ),
+        )
       if (has('d1', 'create')) {
         const name = a[a.indexOf('create') + 1]!
         sim.d1s.push({ uuid: `00000000-1111-4222-8333-${String(sim.d1s.length + 1).padStart(12, '0')}`, name })
         return ok(`Successfully created DB '${name}'\n`)
       }
-      if (has('r2', 'bucket', 'list')) return ok(sim.r2s.map((n) => `name:           ${n}\ncreation_date:  2026-01-01T00:00:00.000Z\n`).join('\n'))
+      if (has('r2', 'bucket', 'list'))
+        return ok(sim.r2s.map((n) => `name:           ${n}\ncreation_date:  2026-01-01T00:00:00.000Z\n`).join('\n'))
       if (has('r2', 'bucket', 'create')) {
         sim.r2s.push(a[a.indexOf('create') + 1]!)
         return ok('Created bucket\n')
@@ -165,19 +245,33 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
       if (has('d1', 'execute')) {
         const sql = a[a.indexOf('--command') + 1] ?? ''
         if (a[a.indexOf('execute') + 1] === 'CONTROL_DB') {
-          if (/d1_migrations/.test(sql)) return sim.controlApplied === null ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' } : ok(trackerJson(sim.controlApplied))
+          if (/d1_migrations/.test(sql))
+            return sim.controlApplied === null
+              ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' }
+              : ok(trackerJson(sim.controlApplied))
           if (/from control_deployment/.test(sql)) {
-            if (sim.controlApplied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: control_deployment' } }), stderr: '' }
+            if (sim.controlApplied === null)
+              return {
+                status: 1,
+                stdout: JSON.stringify({ error: { text: 'no such table: control_deployment' } }),
+                stderr: '',
+              }
             const org = o.control ? sim.controlOrg : control.marker()
             return ok(JSON.stringify([{ results: org ? [{ organization_id: org }] : [], success: true }]))
           }
           // OPS249 D7: the owner state, as the last `sync()` (or the end of a bootstrap) saw it in the real databases.
-          if (/from invitations/.test(sql)) return ok(JSON.stringify([{ results: sim.ownerInvitations, success: true }]))
+          if (/from invitations/.test(sql))
+            return ok(JSON.stringify([{ results: sim.ownerInvitations, success: true }]))
         }
-        if (/from memberships/.test(sql)) return ok(JSON.stringify([{ results: [{ owners: sim.owners }], success: true }]))
-        if (/d1_migrations/.test(sql)) return sim.applied === null ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' } : ok(trackerJson(sim.applied))
+        if (/from memberships/.test(sql))
+          return ok(JSON.stringify([{ results: [{ owners: sim.owners }], success: true }]))
+        if (/d1_migrations/.test(sql))
+          return sim.applied === null
+            ? { status: 1, stdout: NO_TRACKER_JSON, stderr: '' }
+            : ok(trackerJson(sim.applied))
         if (/from deployment/.test(sql)) {
-          if (sim.applied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: deployment' } }), stderr: '' }
+          if (sim.applied === null)
+            return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: deployment' } }), stderr: '' }
           return ok(JSON.stringify([{ results: sim.marker ? [sim.marker] : [], success: true }]))
         }
       }
@@ -198,7 +292,10 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
         if (!sim.deployNoop) sim.deployed = { version: v!.slice('VERSION:'.length), commit: c!.slice('COMMIT:'.length) }
         return ok('deployed\n')
       }
-      if (has('secret', 'list')) return sim.deployed === null ? { status: 1, stdout: '', stderr: 'no such worker' } : ok(JSON.stringify(sim.secrets.map((name) => ({ name, type: 'secret_text' }))))
+      if (has('secret', 'list'))
+        return sim.deployed === null
+          ? { status: 1, stdout: '', stderr: 'no such worker' }
+          : ok(JSON.stringify(sim.secrets.map((name) => ({ name, type: 'secret_text' }))))
       if (has('secret', 'bulk')) {
         sim.bulkFile.push(existsSync(world.secretsPath) ? readFileSync(world.secretsPath, 'utf8') : null)
         if (sim.failBulk) return { status: 1, stdout: '', stderr: 'bulk blew up' }
@@ -211,15 +308,34 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
     },
     openD1: async (opts: OpenD1Options) => {
       sim.opened.push({ opts, configText: existsSync(opts.configPath) ? readFileSync(opts.configPath, 'utf8') : null })
-      return { d1: o.d1.d1, control, dispose: async () => { sim.marker = await readMarker(o.d1.d1); if (o.control) await sync() } }
+      return {
+        d1: o.d1.d1,
+        control,
+        dispose: async () => {
+          sim.marker = await readMarker(o.d1.d1)
+          if (o.control) await sync()
+        },
+      }
     },
   })
   const sync = async (): Promise<void> => {
     if (!o.control) return
-    const owners = (await o.d1.d1.prepare(OWNERS_SQL).first().catch(() => null)) as { owners: number } | null
+    const owners = (await o.d1.d1
+      .prepare(OWNERS_SQL)
+      .first()
+      .catch(() => null)) as { owners: number } | null
     sim.owners = owners?.owners ?? 0
-    sim.ownerInvitations = ((await o.control.prepare(OWNER_INVITATIONS_SQL).all()).results ?? []) as { email: string; expires_at: string }[]
-    sim.controlOrg = (((await o.control.prepare('select organization_id from control_deployment where singleton = 1').first().catch(() => null)) as { organization_id: string } | null)?.organization_id) ?? null
+    sim.ownerInvitations = ((await o.control.prepare(OWNER_INVITATIONS_SQL).all()).results ?? []) as {
+      email: string
+      expires_at: string
+    }[]
+    sim.controlOrg =
+      (
+        (await o.control
+          .prepare('select organization_id from control_deployment where singleton = 1')
+          .first()
+          .catch(() => null)) as { organization_id: string } | null
+      )?.organization_id ?? null
   }
   const rows = () =>
     world.out.flatMap((l) => {

@@ -17,7 +17,12 @@ export function boundIds(qc: QueryContext, ids: readonly string[]): readonly str
  * through `json_each(?)` on D1 (which binds at most 100 parameters per statement) and an array with
  * `= ANY($n::uuid[])` on Postgres.
  */
-export function memberOf<T extends PhysicalTable>(qc: QueryContext, table: T, column: ColumnOf<T>, ids: readonly string[]): Expression<SqlBool> {
+export function memberOf<T extends PhysicalTable>(
+  qc: QueryContext,
+  table: T,
+  column: ColumnOf<T>,
+  ids: readonly string[],
+): Expression<SqlBool> {
   const ref = sql.ref(`${table}.${column}`)
   if (qc.dialect === 'd1') return sql<SqlBool>`${ref} in (select value from json_each(${JSON.stringify(ids)}))`
   const kind = (COLUMN_KINDS[table] as Record<string, string>)[column]

@@ -25,21 +25,38 @@ beforeEach(async () => {
 })
 
 const BASE = 'https://w.test'
-const get = (worker: { fetch(r: Request): Promise<Response> }, path: string, headers: Record<string, string> = {}) => worker.fetch(new Request(BASE + path, { headers }))
+const get = (worker: { fetch(r: Request): Promise<Response> }, path: string, headers: Record<string, string> = {}) =>
+  worker.fetch(new Request(BASE + path, { headers }))
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` })
 const boot = (over: Partial<Parameters<typeof bootstrapD1>[1]> = {}) =>
-  bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', ...over }, { now: NOW, newId: () => uuidv7(NOW) })
+  bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', ...over },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
 const withClerk = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({ DB: w.d1, ...kit.env, ...extra })
 const noAuth = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({ DB: w.d1, AUTH_PROVIDER: '', ...extra })
 /** The harness has no `d1_migrations`, so a test database reports `unknown` ([[CORE61]] D10). */
-const UNKNOWN_MIGRATIONS = { status: 'unknown', applied: 0, expected: MIGRATIONS.length, latest_applied: null, latest_expected: MIGRATIONS.at(-1)!.name }
+const UNKNOWN_MIGRATIONS = {
+  status: 'unknown',
+  applied: 0,
+  expected: MIGRATIONS.length,
+  latest_applied: null,
+  latest_expected: MIGRATIONS.at(-1)!.name,
+}
 const mutations = (sqls: string[]) => sqls.filter((s) => /^\s*(insert|update|delete)/i.test(s))
 
 describe('before the deployment is initialised (D2, D3, D4)', () => {
   it('GET /health is 200 with initialised false', async () => {
     const res = await get(composeD1Worker(noAuth()), '/health')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'dev', commit: 'dev', migrations: UNKNOWN_MIGRATIONS })
+    expect(await res.json()).toEqual({
+      status: 'ok',
+      initialised: false,
+      version: 'dev',
+      commit: 'dev',
+      migrations: UNKNOWN_MIGRATIONS,
+    })
   })
 
   it.each([
@@ -50,7 +67,9 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
   ])('%s is 503 not_initialised and no unit runs', async (_n, method, path, headers) => {
     const spy = spyD1(w.d1)
     const worker = composeD1Worker({ ...withClerk(), DB: spy.d1 }, { fetch: kit.fetch })
-    const res = await worker.fetch(new Request(BASE + path, { method, headers, body: method === 'POST' ? '{}' : undefined }))
+    const res = await worker.fetch(
+      new Request(BASE + path, { method, headers, body: method === 'POST' ? '{}' : undefined }),
+    )
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual(NOT_INITIALISED)
     expect(mutations(spy.log.statements)).toEqual([])
@@ -102,7 +121,13 @@ describe('after bootstrap', () => {
 
   it('GET /health is 200 with initialised true', async () => {
     await boot()
-    expect(await (await get(composeD1Worker(noAuth()), '/health')).json()).toEqual({ status: 'ok', initialised: true, version: 'dev', commit: 'dev', migrations: UNKNOWN_MIGRATIONS })
+    expect(await (await get(composeD1Worker(noAuth()), '/health')).json()).toEqual({
+      status: 'ok',
+      initialised: true,
+      version: 'dev',
+      commit: 'dev',
+      migrations: UNKNOWN_MIGRATIONS,
+    })
   })
 
   it('GET /health is 503 unavailable when D1 cannot answer SELECT 1', async () => {
@@ -128,7 +153,12 @@ describe('after bootstrap', () => {
     await boot()
     const origin = 'https://pane.test.example'
     const worker = composeD1Worker(noAuth({ CORS_ALLOWED_ORIGINS: origin }))
-    const res = await worker.fetch(new Request(BASE + '/api/v1/tasks', { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' } }))
+    const res = await worker.fetch(
+      new Request(BASE + '/api/v1/tasks', {
+        method: 'OPTIONS',
+        headers: { origin, 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' },
+      }),
+    )
     expect(res.headers.get('access-control-allow-origin')).toBe(origin)
   })
 })
@@ -137,7 +167,9 @@ describe('a misconfigured auth provider (D12)', () => {
   it('is 500 internal on every non-health route, logs one line naming the variable, and leaks no secret value', async () => {
     await boot()
     const SECRET = 'sk_test_THE_SECRET_VALUE'
-    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) =>
+      vi.spyOn(console, m).mockImplementation(() => {}),
+    )
     const env = withClerk({ CLERK_JWT_KEY: undefined, CLERK_SECRET_KEY: SECRET })
     const worker = composeD1Worker(env, { fetch: kit.fetch })
     for (const path of ['/api/v1/tasks', '/api/v1/openapi.json', '/meta/v1/openapi.json', '/meta/v1/me']) {
@@ -158,17 +190,30 @@ describe('a misconfigured auth provider (D12)', () => {
 describe('GET /health version (C1)', () => {
   it('reports VERSION', async () => {
     const res = await get(composeD1Worker(noAuth({ VERSION: 'abc123' })), '/health')
-    expect(await res.json()).toEqual({ status: 'ok', initialised: false, version: 'abc123', commit: 'dev', migrations: UNKNOWN_MIGRATIONS })
+    expect(await res.json()).toEqual({
+      status: 'ok',
+      initialised: false,
+      version: 'abc123',
+      commit: 'dev',
+      migrations: UNKNOWN_MIGRATIONS,
+    })
   })
 
   it('reports COMMIT beside an unchanged version (D7)', async () => {
-    const body = (await (await get(composeD1Worker(noAuth({ VERSION: '0.1.0', COMMIT: 'deadbee' })), '/health')).json()) as Record<string, unknown>
+    const body = (await (
+      await get(composeD1Worker(noAuth({ VERSION: '0.1.0', COMMIT: 'deadbee' })), '/health')
+    ).json()) as Record<string, unknown>
     expect(body).toMatchObject({ status: 'ok', version: '0.1.0', commit: 'deadbee' })
   })
 
   it('commit is dev when COMMIT is absent or empty (D7)', async () => {
-    expect(((await (await get(composeD1Worker(noAuth({ VERSION: 'abc123' })), '/health')).json()) as { commit: string }).commit).toBe('dev')
-    expect(((await (await get(composeD1Worker(noAuth({ COMMIT: '' })), '/health')).json()) as { commit: string }).commit).toBe('dev')
+    expect(
+      ((await (await get(composeD1Worker(noAuth({ VERSION: 'abc123' })), '/health')).json()) as { commit: string })
+        .commit,
+    ).toBe('dev')
+    expect(
+      ((await (await get(composeD1Worker(noAuth({ COMMIT: '' })), '/health')).json()) as { commit: string }).commit,
+    ).toBe('dev')
   })
 
   it('an empty VERSION is dev', async () => {
@@ -185,7 +230,14 @@ describe('GET /health version (C1)', () => {
 })
 
 describe('the none:smoked1 marker (OPS4 D18)', () => {
-  const smoked = () => boot({ authProvider: 'none', email: 'owner@x.test', authOrgId: 'smoked1', organizationName: 'smoked1', agentName: 'operator' })
+  const smoked = () =>
+    boot({
+      authProvider: 'none',
+      email: 'owner@x.test',
+      authOrgId: 'smoked1',
+      organizationName: 'smoked1',
+      agentName: 'operator',
+    })
 
   it('serves agents by key and nobody by JWT; the owner has no login', async () => {
     const r = await smoked()
@@ -195,14 +247,26 @@ describe('the none:smoked1 marker (OPS4 D18)', () => {
     expect(await list.json()).toEqual({ data: [], next_cursor: null })
     expect((await get(worker, '/api/v1/tasks', bearer('a.b.c'))).status).toBe(401)
     expect((await get(worker, '/api/v1/tasks')).status).toBe(401)
-    const created = await worker.fetch(new Request(BASE + '/api/v1/tasks', { method: 'POST', headers: { ...bearer(r.key), 'content-type': 'application/json' }, body: JSON.stringify({ title: 't' }) }))
+    const created = await worker.fetch(
+      new Request(BASE + '/api/v1/tasks', {
+        method: 'POST',
+        headers: { ...bearer(r.key), 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 't' }),
+      }),
+    )
     expect(created.status).toBe(201)
     const { id } = (await created.json()) as { id: string }
-    const del = await worker.fetch(new Request(BASE + `/api/v1/tasks/${id}`, { method: 'DELETE', headers: bearer(r.key) }))
+    const del = await worker.fetch(
+      new Request(BASE + `/api/v1/tasks/${id}`, { method: 'DELETE', headers: bearer(r.key) }),
+    )
     expect(del.status).toBe(204)
-    const [marker] = (await w.d1.prepare('select auth_provider, auth_org_id from deployment').all()).results as Array<Record<string, unknown>>
+    const [marker] = (await w.d1.prepare('select auth_provider, auth_org_id from deployment').all()).results as Array<
+      Record<string, unknown>
+    >
     expect(marker).toEqual({ auth_provider: 'none', auth_org_id: 'smoked1' })
-    const [user] = (await w.d1.prepare('select auth_provider, auth_subject from users').all()).results as Array<Record<string, unknown>>
+    const [user] = (await w.d1.prepare('select auth_provider, auth_subject from users').all()).results as Array<
+      Record<string, unknown>
+    >
     expect(user).toEqual({ auth_provider: null, auth_subject: null })
   })
 
@@ -225,14 +289,38 @@ describe('message content through BODIES (CORE58 P12)', () => {
     // A user: the seeded sources name a connection, and a connection's owner is a user (CHN140 D27, D31).
     const creator = uuidv7(NOW)
     await w.d1.batch([
-      w.d1.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(creator, 'user', NOW.toISOString()),
-      w.d1.prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)').bind(creator, NOW.toISOString(), NOW.toISOString(), 'seed-owner@compose.test'),
+      w.d1
+        .prepare('insert into principals (id, kind, created_at) values (?, ?, ?)')
+        .bind(creator, 'user', NOW.toISOString()),
+      w.d1
+        .prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)')
+        .bind(creator, NOW.toISOString(), NOW.toISOString(), 'seed-owner@compose.test'),
     ])
     const insert = async (table: string, row: Record<string, unknown>) => {
-      const full: Record<string, unknown> = { id: uuidv7(NOW), organization_id: orgId, created_by: creator, created_at: NOW.toISOString(), ...(['identities', 'channel_connections'].includes(table) ? { updated_at: NOW.toISOString() } : {}), ...row }
+      const full: Record<string, unknown> = {
+        id: uuidv7(NOW),
+        organization_id: orgId,
+        created_by: creator,
+        created_at: NOW.toISOString(),
+        ...(['identities', 'channel_connections'].includes(table) ? { updated_at: NOW.toISOString() } : {}),
+        ...row,
+      }
       const cols = Object.keys(full)
-      const vals = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : full[c] !== null && typeof full[c] === 'object' ? JSON.stringify(full[c]) : (full[c] ?? null)))
-      await w.d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...vals).run()
+      const vals = cols.map((c) =>
+        typeof full[c] === 'boolean'
+          ? full[c]
+            ? 1
+            : 0
+          : full[c] !== null && typeof full[c] === 'object'
+            ? JSON.stringify(full[c])
+            : (full[c] ?? null),
+      )
+      await w.d1
+        .prepare(
+          `insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`,
+        )
+        .bind(...vals)
+        .run()
       return full
     }
     return { key: r.key, c: await seedConversation(insert) }
@@ -242,7 +330,11 @@ describe('message content through BODIES (CORE58 P12)', () => {
     const { key, c } = await seed()
     const bucket = fakeR2Bucket()
     await bucket.put(messageBodyKey(c.contentKey!, 1), '# Hello')
-    const res = await get(composeD1Worker(noAuth({ BODIES: bucket })), `/api/v1/messages/${c.messageId}/content`, bearer(key))
+    const res = await get(
+      composeD1Worker(noAuth({ BODIES: bucket })),
+      `/api/v1/messages/${c.messageId}/content`,
+      bearer(key),
+    )
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ content_type: 'text/markdown', content: '# Hello', version: 1 })
     expect(bucket.gets).toEqual([messageBodyKey(c.contentKey!, 1)])

@@ -43,7 +43,11 @@ export function getWithAssociations<R extends { id: string }>(
     mutates: false,
     reads: (qc) => ({
       row: readMaybe(selectRecord(def, qc, env, id)),
-      edges: readAll(orientedEdges(qc, env, { type: def.table, id }, readable).orderBy(sql.ref('associations.id'), 'desc').limit(EMBEDDED_LIMIT + 1)),
+      edges: readAll(
+        orientedEdges(qc, env, { type: def.table, id }, readable)
+          .orderBy(sql.ref('associations.id'), 'desc')
+          .limit(EMBEDDED_LIMIT + 1),
+      ),
     }),
     build: (found) =>
       unit({
@@ -55,7 +59,11 @@ export function getWithAssociations<R extends { id: string }>(
           const rows = found.all('edges')
           return {
             ...toRecord(def, row),
-            associations: rows.slice(0, EMBEDDED_LIMIT).map((r) => listItem.parse({ ...r, created_at: codecs.timestamp.readNullable(r.created_at) ?? r.created_at })),
+            associations: rows
+              .slice(0, EMBEDDED_LIMIT)
+              .map((r) =>
+                listItem.parse({ ...r, created_at: codecs.timestamp.readNullable(r.created_at) ?? r.created_at }),
+              ),
             associations_truncated: rows.length > EMBEDDED_LIMIT,
           }
         },

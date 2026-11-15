@@ -24,42 +24,58 @@ const attachment = z.object({
  * Read-only ([[CORE25]] D26), `messages:read`. `content_key` is not in the record (the content operation is cycle
  * [[CORE58]]'s), and attachments are embedded ordered by position, `[]` when there are none.
  */
-export const messages = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'api',
-  name: 'messages',
-  eventName: 'message',
-  table: 'messages',
-  scopeResource: 'messages',
-  operations: ['list', 'get'],
-  record: z.object({
-    id: z.uuid(),
-    thread_id: z.uuid(),
-    channel: z.enum(['email']),
-    kind: z.enum(['message', 'reaction']),
-    external_id: z.string(),
-    in_reply_to: z.string().nullable(),
-    author,
-    occurred_at: z.string(),
-    preview: z.string(),
-    version: z.number().int(),
-    retracted_at: z.string().nullable(),
-    attachments: z.array(attachment),
-    created_by: z.uuid(),
-    created_at: z.string(),
-  }),
-  embed: {
-    attachments: {
-      table: 'message_attachments',
-      key: 'message_id',
-      columns: ['id', 'position', 'type', 'name', 'mime_type', 'size_bytes', 'inline', 'content_id', 'fetch_status', 'file_id'],
-      orderBy: ['position'],
-    },
-  },
-  filters: {
-    thread_id: { schema: z.uuid(), normalize: (v) => (v as string).toLowerCase() },
-    channel: { schema: z.enum(['email']) },
-    kind: { schema: z.enum(['message', 'reaction']) },
-    external_id: { schema: z.string().min(1).max(998) },
-    in_reply_to: { schema: z.string().min(1).max(998) },
-  },
-}), ['occurred_at']))
+export const messages = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'api',
+      name: 'messages',
+      eventName: 'message',
+      table: 'messages',
+      scopeResource: 'messages',
+      operations: ['list', 'get'],
+      record: z.object({
+        id: z.uuid(),
+        thread_id: z.uuid(),
+        channel: z.enum(['email']),
+        kind: z.enum(['message', 'reaction']),
+        external_id: z.string(),
+        in_reply_to: z.string().nullable(),
+        author,
+        occurred_at: z.string(),
+        preview: z.string(),
+        version: z.number().int(),
+        retracted_at: z.string().nullable(),
+        attachments: z.array(attachment),
+        created_by: z.uuid(),
+        created_at: z.string(),
+      }),
+      embed: {
+        attachments: {
+          table: 'message_attachments',
+          key: 'message_id',
+          columns: [
+            'id',
+            'position',
+            'type',
+            'name',
+            'mime_type',
+            'size_bytes',
+            'inline',
+            'content_id',
+            'fetch_status',
+            'file_id',
+          ],
+          orderBy: ['position'],
+        },
+      },
+      filters: {
+        thread_id: { schema: z.uuid(), normalize: (v) => (v as string).toLowerCase() },
+        channel: { schema: z.enum(['email']) },
+        kind: { schema: z.enum(['message', 'reaction']) },
+        external_id: { schema: z.string().min(1).max(998) },
+        in_reply_to: { schema: z.string().min(1).max(998) },
+      },
+    }),
+    ['occurred_at'],
+  ),
+)

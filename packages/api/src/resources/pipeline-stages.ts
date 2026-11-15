@@ -46,43 +46,59 @@ const update = create.pick({ name: true, position: true }).partial()
  * among the live stages of ONE pipeline, case-insensitively (`409 stage_exists`; the partial unique index is the commit-time backstop). A stage
  * holding a live deal cannot be deleted (`409 stage_in_use`, `identity/cascades.ts`).
  */
-export const pipelineStages = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'meta',
-  name: 'pipeline_stages',
-  eventName: 'pipeline_stage',
-  table: 'pipeline_stages',
-  scopeResource: 'pipelines',
-  override: { delete: (env, id) => deleteStageOperation(env, id as string) },
-  record,
-  create,
-  update,
-  createOnly: { kind: '', pipeline_id: '' },
-  filters: { pipeline_id: { schema: z.uuid() }, kind: { schema: z.enum(KINDS) } },
-  references: { pipeline_id: { table: 'pipelines', live: true } },
-  conflicts: ({ qc, env, id, values }) => {
-    const name = values.name
-    if (typeof name !== 'string') return []
-    let q = qc.db
-      .selectFrom('pipeline_stages')
-      .select('pipeline_stages.id')
-      .where('pipeline_stages.organization_id', '=', env.organizationId)
-      .where('pipeline_stages.name', '=', name)
-      .where('pipeline_stages.deleted_at', 'is', null)
-    // A create names its pipeline; an update does not (the pipeline is create-only), so it is the stage's own.
-    if (id) {
-      q = q
-        .where('pipeline_stages.id', '!=', id)
-        .where('pipeline_stages.pipeline_id', '=', (eb) => eb.selectFrom('pipeline_stages as own').select('own.pipeline_id').where('own.id', '=', id).where('own.organization_id', '=', env.organizationId))
-    } else {
-      q = q.where('pipeline_stages.pipeline_id', '=', values.pipeline_id as string)
-    }
-    return [
-      {
-        read: readMaybe(q.limit(1)),
-        refuse: (row) => {
-          if (row) throw new ApiError(409, 'stage_exists', `a stage named "${name}" already exists in this pipeline (${String(row.id)})`)
-        },
+export const pipelineStages = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'meta',
+      name: 'pipeline_stages',
+      eventName: 'pipeline_stage',
+      table: 'pipeline_stages',
+      scopeResource: 'pipelines',
+      override: { delete: (env, id) => deleteStageOperation(env, id as string) },
+      record,
+      create,
+      update,
+      createOnly: { kind: '', pipeline_id: '' },
+      filters: { pipeline_id: { schema: z.uuid() }, kind: { schema: z.enum(KINDS) } },
+      references: { pipeline_id: { table: 'pipelines', live: true } },
+      conflicts: ({ qc, env, id, values }) => {
+        const name = values.name
+        if (typeof name !== 'string') return []
+        let q = qc.db
+          .selectFrom('pipeline_stages')
+          .select('pipeline_stages.id')
+          .where('pipeline_stages.organization_id', '=', env.organizationId)
+          .where('pipeline_stages.name', '=', name)
+          .where('pipeline_stages.deleted_at', 'is', null)
+        // A create names its pipeline; an update does not (the pipeline is create-only), so it is the stage's own.
+        if (id) {
+          q = q
+            .where('pipeline_stages.id', '!=', id)
+            .where('pipeline_stages.pipeline_id', '=', (eb) =>
+              eb
+                .selectFrom('pipeline_stages as own')
+                .select('own.pipeline_id')
+                .where('own.id', '=', id)
+                .where('own.organization_id', '=', env.organizationId),
+            )
+        } else {
+          q = q.where('pipeline_stages.pipeline_id', '=', values.pipeline_id as string)
+        }
+        return [
+          {
+            read: readMaybe(q.limit(1)),
+            refuse: (row) => {
+              if (row)
+                throw new ApiError(
+                  409,
+                  'stage_exists',
+                  `a stage named "${name}" already exists in this pipeline (${String(row.id)})`,
+                )
+            },
+          },
+        ]
       },
-    ]
-  },
-}), ['position', 'name']))
+    }),
+    ['position', 'name'],
+  ),
+)

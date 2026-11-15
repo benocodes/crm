@@ -26,7 +26,10 @@ export function clerkWebhookHandler(
     const storage = c.var.storage
     const env = internalEnv(deps)
     if (change.kind === 'organization') {
-      if (storage.kind === 'd1' && (adapter.provider !== storage.authProvider || change.externalId !== storage.authOrgId)) {
+      if (
+        storage.kind === 'd1' &&
+        (adapter.provider !== storage.authProvider || change.externalId !== storage.authOrgId)
+      ) {
         return c.json({ received: true }, 200)
       }
       await reconcileOrganization(storage, adapter, change.externalId, env)

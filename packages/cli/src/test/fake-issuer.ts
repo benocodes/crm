@@ -24,16 +24,29 @@ export function network(handlers: Record<string, Handler>) {
     const u = new URL(req.url)
     const headers: Record<string, string> = {}
     req.headers.forEach((v, k) => (headers[k] = v))
-    traffic.push({ origin: u.origin, path: u.pathname, url: req.url, method: req.method, headers, body: await req.clone().text() })
+    traffic.push({
+      origin: u.origin,
+      path: u.pathname,
+      url: req.url,
+      method: req.method,
+      headers,
+      body: await req.clone().text(),
+    })
     const h = handlers[u.origin]
     if (!h) throw new TypeError(`unreachable: ${u.origin}`)
     return h(req)
   }
-  return { fetch, traffic, at: (origin: string, path?: string) => traffic.filter((t) => t.origin === origin && (path === undefined || t.path === path)) }
+  return {
+    fetch,
+    traffic,
+    at: (origin: string, path?: string) =>
+      traffic.filter((t) => t.origin === origin && (path === undefined || t.path === path)),
+  }
 }
 
 const hex = () => randomBytes(6).toString('hex')
-const jsonRes = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const jsonRes = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
 export type PollOutcome = 'pending' | 'slow_down' | 'denied' | 'expired' | 'ok' | 'html'
 
@@ -96,18 +109,26 @@ export function fakeIssuer(opts: FakeIssuerOptions = {}) {
     refresh.set(rt, { scope, sub: subject })
     secrets.add(token)
     secrets.add(rt)
-    return { access_token: token, token_type: 'Bearer', expires_in: expiresIn, ...(opts.noRefresh ? {} : { refresh_token: rt }), scope }
+    return {
+      access_token: token,
+      token_type: 'Bearer',
+      expires_in: expiresIn,
+      ...(opts.noRefresh ? {} : { refresh_token: rt }),
+      scope,
+    }
   }
   const err = (error: string, status = 400) => jsonRes({ error, error_description: `${error} (fake)` }, status)
 
   const handler: Handler = async (req) => {
     const u = new URL(req.url)
-    if (redirect && u.pathname === redirect.path) return new Response(null, { status: 307, headers: { location: redirect.to } })
+    if (redirect && u.pathname === redirect.path)
+      return new Response(null, { status: 307, headers: { location: redirect.to } })
     const ipath = opts.issuerPath ?? ''
     const serves = opts.serves ?? ['insertion']
     const insertionPath = '/.well-known/oauth-authorization-server' + ipath
     const appendedPath = ipath + '/.well-known/oauth-authorization-server'
-    const which = u.pathname === insertionPath ? 'insertion' : ipath !== '' && u.pathname === appendedPath ? 'appended' : undefined
+    const which =
+      u.pathname === insertionPath ? 'insertion' : ipath !== '' && u.pathname === appendedPath ? 'appended' : undefined
     if (which !== undefined) {
       const status = opts.metadataStatus?.[which]
       if (status !== undefined) return jsonRes({ error: 'not_found' }, status)
@@ -132,7 +153,9 @@ export function fakeIssuer(opts: FakeIssuerOptions = {}) {
         device_code,
         user_code: 'WDJB-MJHT',
         verification_uri: origin + '/activate',
-        ...(opts.device?.complete === false ? {} : { verification_uri_complete: origin + '/activate?user_code=WDJB-MJHT' }),
+        ...(opts.device?.complete === false
+          ? {}
+          : { verification_uri_complete: origin + '/activate?user_code=WDJB-MJHT' }),
         expires_in: opts.device?.expires_in ?? 600,
         interval: opts.device?.interval ?? 5,
       })
@@ -197,6 +220,6 @@ export function fakeIssuer(opts: FakeIssuerOptions = {}) {
     setRedirect: (r: { path: string; to: string } | undefined) => void (redirect = r),
     polls: () => polls,
     refreshCalls: () => refreshCount,
-    setScript: (s: PollOutcome[]) => void (script.length = 0, script.push(...s)),
+    setScript: (s: PollOutcome[]) => void ((script.length = 0), script.push(...s)),
   }
 }

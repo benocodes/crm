@@ -5,7 +5,9 @@ import { bootstrap } from '@vibase/api'
 
 function usage(message: string): never {
   console.error(`bootstrap: ${message}`)
-  console.error('usage: pnpm -C packages/server-postgres bootstrap -- --org <name> --email <email> --agent <name> [--scopes a:read,b:write] [--name <user name>] [--auth-provider clerk] [--auth-subject <provider user id>]')
+  console.error(
+    'usage: pnpm -C packages/server-postgres bootstrap -- --org <name> --email <email> --agent <name> [--scopes a:read,b:write] [--name <user name>] [--auth-provider clerk] [--auth-subject <provider user id>]',
+  )
   process.exit(1)
 }
 
@@ -41,7 +43,12 @@ try {
     authProvider,
     authSubject,
     agentName: agent!,
-    scopes: scopes ? scopes.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+    scopes: scopes
+      ? scopes
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined,
   })
   console.log(`organization_id: ${r.organizationId}`)
   console.log(`user_id:         ${r.userId}`)

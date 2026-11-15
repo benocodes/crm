@@ -16,11 +16,14 @@ beforeAll(async () => {
 })
 afterAll(() => rmSync(out, { recursive: true, force: true }))
 
-const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]))
+const walk = (dir: string): string[] =>
+  readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]))
 
 describe('buildConnect', () => {
   it('writes the three files under connect/ (so /connect/<file> is the asset path) and nothing at the root', () => {
-    const files = walk(out).map((f) => f.slice(out.length + 1)).sort()
+    const files = walk(out)
+      .map((f) => f.slice(out.length + 1))
+      .sort()
     expect(files).toEqual(['connect/connect.css', 'connect/connect.js', 'connect/index.html'])
   })
 
@@ -53,7 +56,8 @@ describe('buildConnect', () => {
 
 describe('the page source and the asset directory', () => {
   it('no non-test file under src/ names @clerk/testing or @playwright', () => {
-    for (const f of walk(join(PKG, 'src')).filter((x) => x.endsWith('.ts') && !x.endsWith('.test.ts'))) expect(readFileSync(f, 'utf8'), f).not.toMatch(/@clerk\/testing|@playwright|playwright/i)
+    for (const f of walk(join(PKG, 'src')).filter((x) => x.endsWith('.ts') && !x.endsWith('.test.ts')))
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/@clerk\/testing|@playwright|playwright/i)
   })
 
   it('the default output is the directory wrangler.jsonc names, and it is ignored by git', () => {
@@ -71,7 +75,10 @@ describe('the page source and the asset directory', () => {
   })
 
   it('the E2E and the page tests are devDependencies only', () => {
-    const pkg = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8')) as { dependencies: Record<string, string>; devDependencies: Record<string, string> }
+    const pkg = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>
+      devDependencies: Record<string, string>
+    }
     for (const d of ['@playwright/test', '@clerk/testing', 'happy-dom']) {
       expect(pkg.devDependencies[d], d).toBeTruthy()
       expect(pkg.dependencies[d], d).toBeUndefined()

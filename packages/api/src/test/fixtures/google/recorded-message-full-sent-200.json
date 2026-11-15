@@ -7,12 +7,7 @@
       "method": "GET",
       "host": "gmail.googleapis.com",
       "path": "/gmail/v1/users/me/messages/0a6sksv7bx2z754m",
-      "query": [
-        [
-          "format",
-          "full"
-        ]
-      ],
+      "query": [["format", "full"]],
       "form": null
     },
     "response": {
@@ -23,9 +18,7 @@
       "body": {
         "id": "0a6sksv7bx2z754m",
         "threadId": "9h2wsk7880f41y9q",
-        "labelIds": [
-          "SENT"
-        ],
+        "labelIds": ["SENT"],
         "snippet": "Xx xxxxxxxx, Xxxxx xxx xxx xxxx xxxx xxxxxxxxx! Xx xxx x xxxxxxxx xxxxxxx xxx xxx. Xx xxx xxxxxxx xxxx xxx xxxxxxxxx xxxxxxx, X&#00;x xxxx xxxx xx xxx xx xxxx x xxxxxxx xxxx xxxx xx: xxxxx://xxx.xxx/",
         "payload": {
           "partId": "",

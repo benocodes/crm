@@ -29,7 +29,11 @@ export function operationTitle(op: string): string {
 export function relativeTime(iso: string, now: number): string {
   const ms = Date.parse(iso) - now
   const abs = Math.abs(ms)
-  const units: [number, string][] = [[86_400_000, 'd'], [3_600_000, 'h'], [60_000, 'min']]
+  const units: [number, string][] = [
+    [86_400_000, 'd'],
+    [3_600_000, 'h'],
+    [60_000, 'min'],
+  ]
   let text = 'now'
   for (const [size, label] of units) {
     if (abs >= size) {
@@ -47,7 +51,8 @@ export const effectiveArguments = (r: ActionRequest): Record<string, unknown> =>
 export const prettyJson = (v: unknown): string => JSON.stringify(v, null, 2)
 
 /** Newest first. */
-export const byCreatedDesc = (a: ActionRequest, b: ActionRequest): number => Date.parse(b.created_at) - Date.parse(a.created_at)
+export const byCreatedDesc = (a: ActionRequest, b: ActionRequest): number =>
+  Date.parse(b.created_at) - Date.parse(a.created_at)
 
 export const isExpired = (r: ActionRequest, now: number): boolean => Date.parse(r.expires_at) <= now
 
@@ -78,4 +83,8 @@ export function emailPreview(r: ActionRequest): EmailPreview | null {
 }
 
 /** The list endpoint returns a body descriptor; the single-record read returns the text. Take the arguments from the full record, the rest from the list. */
-export const withFullArguments = (listed: ActionRequest, full: ActionRequest): ActionRequest => ({ ...listed, arguments: full.arguments, edited_arguments: full.edited_arguments })
+export const withFullArguments = (listed: ActionRequest, full: ActionRequest): ActionRequest => ({
+  ...listed,
+  arguments: full.arguments,
+  edited_arguments: full.edited_arguments,
+})

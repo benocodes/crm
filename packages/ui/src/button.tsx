@@ -13,7 +13,14 @@ export interface ButtonProps {
   onClick?: () => void
 }
 
-export function Button({ children, variant = 'primary', type = 'button', busy = false, disabled = false, onClick }: ButtonProps) {
+export function Button({
+  children,
+  variant = 'primary',
+  type = 'button',
+  busy = false,
+  disabled = false,
+  onClick,
+}: ButtonProps) {
   return (
     <button
       type={type}

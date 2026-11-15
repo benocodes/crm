@@ -12,8 +12,13 @@ export const FAKE_ENDPOINTS = {
 export const FAKE_GMAIL_BASE = `${FAKE_GOOGLE_ORIGIN}/gmail/v1/users/me`
 
 const enc = new TextEncoder()
-const b64url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-const sha256Url = async (s: string): Promise<string> => b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s))))
+const b64url = (bytes: Uint8Array): string =>
+  btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+const sha256Url = async (s: string): Promise<string> =>
+  b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s))))
 
 export interface FakeAccount {
   sub: string
@@ -81,7 +86,12 @@ export class FakeGoogle {
   static async create(opts: { clientId?: string; clientSecret?: string } = {}): Promise<FakeGoogle> {
     const { publicKey, privateKey } = await generateKeyPair('RS256', { extractable: true })
     const jwk = { ...(await exportJWK(publicKey)), kid: 'fake-google-1', alg: 'RS256', use: 'sig' }
-    return new FakeGoogle(opts.clientId ?? 'fake-client-id.apps.test', opts.clientSecret ?? 'fake-client-secret', privateKey, jwk)
+    return new FakeGoogle(
+      opts.clientId ?? 'fake-client-id.apps.test',
+      opts.clientSecret ?? 'fake-client-secret',
+      privateKey,
+      jwk,
+    )
   }
 
   /** The token endpoint answers this status (and no tokens) from now on. */
@@ -121,7 +131,9 @@ export class FakeGoogle {
   }
   /** A token signed with this fake's Google key, as Google signs an ID or a push token. `header` overrides the protected header (alg, kid). */
   async signToken(payload: JWTPayload, header: { alg?: string; kid?: string } = {}): Promise<string> {
-    return await new SignJWT(payload).setProtectedHeader({ alg: 'RS256', kid: 'fake-google-1', ...header } as never).sign(this.privateKey)
+    return await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'RS256', kid: 'fake-google-1', ...header } as never)
+      .sign(this.privateKey)
   }
   /** The account whose Gmail endpoints answer (set by `consent`). */
   signedInAs(account: FakeAccount): void {
@@ -134,9 +146,14 @@ export class FakeGoogle {
    */
   async consent(authorizeUrl: string, account: FakeAccount, opts: ConsentOptions = {}): Promise<string> {
     const url = new URL(authorizeUrl)
-    if (`${url.origin}${url.pathname}` !== FAKE_ENDPOINTS.authorizeUrl) throw new Error(`not the fake Google authorize endpoint: ${url.origin}${url.pathname}`)
+    if (`${url.origin}${url.pathname}` !== FAKE_ENDPOINTS.authorizeUrl)
+      throw new Error(`not the fake Google authorize endpoint: ${url.origin}${url.pathname}`)
     const q = url.searchParams
-    const need = (name: string): string => q.get(name) ?? (() => { throw new Error(`authorize URL lacks ${name}`) })()
+    const need = (name: string): string =>
+      q.get(name) ??
+      (() => {
+        throw new Error(`authorize URL lacks ${name}`)
+      })()
     if (need('client_id') !== this.clientId) throw new Error('authorize URL names another client')
     if (need('response_type') !== 'code') throw new Error('response_type must be code')
     if (need('code_challenge_method') !== 'S256') throw new Error('PKCE S256 is required')
@@ -181,19 +198,45 @@ export class FakeGoogle {
     if (url.pathname === '/token' && req.method === 'POST') return this.token(req)
     if (url.pathname === '/gmail/v1/users/me/profile') {
       if (!this.bearerOk(req)) return this.json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
-      return this.json({ emailAddress: this.account!.email, messagesTotal: 10, threadsTotal: 5, historyId: this.account!.historyId ?? '1000' })
+      return this.json({
+        emailAddress: this.account!.email,
+        messagesTotal: 10,
+        threadsTotal: 5,
+        historyId: this.account!.historyId ?? '1000',
+      })
     }
     if (url.pathname === '/gmail/v1/users/me/watch' && req.method === 'POST') {
       if (!this.bearerOk(req)) return this.json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
-      this.watchRequests.push({ token: (req.headers.get('authorization') ?? '').slice(7), body: JSON.parse((await req.text()) || '{}') as Record<string, unknown> })
+      this.watchRequests.push({
+        token: (req.headers.get('authorization') ?? '').slice(7),
+        body: JSON.parse((await req.text()) || '{}') as Record<string, unknown>,
+      })
       const bearer = (req.headers.get('authorization') ?? '').slice(7)
-      if (this.watchFailure && (this.watchFailure.forRefreshToken === undefined || this.accessToRefresh.get(bearer) === this.watchFailure.forRefreshToken)) return this.json({ error: { code: this.watchFailure.status, status: 'PERMISSION_DENIED', ...(this.watchFailure.reason ? { errors: [{ reason: this.watchFailure.reason }] } : {}) } }, this.watchFailure.status)
-      return this.json({ historyId: this.account?.historyId ?? '1000', expiration: String(this.clock() + 7 * 86_400_000) })
+      if (
+        this.watchFailure &&
+        (this.watchFailure.forRefreshToken === undefined ||
+          this.accessToRefresh.get(bearer) === this.watchFailure.forRefreshToken)
+      )
+        return this.json(
+          {
+            error: {
+              code: this.watchFailure.status,
+              status: 'PERMISSION_DENIED',
+              ...(this.watchFailure.reason ? { errors: [{ reason: this.watchFailure.reason }] } : {}),
+            },
+          },
+          this.watchFailure.status,
+        )
+      return this.json({
+        historyId: this.account?.historyId ?? '1000',
+        expiration: String(this.clock() + 7 * 86_400_000),
+      })
     }
     if (url.pathname === '/gmail/v1/users/me/stop' && req.method === 'POST') {
       if (!this.bearerOk(req)) return this.json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401)
       this.stopRequests.push({ token: (req.headers.get('authorization') ?? '').slice(7) })
-      if (this.stopFailure !== null) return this.json({ error: { code: this.stopFailure, status: 'INTERNAL' } }, this.stopFailure)
+      if (this.stopFailure !== null)
+        return this.json({ error: { code: this.stopFailure, status: 'INTERNAL' } }, this.stopFailure)
       return new Response(null, { status: 204 })
     }
     if (url.pathname === '/gmail/v1/users/me/settings/sendAs') {
@@ -213,9 +256,15 @@ export class FakeGoogle {
   private async refresh(form: URLSearchParams): Promise<Response> {
     this.refreshRequests.push(Object.fromEntries(form.entries()))
     if (this.refreshFailure === 'network') throw new TypeError('fetch failed')
-    if (typeof this.refreshFailure === 'number') return this.json({ error: 'backend_error', error_description: 'secret provider text' }, this.refreshFailure)
+    if (typeof this.refreshFailure === 'number')
+      return this.json({ error: 'backend_error', error_description: 'secret provider text' }, this.refreshFailure)
     const bad = (error: string, status = 400) => this.json({ error, error_description: 'secret provider text' }, status)
-    if (this.refreshFailure === 'invalid_client' || form.get('client_id') !== this.clientId || form.get('client_secret') !== this.clientSecret) return bad('invalid_client', 401)
+    if (
+      this.refreshFailure === 'invalid_client' ||
+      form.get('client_id') !== this.clientId ||
+      form.get('client_secret') !== this.clientSecret
+    )
+      return bad('invalid_client', 401)
     const rt = form.get('refresh_token') ?? ''
     if (!this.validRefresh.has(rt) || this.revoked.has(rt)) return bad('invalid_grant')
     const access = `at-${crypto.randomUUID()}`
@@ -230,7 +279,16 @@ export class FakeGoogle {
     // As the real run's refresh answered ([[CHN5]] D82 f): `scope` (its order varies between calls), `expires_in`, `token_type`, an `id_token`, and no `refresh_token` unless rotating.
     const scopes = ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly']
     const now = Math.floor(this.clock() / 1000)
-    const idToken = await new SignJWT({ azp: this.clientId, hd: 'vibase.test', email: 'owner@vibase.test', email_verified: true, at_hash: 'fake-at-hash', name: 'Fake Owner', given_name: 'Fake', family_name: 'Owner' })
+    const idToken = await new SignJWT({
+      azp: this.clientId,
+      hd: 'vibase.test',
+      email: 'owner@vibase.test',
+      email_verified: true,
+      at_hash: 'fake-at-hash',
+      name: 'Fake Owner',
+      given_name: 'Fake',
+      family_name: 'Owner',
+    })
       .setProtectedHeader({ alg: 'RS256', kid: 'fake-google-1' })
       .setIssuer('https://accounts.google.com')
       .setAudience(this.clientId)
@@ -238,18 +296,27 @@ export class FakeGoogle {
       .setIssuedAt(now)
       .setExpirationTime(now + 3600)
       .sign(this.privateKey)
-    return this.json({ access_token: access, expires_in: 3599, scope: (this.refreshCount++ % 2 === 0 ? scopes : [...scopes].reverse()).join(' '), token_type: 'Bearer', id_token: idToken, ...(next ? { refresh_token: next } : {}) })
+    return this.json({
+      access_token: access,
+      expires_in: 3599,
+      scope: (this.refreshCount++ % 2 === 0 ? scopes : [...scopes].reverse()).join(' '),
+      token_type: 'Bearer',
+      id_token: idToken,
+      ...(next ? { refresh_token: next } : {}),
+    })
   }
 
   private async token(req: Request): Promise<Response> {
-    if (this.tokenFailure !== null) return this.json({ error: 'invalid_request', error_description: 'secret provider text' }, this.tokenFailure)
+    if (this.tokenFailure !== null)
+      return this.json({ error: 'invalid_request', error_description: 'secret provider text' }, this.tokenFailure)
     const form = new URLSearchParams(await req.text())
     if (form.get('grant_type') === 'refresh_token') return await this.refresh(form)
     const grant = this.grants.get(form.get('code') ?? '')
     const bad = (error: string) => this.json({ error, error_description: 'secret provider text' }, 400)
     if (form.get('grant_type') !== 'authorization_code') return bad('unsupported_grant_type')
     if (!grant || grant.used) return bad('invalid_grant')
-    if (form.get('client_id') !== this.clientId || form.get('client_secret') !== this.clientSecret) return bad('invalid_client')
+    if (form.get('client_id') !== this.clientId || form.get('client_secret') !== this.clientSecret)
+      return bad('invalid_client')
     if (form.get('redirect_uri') !== grant.redirectUri) return bad('redirect_uri_mismatch')
     if ((await sha256Url(form.get('code_verifier') ?? '')) !== grant.challenge) return bad('invalid_grant')
     grant.used = true
@@ -258,7 +325,10 @@ export class FakeGoogle {
     this.accessTokens.push(access)
     const now = Math.floor(this.clock() / 1000)
     const o = grant.idToken
-    const idToken = await new SignJWT({ email: grant.account.email, email_verified: o.emailVerified ?? grant.account.emailVerified ?? true })
+    const idToken = await new SignJWT({
+      email: grant.account.email,
+      email_verified: o.emailVerified ?? grant.account.emailVerified ?? true,
+    })
       .setProtectedHeader({ alg: 'RS256', kid: 'fake-google-1' })
       .setIssuer(o.iss ?? 'https://accounts.google.com')
       .setAudience(o.aud ?? grant.clientId)

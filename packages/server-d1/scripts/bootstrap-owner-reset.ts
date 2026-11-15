@@ -8,29 +8,51 @@ import { OwnerResetFailure, OwnerResetRefusal, ownerReset, ownerResetLines } fro
 import { RemoteRefusal, requireConfirm, resolveTarget, type ConfigLike } from './remote.js'
 import { providerFromVars } from './setup/better-auth.js'
 
-export const OWNER_RESET_USAGE = 'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset [--email <owner>]'
+export const OWNER_RESET_USAGE =
+  'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset [--email <owner>]'
 
 export interface OwnerResetRemoteDeps {
   /** Loads the Cloudflare credentials from the root `.env` (and refuses when they are missing). */
   loadEnv(): void
   readConfig(envName: string): ConfigLike & { vars?: Record<string, unknown> }
   /** The instance's own env file `.env.<env>` as `probeEnvFile` reports it. */
-  readInstanceEnv(envName: string): { display: string; status: 'ok' | 'missing' | 'not-ignored' | 'root-env'; text?: string }
+  readInstanceEnv(envName: string): {
+    display: string
+    status: 'ok' | 'missing' | 'not-ignored' | 'root-env'
+    text?: string
+  }
   getPlatformProxy(envName: string): Promise<{ env: { DB: D1Like; CONTROL_DB?: D1Like }; dispose(): Promise<void> }>
   log(line: string): void
   error(line: string): void
 }
 
 /** Returns the exit code: 0 done, 1 refused or failed (bootstrap's own codes). */
-export async function runOwnerResetRemote(argv: string[], env: NodeJS.ProcessEnv, deps: OwnerResetRemoteDeps): Promise<number> {
+export async function runOwnerResetRemote(
+  argv: string[],
+  env: NodeJS.ProcessEnv,
+  deps: OwnerResetRemoteDeps,
+): Promise<number> {
   try {
     let values: { remote?: boolean; env?: string; email?: string; 'owner-reset'?: boolean }
     try {
-      values = parseArgs({ args: argv.filter((a) => a !== '--'), strict: true, allowPositionals: false, options: { remote: { type: 'boolean' }, env: { type: 'string' }, email: { type: 'string' }, 'owner-reset': { type: 'boolean' } } }).values
+      values = parseArgs({
+        args: argv.filter((a) => a !== '--'),
+        strict: true,
+        allowPositionals: false,
+        options: {
+          remote: { type: 'boolean' },
+          env: { type: 'string' },
+          email: { type: 'string' },
+          'owner-reset': { type: 'boolean' },
+        },
+      }).values
     } catch (e) {
-      throw new RemoteRefusal(`${e instanceof Error ? e.message : 'bad arguments'}; --owner-reset takes only --remote --env <name> [--email <owner>]; ${OWNER_RESET_USAGE}`)
+      throw new RemoteRefusal(
+        `${e instanceof Error ? e.message : 'bad arguments'}; --owner-reset takes only --remote --env <name> [--email <owner>]; ${OWNER_RESET_USAGE}`,
+      )
     }
-    if (!values.remote || !values.env) throw new RemoteRefusal(`--owner-reset needs --remote and --env <name>; ${OWNER_RESET_USAGE}`)
+    if (!values.remote || !values.env)
+      throw new RemoteRefusal(`--owner-reset needs --remote and --env <name>; ${OWNER_RESET_USAGE}`)
     requireConfirm(env)
     const envName = values.env
     deps.loadEnv()
@@ -38,13 +60,24 @@ export async function runOwnerResetRemote(argv: string[], env: NodeJS.ProcessEnv
     const target = resolveTarget(config, envName)
     deps.log(`target: env ${target.env}, database ${target.databaseName} (${target.databaseId})`)
     const file = deps.readInstanceEnv(envName)
-    if (file.status === 'root-env') throw new RemoteRefusal(`${file.display} is the root .env, which holds another instance's values: use the instance's own file (.env.${envName})`)
-    if (file.status === 'missing') throw new RemoteRefusal(`${file.display} does not exist: it holds this instance's AUTH_SECRET, which owner-reset needs (setup:remote wrote it there; if the Worker has one, copy it in)`)
-    if (file.status === 'not-ignored') throw new RemoteRefusal(`${file.display} is not ignored by git: add it to .gitignore before it holds a secret`)
+    if (file.status === 'root-env')
+      throw new RemoteRefusal(
+        `${file.display} is the root .env, which holds another instance's values: use the instance's own file (.env.${envName})`,
+      )
+    if (file.status === 'missing')
+      throw new RemoteRefusal(
+        `${file.display} does not exist: it holds this instance's AUTH_SECRET, which owner-reset needs (setup:remote wrote it there; if the Worker has one, copy it in)`,
+      )
+    if (file.status === 'not-ignored')
+      throw new RemoteRefusal(`${file.display} is not ignored by git: add it to .gitignore before it holds a secret`)
     const authSecret = parseEnv(file.text ?? '').AUTH_SECRET?.trim() || undefined
 
     const result = await ownerReset({
-      record: { authProvider: providerFromVars(config.vars, `wrangler.jsonc env ${envName}`), hasControl: target.control !== undefined, publicBaseUrl: typeof config.vars?.PUBLIC_BASE_URL === 'string' ? config.vars.PUBLIC_BASE_URL : undefined },
+      record: {
+        authProvider: providerFromVars(config.vars, `wrangler.jsonc env ${envName}`),
+        hasControl: target.control !== undefined,
+        publicBaseUrl: typeof config.vars?.PUBLIC_BASE_URL === 'string' ? config.vars.PUBLIC_BASE_URL : undefined,
+      },
       authSecret,
       secretsFile: file.display,
       email: values.email,

@@ -24,7 +24,9 @@ describe('state', () => {
 
   it('refuses a tampered payload and a tampered signature', async () => {
     const [payload, sig] = (await signState(SECRET, claims)).split('.') as [string, string]
-    const forged = Buffer.from(JSON.stringify({ ...claims, user_id: '0190b2c4-0000-7000-8000-00000000a002' })).toString('base64url')
+    const forged = Buffer.from(JSON.stringify({ ...claims, user_id: '0190b2c4-0000-7000-8000-00000000a002' })).toString(
+      'base64url',
+    )
     expect(await verifyState(SECRET, `${forged}.${sig}`, NOW)).toBeNull()
     const flipped = sig.slice(0, -1) + (sig.endsWith('A') ? 'B' : 'A')
     expect(await verifyState(SECRET, `${payload}.${flipped}`, NOW)).toBeNull()
@@ -53,6 +55,8 @@ describe('PKCE (derived, nothing stored)', () => {
   })
 
   it('the S256 challenge matches the RFC 7636 appendix B vector', async () => {
-    expect(await pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM')
+    expect(await pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')).toBe(
+      'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    )
   })
 })

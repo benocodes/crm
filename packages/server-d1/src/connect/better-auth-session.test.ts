@@ -15,9 +15,18 @@ function fake(script: Record<string, Answer[]>) {
   const seen: Req[] = []
   const used: Record<string, number> = {}
   const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, 'https://w.test')
+    const url = new URL(
+      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+      'https://w.test',
+    )
     const method = init?.method ?? 'GET'
-    seen.push({ method, path: url.pathname + url.search, headers: Object.fromEntries(new Headers(init?.headers).entries()), body: typeof init?.body === 'string' ? init.body : null, credentials: init?.credentials })
+    seen.push({
+      method,
+      path: url.pathname + url.search,
+      headers: Object.fromEntries(new Headers(init?.headers).entries()),
+      body: typeof init?.body === 'string' ? init.body : null,
+      credentials: init?.credentials,
+    })
     const key = `${method} ${url.pathname}`
     const list = script[key]
     if (!list) return new Response('{}', { status: 599 })
@@ -29,7 +38,8 @@ function fake(script: Record<string, Answer[]>) {
   }) as typeof fetch
   return { fetchFn, seen, count: (key: string) => seen.filter((s) => `${s.method} ${s.path}` === key).length }
 }
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const SESSION = json({ session: { id: 's' }, user: { id: 'u', email: 'o@x.test' } })
 const NULL_SESSION = new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })
 const make = (script: Record<string, Answer[]>) => {

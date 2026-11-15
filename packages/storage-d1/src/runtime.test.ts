@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { CommitOutcomeUnknown, ForeignOrganizationError, StatementFailed, StorageError, UnitDriftError, defineOperation, step, unit } from '@vibase/storage'
+import {
+  CommitOutcomeUnknown,
+  ForeignOrganizationError,
+  StatementFailed,
+  StorageError,
+  UnitDriftError,
+  defineOperation,
+  step,
+  unit,
+} from '@vibase/storage'
 import { sql } from 'kysely'
 import { classifyD1Error, createD1Runtime, d1Binding, D1_MAX_PARAMETERS } from './index.js'
 import type { D1Like } from './binding.js'
@@ -26,7 +35,12 @@ describe('the D1 runtime refuses a statement it cannot send without calling it a
       reads: () => ({}),
       build: (_f, qc) =>
         unit({
-          steps: [step(sql`select ${sql.join(Array.from({ length: n }, (_, i) => sql`${i}`))}`.compile(qc.db), 'first-mutation')],
+          steps: [
+            step(
+              sql`select ${sql.join(Array.from({ length: n }, (_, i) => sql`${i}`))}`.compile(qc.db),
+              'first-mutation',
+            ),
+          ],
           events: [],
           decode: () => null,
         }),
@@ -42,7 +56,10 @@ describe('the D1 runtime refuses a statement it cannot send without calling it a
   })
 
   it('classifies SQLite errors as statement failures and a lost transport as unknown', () => {
-    expect(classifyD1Error(new Error('D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT'))).toEqual({ statement: true, kind: 'foreign_key' })
+    expect(classifyD1Error(new Error('D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT'))).toEqual({
+      statement: true,
+      kind: 'foreign_key',
+    })
     expect(classifyD1Error(new Error('D1_ERROR: Network connection lost'))).toEqual({ statement: false })
   })
 })
@@ -52,7 +69,8 @@ describe('a failed unit assertion is drift (CORE36 C2, D4)', () => {
     name: 'assertion.demo',
     mutates: true,
     reads: () => ({}),
-    build: (_f, qc) => unit({ steps: [step(sql`select 1`.compile(qc.db), 'first-mutation')], events: [], decode: () => null }),
+    build: (_f, qc) =>
+      unit({ steps: [step(sql`select 1`.compile(qc.db), 'first-mutation')], events: [], decode: () => null }),
   })
   const failing = (message: string): D1Like => ({
     prepare: () => ({ bind: () => ({}) }) as never,
@@ -66,10 +84,16 @@ describe('a failed unit assertion is drift (CORE36 C2, D4)', () => {
       .catch((e: unknown) => e)
 
   it('classifies the named constraint before the generic CHECK pattern', () => {
-    expect(classifyD1Error(new Error('D1_ERROR: CHECK constraint failed: unit_assertion_holds: SQLITE_CONSTRAINT'))).toEqual({ drift: true })
+    expect(
+      classifyD1Error(new Error('D1_ERROR: CHECK constraint failed: unit_assertion_holds: SQLITE_CONSTRAINT')),
+    ).toEqual({ drift: true })
   })
   it('raises UnitDriftError for the assertion constraint', async () => {
-    expect(await run('D1_ERROR: CHECK constraint failed: unit_assertion_holds: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_CHECK)')).toBeInstanceOf(UnitDriftError)
+    expect(
+      await run(
+        'D1_ERROR: CHECK constraint failed: unit_assertion_holds: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_CHECK)',
+      ),
+    ).toBeInstanceOf(UnitDriftError)
   })
   it('keeps any other CHECK failure a StatementFailed of kind check', async () => {
     const err = await run('D1_ERROR: CHECK constraint failed: identities_kind: SQLITE_CONSTRAINT')
@@ -89,7 +113,12 @@ describe('arrays are bound as JSON text (CORE40 C1)', () => {
       name: 'array.demo',
       mutates: true,
       reads: () => ({}),
-      build: (_f, qc) => unit({ steps: [step(sql`select ${['x', 'y']}`.compile(qc.db), 'first-mutation')], events: [], decode: () => null }),
+      build: (_f, qc) =>
+        unit({
+          steps: [step(sql`select ${['x', 'y']}`.compile(qc.db), 'first-mutation')],
+          events: [],
+          decode: () => null,
+        }),
     })
     await createD1Runtime(d1, OPTS).execute(tenant, op)
     expect(bound).toEqual([['["x","y"]']])
@@ -106,20 +135,36 @@ describe('storage identities (CORE41 C1, D19)', () => {
     }
     return { d1, calls }
   }
-  const read = defineOperation<number>({ name: 'read', mutates: false, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => 1 }) })
-  const write = defineOperation<number>({ name: 'write', mutates: true, reads: () => ({}), build: () => unit({ steps: [], events: [], decode: () => 1 }) })
+  const read = defineOperation<number>({
+    name: 'read',
+    mutates: false,
+    reads: () => ({}),
+    build: () => unit({ steps: [], events: [], decode: () => 1 }),
+  })
+  const write = defineOperation<number>({
+    name: 'write',
+    mutates: true,
+    reads: () => ({}),
+    build: () => unit({ steps: [], events: [], decode: () => 1 }),
+  })
 
   it('refuses an internal identity for another organisation before any SQL', async () => {
     const { d1, calls } = spy()
-    const err = await createD1Runtime(d1, OPTS).execute({ kind: 'internal', organizationId: OTHER }, read).catch((e: unknown) => e)
+    const err = await createD1Runtime(d1, OPTS)
+      .execute({ kind: 'internal', organizationId: OTHER }, read)
+      .catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ForeignOrganizationError)
     expect(calls).toEqual([])
   })
   it('admits an internal identity with no organisation', async () => {
-    expect((await createD1Runtime(spy().d1, OPTS).execute({ kind: 'internal', organizationId: null }, read)).value).toBe(1)
+    expect(
+      (await createD1Runtime(spy().d1, OPTS).execute({ kind: 'internal', organizationId: null }, read)).value,
+    ).toBe(1)
   })
   it('admits an internal identity for the configured organisation', async () => {
-    expect((await createD1Runtime(spy().d1, OPTS).execute({ kind: 'internal', organizationId: ORG }, write)).value).toBe(1)
+    expect(
+      (await createD1Runtime(spy().d1, OPTS).execute({ kind: 'internal', organizationId: ORG }, write)).value,
+    ).toBe(1)
   })
   it('refuses a mutating account unit before any SQL, and admits a read-only one', async () => {
     const { d1, calls } = spy()
@@ -132,7 +177,9 @@ describe('storage identities (CORE41 C1, D19)', () => {
   })
   it('still refuses a tenant identity for another organisation before any SQL', async () => {
     const { d1, calls } = spy()
-    const err = await createD1Runtime(d1, OPTS).execute({ kind: 'tenant', actorId: ORG, organizationId: OTHER }, read).catch((e: unknown) => e)
+    const err = await createD1Runtime(d1, OPTS)
+      .execute({ kind: 'tenant', actorId: ORG, organizationId: OTHER }, read)
+      .catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ForeignOrganizationError)
     expect(calls).toEqual([])
   })

@@ -23,12 +23,22 @@ beforeEach(async () => {
 
 type Ent = [string, string]
 const ids = (page: { data: Rec[] }) => page.data.map((r) => r.id as string).sort()
-const events = async (prefix: string) => (await e.rows('events')).filter((x) => String(x.type).startsWith(prefix)).sort((x, y) => String(x.id).localeCompare(String(y.id)))
+const events = async (prefix: string) =>
+  (await e.rows('events'))
+    .filter((x) => String(x.type).startsWith(prefix))
+    .sort((x, y) => String(x.id).localeCompare(String(y.id)))
 let stageId = ''
-const newDeal = async (name = 'D', stage = stageId, opts?: Parameters<AssocKit['call']>[2]): Promise<Ent> => ['deals', (await a.call('deals.create', { body: { name, stage_id: stage } }, opts)).id as string]
+const newDeal = async (name = 'D', stage = stageId, opts?: Parameters<AssocKit['call']>[2]): Promise<Ent> => [
+  'deals',
+  (await a.call('deals.create', { body: { name, stage_id: stage } }, opts)).id as string,
+]
 beforeEach(async () => {
   const p = await a.call('pipelines.create', { body: { name: 'Sales' } })
-  stageId = (await a.call('pipeline_stages.create', { body: { pipeline_id: p.id, name: 'Researched', kind: 'open', position: 10 } })).id
+  stageId = (
+    await a.call('pipeline_stages.create', {
+      body: { pipeline_id: p.id, name: 'Researched', kind: 'open', position: 10 },
+    })
+  ).id
 })
 const refusal = async (x: Ent, y: Ent) => {
   const err = await a.fail('associations.create', { body: { a_type: x[0], a_id: x[1], b_type: y[0], b_id: y[1] } })
@@ -59,23 +69,36 @@ describe('the neighbour rules of deals (D14)', () => {
     expect([b.a_type, b.b_type]).toEqual([d1[0], x2[0]].sort())
   })
 
-  it.each(['deal to deal', 'deal to interaction'])('refuses %s in both orders with 400 validation_error and the existing message', async (name) => {
-    const d = await newDeal('d')
-    const partner: Ent = name === 'deal to deal' ? await newDeal('d2') : await a.ent.interaction()
-    for (const [x, y] of [[d, partner], [partner, d]] as Array<[Ent, Ent]>) {
-      const [status, code, message] = await refusal(x, y)
-      expect([status, code]).toEqual([400, 'validation_error'])
-      expect(message).toBe('deals can only be linked to companies, contacts, notes, tags, tasks, threads')
-    }
-    expect(await a.edges(false)).toEqual([])
-  })
+  it.each(['deal to deal', 'deal to interaction'])(
+    'refuses %s in both orders with 400 validation_error and the existing message',
+    async (name) => {
+      const d = await newDeal('d')
+      const partner: Ent = name === 'deal to deal' ? await newDeal('d2') : await a.ent.interaction()
+      for (const [x, y] of [
+        [d, partner],
+        [partner, d],
+      ] as Array<[Ent, Ent]>) {
+        const [status, code, message] = await refusal(x, y)
+        expect([status, code]).toEqual([400, 'validation_error'])
+        expect(message).toBe('deals can only be linked to companies, contacts, notes, tags, tasks, threads')
+      }
+      expect(await a.edges(false)).toEqual([])
+    },
+  )
 
   it('tags still refuse threads and interactions, and name deals among the allowed types', async () => {
     const t = await a.ent.tag('T')
     for (const partner of [await a.ent.thread(), await a.ent.interaction()]) {
-      for (const [x, y] of [[t, partner], [partner, t]] as Array<[Ent, Ent]>) {
+      for (const [x, y] of [
+        [t, partner],
+        [partner, t],
+      ] as Array<[Ent, Ent]>) {
         const [status, code, message] = await refusal(x, y)
-        expect([status, code, message]).toEqual([400, 'validation_error', 'tags can only be linked to companies, contacts, deals, notes, tasks'])
+        expect([status, code, message]).toEqual([
+          400,
+          'validation_error',
+          'tags can only be linked to companies, contacts, deals, notes, tasks',
+        ])
       }
     }
   })
@@ -91,10 +114,16 @@ describe('the neighbour rules of deals (D14)', () => {
     expect(got.associations.map((x: Rec) => x.neighbour_id)).toEqual([co[1]])
     expect(got.associations_truncated).toBe(false)
     expect(got.status).toBe('open')
-    const err = await a.fail('deals.get', { params: { id: d[1] }, query: { include: 'associations' } }, { as: 'agent', scopes: ['deals:read'] })
+    const err = await a.fail(
+      'deals.get',
+      { params: { id: d[1] }, query: { include: 'associations' } },
+      { as: 'agent', scopes: ['deals:read'] },
+    )
     expect([err.status, err.code]).toEqual([403, 'insufficient_scope'])
     expect(err.message).toContain('associations:read')
-    expect((await a.call('deals.get', { params: { id: d[1] } }, { as: 'agent', scopes: ['deals:read'] })).associations).toBeUndefined()
+    expect(
+      (await a.call('deals.get', { params: { id: d[1] } }, { as: 'agent', scopes: ['deals:read'] })).associations,
+    ).toBeUndefined()
   })
 })
 
@@ -105,45 +134,54 @@ describe('the custom filters of deals.list (D15)', () => {
     ['company_id', 'companies', 'b', () => a.ent.company('Co')],
     ['contact_id', 'contacts', 'b', () => a.ent.contact('Ct')],
     ['tag_id', 'tags', 'a', () => a.ent.tag('T')],
-  ] as const)('%s returns exactly the deals with a live edge to the record (the deal is side %s), excluding other and deleted edges', async (filter, type, side, make) => {
-    const target = await make()
-    const other = type === 'tags' ? await a.ent.tag('Other') : await make()
-    const d1 = await newDeal('d1')
-    const d2 = await newDeal('d2')
-    const d3 = await newDeal('d3')
-    const d4 = await newDeal('d4')
-    const unlinked = await newDeal('unlinked')
-    const e1 = await a.link(d1, target)
-    await a.link(target, d2)
-    await a.link(d3, other)
-    const gone = await a.link(d4, target)
-    await a.unlink(gone.id)
-    const edge = (await a.edges()).find((x) => x.id === e1.id)!
-    expect(side === 'a' ? edge.a_type : edge.b_type).toBe('deals')
-    expect(type === 'tags' ? edge.b_type : edge.a_type).toBe(type)
-    expect(ids(await listOf({ [filter]: target[1] }))).toEqual([d1[1], d2[1]].sort())
-    expect(ids(await listOf({ [filter]: target[1].toUpperCase() }))).toEqual([d1[1], d2[1]].sort())
-    expect(ids(await listOf())).toHaveLength(5)
-    expect(unlinked[1]).toBeDefined()
-  })
+  ] as const)(
+    '%s returns exactly the deals with a live edge to the record (the deal is side %s), excluding other and deleted edges',
+    async (filter, type, side, make) => {
+      const target = await make()
+      const other = type === 'tags' ? await a.ent.tag('Other') : await make()
+      const d1 = await newDeal('d1')
+      const d2 = await newDeal('d2')
+      const d3 = await newDeal('d3')
+      const d4 = await newDeal('d4')
+      const unlinked = await newDeal('unlinked')
+      const e1 = await a.link(d1, target)
+      await a.link(target, d2)
+      await a.link(d3, other)
+      const gone = await a.link(d4, target)
+      await a.unlink(gone.id)
+      const edge = (await a.edges()).find((x) => x.id === e1.id)!
+      expect(side === 'a' ? edge.a_type : edge.b_type).toBe('deals')
+      expect(type === 'tags' ? edge.b_type : edge.a_type).toBe(type)
+      expect(ids(await listOf({ [filter]: target[1] }))).toEqual([d1[1], d2[1]].sort())
+      expect(ids(await listOf({ [filter]: target[1].toUpperCase() }))).toEqual([d1[1], d2[1]].sort())
+      expect(ids(await listOf())).toHaveLength(5)
+      expect(unlinked[1]).toBeDefined()
+    },
+  )
 
   it('the filters are not interchangeable: a company id in contact_id or tag_id matches nothing', async () => {
     const co = await a.ent.company()
     const d = await newDeal()
     await a.link(co, d)
     expect(ids(await listOf({ company_id: co[1] }))).toEqual([d[1]])
-    for (const f of ['contact_id', 'tag_id']) expect(await listOf({ [f]: co[1] })).toEqual({ data: [], next_cursor: null })
+    for (const f of ['contact_id', 'tag_id'])
+      expect(await listOf({ [f]: co[1] })).toEqual({ data: [], next_cursor: null })
   })
 
-  it.each(['company_id', 'contact_id', 'tag_id'])('%s: an unknown id is an empty page; a malformed one is 400', async (filter) => {
-    expect(await listOf({ [filter]: uuidv7() })).toEqual({ data: [], next_cursor: null })
-    const err = await a.fail('deals.list', { query: { [filter]: 'nope' } })
-    expect([err.status, err.code]).toEqual([400, 'validation_error'])
-  })
+  it.each(['company_id', 'contact_id', 'tag_id'])(
+    '%s: an unknown id is an empty page; a malformed one is 400',
+    async (filter) => {
+      expect(await listOf({ [filter]: uuidv7() })).toEqual({ data: [], next_cursor: null })
+      const err = await a.fail('deals.list', { query: { [filter]: 'nope' } })
+      expect([err.status, err.code]).toEqual([400, 'validation_error'])
+    },
+  )
 
   it('is ANDed with stage_id and status, and pages across the boundary', async () => {
     const p = (await a.call('pipelines.list', { query: {} })).data[0]
-    const won = await a.call('pipeline_stages.create', { body: { pipeline_id: p.id, name: 'Won', kind: 'won', position: 90 } })
+    const won = await a.call('pipeline_stages.create', {
+      body: { pipeline_id: p.id, name: 'Won', kind: 'won', position: 90 },
+    })
     const co = await a.ent.company()
     const members: string[] = []
     for (let i = 0; i < 5; i++) {
@@ -179,18 +217,25 @@ describe('the custom filters of deals.list (D15)', () => {
     ['company_id', 'companies:read', () => a.ent.company()],
     ['contact_id', 'contacts:read', () => a.ent.contact()],
     ['tag_id', 'tags:read', () => a.ent.tag('T')],
-  ] as const)('%s needs %s and associations:read on top of deals:read: each missing one is 403 insufficient_scope naming it; all held is 200', async (filter, own, make) => {
-    const target = await make()
-    const d = await newDeal()
-    await a.link(d, target)
-    for (const missing of [own, 'associations:read']) {
-      const err = await a.fail('deals.list', { query: { [filter]: target[1] } }, { as: 'agent', scopes: FULL.filter((s) => s !== missing) })
-      expect([err.status, err.code], missing).toEqual([403, 'insufficient_scope'])
-      expect(err.message).toContain(missing)
-    }
-    expect(ids(await listOf({ [filter]: target[1] }, { as: 'agent', scopes: FULL }))).toEqual([d[1]])
-    expect(ids(await listOf({}, { as: 'agent', scopes: ['deals:read'] }))).toEqual([d[1]])
-  })
+  ] as const)(
+    '%s needs %s and associations:read on top of deals:read: each missing one is 403 insufficient_scope naming it; all held is 200',
+    async (filter, own, make) => {
+      const target = await make()
+      const d = await newDeal()
+      await a.link(d, target)
+      for (const missing of [own, 'associations:read']) {
+        const err = await a.fail(
+          'deals.list',
+          { query: { [filter]: target[1] } },
+          { as: 'agent', scopes: FULL.filter((s) => s !== missing) },
+        )
+        expect([err.status, err.code], missing).toEqual([403, 'insufficient_scope'])
+        expect(err.message).toContain(missing)
+      }
+      expect(ids(await listOf({ [filter]: target[1] }, { as: 'agent', scopes: FULL }))).toEqual([d[1]])
+      expect(ids(await listOf({}, { as: 'agent', scopes: ['deals:read'] }))).toEqual([d[1]])
+    },
+  )
 
   it('over MCP argument splitting: contact_id without contacts:read is 403, and a repeated company_id is 400', async () => {
     const ct = await a.ent.contact()
@@ -208,7 +253,14 @@ describe('the custom filters of deals.list (D15)', () => {
 describe('deals.delete cascades its live edges (D13/D14)', () => {
   it('soft-deletes every edge (deal on either side), one association.deleted each in id order, rows kept, neighbours untouched', async () => {
     const d = await newDeal('d')
-    const neighbours: Ent[] = [await a.ent.company(), await a.ent.contact(), await a.ent.task(), await a.ent.note(), await a.ent.tag('T'), await a.ent.thread()]
+    const neighbours: Ent[] = [
+      await a.ent.company(),
+      await a.ent.contact(),
+      await a.ent.task(),
+      await a.ent.note(),
+      await a.ent.tag('T'),
+      await a.ent.thread(),
+    ]
     const links: Rec[] = []
     for (const [i, n] of neighbours.entries()) links.push(i % 2 ? await a.link(n, d) : await a.link(d, n))
     expect(new Set(links.map((l) => l.a_type === 'deals'))).toEqual(new Set([true, false]))
@@ -242,7 +294,9 @@ describe('deals.delete cascades its live edges (D13/D14)', () => {
     try {
       const k = assocKit(small)
       const p = await k.call('pipelines.create', { body: { name: 'P' } })
-      const s = await k.call('pipeline_stages.create', { body: { pipeline_id: p.id, name: 'S', kind: 'open', position: 1 } })
+      const s = await k.call('pipeline_stages.create', {
+        body: { pipeline_id: p.id, name: 'S', kind: 'open', position: 1 },
+      })
       const d: Ent = ['deals', (await k.call('deals.create', { body: { name: 'D', stage_id: s.id } })).id]
       for (let i = 0; i < 3; i++) await k.link(d, await k.ent.thread())
       const mark = (await small.rows('events')).length
@@ -262,9 +316,18 @@ describe('deals.delete cascades its live edges (D13/D14)', () => {
     const late = await a.ent.contact()
     const mark = (await e.rows('events')).length
     e.betweenPlanAndCommit(async () => {
-      await e.insert('associations', { a_type: 'contacts', a_id: late[1], b_type: 'deals', b_id: d[1], relation: 'related_to' })
+      await e.insert('associations', {
+        a_type: 'contacts',
+        a_id: late[1],
+        b_type: 'deals',
+        b_id: d[1],
+        relation: 'related_to',
+      })
     })
-    const err = await a.call('deals.delete', { params: { id: d[1] } }).then(() => undefined, (x: unknown) => x)
+    const err = await a.call('deals.delete', { params: { id: d[1] } }).then(
+      () => undefined,
+      (x: unknown) => x,
+    )
     expect(err).toBeDefined()
     expect((await e.rows('deals')).find((r) => r.id === d[1])!.deleted_at).toBeNull()
     expect((await a.edges()).filter((r) => r.deleted_at === null)).toHaveLength(2)
@@ -276,19 +339,22 @@ describe('the other programs treat a deal edge like any other (D13/D14)', () => 
   it.each([
     ['companies', () => a.ent.company()],
     ['contacts', () => a.ent.contact()],
-  ] as const)('%s.delete soft-deletes its edge to a deal; the deal is unchanged and no deal event is written', async (type, make) => {
-    const p = await make()
-    const d = await newDeal('d')
-    const edge = await a.link(p, d)
-    const before = (await e.rows('deals')).find((r) => r.id === d[1])
-    const mark = (await e.rows('events')).length
-    await a.call(`${type}.delete`, { params: { id: p[1] } })
-    expect((await a.edges(false)).find((r) => r.id === edge.id)!.deleted_at).not.toBeNull()
-    expect((await e.rows('deals')).find((r) => r.id === d[1])).toEqual(before)
-    const evs = (await e.rows('events')).slice(mark)
-    expect(evs.map((x) => x.type)).toContain('association.deleted')
-    expect(evs.filter((x) => String(x.type).startsWith('deal.'))).toEqual([])
-  })
+  ] as const)(
+    '%s.delete soft-deletes its edge to a deal; the deal is unchanged and no deal event is written',
+    async (type, make) => {
+      const p = await make()
+      const d = await newDeal('d')
+      const edge = await a.link(p, d)
+      const before = (await e.rows('deals')).find((r) => r.id === d[1])
+      const mark = (await e.rows('events')).length
+      await a.call(`${type}.delete`, { params: { id: p[1] } })
+      expect((await a.edges(false)).find((r) => r.id === edge.id)!.deleted_at).not.toBeNull()
+      expect((await e.rows('deals')).find((r) => r.id === d[1])).toEqual(before)
+      const evs = (await e.rows('events')).slice(mark)
+      expect(evs.map((x) => x.type)).toContain('association.deleted')
+      expect(evs.filter((x) => String(x.type).startsWith('deal.'))).toEqual([])
+    },
+  )
 
   const merge = (survivor: Ent, source: Ent) => a.k.run((env) => mergeOperation(env, survivor[1], source[1]))
   it('merge with a shared deal leaves one live edge to the survivor; a deal linked only to the source is re-pointed', async () => {

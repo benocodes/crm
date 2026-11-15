@@ -11,18 +11,23 @@ type Entry = { readonly name: string; readonly sha256: string }
 
 /** The same comparison the CRM manifest test makes ([[CORE61]] D5), against the control directory ([[CORE259]] D4). */
 function manifestProblems(manifest: readonly Entry[], dir: string): string[] {
-  const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
   const problems: string[] = []
   for (const e of manifest) {
     if (!files.includes(e.name)) {
       problems.push(`manifest entry without a file: ${e.name}`)
       continue
     }
-    const actual = createHash('sha256').update(readFileSync(join(dir, e.name))).digest('hex')
+    const actual = createHash('sha256')
+      .update(readFileSync(join(dir, e.name)))
+      .digest('hex')
     if (actual !== e.sha256) problems.push(`hash mismatch: ${e.name}`)
   }
   for (const f of files) if (!manifest.some((e) => e.name === f)) problems.push(`file without a manifest entry: ${f}`)
-  if (problems.length === 0 && manifest.map((e) => e.name).join() !== files.join()) problems.push('order differs from the sorted file names')
+  if (problems.length === 0 && manifest.map((e) => e.name).join() !== files.join())
+    problems.push('order differs from the sorted file names')
   return problems
 }
 
@@ -40,7 +45,11 @@ afterEach(() => {
 describe('control migrations manifest (CORE259 D4)', () => {
   it('matches the real control-migrations/ directory exactly, and is its own set apart from the CRM one', () => {
     expect(manifestProblems(CONTROL_MIGRATIONS, CONTROL_MIGRATIONS_DIR)).toEqual([])
-    expect(CONTROL_MIGRATIONS.map((e) => e.name)).toEqual(['0001_control_plane.sql', '0002_invitations.sql', '0003_invitation_delivery.sql'])
+    expect(CONTROL_MIGRATIONS.map((e) => e.name)).toEqual([
+      '0001_control_plane.sql',
+      '0002_invitations.sql',
+      '0003_invitation_delivery.sql',
+    ])
     expect(CONTROL_MIGRATIONS.map((e) => e.name).filter((n) => MIGRATIONS.some((m) => m.name === n))).toEqual([])
   })
   it('catches one edited byte', () => {
@@ -49,7 +58,9 @@ describe('control migrations manifest (CORE259 D4)', () => {
     expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['hash mismatch: 0001_control_plane.sql'])
   })
   it('catches a dropped manifest entry (a file the manifest does not list)', () => {
-    expect(manifestProblems(CONTROL_MIGRATIONS.slice(1), copyOfTree())).toEqual(['file without a manifest entry: 0001_control_plane.sql'])
+    expect(manifestProblems(CONTROL_MIGRATIONS.slice(1), copyOfTree())).toEqual([
+      'file without a manifest entry: 0001_control_plane.sql',
+    ])
   })
   it('catches an unlisted file', () => {
     const dir = copyOfTree()

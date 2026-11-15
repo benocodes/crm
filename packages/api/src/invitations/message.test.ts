@@ -16,7 +16,12 @@ describe('invitationMessage', () => {
   })
 
   it('escapes the HTML: a host or link carrying <&" never comes out raw', () => {
-    const m = invitationMessage({ host: 'h<i>.test', url: 'https://x.test/invite?a=1&b="2"#token=<t>', role: 'member', expiresAt: base.expiresAt })
+    const m = invitationMessage({
+      host: 'h<i>.test',
+      url: 'https://x.test/invite?a=1&b="2"#token=<t>',
+      role: 'member',
+      expiresAt: base.expiresAt,
+    })
     expect(m.html).not.toMatch(/<i>|<t>|"2"/)
     expect(m.html).toContain('&lt;i&gt;')
     expect(m.html).toContain('&amp;b=&quot;2&quot;')

@@ -3,7 +3,11 @@ import type { InvitationRow } from './port.js'
 
 export const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-const base64url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+const base64url = (bytes: Uint8Array): string =>
+  btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '')
 
 /** SHA-256 of the token text, lowercase hex: the only form the control plane stores. */
 export async function hashInvitationToken(token: string): Promise<string> {
@@ -12,13 +16,16 @@ export async function hashInvitationToken(token: string): Promise<string> {
 }
 
 /** The random source is injected, as for API keys; real code passes `crypto.getRandomValues`. */
-export async function newInvitationToken(randomBytes: (n: number) => Uint8Array): Promise<{ token: string; hash: string }> {
+export async function newInvitationToken(
+  randomBytes: (n: number) => Uint8Array,
+): Promise<{ token: string; hash: string }> {
   const token = base64url(randomBytes(32))
   return { token, hash: await hashInvitationToken(token) }
 }
 
 /** `<PUBLIC_BASE_URL>/invite#token=<token>`: the token is in the fragment, which a browser never sends and a server log never sees ([[UI246]] serves `/invite`). */
-export const invitationUrl = (publicBaseUrl: string, token: string): string => `${publicBaseUrl.replace(/\/+$/, '')}/invite#token=${token}`
+export const invitationUrl = (publicBaseUrl: string, token: string): string =>
+  `${publicBaseUrl.replace(/\/+$/, '')}/invite#token=${token}`
 
 const ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 /** Trimmed and lowercased; `null` when it is not an address (no whitespace, one `@`, a dotted domain, at most 254 characters). */
@@ -29,7 +36,10 @@ export function normaliseInvitationEmail(raw: string): string | null {
 
 export type InvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired'
 /** Derived at read time from the row and the clock: accepted, then revoked, then expired by `expires_at`; never a stored flag. */
-export function invitationStatus(row: Pick<InvitationRow, 'acceptedAt' | 'revokedAt' | 'expiresAt'>, now: Date): InvitationStatus {
+export function invitationStatus(
+  row: Pick<InvitationRow, 'acceptedAt' | 'revokedAt' | 'expiresAt'>,
+  now: Date,
+): InvitationStatus {
   if (row.acceptedAt !== null) return 'accepted'
   if (row.revokedAt !== null) return 'revoked'
   return row.expiresAt > now.toISOString() ? 'pending' : 'expired'
@@ -39,4 +49,5 @@ export function invitationStatus(row: Pick<InvitationRow, 'acceptedAt' | 'revoke
  * `<PUBLIC_BASE_URL>/reset-password#token=<token>` ([[UI246]] D6): built from the `token` Better Auth hands `emailAndPassword.sendResetPassword`, never from its `url` (which puts the token in a path
  * segment and a `callbackURL` query, both of which reach server logs). Its callers are the owner-issued link ([[CORE288]]), `owner-reset` ([[OPS249]]) and email ([[CORE248]]).
  */
-export const passwordResetUrl = (publicBaseUrl: string, token: string): string => `${publicBaseUrl.replace(/\/+$/, '')}/reset-password#token=${token}`
+export const passwordResetUrl = (publicBaseUrl: string, token: string): string =>
+  `${publicBaseUrl.replace(/\/+$/, '')}/reset-password#token=${token}`

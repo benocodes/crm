@@ -31,7 +31,10 @@ describe('instance entry', () => {
   })
   it('OPS240 D21: --version prints vibase-server/<version> (<commit>) from the release.json of the package, exit 0, nothing on stderr', async () => {
     const pkg = stagedPackage()
-    const release = JSON.parse(readFileSync(join(pkg.dir, 'release.json'), 'utf8')) as { version: string; commit: string }
+    const release = JSON.parse(readFileSync(join(pkg.dir, 'release.json'), 'utf8')) as {
+      version: string
+      commit: string
+    }
     const r = io()
     expect(await runInstance(['--version'], r.io, pkg.dir)).toBe(0)
     expect(r.out.join('')).toBe(`vibase-server/${release.version} (${release.commit})\n`)
@@ -63,13 +66,18 @@ describe('instance entry', () => {
   })
   it('a package whose wrangler cannot be resolved refuses (exit 2) naming the package, never an internal error', async () => {
     for (const command of ['status', 'upgrade']) {
-      const w = makeWorld({ health: () => new Response(JSON.stringify({ version: '0.1.0', status: 'ok' }), { status: 200 }) })
+      const w = makeWorld({
+        health: () => new Response(JSON.stringify({ version: '0.1.0', status: 'ok' }), { status: 200 }),
+      })
       // The nearest `wrangler` the package sees has no bin: it cannot be run, and nothing is ever spawned.
       const outer = mkTmp('ops234-outer-')
       const pkgDir = join(outer, 'node_modules', 'vibase')
       cpSync(w.pkg.dir, pkgDir, { recursive: true })
       mkdirSync(join(outer, 'node_modules', 'wrangler'), { recursive: true })
-      writeFileSync(join(outer, 'node_modules', 'wrangler', 'package.json'), JSON.stringify({ name: 'wrangler', version: '0.0.0' }))
+      writeFileSync(
+        join(outer, 'node_modules', 'wrangler', 'package.json'),
+        JSON.stringify({ name: 'wrangler', version: '0.0.0' }),
+      )
       const r = io({ XDG_CONFIG_HOME: w.config, PATH: process.env.PATH, HOME: w.deps.homedir, CONFIRM_REMOTE: '1' })
       const code = await runInstance([command, '--env', 'demo'], r.io, pkgDir, { fetch: w.deps.fetch })
       expect(code).toBe(2)

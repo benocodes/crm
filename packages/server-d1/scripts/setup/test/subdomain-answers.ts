@@ -14,12 +14,22 @@ export interface SubdomainState {
 
 const envelope = (extra: Record<string, unknown>) => ({ errors: [], messages: [], ...extra })
 export const subdomainSuccess = (subdomain: string) => envelope({ success: true, result: { subdomain } })
-export const subdomainMissing = () => ({ success: false, errors: [{ code: 10007, message: 'This account has not enabled a workers.dev subdomain.' }], messages: [], result: null })
+export const subdomainMissing = () => ({
+  success: false,
+  errors: [{ code: 10007, message: 'This account has not enabled a workers.dev subdomain.' }],
+  messages: [],
+  result: null,
+})
 
 /** Answers `GET|PUT accounts/<id>/workers/subdomain` from `st` (a PUT registers); `undefined` for any other path. `path` is relative to the API root. */
-export function subdomainResponse(path: string, init: RequestInit | undefined, st: SubdomainState): Response | undefined {
+export function subdomainResponse(
+  path: string,
+  init: RequestInit | undefined,
+  st: SubdomainState,
+): Response | undefined {
   if (!/^accounts\/[^/]+\/workers\/subdomain$/.test(path)) return undefined
-  const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+  const reply = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
   if (st.denied) return reply(403, { success: false, errors: [{ code: 10000, message: 'Authentication error' }] })
   if ((init?.method ?? 'GET') === 'PUT') {
     const name = (JSON.parse(String(init?.body ?? '{}')) as { subdomain?: string }).subdomain ?? ''

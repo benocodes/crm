@@ -1,13 +1,27 @@
 // The approvals page. Everything agent-supplied reaches the DOM through textContent only, never innerHTML.
 import { createApi, ApiFailure, type Api } from './api.js'
 import { loadSession, type Session } from './clerk.js'
-import { byCreatedDesc, effectiveArguments, emailPreview, isExpired, operationTitle, prettyJson, relativeTime, withFullArguments, type ActionRequest } from './format.js'
+import {
+  byCreatedDesc,
+  effectiveArguments,
+  emailPreview,
+  isExpired,
+  operationTitle,
+  prettyJson,
+  relativeTime,
+  withFullArguments,
+  type ActionRequest,
+} from './format.js'
 
 type Tab = 'pending' | 'executed' | 'failed' | 'rejected'
 const TABS: Tab[] = ['pending', 'executed', 'failed', 'rejected']
 const POLL_MS = 30_000
 
-function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: string; text?: string; attrs?: Record<string, string> } = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
+function h<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: { class?: string; text?: string; attrs?: Record<string, string> } = {},
+  ...kids: (Node | string)[]
+): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag)
   if (props.class) el.className = props.class
   if (props.text !== undefined) el.textContent = props.text
@@ -26,7 +40,10 @@ async function main(): Promise<void> {
     return
   }
   if (!session.signedIn) {
-    root.replaceChildren(h('h1', { text: 'Approvals' }), h('p', { text: 'Sign in to review what your agents have proposed.' }))
+    root.replaceChildren(
+      h('h1', { text: 'Approvals' }),
+      h('p', { text: 'Sign in to review what your agents have proposed.' }),
+    )
     const b = h('button', { class: 'primary', text: 'Sign in' })
     b.addEventListener('click', () => void session.signIn())
     root.append(b)
@@ -48,7 +65,11 @@ class Page {
   private full = new Map<string, ActionRequest>()
   private timer: number | undefined
 
-  constructor(private root: HTMLElement, private session: Session, private api: Api) {}
+  constructor(
+    private root: HTMLElement,
+    private session: Session,
+    private api: Api,
+  ) {}
 
   start(): void {
     void this.refresh()
@@ -77,19 +98,22 @@ class Page {
   /** The list returns only a descriptor for a message body; read the full record once per send request. A failed read leaves the descriptor, and the card says so. */
   private async hydrate(listed: ActionRequest[]): Promise<ActionRequest[]> {
     const missing = listed.filter((r) => r.operation === 'messages.send' && !this.full.has(r.id))
-    await Promise.all(missing.map(async (r) => {
-      try {
-        this.full.set(r.id, await this.api.get(r.id))
-      } catch {
-        /* shown as "Message text unavailable" */
-      }
-    }))
+    await Promise.all(
+      missing.map(async (r) => {
+        try {
+          this.full.set(r.id, await this.api.get(r.id))
+        } catch {
+          /* shown as "Message text unavailable" */
+        }
+      }),
+    )
     return listed.map((r) => (this.full.has(r.id) ? withFullArguments(r, this.full.get(r.id)!) : r))
   }
 
   private describe(e: unknown): string {
     if (e instanceof ApiFailure) {
-      if (e.status === 403) return `Not allowed: ${e.message}. This account needs the action_requests read scope (and the target's write scope to approve).`
+      if (e.status === 403)
+        return `Not allowed: ${e.message}. This account needs the action_requests read scope (and the target's write scope to approve).`
       return e.message
     }
     // A CORS or network failure is a TypeError with no detail.
@@ -124,21 +148,54 @@ class Page {
     out.addEventListener('click', () => void this.session.signOut())
     const reload = h('button', { class: 'link', text: 'Refresh' })
     reload.addEventListener('click', () => void this.refresh())
-    const header = h('header', {}, h('h1', { text: 'Approvals' }), h('div', { class: 'who' }, h('span', { text: this.session.email ?? '' }), reload, out))
+    const header = h(
+      'header',
+      {},
+      h('h1', { text: 'Approvals' }),
+      h('div', { class: 'who' }, h('span', { text: this.session.email ?? '' }), reload, out),
+    )
     const body = h('section', { class: 'list' })
     if (this.error) body.append(h('p', { class: 'error', text: this.error, attrs: { role: 'alert' } }))
     if (this.loading) body.append(h('p', { class: 'muted', text: 'Loading' }))
-    else if (this.items.length === 0 && !this.error) body.append(h('p', { class: 'muted', text: this.tab === 'pending' ? 'Nothing waiting for you.' : `No ${this.tab} requests.` }))
+    else if (this.items.length === 0 && !this.error)
+      body.append(
+        h('p', {
+          class: 'muted',
+          text: this.tab === 'pending' ? 'Nothing waiting for you.' : `No ${this.tab} requests.`,
+        }),
+      )
     for (const r of this.items) body.append(this.card(r, now))
     this.root.replaceChildren(header, tabs, body)
   }
 
   private email(e: NonNullable<ReturnType<typeof emailPreview>>): HTMLElement {
-    const line = (label: string, values: string[]) => (values.length === 0 ? [] : [h('div', { class: 'field' }, h('span', { class: 'label', text: label }), h('span', { text: values.join(', ') }))])
-    return h('div', { class: 'email' },
-      ...line('To', e.to), ...line('Cc', e.cc), ...line('Bcc', e.bcc),
-      h('div', { class: 'field' }, h('span', { class: 'label', text: 'Subject' }), h('strong', { text: e.subject || '(no subject)' })),
-      e.body === null ? h('p', { class: 'error', text: 'Message text unavailable. Do not approve what you cannot read.' }) : h('div', { class: 'body', text: e.body }))
+    const line = (label: string, values: string[]) =>
+      values.length === 0
+        ? []
+        : [
+            h(
+              'div',
+              { class: 'field' },
+              h('span', { class: 'label', text: label }),
+              h('span', { text: values.join(', ') }),
+            ),
+          ]
+    return h(
+      'div',
+      { class: 'email' },
+      ...line('To', e.to),
+      ...line('Cc', e.cc),
+      ...line('Bcc', e.bcc),
+      h(
+        'div',
+        { class: 'field' },
+        h('span', { class: 'label', text: 'Subject' }),
+        h('strong', { text: e.subject || '(no subject)' }),
+      ),
+      e.body === null
+        ? h('p', { class: 'error', text: 'Message text unavailable. Do not approve what you cannot read.' })
+        : h('div', { class: 'body', text: e.body }),
+    )
   }
 
   private card(r: ActionRequest, now: number): HTMLElement {
@@ -147,18 +204,34 @@ class Page {
     const meta = pending
       ? `proposed ${relativeTime(r.created_at, now)} · ${expired ? 'expired' : `expires ${relativeTime(r.expires_at, now)}`}`
       : `${r.status}${r.decided_at ? ` ${relativeTime(r.decided_at, now)}` : ''}`
-    const card = h('article', { class: 'card' }, h('div', { class: 'row' }, h('h2', { text: operationTitle(r.operation) }), h('code', { text: r.operation })), h('p', { class: 'reason', text: r.reason }), h('p', { class: 'muted', text: meta }))
+    const card = h(
+      'article',
+      { class: 'card' },
+      h('div', { class: 'row' }, h('h2', { text: operationTitle(r.operation) }), h('code', { text: r.operation })),
+      h('p', { class: 'reason', text: r.reason }),
+      h('p', { class: 'muted', text: meta }),
+    )
     const email = emailPreview(r)
     if (email) card.append(this.email(email))
-    const details = h('details', {}, h('summary', { text: email ? 'Raw arguments' : 'Arguments' }), h('pre', { text: prettyJson(effectiveArguments(r)) }))
+    const details = h(
+      'details',
+      {},
+      h('summary', { text: email ? 'Raw arguments' : 'Arguments' }),
+      h('pre', { text: prettyJson(effectiveArguments(r)) }),
+    )
     if (this.open.has(r.id)) details.open = true
     details.addEventListener('toggle', () => (details.open ? this.open.add(r.id) : this.open.delete(r.id)))
     card.append(details)
-    if (r.evidence.length > 0) card.append(h('p', { class: 'muted', text: `Evidence: ${r.evidence.map((e) => `${e.type} ${e.id}`).join(', ')}` }))
+    if (r.evidence.length > 0)
+      card.append(
+        h('p', { class: 'muted', text: `Evidence: ${r.evidence.map((e) => `${e.type} ${e.id}`).join(', ')}` }),
+      )
     if (r.decision_reason) card.append(h('p', { class: 'muted', text: `Decision note: ${r.decision_reason}` }))
     if (r.error_message) card.append(h('p', { class: 'error', text: `${r.error_code ?? 'error'}: ${r.error_message}` }))
     if (pending && !expired) {
-      const note = h('input', { attrs: { type: 'text', placeholder: 'Note (optional)', 'aria-label': 'Decision note', maxlength: '2000' } })
+      const note = h('input', {
+        attrs: { type: 'text', placeholder: 'Note (optional)', 'aria-label': 'Decision note', maxlength: '2000' },
+      })
       note.value = this.notes.get(r.id) ?? ''
       note.addEventListener('input', () => this.notes.set(r.id, note.value))
       const mk = (verb: 'approve' | 'reject', cls: string) => {

@@ -8,7 +8,8 @@ import { physicalTable, type PreparedResource, type Values } from './definition.
 // Pure preparation of a write or a list query: validation, the agent-field check and normalization.
 // No I/O, no clock, synchronous ([[CORE35]] D3 extension 1). Messages and statuses are the old ones.
 
-const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
+const kindsOf = (def: PreparedResource): Record<string, ColumnKind> =>
+  COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
 
 /** Canonical stored forms: lowercase UUID text, ISO-8601 UTC timestamps. Other values are untouched. */
 function normalize(def: PreparedResource, values: Values): Values {
@@ -24,7 +25,9 @@ function normalize(def: PreparedResource, values: Values): Values {
 
 function checkAgentFields(def: PreparedResource, actor: Actor, input: Values): void {
   if (actor.kind !== 'agent') return
-  const writable = new Set(def.agentWritable ?? [...Object.keys(def.create?.shape ?? {}), ...Object.keys(def.update?.shape ?? {})])
+  const writable = new Set(
+    def.agentWritable ?? [...Object.keys(def.create?.shape ?? {}), ...Object.keys(def.update?.shape ?? {})],
+  )
   const denied = Object.keys(input).filter((k) => !writable.has(k))
   if (denied.length > 0) throw new ApiError(400, 'field_not_writable', `agents may not write: ${denied.join(', ')}`)
 }
@@ -40,7 +43,8 @@ export function prepareCreate(def: PreparedResource, actor: Actor, input: unknow
 function checkCreateOnly(def: PreparedResource, input: unknown): void {
   if (!def.createOnly || input === null || typeof input !== 'object' || Array.isArray(input)) return
   for (const [field, hint] of Object.entries(def.createOnly)) {
-    if (field in input) throw new ApiError(400, 'validation_error', `${field} cannot be changed after creation${hint ? `; ${hint}` : ''}`)
+    if (field in input)
+      throw new ApiError(400, 'validation_error', `${field} cannot be changed after creation${hint ? `; ${hint}` : ''}`)
   }
 }
 
@@ -57,7 +61,12 @@ export function prepareListQuery(
   raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> },
 ): { after: string | null; limit: number; filters: Record<string, unknown>; sort: SortRequest | null } {
   const q = parseListQuery(def, raw)
-  return { after: q.after === null ? null : q.after.toLowerCase(), limit: q.limit, filters: normalize(def, q.filters), sort: q.sort }
+  return {
+    after: q.after === null ? null : q.after.toLowerCase(),
+    limit: q.limit,
+    filters: normalize(def, q.filters),
+    sort: q.sort,
+  }
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

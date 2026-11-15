@@ -7,7 +7,11 @@ import { openEngines, type Engine, type EngineName } from '../test/engines.js'
 
 const NOW = new Date('2026-10-22T10:00:00.000Z')
 const EARLIER = '2026-10-22T08:30:00.000Z'
-const refuse = async (p: Promise<unknown>) => (await p.then(() => null, (e: unknown) => e)) as ApiError | null
+const refuse = async (p: Promise<unknown>) =>
+  (await p.then(
+    () => null,
+    (e: unknown) => e,
+  )) as ApiError | null
 
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
@@ -29,12 +33,28 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     it('creates a task whose response, row and event `after` are the same record', async () => {
-      const { value, events, stats } = await e.run(createOperation(tasks, e.env({ now: NOW }), { title: 'A', status: 'done', assignee_id: e.user2Id }))
-      expect(value).toMatchObject({ title: 'A', status: 'done', completed_at: NOW.toISOString(), created_at: NOW.toISOString(), updated_at: NOW.toISOString(), assignee_id: e.user2Id, created_by: e.userId })
+      const { value, events, stats } = await e.run(
+        createOperation(tasks, e.env({ now: NOW }), { title: 'A', status: 'done', assignee_id: e.user2Id }),
+      )
+      expect(value).toMatchObject({
+        title: 'A',
+        status: 'done',
+        completed_at: NOW.toISOString(),
+        created_at: NOW.toISOString(),
+        updated_at: NOW.toISOString(),
+        assignee_id: e.user2Id,
+        created_by: e.userId,
+      })
       const [row] = await e.tasks()
       expect(row!.id).toBe(value.id)
       const [event] = await e.events()
-      expect(event).toMatchObject({ type: 'task.created', resource_id: value.id, actor_id: e.userId, organization_id: e.organizationId, before: null })
+      expect(event).toMatchObject({
+        type: 'task.created',
+        resource_id: value.id,
+        actor_id: e.userId,
+        organization_id: e.organizationId,
+        before: null,
+      })
       expect(event!.after).toEqual(value)
       expect(events).toHaveLength(1)
       // Statement count: reference check, then write + event + result (+ the writer lock on Postgres).
@@ -43,14 +63,25 @@ export function engineSuite(engineName: EngineName): void {
 
     describe('completion: the SQL CASE equals taskCompletion over every input', () => {
       const cases = [
-        ...(['open', 'done'] as const).flatMap((before) => ([{ status: 'done' }, { status: 'open' }, { title: 'only a title' }] as const).map((input) => [before, input] as const)),
+        ...(['open', 'done'] as const).flatMap((before) =>
+          ([{ status: 'done' }, { status: 'open' }, { title: 'only a title' }] as const).map(
+            (input) => [before, input] as const,
+          ),
+        ),
       ]
       it.each(cases)('stored %s, patch %j', async (before, input) => {
         const id = uuidv7()
         await e.insertTask({ id, title: 't', status: before, completed_at: before === 'done' ? EARLIER : null })
         const { value } = await e.run(updateOperation(tasks, e.env({ now: NOW }), id, input))
         const change = taskCompletion(input, { status: before }, NOW)
-        const expected = 'completed_at' in change ? (change.completed_at ? codecs.timestamp.write(change.completed_at) : null) : before === 'done' ? EARLIER : null
+        const expected =
+          'completed_at' in change
+            ? change.completed_at
+              ? codecs.timestamp.write(change.completed_at)
+              : null
+            : before === 'done'
+              ? EARLIER
+              : null
         expect(value.completed_at).toBe(expected)
         const [row] = await e.tasks()
         expect(codecs.timestamp.readNullable(row!.completed_at)).toBe(expected)
@@ -65,7 +96,10 @@ export function engineSuite(engineName: EngineName): void {
       expect(await e.events()).toHaveLength(0)
       expect(events).toEqual([])
       expect(stats.writes).toBe(0)
-      expect((await refuse(e.run(updateOperation(tasks, e.env(), uuidv7(), {}))))).toMatchObject({ status: 404, code: 'not_found' })
+      expect(await refuse(e.run(updateOperation(tasks, e.env(), uuidv7(), {})))).toMatchObject({
+        status: 404,
+        code: 'not_found',
+      })
     })
 
     it('a same-value patch is a real update, as before (event with equal before/after fields, new updated_at)', async () => {
@@ -84,7 +118,9 @@ export function engineSuite(engineName: EngineName): void {
 
     it('event `before` is the exact prior record and `after` the stored one', async () => {
       const created = (await e.run(createOperation(tasks, e.env({ now: new Date(EARLIER) }), { title: 'x' }))).value
-      const updated = (await e.run(updateOperation(tasks, e.env({ now: NOW }), created.id, { status: 'done', notes: 'n' }))).value
+      const updated = (
+        await e.run(updateOperation(tasks, e.env({ now: NOW }), created.id, { status: 'done', notes: 'n' }))
+      ).value
       const events = await e.events()
       expect(events[1]!.before).toEqual(created)
       expect(events[1]!.after).toEqual(updated)
@@ -93,16 +129,24 @@ export function engineSuite(engineName: EngineName): void {
 
     it('refuses a missing assignee with invalid_reference and no partial effect', async () => {
       const err = await refuse(e.run(createOperation(tasks, e.env(), { title: 'x', assignee_id: uuidv7() })))
-      expect(err).toMatchObject({ status: 400, code: 'invalid_reference', message: 'a referenced record does not exist' })
+      expect(err).toMatchObject({
+        status: 400,
+        code: 'invalid_reference',
+        message: 'a referenced record does not exist',
+      })
       expect(await e.tasks()).toHaveLength(0)
       expect(await e.events()).toHaveLength(0)
       const id = uuidv7()
       await e.insertTask({ id, title: 't' })
-      expect(await refuse(e.run(updateOperation(tasks, e.env(), id, { title: 'changed', assignee_id: uuidv7() })))).toMatchObject({ code: 'invalid_reference' })
+      expect(
+        await refuse(e.run(updateOperation(tasks, e.env(), id, { title: 'changed', assignee_id: uuidv7() }))),
+      ).toMatchObject({ code: 'invalid_reference' })
       expect((await e.tasks())[0]!.title).toBe('t')
       expect(await e.events()).toHaveLength(0)
       // Existence is checked first: a missing task is 404 even with a bad assignee.
-      expect(await refuse(e.run(updateOperation(tasks, e.env(), uuidv7(), { assignee_id: uuidv7() })))).toMatchObject({ status: 404 })
+      expect(await refuse(e.run(updateOperation(tasks, e.env(), uuidv7(), { assignee_id: uuidv7() })))).toMatchObject({
+        status: 404,
+      })
     })
 
     it('deletes softly, hides the row everywhere and records the last record', async () => {

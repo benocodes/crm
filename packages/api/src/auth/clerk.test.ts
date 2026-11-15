@@ -19,7 +19,8 @@ import {
 const NOW = new Date('2026-10-20T12:00:00Z')
 const nowS = Math.floor(NOW.getTime() / 1000)
 const setup = () => testClerkAdapter({ now: () => NOW })
-const mint = async (o: Parameters<typeof mintClerkToken>[1] = {}) => mintClerkToken(await testIssuer(), { now: NOW, ...o })
+const mint = async (o: Parameters<typeof mintClerkToken>[1] = {}) =>
+  mintClerkToken(await testIssuer(), { now: NOW, ...o })
 
 describe('clerk verify', () => {
   it('valid token', async () => {
@@ -109,7 +110,12 @@ describe('clerk verify', () => {
     expect(await org('billing')).toEqual({ externalId: 'org_x', role: null })
   })
 
-  it.each([['a string', 'org_x'], ['no id', {}], ['empty id', { id: '' }], ['numeric id', { id: 7 }]])('bad claim: %s', async (_n, o) => {
+  it.each([
+    ['a string', 'org_x'],
+    ['no id', {}],
+    ['empty id', { id: '' }],
+    ['numeric id', { id: 7 }],
+  ])('bad claim: %s', async (_n, o) => {
     const { adapter } = await setup()
     expect(await adapter.verify(await mint({ extra: { o } }))).toEqual({ ok: false, reason: 'claims' })
   })
@@ -132,7 +138,9 @@ describe('mapClerkRole', () => {
 
 describe('clerk fetchOrganization', () => {
   it('200', async () => {
-    const t = await testClerkAdapter({ organizations: new Map([['org_x', clerkOrganization({ id: 'org_x', name: 'Acme' })]]) })
+    const t = await testClerkAdapter({
+      organizations: new Map([['org_x', clerkOrganization({ id: 'org_x', name: 'Acme' })]]),
+    })
     expect(await t.adapter.fetchOrganization('org_x')).toEqual({ externalId: 'org_x', name: 'Acme' })
     expect(t.fetch.calls).toEqual([{ url: `${API_URL}/v1/organizations/org_x`, authorization: `Bearer ${SECRET_KEY}` }])
   })
@@ -141,7 +149,9 @@ describe('clerk fetchOrganization', () => {
     expect(await t.adapter.fetchOrganization('org_nope')).toBeNull()
   })
   it('500', async () => {
-    const t = await testClerkAdapter({ organizations: new Map([['org_x', clerkOrganization({ id: 'org_x', name: 'Acme' })]]) })
+    const t = await testClerkAdapter({
+      organizations: new Map([['org_x', clerkOrganization({ id: 'org_x', name: 'Acme' })]]),
+    })
     t.fetch.fail.organization = 500
     await expect(t.adapter.fetchOrganization('org_x')).rejects.toThrow('clerk organization fetch failed: 500')
   })
@@ -151,7 +161,9 @@ describe('clerk listMembers', () => {
   const orgs = () => new Map([['org_x', clerkOrganization({ id: 'org_x', name: 'Acme' })]])
 
   it('pages through every member', async () => {
-    const all = Array.from({ length: 205 }, (_v, i) => clerkMembership({ organizationId: 'org_x', userId: `user_${i}`, role: 'org:member' }))
+    const all = Array.from({ length: 205 }, (_v, i) =>
+      clerkMembership({ organizationId: 'org_x', userId: `user_${i}`, role: 'org:member' }),
+    )
     const t = await testClerkAdapter({ organizations: orgs(), members: new Map([['org_x', all]]) })
     expect(await t.adapter.listMembers('org_x')).toHaveLength(205)
     const urls = t.fetch.calls.map((c) => new URL(c.url))
@@ -222,7 +234,10 @@ describe('clerk parseWebhook', () => {
   })
 
   it('signed membership event', async () => {
-    expect(await parse(signClerkWebhook(evt))).toEqual({ ok: true, change: { kind: 'organization', externalId: 'org_x' } })
+    expect(await parse(signClerkWebhook(evt))).toEqual({
+      ok: true,
+      change: { kind: 'organization', externalId: 'org_x' },
+    })
   })
 
   it.each([
@@ -248,8 +263,14 @@ describe('clerk parseWebhook', () => {
 
   it('timestamp', async () => {
     const now = 1_800_000_000
-    expect(await parse(signClerkWebhook(evt, { timestamp: now - 301 }), now)).toEqual({ ok: false, reason: 'timestamp' })
-    expect(await parse(signClerkWebhook(evt, { timestamp: now + 301 }), now)).toEqual({ ok: false, reason: 'timestamp' })
+    expect(await parse(signClerkWebhook(evt, { timestamp: now - 301 }), now)).toEqual({
+      ok: false,
+      reason: 'timestamp',
+    })
+    expect(await parse(signClerkWebhook(evt, { timestamp: now + 301 }), now)).toEqual({
+      ok: false,
+      reason: 'timestamp',
+    })
     expect((await parse(signClerkWebhook(evt, { timestamp: now - 299 }), now)).ok).toBe(true)
     const nan = signClerkWebhook(evt, { timestamp: now })
     nan.headers['svix-timestamp'] = 'soon'
@@ -269,13 +290,17 @@ describe('clerk parseWebhook', () => {
 
   it('several signatures, one good', async () => {
     const signed = signClerkWebhook(evt)
-    signed.headers['svix-signature'] = `v1,${Buffer.alloc(32, 1).toString('base64')} ${signed.headers['svix-signature']}`
+    signed.headers['svix-signature'] =
+      `v1,${Buffer.alloc(32, 1).toString('base64')} ${signed.headers['svix-signature']}`
     expect((await parse(signed)).ok).toBe(true)
   })
 
   it('payload', async () => {
     expect(await parse(signClerkWebhook('not json'))).toEqual({ ok: false, reason: 'payload' })
-    expect(await parse(signClerkWebhook('{"type":"organization.created","data":{}}'))).toEqual({ ok: false, reason: 'payload' })
+    expect(await parse(signClerkWebhook('{"type":"organization.created","data":{}}'))).toEqual({
+      ok: false,
+      reason: 'payload',
+    })
   })
 })
 
@@ -316,7 +341,9 @@ describe('clerk fetchProfile', () => {
   })
 
   it('request shape', async () => {
-    const t = await testClerkAdapter({ profiles: new Map([['user_a/b', clerkUser({ id: 'user_a/b', email: 'a@x.test' })]]) })
+    const t = await testClerkAdapter({
+      profiles: new Map([['user_a/b', clerkUser({ id: 'user_a/b', email: 'a@x.test' })]]),
+    })
     await t.adapter.fetchProfile('user_a/b')
     expect(t.fetch.calls).toEqual([{ url: `${API_URL}/v1/users/user_a%2Fb`, authorization: `Bearer ${SECRET_KEY}` }])
   })

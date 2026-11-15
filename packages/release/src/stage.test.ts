@@ -5,12 +5,21 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'jsonc-parser'
 import { sources } from './fixtures.js'
 import { listFiles, verifyRelease } from './manifest.js'
-import { clientPackageJson, deriveBaseConfig, readWranglerVersion, serverPackageJson, stageClient, stageServer } from './stage.js'
+import {
+  clientPackageJson,
+  deriveBaseConfig,
+  readWranglerVersion,
+  serverPackageJson,
+  stageClient,
+  stageServer,
+} from './stage.js'
 
 const SERVER_D1_PKG = new URL('../../server-d1/package.json', import.meta.url).pathname
 const WRANGLER_JSONC = new URL('../../server-d1/wrangler.jsonc', import.meta.url).pathname
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
 
 describe('UI246 D2: the auth pages ship in the server package', () => {
   it('assets/ui/ holds the build output of the pages (index, bundle, stylesheet), beside assets/connect/', () => {
@@ -18,7 +27,8 @@ describe('UI246 D2: the auth pages ship in the server package', () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ui246-out-'))
     dirs.push(s.root, outDir)
     stageServer({ ...s, outDir })
-    for (const f of ['index.html', 'app.js', 'ui.css']) expect(readFileSync(join(outDir, 'assets', 'ui', f), 'utf8')).toBe(readFileSync(join(s.assetsUiDir, f), 'utf8'))
+    for (const f of ['index.html', 'app.js', 'ui.css'])
+      expect(readFileSync(join(outDir, 'assets', 'ui', f), 'utf8')).toBe(readFileSync(join(s.assetsUiDir, f), 'utf8'))
   })
 })
 
@@ -29,8 +39,22 @@ describe('D3 layout', () => {
     dirs.push(s.root, outDir)
     stageServer({ ...s, outDir })
     expect(listFiles(outDir)).toEqual([
-      'LICENSE', 'README.md', 'assets/connect/connect.js', 'assets/connect/index.html', 'assets/ui/app.js', 'assets/ui/index.html', 'assets/ui/ui.css', 'cli/server.js',
-      'control-migrations/0001_c.sql', 'control-migrations/0002_d.sql', 'migrations/0001_a.sql', 'migrations/0002_b.sql', 'package.json', 'release.json', 'worker/worker.js', 'wrangler.base.jsonc',
+      'LICENSE',
+      'README.md',
+      'assets/connect/connect.js',
+      'assets/connect/index.html',
+      'assets/ui/app.js',
+      'assets/ui/index.html',
+      'assets/ui/ui.css',
+      'cli/server.js',
+      'control-migrations/0001_c.sql',
+      'control-migrations/0002_d.sql',
+      'migrations/0001_a.sql',
+      'migrations/0002_b.sql',
+      'package.json',
+      'release.json',
+      'worker/worker.js',
+      'wrangler.base.jsonc',
     ])
   })
 })
@@ -75,16 +99,39 @@ describe('D3/D6 published package.json', () => {
     const wrangler = readWranglerVersion(SERVER_D1_PKG)
     expect(wrangler).toBe(JSON.parse(readFileSync(SERVER_D1_PKG, 'utf8')).devDependencies.wrangler)
     const pkg = serverPackageJson('0.1.0', wrangler) as Record<string, any>
-    expect(pkg).toMatchObject({ name: '@vibase/server-d1', version: '0.1.0', type: 'module', bin: { 'vibase-server': 'cli/server.js' }, engines: { node: '>=22' }, publishConfig: { access: 'public' } })
+    expect(pkg).toMatchObject({
+      name: '@vibase/server-d1',
+      version: '0.1.0',
+      type: 'module',
+      bin: { 'vibase-server': 'cli/server.js' },
+      engines: { node: '>=22' },
+      publishConfig: { access: 'public' },
+    })
     expect(Object.keys(pkg.bin)).toEqual(['vibase-server'])
     expect(pkg.dependencies).toEqual({ wrangler })
     expect(wrangler).toMatch(/^\d+\.\d+\.\d+$/)
   })
   it('OPS240 D22: the client package.json is @vibase/cli with bin vibase, engines, public access and no dependencies of any kind', () => {
     const pkg = clientPackageJson('0.1.0') as Record<string, any>
-    expect(pkg).toMatchObject({ name: '@vibase/cli', version: '0.1.0', type: 'module', bin: { vibase: 'cli/vibase.js' }, engines: { node: '>=22' }, publishConfig: { access: 'public' } })
+    expect(pkg).toMatchObject({
+      name: '@vibase/cli',
+      version: '0.1.0',
+      type: 'module',
+      bin: { vibase: 'cli/vibase.js' },
+      engines: { node: '>=22' },
+      publishConfig: { access: 'public' },
+    })
     expect(Object.keys(pkg.bin)).toEqual(['vibase'])
-    for (const k of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'bundledDependencies', 'scripts', 'exports']) expect(pkg[k], k).toBeUndefined()
+    for (const k of [
+      'dependencies',
+      'devDependencies',
+      'optionalDependencies',
+      'peerDependencies',
+      'bundledDependencies',
+      'scripts',
+      'exports',
+    ])
+      expect(pkg[k], k).toBeUndefined()
   })
   it('OPS240 D23 (a): the server exports are exactly the seven stable paths (OPS260: control-migrations/* is additive)', () => {
     const pkg = serverPackageJson('0.1.0', '4.149.0') as Record<string, any>
@@ -132,7 +179,12 @@ describe('D3/D6 published package.json', () => {
 })
 
 describe('D5 wrangler.base.jsonc', () => {
-  const paths = { main: 'worker/worker.js', assetsDirectory: 'assets', migrationsDir: 'migrations', controlMigrationsDir: 'control-migrations' }
+  const paths = {
+    main: 'worker/worker.js',
+    assetsDirectory: 'assets',
+    migrationsDir: 'migrations',
+    controlMigrationsDir: 'control-migrations',
+  }
   it('is the top level of the source config: no env, no real ids, placeholder database_id, package-relative paths', () => {
     const base = deriveBaseConfig(readFileSync(WRANGLER_JSONC, 'utf8'), paths) as Record<string, any>
     expect(base.env).toBeUndefined()
@@ -142,7 +194,11 @@ describe('D5 wrangler.base.jsonc', () => {
     expect(base.d1_databases[1]).toMatchObject({ binding: 'CONTROL_DB', migrations_dir: 'control-migrations' })
     expect(base.d1_databases[0].database_id).toBe('00000000-0000-0000-0000-000000000000')
     const source = parse(readFileSync(WRANGLER_JSONC, 'utf8'))
-    expect(Object.keys(base).sort()).toEqual(Object.keys(source).filter((k) => k !== 'env').sort())
+    expect(Object.keys(base).sort()).toEqual(
+      Object.keys(source)
+        .filter((k) => k !== 'env')
+        .sort(),
+    )
     expect(base.triggers).toEqual(source.triggers)
   })
   it('carries the nodejs_compat flag of the source config (CORE243 D2), so a deploy of the shipped Worker has it', () => {

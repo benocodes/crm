@@ -38,7 +38,18 @@ export const JWKS_CACHE_MS = 5 * 60_000
 export const JWKS_UNKNOWN_KID_REREAD_MS = 30_000
 
 /** Asymmetric algorithms only; the stored key's own algorithm must match the header's. */
-const ALGORITHMS: ReadonlySet<string> = new Set(['EdDSA', 'ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512'])
+const ALGORITHMS: ReadonlySet<string> = new Set([
+  'EdDSA',
+  'ES256',
+  'ES384',
+  'ES512',
+  'RS256',
+  'RS384',
+  'RS512',
+  'PS256',
+  'PS384',
+  'PS512',
+])
 /** RFC 9068's `typ` header values for a JWT access token; Better Auth's OAuth provider sets `at+jwt`. */
 const ACCESS_TOKEN_TYPES: ReadonlySet<string> = new Set(['at+jwt', 'application/at+jwt'])
 /** The provider's own OIDC scopes say nothing about the vault and are dropped from every token ([[CORE77]] D18). */
@@ -127,18 +138,36 @@ export function createBetterAuthAdapter(config: BetterAuthAdapterConfig): AuthAd
       } catch (err) {
         return { ok: false, reason: failureReason(err) }
       }
-      if (typeof payload.sub !== 'string' || payload.sub === '' || typeof payload.iat !== 'number') return { ok: false, reason: 'claims' }
+      if (typeof payload.sub !== 'string' || payload.sub === '' || typeof payload.iat !== 'number')
+        return { ok: false, reason: 'claims' }
       const typ = typeof header.typ === 'string' ? header.typ.toLowerCase() : ''
       if (ACCESS_TOKEN_TYPES.has(typ)) {
         // An OAuth access token: the provider's `typ: at+jwt` header marks it, and it names its client. It is never a session, whatever else it carries.
         if (typeof payload.client_id !== 'string' || payload.client_id === '') return { ok: false, reason: 'claims' }
         const scopeClaim: unknown = payload.scope
-        const scopes = typeof scopeClaim === 'string' ? scopeClaim.split(/\s+/).filter((s) => s !== '' && !PROVIDER_OWN_SCOPES.has(s)) : []
-        return { ok: true, kind: 'oauth', subject: payload.sub, clientId: payload.client_id, scopes: [...new Set(scopes)] }
+        const scopes =
+          typeof scopeClaim === 'string'
+            ? scopeClaim.split(/\s+/).filter((s) => s !== '' && !PROVIDER_OWN_SCOPES.has(s))
+            : []
+        return {
+          ok: true,
+          kind: 'oauth',
+          subject: payload.sub,
+          clientId: payload.client_id,
+          scopes: [...new Set(scopes)],
+        }
       }
       // Anything else is a session JWT only when it carries the vault's marker (which the provider's own tokens cannot) and no client: an OIDC ID token has neither.
-      if (payload[SESSION_TOKEN_CLAIM] !== SESSION_TOKEN_VALUE || 'client_id' in payload || 'azp' in payload) return { ok: false, reason: 'claims' }
-      return { ok: true, kind: 'session', subject: payload.sub, issuedAt: new Date(payload.iat * 1000), organization: null, role: undefined }
+      if (payload[SESSION_TOKEN_CLAIM] !== SESSION_TOKEN_VALUE || 'client_id' in payload || 'azp' in payload)
+        return { ok: false, reason: 'claims' }
+      return {
+        ok: true,
+        kind: 'session',
+        subject: payload.sub,
+        issuedAt: new Date(payload.iat * 1000),
+        organization: null,
+        role: undefined,
+      }
     },
 
     async fetchProfile(subject): Promise<AuthProfile> {

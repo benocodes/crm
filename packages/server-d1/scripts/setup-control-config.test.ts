@@ -26,7 +26,11 @@ describe('the written block under wrangler', () => {
     const db = await openWorkerD1()
     try {
       const w = makeWorld({ d1: db.d1, configText: REAL })
-      const o = await runSetup(['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai'], { CONFIRM_REMOTE: '1' }, w.deps)
+      const o = await runSetup(
+        ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai'],
+        { CONFIRM_REMOTE: '1' },
+        w.deps,
+      )
       expect(o.exitCode).toBe(0)
       writeFileSync(COPY, w.state.configText)
       const cfg = unstable_readConfig({ config: COPY, env: 'acme' })

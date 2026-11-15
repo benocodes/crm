@@ -46,7 +46,10 @@ export async function writeControlMarker(c: ControlDb, organizationId: string): 
     if (existing.organizationId !== organizationId) throw conflict(existing.organizationId)
     return 'existing'
   }
-  await raw(c).prepare('insert into control_deployment (singleton, organization_id) values (1, ?) on conflict do nothing').bind(organizationId).run()
+  await raw(c)
+    .prepare('insert into control_deployment (singleton, organization_id) values (1, ?) on conflict do nothing')
+    .bind(organizationId)
+    .run()
   const now = await readControlMarker(c)
   if (!now || now.organizationId !== organizationId) throw conflict(now?.organizationId ?? 'unknown')
   return 'created'
@@ -54,7 +57,10 @@ export async function writeControlMarker(c: ControlDb, organizationId: string): 
 
 /** The tracker against this build's control manifest ([[CORE259]] D4): the same comparison as the CRM database's ([[CORE61]]). */
 export function readControlMigrations(c: ControlDb): Promise<MigrationState> {
-  return readMigrationState(raw(c), CONTROL_MIGRATIONS.map((m) => m.name))
+  return readMigrationState(
+    raw(c),
+    CONTROL_MIGRATIONS.map((m) => m.name),
+  )
 }
 
 /** A signing key as `auth_jwks` holds it: the key id Better Auth puts in a token's `kid`, its algorithm (`EdDSA` unless the row says otherwise) and the public JWK as JSON text. */
@@ -70,13 +76,25 @@ export interface AuthJwk {
  */
 export async function readAuthJwks(c: ControlDb): Promise<AuthJwk[]> {
   const res = await raw(c).prepare('select id, alg, public_key from auth_jwks').all()
-  return ((res.results ?? []) as Array<{ id: string; alg: string | null; public_key: string }>).map((r) => ({ kid: r.id, alg: r.alg ?? 'EdDSA', publicJwk: r.public_key }))
+  return ((res.results ?? []) as Array<{ id: string; alg: string | null; public_key: string }>).map((r) => ({
+    kid: r.id,
+    alg: r.alg ?? 'EdDSA',
+    publicJwk: r.public_key,
+  }))
 }
 
 /** The Better Auth account behind a token's subject ([[CORE244]] D9): what first sight of a delegated agent's human needs. `null` when no such account. */
-export async function readAuthProfile(c: ControlDb, userId: string): Promise<{ email: string; emailVerified: boolean; name: string } | null> {
-  const row = await raw(c).prepare('select email, email_verified, name from auth_users where id = ?').bind(userId).first()
-  return row ? { email: row.email as string, emailVerified: Number(row.email_verified) === 1, name: row.name as string } : null
+export async function readAuthProfile(
+  c: ControlDb,
+  userId: string,
+): Promise<{ email: string; emailVerified: boolean; name: string } | null> {
+  const row = await raw(c)
+    .prepare('select email, email_verified, name from auth_users where id = ?')
+    .bind(userId)
+    .first()
+  return row
+    ? { email: row.email as string, emailVerified: Number(row.email_verified) === 1, name: row.name as string }
+    : null
 }
 
 /** The display name of an OAuth client by its client id ([[CORE244]] D9); `null` when the provider has no such client or it has no name. */
@@ -118,7 +136,8 @@ export interface NewInvitation {
   now: string
 }
 
-const COLUMNS = 'id, organization_id, email, role, expires_at, created_by, created_at, accepted_at, revoked_at, delivery'
+const COLUMNS =
+  'id, organization_id, email, role, expires_at, created_by, created_at, accepted_at, revoked_at, delivery'
 const recordOf = (r: Record<string, unknown>): InvitationRecord => ({
   id: r.id as string,
   organizationId: r.organization_id as string,
@@ -135,14 +154,35 @@ const recordOf = (r: Record<string, unknown>): InvitationRecord => ({
 const LIVE = 'accepted_at is null and revoked_at is null and expires_at > ?'
 
 /** The `control_audit` insert for an invitation change, written only when the invitation row is in the state the change leaves it in (`guard`, a SQL condition on the same `id`). */
-const auditStatement = (d1: D1Like, a: { auditId: string; now: string; actorId: string; action: string; invitationId: string; guard: string; guardBinds: unknown[]; /** Created rows carry the delivery ([[CORE248]] D3). */ withDelivery?: boolean; /** A revoke's reason (`email_failed`). */ reason?: string }) =>
+const auditStatement = (
+  d1: D1Like,
+  a: {
+    auditId: string
+    now: string
+    actorId: string
+    action: string
+    invitationId: string
+    guard: string
+    guardBinds: unknown[] /** Created rows carry the delivery ([[CORE248]] D3). */
+    withDelivery?: boolean /** A revoke's reason (`email_failed`). */
+    reason?: string
+  },
+) =>
   d1
     .prepare(
       `insert into control_audit (id, at, actor_id, action, target_type, target_id, detail)
        select ?, ?, ?, ?, 'invitation', id, json_object('email', email, 'role', role, 'expires_at', expires_at${a.withDelivery ? ", 'delivery', delivery" : ''}${a.reason === undefined ? '' : ", 'reason', ?"})
        from invitations where id = ? and ${a.guard}`,
     )
-    .bind(a.auditId, a.now, a.actorId, a.action, ...(a.reason === undefined ? [] : [a.reason]), a.invitationId, ...a.guardBinds)
+    .bind(
+      a.auditId,
+      a.now,
+      a.actorId,
+      a.action,
+      ...(a.reason === undefined ? [] : [a.reason]),
+      a.invitationId,
+      ...a.guardBinds,
+    )
 
 const insertStatements = (d1: D1Like, a: NewInvitation): D1PreparedLike[] => [
   // Guarded insert: nothing is written when another live invitation holds the address (the one-live-per-email rule, judged in the same statement that writes).
@@ -152,8 +192,29 @@ const insertStatements = (d1: D1Like, a: NewInvitation): D1PreparedLike[] => [
        select ?, ?, ?, ?, ?, ?, ?, null, null, ?, ?
        where not exists (select 1 from invitations where email = ? and ${LIVE})`,
     )
-    .bind(a.id, a.organizationId, a.email, a.role, a.expiresAt, a.createdBy, a.now, a.tokenHash, a.delivery ?? 'link', a.email, a.now),
-  auditStatement(d1, { auditId: a.auditId, now: a.now, actorId: a.createdBy, action: 'invitation.created', invitationId: a.id, guard: '1 = 1', guardBinds: [], withDelivery: true }),
+    .bind(
+      a.id,
+      a.organizationId,
+      a.email,
+      a.role,
+      a.expiresAt,
+      a.createdBy,
+      a.now,
+      a.tokenHash,
+      a.delivery ?? 'link',
+      a.email,
+      a.now,
+    ),
+  auditStatement(d1, {
+    auditId: a.auditId,
+    now: a.now,
+    actorId: a.createdBy,
+    action: 'invitation.created',
+    invitationId: a.id,
+    guard: '1 = 1',
+    guardBinds: [],
+    withDelivery: true,
+  }),
 ]
 
 /** Creates an invitation and its `invitation.created` audit row in one batch; `live_exists` (nothing written) when a live invitation already holds the address. */
@@ -181,11 +242,29 @@ const readInvitation = async (d1: D1Like, id: string): Promise<InvitationRecord 
  * Revokes a live invitation and writes its `invitation.revoked` audit row in one batch. `not_live` (nothing written) for one that is accepted, revoked or expired, with the
  * record as it is; `not_found` for an unknown id.
  */
-export async function revokeInvitation(c: ControlDb, a: { id: string; auditId: string; actorId: string; now: string; /** Recorded in the audit `detail` ([[CORE248]] D3: `email_failed`). */ reason?: string }): Promise<{ result: 'revoked' | 'not_live'; record: InvitationRecord } | { result: 'not_found' }> {
+export async function revokeInvitation(
+  c: ControlDb,
+  a: {
+    id: string
+    auditId: string
+    actorId: string
+    now: string /** Recorded in the audit `detail` ([[CORE248]] D3: `email_failed`). */
+    reason?: string
+  },
+): Promise<{ result: 'revoked' | 'not_live'; record: InvitationRecord } | { result: 'not_found' }> {
   const d1 = raw(c)
   const results = await d1.batch([
     d1.prepare(`update invitations set revoked_at = ? where id = ? and ${LIVE}`).bind(a.now, a.id, a.now),
-    auditStatement(d1, { auditId: a.auditId, now: a.now, actorId: a.actorId, action: 'invitation.revoked', invitationId: a.id, guard: 'revoked_at = ?', guardBinds: [a.now], ...(a.reason === undefined ? {} : { reason: a.reason }) }),
+    auditStatement(d1, {
+      auditId: a.auditId,
+      now: a.now,
+      actorId: a.actorId,
+      action: 'invitation.revoked',
+      invitationId: a.id,
+      guard: 'revoked_at = ?',
+      guardBinds: [a.now],
+      ...(a.reason === undefined ? {} : { reason: a.reason }),
+    }),
   ])
   const record = await readInvitation(d1, a.id)
   if (!record) return { result: 'not_found' }
@@ -199,7 +278,10 @@ export async function revokeInvitation(c: ControlDb, a: { id: string; auditId: s
  * `insert … select` over the live owner invitations; each row's id takes its first 24 characters from one fresh id (`newAuditId()`, time-ordered) and its last 12 from the invitation's own id, which
  * keeps the 36-character shape and is distinct per row. `revoked` is how many owner invitations the batch revoked.
  */
-export async function reissueOwnerInvitation(c: ControlDb, a: NewInvitation & { newAuditId: () => string }): Promise<{ result: 'created'; revoked: number } | { result: 'live_exists' }> {
+export async function reissueOwnerInvitation(
+  c: ControlDb,
+  a: NewInvitation & { newAuditId: () => string },
+): Promise<{ result: 'created'; revoked: number } | { result: 'live_exists' }> {
   const d1 = raw(c)
   const noBlocker = `not exists (select 1 from invitations where email = ? and role <> 'owner' and ${LIVE})`
   const results = await d1.batch([
@@ -210,7 +292,9 @@ export async function reissueOwnerInvitation(c: ControlDb, a: NewInvitation & { 
          from invitations where role = 'owner' and ${LIVE} and ${noBlocker}`,
       )
       .bind(a.newAuditId(), a.now, a.createdBy, a.now, a.email, a.now),
-    d1.prepare(`update invitations set revoked_at = ? where role = 'owner' and ${LIVE} and ${noBlocker}`).bind(a.now, a.now, a.email, a.now),
+    d1
+      .prepare(`update invitations set revoked_at = ? where role = 'owner' and ${LIVE} and ${noBlocker}`)
+      .bind(a.now, a.now, a.email, a.now),
     ...insertStatements(d1, a),
   ])
   if ((results[2]?.meta?.changes ?? 0) !== 1) return { result: 'live_exists' }
@@ -223,16 +307,28 @@ export async function reissueOwnerInvitation(c: ControlDb, a: NewInvitation & { 
  * The sign-up gate's one read ([[CORE287]] P2): is there a LIVE invitation for this email whose token hashes to `tokenHash`? Never tells a caller which condition failed (missing, other email, expired,
  * revoked, accepted are all `false`); the email is compared as stored (trimmed, lowercased by the caller).
  */
-export async function hasLiveInvitationForToken(c: ControlDb, a: { tokenHash: string; email: string; now: string }): Promise<boolean> {
-  const row = await raw(c).prepare(`select 1 as ok from invitations where token_hash = ? and email = ? and ${LIVE}`).bind(a.tokenHash, a.email, a.now).first()
+export async function hasLiveInvitationForToken(
+  c: ControlDb,
+  a: { tokenHash: string; email: string; now: string },
+): Promise<boolean> {
+  const row = await raw(c)
+    .prepare(`select 1 as ok from invitations where token_hash = ? and email = ? and ${LIVE}`)
+    .bind(a.tokenHash, a.email, a.now)
+    .first()
   return row !== null && row !== undefined
 }
 
 /**
  * The LIVE invitation for this email whose token hashes to `tokenHash` ([[CORE302]] P1), or null for every failing cause alike: the re-admission of a removed member reads its role and delivery from it.
  */
-export async function findLiveInvitationByToken(c: ControlDb, a: { tokenHash: string; email: string; now: string }): Promise<InvitationRecord | null> {
-  const row = await raw(c).prepare(`select ${COLUMNS} from invitations where token_hash = ? and email = ? and ${LIVE}`).bind(a.tokenHash, a.email, a.now).first()
+export async function findLiveInvitationByToken(
+  c: ControlDb,
+  a: { tokenHash: string; email: string; now: string },
+): Promise<InvitationRecord | null> {
+  const row = await raw(c)
+    .prepare(`select ${COLUMNS} from invitations where token_hash = ? and email = ? and ${LIVE}`)
+    .bind(a.tokenHash, a.email, a.now)
+    .first()
   return row ? recordOf(row) : null
 }
 
@@ -240,7 +336,10 @@ export async function findLiveInvitationByToken(c: ControlDb, a: { tokenHash: st
  * The invitation that admitted an account ([[CORE287]] P5): LIVE for this email and created no later than the account. A fresh invitation made after the account never adopts it. `accountCreatedAt` is
  * the caller's ISO-8601 text with milliseconds and a Z (Better Auth's own column holds another encoding; the caller converts it through a `Date`), so the comparison is text on one encoding.
  */
-export async function findAdoptableInvitation(c: ControlDb, a: { email: string; accountCreatedAt: string; now: string }): Promise<InvitationRecord | null> {
+export async function findAdoptableInvitation(
+  c: ControlDb,
+  a: { email: string; accountCreatedAt: string; now: string },
+): Promise<InvitationRecord | null> {
   const row = await raw(c)
     .prepare(`select ${COLUMNS} from invitations where email = ? and ${LIVE} and created_at <= ?`)
     .bind(a.email, a.now, a.accountCreatedAt)
@@ -252,11 +351,22 @@ export async function findAdoptableInvitation(c: ControlDb, a: { email: string; 
  * Marks a still-LIVE invitation accepted and writes its `invitation.accepted` audit row, in one batch ([[CORE287]] P4). `not_live` (nothing written) when a revoke, an expiry or an earlier
  * acceptance got there first.
  */
-export async function acceptInvitation(c: ControlDb, a: { id: string; auditId: string; actorId: string; now: string }): Promise<'accepted' | 'not_live'> {
+export async function acceptInvitation(
+  c: ControlDb,
+  a: { id: string; auditId: string; actorId: string; now: string },
+): Promise<'accepted' | 'not_live'> {
   const d1 = raw(c)
   const results = await d1.batch([
     d1.prepare(`update invitations set accepted_at = ? where id = ? and ${LIVE}`).bind(a.now, a.id, a.now),
-    auditStatement(d1, { auditId: a.auditId, now: a.now, actorId: a.actorId, action: 'invitation.accepted', invitationId: a.id, guard: 'accepted_at = ?', guardBinds: [a.now] }),
+    auditStatement(d1, {
+      auditId: a.auditId,
+      now: a.now,
+      actorId: a.actorId,
+      action: 'invitation.accepted',
+      invitationId: a.id,
+      guard: 'accepted_at = ?',
+      guardBinds: [a.now],
+    }),
   ])
   return (results[0]?.meta?.changes ?? 0) === 1 ? 'accepted' : 'not_live'
 }
@@ -268,7 +378,10 @@ export async function acceptInvitation(c: ControlDb, a: { id: string; auditId: s
  * `user.sessions_revoked` audit row (actor the caller, target the Better Auth user id, `detail` `{reason: 'membership_removed'}`, never a token) is written, in ONE batch. Consents and the account stay. Running it
  * again deletes nothing and writes another audit row, which is why the caller runs it once per removal.
  */
-export async function revokeSubjectCredentials(c: ControlDb, a: { subject: string; auditId: string; actorId: string; now: string }): Promise<void> {
+export async function revokeSubjectCredentials(
+  c: ControlDb,
+  a: { subject: string; auditId: string; actorId: string; now: string },
+): Promise<void> {
   const d1 = raw(c)
   await d1.batch([
     d1.prepare('delete from auth_oauth_access_tokens where user_id = ?').bind(a.subject),
@@ -276,15 +389,29 @@ export async function revokeSubjectCredentials(c: ControlDb, a: { subject: strin
     d1.prepare('delete from auth_device_codes where user_id = ?').bind(a.subject),
     d1.prepare('delete from auth_sessions where user_id = ?').bind(a.subject),
     d1
-      .prepare("insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.sessions_revoked', 'user', ?, json_object('reason', 'membership_removed'))")
+      .prepare(
+        "insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.sessions_revoked', 'user', ?, json_object('reason', 'membership_removed'))",
+      )
       .bind(a.auditId, a.now, a.actorId, a.subject),
   ])
 }
 
 /** The audit row of an owner-issued reset link ([[CORE288]] P6): actor the caller, target the Better Auth user id, `detail` holding the expiry only, never the token. */
-export async function recordResetLinkIssued(c: ControlDb, a: { auditId: string; actorId: string; subject: string; expiresAt: string; now: string; /** How the link was issued ([[OPS307]] D10): `owner-reset` from the operator command; absent from the owner's API call. */ via?: string }): Promise<void> {
+export async function recordResetLinkIssued(
+  c: ControlDb,
+  a: {
+    auditId: string
+    actorId: string
+    subject: string
+    expiresAt: string
+    now: string /** How the link was issued ([[OPS307]] D10): `owner-reset` from the operator command; absent from the owner's API call. */
+    via?: string
+  },
+): Promise<void> {
   await raw(c)
-    .prepare(`insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.reset_link_issued', 'user', ?, json_object('expires_at', ?${a.via === undefined ? '' : ", 'via', ?"}))`)
+    .prepare(
+      `insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.reset_link_issued', 'user', ?, json_object('expires_at', ?${a.via === undefined ? '' : ", 'via', ?"}))`,
+    )
     .bind(a.auditId, a.now, a.actorId, a.subject, a.expiresAt, ...(a.via === undefined ? [] : [a.via]))
     .run()
 }
@@ -314,7 +441,8 @@ export interface AuthSweepOutcome {
 
 /** Subject ids per statement: one JSON-array bind each (`json_each`), so D1's 100-parameter cap never applies, and the text stays small. */
 const SWEEP_CHUNK = 500
-const chunks = <T>(xs: T[]): T[][] => Array.from({ length: Math.ceil(xs.length / SWEEP_CHUNK) }, (_, i) => xs.slice(i * SWEEP_CHUNK, (i + 1) * SWEEP_CHUNK))
+const chunks = <T>(xs: T[]): T[][] =>
+  Array.from({ length: Math.ceil(xs.length / SWEEP_CHUNK) }, (_, i) => xs.slice(i * SWEEP_CHUNK, (i + 1) * SWEEP_CHUNK))
 
 /** The one control batch of a sweep ([[CORE289]] P1-P3): nothing else is written. Revocation deletes only credentials created before `credentialsBefore` (the sweep's CRM read), and the deletion re-checks age and invitations in its own statements. */
 function sweepStatements(d1: D1Like, plan: SweepPlan, a: { now: string; credentialsBefore: string }): D1PreparedLike[] {
@@ -323,8 +451,12 @@ function sweepStatements(d1: D1Like, plan: SweepPlan, a: { now: string; credenti
     const list = JSON.stringify(ids)
     const own = 'user_id in (select value from json_each(?))'
     statements.push(
-      d1.prepare(`delete from auth_oauth_access_tokens where ${own} and created_at < ?`).bind(list, a.credentialsBefore),
-      d1.prepare(`delete from auth_oauth_refresh_tokens where ${own} and created_at < ?`).bind(list, a.credentialsBefore),
+      d1
+        .prepare(`delete from auth_oauth_access_tokens where ${own} and created_at < ?`)
+        .bind(list, a.credentialsBefore),
+      d1
+        .prepare(`delete from auth_oauth_refresh_tokens where ${own} and created_at < ?`)
+        .bind(list, a.credentialsBefore),
       d1.prepare(`delete from auth_sessions where ${own} and created_at < ?`).bind(list, a.credentialsBefore),
       // A device code has no creation time to bound by.
       d1.prepare(`delete from auth_device_codes where ${own}`).bind(list),
@@ -335,7 +467,11 @@ function sweepStatements(d1: D1Like, plan: SweepPlan, a: { now: string; credenti
     const list = JSON.stringify(ids)
     const orphan = `id in (select value from json_each(?)) and created_at < ? and not ${KEEPING_INVITATION}`
     // Device codes name the user without a foreign key, so they go first, under the same guard that decides the account.
-    statements.push(d1.prepare(`delete from auth_device_codes where user_id in (select id from auth_users where ${orphan})`).bind(list, cutoff, a.now))
+    statements.push(
+      d1
+        .prepare(`delete from auth_device_codes where user_id in (select id from auth_users where ${orphan})`)
+        .bind(list, cutoff, a.now),
+    )
     statements.push(d1.prepare(`delete from auth_users where ${orphan}`).bind(list, cutoff, a.now))
   }
   return statements
@@ -357,6 +493,14 @@ export async function runAuthSweep(c: ControlDb, crm: D1Like, clock: () => Date)
   await d1.batch(sweepStatements(d1, plan, { now, credentialsBefore }))
   // The batch's own change counts include cascaded rows, so the deletions are counted by what is gone.
   let remaining = 0
-  for (const ids of chunks(plan.orphans)) remaining += Number(((await d1.prepare('select count(*) as n from auth_users where id in (select value from json_each(?))').bind(JSON.stringify(ids)).first()) ?? { n: 0 }).n)
+  for (const ids of chunks(plan.orphans))
+    remaining += Number(
+      (
+        (await d1
+          .prepare('select count(*) as n from auth_users where id in (select value from json_each(?))')
+          .bind(JSON.stringify(ids))
+          .first()) ?? { n: 0 }
+      ).n,
+    )
   return { revoked: plan.revoke.length, deleted: plan.orphans.length - remaining }
 }

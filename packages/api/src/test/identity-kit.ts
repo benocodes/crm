@@ -18,12 +18,17 @@ const IDENTITY_EVENTS = ['company.', 'contact.', 'identity.']
 
 export function identityKit(e: Engine) {
   let tick = 0
-  const env = (opts: As = {}): PreparedEnv => e.env({ now: opts.now ?? new Date(BASE + ++tick * 1000), ...(opts.as ? { as: opts.as } : {}) })
+  const env = (opts: As = {}): PreparedEnv =>
+    e.env({ now: opts.now ?? new Date(BASE + ++tick * 1000), ...(opts.as ? { as: opts.as } : {}) })
   /** Runs an operation built from a fresh environment and returns its value. */
-  const run = async <T>(make: (env: PreparedEnv) => PreparedOperation<T>, opts: As = {}): Promise<T> => (await e.run(make(env(opts)), opts.as)).value
+  const run = async <T>(make: (env: PreparedEnv) => PreparedOperation<T>, opts: As = {}): Promise<T> =>
+    (await e.run(make(env(opts)), opts.as)).value
   /** The public error a caller would see for a failing call (storage failures mapped like the REST adapter does). */
   const fail = async (make: (env: PreparedEnv) => PreparedOperation<unknown>, opts: As = {}): Promise<ApiError> => {
-    const err = await (async () => run(make, opts))().then(() => undefined, (x: unknown) => x)
+    const err = await (async () => run(make, opts))().then(
+      () => undefined,
+      (x: unknown) => x,
+    )
     expect(err, 'expected the call to fail').toBeDefined()
     const mapped = mapStorageError(err)
     expect(mapped).toBeInstanceOf(ApiError)
@@ -32,9 +37,14 @@ export function identityKit(e: Engine) {
   const shape = (x: ApiError) => [x.status, x.code, x.message] as const
 
   type Record_ = Record<string, any>
-  const create = (def: PreparedResource<any, any>) => (input: Record<string, unknown>, opts?: As): Promise<Record_> => run((env) => createOperation(def, env, input), opts)
-  const update = (def: PreparedResource<any, any>) => (id: string, input: Record<string, unknown>, opts?: As): Promise<Record_> =>
-    run((env) => updateOperation(def, env, id, input), opts)
+  const create =
+    (def: PreparedResource<any, any>) =>
+    (input: Record<string, unknown>, opts?: As): Promise<Record_> =>
+      run((env) => createOperation(def, env, input), opts)
+  const update =
+    (def: PreparedResource<any, any>) =>
+    (id: string, input: Record<string, unknown>, opts?: As): Promise<Record_> =>
+      run((env) => updateOperation(def, env, id, input), opts)
 
   return {
     env,
@@ -50,8 +60,10 @@ export function identityKit(e: Engine) {
     deleteCompany: (id: string, opts?: As) => run((env) => deleteCompanyOperation(env, id), opts),
     deleteContact: (id: string, opts?: As) => run((env) => deleteContactOperation(env, id), opts),
     get: (def: PreparedResource<any, any>, id: string): Promise<Record_> => run((env) => getOperation(def, env, id)),
-    list: (def: PreparedResource<any, any>, filters: Record<string, string> = {}): Promise<{ data: Record_[]; next_cursor: string | null }> =>
-      run((env) => listOperation(def, env, { filters })),
+    list: (
+      def: PreparedResource<any, any>,
+      filters: Record<string, string> = {},
+    ): Promise<{ data: Record_[]; next_cursor: string | null }> => run((env) => listOperation(def, env, { filters })),
     /** Identity-model events in write order. */
     async events(): Promise<RawRow[]> {
       return (await e.rows('events')).filter((r) => IDENTITY_EVENTS.some((p) => String(r.type).startsWith(p)))
@@ -79,7 +91,12 @@ export async function foreignTenant(e: Engine) {
   return {
     organizationId: org.id,
     userId: user.id,
-    env: (): PreparedEnv => ({ ...e.env({ now: new Date(BASE + ++tick * 1000) }), organizationId: org.id, actor: { id: user.id, kind: 'user' } }),
-    run: <T>(op: PreparedOperation<T>) => execute(e.binding, { kind: 'tenant', actorId: user.id, organizationId: org.id }, op).then((r) => r.value),
+    env: (): PreparedEnv => ({
+      ...e.env({ now: new Date(BASE + ++tick * 1000) }),
+      organizationId: org.id,
+      actor: { id: user.id, kind: 'user' },
+    }),
+    run: <T>(op: PreparedOperation<T>) =>
+      execute(e.binding, { kind: 'tenant', actorId: user.id, organizationId: org.id }, op).then((r) => r.value),
   }
 }

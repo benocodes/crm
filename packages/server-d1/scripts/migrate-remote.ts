@@ -13,7 +13,17 @@ export type MigrateDeps = StatusDeps
 export function runMigrate(argv: string[], procEnv: NodeJS.ProcessEnv, deps: MigrateDeps): number {
   const target = guardedTarget(argv, procEnv, deps)
   const databases = [
-    ...(target.control ? [{ label: 'control', binding: 'CONTROL_DB' as const, expected: CONTROL_EXPECTED, name: target.control.databaseName, id: target.control.databaseId }] : []),
+    ...(target.control
+      ? [
+          {
+            label: 'control',
+            binding: 'CONTROL_DB' as const,
+            expected: CONTROL_EXPECTED,
+            name: target.control.databaseName,
+            id: target.control.databaseId,
+          },
+        ]
+      : []),
     { label: 'crm', binding: 'DB' as const, expected: EXPECTED, name: target.databaseName, id: target.databaseId },
   ]
   if (!target.control) deps.log(controlNotConfigured(target.env))
@@ -23,7 +33,8 @@ export function runMigrate(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Mig
     const show = (when: string) => {
       try {
         deps.log(`[${db.label}] ${when}:`)
-        for (const line of formatMigrationDiff(readApplied(target.env, deps, db.binding), db.expected)) deps.log(`  ${line}`)
+        for (const line of formatMigrationDiff(readApplied(target.env, deps, db.binding), db.expected))
+          deps.log(`  ${line}`)
       } catch (err) {
         deps.log(`  migrations: could not be read (${err instanceof Error ? err.message : 'failed'})`)
       }
@@ -44,7 +55,12 @@ export function runMigrate(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Mig
 
 // stdout is captured (the tracker reads are parsed as JSON); wrangler's own stderr goes straight to the terminal.
 const realExec: MigrateDeps['exec'] = (cmd) => {
-  const r = spawnSync(cmd.command, cmd.args, { cwd: PACKAGE_DIR, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' } })
+  const r = spawnSync(cmd.command, cmd.args, {
+    cwd: PACKAGE_DIR,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+    env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' },
+  })
   return { status: r.status, stdout: r.stdout ?? '' }
 }
 

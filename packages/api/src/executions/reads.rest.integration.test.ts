@@ -29,7 +29,7 @@ beforeEach(async () => {
 const LIST = '/api/v1/action-executions'
 const ids = (r: { body: any }) => (r.body.data as Array<{ id: string }>).map((e) => e.id).sort()
 
-describe('list and get follow the operation\'s read scope', () => {
+describe("list and get follow the operation's read scope", () => {
   it('list shows only the executions whose read scope the caller holds', async () => {
     expect(ids(await k.call(tasksReader, 'GET', LIST))).toEqual([eTasks])
     expect(ids(await k.call(notesReader, 'GET', LIST))).toEqual([eNever])
@@ -71,30 +71,81 @@ describe('list and get follow the operation\'s read scope', () => {
 
 describe('the projection (D57)', () => {
   it('shows the safe columns and never the machinery or a raw transport error', async () => {
-    k.transport.willDispatch({ kind: 'not_sent', code: 'provider_rejected', message: 'RAW-SECRET-TEXT refresh_token=1//abc' })
+    k.transport.willDispatch({
+      kind: 'not_sent',
+      code: 'provider_rejected',
+      message: 'RAW-SECRET-TEXT refresh_token=1//abc',
+    })
     k.setNow(new Date(k.now().getTime() + 1000))
     await k.run(eTasks)
     const got = (await k.call(both, 'GET', `${LIST}/${eTasks}`)).body
     expect(Object.keys(got).sort()).toEqual(
-      ['action_request_id', 'arguments', 'authorised_by', 'created_at', 'created_by', 'deadline_at', 'done_at', 'error_code', 'error_message', 'id', 'idempotency_key', 'operation', 'organization_id', 'result', 'status', 'updated_at'].sort(),
+      [
+        'action_request_id',
+        'arguments',
+        'authorised_by',
+        'created_at',
+        'created_by',
+        'deadline_at',
+        'done_at',
+        'error_code',
+        'error_message',
+        'id',
+        'idempotency_key',
+        'operation',
+        'organization_id',
+        'result',
+        'status',
+        'updated_at',
+      ].sort(),
     )
     expect(got).toMatchObject({ status: 'failed', error_code: 'provider_rejected' })
     const everything = JSON.stringify([got, (await k.call(both, 'GET', LIST)).body, await k.events()])
-    for (const secret of ['lease_token', 'lease_until', 'next_attempt_at', 'input_hash', 'RAW-SECRET-TEXT', 'refresh_token', 'dispatched_at', 'client_ref']) expect(everything).not.toContain(secret)
+    for (const secret of [
+      'lease_token',
+      'lease_until',
+      'next_attempt_at',
+      'input_hash',
+      'RAW-SECRET-TEXT',
+      'refresh_token',
+      'dispatched_at',
+      'client_ref',
+    ])
+      expect(everything).not.toContain(secret)
   })
 
   it('a queued execution has no result and no error', async () => {
     const got = (await k.call(both, 'GET', `${LIST}/${eNever}`)).body
-    expect(got).toMatchObject({ status: 'queued', result: null, error_code: null, error_message: null, done_at: null, action_request_id: null, authorised_by: writer.id })
+    expect(got).toMatchObject({
+      status: 'queued',
+      result: null,
+      error_code: null,
+      error_message: null,
+      done_at: null,
+      action_request_id: null,
+      authorised_by: writer.id,
+    })
   })
 })
 
 describe('the request shows its execution (D48)', () => {
   it('execution_id is null until a queued approval creates one', async () => {
     const reviewer = await k.actor('reviewer', 'agent', ['tasks:write', 'tasks:read', 'action_requests:read'])
-    const plain = (await k.call(reviewer, 'POST', '/api/v1/action-requests', { operation: 'tasks.create', arguments: { title: 'p' }, reason: 'r' })).body
+    const plain = (
+      await k.call(reviewer, 'POST', '/api/v1/action-requests', {
+        operation: 'tasks.create',
+        arguments: { title: 'p' },
+        reason: 'r',
+      })
+    ).body
     expect(plain.execution_id ?? null).toBeNull()
-    const queued = (await k.call(reviewer, 'POST', '/api/v1/action-requests', { operation: TEST_OPS.reconcile, arguments: { text: 'q' }, reason: 'r' })).body
+    const queued = (
+      await k.call(reviewer, 'POST', '/api/v1/action-requests', {
+        operation: TEST_OPS.reconcile,
+        arguments: { text: 'q' },
+        reason: 'r',
+      })
+    ).body
     expect(queued.execution_id ?? null).toBeNull()
     const approved = await k.call(reviewer, 'POST', `/api/v1/action-requests/${queued.id}/approve`)
     expect(approved.body.execution_id).toEqual(expect.any(String))

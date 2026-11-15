@@ -82,7 +82,9 @@ describe('migration 005 directory', () => {
   })
 
   it('link pair', async () => {
-    expect(await sqlstate((c) => c.query(`INSERT INTO organizations (name, auth_org_id) VALUES ('o', 'org_1')`))).toBe('23514')
+    expect(await sqlstate((c) => c.query(`INSERT INTO organizations (name, auth_org_id) VALUES ('o', 'org_1')`))).toBe(
+      '23514',
+    )
   })
 
   it('link unique', async () => {
@@ -143,24 +145,39 @@ describe('migration 005 directory', () => {
 
   it('memberships: tenants read, never write', async () => {
     expect(await priv('vault_authenticated', 'memberships', 'SELECT')).toBe(true)
-    for (const p of ['INSERT', 'UPDATE', 'DELETE']) expect(await priv('vault_authenticated', 'memberships', p), p).toBe(false)
+    for (const p of ['INSERT', 'UPDATE', 'DELETE'])
+      expect(await priv('vault_authenticated', 'memberships', p), p).toBe(false)
     for (const col of ['role', 'deleted_at', 'user_id', 'organization_id', 'created_by'])
       expect(await colPriv('vault_authenticated', 'memberships', col, 'UPDATE'), col).toBe(false)
   })
 
   it('agents grants', async () => {
     expect(await priv('vault_authenticated', 'agents', 'INSERT')).toBe(true)
-    for (const col of ['name', 'scopes', 'disabled_at']) expect(await colPriv('vault_authenticated', 'agents', col, 'UPDATE'), col).toBe(true)
-    for (const col of ['id', 'organization_id', 'created_by']) expect(await colPriv('vault_authenticated', 'agents', col, 'UPDATE'), col).toBe(false)
+    for (const col of ['name', 'scopes', 'disabled_at'])
+      expect(await colPriv('vault_authenticated', 'agents', col, 'UPDATE'), col).toBe(true)
+    for (const col of ['id', 'organization_id', 'created_by'])
+      expect(await colPriv('vault_authenticated', 'agents', col, 'UPDATE'), col).toBe(false)
   })
 
   it('api_keys grants', async () => {
-    const cols = ['id', 'created_at', 'updated_at', 'organization_id', 'agent_id', 'prefix', 'last_used_at', 'revoked_at', 'expires_at', 'created_by']
+    const cols = [
+      'id',
+      'created_at',
+      'updated_at',
+      'organization_id',
+      'agent_id',
+      'prefix',
+      'last_used_at',
+      'revoked_at',
+      'expires_at',
+      'created_by',
+    ]
     for (const col of cols) expect(await colPriv('vault_authenticated', 'api_keys', col, 'SELECT'), col).toBe(true)
     expect(await colPriv('vault_authenticated', 'api_keys', 'key_hash', 'SELECT')).toBe(false)
     expect(await priv('vault_authenticated', 'api_keys', 'INSERT')).toBe(true)
     expect(await colPriv('vault_authenticated', 'api_keys', 'revoked_at', 'UPDATE')).toBe(true)
-    for (const col of ['prefix', 'last_used_at', 'key_hash']) expect(await colPriv('vault_authenticated', 'api_keys', col, 'UPDATE'), col).toBe(false)
+    for (const col of ['prefix', 'last_used_at', 'key_hash'])
+      expect(await colPriv('vault_authenticated', 'api_keys', col, 'UPDATE'), col).toBe(false)
   })
 
   it('principals insert policy', async () => {
@@ -192,7 +209,9 @@ describe('migration 005 directory', () => {
     const o = await seedOrganization(db)
     const u = await seedUser(db, { organizationId: o.id, role: 'owner' })
     expect(
-      await tenantState({ principalId: u.id, organizationId: o.id }, (trx) => trx.insertInto('principals').values({ kind: 'user' }).execute()),
+      await tenantState({ principalId: u.id, organizationId: o.id }, (trx) =>
+        trx.insertInto('principals').values({ kind: 'user' }).execute(),
+      ),
     ).toBe('42501')
   })
 
@@ -201,7 +220,9 @@ describe('migration 005 directory', () => {
     const u = await seedUser(db, { organizationId: o.id, role: 'owner' })
     const a = await seedAgent(db, { organizationId: o.id, createdBy: u.id })
     const ctx = { principalId: u.id, organizationId: o.id }
-    await sql`INSERT INTO api_keys (organization_id, agent_id, key_hash, prefix, created_by) VALUES (${o.id}, ${a.id}, ${'h-' + a.id}, 'vk_abcdefgh', ${u.id})`.execute(owner)
+    await sql`INSERT INTO api_keys (organization_id, agent_id, key_hash, prefix, created_by) VALUES (${o.id}, ${a.id}, ${'h-' + a.id}, 'vk_abcdefgh', ${u.id})`.execute(
+      owner,
+    )
     return ctx
   }
 

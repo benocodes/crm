@@ -23,10 +23,20 @@ const eventRecord = z.object({
   created_at: z.string(),
 })
 const listQuery = z.object({
-  after: z.string().optional().describe('The id of the last event you have seen (the previous page\'s next_cursor); omit to start from the oldest.'),
+  after: z
+    .string()
+    .optional()
+    .describe(
+      "The id of the last event you have seen (the previous page's next_cursor); omit to start from the oldest.",
+    ),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   type: z.string().min(1).max(128).optional().describe('An exact event type, e.g. task.updated.'),
-  resource_type: z.string().min(1).max(128).optional().describe('The type of the resource the event is about, e.g. task.'),
+  resource_type: z
+    .string()
+    .min(1)
+    .max(128)
+    .optional()
+    .describe('The type of the resource the event is about, e.g. task.'),
   resource_id: z.uuid().optional().describe('The id of the resource the event is about.'),
 })
 
@@ -47,7 +57,13 @@ export function feedVisibility(registry: Registry, env: Pick<PreparedEnv, 'scope
     }
     if (decl.edge) {
       // The edge's own scope is held; each endpoint type must be readable too, checked on the stored edge record.
-      edge = { resourceType: type, endpointTypes: [...endpointTypesOf(registry.resources()).values()].filter((t) => can(t.read.resource)).map((t) => t.type).sort() }
+      edge = {
+        resourceType: type,
+        endpointTypes: [...endpointTypesOf(registry.resources()).values()]
+          .filter((t) => can(t.read.resource))
+          .map((t) => t.type)
+          .sort(),
+      }
     } else readable.push(type)
   }
   return { readable: readable.sort(), ...(edge ? { edge } : {}), ...(owned.length > 0 ? { owned } : {}) }
@@ -65,11 +81,16 @@ export const record = (organizationId: string, ev: FeedEvent) => ({
   created_at: ev.created_at,
 })
 
-function listOperation(registry: Registry, env: PreparedEnv, rawQuery: Record<string, unknown>): PreparedOperation<unknown> {
+function listOperation(
+  registry: Registry,
+  env: PreparedEnv,
+  rawQuery: Record<string, unknown>,
+): PreparedOperation<unknown> {
   const q = parseInput(listQuery, rawQuery) as z.infer<typeof listQuery>
   const limit = q.limit ?? 50
   // D2: a non-UUID `after` can name no event; it is refused before any read, whatever the caller may see.
-  if (q.after !== undefined && !UUID.test(q.after)) throw new ApiError(400, 'invalid_cursor', 'after is not the id of an event')
+  if (q.after !== undefined && !UUID.test(q.after))
+    throw new ApiError(400, 'invalid_cursor', 'after is not the id of an event')
   const inner = readStableFeed({
     ...feedVisibility(registry, env),
     after: q.after?.toLowerCase() ?? null,
@@ -88,7 +109,8 @@ function listOperation(registry: Registry, env: PreparedEnv, rawQuery: Record<st
         events: u.events,
         decode: (rows, f) => {
           const feed = u.decode(rows, f)
-          if (feed.status === 'unknown_cursor') throw new ApiError(400, 'invalid_cursor', 'after is not the id of an event')
+          if (feed.status === 'unknown_cursor')
+            throw new ApiError(400, 'invalid_cursor', 'after is not the id of an event')
           const data = feed.events.map((ev) => record(env.organizationId, ev))
           return { data, next_cursor: feed.has_more ? data[data.length - 1]!.id : null }
         },
@@ -120,15 +142,22 @@ function getOperation(registry: Registry, env: PreparedEnv, rawId: string): Prep
 
 /** `events.list` and `events.get` ([[API6]] D2, D5, D6, D17): scope `events:read`, plus the per-type visibility of D4 inside the read. */
 export function eventOperations(registry: () => Registry): TenantOperation[] {
-  const base = { kind: 'tenant' as const, surface: 'api' as const, validation: 'handler' as const, tags: ['events'], d1Only: true, scope: { resource: 'events', action: 'read' as const } }
+  const base = {
+    kind: 'tenant' as const,
+    surface: 'api' as const,
+    validation: 'handler' as const,
+    tags: ['events'],
+    d1Only: true,
+    scope: { resource: 'events', action: 'read' as const },
+  }
   return [
     {
       ...base,
       name: 'events.list',
       summary: "List the workspace's events in commit order",
       description:
-        'The change feed: every write emits an event, served oldest first. Pass the previous page\'s next_cursor as after to continue; next_cursor is null when nothing more is stored. ' +
-        'You see an event only if you could read its resource through that resource\'s own operations; hidden events are skipped, and a filter on a type you cannot read returns an empty page. An unknown after is 400 invalid_cursor.',
+        "The change feed: every write emits an event, served oldest first. Pass the previous page's next_cursor as after to continue; next_cursor is null when nothing more is stored. " +
+        "You see an event only if you could read its resource through that resource's own operations; hidden events are skipped, and a filter on a type you cannot read returns an empty page. An unknown after is 400 invalid_cursor.",
       method: 'get',
       path: '/events',
       request: { query: listQuery },

@@ -14,10 +14,16 @@ describe('parseWebhooksConfig', () => {
     expect(runtime.allowInsecureUrls).toBe(false)
   })
   it('no key: unconfigured and no problem (webhooks are simply off); an empty key counts as absent', () => {
-    for (const env of [{}, { CREDENTIALS_KEY: '' }, { CREDENTIALS_KEY: '   ' }]) expect(parseWebhooksConfig(env)).toEqual({ runtime: { key: null, allowInsecureUrls: false }, problems: [] })
+    for (const env of [{}, { CREDENTIALS_KEY: '' }, { CREDENTIALS_KEY: '   ' }])
+      expect(parseWebhooksConfig(env)).toEqual({ runtime: { key: null, allowInsecureUrls: false }, problems: [] })
   })
   it('a malformed key (not base64, or not 32 bytes) is unconfigured with CREDENTIALS_KEY named, and its value is not', () => {
-    for (const bad of ['not base64!!', 'AAAA', Buffer.from(new Uint8Array(31)).toString('base64'), Buffer.from(new Uint8Array(33)).toString('base64')]) {
+    for (const bad of [
+      'not base64!!',
+      'AAAA',
+      Buffer.from(new Uint8Array(31)).toString('base64'),
+      Buffer.from(new Uint8Array(33)).toString('base64'),
+    ]) {
       const { runtime, problems } = parseWebhooksConfig({ CREDENTIALS_KEY: bad })
       expect(runtime.key, bad).toBeNull()
       expect(problems, bad).toEqual(['CREDENTIALS_KEY'])
@@ -34,6 +40,7 @@ describe('parseWebhooksConfig', () => {
   })
   it('WEBHOOK_ALLOW_INSECURE_URLS is on only for exactly "true"', () => {
     expect(parseWebhooksConfig({ WEBHOOK_ALLOW_INSECURE_URLS: 'true' }).runtime.allowInsecureUrls).toBe(true)
-    for (const v of ['false', '1', 'yes', 'TRUE', '']) expect(parseWebhooksConfig({ WEBHOOK_ALLOW_INSECURE_URLS: v }).runtime.allowInsecureUrls, v).toBe(false)
+    for (const v of ['false', '1', 'yes', 'TRUE', ''])
+      expect(parseWebhooksConfig({ WEBHOOK_ALLOW_INSECURE_URLS: v }).runtime.allowInsecureUrls, v).toBe(false)
   })
 })

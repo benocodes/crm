@@ -14,7 +14,16 @@ export default {
   fetch(req: Request, env: Env, ctx: Parameters<typeof worker.fetch>[2]): Promise<Response> {
     const path = new URL(req.url).pathname
     if (env.OPEN_ADMISSION === '1' && (path === '/auth' || path.startsWith('/auth/'))) {
-      handler ??= createAuthHandler(env.CONTROL_DB as never, { secret: env.AUTH_SECRET!, baseURL: env.PUBLIC_BASE_URL!, vaultScopes: createVibaseRegistry().declaredScopes(), grantableScopes: grantableScopes(createVibaseRegistry().declaredScopes()) }, { unsafeOpenAdmissionForTests: true })
+      handler ??= createAuthHandler(
+        env.CONTROL_DB as never,
+        {
+          secret: env.AUTH_SECRET!,
+          baseURL: env.PUBLIC_BASE_URL!,
+          vaultScopes: createVibaseRegistry().declaredScopes(),
+          grantableScopes: grantableScopes(createVibaseRegistry().declaredScopes()),
+        },
+        { unsafeOpenAdmissionForTests: true },
+      )
       return handler(req)
     }
     return worker.fetch(req, env, ctx)

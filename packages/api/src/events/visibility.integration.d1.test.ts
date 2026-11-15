@@ -28,7 +28,11 @@ beforeEach(async () => {
 
 const call = async (scopes: string[], path: string, init: { method?: string; body?: unknown } = {}) => {
   const token = mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes, kind: 'user' })
-  const res = await app.request(path, { method: init.method ?? 'GET', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: init.body === undefined ? undefined : JSON.stringify(init.body) })
+  const res = await app.request(path, {
+    method: init.method ?? 'GET',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  })
   const text = await res.text()
   return { status: res.status, text, body: text ? (JSON.parse(text) as any) : null }
 }
@@ -45,8 +49,20 @@ const seen = async (scopes: string[], query = 'limit=200') => {
 const rawEvent = async (type: string, resourceType: string, extra: { before?: unknown; after?: unknown } = {}) => {
   const id = uuidv7()
   await e
-    .d1!.prepare('INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, AT, e.organizationId, type, resourceType, uuidv7(), e.userId, extra.before === undefined ? null : JSON.stringify(extra.before), extra.after === undefined ? null : JSON.stringify(extra.after))
+    .d1!.prepare(
+      'INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .bind(
+      id,
+      AT,
+      e.organizationId,
+      type,
+      resourceType,
+      uuidv7(),
+      e.userId,
+      extra.before === undefined ? null : JSON.stringify(extra.before),
+      extra.after === undefined ? null : JSON.stringify(extra.after),
+    )
     .run()
   return id
 }
@@ -73,7 +89,17 @@ const MATRIX: [resourceType: string, readScope: string | null, types: string[]][
   ['connection', 'connections:read', ['connection.created', 'connection.updated']],
   ['membership', 'members:read', ['membership.created', 'membership.updated', 'membership.deleted']],
   ['organization', 'members:read', ['organization.created', 'organization.updated']],
-  ['action_request', null, ['action_request.created', 'action_request.executed', 'action_request.failed', 'action_request.expired', 'action_request.superseded']],
+  [
+    'action_request',
+    null,
+    [
+      'action_request.created',
+      'action_request.executed',
+      'action_request.failed',
+      'action_request.expired',
+      'action_request.superseded',
+    ],
+  ],
   ['webhook', 'webhooks:read', ['webhook.created', 'webhook.updated', 'webhook.deleted', 'webhook.secret_rotated']],
   ['action_execution', null, ['action_execution.created', 'action_execution.completed', 'action_execution.failed']],
 ]
@@ -86,7 +112,10 @@ describe('visibility per resource type (matrix)', () => {
     const without = ['events:read', ...READS.filter((s) => s !== 'events:read' && s !== readScope)]
     const bare = ['events:read']
     if (readScope) {
-      expect((await seen(withScope)).map((x) => x.id), 'visible in list with events:read plus the read scope').toEqual(made)
+      expect(
+        (await seen(withScope)).map((x) => x.id),
+        'visible in list with events:read plus the read scope',
+      ).toEqual(made)
       for (const id of made) expect((await call(withScope, `/api/v1/events/${id}`)).status, 'visible in get').toBe(200)
     }
     for (const scopes of [without, bare]) {
@@ -111,7 +140,11 @@ describe('visibility per resource type (matrix)', () => {
     const walk = (dir: string): string[] =>
       readdirSync(dir).flatMap((f) => {
         const p = join(dir, f)
-        return statSync(p).isDirectory() ? walk(p) : /\.ts$/.test(f) && !/(\.test|\.suite)\.ts$/.test(f) && !p.includes('/test/') ? [p] : []
+        return statSync(p).isDirectory()
+          ? walk(p)
+          : /\.ts$/.test(f) && !/(\.test|\.suite)\.ts$/.test(f) && !p.includes('/test/')
+            ? [p]
+            : []
       })
     for (const file of walk(root)) {
       const src = readFileSync(file, 'utf8')
@@ -121,7 +154,10 @@ describe('visibility per resource type (matrix)', () => {
     const decl = registry.eventTypes()
     const unplaced = [...emitted].filter((t) => !decl.has(t))
     expect(unplaced, 'emitted resource types with neither a scope entry nor an invisible entry').toEqual([])
-    const invisible = [...decl].filter(([, d]) => 'invisible' in d).map(([t]) => t).sort()
+    const invisible = [...decl]
+      .filter(([, d]) => 'invisible' in d)
+      .map(([t]) => t)
+      .sort()
     expect(invisible).toEqual(['action_execution', 'action_request'])
     for (const [, d] of decl) if ('invisible' in d) expect(d.invisible).toMatch(/#217/)
     for (const [t, readScope] of MATRIX.map(([t, s]) => [t, s] as const)) {
@@ -137,10 +173,23 @@ describe('visibility per resource type (matrix)', () => {
     expect(await types(['interactions:read'])).toEqual(['interaction.created'])
     expect(await types(['messages:read'])).toEqual(['thread.created', 'message.created'])
     expect(await types(['files:read'])).toEqual(['file.created'])
-    expect(await types(['messages:read', 'files:read', 'interactions:read'])).toEqual(['thread.created', 'message.created', 'file.created', 'interaction.created'])
-    expect((await types(['tasks:read', 'contacts:read'])).filter((t) => /^(thread|message|file|interaction)\./.test(t))).toEqual([])
+    expect(await types(['messages:read', 'files:read', 'interactions:read'])).toEqual([
+      'thread.created',
+      'message.created',
+      'file.created',
+      'interaction.created',
+    ])
+    expect(
+      (await types(['tasks:read', 'contacts:read'])).filter((t) => /^(thread|message|file|interaction)\./.test(t)),
+    ).toEqual([])
     await rawEvent('contact_file.created', 'contact_file')
-    expect(await types(['contacts:read'])).toEqual(['contact.created', 'contact.created', 'identity.created', 'identity.created', 'contact_file.created'])
+    expect(await types(['contacts:read'])).toEqual([
+      'contact.created',
+      'contact.created',
+      'identity.created',
+      'identity.created',
+      'contact_file.created',
+    ])
   })
 
   it('real writes are visible to their reader and to nobody else: task, contact, deal move', async () => {
@@ -149,7 +198,14 @@ describe('visibility per resource type (matrix)', () => {
     expect((await seen(['events:read', 'tasks:read'])).map((x) => x.type)).toEqual(['task.created'])
     expect((await seen(['events:read', 'contacts:read'])).map((x) => x.type)).toEqual(['contact.created'])
     expect(await seen(['events:read', 'notes:read'])).toEqual([])
-    expect((await call(['events:read', 'tasks:read'], `/api/v1/events/${(await seen(['events:read', 'tasks:read']))[0]!.id}`)).body.resource_id).toBe(task.id)
+    expect(
+      (
+        await call(
+          ['events:read', 'tasks:read'],
+          `/api/v1/events/${(await seen(['events:read', 'tasks:read']))[0]!.id}`,
+        )
+      ).body.resource_id,
+    ).toBe(task.id)
   })
 })
 
@@ -167,7 +223,11 @@ describe('the edge predicate (association events)', () => {
   ]
   /** Which association events a caller may see, computed from the stored rows: `associations:read` and both endpoint types readable. */
   const expected = async (scopes: string[]) => {
-    const rows = (await e.d1!.prepare("select id, coalesce(after, before) as rec from events where resource_type = 'association' order by seq").all()) as unknown as { results: { id: string; rec: string }[] }
+    const rows = (await e
+      .d1!.prepare(
+        "select id, coalesce(after, before) as rec from events where resource_type = 'association' order by seq",
+      )
+      .all()) as unknown as { results: { id: string; rec: string }[] }
     const has = (resource: string) => scopes.includes(`${resource}:read`)
     return rows.results
       .filter((r) => {
@@ -176,9 +236,11 @@ describe('the edge predicate (association events)', () => {
       })
       .map((r) => r.id)
   }
-  const edgeEvents = async (scopes: string[]) => (await seen(scopes)).filter((x) => x.resource_type === 'association').map((x) => x.id)
+  const edgeEvents = async (scopes: string[]) =>
+    (await seen(scopes)).filter((x) => x.resource_type === 'association').map((x) => x.id)
   const check = async (label: string) => {
-    for (const scopes of READ_SETS) expect(await edgeEvents(scopes), `${label}: ${scopes.join(',')}`).toEqual(await expected(scopes))
+    for (const scopes of READ_SETS)
+      expect(await edgeEvents(scopes), `${label}: ${scopes.join(',')}`).toEqual(await expected(scopes))
   }
   const link = (a: [string, string], b: [string, string]) =>
     must('/api/v1/associations', { method: 'POST', body: { a_type: a[0], a_id: a[1], b_type: b[0], b_id: b[1] } })
@@ -209,7 +271,11 @@ describe('the edge predicate (association events)', () => {
     await link(['companies', m.company], ['contacts', m.contact])
     await link(['contacts', m.contact], ['tasks', m.task])
     await must(`/api/v1/contacts/${m.contact}`, { method: 'DELETE' })
-    const cascaded = ((await e.d1!.prepare("select count(*) as n from events where type = 'association.deleted'").first()) as { n: number }).n
+    const cascaded = (
+      (await e.d1!.prepare("select count(*) as n from events where type = 'association.deleted'").first()) as {
+        n: number
+      }
+    ).n
     expect(cascaded, 'the cascade emitted association.deleted events').toBe(2)
     await check('after cascade')
     // created and deleted for the company edge; the task edge needs tasks:read.
@@ -227,18 +293,30 @@ describe('the edge predicate (association events)', () => {
     await link(['companies', other], ['contacts', m.contact])
     await link(['contacts', m.contact], ['tasks', m.task])
     await must(`/api/v1/contacts/${survivor}/merge`, { method: 'POST', body: { source_id: m.contact } })
-    const types = ((await e.d1!.prepare("select distinct type from events where resource_type = 'association' order by type").all()) as unknown as { results: { type: string }[] }).results.map((r) => r.type)
-    expect(types, 'the merge emitted edge events beyond create').toEqual(expect.arrayContaining(['association.created', 'association.deleted', 'association.updated']))
+    const types = (
+      (await e
+        .d1!.prepare("select distinct type from events where resource_type = 'association' order by type")
+        .all()) as unknown as { results: { type: string }[] }
+    ).results.map((r) => r.type)
+    expect(types, 'the merge emitted edge events beyond create').toEqual(
+      expect.arrayContaining(['association.created', 'association.deleted', 'association.updated']),
+    )
     await check('after merge')
-    expect((await edgeEvents(['events:read', 'associations:read', 'contacts:read', 'tasks:read'])).length).toBeGreaterThan(0)
+    expect(
+      (await edgeEvents(['events:read', 'associations:read', 'contacts:read', 'tasks:read'])).length,
+    ).toBeGreaterThan(0)
   })
 
   it('an edge whose endpoint type is unknown, or whose record is not an edge, is invisible even to a reader of everything', async () => {
-    await rawEvent('association.created', 'association', { after: { a_type: 'bogus', a_id: uuidv7(), b_type: 'contacts', b_id: uuidv7() } })
+    await rawEvent('association.created', 'association', {
+      after: { a_type: 'bogus', a_id: uuidv7(), b_type: 'contacts', b_id: uuidv7() },
+    })
     await rawEvent('association.created', 'association', { after: { a_type: 'contacts', a_id: uuidv7() } })
     await rawEvent('association.created', 'association', {})
     expect(await edgeEvents(['events:read', ...READS])).toEqual([])
-    const ok = await rawEvent('association.deleted', 'association', { before: { a_type: 'contacts', a_id: uuidv7(), b_type: 'tasks', b_id: uuidv7() } })
+    const ok = await rawEvent('association.deleted', 'association', {
+      before: { a_type: 'contacts', a_id: uuidv7(), b_type: 'tasks', b_id: uuidv7() },
+    })
     expect(await edgeEvents(['events:read', ...READS])).toEqual([ok])
     expect((await call(['events:read', ...READS], `/api/v1/events/${ok}`)).status).toBe(200)
     expect((await call(['events:read', 'associations:read', 'contacts:read'], `/api/v1/events/${ok}`)).status).toBe(404)

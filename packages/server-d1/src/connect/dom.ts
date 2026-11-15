@@ -24,7 +24,12 @@ const text = (tag: string, value: string, cls?: string): HTMLElement => {
   return node
 }
 const code = (value: string): HTMLElement => text('pre', value, 'cmd')
-const button = (label: string, action: string, onClick: () => void, extra: Record<string, string> = {}): HTMLButtonElement => {
+const button = (
+  label: string,
+  action: string,
+  onClick: () => void,
+  extra: Record<string, string> = {},
+): HTMLButtonElement => {
   const b = el('button', { type: 'button', 'data-action': action, ...extra }) as HTMLButtonElement
   b.textContent = label
   b.addEventListener('click', onClick)
@@ -33,12 +38,15 @@ const button = (label: string, action: string, onClick: () => void, extra: Recor
 /** A link only for an `https:` URL: a profile URL is data from the Clerk SDK, and nothing else may become an `href`. */
 function safeLink(label: string, url: string): HTMLElement | null {
   try {
-    return new URL(url).protocol === 'https:' ? Object.assign(el('a', { href: url, rel: 'noopener noreferrer' }), { textContent: label }) : null
+    return new URL(url).protocol === 'https:'
+      ? Object.assign(el('a', { href: url, rel: 'noopener noreferrer' }), { textContent: label })
+      : null
   } catch {
     return null
   }
 }
-const section = (name: string, title: string, ...body: Child[]): HTMLElement => el('section', { 'data-section': name }, text('h2', title), ...body)
+const section = (name: string, title: string, ...body: Child[]): HTMLElement =>
+  el('section', { 'data-section': name }, text('h2', title), ...body)
 
 function agentItem(a: AgentRowView, handlers: Handlers): HTMLElement {
   return el(
@@ -48,7 +56,11 @@ function agentItem(a: AgentRowView, handlers: Handlers): HTMLElement {
     text('p', a.scopes.length > 0 ? `Scopes: ${a.scopes.join(', ')}` : 'Scopes: none', 'scopes'),
     text('p', `Created ${a.createdAt}${a.disabledAt ? `; disabled ${a.disabledAt}` : ''}`, 'times'),
     a.grantCommand ? el('div', {}, text('p', 'It has no scopes yet. To grant some, run:'), code(a.grantCommand)) : null,
-    a.action ? button(a.action === 'disable' ? 'Disable' : 'Enable', 'toggle-agent', () => handlers.toggle(a.id, a.action === 'disable')) : null,
+    a.action
+      ? button(a.action === 'disable' ? 'Disable' : 'Enable', 'toggle-agent', () =>
+          handlers.toggle(a.id, a.action === 'disable'),
+        )
+      : null,
   )
 }
 
@@ -59,7 +71,14 @@ export function render(root: HTMLElement, vm: ViewModel, handlers: Handlers): vo
   if (vm.error) parts.push(text('p', vm.error, 'error'))
 
   if (vm.who) {
-    parts.push(section('who', 'Who you are', text('p', `${vm.who.name} (role: ${vm.who.role})`), text('p', vm.who.scopes.length > 0 ? `Scopes: ${vm.who.scopes.join(', ')}` : 'Scopes: none')))
+    parts.push(
+      section(
+        'who',
+        'Who you are',
+        text('p', `${vm.who.name} (role: ${vm.who.role})`),
+        text('p', vm.who.scopes.length > 0 ? `Scopes: ${vm.who.scopes.join(', ')}` : 'Scopes: none'),
+      ),
+    )
   }
 
   if (vm.connect) {
@@ -68,7 +87,15 @@ export function render(root: HTMLElement, vm: ViewModel, handlers: Handlers): vo
     if (c.cli) body.push(text('h3', 'Command line'), code(c.cli.command), text('p', c.cli.steps))
     body.push(text('h3', 'API key'), code(c.apiKey.command), text('p', c.apiKey.note))
     parts.push(section('connect', 'Connect an agent', ...body))
-    if (c.mcp) parts.push(section('mcp', 'MCP', text('p', 'Add this URL as a remote MCP server in your client; it signs in through this instance.'), code(c.mcp.url)))
+    if (c.mcp)
+      parts.push(
+        section(
+          'mcp',
+          'MCP',
+          text('p', 'Add this URL as a remote MCP server in your client; it signs in through this instance.'),
+          code(c.mcp.url),
+        ),
+      )
   }
 
   if (vm.agents) {
@@ -79,14 +106,23 @@ export function render(root: HTMLElement, vm: ViewModel, handlers: Handlers): vo
         'Connected agents',
         text('p', a.note, 'note'),
         text('p', a.personalLoginNote, 'note'),
-        a.rows.length > 0 ? el('ul', { class: 'agents' }, ...a.rows.map((r) => agentItem(r, handlers))) : text('p', 'No agents yet.'),
+        a.rows.length > 0
+          ? el('ul', { class: 'agents' }, ...a.rows.map((r) => agentItem(r, handlers)))
+          : text('p', 'No agents yet.'),
       ),
     )
   }
 
   if (vm.account) {
     const link = vm.account.profileUrl ? safeLink('Your Clerk profile', vm.account.profileUrl) : null
-    parts.push(section('account', 'Account', link, button('Sign out', 'sign-out', () => handlers.signOut())))
+    parts.push(
+      section(
+        'account',
+        'Account',
+        link,
+        button('Sign out', 'sign-out', () => handlers.signOut()),
+      ),
+    )
   }
 
   root.replaceChildren(...parts)

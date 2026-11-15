@@ -7,7 +7,9 @@ class Interval {
 describe('the workerd step shim', () => {
   it('rejects a class instance by constructor name with its property path, and a function', async () => {
     const { step } = makeWorkerdStepShim()
-    await expect(step.do('load', async () => ({ row: { ttl: new Interval(1) } }))).rejects.toThrow(/step\("load"\)\.row\.ttl.*"Interval"/)
+    await expect(step.do('load', async () => ({ row: { ttl: new Interval(1) } }))).rejects.toThrow(
+      /step\("load"\)\.row\.ttl.*"Interval"/,
+    )
     await expect(step.do('f', async () => ({ f: () => 1 }))).rejects.toThrow(/\.f.*function/)
   })
   it('accepts plain data, clones it, and turns a thrown error into a bare Error with the message', async () => {

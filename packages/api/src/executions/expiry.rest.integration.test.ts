@@ -25,7 +25,12 @@ beforeEach(async () => {
 const AR = '/api/v1/action-requests'
 /** A pending request expiring `after` seconds from the clock now. */
 const pending = async (after: number, title = 't'): Promise<string> => {
-  const r = await k.call(proposer, 'POST', AR, { operation: 'tasks.create', arguments: { title }, reason: 'r', expires_at: at((k.now().getTime() - T0.getTime()) / 1000 + after).toISOString() })
+  const r = await k.call(proposer, 'POST', AR, {
+    operation: 'tasks.create',
+    arguments: { title },
+    reason: 'r',
+    expires_at: at((k.now().getTime() - T0.getTime()) / 1000 + after).toISOString(),
+  })
   expect(r.status).toBe(201)
   return r.body.id
 }
@@ -40,7 +45,13 @@ describe('the expiry sweep (D55)', () => {
     expect(await k.expire()).toEqual({ expired: 100 })
     const sys = await systemId()
     expect(sys).not.toBeNull()
-    for (const id of ids.slice(0, 100)) expect(await row(id)).toMatchObject({ status: 'expired', decided_by: sys, decided_at: at(1000).toISOString(), updated_at: at(1000).toISOString() })
+    for (const id of ids.slice(0, 100))
+      expect(await row(id)).toMatchObject({
+        status: 'expired',
+        decided_by: sys,
+        decided_at: at(1000).toISOString(),
+        updated_at: at(1000).toISOString(),
+      })
     expect((await row(ids[100]!)).status).toBe('pending')
     const events = await k.events('action_request.expired')
     expect(events).toHaveLength(100)
@@ -107,10 +118,25 @@ describe('the expiry sweep (D55)', () => {
   })
 
   it('a pending request holding a dedup_key frees it once expired', async () => {
-    const r = await k.call(proposer, 'POST', AR, { operation: 'tasks.create', arguments: { title: 'x' }, reason: 'r', dedup_key: 'dk', expires_at: at(10).toISOString() })
+    const r = await k.call(proposer, 'POST', AR, {
+      operation: 'tasks.create',
+      arguments: { title: 'x' },
+      reason: 'r',
+      dedup_key: 'dk',
+      expires_at: at(10).toISOString(),
+    })
     expect(r.status).toBe(201)
     k.setNow(at(1000))
     await k.expire()
-    expect((await k.call(await k.actor('other', 'agent', ['tasks:request_approval']), 'POST', AR, { operation: 'tasks.create', arguments: { title: 'y' }, reason: 'r', dedup_key: 'dk' })).status).toBe(201)
+    expect(
+      (
+        await k.call(await k.actor('other', 'agent', ['tasks:request_approval']), 'POST', AR, {
+          operation: 'tasks.create',
+          arguments: { title: 'y' },
+          reason: 'r',
+          dedup_key: 'dk',
+        })
+      ).status,
+    ).toBe(201)
   })
 })

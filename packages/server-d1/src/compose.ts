@@ -1,12 +1,89 @@
-import { CALLBACK_PATH, parseWebhooksConfig, parseTickBudget, DEFAULT_TICK_BUDGET, TickBudget, countFetch, sendWebhooks, MAIL_SYNC_CRON, RAIL_CRON, railTick, dispatchWebhooks, googleRecording, SCOPE_POLICY, createApp, createProfileCache, createVibaseRegistry, parseGmailConfig, parsePushConfig, renewWatches, discoveryResponse, openApiPath, createBetterAuthAdapter, createWorkspaceAuthAdapter, grantableScopes, membershipRoleReader, parseCliClientId, parseOriginList, parsePublishableKey, r2ObjectStore, requestDueSyncs, runMailSync, workerdStreams, workspaceRole, type AuthAdapter, type InvitationsRuntime, type MembersRuntime, type MailSyncInstances, type MailSyncParams, type MailSyncRuntime, type MailSyncSummary, type R2BucketLike, type Registry, type StreamPrimitives, type TransportRegistry, type WorkflowEventLike, type WorkflowStepLike } from '@vibase/api'
+import {
+  CALLBACK_PATH,
+  parseWebhooksConfig,
+  parseTickBudget,
+  DEFAULT_TICK_BUDGET,
+  TickBudget,
+  countFetch,
+  sendWebhooks,
+  MAIL_SYNC_CRON,
+  RAIL_CRON,
+  railTick,
+  dispatchWebhooks,
+  googleRecording,
+  SCOPE_POLICY,
+  createApp,
+  createProfileCache,
+  createVibaseRegistry,
+  parseGmailConfig,
+  parsePushConfig,
+  renewWatches,
+  discoveryResponse,
+  openApiPath,
+  createBetterAuthAdapter,
+  createWorkspaceAuthAdapter,
+  grantableScopes,
+  membershipRoleReader,
+  parseCliClientId,
+  parseOriginList,
+  parsePublishableKey,
+  r2ObjectStore,
+  requestDueSyncs,
+  runMailSync,
+  workerdStreams,
+  workspaceRole,
+  type AuthAdapter,
+  type InvitationsRuntime,
+  type MembersRuntime,
+  type MailSyncInstances,
+  type MailSyncParams,
+  type MailSyncRuntime,
+  type MailSyncSummary,
+  type R2BucketLike,
+  type Registry,
+  type StreamPrimitives,
+  type TransportRegistry,
+  type WorkflowEventLike,
+  type WorkflowStepLike,
+} from '@vibase/api'
 import { uuidv7, type D1Binding } from '@vibase/storage'
-import { MIGRATIONS, controlAuthDatabase, d1Binding, openControlDb, readAuthJwks, readAuthProfile, readControlMarker, readOAuthClientName, acceptInvitation, findAdoptableInvitation, findLiveInvitationByToken, recordResetLinkIssued, revokeSubjectCredentials, hasLiveInvitationForToken, createInvitation, listInvitations, revokeInvitation, readControlMigrations, readMigrationState, runAuthSweep, type ControlDb, type D1Like, type MigrationStatus } from '@vibase/storage-d1'
+import {
+  MIGRATIONS,
+  controlAuthDatabase,
+  d1Binding,
+  openControlDb,
+  readAuthJwks,
+  readAuthProfile,
+  readControlMarker,
+  readOAuthClientName,
+  acceptInvitation,
+  findAdoptableInvitation,
+  findLiveInvitationByToken,
+  recordResetLinkIssued,
+  revokeSubjectCredentials,
+  hasLiveInvitationForToken,
+  createInvitation,
+  listInvitations,
+  revokeInvitation,
+  readControlMigrations,
+  readMigrationState,
+  runAuthSweep,
+  type ControlDb,
+  type D1Like,
+  type MigrationStatus,
+} from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveConnect, type AssetsLike } from './connect-serving.js'
 import { isUiPath, serveUi } from './ui-serving.js'
 import { gmailTransport } from '@vibase/api'
-import { AUTH_SERVER_METADATA_PATH, createAuth, resourcesFor, type AuthRuntimeConfig, type AuthService } from '@vibase/auth'
+import {
+  AUTH_SERVER_METADATA_PATH,
+  createAuth,
+  resourcesFor,
+  type AuthRuntimeConfig,
+  type AuthService,
+} from '@vibase/auth'
 import { parseBuiltInAuthConfig } from './auth-config.js'
 import { invitationAdmission } from './invitation-admission.js'
 import { cloudflareEmailSender, parseEmailConfig, type EmailBindingLike } from './email.js'
@@ -97,7 +174,9 @@ export interface ScheduledControllerLike {
 /** The 503 body of every route but /health and the two OpenAPI documents while the deployment marker is absent. */
 export const NOT_INITIALISED = { error: { code: 'not_initialised', message: 'run the bootstrap CLI first' } }
 /** The 503 body of every route but /health and the two OpenAPI documents while the database lacks a migration this build expects ([[CORE61]] D4). */
-export const MIGRATIONS_PENDING = { error: { code: 'migrations_pending', message: 'apply the database migrations first' } }
+export const MIGRATIONS_PENDING = {
+  error: { code: 'migrations_pending', message: 'apply the database migrations first' },
+}
 /** While `behind` or `unknown` the tracker is re-read at most this often ([[CORE61]] D6). */
 export const MIGRATION_REREAD_MS = 5_000
 const EXPECTED = MIGRATIONS.map((m) => m.name)
@@ -107,15 +186,50 @@ const NO_SUCH_ROUTE = { error: { code: 'not_found', message: 'no such route' } }
 /** The binding of the pre-initialisation app: it serves the OpenAPI document only, and a unit reaching it is a defect. */
 const NO_UNITS: D1Binding = {
   kind: 'd1',
-  runtime: { dialect: 'd1', maxSetSize: 0, execute: () => Promise.reject(new Error('the deployment is not initialised: no unit may run')) },
+  runtime: {
+    dialect: 'd1',
+    maxSetSize: 0,
+    execute: () => Promise.reject(new Error('the deployment is not initialised: no unit may run')),
+  },
   organizationId: '',
   authProvider: '',
   authOrgId: '',
 }
 
-const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const json = (body: unknown, status: number) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const STRING_VARS = ['AUTH_PROVIDER', 'AUTH_SECRET', 'AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET', 'AUTH_EMAIL_FROM', 'CLERK_ISSUER', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_SECRET_KEY', 'CLERK_JWT_KEY', 'AUTH_ROLE_CLAIM', 'AUTH_CLI_CLIENT_ID', 'CLERK_PUBLISHABLE_KEY', 'CLERK_API_URL', 'CORS_ALLOWED_ORIGINS', 'VERSION', 'COMMIT', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY', 'CREDENTIALS_KEY_VERSION', 'PUBLIC_BASE_URL', 'CONNECT_RETURN_URL', 'GOOGLE_RECORDING_UNTIL', 'GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT', 'WEBHOOK_ALLOW_INSECURE_URLS', 'CRON_TICK_BUDGET'] as const
+const STRING_VARS = [
+  'AUTH_PROVIDER',
+  'AUTH_SECRET',
+  'AUTH_GOOGLE_CLIENT_ID',
+  'AUTH_GOOGLE_CLIENT_SECRET',
+  'AUTH_EMAIL_FROM',
+  'CLERK_ISSUER',
+  'CLERK_AUTHORIZED_PARTIES',
+  'CLERK_SECRET_KEY',
+  'CLERK_JWT_KEY',
+  'AUTH_ROLE_CLAIM',
+  'AUTH_CLI_CLIENT_ID',
+  'CLERK_PUBLISHABLE_KEY',
+  'CLERK_API_URL',
+  'CORS_ALLOWED_ORIGINS',
+  'VERSION',
+  'COMMIT',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'OAUTH_STATE_SECRET',
+  'CREDENTIALS_KEY',
+  'CREDENTIALS_KEY_VERSION',
+  'PUBLIC_BASE_URL',
+  'CONNECT_RETURN_URL',
+  'GOOGLE_RECORDING_UNTIL',
+  'GMAIL_TOPIC_NAME',
+  'GMAIL_PUSH_SUBSCRIPTION',
+  'GMAIL_PUSH_SERVICE_ACCOUNT',
+  'WEBHOOK_ALLOW_INSECURE_URLS',
+  'CRON_TICK_BUDGET',
+] as const
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -127,8 +241,20 @@ const STRING_VARS = ['AUTH_PROVIDER', 'AUTH_SECRET', 'AUTH_GOOGLE_CLIENT_ID', 'A
  */
 export function composeD1Worker(
   env: D1WorkerEnv,
-  deps: { fetch?: typeof fetch; /** Node tests only ([[AGT8]] D52): operations registered before the queue's, and the transports the runner resolves. The Worker passes neither. */ operations?: (registry: Registry) => void; transports?: TransportRegistry; /** Node tests only: workerd's stream primitives are absent there. */ streams?: StreamPrimitives; clock?: () => Date; newId?: () => string; /** Milliseconds for the migration-state re-read window; defaults to `Date.now`. */ nowMs?: () => number } = {},
-): { fetch(req: Request, ctx?: ExecutionContextLike): Promise<Response>; scheduled(controller: ScheduledControllerLike): Promise<void>; runMailSync(event: WorkflowEventLike<MailSyncParams>, step: WorkflowStepLike): Promise<MailSyncSummary> } {
+  deps: {
+    fetch?: typeof fetch /** Node tests only ([[AGT8]] D52): operations registered before the queue's, and the transports the runner resolves. The Worker passes neither. */
+    operations?: (registry: Registry) => void
+    transports?: TransportRegistry /** Node tests only: workerd's stream primitives are absent there. */
+    streams?: StreamPrimitives
+    clock?: () => Date
+    newId?: () => string /** Milliseconds for the migration-state re-read window; defaults to `Date.now`. */
+    nowMs?: () => number
+  } = {},
+): {
+  fetch(req: Request, ctx?: ExecutionContextLike): Promise<Response>
+  scheduled(controller: ScheduledControllerLike): Promise<void>
+  runMailSync(event: WorkflowEventLike<MailSyncParams>, step: WorkflowStepLike): Promise<MailSyncSummary>
+} {
   const vars: Record<string, string | undefined> = {}
   for (const name of STRING_VARS) vars[name] = typeof env[name] === 'string' ? env[name] : undefined
 
@@ -146,7 +272,8 @@ export function composeD1Worker(
   const control: ControlDb | undefined = builtIn && env.CONTROL_DB ? openControlDb(env.CONTROL_DB) : undefined
   try {
     // [[CORE259]] D6: the built-in provider keeps its credentials in the control-plane database; without the binding it fails closed like a bad variable (the message names the binding).
-    if (builtIn && !control) throw new Error('AUTH_PROVIDER=better-auth requires the CONTROL_DB binding (the control-plane database)')
+    if (builtIn && !control)
+      throw new Error('AUTH_PROVIDER=better-auth requires the CONTROL_DB binding (the control-plane database)')
     if (builtIn) builtInConfig = parseBuiltInAuthConfig(vars)
     // [[CORE248]] D2: read for the built-in provider only; half a pair or a malformed address fails closed like every auth variable.
     if (builtIn) emailFrom = parseEmailConfig({ EMAIL: env.EMAIL, AUTH_EMAIL_FROM: vars.AUTH_EMAIL_FROM })?.from
@@ -185,11 +312,26 @@ export function composeD1Worker(
 
   const clock = deps.clock ?? (() => new Date())
   // [[AGT8]] D52/D70: the real Gmail transport is shared by waitUntil and cron; test transports only arrive through `deps`.
-  const transportsFor=(binding:D1Binding,counted?:{fetch:typeof fetch;bodies:R2BucketLike;instances:MailSyncInstances|undefined}):TransportRegistry=>{
-    if(deps.transports)return deps.transports
-    if(!gmail.config||!env.BODIES)return {}
-    const instances=counted?counted.instances:env.MAIL_SYNC
-    return {gmail:gmailTransport({binding,organizationId:binding.organizationId,config:gmail.config,objects:r2ObjectStore(counted?counted.bodies:env.BODIES),clock,newId:deps.newId??(()=>uuidv7(clock())),randomBytes:n=>crypto.getRandomValues(new Uint8Array(n)),...(counted?.fetch??deps.fetch?{fetch:(counted?.fetch??deps.fetch)!}:{}),...(instances?{instances}:{})})}
+  const transportsFor = (
+    binding: D1Binding,
+    counted?: { fetch: typeof fetch; bodies: R2BucketLike; instances: MailSyncInstances | undefined },
+  ): TransportRegistry => {
+    if (deps.transports) return deps.transports
+    if (!gmail.config || !env.BODIES) return {}
+    const instances = counted ? counted.instances : env.MAIL_SYNC
+    return {
+      gmail: gmailTransport({
+        binding,
+        organizationId: binding.organizationId,
+        config: gmail.config,
+        objects: r2ObjectStore(counted ? counted.bodies : env.BODIES),
+        clock,
+        newId: deps.newId ?? (() => uuidv7(clock())),
+        randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+        ...((counted?.fetch ?? deps.fetch) ? { fetch: (counted?.fetch ?? deps.fetch)! } : {}),
+        ...(instances ? { instances } : {}),
+      }),
+    }
   }
   // [[CHN5]] D78: parsed once (a bad value is logged by name, never by value). Off, `fetchFor` hands back `deps.fetch` itself, so nothing is wrapped.
   const recording = googleRecording({ raw: vars.GOOGLE_RECORDING_UNTIL, bucket: env.BODIES, clock, plain: deps.fetch })
@@ -203,7 +345,12 @@ export function composeD1Worker(
   const discovery = {
     provider: builtIn
       ? builtInConfig && authAdapter
-        ? { name: 'better-auth' as const, issuer: `${builtInConfig.baseURL}/auth`, baseUrl: builtInConfig.baseURL, signInMethods: builtInConfig.google ? (['password', 'google'] as const) : (['password'] as const) }
+        ? {
+            name: 'better-auth' as const,
+            issuer: `${builtInConfig.baseURL}/auth`,
+            baseUrl: builtInConfig.baseURL,
+            signInMethods: builtInConfig.google ? (['password', 'google'] as const) : (['password'] as const),
+          }
         : undefined
       : authAdapter
         ? { name: 'clerk' as const, issuer: vars.CLERK_ISSUER!.trim() }
@@ -284,10 +431,19 @@ export function composeD1Worker(
   function builtInAuth(): AuthService {
     builtInService ??= createAuth(
       controlAuthDatabase(control!),
-      { ...builtInConfig!, vaultScopes: discovery.declaredScopes, grantableScopes: grantableScopes(discovery.declaredScopes) },
+      {
+        ...builtInConfig!,
+        vaultScopes: discovery.declaredScopes,
+        grantableScopes: grantableScopes(discovery.declaredScopes),
+      },
       {
         admission: invitationAdmission({
-          store: { hasLive: (a) => hasLiveInvitationForToken(control!, a), findAdoptable: (a) => findAdoptableInvitation(control!, a), findLiveByToken: (a) => findLiveInvitationByToken(control!, a), accept: (a) => acceptInvitation(control!, a) },
+          store: {
+            hasLive: (a) => hasLiveInvitationForToken(control!, a),
+            findAdoptable: (a) => findAdoptableInvitation(control!, a),
+            findLiveByToken: (a) => findLiveInvitationByToken(control!, a),
+            accept: (a) => acceptInvitation(control!, a),
+          },
           crm: async () => {
             const link = await readDeployment(env.DB)
             if (!link) throw new Error('the deployment is not initialised')
@@ -304,7 +460,15 @@ export function composeD1Worker(
   // [[CORE245]] P2: the invitation operations' port over the control store, only with the built-in provider (`control` exists only for it); `PUBLIC_BASE_URL` names the invitation URL's origin.
   const invitations: InvitationsRuntime | null =
     control && builtInConfig
-      ? { port: { create: (a) => createInvitation(control, a), list: (a) => listInvitations(control, a), revoke: (a) => revokeInvitation(control, a) }, publicBaseUrl: builtInConfig.baseURL, ...(emailFrom !== undefined && env.EMAIL ? { email: cloudflareEmailSender(env.EMAIL, emailFrom) } : {}) }
+      ? {
+          port: {
+            create: (a) => createInvitation(control, a),
+            list: (a) => listInvitations(control, a),
+            revoke: (a) => revokeInvitation(control, a),
+          },
+          publicBaseUrl: builtInConfig.baseURL,
+          ...(emailFrom !== undefined && env.EMAIL ? { email: cloudflareEmailSender(env.EMAIL, emailFrom) } : {}),
+        }
       : null
   // [[CORE288]] P5, P6: the membership writes' port over the control store and the built-in provider; the reset URL's origin is `PUBLIC_BASE_URL`.
   const members: MembersRuntime | null =
@@ -317,7 +481,13 @@ export function composeD1Worker(
               if (!issued) return null
               const expiresAt = issued.expiresAt.toISOString()
               // The audit row comes before the answer: a link nobody can account for is never returned. A failure here leaves an unreturned verification row, inert until it expires.
-              await recordResetLinkIssued(control, { auditId: a.auditId, actorId: a.actorId, subject: a.subject, expiresAt, now: a.now })
+              await recordResetLinkIssued(control, {
+                auditId: a.auditId,
+                actorId: a.actorId,
+                subject: a.subject,
+                expiresAt,
+                now: a.now,
+              })
               return { token: issued.token, expiresAt }
             },
           },
@@ -325,7 +495,29 @@ export function composeD1Worker(
         }
       : null
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
-    createApp({ storage: () => binding, invitations, members, workspace: { adapter: authAdapter, cliClientId }, gmail: { ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}), config: gmail.config, problems: gmail.problems, push: pushParsed.config, pushProblems: pushParsed.problems, ...(googleFetch ? { fetch: googleFetch } : {}), ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}) }, webhooks, corsOrigins, version: vars.VERSION || 'dev', clock: deps.clock, newId: deps.newId, objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined, executions: { transports:transportsFor(binding) }, ...(deps.operations ? { extraOperations: deps.operations } : {}) })
+    createApp({
+      storage: () => binding,
+      invitations,
+      members,
+      workspace: { adapter: authAdapter, cliClientId },
+      gmail: {
+        ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}),
+        config: gmail.config,
+        problems: gmail.problems,
+        push: pushParsed.config,
+        pushProblems: pushParsed.problems,
+        ...(googleFetch ? { fetch: googleFetch } : {}),
+        ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}),
+      },
+      webhooks,
+      corsOrigins,
+      version: vars.VERSION || 'dev',
+      clock: deps.clock,
+      newId: deps.newId,
+      objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined,
+      executions: { transports: transportsFor(binding) },
+      ...(deps.operations ? { extraOperations: deps.operations } : {}),
+    })
 
   async function ensure(): Promise<App | undefined> {
     if (app) return app
@@ -346,12 +538,15 @@ export function composeD1Worker(
   const profiles = authAdapter ? createProfileCache(authAdapter) : null
 
   /** The database, once it is initialised and not behind ([[CHN5]] D37): null otherwise, with the reason in `why`. */
-  async function syncBinding(db: D1Like = env.DB): Promise<{ binding: D1Binding; organizationId: string } | { why: string }> {
+  async function syncBinding(
+    db: D1Like = env.DB,
+  ): Promise<{ binding: D1Binding; organizationId: string } | { why: string }> {
     let link
     try {
       link = await readDeployment(db)
     } catch (err) {
-      if (/no such table/i.test(err instanceof Error ? err.message : '')) return { why: 'the deployment is not initialised' }
+      if (/no such table/i.test(err instanceof Error ? err.message : ''))
+        return { why: 'the deployment is not initialised' }
       throw err
     }
     if (!link) return { why: 'the deployment is not initialised' }
@@ -376,21 +571,29 @@ export function composeD1Worker(
         clock,
         newId,
         randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
-        config: { clientId: c.clientId, clientSecret: c.clientSecret, credentialsKey: c.credentialsKey, keyVersion: c.keyVersion, backfillDays: c.backfillDays, attachmentMaxBytes: c.attachmentMaxBytes },
+        config: {
+          clientId: c.clientId,
+          clientSecret: c.clientSecret,
+          credentialsKey: c.credentialsKey,
+          keyVersion: c.keyVersion,
+          backfillDays: c.backfillDays,
+          attachmentMaxBytes: c.attachmentMaxBytes,
+        },
         ...(googleFetch ? { fetch: googleFetch } : {}),
       },
       gate: async () => {
-        if ((await migrations()).status === 'behind') throw new Error('migrations_pending: the database is behind this build, apply the migrations first')
+        if ((await migrations()).status === 'behind')
+          throw new Error('migrations_pending: the database is behind this build, apply the migrations first')
       },
       // [[CORE244]] D7: on the built-in provider the role re-check is the live membership; on Clerk, the cached profile.
       roleOf: builtIn
         ? membershipRoleReader(found.binding, 'better-auth')
         : profiles
-        ? async (subject) => {
-            const profile = await profiles.profileOf(subject, clock().getTime())
-            return profile ? workspaceRole(profile.role) : null
-          }
-        : null,
+          ? async (subject) => {
+              const profile = await profiles.profileOf(subject, clock().getTime())
+              return profile ? workspaceRole(profile.role) : null
+            }
+          : null,
       policy: SCOPE_POLICY,
       declaredScopes: discovery.declaredScopes,
       instances: env.MAIL_SYNC,
@@ -407,10 +610,16 @@ export function composeD1Worker(
     // [[API7]] D24: ONE budget of D1 queries plus outbound fetches for the whole invocation. A counting D1 and a counting fetch are what every phase is handed (the marker read below included), so the
     // rail's own traffic is counted without being planned against; dispatch and the sender ask `remaining()` before each unit.
     const tickBudget = parseTickBudget(vars.CRON_TICK_BUDGET)
-    if (tickBudget.problem) console.warn(`[cron] ${controller.cron}: ${tickBudget.problem} must be an integer from 50 to 1000: running at ${DEFAULT_TICK_BUDGET}`)
+    if (tickBudget.problem)
+      console.warn(
+        `[cron] ${controller.cron}: ${tickBudget.problem} must be an integer from 50 to 1000: running at ${DEFAULT_TICK_BUDGET}`,
+      )
     const budget = new TickBudget(tickBudget.limit)
     const db = countD1(env.DB, budget)
-    const outbound = countFetch((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => (deps.fetch ?? fetch)(input, init), budget) as typeof fetch
+    const outbound = countFetch(
+      (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => (deps.fetch ?? fetch)(input, init),
+      budget,
+    ) as typeof fetch
     const tickStart = clock()
     const found = await syncBinding(db)
     if ('why' in found) {
@@ -420,24 +629,65 @@ export function composeD1Worker(
     railRegistry ??= createVibaseRegistry(deps.operations ? { operations: deps.operations } : {})
     let failure: unknown
     try {
-      const out = await railTick({ binding: found.binding, registry: railRegistry, transports:transportsFor(found.binding, { fetch: outbound, bodies: countCalls(env.BODIES ?? ({} as R2BucketLike), ['get', 'put', 'delete', 'createMultipartUpload'], budget), instances: env.MAIL_SYNC ? countCalls(env.MAIL_SYNC, ['create'], budget) : undefined }), clock, newId,...(deps.transports?{}:{dueLimit:2}) })
-      console.log(`[cron] ${controller.cron}: rail expired ${out.expired} request(s), attempted ${out.attempted} execution(s)`)
+      const out = await railTick({
+        binding: found.binding,
+        registry: railRegistry,
+        transports: transportsFor(found.binding, {
+          fetch: outbound,
+          bodies: countCalls(
+            env.BODIES ?? ({} as R2BucketLike),
+            ['get', 'put', 'delete', 'createMultipartUpload'],
+            budget,
+          ),
+          instances: env.MAIL_SYNC ? countCalls(env.MAIL_SYNC, ['create'], budget) : undefined,
+        }),
+        clock,
+        newId,
+        ...(deps.transports ? {} : { dueLimit: 2 }),
+      })
+      console.log(
+        `[cron] ${controller.cron}: rail expired ${out.expired} request(s), attempted ${out.attempted} execution(s)`,
+      )
     } catch (err) {
       console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
       failure = err
     }
     try {
       // At most half of what the rail left (D24); the sender takes the rest.
-      const out = await dispatchWebhooks({ binding: found.binding, registry: railRegistry, clock, newId, budget: budget.slice(Math.floor(budget.remaining() / 2)) })
-      const trouble = [out.unknownCursor > 0 ? `${out.unknownCursor} with an unknown cursor` : '', out.failed > 0 ? `${out.failed} not dispatched` : '', out.deferred > 0 ? `${out.deferred} deferred` : ''].filter(Boolean)
-      console.log(`[cron] ${controller.cron}: webhooks dispatched ${out.events} event(s) for ${out.subscriptions} subscription(s)${trouble.length > 0 ? ` (${trouble.join(', ')})` : ''}`)
+      const out = await dispatchWebhooks({
+        binding: found.binding,
+        registry: railRegistry,
+        clock,
+        newId,
+        budget: budget.slice(Math.floor(budget.remaining() / 2)),
+      })
+      const trouble = [
+        out.unknownCursor > 0 ? `${out.unknownCursor} with an unknown cursor` : '',
+        out.failed > 0 ? `${out.failed} not dispatched` : '',
+        out.deferred > 0 ? `${out.deferred} deferred` : '',
+      ].filter(Boolean)
+      console.log(
+        `[cron] ${controller.cron}: webhooks dispatched ${out.events} event(s) for ${out.subscriptions} subscription(s)${trouble.length > 0 ? ` (${trouble.join(', ')})` : ''}`,
+      )
     } catch (err) {
       console.error(`[cron] ${controller.cron}: webhook dispatch failed: ${err instanceof Error ? err.name : 'error'}`)
       failure ??= err
     }
     try {
-      const out = await sendWebhooks({ binding: found.binding, registry: railRegistry, clock, newId, fetch: outbound, key: webhooks.runtime.key?.bytes ?? null, budget, startedAt: tickStart })
-      if (!out.noKey) console.log(`[cron] ${controller.cron}: webhooks sent ${out.sent}, failed ${out.failed}, dead ${out.dead}, cancelled ${out.cancelled}, deferred ${out.deferred}`)
+      const out = await sendWebhooks({
+        binding: found.binding,
+        registry: railRegistry,
+        clock,
+        newId,
+        fetch: outbound,
+        key: webhooks.runtime.key?.bytes ?? null,
+        budget,
+        startedAt: tickStart,
+      })
+      if (!out.noKey)
+        console.log(
+          `[cron] ${controller.cron}: webhooks sent ${out.sent}, failed ${out.failed}, dead ${out.dead}, cancelled ${out.cancelled}, deferred ${out.deferred}`,
+        )
     } catch (err) {
       console.error(`[cron] ${controller.cron}: webhook send failed: ${err instanceof Error ? err.name : 'error'}`)
       failure ??= err
@@ -447,7 +697,10 @@ export function composeD1Worker(
     if (control) {
       try {
         const out = await runAuthSweep(control, db, clock)
-        if (out.revoked > 0 || out.deleted > 0) console.log(`[cron] ${controller.cron}: auth sweep revoked ${out.revoked} subject(s), deleted ${out.deleted} account(s)`)
+        if (out.revoked > 0 || out.deleted > 0)
+          console.log(
+            `[cron] ${controller.cron}: auth sweep revoked ${out.revoked} subject(s), deleted ${out.deleted} account(s)`,
+          )
       } catch (err) {
         console.error(`[cron] ${controller.cron}: auth sweep failed: ${err instanceof Error ? err.name : 'error'}`)
         failure ??= err
@@ -473,8 +726,16 @@ export function composeD1Worker(
         console.log(`[cron] ${controller.cron}: skipped, ${found.why}`)
         return
       }
-      const out = await requestDueSyncs({ binding: found.binding, organizationId: found.organizationId, clock, newId, instances: env.MAIL_SYNC })
-      console.log(`[cron] ${controller.cron}: requested ${out.requested.length} sync run(s), ${out.failed} could not be started`)
+      const out = await requestDueSyncs({
+        binding: found.binding,
+        organizationId: found.organizationId,
+        clock,
+        newId,
+        instances: env.MAIL_SYNC,
+      })
+      console.log(
+        `[cron] ${controller.cron}: requested ${out.requested.length} sync run(s), ${out.failed} could not be started`,
+      )
       // [[CHN5]] D89: watch renewal, after the sync requests, so nothing it does can hold them back. Its failures are per connection and logged by class; this
       // catch is for the read of the candidates. Off unless push is on; the Google calls are recorded under this tick's own run name (D92).
       if (pushOn && gmail.config && pushParsed.config) {
@@ -488,11 +749,18 @@ export function composeD1Worker(
             clock,
             newId,
             randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
-            config: { clientId: c.clientId, clientSecret: c.clientSecret, credentialsKey: c.credentialsKey, keyVersion: c.keyVersion },
+            config: {
+              clientId: c.clientId,
+              clientSecret: c.clientSecret,
+              credentialsKey: c.credentialsKey,
+              keyVersion: c.keyVersion,
+            },
             topicName: pushParsed.config.topicName,
             ...(cronFetch ? { fetch: cronFetch } : {}),
           })
-          console.log(`[cron] ${controller.cron}: watch renewal attempted ${renewed.attempted}, registered ${renewed.registered}`)
+          console.log(
+            `[cron] ${controller.cron}: watch renewal attempted ${renewed.attempted}, registered ${renewed.registered}`,
+          )
         } catch (err) {
           console.error(`[cron] ${controller.cron}: watch renewal failed: ${err instanceof Error ? err.name : 'error'}`)
         }
@@ -515,7 +783,13 @@ export function composeD1Worker(
           initialised,
           version: vars.VERSION || 'dev',
           commit: vars.COMMIT || 'dev',
-          migrations: { status: m.status, applied: m.applied.length, expected: EXPECTED.length, latest_applied: latestApplied, latest_expected: EXPECTED.at(-1) ?? null },
+          migrations: {
+            status: m.status,
+            applied: m.applied.length,
+            expected: EXPECTED.length,
+            latest_applied: latestApplied,
+            latest_expected: EXPECTED.at(-1) ?? null,
+          },
         },
         200,
       )
@@ -528,7 +802,10 @@ export function composeD1Worker(
     scheduled,
     // One recorder per run() call, named by the Workflow instance ([[CHN5]] D78); its caps are seeded from R2's index, so a replayed run() does not exceed them.
     runMailSync: (event, step) => {
-      const googleFetch = recording.fetchFor({ id: event.instanceId ?? `connection-${event.payload.connection_id}`, start: event.timestamp ?? clock() })
+      const googleFetch = recording.fetchFor({
+        id: event.instanceId ?? `connection-${event.payload.connection_id}`,
+        start: event.timestamp ?? clock(),
+      })
       return runMailSync(event, step, () => mailSyncRuntime(googleFetch))
     },
     async fetch(req, ctx) {
@@ -539,8 +816,15 @@ export function composeD1Worker(
         // and the configuration gate, then the control gate ([[CORE259]] D6, D7: the auth tables live in the control-plane database, which must be migrated and paired with this
         // CRM database). It still touches no vault table (CORE243 D5).
         // [[UI246]] D1, D2: the auth pages and their bundle exist only for the built-in provider (no route at all otherwise), and are static: they answer before every gate.
-        if (isUiPath(url.pathname)) return builtIn ? ((await serveUi(req, { assets: env.ASSETS })) ?? json(NO_SUCH_ROUTE, 404)) : json(NO_SUCH_ROUTE, 404)
-        if (url.pathname === '/auth' || url.pathname.startsWith('/auth/') || (builtIn && url.pathname === AUTH_SERVER_METADATA_PATH)) {
+        if (isUiPath(url.pathname))
+          return builtIn
+            ? ((await serveUi(req, { assets: env.ASSETS })) ?? json(NO_SUCH_ROUTE, 404))
+            : json(NO_SUCH_ROUTE, 404)
+        if (
+          url.pathname === '/auth' ||
+          url.pathname.startsWith('/auth/') ||
+          (builtIn && url.pathname === AUTH_SERVER_METADATA_PATH)
+        ) {
           if (!builtIn) return json(NO_SUCH_ROUTE, 404)
           if (configError || !builtInConfig) return json(INTERNAL, 500)
           if ((await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
@@ -550,9 +834,13 @@ export function composeD1Worker(
           return await builtInAuth().handler(req)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
-        const page = await serveConnect(req, { assets: env.ASSETS, issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined })
+        const page = await serveConnect(req, {
+          assets: env.ASSETS,
+          issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined,
+        })
         if (page) return page
-        const spec = req.method === 'GET' && (url.pathname === openApiPath('api') || url.pathname === openApiPath('meta'))
+        const spec =
+          req.method === 'GET' && (url.pathname === openApiPath('api') || url.pathname === openApiPath('meta'))
         // Exempt from the migration and marker gates, not from a bad configuration (CORE84).
         const doc = discoveryResponse(req, discovery)
         if (doc) return configError ? json(INTERNAL, 500) : doc
@@ -565,8 +853,14 @@ export function composeD1Worker(
         const ready = await ensure()
         // D78: the connect callback records under its own request id, so it gets an app whose Gmail `fetch` is a recorder of this one request (only while recording is on).
         // D92: so does a connection's delete (its `users.stop` is a Google call), under its own request id.
-        const ownRun = url.pathname === CALLBACK_PATH || (req.method === 'DELETE' && /\/connections\/[^/]+$/.test(url.pathname))
-        if (ready && recording.on && appBinding && ownRun) return await buildApp(appBinding, recording.fetchFor({ id: newId(), start: clock() })).fetch(req, undefined, ctx as never)
+        const ownRun =
+          url.pathname === CALLBACK_PATH || (req.method === 'DELETE' && /\/connections\/[^/]+$/.test(url.pathname))
+        if (ready && recording.on && appBinding && ownRun)
+          return await buildApp(appBinding, recording.fetchFor({ id: newId(), start: clock() })).fetch(
+            req,
+            undefined,
+            ctx as never,
+          )
         if (ready) return await ready.fetch(req, undefined, ctx as never)
         if (spec) {
           cold ??= createApp({ storage: () => NO_UNITS })

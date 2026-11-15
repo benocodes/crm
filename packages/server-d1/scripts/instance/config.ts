@@ -14,9 +14,16 @@ export interface InstalledPaths {
   controlMigrations: string
 }
 
-export function generateConfig(base: Record<string, any>, settings: InstanceSettings, paths: InstalledPaths): Record<string, any> {
+export function generateConfig(
+  base: Record<string, any>,
+  settings: InstanceSettings,
+  paths: InstalledPaths,
+): Record<string, any> {
   const { env: _env, ...top } = base
-  const workflow = (top.workflows?.[0] ?? { binding: 'MAIL_SYNC', class_name: 'MailSyncWorkflow' }) as { binding: string; class_name: string }
+  const workflow = (top.workflows?.[0] ?? { binding: 'MAIL_SYNC', class_name: 'MailSyncWorkflow' }) as {
+    binding: string
+    class_name: string
+  }
   return {
     ...top,
     name: settings.worker,
@@ -28,8 +35,24 @@ export function generateConfig(base: Record<string, any>, settings: InstanceSett
     ...(isWorkersDevHost(settings.api_host) ? {} : { routes: [{ pattern: settings.api_host, custom_domain: true }] }),
     // By binding, from the recorded values only ([[OPS275]] D16): the control entry is present exactly when the settings record one.
     d1_databases: [
-      { binding: 'DB', database_name: settings.d1.name, database_id: settings.d1.id, migrations_dir: paths.migrations, remote: true },
-      ...(settings.control_d1 ? [{ binding: 'CONTROL_DB', database_name: settings.control_d1.name, database_id: settings.control_d1.id, migrations_dir: paths.controlMigrations, remote: true }] : []),
+      {
+        binding: 'DB',
+        database_name: settings.d1.name,
+        database_id: settings.d1.id,
+        migrations_dir: paths.migrations,
+        remote: true,
+      },
+      ...(settings.control_d1
+        ? [
+            {
+              binding: 'CONTROL_DB',
+              database_name: settings.control_d1.name,
+              database_id: settings.control_d1.id,
+              migrations_dir: paths.controlMigrations,
+              remote: true,
+            },
+          ]
+        : []),
     ],
     r2_buckets: [{ binding: 'BODIES', bucket_name: settings.r2_bucket }],
     workflows: [{ binding: workflow.binding, name: settings.workflow.name, class_name: workflow.class_name }],
@@ -48,7 +71,12 @@ interface ConfigOptions {
 
 function writeConfig(o: ConfigOptions): { dir: string; path: string } {
   const base = parse(readFileSync(join(o.packageDir, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>
-  const config = generateConfig(base, o.settings, { worker: join(o.packageDir, 'worker', 'worker.js'), assets: join(o.packageDir, 'assets'), migrations: join(o.packageDir, 'migrations'), controlMigrations: join(o.packageDir, 'control-migrations') })
+  const config = generateConfig(base, o.settings, {
+    worker: join(o.packageDir, 'worker', 'worker.js'),
+    assets: join(o.packageDir, 'assets'),
+    migrations: join(o.packageDir, 'migrations'),
+    controlMigrations: join(o.packageDir, 'control-migrations'),
+  })
   if (o.resourcesOnly) {
     if (config.name === 'vb') throw new RemoteRefusal(`unknown env ${o.settings.env}`)
   } else resolveTarget(config, o.settings.env)
@@ -69,7 +97,10 @@ export function withGeneratedConfig<T>(o: ConfigOptions, fn: (configPath: string
 }
 
 /** The same for a callback that lives across awaits (`setup`'s bootstrap holds the config while the remote D1 proxy is open). */
-export async function withGeneratedConfigAsync<T>(o: ConfigOptions, fn: (configPath: string) => Promise<T>): Promise<T> {
+export async function withGeneratedConfigAsync<T>(
+  o: ConfigOptions,
+  fn: (configPath: string) => Promise<T>,
+): Promise<T> {
   const { dir, path } = writeConfig(o)
   try {
     return await fn(path)

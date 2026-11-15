@@ -5,15 +5,21 @@
 //   file prefix     orgs/<org>/files/<object id>                                    (stored as files.storage_key)
 //   bytes           <storage_key>/blob
 
-const hex = (bytes: ArrayBuffer): string => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
+const hex = (bytes: ArrayBuffer): string =>
+  [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
 
-export async function messageContentPrefix(organizationId: string, channel: 'email', externalId: string): Promise<string> {
+export async function messageContentPrefix(
+  organizationId: string,
+  channel: 'email',
+  externalId: string,
+): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(externalId))
   return `orgs/${organizationId.toLowerCase()}/messages/${channel}/${hex(digest)}`
 }
 
 function checkPrefix(prefix: string): void {
-  if (prefix === '' || prefix.endsWith('/')) throw new Error('an object key prefix must be non-empty and have no trailing slash')
+  if (prefix === '' || prefix.endsWith('/'))
+    throw new Error('an object key prefix must be non-empty and have no trailing slash')
 }
 function checkVersion(version: number): void {
   if (!Number.isInteger(version) || version < 1) throw new Error('a message version is an integer of at least 1')

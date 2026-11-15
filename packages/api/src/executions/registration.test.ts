@@ -19,7 +19,15 @@ const spec = {
 describe('enqueuedOperation', () => {
   it('declares a direct call that needs an idempotency_key and answers 202 with the execution', () => {
     const op = enqueuedOperation(spec)
-    expect(op).toMatchObject({ kind: 'tenant', method: 'post', surface: 'api', d1Only: true, replanOnDrift: true, response: { status: 202 }, scope: { resource: 'tasks', action: 'write' } })
+    expect(op).toMatchObject({
+      kind: 'tenant',
+      method: 'post',
+      surface: 'api',
+      d1Only: true,
+      replanOnDrift: true,
+      response: { status: 202 },
+      scope: { resource: 'tasks', action: 'write' },
+    })
     expect(op.proposal).toMatchObject({ eligible: true })
     expect(op.execution).toMatchObject({ transport: 'test', readScope: { resource: 'tasks', action: 'read' } })
     const body = op.request!.body as z.ZodObject
@@ -37,7 +45,9 @@ describe('enqueuedOperation', () => {
   })
 
   it('refuses an own input that already has an idempotency_key field', () => {
-    expect(() => enqueuedOperation({ ...spec, input: z.strictObject({ text: z.string(), idempotency_key: z.string() }) })).toThrow(/idempotency_key/)
+    expect(() =>
+      enqueuedOperation({ ...spec, input: z.strictObject({ text: z.string(), idempotency_key: z.string() }) }),
+    ).toThrow(/idempotency_key/)
   })
 })
 
@@ -45,7 +55,7 @@ describe('Registry.register of an enqueued operation', () => {
   const ok = () => enqueuedOperation(spec)
   const registerWith = (change: (op: TenantOperation) => TenantOperation) => new Registry().register(change(ok()))
 
-  it('accepts the builder\'s operation, which may be d1Only and carry an after stage', () => {
+  it("accepts the builder's operation, which may be d1Only and carry an after stage", () => {
     expect(() => new Registry().register(ok())).not.toThrow()
   })
   it('refuses a method other than post', () => {
@@ -58,13 +68,22 @@ describe('Registry.register of an enqueued operation', () => {
     expect(() => registerWith((op) => ({ ...op, scope: { resource: 'tasks', action: 'read' } }))).toThrow(/write/)
   })
   it('refuses path or query parameters (the arguments are one flat object)', () => {
-    expect(() => registerWith((op) => ({ ...op, request: { ...op.request, params: z.object({ id: z.string() }) } }))).toThrow(/param/)
+    expect(() =>
+      registerWith((op) => ({ ...op, request: { ...op.request, params: z.object({ id: z.string() }) } })),
+    ).toThrow(/param/)
   })
   it('refuses a body that does not require idempotency_key', () => {
-    expect(() => registerWith((op) => ({ ...op, request: { body: z.object({ text: z.string() }) } }))).toThrow(/idempotency_key/)
+    expect(() => registerWith((op) => ({ ...op, request: { body: z.object({ text: z.string() }) } }))).toThrow(
+      /idempotency_key/,
+    )
   })
   it('refuses a read scope that is not a read scope', () => {
-    expect(() => registerWith((op) => ({ ...op, execution: { ...op.execution!, readScope: { resource: 'tasks', action: 'write' } } }))).toThrow(/read/)
+    expect(() =>
+      registerWith((op) => ({
+        ...op,
+        execution: { ...op.execution!, readScope: { resource: 'tasks', action: 'write' } },
+      })),
+    ).toThrow(/read/)
   })
   it('an operation without `execution` stays inline: a proposable one still may not be d1Only or have an after stage', () => {
     const inline = (extra: Partial<TenantOperation>) => () =>
@@ -79,8 +98,16 @@ describe('Registry.register of an enqueued operation', () => {
 
 describe('the production registry', () => {
   it('registers Gmail send as the sole production enqueued operation', () => {
-    expect(createVibaseRegistry().operations().filter((o) => o.kind === 'tenant' && o.execution).map(o => o.name)).toEqual(['messages.send'])
-    expect(createVibaseRegistry().get('messages.send')).toMatchObject({execution:{transport:'gmail'},response:{status:202}})
+    expect(
+      createVibaseRegistry()
+        .operations()
+        .filter((o) => o.kind === 'tenant' && o.execution)
+        .map((o) => o.name),
+    ).toEqual(['messages.send'])
+    expect(createVibaseRegistry().get('messages.send')).toMatchObject({
+      execution: { transport: 'gmail' },
+      response: { status: 202 },
+    })
   })
   it('has the two execution reads, which declare no scope of their own and add none to the catalog', () => {
     const r = createVibaseRegistry()
@@ -93,7 +120,9 @@ describe('the production registry', () => {
   it('the test operations only exist where a test registers them', () => {
     const names = (r: Registry) => r.operations().map((o) => o.name)
     expect(names(createVibaseRegistry())).not.toContain(TEST_OPS.reconcile)
-    expect(names(createVibaseRegistry({ operations: registerTestOperations }))).toEqual(expect.arrayContaining(Object.values(TEST_OPS)))
+    expect(names(createVibaseRegistry({ operations: registerTestOperations }))).toEqual(
+      expect.arrayContaining(Object.values(TEST_OPS)),
+    )
   })
   it('an enqueued operation is listed by action_requests.create like any proposable one, ahead of the queue itself', () => {
     const r = createVibaseRegistry({ operations: registerTestOperations })

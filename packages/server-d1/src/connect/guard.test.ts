@@ -8,13 +8,37 @@ import { describe, expect, it } from 'vitest'
 const DIR = fileURLToPath(new URL('.', import.meta.url))
 const sources = readdirSync(DIR)
   .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-  .map((f) => ({ f, text: readFileSync(DIR + f, 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '') }))
+  .map((f) => ({
+    f,
+    text: readFileSync(DIR + f, 'utf8')
+      .replace(/\/\/.*$/gm, '')
+      .replace(/\/\*[\s\S]*?\*\//g, ''),
+  }))
 
 describe('page source guard', () => {
   it('finds the page modules', () => {
-    expect(sources.map((s) => s.f)).toEqual(expect.arrayContaining(['view-model.ts', 'controller.ts', 'dom.ts', 'api.ts', 'main.ts', 'better-auth-session.ts', 'seam.ts']))
+    expect(sources.map((s) => s.f)).toEqual(
+      expect.arrayContaining([
+        'view-model.ts',
+        'controller.ts',
+        'dom.ts',
+        'api.ts',
+        'main.ts',
+        'better-auth-session.ts',
+        'seam.ts',
+      ]),
+    )
   })
-  it.each(['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'createContextualFragment', 'DOMParser', 'eval(', 'new Function'])('no page module uses %s', (sink) => {
+  it.each([
+    'innerHTML',
+    'outerHTML',
+    'insertAdjacentHTML',
+    'document.write',
+    'createContextualFragment',
+    'DOMParser',
+    'eval(',
+    'new Function',
+  ])('no page module uses %s', (sink) => {
     for (const s of sources) expect(s.text, `${s.f} uses ${sink}`).not.toContain(sink)
   })
   it.each(['localStorage', 'sessionStorage', 'document.cookie', 'indexedDB'])('no page module touches %s', (store) => {

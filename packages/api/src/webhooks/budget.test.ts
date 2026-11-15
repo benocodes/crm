@@ -9,7 +9,8 @@ describe('parseTickBudget (D24)', () => {
   })
 
   it('an integer from 50 to 1000 is taken', () => {
-    for (const raw of ['50', '51', '500', '1000', ' 200 ']) expect(parseTickBudget(raw)).toEqual({ limit: Number(raw.trim()), problem: null })
+    for (const raw of ['50', '51', '500', '1000', ' 200 '])
+      expect(parseTickBudget(raw)).toEqual({ limit: Number(raw.trim()), problem: null })
   })
 
   it('anything else runs at the default and names the variable, never the value', () => {

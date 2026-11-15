@@ -8,15 +8,29 @@ import type { Discovery } from './types.js'
 // [[UI297]] D7: which seam the page builds from the discovery document, and what the page does with it. No Clerk script on `better-auth`.
 
 const PK = ['pk', 'test', btoa('x.clerk.accounts.dev$')].join('_')
-const clerk = (publishable_key: string | null): Discovery => ({ auth: { provider: 'clerk', issuer: 'https://x.clerk.accounts.dev', cli_client_id: null, publishable_key } })
+const clerk = (publishable_key: string | null): Discovery => ({
+  auth: { provider: 'clerk', issuer: 'https://x.clerk.accounts.dev', cli_client_id: null, publishable_key },
+})
 const CASES: [string, Discovery | null, 'clerk' | 'better-auth' | null][] = [
   ['clerk with a key', clerk(PK), 'clerk'],
   ['clerk without a key', clerk(null), null],
-  ['better-auth', { auth: { provider: 'better-auth', issuer: 'https://w.test/auth', cli_client_id: 'cli', publishable_key: null } }, 'better-auth'],
-  ['better-auth with a stray key', { auth: { provider: 'better-auth', issuer: 'https://w.test/auth', cli_client_id: null, publishable_key: PK } }, 'better-auth'],
+  [
+    'better-auth',
+    { auth: { provider: 'better-auth', issuer: 'https://w.test/auth', cli_client_id: 'cli', publishable_key: null } },
+    'better-auth',
+  ],
+  [
+    'better-auth with a stray key',
+    { auth: { provider: 'better-auth', issuer: 'https://w.test/auth', cli_client_id: null, publishable_key: PK } },
+    'better-auth',
+  ],
   ['no auth', { auth: null }, null],
   ['no provider', { auth: { provider: '', issuer: '', cli_client_id: null, publishable_key: null } }, null],
-  ['an unknown provider', { auth: { provider: 'okta', issuer: 'https://o.test', cli_client_id: null, publishable_key: PK } }, null],
+  [
+    'an unknown provider',
+    { auth: { provider: 'okta', issuer: 'https://o.test', cli_client_id: null, publishable_key: PK } },
+    null,
+  ],
   ['discovery could not be read', null, null],
 ]
 
@@ -37,7 +51,11 @@ describe('selectSeam', () => {
     }
     expect(seam).not.toBeNull()
     // The page over this seam: a signed-out start. On better-auth the only traffic is the same-origin session read.
-    const page = createPage({ clerk: seam, api: createApi({ origin: 'https://w.test', getToken: async () => null, fetch: async () => new Response('{}') }), origin: 'https://w.test' })
+    const page = createPage({
+      clerk: seam,
+      api: createApi({ origin: 'https://w.test', getToken: async () => null, fetch: async () => new Response('{}') }),
+      origin: 'https://w.test',
+    })
     if (expected === 'better-auth') {
       await page.start()
       expect(page.state().kind).toBe('signed-out')

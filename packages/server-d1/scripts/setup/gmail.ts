@@ -21,7 +21,12 @@ export const GMAIL_VAR_NAMES = [
   'ATTACHMENT_MAX_BYTES',
 ] as const
 /** [[CHN5]] D58's four names: none → the group is skipped, some → refused, all → on. */
-export const GMAIL_CORE_NAMES = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'] as const
+export const GMAIL_CORE_NAMES = [
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'OAUTH_STATE_SECRET',
+  'CREDENTIALS_KEY',
+] as const
 /** Never replaced, even with `--rotate-secrets`: stored credentials are encrypted under it. */
 export const NEVER_REPLACED = 'CREDENTIALS_KEY'
 
@@ -43,18 +48,25 @@ const httpsUrl = (v: string) => {
 }
 /** `CREDENTIALS_KEY`, `CREDENTIALS_KEY_VERSION`, `GMAIL_BACKFILL_DAYS` and `ATTACHMENT_MAX_BYTES` are judged by the Worker's own parser (`parseGmailConfig`), so setup can never accept what the Worker rejects. */
 const WORKER_RULES: Record<string, string> = {
-  CREDENTIALS_KEY: 'must be standard-alphabet, padded base64 that decodes to exactly 32 bytes (what the Worker accepts)',
+  CREDENTIALS_KEY:
+    'must be standard-alphabet, padded base64 that decodes to exactly 32 bytes (what the Worker accepts)',
   CREDENTIALS_KEY_VERSION: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
   GMAIL_BACKFILL_DAYS: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
   ATTACHMENT_MAX_BYTES: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
 }
 const RULES: Record<string, [(v: string) => boolean, string]> = {
   // https for a remote deployment (the Worker also accepts http://localhost, which means nothing on Cloudflare), and the origin only: the push audience is `<base>/gmail/push`.
-  PUBLIC_BASE_URL: [(v) => httpsUrl(v) && isValidPushVar('PUBLIC_BASE_URL', v), 'must be an absolute https URL with no path (the endpoint is <it>/gmail/push)'],
+  PUBLIC_BASE_URL: [
+    (v) => httpsUrl(v) && isValidPushVar('PUBLIC_BASE_URL', v),
+    'must be an absolute https URL with no path (the endpoint is <it>/gmail/push)',
+  ],
   CONNECT_RETURN_URL: [httpsUrl, 'must be an absolute https URL'],
   // The four push values are judged by the Worker's own rule (`isValidPushVar`, [[CHN5]] D87), so setup can never accept what the Worker rejects.
   GMAIL_TOPIC_NAME: [(v) => isValidPushVar('GMAIL_TOPIC_NAME', v), 'must look like projects/<project>/topics/<topic>'],
-  GMAIL_PUSH_SUBSCRIPTION: [(v) => isValidPushVar('GMAIL_PUSH_SUBSCRIPTION', v), 'must look like projects/<project>/subscriptions/<subscription>'],
+  GMAIL_PUSH_SUBSCRIPTION: [
+    (v) => isValidPushVar('GMAIL_PUSH_SUBSCRIPTION', v),
+    'must look like projects/<project>/subscriptions/<subscription>',
+  ],
   GMAIL_PUSH_SERVICE_ACCOUNT: [(v) => isValidPushVar('GMAIL_PUSH_SERVICE_ACCOUNT', v), 'must be an email address'],
 }
 
@@ -64,8 +76,12 @@ const RULES: Record<string, [(v: string) => boolean, string]> = {
  */
 export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null {
   const f = probe.display
-  if (probe.status === 'root-env') throw new RemoteRefusal(`env file ${f} is the root .env, which holds another instance's values: use the instance's own file (.env.${opts.env} by default)`)
-  if (probe.status === 'not-ignored') throw new RemoteRefusal(`env file ${f} is not ignored by git: add it to .gitignore before it holds a secret`)
+  if (probe.status === 'root-env')
+    throw new RemoteRefusal(
+      `env file ${f} is the root .env, which holds another instance's values: use the instance's own file (.env.${opts.env} by default)`,
+    )
+  if (probe.status === 'not-ignored')
+    throw new RemoteRefusal(`env file ${f} is not ignored by git: add it to .gitignore before it holds a secret`)
   if (probe.status === 'missing') return null
   const parsed = parseEnv(probe.text ?? '')
   const value = (name: string): string | undefined => parsed[name]?.trim() || undefined
@@ -73,7 +89,9 @@ export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null
   if (present.length === 0) return null
   if (present.length < GMAIL_CORE_NAMES.length) {
     const missing = GMAIL_CORE_NAMES.filter((n) => !present.includes(n))
-    throw new RemoteRefusal(`${f} has part of the Gmail group but is missing ${missing.join(', ')}: the four core values go together, all or none ([[CHN5]] D58)`)
+    throw new RemoteRefusal(
+      `${f} has part of the Gmail group but is missing ${missing.join(', ')}: the four core values go together, all or none ([[CHN5]] D58)`,
+    )
   }
   const secrets: Record<string, string> = {}
   const vars: Record<string, string> = {}
@@ -88,8 +106,14 @@ export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null
   const bad = problems.filter((n) => n in WORKER_RULES)
   if (bad.length > 0) throw new RemoteRefusal(bad.map((n) => `${n} in ${f} ${WORKER_RULES[n]}`).join('; '))
   // [[OPS249]] D2: on `better-auth` one base URL is the issuer, the Gmail push endpoint and the redirect origin, so the file may not name another.
-  if (opts.auth === 'better-auth' && vars.PUBLIC_BASE_URL !== undefined && new URL(vars.PUBLIC_BASE_URL).origin !== `https://${opts.apiHost}`) {
-    throw new RemoteRefusal(`PUBLIC_BASE_URL in ${f} differs from https://${opts.apiHost}, the base URL of this run: on --auth better-auth they are one value (remove it from the file)`)
+  if (
+    opts.auth === 'better-auth' &&
+    vars.PUBLIC_BASE_URL !== undefined &&
+    new URL(vars.PUBLIC_BASE_URL).origin !== `https://${opts.apiHost}`
+  ) {
+    throw new RemoteRefusal(
+      `PUBLIC_BASE_URL in ${f} differs from https://${opts.apiHost}, the base URL of this run: on --auth better-auth they are one value (remove it from the file)`,
+    )
   }
   vars.PUBLIC_BASE_URL ??= `https://${opts.apiHost}`
   return { secrets, vars, file: f }
@@ -98,6 +122,7 @@ export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null
 /** A config diff line with the value of any Gmail var hidden: output names variables, never values. */
 export function hideGmailValues(line: string): string {
   let out = line
-  for (const name of GMAIL_VAR_NAMES) out = out.replace(new RegExp(`("${name}"\\s*:\\s*)("(?:[^"\\\\]|\\\\.)*"|[^,}\\s]+)`, 'g'), '$1<value hidden>')
+  for (const name of GMAIL_VAR_NAMES)
+    out = out.replace(new RegExp(`("${name}"\\s*:\\s*)("(?:[^"\\\\]|\\\\.)*"|[^,}\\s]+)`, 'g'), '$1<value hidden>')
   return out
 }

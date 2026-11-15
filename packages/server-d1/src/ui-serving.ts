@@ -42,7 +42,8 @@ const isPagePath = (pathname: string): boolean => (UI_PAGE_PATHS as readonly str
 /** True for a page path and for anything under `/ui/` (`/uix` and `/ui` itself are not ours). */
 export const isUiPath = (pathname: string): boolean => isPagePath(pathname) || pathname.startsWith(`${UI_PREFIX}/`)
 
-const notFound = () => withHeaders(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } }))
+const notFound = () =>
+  withHeaders(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } }))
 
 /**
  * Answers a request for a page path or under `/ui/`, or `undefined` for any other path. `GET`/`HEAD` of a page path is the one `index.html`; `/ui/<file>` is the built asset (or the binding's
@@ -51,9 +52,16 @@ const notFound = () => withHeaders(new Response('not found', { status: 404, head
 export async function serveUi(req: Request, opts: { assets?: AssetsLike }): Promise<Response | undefined> {
   const url = new URL(req.url)
   if (!isUiPath(url.pathname)) return undefined
-  if (req.method !== 'GET' && req.method !== 'HEAD') return withHeaders(new Response('method not allowed', { status: 405, headers: { allow: 'GET, HEAD', 'content-type': 'text/plain; charset=utf-8' } }))
+  if (req.method !== 'GET' && req.method !== 'HEAD')
+    return withHeaders(
+      new Response('method not allowed', {
+        status: 405,
+        headers: { allow: 'GET, HEAD', 'content-type': 'text/plain; charset=utf-8' },
+      }),
+    )
   if (!opts.assets) return notFound()
-  if (!isPagePath(url.pathname) && (url.pathname === INDEX_PATH || url.pathname === `${UI_PREFIX}/index.html`)) return notFound()
+  if (!isPagePath(url.pathname) && (url.pathname === INDEX_PATH || url.pathname === `${UI_PREFIX}/index.html`))
+    return notFound()
   const target = new URL(isPagePath(url.pathname) ? INDEX_PATH : url.pathname, url.origin)
   return withHeaders(await opts.assets.fetch(new Request(target, { method: req.method, headers: req.headers })))
 }

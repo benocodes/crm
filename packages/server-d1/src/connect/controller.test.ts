@@ -13,12 +13,25 @@ const ID = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')
 const me = (kind: 'user' | 'agent', scopes: string[], role: 'owner' | 'member' | null = 'owner'): Me => ({
   principal: { id: ID(1), kind },
   user: kind === 'user' ? { id: ID(1), email: 'o@x.test', name: null, email_verified: true } : null,
-  agent: kind === 'agent' ? { id: ID(1), name: 'g', delegated_by: null, auth_client_id: null, auth_subject: 'user_g' } : null,
+  agent:
+    kind === 'agent'
+      ? { id: ID(1), name: 'g', delegated_by: null, auth_client_id: null, auth_subject: 'user_g' }
+      : null,
   client_id: null,
   memberships: [],
   active_organization: { id: ID(9), role, scopes },
 })
-const agent = (n: number, over: Partial<AgentRecord> = {}): AgentRecord => ({ id: ID(n), name: `a${n}`, scopes: [], disabled_at: null, created_at: 'c', auth_subject: null, auth_client_id: null, delegated_by: null, ...over })
+const agent = (n: number, over: Partial<AgentRecord> = {}): AgentRecord => ({
+  id: ID(n),
+  name: `a${n}`,
+  scopes: [],
+  disabled_at: null,
+  created_at: 'c',
+  auth_subject: null,
+  auth_client_id: null,
+  delegated_by: null,
+  ...over,
+})
 const OWNER = me('user', ['agents:read', 'agents:write'])
 
 interface Seen {
@@ -35,7 +48,12 @@ function fakeVibase(script: Record<string, (Response | (() => Response))[]>) {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
     const method = init?.method ?? 'GET'
     const headers = Object.fromEntries(new Headers(init?.headers).entries())
-    seen.push({ method, url: url.pathname + url.search, headers, body: typeof init?.body === 'string' ? init.body : null })
+    seen.push({
+      method,
+      url: url.pathname + url.search,
+      headers,
+      body: typeof init?.body === 'string' ? init.body : null,
+    })
     const key = `${method} ${url.pathname}`
     const list = script[key]
     if (!list) return new Response('{}', { status: 599 })
@@ -46,7 +64,8 @@ function fakeVibase(script: Record<string, (Response | (() => Response))[]>) {
   }) as typeof fetch
   return { fetchFn, seen, calls: (key: string) => seen.filter((s) => `${s.method} ${s.url.split('?')[0]}` === key) }
 }
-const ok = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const ok = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const err = (status: number) => ok({ error: { code: 'x', message: 'y' } }, status)
 
 const setup = (clerk: FakeClerk, vibase: ReturnType<typeof fakeVibase>, seam: ClerkLike | null = clerk) => {
@@ -116,16 +135,25 @@ describe('start', () => {
 
   it('owner: me.get, then the agents list; the state carries both', async () => {
     const clerk = new FakeClerk()
-    const { page, vibase, states } = run(clerk, { 'GET /meta/v1/me': [ok(OWNER)], 'GET /meta/v1/agents': [ok({ data: [agent(10)], next_cursor: null })] })
+    const { page, vibase, states } = run(clerk, {
+      'GET /meta/v1/me': [ok(OWNER)],
+      'GET /meta/v1/agents': [ok({ data: [agent(10)], next_cursor: null })],
+    })
     await page.start()
     const s = page.state()
     expect(s.kind === 'signed-in' && s.agents?.map((a) => a.id)).toEqual([ID(10)])
     expect(states).toEqual(['loading', 'signed-in'].slice(1))
-    expect(vibase.seen.map((x) => `${x.method} ${x.url.split('?')[0]}`)).toEqual(['GET /meta/v1/me', 'GET /meta/v1/agents'])
+    expect(vibase.seen.map((x) => `${x.method} ${x.url.split('?')[0]}`)).toEqual([
+      'GET /meta/v1/me',
+      'GET /meta/v1/agents',
+    ])
   })
 
   it('a member lists agents; an agent role (no agents:read) calls me only', async () => {
-    const m = run(new FakeClerk(), { 'GET /meta/v1/me': [ok(me('user', ['agents:read'], 'member'))], 'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })] })
+    const m = run(new FakeClerk(), {
+      'GET /meta/v1/me': [ok(me('user', ['agents:read'], 'member'))],
+      'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })],
+    })
     await m.page.start()
     expect(m.vibase.calls('GET /meta/v1/agents')).toHaveLength(1)
     const g = run(new FakeClerk(), { 'GET /meta/v1/me': [ok(me('agent', [], null))] })
@@ -147,7 +175,10 @@ describe('pagination', () => {
   it('agents.list follows next_cursor until it is null (two pages)', async () => {
     const { page, vibase } = run(new FakeClerk(), {
       'GET /meta/v1/me': [ok(OWNER)],
-      'GET /meta/v1/agents': [ok({ data: [agent(10), agent(11)], next_cursor: ID(11) }), ok({ data: [agent(12)], next_cursor: null })],
+      'GET /meta/v1/agents': [
+        ok({ data: [agent(10), agent(11)], next_cursor: ID(11) }),
+        ok({ data: [agent(12)], next_cursor: null }),
+      ],
     })
     await page.start()
     const s = page.state()
@@ -179,7 +210,10 @@ describe('the 401 path', () => {
   })
 
   it('a transient 401 that the retry clears carries on to the data', async () => {
-    const { page, vibase } = run(new FakeClerk(), { 'GET /meta/v1/me': [err(401), ok(OWNER)], 'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })] })
+    const { page, vibase } = run(new FakeClerk(), {
+      'GET /meta/v1/me': [err(401), ok(OWNER)],
+      'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })],
+    })
     await page.start()
     expect(page.state().kind).toBe('signed-in')
     expect(vibase.calls('GET /meta/v1/me')).toHaveLength(2)
@@ -198,7 +232,11 @@ describe('the 401 path', () => {
 describe('tokens', () => {
   it('every request gets its own token from Clerk, sent only as Authorization: Bearer', async () => {
     const clerk = new FakeClerk()
-    const { page, vibase } = run(clerk, { 'GET /meta/v1/me': [ok(OWNER)], 'GET /meta/v1/agents': [ok({ data: [agent(10)], next_cursor: ID(10) }), ok({ data: [], next_cursor: null })], ['PATCH /meta/v1/agents/' + ID(10)]: [ok(agent(10, { disabled_at: 'd' }))] })
+    const { page, vibase } = run(clerk, {
+      'GET /meta/v1/me': [ok(OWNER)],
+      'GET /meta/v1/agents': [ok({ data: [agent(10)], next_cursor: ID(10) }), ok({ data: [], next_cursor: null })],
+      ['PATCH /meta/v1/agents/' + ID(10)]: [ok(agent(10, { disabled_at: 'd' }))],
+    })
     await page.start()
     await page.setDisabled(ID(10), true)
     expect(clerk.tokens).toBe(4)
@@ -253,11 +291,19 @@ describe('agents.update', () => {
 
   it('a network failure is an error line, not a crash', async () => {
     const clerk = new FakeClerk()
-    const vibase = fakeVibase({ 'GET /meta/v1/me': [ok(OWNER)], 'GET /meta/v1/agents': [ok({ data: [agent(10)], next_cursor: null })] })
+    const vibase = fakeVibase({
+      'GET /meta/v1/me': [ok(OWNER)],
+      'GET /meta/v1/agents': [ok({ data: [agent(10)], next_cursor: null })],
+    })
     current = { clerk, vibase }
     let down = false
-    const flaky = ((i: RequestInfo | URL, init?: RequestInit) => (down ? Promise.reject(new TypeError('network')) : vibase.fetchFn(i, init))) as typeof fetch
-    const page = createPage({ clerk, api: createApi({ origin: ORIGIN, getToken: () => clerk.getToken(), fetch: flaky }), origin: ORIGIN })
+    const flaky = ((i: RequestInfo | URL, init?: RequestInit) =>
+      down ? Promise.reject(new TypeError('network')) : vibase.fetchFn(i, init)) as typeof fetch
+    const page = createPage({
+      clerk,
+      api: createApi({ origin: ORIGIN, getToken: () => clerk.getToken(), fetch: flaky }),
+      origin: ORIGIN,
+    })
     await page.start()
     down = true
     await page.setDisabled(ID(10), true)
@@ -273,7 +319,10 @@ describe('sign out', () => {
     clerk.signOut = async () => {
       throw new Error('refused')
     }
-    const { page } = run(clerk, { 'GET /meta/v1/me': [ok(OWNER)], 'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })] })
+    const { page } = run(clerk, {
+      'GET /meta/v1/me': [ok(OWNER)],
+      'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })],
+    })
     await page.start()
     await expect(page.signOut()).resolves.toBeUndefined()
     const s = page.state()
@@ -292,7 +341,10 @@ describe('sign out', () => {
   })
   it('calls Clerk and ends signed out', async () => {
     const clerk = new FakeClerk()
-    const { page } = run(clerk, { 'GET /meta/v1/me': [ok(OWNER)], 'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })] })
+    const { page } = run(clerk, {
+      'GET /meta/v1/me': [ok(OWNER)],
+      'GET /meta/v1/agents': [ok({ data: [], next_cursor: null })],
+    })
     await page.start()
     await page.signOut()
     expect(clerk.signOuts).toBe(1)

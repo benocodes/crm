@@ -4,7 +4,11 @@ import { createServer, type Server } from 'node:http'
 import { extname, join } from 'node:path'
 import { buildGallery, GALLERY_OUT } from '../scripts/build-gallery'
 
-const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' }
+const TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+}
 export const PORT = 4173
 
 export default async function globalSetup(): Promise<() => Promise<void>> {

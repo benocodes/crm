@@ -13,7 +13,11 @@ const stamp = Date.now()
 const email = (who: string) => `ui30-${who}-${stamp}+clerk_test@example.com`
 
 type Role = 'owner' | 'member' | 'agent'
-const users: Record<Role, { id?: string; email: string }> = { owner: { email: email('o') }, member: { email: email('m') }, agent: { email: email('g') } }
+const users: Record<Role, { id?: string; email: string }> = {
+  owner: { email: email('o') },
+  member: { email: email('m') },
+  agent: { email: email('g') },
+}
 
 async function bapi(request: APIRequestContext, method: 'POST' | 'DELETE', path: string, data?: unknown) {
   const res = await request.fetch(`${BAPI}${path}`, { method, headers: { authorization: `Bearer ${SECRET}` }, data })
@@ -23,12 +27,18 @@ async function bapi(request: APIRequestContext, method: 'POST' | 'DELETE', path:
 
 test.beforeAll(async ({ request }) => {
   for (const role of Object.keys(users) as Role[]) {
-    const u = await bapi(request, 'POST', '/users', { email_address: [users[role].email], skip_password_requirement: true, public_metadata: { vibase_role: role } })
+    const u = await bapi(request, 'POST', '/users', {
+      email_address: [users[role].email],
+      skip_password_requirement: true,
+      public_metadata: { vibase_role: role },
+    })
     users[role].id = u.id
   }
 })
 test.afterAll(async ({ request }) => {
-  for (const u of Object.values(users)) if (u.id) await request.fetch(`${BAPI}/users/${u.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${SECRET}` } })
+  for (const u of Object.values(users))
+    if (u.id)
+      await request.fetch(`${BAPI}/users/${u.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${SECRET}` } })
 })
 
 const open = async (page: Page, who: Role) => {
@@ -37,7 +47,10 @@ const open = async (page: Page, who: Role) => {
   await clerk.signIn({ page, emailAddress: users[who].email })
   await page.goto('/connect')
 }
-const sessionToken = (page: Page) => page.evaluate(() => (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken())
+const sessionToken = (page: Page) =>
+  page.evaluate(() =>
+    (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken(),
+  )
 
 test('1. discovery and the headers', async ({ request, baseURL }) => {
   const doc = await (await request.get('/.well-known/vibase')).json()
@@ -62,13 +75,20 @@ test('2. the Account Portal round trip (settles the open question)', async ({ pa
   expect(violations).toEqual([])
   await page.getByRole('button', { name: 'Sign in' }).click()
   // The portal's own params can sit in the hash (`#/?redirect_url=...`) at the first cross-origin navigation: wait until they are there.
-  await page.waitForURL((u) => u.origin !== new URL(baseURL!).origin && (u.searchParams.has('redirect_url') || u.hash.includes('redirect_url')))
+  await page.waitForURL(
+    (u) =>
+      u.origin !== new URL(baseURL!).origin && (u.searchParams.has('redirect_url') || u.hash.includes('redirect_url')),
+  )
   const u = new URL(page.url())
-  const back = u.searchParams.get('redirect_url') ?? new URLSearchParams(u.hash.replace(/^#\/?\??/, '')).get('redirect_url')
+  const back =
+    u.searchParams.get('redirect_url') ?? new URLSearchParams(u.hash.replace(/^#\/?\??/, '')).get('redirect_url')
   expect(back).toBe(`${baseURL}/connect`)
   // Deterministic, whatever sign-in methods the instance offers: a server-side sign-in token for the owner, used as the `__clerk_ticket`
   // on the portal URL (no email code or password route is relied on).
-  const res = await page.request.post(`${BAPI}/sign_in_tokens`, { headers: { authorization: `Bearer ${SECRET}` }, data: { user_id: users.owner.id } })
+  const res = await page.request.post(`${BAPI}/sign_in_tokens`, {
+    headers: { authorization: `Bearer ${SECRET}` },
+    data: { user_id: users.owner.id },
+  })
   expect(res.ok()).toBe(true)
   const { token } = (await res.json()) as { token: string }
   await page.goto(`${page.url()}${page.url().includes('?') ? '&' : '?'}__clerk_ticket=${token}`)
@@ -77,7 +97,11 @@ test('2. the Account Portal round trip (settles the open question)', async ({ pa
   await expect(page.getByText(/role: owner/)).toBeVisible()
 })
 
-test('3. owner: instructions, the MCP section, disable and enable an API-key agent', async ({ page, request, baseURL }) => {
+test('3. owner: instructions, the MCP section, disable and enable an API-key agent', async ({
+  page,
+  request,
+  baseURL,
+}) => {
   await open(page, 'owner')
   await expect(page.getByText(`vibase login --server ${baseURL}`)).toBeVisible()
   await expect(page.getByText('--api-key')).toBeVisible()
@@ -87,13 +111,22 @@ test('3. owner: instructions, the MCP section, disable and enable an API-key age
   const row = page.locator('li.agent', { hasText: 'e2e-key' })
   await row.getByRole('button', { name: 'Disable' }).click()
   await expect(row.getByText(/disabled 20/)).toBeVisible()
-  if (AGENT_KEY) expect((await request.get('/api/v1/contacts', { headers: { authorization: `Bearer ${AGENT_KEY}` } })).status()).toBe(401)
+  if (AGENT_KEY)
+    expect(
+      (await request.get('/api/v1/contacts', { headers: { authorization: `Bearer ${AGENT_KEY}` } })).status(),
+    ).toBe(401)
   await row.getByRole('button', { name: 'Enable' }).click()
   await expect(row.getByText(/disabled 20/)).toHaveCount(0)
-  if (AGENT_KEY) expect((await request.get('/api/v1/contacts', { headers: { authorization: `Bearer ${AGENT_KEY}` } })).status()).toBe(200)
+  if (AGENT_KEY)
+    expect(
+      (await request.get('/api/v1/contacts', { headers: { authorization: `Bearer ${AGENT_KEY}` } })).status(),
+    ).toBe(200)
 })
 
-test('4. agent role: no list; the owner then sees the agent account with the grant command', async ({ page, browser }) => {
+test('4. agent role: no list; the owner then sees the agent account with the grant command', async ({
+  page,
+  browser,
+}) => {
   await open(page, 'agent')
   await expect(page.getByText(/role: agent/)).toBeVisible()
   await expect(page.locator('[data-section="agents"]')).toHaveCount(0)
@@ -111,7 +144,10 @@ test('5. member: the list with no buttons, and a forged PATCH is refused', async
   await expect(page.locator('[data-section="agents"]')).toBeVisible()
   await expect(page.locator('[data-action="toggle-agent"]')).toHaveCount(0)
   const id = await page.locator('li.agent').first().getAttribute('data-agent')
-  const res = await request.patch(`/meta/v1/agents/${id}`, { headers: { authorization: `Bearer ${await sessionToken(page)}` }, data: { disabled: true } })
+  const res = await request.patch(`/meta/v1/agents/${id}`, {
+    headers: { authorization: `Bearer ${await sessionToken(page)}` },
+    data: { disabled: true },
+  })
   expect(res.status()).toBe(403)
 })
 

@@ -34,7 +34,10 @@ function loadScript(src: string, publishableKey: string): Promise<void> {
   })
 }
 
-export function windowClerk(auth: NonNullable<Discovery['auth']>, deps: { loadScript?: (src: string, publishableKey: string) => Promise<void> } = {}): ClerkLike {
+export function windowClerk(
+  auth: NonNullable<Discovery['auth']>,
+  deps: { loadScript?: (src: string, publishableKey: string) => Promise<void> } = {},
+): ClerkLike {
   let clerk: ClerkBrowser | undefined
   const need = (): ClerkBrowser => {
     if (!clerk) throw new Error('Clerk is not loaded')

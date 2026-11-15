@@ -11,7 +11,14 @@ import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 export const KEY_BYTES = Uint8Array.from({ length: 32 }, (_, i) => i + 1)
 export const KEY_B64 = Buffer.from(KEY_BYTES).toString('base64')
 export const NOW = new Date('2026-11-12T10:00:00.000Z')
-export const OWNER_SCOPES = ['webhooks:read', 'webhooks:write', 'events:read', 'schema:read', 'tasks:read', 'interactions:read']
+export const OWNER_SCOPES = [
+  'webhooks:read',
+  'webhooks:write',
+  'events:read',
+  'schema:read',
+  'tasks:read',
+  'interactions:read',
+]
 export const AGENT_SCOPES = ['webhooks:read', 'webhooks:write']
 export const URL_OK = 'https://example.com/hook'
 export const NO_SUCH = '0190b2c4-0000-7000-8000-00000000dead'
@@ -62,13 +69,25 @@ export interface WebhookKit {
   reset(): Promise<void>
 }
 
-export async function openWebhookKit(opts: { key?: Uint8Array | null; version?: number; allowInsecureUrls?: boolean; clock?: () => Date } = {}): Promise<WebhookKit> {
+export async function openWebhookKit(
+  opts: { key?: Uint8Array | null; version?: number; allowInsecureUrls?: boolean; clock?: () => Date } = {},
+): Promise<WebhookKit> {
   const e = await openD1Engine()
-  const runtime: WebhooksRuntime = { key: opts.key === null ? null : { bytes: opts.key ?? KEY_BYTES, version: opts.version ?? 3 }, allowInsecureUrls: opts.allowInsecureUrls ?? false }
+  const runtime: WebhooksRuntime = {
+    key: opts.key === null ? null : { bytes: opts.key ?? KEY_BYTES, version: opts.version ?? 3 },
+    allowInsecureUrls: opts.allowInsecureUrls ?? false,
+  }
   const registry = createVibaseRegistry({ webhooks: runtime })
   const clock = opts.clock ?? (() => NOW)
   const kit = {} as WebhookKit
-  const build = () => createApp({ registry, storage: () => e.binding, userAuthenticator: fakeUserAuthenticator(), clock, newId: () => uuidv7(clock()) })
+  const build = () =>
+    createApp({
+      registry,
+      storage: () => e.binding,
+      userAuthenticator: fakeUserAuthenticator(),
+      clock,
+      newId: () => uuidv7(clock()),
+    })
   Object.assign(kit, {
     e,
     runtime,
@@ -79,21 +98,45 @@ export async function openWebhookKit(opts: { key?: Uint8Array | null; version?: 
       kit.app = build()
     },
     async call(who: Who, method: string, path: string, body?: unknown): Promise<Res> {
-      const token = mintTestUserToken({ userId: who.id ?? (who.as === 'agent' ? e.agentId : e.userId), organizationId: e.organizationId, scopes: who.scopes ?? OWNER_SCOPES, kind: who.as })
-      const res = await kit.app.request(path, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+      const token = mintTestUserToken({
+        userId: who.id ?? (who.as === 'agent' ? e.agentId : e.userId),
+        organizationId: e.organizationId,
+        scopes: who.scopes ?? OWNER_SCOPES,
+        kind: who.as,
+      })
+      const res = await kit.app.request(path, {
+        method,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
       const text = await res.text()
       return { status: res.status, text, body: text ? JSON.parse(text) : null }
     },
     owner: (method: string, path: string, body?: unknown) => kit.call({ as: 'user' }, method, path, body),
-    agent: (method: string, path: string, body?: unknown, over: { id?: string; scopes?: string[] } = {}) => kit.call({ as: 'agent', id: over.id ?? e.agentId, scopes: over.scopes ?? AGENT_SCOPES }, method, path, body),
+    agent: (method: string, path: string, body?: unknown, over: { id?: string; scopes?: string[] } = {}) =>
+      kit.call({ as: 'agent', id: over.id ?? e.agentId, scopes: over.scopes ?? AGENT_SCOPES }, method, path, body),
     async seedAgent(scopes: string[], over: { name?: string; disabled?: boolean; delegated?: boolean } = {}) {
       const id = uuidv7()
       const at = '2026-10-22T08:00:00.000Z'
       await e.d1!.batch([
         e.d1!.prepare('INSERT INTO principals (id, kind, created_at) VALUES (?, ?, ?)').bind(id, 'agent', at),
         e
-          .d1!.prepare('INSERT INTO agents (id, created_at, updated_at, organization_id, name, scopes, created_by, disabled_at, auth_provider, auth_client_id, delegated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-          .bind(id, at, at, e.organizationId, over.name ?? `agent-${id.slice(-4)}`, JSON.stringify(scopes), e.userId, over.disabled ? at : null, over.delegated ? 'clerk' : null, over.delegated ? `client_${id.slice(-6)}` : null, over.delegated ? e.userId : null),
+          .d1!.prepare(
+            'INSERT INTO agents (id, created_at, updated_at, organization_id, name, scopes, created_by, disabled_at, auth_provider, auth_client_id, delegated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          )
+          .bind(
+            id,
+            at,
+            at,
+            e.organizationId,
+            over.name ?? `agent-${id.slice(-4)}`,
+            JSON.stringify(scopes),
+            e.userId,
+            over.disabled ? at : null,
+            over.delegated ? 'clerk' : null,
+            over.delegated ? `client_${id.slice(-6)}` : null,
+            over.delegated ? e.userId : null,
+          ),
       ])
       return id
     },
@@ -101,7 +144,12 @@ export async function openWebhookKit(opts: { key?: Uint8Array | null; version?: 
       await e.d1!.prepare('UPDATE agents SET scopes = ? WHERE id = ?').bind(JSON.stringify(scopes), agentId).run()
     },
     async create(agentId: string, body: Record<string, unknown> = {}) {
-      const r = await kit.owner('POST', '/meta/v1/webhooks', { url: URL_OK, event_types: ['task.created'], agent_id: agentId, ...body })
+      const r = await kit.owner('POST', '/meta/v1/webhooks', {
+        url: URL_OK,
+        event_types: ['task.created'],
+        agent_id: agentId,
+        ...body,
+      })
       if (r.status >= 300) throw new Error(`create failed ${r.status}: ${r.text}`)
       return r.body
     },
@@ -110,20 +158,53 @@ export async function openWebhookKit(opts: { key?: Uint8Array | null; version?: 
     async rawEvent(type: string, over: { resourceType?: string; after?: unknown; before?: unknown } = {}) {
       const id = uuidv7()
       const json = (v: unknown) => (v === undefined ? null : JSON.stringify(v))
-      await e.d1!.prepare('INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, '2026-11-12T09:00:00.000Z', e.organizationId, type, over.resourceType ?? type.slice(0, type.indexOf('.')), uuidv7(), e.userId, json(over.before), json(over.after)).run()
+      await e
+        .d1!.prepare(
+          'INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .bind(
+          id,
+          '2026-11-12T09:00:00.000Z',
+          e.organizationId,
+          type,
+          over.resourceType ?? type.slice(0, type.indexOf('.')),
+          uuidv7(),
+          e.userId,
+          json(over.before),
+          json(over.after),
+        )
+        .run()
       return id
     },
     async task(title: string) {
-      const r = await kit.call({ as: 'user', scopes: [...OWNER_SCOPES, 'tasks:write'] }, 'POST', '/api/v1/tasks', { title })
+      const r = await kit.call({ as: 'user', scopes: [...OWNER_SCOPES, 'tasks:write'] }, 'POST', '/api/v1/tasks', {
+        title,
+      })
       if (r.status >= 300) throw new Error(`task failed ${r.status}: ${r.text}`)
-      return ((await kit.all("select id from events where type = 'task.created' and resource_id = ?", r.body.id))[0] as { id: string }).id
+      return (
+        (await kit.all("select id from events where type = 'task.created' and resource_id = ?", r.body.id))[0] as {
+          id: string
+        }
+      ).id
     },
     async cursorOf(subscriptionId: string) {
-      return ((await kit.all('select cursor_event_id from webhook_dispatch_state where subscription_id = ?', subscriptionId))[0] as { cursor_event_id: string }).cursor_event_id
+      return (
+        (
+          await kit.all('select cursor_event_id from webhook_dispatch_state where subscription_id = ?', subscriptionId)
+        )[0] as { cursor_event_id: string }
+      ).cursor_event_id
     },
-    deliveries: (subscriptionId?: string) => (subscriptionId === undefined ? kit.all('select * from webhook_deliveries order by id') : kit.all('select * from webhook_deliveries where subscription_id = ? order by id', subscriptionId)),
+    deliveries: (subscriptionId?: string) =>
+      subscriptionId === undefined
+        ? kit.all('select * from webhook_deliveries order by id')
+        : kit.all('select * from webhook_deliveries where subscription_id = ? order by id', subscriptionId),
     async all(sqlText: string, ...binds: unknown[]) {
-      return ((await e.d1!.prepare(sqlText).bind(...binds).all()).results ?? []) as any[]
+      return ((
+        await e
+          .d1!.prepare(sqlText)
+          .bind(...binds)
+          .all()
+      ).results ?? []) as any[]
     },
     close: () => e.close(),
   })

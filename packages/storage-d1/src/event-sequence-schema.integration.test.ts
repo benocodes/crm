@@ -26,9 +26,23 @@ afterAll(async () => {
   await local.dispose()
 })
 
-const all = async (db: D1Like, text: string, ...binds: unknown[]) => ((await db.prepare(text).bind(...binds).all()).results ?? []) as Record<string, any>[]
-const run = (db: D1Like, text: string, ...binds: unknown[]) => db.prepare(text).bind(...binds).run()
-const insertEvent = (db: D1Like, n: number, over: { type?: string; before?: string | null; after?: string | null } = {}) =>
+const all = async (db: D1Like, text: string, ...binds: unknown[]) =>
+  ((
+    await db
+      .prepare(text)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as Record<string, any>[]
+const run = (db: D1Like, text: string, ...binds: unknown[]) =>
+  db
+    .prepare(text)
+    .bind(...binds)
+    .run()
+const insertEvent = (
+  db: D1Like,
+  n: number,
+  over: { type?: string; before?: string | null; after?: string | null } = {},
+) =>
   run(
     db,
     'INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, "before", "after") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -47,17 +61,25 @@ describe('migration 0015 over a database at 0014 with data', () => {
   it('keeps every row and its insertion order, adds an increasing seq, swaps the index, and continues above the copied seq', async () => {
     const old = local.bindings.OLD!
     const before = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0015')) cpSync(join(MIGRATIONS_DIR, f), join(before, f))
+    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0015'))
+      cpSync(join(MIGRATIONS_DIR, f), join(before, f))
     expect(readdirSync(before).sort().pop()).toBe('0014_search_indexes.sql')
     await applyMigrations(old, before)
     await seedDeployment(old, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
     await seedPrincipal(old, { id: USER, kind: 'user' })
     // insertion order differs from id order
     const order = [3, 1, 2]
-    for (const n of order) await insertEvent(old, n, { type: `t.${n}`, before: n === 1 ? '{"a":1}' : null, after: n === 2 ? '{"b":[2]}' : null })
+    for (const n of order)
+      await insertEvent(old, n, {
+        type: `t.${n}`,
+        before: n === 1 ? '{"a":1}' : null,
+        after: n === 2 ? '{"b":[2]}' : null,
+      })
     const rowsBefore = await all(old, 'SELECT * FROM events ORDER BY rowid')
     expect(rowsBefore.map((r) => r.id)).toEqual(order.map(id))
-    expect((await all(old, "SELECT name FROM pragma_index_list('events')")).map((r) => r.name)).toContain('idx_events_organization_id_id')
+    expect((await all(old, "SELECT name FROM pragma_index_list('events')")).map((r) => r.name)).toContain(
+      'idx_events_organization_id_id',
+    )
 
     const only = mkdtempSync(join(tmpdir(), 'mig15-'))
     cpSync(join(MIGRATIONS_DIR, MIGRATION), join(only, MIGRATION))
@@ -70,7 +92,12 @@ describe('migration 0015 over a database at 0014 with data', () => {
     expect(rows.map(({ seq: _seq, ...rest }) => rest)).toEqual(rowsBefore)
     const indexes = (await all(old, "SELECT name FROM pragma_index_list('events')")).map((r) => r.name)
     expect(indexes).not.toContain('idx_events_organization_id_id')
-    const cols = (await all(old, "SELECT name FROM pragma_index_info((SELECT name FROM pragma_index_list('events') WHERE name LIKE 'idx_events_resource%'))")).map((r) => r.name)
+    const cols = (
+      await all(
+        old,
+        "SELECT name FROM pragma_index_info((SELECT name FROM pragma_index_list('events') WHERE name LIKE 'idx_events_resource%'))",
+      )
+    ).map((r) => r.name)
     expect(cols).toEqual(['resource_id', 'seq'])
     expect(await all(old, 'PRAGMA foreign_key_check')).toEqual([])
     // the ids stay unique
@@ -89,7 +116,19 @@ describe('the rebuilt events table', () => {
     expect(row?.sql).toMatch(/seq INTEGER PRIMARY KEY AUTOINCREMENT/i)
     expect(row?.sql).toMatch(/id TEXT NOT NULL UNIQUE/i)
     expect(row?.sql).toMatch(/ON DELETE CASCADE/i)
-    await expect(run(d1, 'INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?)', 'not-a-uuid', AT, ORG, 't', 'task', id(1), USER)).rejects.toThrow(/CHECK|constraint/i)
+    await expect(
+      run(
+        d1,
+        'INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'not-a-uuid',
+        AT,
+        ORG,
+        't',
+        'task',
+        id(1),
+        USER,
+      ),
+    ).rejects.toThrow(/CHECK|constraint/i)
   })
 
   it('has the (resource_id, seq) index and not the old id index', async () => {
@@ -97,7 +136,11 @@ describe('the rebuilt events table', () => {
     expect(indexes).not.toContain('idx_events_organization_id_id')
     const name = indexes.find((n) => n === 'idx_events_resource_id_seq')
     expect(name).toBeDefined()
-    expect((await all(d1, "SELECT name FROM pragma_index_info('idx_events_resource_id_seq') ORDER BY seqno")).map((r) => r.name)).toEqual(['resource_id', 'seq'])
+    expect(
+      (await all(d1, "SELECT name FROM pragma_index_info('idx_events_resource_id_seq') ORDER BY seqno")).map(
+        (r) => r.name,
+      ),
+    ).toEqual(['resource_id', 'seq'])
   })
 
   it('assigns seq in insertion order whatever the ids', async () => {
@@ -125,7 +168,7 @@ describe('events is append-only (D15)', () => {
   it('still allows DELETE (the harness clears the table) and the organisation cascade', async () => {
     await insertEvent(d1, 51)
     await run(d1, 'DELETE FROM events WHERE id = ?', id(51))
-    expect((await all(d1, 'SELECT id FROM events WHERE id = ?', id(51)))).toEqual([])
+    expect(await all(d1, 'SELECT id FROM events WHERE id = ?', id(51))).toEqual([])
     await insertEvent(d1, 52)
     await clearD1(d1)
     expect(await all(d1, 'SELECT id FROM events')).toEqual([])

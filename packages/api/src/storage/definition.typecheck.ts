@@ -9,18 +9,32 @@ import { memberships } from '../resources/memberships.js'
 import { definePreparedResource } from './definition.js'
 
 const filter = { schema: z.string() }
-const tasksRecord = z.object({ id: z.uuid(), title: z.string(), status: z.enum(['open', 'done']), completed_at: z.string().nullable() })
+const tasksRecord = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  status: z.enum(['open', 'done']),
+  completed_at: z.string().nullable(),
+})
 
 // --- positive siblings -------------------------------------------------------------------------------
 
-export const ok = definePreparedResource({ surface: 'api',
+export const ok = definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
   record: tasksRecord,
   filters: { status: filter },
   references: { assignee_id: { table: 'principals' } },
-  computed: ({ eb }) => ({ completed_at: eb.case().when('tasks.status', '=', 'done').then(eb.ref('tasks.completed_at')).else('2026-10-22T09:00:00.000Z').end(), title: 'x' }),
+  computed: ({ eb }) => ({
+    completed_at: eb
+      .case()
+      .when('tasks.status', '=', 'done')
+      .then(eb.ref('tasks.completed_at'))
+      .else('2026-10-22T09:00:00.000Z')
+      .end(),
+    title: 'x',
+  }),
   guards: (eb) => [eb('tasks.title', '=', 'x')],
 })
 // A record may be a subset of the columns, and the inferred record type flows out.
@@ -29,7 +43,8 @@ export const title: string = ok.record.parse({}).title
 // --- negative cases ----------------------------------------------------------------------------------
 
 // unknown record column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
@@ -38,27 +53,42 @@ definePreparedResource({ surface: 'api',
 })
 
 // secret record column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'api_keys',
   eventName: 'api_key',
   table: 'api_keys',
   // @ts-expect-error key_hash is a secret column
   record: z.object({ id: z.uuid(), key_hash: z.string() }),
 })
-export const okKeys = definePreparedResource({ surface: 'api', name: 'api_keys', eventName: 'api_key', table: 'api_keys', record: z.object({ id: z.uuid(), prefix: z.string() }) })
+export const okKeys = definePreparedResource({
+  surface: 'api',
+  name: 'api_keys',
+  eventName: 'api_key',
+  table: 'api_keys',
+  record: z.object({ id: z.uuid(), prefix: z.string() }),
+})
 
 // CHN140 D41: the credential's ciphertext is a secret column. Removing `channel_credentials` from SecretColumns makes the directive below unused: a typecheck failure.
-definePreparedResource({ surface: 'meta',
+definePreparedResource({
+  surface: 'meta',
   name: 'channel_credentials',
   eventName: 'channel_credential',
   table: 'channel_credentials',
   // @ts-expect-error refresh_token_ciphertext is a secret column
   record: z.object({ id: z.uuid(), refresh_token_ciphertext: z.string() }),
 })
-export const okCredentialShape = definePreparedResource({ surface: 'meta', name: 'channel_credentials', eventName: 'channel_credential', table: 'channel_credentials', record: z.object({ id: z.uuid(), key_version: z.number() }) })
+export const okCredentialShape = definePreparedResource({
+  surface: 'meta',
+  name: 'channel_credentials',
+  eventName: 'channel_credential',
+  table: 'channel_credentials',
+  record: z.object({ id: z.uuid(), key_version: z.number() }),
+})
 
 // record value incompatible with the column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
@@ -67,7 +97,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // unknown computed column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
@@ -77,7 +108,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // wrong computed value type
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
@@ -87,7 +119,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // unknown filter column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
@@ -97,7 +130,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // unknown reference column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
@@ -107,7 +141,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // guard on another table
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'tasks',
   eventName: 'task',
   table: 'tasks',
@@ -120,28 +155,46 @@ definePreparedResource({ surface: 'api',
 
 const companiesRecord = z.object({ id: z.uuid(), name: z.string(), domain: z.string().nullable() })
 const contactsRecord = z.object({ id: z.uuid(), name: z.string().nullable(), company_id: z.uuid().nullable() })
-const identitiesRecord = z.object({ id: z.uuid(), kind: z.enum(['email', 'phone']), value: z.string(), contact_id: z.uuid().nullable(), own: z.boolean() })
+const identitiesRecord = z.object({
+  id: z.uuid(),
+  kind: z.enum(['email', 'phone']),
+  value: z.string(),
+  contact_id: z.uuid().nullable(),
+  own: z.boolean(),
+})
 
 // positive siblings: the new tables, a live reference, an owner-rule-shaped prepare hook
-export const okCompanies = definePreparedResource({ surface: 'api', name: 'companies', eventName: 'company', table: 'companies', record: companiesRecord })
-export const okContacts = definePreparedResource({ surface: 'api',
+export const okCompanies = definePreparedResource({
+  surface: 'api',
+  name: 'companies',
+  eventName: 'company',
+  table: 'companies',
+  record: companiesRecord,
+})
+export const okContacts = definePreparedResource({
+  surface: 'api',
   name: 'contacts',
   eventName: 'contact',
   table: 'contacts',
   record: contactsRecord,
   references: { company_id: { table: 'companies', live: true } },
 })
-export const okIdentities = definePreparedResource({ surface: 'api',
+export const okIdentities = definePreparedResource({
+  surface: 'api',
   name: 'identities',
   eventName: 'identity',
   table: 'identities',
   record: identitiesRecord,
   references: { contact_id: { table: 'contacts', live: true } },
-  prepare: ({ values }) => ({ contact_id: (values.contact_id as string | undefined) ?? null, own: values.own === true }),
+  prepare: ({ values }) => ({
+    contact_id: (values.contact_id as string | undefined) ?? null,
+    own: values.own === true,
+  }),
 })
 
 // 1. unknown record column on companies
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'companies',
   eventName: 'company',
   table: 'companies',
@@ -150,7 +203,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 2. mistyped record column on contacts
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'contacts',
   eventName: 'contact',
   table: 'contacts',
@@ -159,7 +213,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 3. mistyped boolean on identities
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'identities',
   eventName: 'identity',
   table: 'identities',
@@ -168,7 +223,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 4. a reference to a table that is not a portable table
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'contacts',
   eventName: 'contact',
   table: 'contacts',
@@ -178,7 +234,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 5. a reference column that is not a column of the table
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'contacts',
   eventName: 'contact',
   table: 'contacts',
@@ -188,7 +245,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 6. an async hook on companies
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'companies',
   eventName: 'company',
   table: 'companies',
@@ -201,12 +259,34 @@ definePreparedResource({ surface: 'api',
 
 // positive siblings: the real definitions compile, and so do call-site copies of them
 export const realAdministration = [agents, memberships, apiKeys]
-export const okAgents = definePreparedResource({ surface: 'api', name: 'agents', eventName: 'agent', table: 'agents', record: agentRecord, filters: {} })
-export const okMemberships = definePreparedResource({ surface: 'api', name: 'memberships', eventName: 'membership', table: 'memberships', record: membershipRecord, filters: { role: filter } })
-export const okApiKeys = definePreparedResource({ surface: 'api', name: 'api_keys', eventName: 'api_key', table: 'api_keys', record: apiKeyRecord, filters: { agent_id: filter } })
+export const okAgents = definePreparedResource({
+  surface: 'api',
+  name: 'agents',
+  eventName: 'agent',
+  table: 'agents',
+  record: agentRecord,
+  filters: {},
+})
+export const okMemberships = definePreparedResource({
+  surface: 'api',
+  name: 'memberships',
+  eventName: 'membership',
+  table: 'memberships',
+  record: membershipRecord,
+  filters: { role: filter },
+})
+export const okApiKeys = definePreparedResource({
+  surface: 'api',
+  name: 'api_keys',
+  eventName: 'api_key',
+  table: 'api_keys',
+  record: apiKeyRecord,
+  filters: { agent_id: filter },
+})
 
 // 1. an api_keys record that carries the secret column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'api_keys',
   eventName: 'api_key',
   table: 'api_keys',
@@ -215,7 +295,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 2. an agents record that mistypes the array column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'agents',
   eventName: 'agent',
   table: 'agents',
@@ -224,7 +305,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 3. a memberships record with a field that is not a column
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'memberships',
   eventName: 'membership',
   table: 'memberships',
@@ -233,7 +315,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 4. an async hook on agents
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'agents',
   eventName: 'agent',
   table: 'agents',
@@ -243,7 +326,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 5. an unknown filter column on api_keys
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'api_keys',
   eventName: 'api_key',
   table: 'api_keys',
@@ -257,12 +341,25 @@ definePreparedResource({ surface: 'api',
 import { sql } from 'kysely'
 
 const attachmentRecord = z.array(z.object({ id: z.uuid(), position: z.number(), size_bytes: z.number().nullable() }))
-const messagesBase = { id: z.uuid(), thread_id: z.uuid(), kind: z.enum(['message', 'reaction']), occurred_at: z.string() }
+const messagesBase = {
+  id: z.uuid(),
+  thread_id: z.uuid(),
+  kind: z.enum(['message', 'reaction']),
+  occurred_at: z.string(),
+}
 const interactionsBase = { id: z.uuid(), kind: z.enum(['message', 'reaction']), thread_id: z.uuid().nullable() }
-const goodEmbed = { attachments: { table: 'message_attachments', key: 'message_id', columns: ['id', 'position', 'size_bytes'], orderBy: ['position'] } } as const
+const goodEmbed = {
+  attachments: {
+    table: 'message_attachments',
+    key: 'message_id',
+    columns: ['id', 'position', 'size_bytes'],
+    orderBy: ['position'],
+  },
+} as const
 
 // positive siblings: an embed whose record field is an array, a custom filter, a files reference, a hidden column typed right
-export const okMessages = definePreparedResource({ surface: 'api',
+export const okMessages = definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',
@@ -270,7 +367,8 @@ export const okMessages = definePreparedResource({ surface: 'api',
   operations: ['list', 'get'],
   embed: goodEmbed,
 })
-export const okInteractions = definePreparedResource({ surface: 'api',
+export const okInteractions = definePreparedResource({
+  surface: 'api',
   name: 'interactions',
   eventName: 'interaction',
   table: 'interactions',
@@ -279,7 +377,8 @@ export const okInteractions = definePreparedResource({ surface: 'api',
   filters: { thread_id: filter },
   customFilters: { identity_id: { schema: z.uuid(), where: () => sql<boolean>`true` } },
 })
-export const okContactFiles = definePreparedResource({ surface: 'api',
+export const okContactFiles = definePreparedResource({
+  surface: 'api',
   name: 'contact_files',
   eventName: 'contact_file',
   table: 'contact_files',
@@ -288,7 +387,8 @@ export const okContactFiles = definePreparedResource({ surface: 'api',
 })
 
 // 1. a record naming `attachments` without an embed declaration
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',
@@ -298,7 +398,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 2. an embed on a table that does not exist (the record leaves the field out: with no child table there is no array to type it by)
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',
@@ -308,7 +409,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 3. an embed key that is not a column of the child table (single line: the directive covers the whole declaration)
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',
@@ -318,17 +420,21 @@ definePreparedResource({ surface: 'api',
 })
 
 // 4. an embed column that is not a column of the child table
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',
   record: z.object(messagesBase),
-  // @ts-expect-error 'bogus' is not a column of message_attachments
-  embed: { attachments: { table: 'message_attachments', key: 'message_id', columns: ['bogus'], orderBy: ['position'] } },
+  embed: {
+    // @ts-expect-error 'bogus' is not a column of message_attachments
+    attachments: { table: 'message_attachments', key: 'message_id', columns: ['bogus'], orderBy: ['position'] },
+  },
 })
 
 // 5. the record field of an embed typed as a string, not an array
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',
@@ -338,7 +444,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 6. a custom filter whose `where` is not a boolean expression
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'interactions',
   eventName: 'interaction',
   table: 'interactions',
@@ -353,7 +460,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 7. a reference to a table that is not an allowed target
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'contact_files',
   eventName: 'contact_file',
   table: 'contact_files',
@@ -363,7 +471,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 8. contact_id is not a column of interactions, so it cannot be a column filter (it is a custom filter)
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'interactions',
   eventName: 'interaction',
   table: 'interactions',
@@ -373,7 +482,8 @@ definePreparedResource({ surface: 'api',
 })
 
 // 9. a public messaging column named in a record with the wrong type
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',
@@ -383,22 +493,36 @@ definePreparedResource({ surface: 'api',
 })
 
 // hidden messaging columns ([[CORE58]] P5): content_key and storage_key are secret columns
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'messages',
   eventName: 'message',
   table: 'messages',
   // @ts-expect-error content_key is a secret column
   record: z.object({ id: z.uuid(), content_key: z.string().nullable() }),
 })
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'files',
   eventName: 'file',
   table: 'files',
   // @ts-expect-error storage_key is a secret column
   record: z.object({ id: z.uuid(), storage_key: z.string() }),
 })
-export const okHiddenMessages = definePreparedResource({ surface: 'api', name: 'messages', eventName: 'message', table: 'messages', record: z.object({ id: z.uuid(), version: z.number().int() }) })
-export const okHiddenFiles = definePreparedResource({ surface: 'api', name: 'files', eventName: 'file', table: 'files', record: z.object({ id: z.uuid(), name: z.string() }) })
+export const okHiddenMessages = definePreparedResource({
+  surface: 'api',
+  name: 'messages',
+  eventName: 'message',
+  table: 'messages',
+  record: z.object({ id: z.uuid(), version: z.number().int() }),
+})
+export const okHiddenFiles = definePreparedResource({
+  surface: 'api',
+  name: 'files',
+  eventName: 'file',
+  table: 'files',
+  record: z.object({ id: z.uuid(), name: z.string() }),
+})
 
 // --- CORE131: derived fields ---------------------------------------------------------------------------
 
@@ -437,7 +561,8 @@ definePreparedResource({
 })
 
 // CORE199: the old property name `joinFilters` no longer exists on a definition (excess-property check on a literal)
-definePreparedResource({ surface: 'api',
+definePreparedResource({
+  surface: 'api',
   name: 'interactions',
   eventName: 'interaction',
   table: 'interactions',

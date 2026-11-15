@@ -94,7 +94,8 @@ const BAD_QUOTING = 'in has bad quoting: an item containing , ( ) or " must be d
 
 /** `(a,"b,c",d)`: PostgREST's list. Items containing `,` `(` `)` or `"` are double-quoted, `\"` and `\\` escape inside quotes; unquoted items are trimmed. */
 function parseList(name: string, text: string): string[] {
-  if (!text.startsWith('(') || !text.endsWith(')') || text.length < 2) throw refusal(name, 'in needs a parenthesised list, as in in.(a,b)')
+  if (!text.startsWith('(') || !text.endsWith(')') || text.length < 2)
+    throw refusal(name, 'in needs a parenthesised list, as in in.(a,b)')
   const body = text.slice(1, -1)
   if (body.trim() === '') throw refusal(name, 'in needs at least 1 item')
   const items: string[] = []
@@ -154,7 +155,12 @@ function countItems(body: string): number {
  * the other filters of the same call that are plain equalities (`kind=email` or `kind=eq.email`, as text), for an option that needs one of them
  * (identities `value` needs `kind`); a sibling with any other operator is absent.
  */
-export function parseCondition(name: string, spec: ColumnFilterSpec, raw: string, siblings: Readonly<Record<string, string | undefined>> = {}): Condition {
+export function parseCondition(
+  name: string,
+  spec: ColumnFilterSpec,
+  raw: string,
+  siblings: Readonly<Record<string, string | undefined>> = {},
+): Condition {
   let rest = raw
   let not = false
   if (raw.startsWith(NOT)) {
@@ -166,7 +172,8 @@ export function parseCondition(name: string, spec: ColumnFilterSpec, raw: string
   const op: Operator = m ? (m[1] as Operator) : 'eq'
   const operand = m ? m[2]! : raw
   const available = operatorsFor(spec.kind, spec.nullable)
-  if (!available.includes(op)) throw refusal(name, `${op} is not available for ${spec.kind} (available: ${available.join(', ')})`)
+  if (!available.includes(op))
+    throw refusal(name, `${op} is not available for ${spec.kind} (available: ${available.join(', ')})`)
   const each = (text: string): Operand => {
     let v = scalar(name, spec.kind, text)
     if (spec.schema) {
@@ -208,14 +215,26 @@ export const likePattern = (p: string): string => p.replace(/[\\%_*]/g, (c) => (
 export const globPattern = (p: string): string => p.replace(/[?[\]]/g, (c) => `[${c}]`)
 
 const ESCAPE = sql.raw("escape '\\'")
-const COMPARATORS = { eq: sql.raw('='), neq: sql.raw('<>'), gt: sql.raw('>'), gte: sql.raw('>='), lt: sql.raw('<'), lte: sql.raw('<=') } as const
+const COMPARATORS = {
+  eq: sql.raw('='),
+  neq: sql.raw('<>'),
+  gt: sql.raw('>'),
+  gte: sql.raw('>='),
+  lt: sql.raw('<'),
+  lte: sql.raw('<='),
+} as const
 
 /**
  * The predicate for one condition on `column`. SQL null semantics ([[CORE199]] D3): a comparison, `in` and `not.` never match a null; only `is.null`
  * does (and `not.is.null` is its complement). `ilike` is `LIKE` on D1 (ASCII case folding only) and `ILIKE` on Postgres, `like` is `GLOB` on D1 (case
  * sensitive) and `LIKE` on Postgres, each with the same literal treatment of every character but `*`.
  */
-export function compileCondition(qc: QueryContext, column: Expression<unknown>, kind: FilterKind, c: Condition): Expression<SqlBool> {
+export function compileCondition(
+  qc: QueryContext,
+  column: Expression<unknown>,
+  kind: FilterKind,
+  c: Condition,
+): Expression<SqlBool> {
   const bound = (v: unknown) => bind(qc, kind as ColumnKind, v as string | number | boolean | null)
   const d1 = qc.dialect === 'd1'
   let e: Expression<SqlBool>
@@ -238,7 +257,9 @@ export function compileCondition(qc: QueryContext, column: Expression<unknown>, 
       e = sql<SqlBool>`${column} = ${bound(c.value)}`
       break
     case 'like':
-      e = d1 ? sql<SqlBool>`${column} glob ${globPattern(c.value as string)}` : sql<SqlBool>`${column} like ${bind(qc, 'text', likePattern(c.value as string))} ${ESCAPE}`
+      e = d1
+        ? sql<SqlBool>`${column} glob ${globPattern(c.value as string)}`
+        : sql<SqlBool>`${column} like ${bind(qc, 'text', likePattern(c.value as string))} ${ESCAPE}`
       break
     case 'ilike':
       e = sql<SqlBool>`${column} ${sql.raw(d1 ? 'like' : 'ilike')} ${bind(qc, 'text', likePattern(c.value as string))} ${ESCAPE}`
@@ -254,7 +275,13 @@ const EXAMPLES: Record<FilterKind, (name: string) => string> = {
   timestamp: (n) => `${n}=gte.2026-11-01`,
   boolean: (n) => `${n}=eq.true`,
 }
-const KIND_LABEL: Record<FilterKind, string> = { uuid: 'uuid', text: 'text', integer: 'integer', timestamp: 'timestamp', boolean: 'boolean' }
+const KIND_LABEL: Record<FilterKind, string> = {
+  uuid: 'uuid',
+  text: 'text',
+  integer: 'integer',
+  timestamp: 'timestamp',
+  boolean: 'boolean',
+}
 
 /** The parameter description, from the same table that validates the operator ([[CORE199]] D9), so the text cannot drift from the parser. */
 export function describeColumnFilter(name: string, spec: ColumnFilterSpec): string {
@@ -267,11 +294,17 @@ export function describeColumnFilter(name: string, spec: ColumnFilterSpec): stri
   ]
   if (spec.kind === 'text') {
     parts.push('Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only.')
-    parts.push(spec.collation === 'nocase' ? 'Comparison folds ASCII case (the column is case-insensitive, as its uniqueness is), so eq.CONSULTANCY matches consultancy.' : 'Comparison is by byte order.')
+    parts.push(
+      spec.collation === 'nocase'
+        ? 'Comparison folds ASCII case (the column is case-insensitive, as its uniqueness is), so eq.CONSULTANCY matches consultancy.'
+        : 'Comparison is by byte order.',
+    )
   }
   if (spec.kind === 'timestamp') parts.push('A value is a date (midnight UTC) or an ISO 8601 date-time with an offset.')
   if (spec.note) parts.push(spec.note)
-  parts.push(`A value that starts with not. or an operator name and a dot is read as an operator: send ${name}=eq.<value> for a literal.`)
+  parts.push(
+    `A value that starts with not. or an operator name and a dot is read as an operator: send ${name}=eq.<value> for a literal.`,
+  )
   return parts.join(' ')
 }
 
@@ -291,14 +324,22 @@ type Metadata = {
  * `filters` supplies per-column options (`schema`, `normalize`); a key there that is not such a column, a column named like a list parameter, and a
  * column named like a custom filter are load errors. Nullability is read from the record schema (a field that accepts null).
  */
-export function resolveColumnFilters(meta: Metadata, notes: Readonly<Record<string, string>> = {}): Readonly<Record<string, ColumnFilterSpec>> {
+export function resolveColumnFilters(
+  meta: Metadata,
+  notes: Readonly<Record<string, string>> = {},
+): Readonly<Record<string, ColumnFilterSpec>> {
   const out: Record<string, ColumnFilterSpec> = {}
   for (const [field, schema] of Object.entries(meta.record.shape)) {
     const kind = Object.hasOwn(meta.columns, field) ? meta.columns[field] : undefined
     if (field === 'organization_id' || !kind || !FILTERABLE.has(kind)) continue
-    if (LIST_PARAMETERS.includes(field)) throw new Error(`column filter "${field}" is a list parameter and cannot also be a filter (${meta.name})`)
-    if (Object.hasOwn(meta.customFilters ?? {}, field)) throw new Error(`column filter "${field}" is also a custom filter (${meta.name})`)
-    const option = (meta.filters?.[field] ?? {}) as { schema?: ColumnFilterSpec['schema']; normalize?: ColumnFilterSpec['normalize'] }
+    if (LIST_PARAMETERS.includes(field))
+      throw new Error(`column filter "${field}" is a list parameter and cannot also be a filter (${meta.name})`)
+    if (Object.hasOwn(meta.customFilters ?? {}, field))
+      throw new Error(`column filter "${field}" is also a custom filter (${meta.name})`)
+    const option = (meta.filters?.[field] ?? {}) as {
+      schema?: ColumnFilterSpec['schema']
+      normalize?: ColumnFilterSpec['normalize']
+    }
     out[field] = {
       kind: kind as FilterKind,
       nullable: (schema as z.ZodType).safeParse(null).success,
@@ -321,15 +362,32 @@ export function resolveColumnFilters(meta: Metadata, notes: Readonly<Record<stri
  * Explicit opt-in to the column filter grammar for a list (the counterpart of `withColumnSorts`). `notes` adds a sentence to a column's generated
  * description (deals: the money recipe on `amount_minor`).
  */
-export function withColumnFilters<T extends PreparedResource>(def: T, notes: Readonly<Record<string, string>> = {}): T & { readonly columnFilters: Readonly<Record<string, ColumnFilterSpec>> } {
+export function withColumnFilters<T extends PreparedResource>(
+  def: T,
+  notes: Readonly<Record<string, string>> = {},
+): T & { readonly columnFilters: Readonly<Record<string, ColumnFilterSpec>> } {
   const columnFilters = resolveColumnFilters(
-    { name: def.name, table: def.table, columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS] as Readonly<Record<string, ColumnKind>>, record: def.record, filters: def.filters, customFilters: def.customFilters },
+    {
+      name: def.name,
+      table: def.table,
+      columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS] as Readonly<Record<string, ColumnKind>>,
+      record: def.record,
+      filters: def.filters,
+      customFilters: def.customFilters,
+    },
     notes,
   )
   return { ...def, columnFilters }
 }
 
 /** The string query parameters of a list's column filters, each described from the operator table ([[CORE200]] D9); shared by the generated list and the hand-written action_executions one. */
-export function columnFilterParams(def: { readonly columnFilters?: Readonly<Record<string, ColumnFilterSpec>> }): Record<string, z.ZodType> {
-  return Object.fromEntries(Object.entries(def.columnFilters ?? {}).map(([key, spec]) => [key, z.string().describe(describeColumnFilter(key, spec)).optional()]))
+export function columnFilterParams(def: {
+  readonly columnFilters?: Readonly<Record<string, ColumnFilterSpec>>
+}): Record<string, z.ZodType> {
+  return Object.fromEntries(
+    Object.entries(def.columnFilters ?? {}).map(([key, spec]) => [
+      key,
+      z.string().describe(describeColumnFilter(key, spec)).optional(),
+    ]),
+  )
 }

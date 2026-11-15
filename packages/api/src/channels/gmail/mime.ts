@@ -34,7 +34,10 @@ export function decodeMimeWords(value: string): string {
     try {
       if (enc.toLowerCase() === 'b') {
         const bin = atob(text.replace(/-/g, '+').replace(/_/g, '/'))
-        return decodeBytes(Uint8Array.from(bin, (c) => c.charCodeAt(0)), charset)
+        return decodeBytes(
+          Uint8Array.from(bin, (c) => c.charCodeAt(0)),
+          charset,
+        )
       }
       const bytes: number[] = []
       for (let i = 0; i < text.length; i++) {
@@ -116,7 +119,9 @@ export function parseAddressList(value: string | null): ParsedAddress[] {
     }
     if (!address.includes('@')) continue
     const name = decodeMimeWords(unquote(display)).trim()
-    out.push(name !== '' && name.toLowerCase() !== address.toLowerCase() ? { value: address, name } : { value: address })
+    out.push(
+      name !== '' && name.toLowerCase() !== address.toLowerCase() ? { value: address, name } : { value: address },
+    )
   }
   return out
 }

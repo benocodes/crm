@@ -10,7 +10,11 @@ export const kindsOf = (table: string): Record<string, ColumnKind> => {
 }
 
 /** Fills `id`, `organization_id`, `created_by`, `created_at` and `updated_at` when the table has them and the row omits them. */
-export function withTenantDefaults(table: string, row: Record<string, unknown>, tenant: { organizationId: string; userId: string }): Record<string, unknown> {
+export function withTenantDefaults(
+  table: string,
+  row: Record<string, unknown>,
+  tenant: { organizationId: string; userId: string },
+): Record<string, unknown> {
   const kinds = kindsOf(table)
   const out = { ...row }
   if ('id' in kinds) out.id ??= uuidv7()
@@ -23,4 +27,10 @@ export function withTenantDefaults(table: string, row: Record<string, unknown>, 
 
 /** A value as D1 binds it: booleans 1/0, arrays and objects (json columns) as JSON text. */
 export const d1Value = (v: unknown): unknown =>
-  typeof v === 'boolean' ? (v ? 1 : 0) : v !== null && typeof v === 'object' && !(v instanceof Date) ? JSON.stringify(v) : (v ?? null)
+  typeof v === 'boolean'
+    ? v
+      ? 1
+      : 0
+    : v !== null && typeof v === 'object' && !(v instanceof Date)
+      ? JSON.stringify(v)
+      : (v ?? null)

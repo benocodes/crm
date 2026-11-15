@@ -22,7 +22,12 @@ describe('Card', () => {
 function Form(props: { onSubmit: () => string | null | void | Promise<string | null | void>; error?: string }) {
   const [email, setEmail] = useState('')
   return (
-    <FormLayout title="Sign in" onSubmit={props.onSubmit} error={props.error} actions={<Button type="submit">Continue</Button>}>
+    <FormLayout
+      title="Sign in"
+      onSubmit={props.onSubmit}
+      error={props.error}
+      actions={<Button type="submit">Continue</Button>}
+    >
       <Field label="Email" value={email} onChange={setEmail} />
     </FormLayout>
   )

@@ -28,7 +28,10 @@ describe('the node: allow-list and size ceiling of the Worker bundle', () => {
   })
 
   it('a node: import outside the list is a problem, named', () => {
-    const problems = nodeImportProblems(`import x from "${ALLOWED_NODE_MODULES[0]}"; import y from "node:child_process"`, 1000)
+    const problems = nodeImportProblems(
+      `import x from "${ALLOWED_NODE_MODULES[0]}"; import y from "node:child_process"`,
+      1000,
+    )
     expect(problems).toHaveLength(1)
     expect(problems[0]).toContain('node:child_process')
   })

@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { appendEnvVar, parseBootstrapArgs, proxyOptions, remoteProxyOptions, reportLines, runRemoteGuards } from './bootstrap.js'
+import {
+  appendEnvVar,
+  parseBootstrapArgs,
+  proxyOptions,
+  remoteProxyOptions,
+  reportLines,
+  runRemoteGuards,
+} from './bootstrap.js'
 import { RemoteRefusal } from './remote.js'
 import type { BootstrapD1Result } from '../src/bootstrap-d1.js'
 
@@ -17,7 +24,12 @@ const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
 
 describe('remote mode (C7)', () => {
   it('remote proxy options name the environment and allow remote bindings', () => {
-    expect(remoteProxyOptions('smoked1', '/x/wrangler.jsonc')).toEqual({ configPath: '/x/wrangler.jsonc', environment: 'smoked1', persist: false, remoteBindings: true })
+    expect(remoteProxyOptions('smoked1', '/x/wrangler.jsonc')).toEqual({
+      configPath: '/x/wrangler.jsonc',
+      environment: 'smoked1',
+      persist: false,
+      remoteBindings: true,
+    })
   })
 
   it('local args are unchanged', () => {
@@ -49,7 +61,11 @@ describe('remote mode (C7)', () => {
     const loadEnv = vi.fn()
     const readConfig = vi.fn()
     await expect(
-      runRemoteGuards({ envName: 'smoked1', keyEnv: 'K' }, {}, { loadEnv, readEnvText: () => '', readConfig, getPlatformProxy }),
+      runRemoteGuards(
+        { envName: 'smoked1', keyEnv: 'K' },
+        {},
+        { loadEnv, readEnvText: () => '', readConfig, getPlatformProxy },
+      ),
     ).rejects.toThrow('set CONFIRM_REMOTE=1 to run against a remote instance')
     expect(getPlatformProxy).not.toHaveBeenCalled()
     expect(readConfig).not.toHaveBeenCalled()
@@ -58,7 +74,11 @@ describe('remote mode (C7)', () => {
   it('refuses when the key variable is already in .env, before the proxy', async () => {
     const getPlatformProxy = vi.fn()
     await expect(
-      runRemoteGuards({ envName: 'smoked1', keyEnv: 'K' }, { CONFIRM_REMOTE: '1' }, { loadEnv: () => {}, readEnvText: () => 'K=old\n', readConfig: () => ({}), getPlatformProxy }),
+      runRemoteGuards(
+        { envName: 'smoked1', keyEnv: 'K' },
+        { CONFIRM_REMOTE: '1' },
+        { loadEnv: () => {}, readEnvText: () => 'K=old\n', readConfig: () => ({}), getPlatformProxy },
+      ),
     ).rejects.toThrow(RemoteRefusal)
     expect(getPlatformProxy).not.toHaveBeenCalled()
   })
@@ -66,10 +86,21 @@ describe('remote mode (C7)', () => {
   it('opens the remote proxy only after every guard passes', async () => {
     const proxy = { env: { DB: {} }, dispose: async () => {} }
     const getPlatformProxy = vi.fn().mockResolvedValue(proxy)
-    const config = { name: 'vault-smoked1', d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }] }
-    const r = await runRemoteGuards({ envName: 'smoked1', keyEnv: 'K' }, { CONFIRM_REMOTE: '1' }, { loadEnv: () => {}, readEnvText: () => 'A=1\n', readConfig: () => config, getPlatformProxy, log: () => {} })
+    const config = {
+      name: 'vault-smoked1',
+      d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }],
+    }
+    const r = await runRemoteGuards(
+      { envName: 'smoked1', keyEnv: 'K' },
+      { CONFIRM_REMOTE: '1' },
+      { loadEnv: () => {}, readEnvText: () => 'A=1\n', readConfig: () => config, getPlatformProxy, log: () => {} },
+    )
     expect(getPlatformProxy).toHaveBeenCalledTimes(1)
-    expect(getPlatformProxy.mock.calls[0]![0]).toMatchObject({ environment: 'smoked1', remoteBindings: true, persist: false })
+    expect(getPlatformProxy.mock.calls[0]![0]).toMatchObject({
+      environment: 'smoked1',
+      remoteBindings: true,
+      persist: false,
+    })
     expect(r).toMatchObject({ target: { databaseId: UUID }, proxy })
   })
 })
@@ -87,7 +118,14 @@ describe('appendEnvVar (C7)', () => {
 })
 
 describe('reportLines (C7)', () => {
-  const r: BootstrapD1Result = { organizationId: 'o', userId: 'u', agentId: 'a', apiKeyId: 'k', key: 'vk_SECRETVALUE', deployment: 'created' }
+  const r: BootstrapD1Result = {
+    organizationId: 'o',
+    userId: 'u',
+    agentId: 'a',
+    apiKeyId: 'k',
+    key: 'vk_SECRETVALUE',
+    deployment: 'created',
+  }
   it('the remote report hides the key', () => {
     const lines = reportLines(r, 'remote', 'K')
     expect(lines.some((l) => l.includes('vk_SECRETVALUE'))).toBe(false)
@@ -97,7 +135,14 @@ describe('reportLines (C7)', () => {
     expect(reportLines(r, 'local')).toContain('api_key:         vk_SECRETVALUE   (shown once)')
   })
   it('a Clerk-path report has no user line, and no agent lines without an agent', () => {
-    const none: BootstrapD1Result = { organizationId: 'o', userId: null, agentId: null, apiKeyId: null, key: null, deployment: 'created' }
+    const none: BootstrapD1Result = {
+      organizationId: 'o',
+      userId: null,
+      agentId: null,
+      apiKeyId: null,
+      key: null,
+      deployment: 'created',
+    }
     const lines = reportLines(none, 'local')
     expect(lines.some((l) => l.startsWith('user_id'))).toBe(false)
     expect(lines.some((l) => l.startsWith('api_key'))).toBe(false)

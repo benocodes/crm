@@ -1,5 +1,15 @@
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, bind, codecs, defineOperation, readMaybe, step, ts, unit, type PreparedOperation } from '@vibase/storage'
+import {
+  UnitDriftError,
+  bind,
+  codecs,
+  defineOperation,
+  readMaybe,
+  step,
+  ts,
+  unit,
+  type PreparedOperation,
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { apiKeys, type ApiKeyRecord } from '../resources/api-keys.js'
@@ -34,14 +44,32 @@ export function issueApiKeyOperation(
     name: 'api_keys.create',
     mutates: true,
     reads: (qc) => ({
-      agent: readMaybe(qc.db.selectFrom('agents').select('agents.id').where('agents.id', '=', agentId).where('agents.organization_id', '=', env.organizationId)),
+      agent: readMaybe(
+        qc.db
+          .selectFrom('agents')
+          .select('agents.id')
+          .where('agents.id', '=', agentId)
+          .where('agents.organization_id', '=', env.organizationId),
+      ),
     }),
     build: (found, qc) => {
       if (!found.maybe('agent')) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
       const agentExists = sql<SqlBool>`exists (select 1 from "agents" where "agents"."id" = ${agentId} and "agents"."organization_id" = ${env.organizationId})`
       const insert = qc.db
         .insertInto('api_keys')
-        .columns(['id', 'created_at', 'updated_at', 'organization_id', 'agent_id', 'key_hash', 'prefix', 'last_used_at', 'revoked_at', 'expires_at', 'created_by'])
+        .columns([
+          'id',
+          'created_at',
+          'updated_at',
+          'organization_id',
+          'agent_id',
+          'key_hash',
+          'prefix',
+          'last_used_at',
+          'revoked_at',
+          'expires_at',
+          'created_by',
+        ])
         .expression(
           qc.db
             .selectNoFrom([
@@ -145,4 +173,3 @@ export function revokeApiKeyOperation(env: PreparedEnv, rawId: string): Prepared
     },
   })
 }
-

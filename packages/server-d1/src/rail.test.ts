@@ -20,18 +20,42 @@ const BASE = 'https://w.test'
 const NAMES = MIGRATIONS.map((m) => m.name)
 const SCOPES = ['tasks:read', 'tasks:write', 'tasks:request_approval', 'action_requests:read']
 const env = (d1 = w.d1): D1WorkerEnv => ({ DB: d1, AUTH_PROVIDER: '' })
-const worker = (d1 = w.d1) => composeD1Worker(env(d1), { clock: () => now, newId: () => uuidv7(now), operations: registerTestOperations, transports: { [TEST_TRANSPORT]: transport } })
-const call = (wk: ReturnType<typeof worker>, method: string, path: string, body?: unknown, ctx?: { waitUntil(p: Promise<unknown>): void }) =>
-  wk.fetch(new Request(BASE + path, { method, headers: { authorization: `Bearer ${key}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) }), ctx)
+const worker = (d1 = w.d1) =>
+  composeD1Worker(env(d1), {
+    clock: () => now,
+    newId: () => uuidv7(now),
+    operations: registerTestOperations,
+    transports: { [TEST_TRANSPORT]: transport },
+  })
+const call = (
+  wk: ReturnType<typeof worker>,
+  method: string,
+  path: string,
+  body?: unknown,
+  ctx?: { waitUntil(p: Promise<unknown>): void },
+) =>
+  wk.fetch(
+    new Request(BASE + path, {
+      method,
+      headers: {
+        authorization: `Bearer ${key}`,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+    ctx,
+  )
 const json = async (res: Response) => ({ status: res.status, body: (await res.json()) as any })
-const rows = async (sqlText: string) => ((await w.d1.prepare(sqlText).all()).results ?? []) as Array<Record<string, any>>
+const rows = async (sqlText: string) =>
+  ((await w.d1.prepare(sqlText).all()).results ?? []) as Array<Record<string, any>>
 const ctxOf = () => {
   const promises: Promise<unknown>[] = []
   return { promises, waitUntil: (p: Promise<unknown>) => void promises.push(p) }
 }
 const advance = (ms: number) => void (now = new Date(now.getTime() + ms))
 let n = 0
-const enqueue = async (wk: ReturnType<typeof worker>, ctx?: { waitUntil(p: Promise<unknown>): void }) => json(await call(wk, 'POST', '/api/v1/test-enqueue', { text: 'x', idempotency_key: `k${++n}` }, ctx))
+const enqueue = async (wk: ReturnType<typeof worker>, ctx?: { waitUntil(p: Promise<unknown>): void }) =>
+  json(await call(wk, 'POST', '/api/v1/test-enqueue', { text: 'x', idempotency_key: `k${++n}` }, ctx))
 const status = async (id: string) => (await rows(`select status from action_executions where id = '${id}'`))[0]?.status
 
 beforeAll(async () => {
@@ -44,13 +68,17 @@ beforeEach(async () => {
   // A test that made the database look behind leaves its tracker: wrangler's tracker is migration state, which `reset` keeps (CORE61 D10).
   await w.d1.prepare('drop table if exists d1_migrations').run()
   transport.reset()
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', scopes: SCOPES }, { now: NOW, newId: () => uuidv7(NOW) })
+  const r = await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', scopes: SCOPES },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
   key = r.key
 })
 afterEach(() => vi.restoreAllMocks())
 
 describe('the waitUntil kick (D49)', () => {
-  it('a direct enqueue starts the runner with waitUntil: the execution is done on the fake once the request\'s promises settle', async () => {
+  it("a direct enqueue starts the runner with waitUntil: the execution is done on the fake once the request's promises settle", async () => {
     const ctx = ctxOf()
     const { status: code, body } = await enqueue(worker(), ctx)
     expect(code).toBe(202)
@@ -63,19 +91,34 @@ describe('the waitUntil kick (D49)', () => {
 
   it('an approval starts the runner too', async () => {
     const wk = worker()
-    const proposed = await json(await call(wk, 'POST', '/api/v1/action-requests', { operation: TEST_OPS.reconcile, arguments: { text: 'x' }, reason: 'r' }))
+    const proposed = await json(
+      await call(wk, 'POST', '/api/v1/action-requests', {
+        operation: TEST_OPS.reconcile,
+        arguments: { text: 'x' },
+        reason: 'r',
+      }),
+    )
     expect(proposed.status).toBe(201)
     const ctx = ctxOf()
-    const approved = await json(await call(wk, 'POST', `/api/v1/action-requests/${proposed.body.id}/approve`, undefined, ctx))
+    const approved = await json(
+      await call(wk, 'POST', `/api/v1/action-requests/${proposed.body.id}/approve`, undefined, ctx),
+    )
     expect(approved.status).toBe(200)
     await Promise.all(ctx.promises)
     expect(await status(approved.body.execution_id)).toBe('done')
-    expect((await json(await call(wk, 'GET', `/api/v1/action-requests/${proposed.body.id}`))).body.status).toBe('executed')
+    expect((await json(await call(wk, 'GET', `/api/v1/action-requests/${proposed.body.id}`))).body.status).toBe(
+      'executed',
+    )
   })
 
   it('a kick that throws or is absent does not change the answer; with no execution context the execution stays queued for the cron', async () => {
     const dropped: Promise<unknown>[] = []
-    const thrower = { waitUntil: (p: Promise<unknown>) => { dropped.push(p); throw new Error('dropped') } }
+    const thrower = {
+      waitUntil: (p: Promise<unknown>) => {
+        dropped.push(p)
+        throw new Error('dropped')
+      },
+    }
     const a = await enqueue(worker(), thrower)
     expect(a.status).toBe(202)
     await Promise.all(dropped)
@@ -98,7 +141,14 @@ describe('the per-minute cron (D54)', () => {
 
   it('the cron also runs the expiry sweep: an overdue request is expired by the system principal', async () => {
     const wk = worker()
-    const r = await json(await call(wk, 'POST', '/api/v1/action-requests', { operation: 'tasks.create', arguments: { title: 't' }, reason: 'r', expires_at: new Date(now.getTime() + 60_000).toISOString() }))
+    const r = await json(
+      await call(wk, 'POST', '/api/v1/action-requests', {
+        operation: 'tasks.create',
+        arguments: { title: 't' },
+        reason: 'r',
+        expires_at: new Date(now.getTime() + 60_000).toISOString(),
+      }),
+    )
     expect(r.status).toBe(201)
     advance(120_000)
     await wk.scheduled({ cron: '* * * * *' })
@@ -111,15 +161,26 @@ describe('the per-minute cron (D54)', () => {
   it('scheduled({ cron: "*/15 * * * *" }) runs no rail sweep and the Gmail tick is unchanged', async () => {
     const wk = worker()
     const { body } = await enqueue(wk)
-    const overdue = await json(await call(wk, 'POST', '/api/v1/action-requests', { operation: 'tasks.create', arguments: { title: 't' }, reason: 'r', expires_at: new Date(now.getTime() + 60_000).toISOString() }))
+    const overdue = await json(
+      await call(wk, 'POST', '/api/v1/action-requests', {
+        operation: 'tasks.create',
+        arguments: { title: 't' },
+        reason: 'r',
+        expires_at: new Date(now.getTime() + 60_000).toISOString(),
+      }),
+    )
     advance(3_600_000)
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     await wk.scheduled({ cron: '*/15 * * * *' })
     expect(await status(body.id)).toBe('queued')
-    expect((await rows(`select status from action_requests where id = '${overdue.body.id}'`))[0]!.status).toBe('pending')
+    expect((await rows(`select status from action_requests where id = '${overdue.body.id}'`))[0]!.status).toBe(
+      'pending',
+    )
     expect(transport.dispatches).toHaveLength(0)
     // The Gmail tick's own line, exactly as before (Gmail is not configured here).
-    expect(log.mock.calls.map((c) => String(c[0]))).toEqual([expect.stringContaining('[cron] */15 * * * *: Gmail work skipped')])
+    expect(log.mock.calls.map((c) => String(c[0]))).toEqual([
+      expect.stringContaining('[cron] */15 * * * *: Gmail work skipped'),
+    ])
   })
 
   it('an unknown expression is logged and does nothing', async () => {
@@ -134,7 +195,14 @@ describe('the per-minute cron (D54)', () => {
   it('a database behind its migrations runs neither sweep', async () => {
     const wk = worker()
     const { body } = await enqueue(wk)
-    const overdue = await json(await call(wk, 'POST', '/api/v1/action-requests', { operation: 'tasks.create', arguments: { title: 't' }, reason: 'r', expires_at: new Date(now.getTime() + 60_000).toISOString() }))
+    const overdue = await json(
+      await call(wk, 'POST', '/api/v1/action-requests', {
+        operation: 'tasks.create',
+        arguments: { title: 't' },
+        reason: 'r',
+        expires_at: new Date(now.getTime() + 60_000).toISOString(),
+      }),
+    )
     advance(3_600_000)
     await w.d1.prepare('drop table if exists d1_migrations').run()
     await createMigrationTracker(w.d1)
@@ -142,7 +210,9 @@ describe('the per-minute cron (D54)', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     await worker().scheduled({ cron: '* * * * *' })
     expect(await status(body.id)).toBe('queued')
-    expect((await rows(`select status from action_requests where id = '${overdue.body.id}'`))[0]!.status).toBe('pending')
+    expect((await rows(`select status from action_requests where id = '${overdue.body.id}'`))[0]!.status).toBe(
+      'pending',
+    )
     expect(transport.dispatches).toHaveLength(0)
     expect(log.mock.calls.map((c) => String(c[0])).join('\n')).toContain('behind its migrations')
   })
@@ -161,12 +231,28 @@ describe('bounded sweeps (CORE47)', () => {
     await recordMigrations(w.d1, NAMES)
     const wk = worker()
     const meter = meterD1(w.d1)
-    const metered = composeD1Worker({ DB: meter.d1, AUTH_PROVIDER: '' }, { clock: () => now, nowMs:()=>0, newId: () => uuidv7(now), operations: registerTestOperations, transports: { [TEST_TRANSPORT]: transport } })
+    const metered = composeD1Worker(
+      { DB: meter.d1, AUTH_PROVIDER: '' },
+      {
+        clock: () => now,
+        nowMs: () => 0,
+        newId: () => uuidv7(now),
+        operations: registerTestOperations,
+        transports: { [TEST_TRANSPORT]: transport },
+      },
+    )
     // A warm isolate: the marker and the migration state are read once on an empty tick, then the loaded tick is measured on its own.
     await metered.scheduled({ cron: '* * * * *' })
     for (let i = 0; i < 5; i++) await enqueue(wk)
     for (let i = 0; i < 100; i++) {
-      const r = await json(await call(wk, 'POST', '/api/v1/action-requests', { operation: 'tasks.create', arguments: { title: `t${i}` }, reason: 'r', expires_at: new Date(now.getTime() + 60_000 + i * 1000).toISOString() }))
+      const r = await json(
+        await call(wk, 'POST', '/api/v1/action-requests', {
+          operation: 'tasks.create',
+          arguments: { title: `t${i}` },
+          reason: 'r',
+          expires_at: new Date(now.getTime() + 60_000 + i * 1000).toISOString(),
+        }),
+      )
       expect(r.status).toBe(201)
     }
     advance(200_000) // past every expiry (60 s + i s), inside every execution's ten-minute deadline
@@ -204,7 +290,15 @@ describe('the test kit never reaches the Worker bundle (D52)', () => {
     })
     const text = out.outputFiles.map((f) => f.text).join('\n')
     expect(text.length).toBeGreaterThan(100_000)
-    for (const marker of ['test.enqueue', 'test-enqueue', 'FakeTransport', 'registerTestOperations', 'test_refused', 'rail-kit']) expect(text, marker).not.toContain(marker)
+    for (const marker of [
+      'test.enqueue',
+      'test-enqueue',
+      'FakeTransport',
+      'registerTestOperations',
+      'test_refused',
+      'rail-kit',
+    ])
+      expect(text, marker).not.toContain(marker)
     // The rail itself is in it.
     expect(text).toContain('action_executions.finish')
   })

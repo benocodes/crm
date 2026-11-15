@@ -13,4 +13,9 @@ export interface Program<T> {
 
 /** A mutating prepared operation that runs `program` as one atomic unit. */
 export const operationOf = <T>(name: string, program: Program<T>): PreparedOperation<T> =>
-  defineOperation<T>({ name, mutates: true, reads: (qc) => program.reads(qc), build: (found, qc) => program.build(found, qc) })
+  defineOperation<T>({
+    name,
+    mutates: true,
+    reads: (qc) => program.reads(qc),
+    build: (found, qc) => program.build(found, qc),
+  })

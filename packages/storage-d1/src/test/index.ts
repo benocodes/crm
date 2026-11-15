@@ -35,7 +35,9 @@ export function splitStatements(sqlText: string): string[] {
 
 /** Applies every `NNNN_*.sql` file, in order, the way `wrangler d1 migrations apply` would. */
 export async function applyMigrations(d1: D1Like, dir = MIGRATIONS_DIR): Promise<string[]> {
-  const files = readdirSync(dir).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort()
+  const files = readdirSync(dir)
+    .filter((f) => /^\d{4}_.+\.sql$/.test(f))
+    .sort()
   for (const file of files) {
     const statements = splitStatements(readFileSync(join(dir, file), 'utf-8'))
     if (statements.length > 0) await d1.batch(statements.map((s) => d1.prepare(s)))
@@ -58,7 +60,11 @@ export interface LocalD1 {
 }
 
 /** Starts local D1 databases `names`, migrated, and hands them to `fn`; always disposed. */
-export async function withLocalD1<T>(names: readonly string[], fn: (local: LocalD1) => Promise<T>, opts: { migrate?: boolean; control?: readonly string[] } = {}): Promise<T> {
+export async function withLocalD1<T>(
+  names: readonly string[],
+  fn: (local: LocalD1) => Promise<T>,
+  opts: { migrate?: boolean; control?: readonly string[] } = {},
+): Promise<T> {
   const local = await openLocalD1(names, opts)
   try {
     return await fn(local)
@@ -68,7 +74,13 @@ export async function withLocalD1<T>(names: readonly string[], fn: (local: Local
 }
 
 /** Like `withLocalD1` for a suite that keeps the bindings across tests: the caller must `dispose()`. */
-export async function openLocalD1(names: readonly string[], opts: { migrate?: boolean; /** Names that are control-plane databases ([[CORE259]]): migrated from `control-migrations/` and tracked in their own `d1_migrations`. */ control?: readonly string[] } = {}): Promise<LocalD1> {
+export async function openLocalD1(
+  names: readonly string[],
+  opts: {
+    migrate?: boolean /** Names that are control-plane databases ([[CORE259]]): migrated from `control-migrations/` and tracked in their own `d1_migrations`. */
+    control?: readonly string[]
+  } = {},
+): Promise<LocalD1> {
   const mf = new Miniflare({
     // OPS223 D6: an OS-assigned port, stated so a Miniflare upgrade that changes its default cannot reintroduce a fixed one (files run in parallel).
     port: 0,
@@ -95,13 +107,57 @@ export async function openLocalD1(names: readonly string[], opts: { migrate?: bo
 
 /** Empties every table the migrations created (children first) and keeps the schema and `d1_migrations`. */
 export async function clearD1(d1: D1Like): Promise<void> {
-  const { results } = await d1.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all()
+  const { results } = await d1
+    .prepare(
+      "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
+    )
+    .all()
   const rows = (results ?? []) as { name: string; sql: string | null }[]
   const tables = new Set(rows.map((r) => r.name))
   // FTS5 virtual tables (CORE194) are emptied through their own name; their shadow tables (`<virtual>_data`, `_idx`, ...) may not be modified.
   const virtual = rows.filter((r) => /^\s*CREATE\s+VIRTUAL\s+TABLE/i.test(r.sql ?? '')).map((r) => r.name)
   for (const t of [...tables]) if (virtual.some((v) => t.startsWith(`${v}_`))) tables.delete(t)
-  const order = ['webhook_deliveries', 'webhook_dispatch_state', 'webhook_secrets', 'webhook_subscriptions', 'action_executions', 'action_requests', 'events', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'channel_connections', 'interactions', 'associations', 'tags', 'deals', 'pipeline_stages', 'pipelines', 'notes', 'contact_files', 'company_files', 'messages', 'files', 'threads', 'identities', 'contacts', 'companies', 'tasks', 'api_keys', 'agents', 'memberships', 'users', 'principals', 'organizations', 'deployment']
+  const order = [
+    'webhook_deliveries',
+    'webhook_dispatch_state',
+    'webhook_secrets',
+    'webhook_subscriptions',
+    'action_executions',
+    'action_requests',
+    'events',
+    'interaction_participants',
+    'message_attachments',
+    'message_sources',
+    'thread_sources',
+    'channel_credentials',
+    'gmail_watches',
+    'mail_sync_state',
+    'mail_sync_cursors',
+    'channel_connections',
+    'interactions',
+    'associations',
+    'tags',
+    'deals',
+    'pipeline_stages',
+    'pipelines',
+    'notes',
+    'contact_files',
+    'company_files',
+    'messages',
+    'files',
+    'threads',
+    'identities',
+    'contacts',
+    'companies',
+    'tasks',
+    'api_keys',
+    'agents',
+    'memberships',
+    'users',
+    'principals',
+    'organizations',
+    'deployment',
+  ]
   // wrangler's own tracker is migration state, not data ([[CORE61]] D10): emptying it would flip a gated database to `behind`.
   tables.delete('d1_migrations')
   const known = order.filter((t) => tables.has(t))
@@ -109,18 +165,32 @@ export async function clearD1(d1: D1Like): Promise<void> {
   const statements = [...rest, ...known].map((t) => d1.prepare(`DELETE FROM "${t}"`))
   // An append-only table refuses DELETE by trigger (`control_audit`, [[CORE245]] P5). A test helper that empties between tests drops exactly those `BEFORE DELETE` triggers and recreates them from their
   // own stored SQL, all in the one batch (atomic: a failure leaves the triggers in place), so the schema afterwards is byte-for-byte the one the migrations made.
-  const guards = ((await d1.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND sql LIKE '% BEFORE DELETE ON %'").all()).results ?? []) as { name: string; sql: string }[]
-  if (statements.length > 0) await d1.batch([...guards.map((g) => d1.prepare(`DROP TRIGGER "${g.name}"`)), ...statements, ...guards.map((g) => d1.prepare(g.sql))])
+  const guards = ((
+    await d1
+      .prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND sql LIKE '% BEFORE DELETE ON %'")
+      .all()
+  ).results ?? []) as { name: string; sql: string }[]
+  if (statements.length > 0)
+    await d1.batch([
+      ...guards.map((g) => d1.prepare(`DROP TRIGGER "${g.name}"`)),
+      ...statements,
+      ...guards.map((g) => d1.prepare(g.sql)),
+    ])
 }
 
 /** The DDL wrangler 4.149.0 uses for its tracker (verified with `migrations apply --local`, [[CORE61]] Risks). */
 export async function createMigrationTracker(d1: D1Like): Promise<void> {
-  await d1.prepare('CREATE TABLE IF NOT EXISTS d1_migrations(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)').run()
+  await d1
+    .prepare(
+      'CREATE TABLE IF NOT EXISTS d1_migrations(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)',
+    )
+    .run()
 }
 
 /** Records `names` as applied, as wrangler would; a name already recorded is left alone. */
 export async function recordMigrations(d1: D1Like, names: readonly string[]): Promise<void> {
-  if (names.length > 0) await d1.batch(names.map((n) => d1.prepare('INSERT OR IGNORE INTO d1_migrations (name) VALUES (?)').bind(n)))
+  if (names.length > 0)
+    await d1.batch(names.map((n) => d1.prepare('INSERT OR IGNORE INTO d1_migrations (name) VALUES (?)').bind(n)))
 }
 
 /** Removes recorded migrations (a test simulating a database behind its Worker). */

@@ -23,7 +23,8 @@ export const EXIT_DONE = 0
 export const EXIT_REFUSED = 2
 export const EXIT_FAILED = 3
 
-const USAGE = 'usage: vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
+const USAGE =
+  'usage: vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
 const row = (r: StepResult) => `${r.status.padEnd(7)} ${r.step.padEnd(17)} ${r.detail}`
 
 /** A step's failure that is a refusal (an unresolvable wrangler) before anything was written is a refusal, not a failed step. */
@@ -46,7 +47,11 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
         const path = given ?? defaultSettingsPath(deps.env, deps.homedir, env)
         if (!existsSync(path)) return null
         const rec = loadSettings(path, env)
-        return { provider: providerFromVars(rec.vars, path), where: path, host: { apiHost: rec.api_host, workersDev: rec.workers_dev === true } }
+        return {
+          provider: providerFromVars(rec.vars, path),
+          where: path,
+          host: { apiHost: rec.api_host, workersDev: rec.workers_dev === true },
+        }
       })
     } catch (e) {
       if (!isRefusal(e)) throw e
@@ -56,7 +61,10 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
 
     // (a) the installed package is the release, before any network call or child process.
     const problems = verifyRelease(deps.packageDir)
-    if (problems.length > 0) throw new InstanceRefusal(`the installed package does not match its release.json: ${problems.map((p) => `${p.path} (${p.kind})`).join(', ')}: reinstall it`)
+    if (problems.length > 0)
+      throw new InstanceRefusal(
+        `the installed package does not match its release.json: ${problems.map((p) => `${p.path} (${p.kind})`).join(', ')}: reinstall it`,
+      )
     manifest = JSON.parse(readFileSync(join(deps.packageDir, 'release.json'), 'utf8')) as ReleaseManifest
 
     // (b) the secrets file (D10: mode refusal) and the settings file, if there is one.
@@ -66,9 +74,30 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     const settingsPath = parsed.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, derived.env)
     const existing = existsSync(settingsPath) ? loadSettings(settingsPath, derived.env) : null
     // [[OPS276]]: the names the settings file records win over the derivation; a name flag that differs is refused before any step.
-    const named = existing ? applyRecordedNames(derived, { workerName: existing.worker, d1Name: existing.d1.name, controlD1Name: existing.control_d1?.name, d1Id: existing.d1.id, controlD1Id: existing.control_d1?.id, r2Name: existing.r2_bucket }, settingsPath) : derived
+    const named = existing
+      ? applyRecordedNames(
+          derived,
+          {
+            workerName: existing.worker,
+            d1Name: existing.d1.name,
+            controlD1Name: existing.control_d1?.name,
+            d1Id: existing.d1.id,
+            controlD1Id: existing.control_d1?.id,
+            r2Name: existing.r2_bucket,
+          },
+          settingsPath,
+        )
+      : derived
     // The target guard of every remote command ([[OPS4]] C4): a Worker named `vault` is the local-only top level.
-    resolveTarget({ name: named.workerName, d1_databases: [{ binding: 'DB', database_id: existing?.d1.id ?? '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', remote: true }] }, named.env)
+    resolveTarget(
+      {
+        name: named.workerName,
+        d1_databases: [
+          { binding: 'DB', database_id: existing?.d1.id ?? '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', remote: true },
+        ],
+      },
+      named.env,
+    )
 
     // [[OPS308]] P1, P3: the one host of this run, resolved before any write and before anything reads the base URL. A registration is a write, so the confirmation comes first.
     const creds = { accountId: secrets.CLOUDFLARE_ACCOUNT_ID, apiToken: secrets.CLOUDFLARE_API_TOKEN }
@@ -84,8 +113,15 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
 
     // (c) P2: a live instance that is a newer release refuses before any write; no answer or a non-semver version (a source deploy) proceeds.
     const live = await readLiveVersion(opts.apiHost, deps)
-    if (live !== null && parseSemver(live) !== null && parseSemver(manifest.version) !== null && compareSemver(live, manifest.version) > 0) {
-      throw new InstanceRefusal(`the instance runs ${live} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package's \`vibase-server upgrade --rollback\`)`)
+    if (
+      live !== null &&
+      parseSemver(live) !== null &&
+      parseSemver(manifest.version) !== null &&
+      compareSemver(live, manifest.version) > 0
+    ) {
+      throw new InstanceRefusal(
+        `the instance runs ${live} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package's \`vibase-server upgrade --rollback\`)`,
+      )
     }
     ctx = {
       opts,
@@ -104,7 +140,8 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       wrote: false,
       extraMasks,
     }
-    if (live !== null && parseSemver(live) === null) out(`note: live version "${live}" is not a release version (a source deploy?): continuing`)
+    if (live !== null && parseSemver(live) === null)
+      out(`note: live version "${live}" is not a release version (a source deploy?): continuing`)
   } catch (e) {
     if (!isRefusal(e)) throw e
     err(`vibase-server setup: ${(e as Error).message}`)
@@ -114,21 +151,39 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   const { opts } = ctx
   const say = out
   const say2 = err
-  say(`package: vibase-server/${manifest.version} (${manifest.commit}), ${Object.keys(manifest.files).length} files verified`)
-  say(`setup: env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}, settings ${ctx.settingsPath}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
+  say(
+    `package: vibase-server/${manifest.version} (${manifest.commit}), ${Object.keys(manifest.files).length} files verified`,
+  )
+  say(
+    `setup: env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}, settings ${ctx.settingsPath}${opts.dryRun ? ' (dry run: reads only)' : ''}`,
+  )
   for (const n of opts.hostNotes ?? []) say(n)
-  if (opts.move) for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined, ctx.gmail !== null)) say(l)
-  if (ctx.keys) say(`clerk instance: ${ctx.keys.kind}${ctx.keys.kind === 'development' ? " (warning: a development instance is a test instance, with Clerk's user cap and dev-browser handshake)" : ''}, issuer ${ctx.keys.issuer}, keys from ${ctx.secretsPath}`)
+  if (opts.move)
+    for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined, ctx.gmail !== null))
+      say(l)
+  if (ctx.keys)
+    say(
+      `clerk instance: ${ctx.keys.kind}${ctx.keys.kind === 'development' ? " (warning: a development instance is a test instance, with Clerk's user cap and dev-browser handshake)" : ''}, issuer ${ctx.keys.issuer}, keys from ${ctx.secretsPath}`,
+    )
   say(
     ctx.gmail
-      ? `gmail: on, from ${ctx.secretsPath}: secrets ${GMAIL_SECRET_NAMES.join(', ')}; vars ${Object.keys(ctx.gmail.vars).sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never)).join(', ')}`
+      ? `gmail: on, from ${ctx.secretsPath}: secrets ${GMAIL_SECRET_NAMES.join(', ')}; vars ${Object.keys(
+          ctx.gmail.vars,
+        )
+          .sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never))
+          .join(', ')}`
       : 'gmail: skipped (none of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_STATE_SECRET, CREDENTIALS_KEY in the secrets file)',
   )
   if (ctx.betterAuth) {
     const b = ctx.betterAuth
-    say(`better-auth: PUBLIC_BASE_URL https://${opts.apiHost}; AUTH_SECRET ${b.authSecret ? `from ${b.file}` : `not in ${b.file} (generated and written there when the Worker lacks it)`}; Google sign-in secrets ${b.google ? `from ${b.file}` : 'not set'}`)
+    say(
+      `better-auth: PUBLIC_BASE_URL https://${opts.apiHost}; AUTH_SECRET ${b.authSecret ? `from ${b.file}` : `not in ${b.file} (generated and written there when the Worker lacks it)`}; Google sign-in secrets ${b.google ? `from ${b.file}` : 'not set'}`,
+    )
   }
-  const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)))
+  const selected = STEP_NAMES.filter(
+    (s) =>
+      (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)),
+  )
   const results: StepResult[] = []
   let registered = false
   for (const name of selected) {
@@ -158,7 +213,10 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     for (const l of r.lines ?? []) say(`        ${l}`)
     if (r.status === 'fail') break
   }
-  const manual = [...results.filter((r) => r.status === 'manual').map((r) => `${r.step}: ${r.detail}`), ...results.flatMap((r) => r.manual ?? [])]
+  const manual = [
+    ...results.filter((r) => r.status === 'manual').map((r) => `${r.step}: ${r.detail}`),
+    ...results.flatMap((r) => r.manual ?? []),
+  ]
   if (manual.length > 0) {
     say('manual:')
     for (const m of manual) say(`  ${m}`)
@@ -175,7 +233,11 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
 /** The live `/health` version, or `null` when it does not answer 200 with one. */
 async function readLiveVersion(apiHost: string, deps: InstanceDeps): Promise<string | null> {
   try {
-    const res = await deps.fetch(`https://${apiHost}/health`, { redirect: 'manual', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) })
+    const res = await deps.fetch(`https://${apiHost}/health`, {
+      redirect: 'manual',
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(15_000),
+    })
     if (res.status !== 200) return null
     const v = ((await res.json()) as { version?: unknown }).version
     return typeof v === 'string' ? v : null

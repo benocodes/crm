@@ -27,7 +27,10 @@ describe('scopes', () => {
     expect(() => ScopeSet.parse(['tasks:read', 'bogus'])).toThrow('invalid scope: bogus')
   })
   it('toStrings sorts and deduplicates', () => {
-    expect(ScopeSet.parse(['tasks:write', 'tasks:read', 'tasks:read']).toStrings()).toEqual(['tasks:read', 'tasks:write'])
+    expect(ScopeSet.parse(['tasks:write', 'tasks:read', 'tasks:read']).toStrings()).toEqual([
+      'tasks:read',
+      'tasks:write',
+    ])
   })
 })
 
@@ -46,7 +49,9 @@ describe('closure under write => request_approval (D31)', () => {
     expect(closeScopes(['tasks:request_approval']).sort()).toEqual(['tasks:request_approval'])
   })
   it('limits the added scopes to declared ones', () => {
-    expect(closeScopes(['agents:write', 'tasks:write'], ['tasks:write', 'tasks:request_approval', 'agents:write']).sort()).toEqual(['agents:write', 'tasks:request_approval', 'tasks:write'])
+    expect(
+      closeScopes(['agents:write', 'tasks:write'], ['tasks:write', 'tasks:request_approval', 'agents:write']).sort(),
+    ).toEqual(['agents:write', 'tasks:request_approval', 'tasks:write'])
   })
   it('case 1: a request_approval token over a write cap keeps request_approval only', () => {
     expect(meet(['tasks:request_approval'], ['tasks:write'])).toEqual(['tasks:request_approval'])
@@ -62,7 +67,7 @@ describe('closure under write => request_approval (D31)', () => {
     expect(ScopeSet.closed(['tasks:write']).has({ resource: 'tasks', action: 'read' })).toBe(false)
     expect(ScopeSet.closed(['tasks:write']).has({ resource: 'tasks', action: 'request_approval' })).toBe(true)
   })
-  it('parse alone does not close: closing is the authenticators\' job', () => {
+  it("parse alone does not close: closing is the authenticators' job", () => {
     expect(ScopeSet.parse(['tasks:write']).has({ resource: 'tasks', action: 'request_approval' })).toBe(false)
   })
 })

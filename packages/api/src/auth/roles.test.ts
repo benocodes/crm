@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createVibaseRegistry } from '../operations.js'
-import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, assertAgentGrantable, grantableScopes, isAgentGrantable, scopesForRole, type ScopePolicy } from './roles.js'
+import {
+  SCOPE_DESCRIPTIONS,
+  SCOPE_POLICY,
+  assertAgentGrantable,
+  grantableScopes,
+  isAgentGrantable,
+  scopesForRole,
+  type ScopePolicy,
+} from './roles.js'
 
 const declared = ['a:read', 'a:write', 'b:read']
 const policy: ScopePolicy = {
@@ -27,14 +35,17 @@ describe('roles', () => {
   })
   it('assertAgentGrantable', () => {
     expect(() => assertAgentGrantable(['a:read'], declared, policy)).not.toThrow()
-    expect(() => assertAgentGrantable(['a:read', 'a:write'], declared, policy)).toThrow('scope not grantable to an agent: a:write')
+    expect(() => assertAgentGrantable(['a:read', 'a:write'], declared, policy)).toThrow(
+      'scope not grantable to an agent: a:write',
+    )
   })
   it('catalog: policy keys equal declared scopes (P7)', () => {
     expect(Object.keys(SCOPE_POLICY).sort()).toEqual(createVibaseRegistry().declaredScopes())
   })
   it('catalog (OPS65 D40): descriptions keys equal declared scopes, each one a non-empty sentence', () => {
     expect(Object.keys(SCOPE_DESCRIPTIONS).sort()).toEqual(createVibaseRegistry().declaredScopes())
-    for (const [scope, text] of Object.entries(SCOPE_DESCRIPTIONS)) expect(text.trim().length, scope).toBeGreaterThan(10)
+    for (const [scope, text] of Object.entries(SCOPE_DESCRIPTIONS))
+      expect(text.trim().length, scope).toBeGreaterThan(10)
   })
   it('catalog: owner holds every declared scope', () => {
     const declaredReal = createVibaseRegistry().declaredScopes()
@@ -73,7 +84,9 @@ describe('roles', () => {
       expect(isAgentGrantable(scope)).toBe(true)
       expect(createVibaseRegistry().declaredScopes()).toContain(scope)
     }
-    expect(scopesForRole('member', createVibaseRegistry().declaredScopes()).toStrings()).toEqual(expect.arrayContaining(['associations:read', 'associations:write']))
+    expect(scopesForRole('member', createVibaseRegistry().declaredScopes()).toStrings()).toEqual(
+      expect.arrayContaining(['associations:read', 'associations:write']),
+    )
   })
   it('member holds the read scopes of administration', () => {
     const member = scopesForRole('member', createVibaseRegistry().declaredScopes()).toStrings()

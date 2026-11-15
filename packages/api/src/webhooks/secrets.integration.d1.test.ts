@@ -35,7 +35,17 @@ describe('what is shown (D12)', () => {
       expect(r.text).not.toContain('whsec_')
       expect(r.text).not.toContain('sealed')
     }
-    expect(Object.keys(got.body).sort()).toEqual(['agent_id', 'created_at', 'created_by', 'event_types', 'id', 'organization_id', 'status', 'updated_at', 'url'])
+    expect(Object.keys(got.body).sort()).toEqual([
+      'agent_id',
+      'created_at',
+      'created_by',
+      'event_types',
+      'id',
+      'organization_id',
+      'status',
+      'updated_at',
+      'url',
+    ])
     expect(Object.keys(made).sort()).toEqual([...Object.keys(got.body), 'secret'].sort())
   })
 
@@ -44,10 +54,16 @@ describe('what is shown (D12)', () => {
     const rotated = (await k.owner('POST', `${BASE}/${made.id}/rotate-secret`)).body.secret
     await k.owner('PATCH', `${BASE}/${made.id}`, { status: 'paused' })
     await k.owner('DELETE', `${BASE}/${made.id}`)
-    const events = await k.all("select type, \"before\", \"after\" from events where type like 'webhook.%'")
-    expect(events.map((e) => e.type).sort()).toEqual(['webhook.created', 'webhook.deleted', 'webhook.secret_rotated', 'webhook.updated'])
+    const events = await k.all('select type, "before", "after" from events where type like \'webhook.%\'')
+    expect(events.map((e) => e.type).sort()).toEqual([
+      'webhook.created',
+      'webhook.deleted',
+      'webhook.secret_rotated',
+      'webhook.updated',
+    ])
     const text = JSON.stringify(events)
-    for (const s of [made.secret, rotated, ...(await secrets()).map((r) => r.sealed as string)]) expect(text).not.toContain(s)
+    for (const s of [made.secret, rotated, ...(await secrets()).map((r) => r.sealed as string)])
+      expect(text).not.toContain(s)
     expect(text).not.toContain('whsec_')
   })
 
@@ -74,7 +90,11 @@ describe('what is stored (D12)', () => {
     expect(String(row.sealed)).not.toContain(made.secret)
     expect(await openToken(KEY_BYTES, String(row.sealed))).toBe(made.secret)
     expect(row.key_version).toBe(3)
-    expect([row.subscription_id, row.organization_id, row.created_by]).toEqual([made.id, k.e.organizationId, k.e.userId])
+    expect([row.subscription_id, row.organization_id, row.created_by]).toEqual([
+      made.id,
+      k.e.organizationId,
+      k.e.userId,
+    ])
   })
 
   it('each sealing has its own IV: the same plaintext twice would not seal alike, and the key version follows the variable', async () => {
@@ -120,9 +140,21 @@ describe('rotation (D12)', () => {
 
   it('an UPDATE of webhook_secrets aborts (append-only); inserts of later rows are untouched', async () => {
     await k.create(await k.seedAgent(TASKS))
-    const err = await k.e.d1!.prepare("UPDATE webhook_secrets SET sealed = 'x'").run().then(() => null, (e: Error) => e.message)
+    const err = await k.e
+      .d1!.prepare("UPDATE webhook_secrets SET sealed = 'x'")
+      .run()
+      .then(
+        () => null,
+        (e: Error) => e.message,
+      )
     expect(err).toContain('append_only')
-    const err2 = await k.e.d1!.prepare('UPDATE webhook_secrets SET key_version = 99').run().then(() => null, (e: Error) => e.message)
+    const err2 = await k.e
+      .d1!.prepare('UPDATE webhook_secrets SET key_version = 99')
+      .run()
+      .then(
+        () => null,
+        (e: Error) => e.message,
+      )
     expect(err2).toContain('append_only')
     expect((await secrets())[0]!.key_version).toBe(3)
   })
@@ -142,10 +174,16 @@ describe('configuration (D12)', () => {
       // a subscription that exists (inserted raw) cannot be rotated
       const id = '0190b2c4-0000-7000-8000-0000000000bb'
       const at = '2026-11-12T09:00:00.000Z'
-      await bare.e.d1!.prepare("INSERT INTO webhook_subscriptions (id, created_at, updated_at, organization_id, created_by, agent_id, url, event_types, status) VALUES (?, ?, ?, ?, ?, ?, ?, '[\"task.created\"]', 'active')").bind(id, at, at, bare.e.organizationId, bare.e.userId, a, URL_OK).run()
+      await bare.e
+        .d1!.prepare(
+          "INSERT INTO webhook_subscriptions (id, created_at, updated_at, organization_id, created_by, agent_id, url, event_types, status) VALUES (?, ?, ?, ?, ?, ?, ?, '[\"task.created\"]', 'active')",
+        )
+        .bind(id, at, at, bare.e.organizationId, bare.e.userId, a, URL_OK)
+        .run()
       const rotated = await bare.owner('POST', `${BASE}/${id}/rotate-secret`)
       expect([rotated.status, rotated.body.error.code]).toEqual([501, 'webhooks_not_configured'])
-      for (const table of ['webhook_secrets', 'webhook_dispatch_state']) expect(await bare.all(`select * from ${table}`), table).toEqual([])
+      for (const table of ['webhook_secrets', 'webhook_dispatch_state'])
+        expect(await bare.all(`select * from ${table}`), table).toEqual([])
       expect(await bare.all('select id from webhook_subscriptions')).toHaveLength(1)
       expect(await bare.all("select id from events where type like 'webhook.%'")).toEqual([])
       // reads, update and delete need no key
@@ -160,7 +198,21 @@ describe('configuration (D12)', () => {
   it('the operations are registered whatever the configuration (the tool lists do not change per deployment)', async () => {
     const bare = await openWebhookKit({ key: null })
     try {
-      expect(bare.registry.operations().filter((o) => o.name.startsWith('webhooks.')).map((o) => o.name).sort()).toEqual(['webhooks.create', 'webhooks.delete', 'webhooks.deliveries', 'webhooks.get', 'webhooks.list', 'webhooks.rotate_secret', 'webhooks.update'])
+      expect(
+        bare.registry
+          .operations()
+          .filter((o) => o.name.startsWith('webhooks.'))
+          .map((o) => o.name)
+          .sort(),
+      ).toEqual([
+        'webhooks.create',
+        'webhooks.delete',
+        'webhooks.deliveries',
+        'webhooks.get',
+        'webhooks.list',
+        'webhooks.rotate_secret',
+        'webhooks.update',
+      ])
       expect(k.registry.declaredScopes()).toEqual(bare.registry.declaredScopes())
     } finally {
       await bare.close()

@@ -25,13 +25,23 @@ let w: Workerd
 let cookie: string
 beforeAll(async () => {
   bundle = await bundleWorker(ENTRY)
-  w = await startWorkerd({ bundle, bindings: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE, OPEN_ADMISSION: '1' }, paired: true })
+  w = await startWorkerd({
+    bundle,
+    bindings: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE, OPEN_ADMISSION: '1' },
+    paired: true,
+  })
   await seedFirstPartyClient(w.control as never, { baseURL: BASE })
   const kit = authKitOver(w.call as never, BASE, declared)
   const { userId, cookie: c } = await kit.signUp('owner@x.test')
   cookie = c
   const human = uuidv7()
-  await seedPrincipal(w.d1, { id: human, kind: 'user', email: 'owner@x.test', authProvider: 'better-auth', authSubject: userId })
+  await seedPrincipal(w.d1, {
+    id: human,
+    kind: 'user',
+    email: 'owner@x.test',
+    authProvider: 'better-auth',
+    authSubject: userId,
+  })
   await seedMembership(w.d1, { organizationId: PAIRED_ORG, userId: human, role: 'owner' })
 }, 180_000)
 afterAll(async () => {
@@ -40,21 +50,62 @@ afterAll(async () => {
 })
 
 type Tokens = { access_token?: string; refresh_token?: string; error?: string; status: number }
-const readTokens = async (res: Response): Promise<Tokens> => ({ ...((await res.json().catch(() => ({}))) as object), status: res.status })
+const readTokens = async (res: Response): Promise<Tokens> => ({
+  ...((await res.json().catch(() => ({}))) as object),
+  status: res.status,
+})
 /** The device grant for the signed-in owner; `resource` omitted when undefined. Returns the first refused step's body or the tokens. */
 async function deviceGrant(resource?: string): Promise<Tokens> {
-  const post = (path: string, body: unknown, form = false) => w.call(path, { body: body as never, form, cookie, headers: ip() })
-  const code = await post('/auth/device/code', { client_id: 'vibase-cli', scope: SCOPE, ...(resource ? { resource } : {}) })
+  const post = (path: string, body: unknown, form = false) =>
+    w.call(path, { body: body as never, form, cookie, headers: ip() })
+  const code = await post('/auth/device/code', {
+    client_id: 'vibase-cli',
+    scope: SCOPE,
+    ...(resource ? { resource } : {}),
+  })
   const codes = (await code.json()) as { device_code?: string; user_code?: string; error?: string }
   if (!code.ok) return { ...codes, status: code.status }
-  expect((await w.call(`/auth/device?user_code=${encodeURIComponent(codes.user_code!)}`, { cookie, headers: ip() })).ok).toBe(true)
+  expect(
+    (await w.call(`/auth/device?user_code=${encodeURIComponent(codes.user_code!)}`, { cookie, headers: ip() })).ok,
+  ).toBe(true)
   expect((await post('/auth/device/approve', { userCode: codes.user_code })).ok).toBe(true)
-  return readTokens(await post('/auth/oauth2/token', { grant_type: DEVICE, device_code: codes.device_code, client_id: 'vibase-cli', ...(resource ? { resource } : {}) }, true))
+  return readTokens(
+    await post(
+      '/auth/oauth2/token',
+      {
+        grant_type: DEVICE,
+        device_code: codes.device_code,
+        client_id: 'vibase-cli',
+        ...(resource ? { resource } : {}),
+      },
+      true,
+    ),
+  )
 }
-const refresh = async (token: string, resource?: string) => readTokens(await w.call('/auth/oauth2/token', { headers: ip(), form: true, body: { grant_type: 'refresh_token', refresh_token: token, client_id: 'vibase-cli', ...(resource ? { resource } : {}) } }))
-const api = async (tok: string) => (await w.call('/api/v1/contacts', { headers: { authorization: `Bearer ${tok}` } })).status
+const refresh = async (token: string, resource?: string) =>
+  readTokens(
+    await w.call('/auth/oauth2/token', {
+      headers: ip(),
+      form: true,
+      body: {
+        grant_type: 'refresh_token',
+        refresh_token: token,
+        client_id: 'vibase-cli',
+        ...(resource ? { resource } : {}),
+      },
+    }),
+  )
+const api = async (tok: string) =>
+  (await w.call('/api/v1/contacts', { headers: { authorization: `Bearer ${tok}` } })).status
 // no Origin header: the MCP endpoint refuses every browser origin that is not on its CORS list
-const mcp = async (tok: string) => (await w.mf.dispatchFetch(`${BASE}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${tok}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) })).status
+const mcp = async (tok: string) =>
+  (
+    await w.mf.dispatchFetch(`${BASE}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${tok}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    })
+  ).status
 const isJwt = (t: string) => t.split('.').length === 3
 
 type Grant = 'device code' | 'refresh'
@@ -109,6 +160,13 @@ describe('discovery in workerd through the real Worker module (D12)', () => {
     expect(doc.registration_endpoint).toBe(`${BASE}/auth/oauth2/register`)
     expect(doc.device_authorization_endpoint).toBe(`${BASE}/auth/device/code`)
     const vibase = (await (await w.call('/.well-known/vibase')).json()) as { auth: Record<string, string> }
-    expect(vibase.auth).toEqual({ provider: 'better-auth', issuer: `${BASE}/auth`, cli_client_id: 'vibase-cli', resource: BASE, protected_resource_metadata: `${BASE}/.well-known/oauth-protected-resource`, sign_in_methods: ['password'] })
+    expect(vibase.auth).toEqual({
+      provider: 'better-auth',
+      issuer: `${BASE}/auth`,
+      cli_client_id: 'vibase-cli',
+      resource: BASE,
+      protected_resource_metadata: `${BASE}/.well-known/oauth-protected-resource`,
+      sign_in_methods: ['password'],
+    })
   })
 })

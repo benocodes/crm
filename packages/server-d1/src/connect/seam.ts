@@ -12,7 +12,8 @@ export interface SeamDeps {
 export function selectSeam(discovery: Discovery | null | undefined, deps: SeamDeps = {}): ClerkLike | null {
   const auth = discovery?.auth
   if (!auth) return null
-  if (auth.provider === 'clerk' && auth.publishable_key) return windowClerk(auth, deps.loadScript ? { loadScript: deps.loadScript } : {})
+  if (auth.provider === 'clerk' && auth.publishable_key)
+    return windowClerk(auth, deps.loadScript ? { loadScript: deps.loadScript } : {})
   if (auth.provider === 'better-auth') return betterAuthSession(deps)
   return null
 }

@@ -18,20 +18,34 @@ export function resolveSorts(metadata: SortMetadata): Readonly<Record<string, So
     if (convention.includes(name)) throw new Error(`sorts "${name}" repeats the convention (${metadata.name})`)
     if (declared.indexOf(name) !== i) throw new Error(`sorts "${name}" is listed twice (${metadata.name})`)
   }
-  return Object.freeze(Object.fromEntries([...convention, ...declared].map((name): [string, SortKind] => {
-    const kind = Object.hasOwn(metadata.columns, name) ? metadata.columns[name] : metadata.derived?.[name]?.kind
-    if (!kind) throw new Error(`sorts "${name}" is unknown (${metadata.name})`)
-    if (!Object.hasOwn(metadata.record.shape, name)) throw new Error(`sorts "${name}" is not a field of the record (${metadata.name})`)
-    if (kind !== 'timestamp' && kind !== 'uuid' && kind !== 'text' && kind !== 'integer') throw new Error(`sorts "${name}" has unsupported kind ${kind} (${metadata.name})`)
-    return [name, kind]
-  })))
+  return Object.freeze(
+    Object.fromEntries(
+      [...convention, ...declared].map((name): [string, SortKind] => {
+        const kind = Object.hasOwn(metadata.columns, name) ? metadata.columns[name] : metadata.derived?.[name]?.kind
+        if (!kind) throw new Error(`sorts "${name}" is unknown (${metadata.name})`)
+        if (!Object.hasOwn(metadata.record.shape, name))
+          throw new Error(`sorts "${name}" is not a field of the record (${metadata.name})`)
+        if (kind !== 'timestamp' && kind !== 'uuid' && kind !== 'text' && kind !== 'integer')
+          throw new Error(`sorts "${name}" has unsupported kind ${kind} (${metadata.name})`)
+        return [name, kind]
+      }),
+    ),
+  )
 }
 
 /** Explicit opt-in until the rollout cycles adopt column sorts; legacy derived-only definitions are unchanged. */
-export function withColumnSorts<T extends PreparedResource>(def: T, names: readonly string[] = def.sorts ?? []): T & { readonly sortKinds: Readonly<Record<string, SortKind>>; readonly sorts: readonly string[] } {
-  const sortKinds = resolveSorts({ ...def, columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS], sorts: names })
+export function withColumnSorts<T extends PreparedResource>(
+  def: T,
+  names: readonly string[] = def.sorts ?? [],
+): T & { readonly sortKinds: Readonly<Record<string, SortKind>>; readonly sorts: readonly string[] } {
+  const sortKinds = resolveSorts({
+    ...def,
+    columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS],
+    sorts: names,
+  })
   for (const key of ['sort', 'order']) {
-    if (key in (def.filters ?? {}) || key in (def.customFilters ?? {})) throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${def.name})`)
+    if (key in (def.filters ?? {}) || key in (def.customFilters ?? {}))
+      throw new Error(`"${key}" is a parameter of a sorted list and cannot also be a filter (${def.name})`)
   }
   return { ...def, sorts: Object.freeze(Object.keys(sortKinds)), sortKinds }
 }

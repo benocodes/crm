@@ -1,5 +1,15 @@
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, codecs, defineOperation, readMaybe, step, ts, unit, type PreparedOperation, type Row } from '@vibase/storage'
+import {
+  UnitDriftError,
+  codecs,
+  defineOperation,
+  readMaybe,
+  step,
+  ts,
+  unit,
+  type PreparedOperation,
+  type Row,
+} from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { deals, type DealRecord } from '../resources/deals.js'
@@ -43,10 +53,16 @@ export function moveStageOperation(env: PreparedEnv, rawId: string, rawStageId: 
       if (!target) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
       const { __stamp, ...rest } = row as Record<string, unknown>
       const before = toRecord(deals, rest as Row)
-      if (target.pipeline_id !== before.pipeline_id) throw new ApiError(400, 'validation_error', 'the stage belongs to another pipeline; a deal moves between the stages of its own pipeline')
+      if (target.pipeline_id !== before.pipeline_id)
+        throw new ApiError(
+          400,
+          'validation_error',
+          'the stage belongs to another pipeline; a deal moves between the stages of its own pipeline',
+        )
       const kind = String(target.kind) as 'open' | 'won' | 'lost'
       // Already there: the answer is the record, with the status its stage gives (the kind is immutable, so the planned one is current).
-      if (before.stage_id === stageId) return unit({ steps: [], events: [], decode: () => ({ ...before, status: kind }) })
+      if (before.stage_id === stageId)
+        return unit({ steps: [], events: [], decode: () => ({ ...before, status: kind }) })
       const closedAt =
         kind === 'open'
           ? null

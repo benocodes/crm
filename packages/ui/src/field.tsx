@@ -18,7 +18,19 @@ export interface FieldProps {
   ref?: Ref<HTMLInputElement>
 }
 
-export function Field({ label, value, onChange, type = 'text', name, autoComplete, hint, error, required, disabled, ref }: FieldProps) {
+export function Field({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  name,
+  autoComplete,
+  hint,
+  error,
+  required,
+  disabled,
+  ref,
+}: FieldProps) {
   const id = useId()
   const hintId = hint ? `${id}-hint` : undefined
   const errorId = error ? `${id}-error` : undefined

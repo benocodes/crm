@@ -9,7 +9,7 @@ import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { FAKE_ENDPOINTS, FAKE_GMAIL_BASE, FakeGoogle, type ConsentOptions, type FakeAccount } from '../test/google.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
-import { parseGmailConfig, type GmailConfig } from './config.js'
+import { parseGmailConfig } from './config.js'
 import { openToken } from './credentials.js'
 import { connectOperation } from './connect.js'
 import { GMAIL_READONLY, GMAIL_SEND } from './google.js'
@@ -27,8 +27,26 @@ const ENV = {
 }
 const BASE = 'https://vibase.test'
 const SCOPES_ALL = ['openid', 'email', GMAIL_READONLY, GMAIL_SEND]
-const ANN: FakeAccount = { sub: 'sub-ann', email: 'ann@example.test', historyId: '555', sendAs: [{ sendAsEmail: 'ann@example.test', isPrimary: true }, { sendAsEmail: 'Sales@Example.test', verificationStatus: 'accepted' }, { sendAsEmail: 'pending@example.test', verificationStatus: 'pending' }] }
-const CONNECTION_TABLES = ['channel_connections', 'channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors', 'identities', 'contacts', 'events'] as const
+const ANN: FakeAccount = {
+  sub: 'sub-ann',
+  email: 'ann@example.test',
+  historyId: '555',
+  sendAs: [
+    { sendAsEmail: 'ann@example.test', isPrimary: true },
+    { sendAsEmail: 'Sales@Example.test', verificationStatus: 'accepted' },
+    { sendAsEmail: 'pending@example.test', verificationStatus: 'pending' },
+  ],
+}
+const CONNECTION_TABLES = [
+  'channel_connections',
+  'channel_credentials',
+  'gmail_watches',
+  'mail_sync_state',
+  'mail_sync_cursors',
+  'identities',
+  'contacts',
+  'events',
+] as const
 
 let e: Engine
 let google: FakeGoogle
@@ -39,7 +57,10 @@ let policy: ScopePolicy
 let env: Record<string, string | undefined>
 let app: ReturnType<typeof createApp>
 
-const buildApp = (envVars: Record<string, string | undefined>, over: { roleOf?: (s: string) => Promise<Role | null> } = {}) => {
+const buildApp = (
+  envVars: Record<string, string | undefined>,
+  over: { roleOf?: (s: string) => Promise<Role | null> } = {},
+) => {
   const { config, problems } = parseGmailConfig(envVars)
   return createApp({
     storage: () => e.binding,
@@ -87,11 +108,25 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-const token = (userId: string, scopes: string[], kind: 'user' | 'agent' = 'user') => mintTestUserToken({ userId, organizationId: e.organizationId, scopes, kind })
-const api = (method: string, path: string, opts: { as?: string; scopes?: string[]; kind?: 'user' | 'agent'; body?: unknown; app?: ReturnType<typeof createApp> } = {}) =>
+const token = (userId: string, scopes: string[], kind: 'user' | 'agent' = 'user') =>
+  mintTestUserToken({ userId, organizationId: e.organizationId, scopes, kind })
+const api = (
+  method: string,
+  path: string,
+  opts: {
+    as?: string
+    scopes?: string[]
+    kind?: 'user' | 'agent'
+    body?: unknown
+    app?: ReturnType<typeof createApp>
+  } = {},
+) =>
   (opts.app ?? app).request(`${BASE}${path}`, {
     method,
-    headers: { authorization: `Bearer ${token(opts.as ?? e.userId, opts.scopes ?? ['connections:read', 'connections:write'], opts.kind)}`, 'content-type': 'application/json' },
+    headers: {
+      authorization: `Bearer ${token(opts.as ?? e.userId, opts.scopes ?? ['connections:read', 'connections:write'], opts.kind)}`,
+      'content-type': 'application/json',
+    },
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
   })
 const authorize = async (as = e.userId) => {
@@ -100,14 +135,23 @@ const authorize = async (as = e.userId) => {
   return (await res.json()) as { authorize_url: string; expires_at: string }
 }
 /** The whole browser trip: authorize, consent at Google, the redirect to the callback. Returns the callback's response. */
-async function connect(account: FakeAccount = ANN, opts: { as?: string; consent?: ConsentOptions; mutateCallback?: (url: URL) => void | Promise<void>; app?: ReturnType<typeof createApp> } = {}) {
+async function connect(
+  account: FakeAccount = ANN,
+  opts: {
+    as?: string
+    consent?: ConsentOptions
+    mutateCallback?: (url: URL) => void | Promise<void>
+    app?: ReturnType<typeof createApp>
+  } = {},
+) {
   const { authorize_url } = await authorize(opts.as)
   const callback = new URL(await google.consent(authorize_url, account, opts.consent))
   await opts.mutateCallback?.(callback)
   return (opts.app ?? app).request(callback.toString())
 }
 const rows = (table: string) => e.rows(table)
-const snapshot = async () => Object.fromEntries(await Promise.all(CONNECTION_TABLES.map(async (t) => [t, (await rows(t)).length])))
+const snapshot = async () =>
+  Object.fromEntries(await Promise.all(CONNECTION_TABLES.map(async (t) => [t, (await rows(t)).length])))
 const events = async () => (await rows('events')).filter((r) => /^(connection|identity)\./.test(r.type as string))
 
 describe('connect, happy path (one unit, acting as the user)', () => {
@@ -117,10 +161,21 @@ describe('connect, happy path (one unit, acting as the user)', () => {
     const conns = await rows('channel_connections')
     expect(conns).toHaveLength(1)
     const c = conns[0]!
-    expect(c).toMatchObject({ provider: 'google', account_id: 'sub-ann', owner_id: e.userId, created_by: e.userId, status: 'active', deleted_at: null, connected_at: now.toISOString() })
+    expect(c).toMatchObject({
+      provider: 'google',
+      account_id: 'sub-ann',
+      owner_id: e.userId,
+      created_by: e.userId,
+      status: 'active',
+      deleted_at: null,
+      connected_at: now.toISOString(),
+    })
     expect(c.granted_scopes).toEqual(SCOPES_ALL)
     const idents = await rows('identities')
-    expect(idents.map((i) => `${i.value}:${i.own}:${i.contact_id}`).sort()).toEqual(['ann@example.test:true:null', 'sales@example.test:true:null'])
+    expect(idents.map((i) => `${i.value}:${i.own}:${i.contact_id}`).sort()).toEqual([
+      'ann@example.test:true:null',
+      'sales@example.test:true:null',
+    ])
     expect(idents.find((i) => i.id === c.identity_id)!.value).toBe('ann@example.test')
     // The credential: the stored text is not the token, and opens to it under the key.
     const creds = await rows('channel_credentials')
@@ -130,8 +185,25 @@ describe('connect, happy path (one unit, acting as the user)', () => {
     expect(creds[0]!.refresh_token_ciphertext).not.toContain(google.refreshTokens.at(-1))
     expect(await openToken(KEY_BYTES, creds[0]!.refresh_token_ciphertext as string)).toBe(google.refreshTokens.at(-1))
     // The cursor holds the profile's history id; the state row exists and is blank; nothing watches (D55).
-    expect(await rows('mail_sync_cursors')).toEqual([expect.objectContaining({ connection_id: c.id, history_id: '555', page_token: null, last_synced_at: null, created_by: e.userId })])
-    expect(await rows('mail_sync_state')).toEqual([expect.objectContaining({ connection_id: c.id, sync_requested_at: null, lease_until: null, run_id: null, last_success_at: null, last_error_code: null })])
+    expect(await rows('mail_sync_cursors')).toEqual([
+      expect.objectContaining({
+        connection_id: c.id,
+        history_id: '555',
+        page_token: null,
+        last_synced_at: null,
+        created_by: e.userId,
+      }),
+    ])
+    expect(await rows('mail_sync_state')).toEqual([
+      expect.objectContaining({
+        connection_id: c.id,
+        sync_requested_at: null,
+        lease_until: null,
+        run_id: null,
+        last_success_at: null,
+        last_error_code: null,
+      }),
+    ])
     expect(await rows('gmail_watches')).toEqual([])
     // Events: connection.created and identity.created, all by the user.
     const ev = await events()
@@ -146,7 +218,14 @@ describe('connect, happy path (one unit, acting as the user)', () => {
     const before = google.calls.length
     await connect()
     const seen = google.calls.slice(before).map((c) => `${c.method} ${c.url.replace('https://fake-google.test', '')}`)
-    expect(seen.sort()).toEqual(['GET /gmail/v1/users/me/profile', 'GET /gmail/v1/users/me/settings/sendAs', 'GET /oauth2/v3/certs', 'POST /token'].sort())
+    expect(seen.sort()).toEqual(
+      [
+        'GET /gmail/v1/users/me/profile',
+        'GET /gmail/v1/users/me/settings/sendAs',
+        'GET /oauth2/v3/certs',
+        'POST /token',
+      ].sort(),
+    )
   })
 
   it('the authorize URL carries the redirect URI of PUBLIC_BASE_URL, or the request origin when it is unset', async () => {
@@ -156,7 +235,10 @@ describe('connect, happy path (one unit, acting as the user)', () => {
     const local = buildApp({ ...ENV, PUBLIC_BASE_URL: undefined })
     const res = await local.request('http://localhost:8787/meta/v1/connections/authorize', {
       method: 'POST',
-      headers: { authorization: `Bearer ${token(e.userId, ['connections:write'])}`, 'content-type': 'application/json' },
+      headers: {
+        authorization: `Bearer ${token(e.userId, ['connections:write'])}`,
+        'content-type': 'application/json',
+      },
       body: JSON.stringify({ provider: 'google' }),
     })
     const authBody = (await res.json()) as { authorize_url: string }
@@ -183,7 +265,10 @@ describe('connect, happy path (one unit, acting as the user)', () => {
       ...op,
       build: (found: Parameters<typeof op.build>[0], qc: Parameters<typeof op.build>[1]) => {
         const built = op.build(found, qc)
-        const fault = step(sql`insert into "tasks" ("id", "organization_id") select null, "id" from "organizations"`.compile(qc.db), 'fault')
+        const fault = step(
+          sql`insert into "tasks" ("id", "organization_id") select null, "id" from "organizations"`.compile(qc.db),
+          'fault',
+        )
         return { ...built, steps: [...built.steps, fault] }
       },
     }
@@ -252,16 +337,27 @@ describe('reconnect (D31, D56)', () => {
     expect(res.status).toBe(200)
     const conns = await rows('channel_connections')
     expect(conns).toHaveLength(1)
-    expect(conns[0]).toMatchObject({ id: first.id, owner_id: e.user2Id, created_by: e.userId, status: 'active', connected_at: now.toISOString(), deleted_at: null })
+    expect(conns[0]).toMatchObject({
+      id: first.id,
+      owner_id: e.user2Id,
+      created_by: e.userId,
+      status: 'active',
+      connected_at: now.toISOString(),
+      deleted_at: null,
+    })
     expect(conns[0]!.granted_scopes).toEqual(SCOPES_ALL)
     const creds = await rows('channel_credentials')
     expect(creds).toHaveLength(1)
     expect(creds[0]!.id).not.toBe(firstCred.id)
     expect(await openToken(KEY_BYTES, creds[0]!.refresh_token_ciphertext as string)).toBe(google.refreshTokens.at(-1))
-    expect((await events()).filter((x) => x.type === 'connection.updated')).toEqual([expect.objectContaining({ resource_id: first.id, actor_id: e.user2Id })])
+    expect((await events()).filter((x) => x.type === 'connection.updated')).toEqual([
+      expect.objectContaining({ resource_id: first.id, actor_id: e.user2Id }),
+    ])
     expect((await events()).filter((x) => x.type === 'connection.created')).toHaveLength(1)
     // The cursor is kept (a new history id would open a gap), the old error is cleared, one row each.
-    expect(await rows('mail_sync_cursors')).toEqual([expect.objectContaining({ connection_id: first.id, history_id: '555' })])
+    expect(await rows('mail_sync_cursors')).toEqual([
+      expect.objectContaining({ connection_id: first.id, history_id: '555' }),
+    ])
     expect(await rows('mail_sync_state')).toHaveLength(1)
   })
 
@@ -283,15 +379,47 @@ describe('reconnect (D31, D56)', () => {
 describe('every callback refusal writes nothing and emits nothing (D9, D33, D57)', () => {
   const stateOf = (cb: URL) => cb.searchParams.get('state')!
   const cases: Array<[string, string, () => NonNullable<Parameters<typeof connect>[1]>]> = [
-    ['an expired state', 'state_invalid', () => ({ mutateCallback: () => void (now = new Date(now.getTime() + 11 * 60_000)) })],
-    ['a tampered state', 'state_invalid', () => ({ mutateCallback: (u) => u.searchParams.set('state', stateOf(u).replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'))) })],
+    [
+      'an expired state',
+      'state_invalid',
+      () => ({ mutateCallback: () => void (now = new Date(now.getTime() + 11 * 60_000)) }),
+    ],
+    [
+      'a tampered state',
+      'state_invalid',
+      () => ({
+        mutateCallback: (u) =>
+          u.searchParams.set(
+            'state',
+            stateOf(u).replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')),
+          ),
+      }),
+    ],
     ['a missing state', 'state_invalid', () => ({ mutateCallback: (u) => u.searchParams.delete('state') })],
-    ['a state signed with another secret', 'state_invalid', () => ({ mutateCallback: async (u) => u.searchParams.set('state', await signState('another-secret', { user_id: e.userId, nonce: 'n', expires_at: now.getTime() + 60_000 })) })],
+    [
+      'a state signed with another secret',
+      'state_invalid',
+      () => ({
+        mutateCallback: async (u) =>
+          u.searchParams.set(
+            'state',
+            await signState('another-secret', { user_id: e.userId, nonce: 'n', expires_at: now.getTime() + 60_000 }),
+          ),
+      }),
+    ],
     ['a missing code', 'exchange_failed', () => ({ mutateCallback: (u) => u.searchParams.delete('code') })],
     ['the person pressing Cancel', 'consent_denied', () => ({ consent: { deny: true } })],
-    ['Gmail unticked on the consent screen (no gmail.readonly)', 'scope_missing', () => ({ consent: { granted: ['openid', 'email'] } })],
+    [
+      'Gmail unticked on the consent screen (no gmail.readonly)',
+      'scope_missing',
+      () => ({ consent: { granted: ['openid', 'email'] } }),
+    ],
     ['an ID token for another audience', 'exchange_failed', () => ({ consent: { idToken: { aud: 'someone-else' } } })],
-    ['an ID token from another issuer', 'exchange_failed', () => ({ consent: { idToken: { iss: 'https://evil.test' } } })],
+    [
+      'an ID token from another issuer',
+      'exchange_failed',
+      () => ({ consent: { idToken: { iss: 'https://evil.test' } } }),
+    ],
     ['an unverified email', 'exchange_failed', () => ({ consent: { idToken: { emailVerified: false } } })],
     ['an expired ID token', 'exchange_failed', () => ({ consent: { idToken: { expired: true } } })],
     ['no refresh token in the response', 'exchange_failed', () => ({ consent: { noRefreshToken: true } })],
@@ -330,7 +458,13 @@ describe('every callback refusal writes nothing and emits nothing (D9, D33, D57)
       storage: () => e.binding,
       userAuthenticator: fakeUserAuthenticator(),
       clock: () => now,
-      gmail: { config: parseGmailConfig(ENV).config, endpoints: FAKE_ENDPOINTS, fetch: google.fetch, gmailBaseUrl: `${FAKE_GMAIL_BASE}/nope`, roleOf: async () => 'owner' },
+      gmail: {
+        config: parseGmailConfig(ENV).config,
+        endpoints: FAKE_ENDPOINTS,
+        fetch: google.fetch,
+        gmailBaseUrl: `${FAKE_GMAIL_BASE}/nope`,
+        roleOf: async () => 'owner',
+      },
     })
     const res = await connect(ANN, { app: failing })
     expect(await res.text()).toContain('<code>exchange_failed</code>')
@@ -383,7 +517,11 @@ describe('result surface (D32)', () => {
   })
 
   it('unset, it serves a built-in page: no script, no external URL, the address HTML-escaped', async () => {
-    const res = await connect({ ...ANN, email: 'x&y@example.test', sendAs: [{ sendAsEmail: 'x&y@example.test', isPrimary: true }] })
+    const res = await connect({
+      ...ANN,
+      email: 'x&y@example.test',
+      sendAs: [{ sendAsEmail: 'x&y@example.test', isPrimary: true }],
+    })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/html')
     const html = await res.text()
@@ -395,7 +533,10 @@ describe('result surface (D32)', () => {
   })
 
   it('the error page carries the fixed text of the code and nothing from the query string', async () => {
-    const res = await connect(ANN, { consent: { deny: true }, mutateCallback: (u) => u.searchParams.set('error_description', '<script>alert(1)</script>') })
+    const res = await connect(ANN, {
+      consent: { deny: true },
+      mutateCallback: (u) => u.searchParams.set('error_description', '<script>alert(1)</script>'),
+    })
     const html = await res.text()
     expect(html).toContain('<code>consent_denied</code>')
     expect(html).not.toContain('alert(1)')
@@ -404,7 +545,9 @@ describe('result surface (D32)', () => {
 
 describe('secrecy: no token, code, secret or key reaches a log line', () => {
   it('a full flow, a refusal and a failure print no refresh token, access token, code, client secret, state secret or key', async () => {
-    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => undefined))
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) =>
+      vi.spyOn(console, m).mockImplementation(() => undefined),
+    )
     await connect()
     await connect(ANN, { consent: { deny: true } })
     google.failToken(500)
@@ -412,8 +555,18 @@ describe('secrecy: no token, code, secret or key reaches a log line', () => {
     google.failToken(null)
     roleFailure = true
     await connect()
-    const printed = spies.flatMap((s) => s.mock.calls.flat()).map(String).join('\n')
-    for (const secret of [...google.refreshTokens, ...google.accessTokens, ENV.GOOGLE_CLIENT_SECRET, ENV.OAUTH_STATE_SECRET, ENV.CREDENTIALS_KEY, 'secret provider text']) {
+    const printed = spies
+      .flatMap((s) => s.mock.calls.flat())
+      .map(String)
+      .join('\n')
+    for (const secret of [
+      ...google.refreshTokens,
+      ...google.accessTokens,
+      ENV.GOOGLE_CLIENT_SECRET,
+      ENV.OAUTH_STATE_SECRET,
+      ENV.CREDENTIALS_KEY,
+      'secret provider text',
+    ]) {
       expect(printed).not.toContain(secret)
     }
   })
@@ -421,27 +574,32 @@ describe('secrecy: no token, code, secret or key reaches a log line', () => {
 
 describe('config gate (D58)', () => {
   const REQUIRED = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 'CREDENTIALS_KEY'] as const
-  it.each(REQUIRED)('without %s: the callback answers 404, authorize answers 501 provider_not_configured, list still works, the log names the variable and no value', async (name) => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const partial = { ...ENV, [name]: undefined }
-    const gated = buildApp(partial)
-    const cb = await gated.request(`${BASE}/oauth/google/callback?code=x&state=y`)
-    expect(cb.status).toBe(404)
-    const auth = await api('POST', '/meta/v1/connections/authorize', { app: gated, body: { provider: 'google' } })
-    expect(auth.status).toBe(501)
-    expect(((await auth.json()) as { error: { code: string } }).error.code).toBe('provider_not_configured')
-    const list = await api('GET', '/meta/v1/connections', { app: gated })
-    expect(list.status).toBe(200)
-    expect(((await list.json()) as { data: unknown[] }).data).toEqual([])
-    const logged = warn.mock.calls.flat().map(String).join('\n')
-    expect(logged).toContain(name)
-    for (const [k, v] of Object.entries(ENV)) if (k !== name && v) expect(logged).not.toContain(v)
-  })
+  it.each(REQUIRED)(
+    'without %s: the callback answers 404, authorize answers 501 provider_not_configured, list still works, the log names the variable and no value',
+    async (name) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const partial = { ...ENV, [name]: undefined }
+      const gated = buildApp(partial)
+      const cb = await gated.request(`${BASE}/oauth/google/callback?code=x&state=y`)
+      expect(cb.status).toBe(404)
+      const auth = await api('POST', '/meta/v1/connections/authorize', { app: gated, body: { provider: 'google' } })
+      expect(auth.status).toBe(501)
+      expect(((await auth.json()) as { error: { code: string } }).error.code).toBe('provider_not_configured')
+      const list = await api('GET', '/meta/v1/connections', { app: gated })
+      expect(list.status).toBe(200)
+      expect(((await list.json()) as { data: unknown[] }).data).toEqual([])
+      const logged = warn.mock.calls.flat().map(String).join('\n')
+      expect(logged).toContain(name)
+      for (const [k, v] of Object.entries(ENV)) if (k !== name && v) expect(logged).not.toContain(v)
+    },
+  )
 
   it('a key that does not decode to 32 bytes gates the surface too', async () => {
     const gated = buildApp({ ...ENV, CREDENTIALS_KEY: Buffer.alloc(16).toString('base64') })
     expect((await gated.request(`${BASE}/oauth/google/callback`)).status).toBe(404)
-    expect((await api('POST', '/meta/v1/connections/authorize', { app: gated, body: { provider: 'google' } })).status).toBe(501)
+    expect(
+      (await api('POST', '/meta/v1/connections/authorize', { app: gated, body: { provider: 'google' } })).status,
+    ).toBe(501)
   })
 
   it('nothing configured at all is quiet: no log line', async () => {

@@ -7,7 +7,13 @@ import { schemaOperations } from './operations.js'
 // API63 D10-D14: the pure builder, fed fixed pragma rows (no database). The expected values are written out, never derived from the input.
 const defs = createVibaseRegistry().resources()
 
-const col = (table: string, cid: number, name: string, type = 'TEXT', o: { notnull?: boolean; dflt?: string; pk?: boolean } = {}): ColumnRow => ({
+const col = (
+  table: string,
+  cid: number,
+  name: string,
+  type = 'TEXT',
+  o: { notnull?: boolean; dflt?: string; pk?: boolean } = {},
+): ColumnRow => ({
   table_name: table,
   cid,
   name,
@@ -16,7 +22,15 @@ const col = (table: string, cid: number, name: string, type = 'TEXT', o: { notnu
   dflt_value: o.dflt ?? null,
   pk: o.pk ? 1 : 0,
 })
-const fk = (table: string, id: number, seq: number, ref: string, from: string, to: string | null, on_delete = 'NO ACTION'): ForeignKeyRow => ({
+const fk = (
+  table: string,
+  id: number,
+  seq: number,
+  ref: string,
+  from: string,
+  to: string | null,
+  on_delete = 'NO ACTION',
+): ForeignKeyRow => ({
   table_name: table,
   id,
   seq,
@@ -83,9 +97,21 @@ const CATALOG: Catalog = {
   },
   common: { id: 'The id.', organization_id: 'The organisation.' },
 }
-const KINDS = { contacts: { id: 'uuid', company_id: 'uuid', organization_id: 'uuid' }, tasks: { id: 'uuid', status: 'text', due_at: 'timestamp' }, api_keys: { id: 'uuid', key_hash: 'text', prefix: 'text' } }
+const KINDS = {
+  contacts: { id: 'uuid', company_id: 'uuid', organization_id: 'uuid' },
+  tasks: { id: 'uuid', status: 'text', due_at: 'timestamp' },
+  api_keys: { id: 'uuid', key_hash: 'text', prefix: 'text' },
+}
 const build = (over: Record<string, unknown> = {}) =>
-  buildSchemaDocument({ columns: COLUMNS, foreignKeys: FKS, resources: defs, catalog: CATALOG, kinds: KINDS, hidden: ['deployment', 'thread_sources'], ...over })
+  buildSchemaDocument({
+    columns: COLUMNS,
+    foreignKeys: FKS,
+    resources: defs,
+    catalog: CATALOG,
+    kinds: KINDS,
+    hidden: ['deployment', 'thread_sources'],
+    ...over,
+  })
 const table = (doc: any, name: string) => doc.tables.find((t: any) => t.name === name)
 const column = (doc: any, t: string, c: string) => table(doc, t).columns.find((x: any) => x.name === c)
 
@@ -94,7 +120,13 @@ describe('derived fields ([[CORE131]] D11)', () => {
     ...CATALOG,
     tables: {
       ...CATALOG.tables,
-      contacts: { ...CATALOG.tables.contacts!, derived: { last_contacted_at: { label: 'Last contacted', description: 'When we last wrote.' }, last_interacted_at: 'When we last talked.' } },
+      contacts: {
+        ...CATALOG.tables.contacts!,
+        derived: {
+          last_contacted_at: { label: 'Last contacted', description: 'When we last wrote.' },
+          last_interacted_at: 'When we last talked.',
+        },
+      },
     },
   }
   it('is an empty array on a table without derived fields, and on a table no resource serves', () => {
@@ -102,7 +134,7 @@ describe('derived fields ([[CORE131]] D11)', () => {
     expect(table(doc, 'tasks').derived).toEqual([])
     expect(table(doc, 'mystery').derived).toEqual([])
   })
-  it('lists a resource\'s derived fields with the catalog text, the formatted scope and the filter names', () => {
+  it("lists a resource's derived fields with the catalog text, the formatted scope and the filter names", () => {
     const doc = build({ catalog: withText })
     expect(table(doc, 'contacts').derived[0]).toEqual({
       name: 'last_contacted_at',
@@ -115,11 +147,17 @@ describe('derived fields ([[CORE131]] D11)', () => {
       filters: ['contacted_since', 'not_contacted_since', 'never_contacted'],
       sortable: true,
     })
-    expect(table(doc, 'contacts').derived[1]).toMatchObject({ label: 'Last interacted at', description: 'When we last talked.' })
+    expect(table(doc, 'contacts').derived[1]).toMatchObject({
+      label: 'Last interacted at',
+      description: 'When we last talked.',
+    })
   })
-  it('sortable reads from the definition\'s sorts: true for both contact fields, false for a derived field outside sorts (deals.status)', () => {
+  it("sortable reads from the definition's sorts: true for both contact fields, false for a derived field outside sorts (deals.status)", () => {
     const doc = build({ catalog: withText })
-    expect(table(doc, 'contacts').derived.map((d: any) => [d.name, d.sortable])).toEqual([['last_contacted_at', true], ['last_interacted_at', true]])
+    expect(table(doc, 'contacts').derived.map((d: any) => [d.name, d.sortable])).toEqual([
+      ['last_contacted_at', true],
+      ['last_interacted_at', true],
+    ])
     const deals = resourcesByTable(defs).get('deals')
     expect(deals?.derived?.status).toBeDefined()
     expect(deals?.sorts ?? []).not.toContain('status')
@@ -128,7 +166,9 @@ describe('derived fields ([[CORE131]] D11)', () => {
     expect(table(build(), 'contacts').derived[0].description).toBeNull()
   })
   it('a derived field is not a column and does not change the columns list', () => {
-    expect(table(build({ catalog: withText }), 'contacts').columns.map((c: any) => c.name)).toEqual(table(build(), 'contacts').columns.map((c: any) => c.name))
+    expect(table(build({ catalog: withText }), 'contacts').columns.map((c: any) => c.name)).toEqual(
+      table(build(), 'contacts').columns.map((c: any) => c.name),
+    )
   })
 })
 
@@ -137,24 +177,92 @@ describe('document shape (D10, D11)', () => {
     const doc = build()
     expect(Object.keys(doc)).toEqual(['engine', 'kinds', 'tables', 'associations'])
     expect(doc.engine).toBe('d1')
-    expect(Object.keys(table(doc, 'contacts'))).toEqual(['name', 'origin', 'label', 'description', 'associable', 'resource', 'columns', 'derived', 'foreign_keys'])
-    expect(Object.keys(column(doc, 'contacts', 'company_id'))).toEqual(['name', 'type', 'kind', 'nullable', 'primary_key', 'default', 'label', 'description', 'values', 'exposed', 'references'])
+    expect(Object.keys(table(doc, 'contacts'))).toEqual([
+      'name',
+      'origin',
+      'label',
+      'description',
+      'associable',
+      'resource',
+      'columns',
+      'derived',
+      'foreign_keys',
+    ])
+    expect(Object.keys(column(doc, 'contacts', 'company_id'))).toEqual([
+      'name',
+      'type',
+      'kind',
+      'nullable',
+      'primary_key',
+      'default',
+      'label',
+      'description',
+      'values',
+      'exposed',
+      'references',
+    ])
     expect(Object.keys(table(doc, 'contacts').foreign_keys[0])).toEqual(['columns', 'references', 'on_delete'])
     expect(Object.keys(doc.associations)).toEqual(['table', 'relations', 'associable', 'description'])
-    expect(Object.keys(doc.kinds).sort()).toEqual(['boolean', 'integer', 'json', 'string_array', 'text', 'timestamp', 'uuid'])
+    expect(Object.keys(doc.kinds).sort()).toEqual([
+      'boolean',
+      'integer',
+      'json',
+      'string_array',
+      'text',
+      'timestamp',
+      'uuid',
+    ])
   })
   it('sorts tables by name, keeps columns in cid order whatever the row order, and sorts associable', () => {
     const doc = build({ columns: [...COLUMNS].reverse() })
-    expect(doc.tables.map((t: any) => t.name)).toEqual(['action_executions', 'api_keys', 'companies', 'contacts', 'events', 'interactions', 'messages', 'mystery', 'organizations', 'principals', 'tasks', 'threads'])
-    expect(table(doc, 'interactions').columns.map((c: any) => c.name)).toEqual(['id', 'organization_id', 'thread_id', 'message_id'])
-    expect(doc.associations.associable).toEqual(['companies', 'contacts', 'deals', 'interactions', 'notes', 'tags', 'tasks', 'threads'])
+    expect(doc.tables.map((t: any) => t.name)).toEqual([
+      'action_executions',
+      'api_keys',
+      'companies',
+      'contacts',
+      'events',
+      'interactions',
+      'messages',
+      'mystery',
+      'organizations',
+      'principals',
+      'tasks',
+      'threads',
+    ])
+    expect(table(doc, 'interactions').columns.map((c: any) => c.name)).toEqual([
+      'id',
+      'organization_id',
+      'thread_id',
+      'message_id',
+    ])
+    expect(doc.associations.associable).toEqual([
+      'companies',
+      'contacts',
+      'deals',
+      'interactions',
+      'notes',
+      'tags',
+      'tasks',
+      'threads',
+    ])
     expect(doc.associations.table).toBe('associations')
     expect(doc.associations.relations).toEqual(['related_to'])
   })
   it('reports type, nullability, default, primary key and the declared origin of a column', () => {
     const doc = build()
-    expect(column(doc, 'tasks', 'status')).toMatchObject({ type: 'TEXT', nullable: false, default: "'open'", primary_key: false, kind: 'text' })
-    expect(column(doc, 'tasks', 'due_at')).toMatchObject({ nullable: true, default: null, kind: 'timestamp', label: 'Due at' })
+    expect(column(doc, 'tasks', 'status')).toMatchObject({
+      type: 'TEXT',
+      nullable: false,
+      default: "'open'",
+      primary_key: false,
+      kind: 'text',
+    })
+    expect(column(doc, 'tasks', 'due_at')).toMatchObject({
+      nullable: true,
+      default: null,
+      kind: 'timestamp',
+      label: 'Due at',
+    })
     expect(column(doc, 'tasks', 'id')).toMatchObject({ primary_key: true, nullable: false })
     expect(table(doc, 'tasks').origin).toBe('built_in')
   })
@@ -177,10 +285,16 @@ describe('document shape (D10, D11)', () => {
   it('takes labels and descriptions from the catalog, the common text when a table has none, and the default label rule', () => {
     const doc = build()
     expect(table(doc, 'contacts')).toMatchObject({ label: 'Contacts', description: 'A person.' })
-    expect(column(doc, 'contacts', 'company_id')).toMatchObject({ label: 'Primary company', description: 'The primary company.' })
+    expect(column(doc, 'contacts', 'company_id')).toMatchObject({
+      label: 'Primary company',
+      description: 'The primary company.',
+    })
     expect(column(doc, 'contacts', 'name')).toBeUndefined() // not a fixture column: catalog entries never add columns
     expect(column(doc, 'contacts', 'id')).toMatchObject({ label: 'Id', description: 'The id.' })
-    expect(column(doc, 'contacts', 'organization_id')).toMatchObject({ label: 'Organization id', description: 'The organisation.' })
+    expect(column(doc, 'contacts', 'organization_id')).toMatchObject({
+      label: 'Organization id',
+      description: 'The organisation.',
+    })
   })
 })
 
@@ -201,7 +315,11 @@ describe('per-column references (D13)', () => {
   it('table-level foreign_keys keep the composites as declared, in declaration order', () => {
     expect(table(doc, 'contacts').foreign_keys).toEqual([
       { columns: ['organization_id'], references: { table: 'organizations', columns: ['id'] }, on_delete: 'CASCADE' },
-      { columns: ['organization_id', 'company_id'], references: { table: 'companies', columns: ['organization_id', 'id'] }, on_delete: 'NO ACTION' },
+      {
+        columns: ['organization_id', 'company_id'],
+        references: { table: 'companies', columns: ['organization_id', 'id'] },
+        on_delete: 'NO ACTION',
+      },
     ])
     expect(table(doc, 'interactions').foreign_keys[1]).toEqual({
       columns: ['organization_id', 'message_id', 'thread_id'],
@@ -267,27 +385,50 @@ describe('resource bridge (D14)', () => {
 })
 
 describe('sorts on the resource object ([[CORE187]] D10, D16)', () => {
-  const sortsOf = (doc: any, name: string) => table(doc, name).resource.sorts as Array<{ name: string; kind: string; indexed: boolean }>
+  const sortsOf = (doc: any, name: string) =>
+    table(doc, name).resource.sorts as Array<{ name: string; kind: string; indexed: boolean }>
   it('a sort entry has exactly name, kind, indexed, and no requires (D17)', () => {
     for (const s of sortsOf(build(), 'contacts')) expect(Object.keys(s)).toEqual(['name', 'kind', 'indexed'])
   })
   it('reads the stated-cost list as an input: an empty list makes every sort indexed, a one-entry list flips exactly that sort', () => {
     expect(sortsOf(build({ statedCosts: [] }), 'tasks').map((s) => s.indexed)).toEqual([true, true, true, true, true])
-    expect(sortsOf(build({ statedCosts: [{ list: 'tasks', sort: 'title' }] }), 'tasks').map((s) => [s.name, s.indexed])).toEqual([['id', true], ['created_at', true], ['updated_at', true], ['due_at', true], ['title', false]])
+    expect(
+      sortsOf(build({ statedCosts: [{ list: 'tasks', sort: 'title' }] }), 'tasks').map((s) => [s.name, s.indexed]),
+    ).toEqual([
+      ['id', true],
+      ['created_at', true],
+      ['updated_at', true],
+      ['due_at', true],
+      ['title', false],
+    ])
   })
   it('a stated cost of another list does not touch this one (the pair, not the sort name, decides)', () => {
-    expect(sortsOf(build({ statedCosts: [{ list: 'notes', sort: 'title' }] }), 'tasks').find((s) => s.name === 'title')!.indexed).toBe(true)
+    expect(
+      sortsOf(build({ statedCosts: [{ list: 'notes', sort: 'title' }] }), 'tasks').find((s) => s.name === 'title')!
+        .indexed,
+    ).toBe(true)
   })
   it('messages and contacts: the convention first, then the declared fields, the derived ones last', () => {
     expect(sortsOf(build(), 'messages').map((s) => s.name)).toEqual(['id', 'created_at', 'occurred_at'])
-    expect(sortsOf(build(), 'contacts').map((s) => s.name).slice(-2)).toEqual(['last_contacted_at', 'last_interacted_at'])
+    expect(
+      sortsOf(build(), 'contacts')
+        .map((s) => s.name)
+        .slice(-2),
+    ).toEqual(['last_contacted_at', 'last_interacted_at'])
   })
   it('a definition without column sorts reports an empty array; a table with no resource keeps resource null', () => {
     // CORE188: no shipped resource lacks column sorts now, so the path is proven on a definition with its sorts removed.
-    const bare = defs.map((d) => (d.name === 'action_executions' ? { ...d, sorts: undefined, sortKinds: undefined } : d))
+    const bare = defs.map((d) =>
+      d.name === 'action_executions' ? { ...d, sorts: undefined, sortKinds: undefined } : d,
+    )
     expect(sortsOf(build({ resources: bare }), 'action_executions')).toEqual([])
     expect(table(build({ resources: bare }), 'action_executions').resource).not.toBeNull()
-    expect(sortsOf(build(), 'action_executions').map((s) => s.name)).toEqual(['id', 'created_at', 'updated_at', 'done_at'])
+    expect(sortsOf(build(), 'action_executions').map((s) => s.name)).toEqual([
+      'id',
+      'created_at',
+      'updated_at',
+      'done_at',
+    ])
     expect(table(build(), 'events').resource).toBeNull()
   })
 })

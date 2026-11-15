@@ -2,14 +2,31 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { pgStorage, probeUnit } from '../test/storage.js'
 import { z } from 'zod'
 import { sql, type Kysely } from 'kysely'
-import { withServiceRole, type Database } from '@vibase/db'
-import { createOwnerTestDb, createTestDb, seedMembership, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
+import { type Database } from '@vibase/db'
+import {
+  createOwnerTestDb,
+  createTestDb,
+  seedMembership,
+  seedOrganization,
+  seedUser,
+  truncateAll,
+} from '@vibase/db/test'
 import { createVibaseRegistry } from '../operations.js'
 import { Registry } from '../registry.js'
 import { tasks } from '../resources/tasks.js'
 import { createApp } from '../rest/app.js'
 import { parseScope } from '../scopes.js'
-import { clerkMembership, clerkOrganization, clerkUser, mintClerkToken, orgClaim, signClerkWebhook, clerkWebhook, testClerkAdapter, type ClerkUserJson } from '../test/clerk.js'
+import {
+  clerkMembership,
+  clerkOrganization,
+  clerkUser,
+  mintClerkToken,
+  orgClaim,
+  signClerkWebhook,
+  clerkWebhook,
+  testClerkAdapter,
+  type ClerkUserJson,
+} from '../test/clerk.js'
 import { scopesForRole } from './roles.js'
 
 let db: Kysely<Database>
@@ -62,22 +79,39 @@ async function linkedOrg(members: [string, string][] = []) {
   const ext = `org_t${++extSeq}`
   const org = await seedOrganization(db, { authOrgId: ext, name: `Org ${ext}` })
   adapterKit.organizations.set(ext, clerkOrganization({ id: ext, name: `Org ${ext}` }))
-  adapterKit.members.set(ext, members.map(([userId, role]) => clerkMembership({ organizationId: ext, userId, role })))
+  adapterKit.members.set(
+    ext,
+    members.map(([userId, role]) => clerkMembership({ organizationId: ext, userId, role })),
+  )
   return { id: org.id, ext }
 }
 const profile = (sub: string, email = `${sub}@x.test`, extra: Partial<Parameters<typeof clerkUser>[0]> = {}) =>
   profiles.set(sub, clerkUser({ id: sub, email, verified: true, ...extra }))
 const count = async (table: 'users' | 'principals' | 'events' | 'organizations' | 'memberships') =>
-  Number((await owner.selectFrom(table).select((eb) => eb.fn.countAll().as('n')).executeTakeFirstOrThrow()).n)
+  Number(
+    (
+      await owner
+        .selectFrom(table)
+        .select((eb) => eb.fn.countAll().as('n'))
+        .executeTakeFirstOrThrow()
+    ).n,
+  )
 
 async function linkedUser(sub: string, orgs: { id: string; role?: 'owner' | 'member' }[]) {
   const [first, ...rest] = orgs
-  const u = await seedUser(db, { organizationId: first!.id, role: first!.role ?? 'owner', authSubject: sub, emailVerified: true })
+  const u = await seedUser(db, {
+    organizationId: first!.id,
+    role: first!.role ?? 'owner',
+    authSubject: sub,
+    emailVerified: true,
+  })
   for (const o of rest) await seedMembership(db, { organizationId: o.id, userId: u.id, role: o.role ?? 'member' })
   return u
 }
-const eventTypes = async () => (await owner.selectFrom('events').select('type').orderBy(sql`ctid`).execute()).map((e) => e.type)
-const systemId = async () => (await owner.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirstOrThrow()).id
+const eventTypes = async () =>
+  (await owner.selectFrom('events').select('type').orderBy(sql`ctid`).execute()).map((e) => e.type)
+const systemId = async () =>
+  (await owner.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirstOrThrow()).id
 
 describe('first sight', () => {
   it('creates principal and user once', async () => {
@@ -90,7 +124,13 @@ describe('first sight', () => {
     expect(await count('principals')).toBe(1)
     expect(await count('users')).toBe(1)
     const u = await owner.selectFrom('users').selectAll().executeTakeFirstOrThrow()
-    expect(u).toMatchObject({ auth_provider: 'clerk', auth_subject: 'user_new', email: 'new@x.test', name: 'Ada L', email_verified: true })
+    expect(u).toMatchObject({
+      auth_provider: 'clerk',
+      auth_subject: 'user_new',
+      email: 'new@x.test',
+      name: 'Ada L',
+      email_verified: true,
+    })
     const p = await owner.selectFrom('principals').selectAll().executeTakeFirstOrThrow()
     expect(p.kind).toBe('user')
     expect(p.id).toBe(u.id)
@@ -213,9 +253,13 @@ describe('first sight', () => {
       [{ azp: 'https://evil.example' }, 'azp'],
     ] as const) {
       warn.mockClear()
-      const res = await app.request('/meta/v1/me', { headers: { authorization: `Bearer ${await token('user_1', opts)}` } })
+      const res = await app.request('/meta/v1/me', {
+        headers: { authorization: `Bearer ${await token('user_1', opts)}` },
+      })
       expect(res.status).toBe(401)
-      expect(await res.json()).toEqual({ error: { code: 'unauthenticated', message: 'invalid or expired credentials' } })
+      expect(await res.json()).toEqual({
+        error: { code: 'unauthenticated', message: 'invalid or expired credentials' },
+      })
       expect(warn).toHaveBeenCalledTimes(1)
       expect((warn.mock.calls[0]![3] as { reason: string }).reason).toBe(reason)
     }
@@ -251,7 +295,15 @@ describe('organisation claim', () => {
     adapterKit.organizations.set('org_new', clerkOrganization({ id: 'org_new', name: 'Fresh' }))
     profile('u1')
     expect((await call('/api/v1/tasks', 'u1', { claim: { id: 'org_new' } })).status).toBe(200)
-    expect((await owner.selectFrom('organizations').select('name').where('auth_org_id', '=', 'org_new').executeTakeFirstOrThrow()).name).toBe('Fresh')
+    expect(
+      (
+        await owner
+          .selectFrom('organizations')
+          .select('name')
+          .where('auth_org_id', '=', 'org_new')
+          .executeTakeFirstOrThrow()
+      ).name,
+    ).toBe('Fresh')
     expect(await eventTypes()).toEqual(['organization.created', 'membership.created'])
   })
 
@@ -267,10 +319,18 @@ describe('organisation claim', () => {
   it("the claim's role wins", async () => {
     const A = await linkedOrg()
     await linkedUser('u1', [{ id: A.id, role: 'owner' }])
-    const res = await call('/meta/v1/agents', 'u1', { method: 'POST', claim: { id: A.ext, rol: 'member' }, body: { name: 'bot', scopes: [] } })
+    const res = await call('/meta/v1/agents', 'u1', {
+      method: 'POST',
+      claim: { id: A.ext, rol: 'member' },
+      body: { name: 'bot', scopes: [] },
+    })
     expect(res.status).toBe(403)
     expect((await res.json()).error.code).toBe('insufficient_scope')
-    const m = await owner.selectFrom('memberships').select('role').where('organization_id', '=', A.id).executeTakeFirstOrThrow()
+    const m = await owner
+      .selectFrom('memberships')
+      .select('role')
+      .where('organization_id', '=', A.id)
+      .executeTakeFirstOrThrow()
     expect(m.role).toBe('member')
     expect(await eventTypes()).toEqual(['membership.updated'])
   })
@@ -334,7 +394,9 @@ describe('organisation claim', () => {
       const res = await call('/api/v1/tasks', 'u1', { claim: { id: A.ext }, age: 60 })
       expect(res.status).toBe(403)
       expect((await res.json()).error.code).toBe('organization_forbidden')
-      expect((await owner.selectFrom('memberships').select('deleted_at').executeTakeFirstOrThrow()).deleted_at).not.toBeNull()
+      expect(
+        (await owner.selectFrom('memberships').select('deleted_at').executeTakeFirstOrThrow()).deleted_at,
+      ).not.toBeNull()
       expect(await eventTypes()).toEqual(before)
     })
 
@@ -345,7 +407,12 @@ describe('organisation claim', () => {
       const signed = signClerkWebhook(clerkWebhook('organizationMembership.updated', { organization: { id: A.ext } }))
       await app.request('/webhooks/clerk', { method: 'POST', headers: signed.headers, body: signed.body })
       const before = await eventTypes()
-      const res = await call('/meta/v1/agents', 'u1', { method: 'POST', claim: { id: A.ext, rol: 'admin' }, age: 60, body: { name: 'bot', scopes: [] } })
+      const res = await call('/meta/v1/agents', 'u1', {
+        method: 'POST',
+        claim: { id: A.ext, rol: 'admin' },
+        age: 60,
+        body: { name: 'bot', scopes: [] },
+      })
       expect(res.status).toBe(403)
       expect((await res.json()).error.code).toBe('insufficient_scope')
       expect(await eventTypes()).toEqual(before)
@@ -377,13 +444,18 @@ describe('scopes and attribution', () => {
   it('owner scopes are every declared scope', async () => {
     const A = await linkedOrg()
     await linkedUser('u1', [{ id: A.id, role: 'owner' }])
-    expect((await (await call('/meta/v1/me', 'u1', { claim: { id: A.ext } })).json()).active_organization.scopes).toEqual(declared)
+    expect(
+      (await (await call('/meta/v1/me', 'u1', { claim: { id: A.ext } })).json()).active_organization.scopes,
+    ).toEqual(declared)
   })
 
   it('member scopes come from the role table', async () => {
     const A = await linkedOrg()
     await linkedUser('u1', [{ id: A.id, role: 'member' }])
-    expect((await (await call('/meta/v1/me', 'u1', { claim: { id: A.ext, rol: 'member' } })).json()).active_organization.scopes).toEqual(scopesForRole('member', declared).toStrings())
+    expect(
+      (await (await call('/meta/v1/me', 'u1', { claim: { id: A.ext, rol: 'member' } })).json()).active_organization
+        .scopes,
+    ).toEqual(scopesForRole('member', declared).toStrings())
   })
 
   it('a scope outside the role table is owner-only', async () => {
@@ -402,10 +474,16 @@ describe('scopes and attribution', () => {
     const A = await linkedOrg()
     await linkedUser('owner1', [{ id: A.id, role: 'owner' }])
     await linkedUser('member1', [{ id: A.id, role: 'member' }])
-    const m = await call('/api/v1/probe', 'member1', { method: 'POST', app: probeApp, claim: { id: A.ext, rol: 'member' } })
+    const m = await call('/api/v1/probe', 'member1', {
+      method: 'POST',
+      app: probeApp,
+      claim: { id: A.ext, rol: 'member' },
+    })
     expect(m.status).toBe(403)
     expect((await m.json()).error.code).toBe('insufficient_scope')
-    expect((await call('/api/v1/probe', 'owner1', { method: 'POST', app: probeApp, claim: { id: A.ext } })).status).toBe(200)
+    expect(
+      (await call('/api/v1/probe', 'owner1', { method: 'POST', app: probeApp, claim: { id: A.ext } })).status,
+    ).toBe(200)
   })
 
   it('user writes are attributed to the user', async () => {

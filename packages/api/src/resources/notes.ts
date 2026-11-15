@@ -32,15 +32,20 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const notes = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'api',
-  name: 'notes',
-  eventName: 'note',
-  table: 'notes',
-  associable: true,
-  override: { delete: (env, id) => deleteNoteOperation(env, id as string) },
-  record,
-  create,
-  update,
-  filters: { created_by: { schema: z.uuid() } },
-}), ['title']))
+export const notes = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'api',
+      name: 'notes',
+      eventName: 'note',
+      table: 'notes',
+      associable: true,
+      override: { delete: (env, id) => deleteNoteOperation(env, id as string) },
+      record,
+      create,
+      update,
+      filters: { created_by: { schema: z.uuid() } },
+    }),
+    ['title'],
+  ),
+)

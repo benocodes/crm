@@ -1,7 +1,14 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { openApiPath } from '@vibase/api'
 import { uuidv7 } from '@vibase/storage'
-import { CONTROL_MIGRATIONS, MIGRATIONS, openControlDb, readControlMarker, writeControlMarker, type D1Like } from '@vibase/storage-d1'
+import {
+  CONTROL_MIGRATIONS,
+  MIGRATIONS,
+  openControlDb,
+  readControlMarker,
+  writeControlMarker,
+  type D1Like,
+} from '@vibase/storage-d1'
 import { createMigrationTracker, openLocalD1, recordMigrations, type LocalD1 } from '@vibase/storage-d1/test'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, MIGRATIONS_PENDING, NOT_INITIALISED, type D1WorkerEnv } from './compose.js'
@@ -31,8 +38,15 @@ beforeEach(async () => {
   // The CRM database is migrated, tracked and bootstrapped in every row: only the control plane varies.
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', email: 'o@x.test', agentName: 'bot', authOrgId: 'org_acme', authProvider: 'none' }, { now: NOW, newId: () => uuidv7(NOW) })
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
+  const r = await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', email: 'o@x.test', agentName: 'bot', authOrgId: 'org_acme', authProvider: 'none' },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
   orgId = r.organizationId
 })
 afterEach(() => errors.mockRestore())
@@ -44,7 +58,8 @@ const CONTROLS: Control[] = ['absent', 'unmigrated', 'no marker', 'other organis
 
 async function envFor(provider: Provider, control: Control): Promise<D1WorkerEnv> {
   const env: D1WorkerEnv = { DB: w.d1 }
-  if (provider === 'better-auth') Object.assign(env, { AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: BASE })
+  if (provider === 'better-auth')
+    Object.assign(env, { AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: BASE })
   else if (provider === 'clerk') Object.assign(env, (await clerkKit()).env)
   else env.AUTH_PROVIDER = ''
   if (control === 'absent') return env
@@ -95,7 +110,17 @@ describe('the control gate matrix (D6, D7)', () => {
         const env = await envFor(provider, control)
         // A control binding that throws on any touch: if the Worker read it, the request would not be served.
         const touched: string[] = []
-        const trap = { prepare: (q: string) => (touched.push(q), (() => { throw new Error('CONTROL_DB was read') })()), batch: () => { throw new Error('CONTROL_DB was read') } } as unknown as D1Like
+        const trap = {
+          prepare: (q: string) => (
+            touched.push(q),
+            (() => {
+              throw new Error('CONTROL_DB was read')
+            })()
+          ),
+          batch: () => {
+            throw new Error('CONTROL_DB was read')
+          },
+        } as unknown as D1Like
         const worker = composeD1Worker(env.CONTROL_DB ? { ...env, CONTROL_DB: trap } : env)
         expect((await call(worker, '/health')).status).toBe(200)
         const res = await call(worker, '/api/v1/contacts')
@@ -108,7 +133,8 @@ describe('the control gate matrix (D6, D7)', () => {
 
   it('the OpenAPI documents stay exempt from the control gate, as they are from the CRM migration and marker gates', async () => {
     const worker = composeD1Worker(await envFor('better-auth', 'no marker'))
-    for (const path of [openApiPath('api'), openApiPath('meta')]) expect((await call(worker, path)).status, path).toBe(200)
+    for (const path of [openApiPath('api'), openApiPath('meta')])
+      expect((await call(worker, path)).status, path).toBe(200)
   })
 
   it('CRM not initialised: 503 not_initialised (nothing to pair with yet), not the not-paired 500', async () => {
@@ -130,11 +156,17 @@ describe('the control gate matrix (D6, D7)', () => {
     await writeControlMarker(openControlDb(w.control), orgId)
     await w.control.prepare('delete from d1_migrations').run()
     let now = 1_000_000
-    const worker = composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: BASE }, { nowMs: () => now })
+    const worker = composeD1Worker(
+      { DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: BASE },
+      { nowMs: () => now },
+    )
     const res = await call(worker, '/auth/ok')
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual(MIGRATIONS_PENDING)
-    await recordMigrations(w.control, CONTROL_MIGRATIONS.map((m) => m.name))
+    await recordMigrations(
+      w.control,
+      CONTROL_MIGRATIONS.map((m) => m.name),
+    )
     now += 6_000
     expect((await call(worker, '/auth/ok')).status).toBe(200)
   })
@@ -157,7 +189,13 @@ describe('the marker check and the per-isolate cache (D7, decision)', () => {
   it('a pairing that held is remembered for the isolate: the control marker is read once across requests', async () => {
     await writeControlMarker(openControlDb(w.control), orgId)
     const spy = spyD1(w.control)
-    const worker = composeD1Worker({ DB: w.d1, CONTROL_DB: spy.d1, AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: BASE })
+    const worker = composeD1Worker({
+      DB: w.d1,
+      CONTROL_DB: spy.d1,
+      AUTH_PROVIDER: 'better-auth',
+      AUTH_SECRET: SECRET,
+      PUBLIC_BASE_URL: BASE,
+    })
     for (let i = 0; i < 3; i++) expect((await call(worker, '/auth/ok')).status).toBe(200)
     expect(spy.log.statements.filter((s) => /control_deployment/.test(s))).toHaveLength(1)
     expect(await readControlMarker(openControlDb(w.control))).toEqual({ organizationId: orgId })

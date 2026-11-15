@@ -17,8 +17,8 @@
     "test": "vitest run",
     "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
-    "format": "pnpm -r format",
+    "lint": "biome ci .",
+    "format": "biome check --write .",
     "db:migrate": "pnpm -C packages/db db:migrate",
     "db:test:reset": "pnpm -C packages/db db:test:reset",
     "db:test:worktree": "pnpm -C packages/db db:test:worktree",
@@ -29,6 +29,7 @@
     "@neon/env": "^1.6.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.7",
     "@changesets/cli": "3.0.3",
     "vitest": "5.0.3"
   }

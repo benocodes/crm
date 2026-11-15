@@ -49,7 +49,10 @@ describe('dispatch core (D4, D20)', () => {
     })
     expect(await k.deliveries(other.id)).toEqual([])
     expect(await k.cursorOf(match.id)).toBe(created)
-    expect(await k.cursorOf(other.id), 'the other subscription read the same page and saw nothing of its types: its cursor does not move').not.toBe(created)
+    expect(
+      await k.cursorOf(other.id),
+      'the other subscription read the same page and saw nothing of its types: its cursor does not move',
+    ).not.toBe(created)
   })
 
   it('a second tick adds nothing and leaves the cursor', async () => {
@@ -78,7 +81,13 @@ describe('dispatch core (D4, D20)', () => {
     for (let i = 0; i < 520; i++) {
       const id = uuidv7()
       ids.push(id)
-      stmts.push(k.e.d1!.prepare("INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id) VALUES (?, ?, ?, 'task.created', 'task', ?, ?)").bind(id, AT, k.e.organizationId, uuidv7(), k.e.userId))
+      stmts.push(
+        k.e
+          .d1!.prepare(
+            "INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id) VALUES (?, ?, ?, 'task.created', 'task', ?, ?)",
+          )
+          .bind(id, AT, k.e.organizationId, uuidv7(), k.e.userId),
+      )
     }
     await k.e.d1!.batch(stmts)
     await k.dispatch()
@@ -105,10 +114,14 @@ describe('dispatch core (D4, D20)', () => {
   it('last_dispatched_at is stamped when a page was applied, and left alone on an empty read', async () => {
     const made = await k.create(await agentWith())
     await k.dispatch()
-    expect((await k.all('select last_dispatched_at from webhook_dispatch_state'))[0]).toEqual({ last_dispatched_at: null })
+    expect((await k.all('select last_dispatched_at from webhook_dispatch_state'))[0]).toEqual({
+      last_dispatched_at: null,
+    })
     await k.task('stamp')
     await k.dispatch()
-    expect((await k.all('select last_dispatched_at from webhook_dispatch_state where subscription_id = ?', made.id))[0]).toEqual({ last_dispatched_at: AT })
+    expect(
+      (await k.all('select last_dispatched_at from webhook_dispatch_state where subscription_id = ?', made.id))[0],
+    ).toEqual({ last_dispatched_at: AT })
   })
 })
 
@@ -205,7 +218,12 @@ describe('eligibility and visibility at dispatch (one case per condition)', () =
   it('a delegated agent (seeded after creation): no rows', async () => {
     const a = await agentWith()
     const sub = await k.create(a)
-    await k.e.d1!.prepare("UPDATE agents SET auth_provider = 'clerk', auth_client_id = 'client_x', delegated_by = ? WHERE id = ?").bind(k.e.userId, a).run()
+    await k.e
+      .d1!.prepare(
+        "UPDATE agents SET auth_provider = 'clerk', auth_client_id = 'client_x', delegated_by = ? WHERE id = ?",
+      )
+      .bind(k.e.userId, a)
+      .run()
     expect(await rowsAfterOneTask(sub)).toEqual([])
   })
 
@@ -232,7 +250,9 @@ describe('eligibility and visibility at dispatch (one case per condition)', () =
     const created = await k.task('first')
     await k.dispatch()
     expect(eventIds(await k.deliveries(sub.id))).toEqual([created])
-    expect((await k.owner('PATCH', `/meta/v1/webhooks/${sub.id}`, { event_types: ['task.created', 'task.updated'] })).status).toBe(200)
+    expect(
+      (await k.owner('PATCH', `/meta/v1/webhooks/${sub.id}`, { event_types: ['task.created', 'task.updated'] })).status,
+    ).toBe(200)
     await k.dispatch()
     expect(eventIds(await k.deliveries(sub.id)), 'the earlier task.updated is not replayed').toEqual([created])
     const later = await k.rawEvent('task.updated')
@@ -245,7 +265,10 @@ describe('eligibility and visibility at dispatch (one case per condition)', () =
     const broken = await k.create(a)
     const fine = await k.create(a)
     const missing = uuidv7()
-    await k.e.d1!.prepare('UPDATE webhook_dispatch_state SET cursor_event_id = ? WHERE subscription_id = ?').bind(missing, broken.id).run()
+    await k.e
+      .d1!.prepare('UPDATE webhook_dispatch_state SET cursor_event_id = ? WHERE subscription_id = ?')
+      .bind(missing, broken.id)
+      .run()
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await k.task('one')
     const out = await k.dispatch()
@@ -296,7 +319,9 @@ describe('messaging events carry no content (D17)', () => {
     const rows = await k.deliveries(sub.id)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ event_type: 'interaction.created' })
-    const event = (await k.all('select "after", "before" from events where id = ?', rows[0]!.event_id))[0] as { after: string }
+    const event = (await k.all('select "after", "before" from events where id = ?', rows[0]!.event_id))[0] as {
+      after: string
+    }
     const after = JSON.parse(event.after)
     expect(after.message_id).toEqual(expect.any(String))
     expect(after.participants.length).toBeGreaterThan(0)

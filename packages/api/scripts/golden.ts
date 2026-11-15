@@ -18,7 +18,13 @@ export async function generate(resource: string, scenarios: readonly GoldenScena
   try {
     const transcripts = []
     for (const s of scenarios) transcripts.push(await runScenario(backend, s))
-    return fixtureText({ format: 1, resource, generated_by: GENERATED_BY, named_differences: NAMED_DIFFERENCES.filter((d) => scenarios.some((s) => s.name === d.scenario)), scenarios: transcripts })
+    return fixtureText({
+      format: 1,
+      resource,
+      generated_by: GENERATED_BY,
+      named_differences: NAMED_DIFFERENCES.filter((d) => scenarios.some((s) => s.name === d.scenario)),
+      scenarios: transcripts,
+    })
   } finally {
     await backend.close()
   }
@@ -45,7 +51,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         committed = undefined
       }
       if (committed !== text) {
-        console.error(`golden fixture ${f.file} is stale: run \`pnpm -C packages/api golden:generate\` and commit the diff`)
+        console.error(
+          `golden fixture ${f.file} is stale: run \`pnpm -C packages/api golden:generate\` and commit the diff`,
+        )
         stale = true
       }
     }

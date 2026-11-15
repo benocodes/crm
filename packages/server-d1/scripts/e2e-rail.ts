@@ -14,7 +14,13 @@ const check = (name: string, ok: boolean, detail?: unknown): void => {
   if (!ok) failed++
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${ok || detail === undefined ? '' : ` ${JSON.stringify(detail)}`}`)
 }
-async function call(base: string, method: string, path: string, key: string | null, body?: unknown): Promise<{ status: number; json: Json | null }> {
+async function call(
+  base: string,
+  method: string,
+  path: string,
+  key: string | null,
+  body?: unknown,
+): Promise<{ status: number; json: Json | null }> {
   const headers: Record<string, string> = {}
   if (key) headers.authorization = `Bearer ${key}`
   if (body !== undefined) headers['content-type'] = 'application/json'
@@ -29,9 +35,17 @@ async function call(base: string, method: string, path: string, key: string | nu
 const errCode = (j: Json | null) => ((j?.error as Json | undefined)?.code as string | undefined) ?? null
 
 export function parseArgsOf(argv: string[]): { base: string; expectVersion: string; waitSeconds: number } {
-  const { values } = parseArgs({ args: argv.filter((a) => a !== '--'), options: { base: { type: 'string' }, 'expect-version': { type: 'string' }, 'wait-seconds': { type: 'string' } }, strict: true })
+  const { values } = parseArgs({
+    args: argv.filter((a) => a !== '--'),
+    options: { base: { type: 'string' }, 'expect-version': { type: 'string' }, 'wait-seconds': { type: 'string' } },
+    strict: true,
+  })
   if (!values.base || !values['expect-version']) throw new Error('--base and --expect-version are required')
-  return { base: values.base.replace(/\/+$/, ''), expectVersion: values['expect-version'], waitSeconds: Number(values['wait-seconds'] ?? 240) }
+  return {
+    base: values.base.replace(/\/+$/, ''),
+    expectVersion: values['expect-version'],
+    waitSeconds: Number(values['wait-seconds'] ?? 240),
+  }
 }
 
 /** The key of the smoked1 rail check: the rail agent's, else the operator's ([[OPS265]] D15). */
@@ -49,15 +63,33 @@ async function main(): Promise<void> {
 
   const health = await call(base, 'GET', '/health', null)
   const migrations = health.json?.migrations as Json | undefined
-  check('health: the branch is deployed and the database is current', health.status === 200 && health.json?.version === args.expectVersion && migrations?.status === 'current' && migrations?.latest_applied === '0012_action_executions.sql', { status: health.status, version: health.json?.version, migrations })
+  check(
+    'health: the branch is deployed and the database is current',
+    health.status === 200 &&
+      health.json?.version === args.expectVersion &&
+      migrations?.status === 'current' &&
+      migrations?.latest_applied === '0012_action_executions.sql',
+    { status: health.status, version: health.json?.version, migrations },
+  )
 
   const title = `E2E expiry ${Date.now()}`
   const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString()
-  const created = await call(base, 'POST', '/api/v1/action-requests', key, { operation: 'tasks.create', arguments: { title }, reason: 'AGT165 E2E: the per-minute cron must expire this', expires_at: expiresAt })
+  const created = await call(base, 'POST', '/api/v1/action-requests', key, {
+    operation: 'tasks.create',
+    arguments: { title },
+    reason: 'AGT165 E2E: the per-minute cron must expire this',
+    expires_at: expiresAt,
+  })
   const id = (created.json?.id as string | undefined) ?? ''
-  check('POST /api/v1/action-requests -> 201 pending', created.status === 201 && created.json?.status === 'pending' && id !== '', { status: created.status, code: errCode(created.json) })
+  check(
+    'POST /api/v1/action-requests -> 201 pending',
+    created.status === 201 && created.json?.status === 'pending' && id !== '',
+    { status: created.status, code: errCode(created.json) },
+  )
   if (!id) {
-    console.log('The key cannot propose tasks.create (needs tasks:request_approval or tasks:write); set VIBASE_SMOKED1_RAIL_KEY to an agent that holds tasks:request_approval, tasks:read and action_requests:read.')
+    console.log(
+      'The key cannot propose tasks.create (needs tasks:request_approval or tasks:write); set VIBASE_SMOKED1_RAIL_KEY to an agent that holds tasks:request_approval, tasks:read and action_requests:read.',
+    )
     process.exitCode = 1
     return
   }
@@ -73,13 +105,31 @@ async function main(): Promise<void> {
     if (got.status !== 200 || got.json?.status !== 'pending') break
     await new Promise((r) => setTimeout(r, 30_000))
   }
-  check('step 4: the request is expired within four minutes', status === 200 && last?.status === 'expired', { status, state: last?.status, code: errCode(last) })
-  check('step 4: decided_by is set and decided_at is not before expires_at', typeof last?.decided_by === 'string' && typeof last?.decided_at === 'string' && Date.parse(String(last.decided_at)) >= Date.parse(expiresAt), { decided_by: last?.decided_by, decided_at: last?.decided_at })
+  check('step 4: the request is expired within four minutes', status === 200 && last?.status === 'expired', {
+    status,
+    state: last?.status,
+    code: errCode(last),
+  })
+  check(
+    'step 4: decided_by is set and decided_at is not before expires_at',
+    typeof last?.decided_by === 'string' &&
+      typeof last?.decided_at === 'string' &&
+      Date.parse(String(last.decided_at)) >= Date.parse(expiresAt),
+    { decided_by: last?.decided_by, decided_at: last?.decided_at },
+  )
   const tasks = await call(base, 'GET', '/api/v1/tasks?limit=200', key)
   const data = (tasks.json?.data as Json[] | undefined) ?? []
-  check('no task titled with the E2E title exists', tasks.status === 200 && !data.some((t) => t.title === title), { status: tasks.status })
+  check('no task titled with the E2E title exists', tasks.status === 200 && !data.some((t) => t.title === title), {
+    status: tasks.status,
+  })
   const executions = await call(base, 'GET', '/api/v1/action-executions', key)
-  check('step 5: GET /api/v1/action-executions -> 200 with an empty list', executions.status === 200 && Array.isArray(executions.json?.data) && (executions.json?.data as unknown[]).length === 0, { status: executions.status })
+  check(
+    'step 5: GET /api/v1/action-executions -> 200 with an empty list',
+    executions.status === 200 &&
+      Array.isArray(executions.json?.data) &&
+      (executions.json?.data as unknown[]).length === 0,
+    { status: executions.status },
+  )
   if (failed > 0) {
     console.log(`${failed} check(s) FAILED`)
     process.exitCode = 1
@@ -90,7 +140,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     await main()
   } catch (err) {
-    console.error(err instanceof RemoteRefusal ? `refused: ${err.message}` : `failed: ${err instanceof Error ? err.message : 'error'}`)
+    console.error(
+      err instanceof RemoteRefusal
+        ? `refused: ${err.message}`
+        : `failed: ${err instanceof Error ? err.message : 'error'}`,
+    )
     process.exitCode = 1
   }
 }

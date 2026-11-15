@@ -2,7 +2,15 @@ import { ApiError } from '../errors.js'
 import { createClerkAdapter } from './clerk.js'
 import type { Role } from './roles.js'
 
-export type VerifyFailure = 'malformed' | 'algorithm' | 'signature' | 'expired' | 'not_yet_valid' | 'issuer' | 'azp' | 'claims'
+export type VerifyFailure =
+  | 'malformed'
+  | 'algorithm'
+  | 'signature'
+  | 'expired'
+  | 'not_yet_valid'
+  | 'issuer'
+  | 'azp'
+  | 'claims'
 /** Always 401 `unauthenticated`. `reason` is for the middleware's log line, never the response. */
 export class AuthFailure extends ApiError {
   constructor(
@@ -20,7 +28,14 @@ export type OrganizationClaim = { externalId: string; role: Role | null } // nul
  * ever returns `oauth`; the Organizations adapter reads every token as a session token.
  */
 export type VerifyResult =
-  | { ok: true; kind: 'session'; subject: string; issuedAt: Date; organization: OrganizationClaim | null; role?: unknown }
+  | {
+      ok: true
+      kind: 'session'
+      subject: string
+      issuedAt: Date
+      organization: OrganizationClaim | null
+      role?: unknown
+    }
   | { ok: true; kind: 'oauth'; subject: string; clientId: string; scopes: string[] }
   | { ok: false; reason: VerifyFailure }
 /** `role` is the provider's stored workspace role for the user (`public_metadata.vibase_role`), unvalidated; undefined when absent ([[CORE77]] D12). */
@@ -75,7 +90,10 @@ export const DEFAULT_ROLE_CLAIM = 'vibase_role'
  * undefined when AUTH_PROVIDER is unset or empty (agent-only setups). Throws on bad config (fail closed). The Organizations
  * adapter: needs `CLERK_WEBHOOK_SECRET`, reads no role claim. The workspace adapter is `createWorkspaceAuthAdapter`.
  */
-export function createAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date } = {}): AuthAdapter | undefined {
+export function createAuthAdapter(
+  env: AuthEnv,
+  deps: { fetch?: typeof fetch; now?: () => Date } = {},
+): AuthAdapter | undefined {
   return build(env, deps, false)
 }
 
@@ -83,7 +101,10 @@ export function createAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; no
  * The D1 workspace adapter ([[CORE64]] D8, D24): `CLERK_WEBHOOK_SECRET` is not read (a value set is ignored, and the adapter then
  * answers every webhook as a bad signature), and the role is read from the claim named by `AUTH_ROLE_CLAIM` (default `vibase_role`).
  */
-export function createWorkspaceAuthAdapter(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date } = {}): AuthAdapter | undefined {
+export function createWorkspaceAuthAdapter(
+  env: AuthEnv,
+  deps: { fetch?: typeof fetch; now?: () => Date } = {},
+): AuthAdapter | undefined {
   return build(env, deps, true)
 }
 
@@ -99,7 +120,11 @@ export function parseCliClientId(env: AuthEnv): string | undefined {
   return id
 }
 
-function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, workspace: boolean): AuthAdapter | undefined {
+function build(
+  env: AuthEnv,
+  deps: { fetch?: typeof fetch; now?: () => Date },
+  workspace: boolean,
+): AuthAdapter | undefined {
   const provider = env.AUTH_PROVIDER?.trim()
   if (!provider) return undefined
   // [[CORE243]] D1: the built-in provider's adapter needs the control-plane reads, so the composition builds it (`createBetterAuthAdapter`, [[CORE244]]); here it is no adapter.
@@ -126,7 +151,8 @@ function build(env: AuthEnv, deps: { fetch?: typeof fetch; now?: () => Date }, w
   }
   const authorizedParties = parseOriginList(env.CLERK_AUTHORIZED_PARTIES, 'CLERK_AUTHORIZED_PARTIES')
   // D1 workspace ([[CORE64]] D8): optional; unset means no party is authorised, so a token carrying any azp is 401.
-  if (!workspace && authorizedParties.length === 0) throw new Error('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
+  if (!workspace && authorizedParties.length === 0)
+    throw new Error('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
   return createClerkAdapter({
     jwtKey,
     issuer,

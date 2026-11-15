@@ -19,7 +19,14 @@ afterEach(() => {
 let key: string
 beforeEach(async () => {
   await w.reset()
-  const b = await bootstrapD1(w.d1, { organizationName: 'Acme', authProvider: 'none', authOrgId: 'e2e', email: 'e2e@example.com', agentName: 'e2e-agent', scopes: ['events:read', 'tasks:read', 'tasks:write', 'schema:read'] })
+  const b = await bootstrapD1(w.d1, {
+    organizationName: 'Acme',
+    authProvider: 'none',
+    authOrgId: 'e2e',
+    email: 'e2e@example.com',
+    agentName: 'e2e-agent',
+    scopes: ['events:read', 'tasks:read', 'tasks:write', 'schema:read'],
+  })
   key = b.key
 })
 
@@ -37,22 +44,31 @@ it('catches up over real events page by page, resumes from the cursor file, and 
   await task('b')
   const first = await tail()
   expect(first.code, first.stderr).toBe(0)
-  const events = first.stdout.split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  const events = first.stdout
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
   expect(events.map((e) => e.type)).toEqual(['task.created', 'task.created'])
   expect(readFileSync(file, 'utf8')).toBe(events[1].id + '\n')
 
   await task('c')
   const ac = new AbortController()
   let polls = 0
-  const followed = await r.run(['events', 'tail', '--limit', '1', '--cursor-file', file, '--follow', '--interval', '1'], {
-    signal: ac.signal,
-    sleep: async () => {
-      if (++polls === 1) await task('d')
-      else ac.abort()
+  const followed = await r.run(
+    ['events', 'tail', '--limit', '1', '--cursor-file', file, '--follow', '--interval', '1'],
+    {
+      signal: ac.signal,
+      sleep: async () => {
+        if (++polls === 1) await task('d')
+        else ac.abort()
+      },
     },
-  })
+  )
   expect(followed.code, followed.stderr).toBe(0)
-  const later = followed.stdout.split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  const later = followed.stdout
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
   expect(later.map((e) => e.type)).toEqual(['task.created', 'task.created'])
   expect(r.sleeps).toEqual([1000, 1000])
   expect(r.outputs.every((o) => !o.stdout.includes(key) && !o.stderr.includes(key))).toBe(true)

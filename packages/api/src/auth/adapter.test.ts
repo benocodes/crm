@@ -27,11 +27,14 @@ describe('createAuthAdapter', () => {
     expect(await adapter.verify(token)).toMatchObject({ ok: true, subject: 'user_9', organization: null })
   })
 
-  it.each(['CLERK_JWT_KEY', 'CLERK_ISSUER', 'CLERK_SECRET_KEY', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_WEBHOOK_SECRET'])('missing %s', async (name) => {
-    const env = await baseEnv()
-    delete env[name]
-    expect(() => createAuthAdapter(env)).toThrow(`AUTH_PROVIDER=clerk requires ${name}`)
-  })
+  it.each(['CLERK_JWT_KEY', 'CLERK_ISSUER', 'CLERK_SECRET_KEY', 'CLERK_AUTHORIZED_PARTIES', 'CLERK_WEBHOOK_SECRET'])(
+    'missing %s',
+    async (name) => {
+      const env = await baseEnv()
+      delete env[name]
+      expect(() => createAuthAdapter(env)).toThrow(`AUTH_PROVIDER=clerk requires ${name}`)
+    },
+  )
 
   it('empty parties', async () => {
     const env = { ...(await baseEnv()), CLERK_AUTHORIZED_PARTIES: ' , ' }
@@ -76,7 +79,9 @@ describe('createWorkspaceAuthAdapter ([[CORE64]] D24, D8)', () => {
     delete env.CLERK_AUTHORIZED_PARTIES
     expect(createWorkspaceAuthAdapter(env)).toBeDefined()
     expect(() => createAuthAdapter(env)).toThrow('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
-    expect(() => createAuthAdapter({ ...env, CLERK_AUTHORIZED_PARTIES: ' , ' })).toThrow('AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES')
+    expect(() => createAuthAdapter({ ...env, CLERK_AUTHORIZED_PARTIES: ' , ' })).toThrow(
+      'AUTH_PROVIDER=clerk requires CLERK_AUTHORIZED_PARTIES',
+    )
   })
 
   it('unset provider is undefined', () => {
@@ -88,8 +93,14 @@ describe('createWorkspaceAuthAdapter ([[CORE64]] D24, D8)', () => {
     const env = await baseEnv()
     const token = await mintClerkToken(issuer, { extra: { vibase_role: 'owner', acme_role: 'member' } })
     expect(await createWorkspaceAuthAdapter(env)!.verify(token)).toMatchObject({ ok: true, role: 'owner' })
-    expect(await createWorkspaceAuthAdapter({ ...env, AUTH_ROLE_CLAIM: ' acme_role ' })!.verify(token)).toMatchObject({ ok: true, role: 'member' })
-    expect(await createWorkspaceAuthAdapter({ ...env, AUTH_ROLE_CLAIM: 'absent' })!.verify(token)).toMatchObject({ ok: true, role: undefined })
+    expect(await createWorkspaceAuthAdapter({ ...env, AUTH_ROLE_CLAIM: ' acme_role ' })!.verify(token)).toMatchObject({
+      ok: true,
+      role: 'member',
+    })
+    expect(await createWorkspaceAuthAdapter({ ...env, AUTH_ROLE_CLAIM: 'absent' })!.verify(token)).toMatchObject({
+      ok: true,
+      role: undefined,
+    })
   })
 
   it.each(['', '   '])('AUTH_ROLE_CLAIM %j fails closed', async (value) => {
@@ -102,14 +113,20 @@ describe('createWorkspaceAuthAdapter ([[CORE64]] D24, D8)', () => {
     delete env.CLERK_WEBHOOK_SECRET
     const adapter = createWorkspaceAuthAdapter(env)!
     const now = Math.floor(Date.now() / 1000)
-    const result = await adapter.parseWebhook({ headers: new Headers({ 'svix-id': 'msg_1', 'svix-timestamp': String(now), 'svix-signature': 'v1,AAAA' }), body: '{}' })
+    const result = await adapter.parseWebhook({
+      headers: new Headers({ 'svix-id': 'msg_1', 'svix-timestamp': String(now), 'svix-signature': 'v1,AAAA' }),
+      body: '{}',
+    })
     expect(result).toEqual({ ok: false, reason: 'signature' })
   })
 })
 
 describe('parseOriginList', () => {
   it('trims, drops empties and trailing slashes', () => {
-    expect(parseOriginList(' https://a.test/ ,https://b.test:8443,, ', 'X')).toEqual(['https://a.test', 'https://b.test:8443'])
+    expect(parseOriginList(' https://a.test/ ,https://b.test:8443,, ', 'X')).toEqual([
+      'https://a.test',
+      'https://b.test:8443',
+    ])
   })
   it('refuses an origin with a path', () => {
     expect(() => parseOriginList('https://a.test/pane', 'X')).toThrow('X: "https://a.test/pane" is not an origin')

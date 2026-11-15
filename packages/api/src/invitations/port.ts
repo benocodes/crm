@@ -35,7 +35,13 @@ export interface InvitationsPort {
   /** `live_exists`: another live invitation holds the address; nothing was written. */
   create(a: InvitationInsert): Promise<'created' | 'live_exists'>
   list(a: { after?: string; limit: number }): Promise<InvitationRow[]>
-  revoke(a: { id: string; auditId: string; actorId: string; now: string; reason?: string }): Promise<{ result: 'revoked' | 'not_live'; record: InvitationRow } | { result: 'not_found' }>
+  revoke(a: {
+    id: string
+    auditId: string
+    actorId: string
+    now: string
+    reason?: string
+  }): Promise<{ result: 'revoked' | 'not_live'; record: InvitationRow } | { result: 'not_found' }>
 }
 /** What composition hands the registry: the port, and the origin the invitation URL is built on (`PUBLIC_BASE_URL`, never a request host). `null`/absent: this composition has no control store. */
 export interface InvitationsRuntime {

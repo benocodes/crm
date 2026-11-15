@@ -13,11 +13,19 @@ export function readReleaseVersion(repoRoot: string): string {
     try {
       version = (JSON.parse(readFileSync(join(repoRoot, file), 'utf8')) as { version?: unknown }).version
     } catch {
-      throw new ReleaseRefusal(`${file} is missing or unreadable: the release version is the version of ${VERSION_PACKAGES.map((d) => `${d}/package.json`).join(' and ')}`)
+      throw new ReleaseRefusal(
+        `${file} is missing or unreadable: the release version is the version of ${VERSION_PACKAGES.map((d) => `${d}/package.json`).join(' and ')}`,
+      )
     }
-    if (typeof version !== 'string' || version === '') throw new ReleaseRefusal(`${file} has no version: the release version is the version of ${VERSION_PACKAGES.map((d) => `${d}/package.json`).join(' and ')} (changesets writes it)`)
+    if (typeof version !== 'string' || version === '')
+      throw new ReleaseRefusal(
+        `${file} has no version: the release version is the version of ${VERSION_PACKAGES.map((d) => `${d}/package.json`).join(' and ')} (changesets writes it)`,
+      )
     return { file, version }
   })
-  if (found[0]!.version !== found[1]!.version) throw new ReleaseRefusal(`${found[0]!.file} is at ${found[0]!.version} but ${found[1]!.file} is at ${found[1]!.version}: they are one fixed group and must be equal (run changeset version)`)
+  if (found[0]!.version !== found[1]!.version)
+    throw new ReleaseRefusal(
+      `${found[0]!.file} is at ${found[0]!.version} but ${found[1]!.file} is at ${found[1]!.version}: they are one fixed group and must be equal (run changeset version)`,
+    )
   return found[0]!.version
 }

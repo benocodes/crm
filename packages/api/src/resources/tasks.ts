@@ -60,34 +60,48 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const tasks = withColumnFilters(withColumnSorts(definePreparedResource({
-  surface: 'api',
-  name: 'tasks',
-  eventName: 'task',
-  table: 'tasks',
-  associable: true,
-  customFilters: { tag_id: tagIdFilter('tasks'), tag: tagNameFilter('tasks') },
-  override: { delete: (env, id) => deleteTaskOperation(env, id as string) },
-  record,
-  create,
-  update,
-  filters: {
-    status: { schema: z.enum(['open', 'done']) },
-    assignee_id: { schema: z.uuid() },
-  },
-  references: { assignee_id: { table: 'principals' } },
-  // Extension 1 (create only): there is no stored row yet, so the pure rule applies directly.
-  prepare: ({ values, meta }) => {
-    if (meta.op !== 'create') return {}
-    const c = taskCompletion(values, null, meta.now)
-    return 'completed_at' in c ? { completed_at: c.completed_at ? codecs.timestamp.write(c.completed_at) : null } : {}
-  },
-  // Extension 2 (update): the completion CASE over the STORED status, evaluated at commit.
-  computed: ({ eb, values, now }) => {
-    if (values.status === 'done') {
-      return { completed_at: eb.case().when('tasks.status', '=', 'done').then(eb.ref('tasks.completed_at')).else(codecs.timestamp.write(now)).end() }
-    }
-    if (values.status === 'open') return { completed_at: null }
-    return {}
-  },
-}), ['due_at', 'title']))
+export const tasks = withColumnFilters(
+  withColumnSorts(
+    definePreparedResource({
+      surface: 'api',
+      name: 'tasks',
+      eventName: 'task',
+      table: 'tasks',
+      associable: true,
+      customFilters: { tag_id: tagIdFilter('tasks'), tag: tagNameFilter('tasks') },
+      override: { delete: (env, id) => deleteTaskOperation(env, id as string) },
+      record,
+      create,
+      update,
+      filters: {
+        status: { schema: z.enum(['open', 'done']) },
+        assignee_id: { schema: z.uuid() },
+      },
+      references: { assignee_id: { table: 'principals' } },
+      // Extension 1 (create only): there is no stored row yet, so the pure rule applies directly.
+      prepare: ({ values, meta }) => {
+        if (meta.op !== 'create') return {}
+        const c = taskCompletion(values, null, meta.now)
+        return 'completed_at' in c
+          ? { completed_at: c.completed_at ? codecs.timestamp.write(c.completed_at) : null }
+          : {}
+      },
+      // Extension 2 (update): the completion CASE over the STORED status, evaluated at commit.
+      computed: ({ eb, values, now }) => {
+        if (values.status === 'done') {
+          return {
+            completed_at: eb
+              .case()
+              .when('tasks.status', '=', 'done')
+              .then(eb.ref('tasks.completed_at'))
+              .else(codecs.timestamp.write(now))
+              .end(),
+          }
+        }
+        if (values.status === 'open') return { completed_at: null }
+        return {}
+      },
+    }),
+    ['due_at', 'title'],
+  ),
+)

@@ -16,19 +16,32 @@ export const EXIT_DONE = 0
 export const EXIT_REFUSED = 2
 export const EXIT_FAILED = 3
 
-const USAGE = 'usage: vibase-server owner-reset --env <name> [--email <owner>] [--dry-run] [--settings <path>] [--secrets-file <path>]'
+const USAGE =
+  'usage: vibase-server owner-reset --env <name> [--email <owner>] [--dry-run] [--settings <path>] [--secrets-file <path>]'
 
 export async function runOwnerReset(argv: string[], deps: InstanceDeps): Promise<number> {
   let redact = (t: string): string => t
   try {
     let values: { env?: string; email?: string; settings?: string; 'secrets-file'?: string; 'dry-run'?: boolean }
     try {
-      values = parseArgs({ args: argv, strict: true, allowPositionals: false, options: { env: { type: 'string' }, email: { type: 'string' }, settings: { type: 'string' }, 'secrets-file': { type: 'string' }, 'dry-run': { type: 'boolean' } } }).values
+      values = parseArgs({
+        args: argv,
+        strict: true,
+        allowPositionals: false,
+        options: {
+          env: { type: 'string' },
+          email: { type: 'string' },
+          settings: { type: 'string' },
+          'secrets-file': { type: 'string' },
+          'dry-run': { type: 'boolean' },
+        },
+      }).values
     } catch (e) {
       throw new InstanceRefusal(`${e instanceof Error ? e.message : 'bad arguments'}; ${USAGE}`)
     }
     if (!values.env) throw new InstanceRefusal(`--env <name> is required; ${USAGE}`)
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(values.env)) throw new InstanceRefusal(`--env ${values.env} is not an environment name (lowercase letters, digits and dashes)`)
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(values.env))
+      throw new InstanceRefusal(`--env ${values.env} is not an environment name (lowercase letters, digits and dashes)`)
     const dryRun = values['dry-run'] === true
     if (!dryRun) requireConfirm(deps.env as NodeJS.ProcessEnv)
 
@@ -41,20 +54,32 @@ export async function runOwnerReset(argv: string[], deps: InstanceDeps): Promise
     const authSecret = parseDotenv(secrets.text).AUTH_SECRET?.trim() || undefined
 
     const result = await ownerReset({
-      record: { authProvider: providerFromVars(settings.vars, settingsPath), hasControl: settings.control_d1 !== undefined, publicBaseUrl: settings.vars.PUBLIC_BASE_URL },
+      record: {
+        authProvider: providerFromVars(settings.vars, settingsPath),
+        hasControl: settings.control_d1 !== undefined,
+        publicBaseUrl: settings.vars.PUBLIC_BASE_URL,
+      },
       authSecret,
       secretsFile: secretsPath,
       email: values.email,
       dryRun,
       withDatabases: (fn) =>
-        withGeneratedConfigAsync({ packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot }, async (configPath) => {
-          const { d1, control, dispose } = await deps.openD1({ configPath, remoteBindings: true, persist: false, env: childEnv(deps, secrets) })
-          try {
-            return await fn({ crm: d1, control })
-          } finally {
-            await dispose()
-          }
-        }),
+        withGeneratedConfigAsync(
+          { packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot },
+          async (configPath) => {
+            const { d1, control, dispose } = await deps.openD1({
+              configPath,
+              remoteBindings: true,
+              persist: false,
+              env: childEnv(deps, secrets),
+            })
+            try {
+              return await fn({ crm: d1, control })
+            } finally {
+              await dispose()
+            }
+          },
+        ),
     })
     for (const l of ownerResetLines(result)) deps.out(l)
     return EXIT_DONE

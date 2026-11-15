@@ -92,7 +92,15 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
     reads: (qc) => ({
       [parentKey]: beforeRead(c.parent, qc, env, id),
       ...(c.hold ? holdReads(c.hold, qc, env, id) : {}),
-      ...(c.parent.associable ? { [edgesKey]: readSet(selectRecord(associations, qc, env).where(touches(c.parent.table, id)).orderBy(sql.ref('associations.id'))) } : {}),
+      ...(c.parent.associable
+        ? {
+            [edgesKey]: readSet(
+              selectRecord(associations, qc, env)
+                .where(touches(c.parent.table, id))
+                .orderBy(sql.ref('associations.id')),
+            ),
+          }
+        : {}),
       ...Object.fromEntries(
         c.children.map((k) => [
           childrenKey(k),
@@ -114,7 +122,11 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
       // Event ids sort in allocation order, which is the feed order: children first means theirs are drawn before the parent's.
       const childIds = new Map<CascadeChild, string[]>()
       if (c.childrenFirst) {
-        for (const k of c.children) childIds.set(k, found.all(childrenKey(k)).map(() => env.newId()))
+        for (const k of c.children)
+          childIds.set(
+            k,
+            found.all(childrenKey(k)).map(() => env.newId()),
+          )
         parentEventId = env.newId()
       }
 
@@ -151,9 +163,14 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
       for (const k of c.children) {
         const children = found.all(childrenKey(k)).map((r) => toRecord(k.child, r))
         const ids = children.map((x) => x.id as string)
-        const childEvents = children.map((x, i) => ({ eventId: childIds.get(k)?.[i] ?? env.newId(), resourceId: x.id as string, before: x as Record<string, unknown> }))
+        const childEvents = children.map((x, i) => ({
+          eventId: childIds.get(k)?.[i] ?? env.newId(),
+          resourceId: x.id as string,
+          before: x as Record<string, unknown>,
+        }))
         const eventType = k.kind === 'unlink' ? `${k.child.eventName}.updated` : `${k.child.eventName}.deleted`
-        const childSet: Record<string, string | null> = k.kind === 'unlink' ? { [k.column]: null, updated_at: at } : { deleted_at: at, updated_at: at }
+        const childSet: Record<string, string | null> =
+          k.kind === 'unlink' ? { [k.column]: null, updated_at: at } : { deleted_at: at, updated_at: at }
         const changeChildren = qc.db
           .updateTable(k.child.table)
           .set(childSet as never)
@@ -181,13 +198,24 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
             }),
           ),
         )
-        events.push(...childEvents.map((e) => ({ id: e.eventId, type: eventType, resourceType: k.child.eventName, resourceId: e.resourceId })))
+        events.push(
+          ...childEvents.map((e) => ({
+            id: e.eventId,
+            type: eventType,
+            resourceType: k.child.eventName,
+            resourceId: e.resourceId,
+          })),
+        )
       }
       if (c.parent.associable) {
         // [[CORE62]] D15: the parent's live edges, on either side, as one planned set with the same three guards.
         const edges = found.all(edgesKey).map((r) => toRecord(associations, r))
         const edgeIds = edges.map((x) => x.id as string)
-        const edgeEvents = edges.map((x) => ({ eventId: env.newId(), resourceId: x.id as string, before: x as Record<string, unknown> }))
+        const edgeEvents = edges.map((x) => ({
+          eventId: env.newId(),
+          resourceId: x.id as string,
+          before: x as Record<string, unknown>,
+        }))
         const changeEdges = qc.db
           .updateTable('associations')
           .set({ deleted_at: at, updated_at: at } as never)
@@ -198,10 +226,30 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
           .where(eventExists(parentEventId))
         steps.push(
           ...exactly(qc, step(changeEdges), edgeIds.length),
-          assertStep(qc, sql<SqlBool>`not exists (select 1 from "associations" where "associations"."organization_id" = ${env.organizationId} and "associations"."deleted_at" is null and ${touches(c.parent.table, id)})`),
-          step(eventSetStatement(qc, { at, organizationId: env.organizationId, actorId: env.actor.id, type: 'association.deleted', resourceType: 'association', after: null, rows: edgeEvents })),
+          assertStep(
+            qc,
+            sql<SqlBool>`not exists (select 1 from "associations" where "associations"."organization_id" = ${env.organizationId} and "associations"."deleted_at" is null and ${touches(c.parent.table, id)})`,
+          ),
+          step(
+            eventSetStatement(qc, {
+              at,
+              organizationId: env.organizationId,
+              actorId: env.actor.id,
+              type: 'association.deleted',
+              resourceType: 'association',
+              after: null,
+              rows: edgeEvents,
+            }),
+          ),
         )
-        events.push(...edgeEvents.map((e) => ({ id: e.eventId, type: 'association.deleted', resourceType: 'association', resourceId: e.resourceId })))
+        events.push(
+          ...edgeEvents.map((e) => ({
+            id: e.eventId,
+            type: 'association.deleted',
+            resourceType: 'association',
+            resourceId: e.resourceId,
+          })),
+        )
       }
       steps.push(step(proof, 'result'))
       return unit({
@@ -218,12 +266,17 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
 const holdRows = (h: CascadeHold, id: string, env: PreparedEnv) =>
   sql<SqlBool>`${sql.ref(`${h.child.table}.${h.column}`)} = ${id} and ${sql.ref(`${h.child.table}.organization_id`)} = ${env.organizationId} and ${sql.ref(`${h.child.table}.deleted_at`)} is null`
 /** The ONE predicate of a hold ([[CORE130]] D13), used by the plan reads and the commit assertion alike. */
-const noLiveRows = (h: CascadeHold, id: string, env: PreparedEnv) => sql<SqlBool>`not exists (select 1 from ${sql.table(h.child.table)} where ${holdRows(h, id, env)})`
+const noLiveRows = (h: CascadeHold, id: string, env: PreparedEnv) =>
+  sql<SqlBool>`not exists (select 1 from ${sql.table(h.child.table)} where ${holdRows(h, id, env)})`
 
 /** The plan reads of a hold: how many live rows point at the parent, and the first few ids. */
 function holdReads(h: CascadeHold, qc: QueryContext, env: PreparedEnv, id: string) {
   return {
-    'hold:count': readMaybe(qc.db.selectNoFrom(sql<number>`(select count(*) from ${sql.table(h.child.table)} where ${holdRows(h, id, env)})`.as('n'))),
+    'hold:count': readMaybe(
+      qc.db.selectNoFrom(
+        sql<number>`(select count(*) from ${sql.table(h.child.table)} where ${holdRows(h, id, env)})`.as('n'),
+      ),
+    ),
     'hold:ids': readAll(
       selectRecord(h.child, qc, env, undefined, { derived: false })
         .where(sql<SqlBool>`${sql.ref(`${h.child.table}.${h.column}`)} = ${id}`)
@@ -237,19 +290,42 @@ function refuseHold(h: CascadeHold, found: Found, parent: { name?: unknown }): v
   if (count === 0) return
   const ids = found.all('hold:ids').map((r) => String(r.id))
   const more = count > ids.length ? `, and ${count - ids.length} more` : ''
-  throw new ApiError(409, h.code, `${h.what} "${String(parent.name)}" holds ${count} live ${count === 1 ? h.child.eventName : `${h.child.eventName}s`} (${ids.join(', ')}${more}); move or delete them first`)
+  throw new ApiError(
+    409,
+    h.code,
+    `${h.what} "${String(parent.name)}" holds ${count} live ${count === 1 ? h.child.eventName : `${h.child.eventName}s`} (${ids.join(', ')}${more}); move or delete them first`,
+  )
 }
 
 /** `companies.delete`: soft-deletes the company, unlinks its live contacts (`company_id = null`, one `contact.updated` each) then soft-deletes its file links (`company_file.deleted`), each in id order. */
 export function deleteCompanyOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
-  return cascadeDelete({ parent: companies, children: [{ child: contacts, column: 'company_id', kind: 'unlink' }, { child: companyFiles, column: 'company_id', kind: 'tombstone' }] }, env, id)
+  return cascadeDelete(
+    {
+      parent: companies,
+      children: [
+        { child: contacts, column: 'company_id', kind: 'unlink' },
+        { child: companyFiles, column: 'company_id', kind: 'tombstone' },
+      ],
+    },
+    env,
+    id,
+  )
 }
 
 /** `contacts.delete`: soft-deletes the contact, tombstones its live identities (`identity.deleted`) then its file links (`contact_file.deleted`), each in id order. */
 export function deleteContactOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
-  return cascadeDelete({ parent: contacts, children: [{ child: identities, column: 'contact_id', kind: 'tombstone' }, { child: contactFiles, column: 'contact_id', kind: 'tombstone' }] }, env, id)
+  return cascadeDelete(
+    {
+      parent: contacts,
+      children: [
+        { child: identities, column: 'contact_id', kind: 'tombstone' },
+        { child: contactFiles, column: 'contact_id', kind: 'tombstone' },
+      ],
+    },
+    env,
+    id,
+  )
 }
-
 
 /** `tasks.delete`: soft-deletes the task and its live edges (`association.deleted` each, in id order). */
 export function deleteTaskOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
@@ -273,13 +349,26 @@ export function deleteTagOperation(env: PreparedEnv, id: string): PreparedOperat
 
 /** `pipeline_stages.delete`: refused `409 stage_in_use` while a live deal is in the stage, else soft-deletes it ([[CORE130]] D13). */
 export function deleteStageOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
-  return cascadeDelete({ parent: pipelineStages, children: [], hold: { child: deals, column: 'stage_id', code: 'stage_in_use', what: 'stage' } }, env, id)
+  return cascadeDelete(
+    {
+      parent: pipelineStages,
+      children: [],
+      hold: { child: deals, column: 'stage_id', code: 'stage_in_use', what: 'stage' },
+    },
+    env,
+    id,
+  )
 }
 
 /** `pipelines.delete`: refused `409 pipeline_in_use` while a live deal is in the pipeline, else soft-deletes its live stages (`pipeline_stage.deleted` each) then the pipeline ([[CORE130]] D13). */
 export function deletePipelineOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
   return cascadeDelete(
-    { parent: pipelines, children: [{ child: pipelineStages, column: 'pipeline_id', kind: 'tombstone' }], hold: { child: deals, column: 'pipeline_id', code: 'pipeline_in_use', what: 'pipeline' }, childrenFirst: true },
+    {
+      parent: pipelines,
+      children: [{ child: pipelineStages, column: 'pipeline_id', kind: 'tombstone' }],
+      hold: { child: deals, column: 'pipeline_id', code: 'pipeline_in_use', what: 'pipeline' },
+      childrenFirst: true,
+    },
     env,
     id,
   )

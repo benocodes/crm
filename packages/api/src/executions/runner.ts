@@ -1,12 +1,41 @@
 import { sql, type SqlBool } from 'kysely'
-import { UnitDriftError, codecs, defineOperation, execute, memberOf, readAll, step, unit, type Found, type PreparedOperation, type Row, type StorageBinding } from '@vibase/storage'
+import {
+  UnitDriftError,
+  codecs,
+  defineOperation,
+  execute,
+  memberOf,
+  readAll,
+  step,
+  unit,
+  type Found,
+  type PreparedOperation,
+  type Row,
+  type StorageBinding,
+} from '@vibase/storage'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from '../directory/system-principal.js'
 import { eventSetStatement } from '../outbox.js'
 import type { Registry, RetryPolicy } from '../registry.js'
 import { actionRequests } from '../action-requests/definition.js'
 import { afterOf, selectRecord, toRecord } from '../storage/crud.js'
-import { claimProgram, decodeRow, dueProgram, finishProgram, railEnv, retryProgram, stampProgram, type ExecutionRow, type Outcome } from './programs.js'
-import type { DispatchOutcome, FailureCode, ReconcileOutcome, Transport, TransportCall, TransportRegistry } from './transport.js'
+import {
+  claimProgram,
+  dueProgram,
+  finishProgram,
+  railEnv,
+  retryProgram,
+  stampProgram,
+  type ExecutionRow,
+  type Outcome,
+} from './programs.js'
+import type {
+  DispatchOutcome,
+  FailureCode,
+  ReconcileOutcome,
+  Transport,
+  TransportCall,
+  TransportRegistry,
+} from './transport.js'
 
 // [[AGT8]] D13, D14, D28, D50, D52-D55: the runner of the execution rail. Everything the Worker does for an enqueued operation after its authorisation is here: one
 // attempt per run (`runExecution`), the due sweep and the expiry sweep of the per-minute tick (`railTick`). No transaction spans a transport call: the claim, the
@@ -89,13 +118,29 @@ function transportBudget(d: RailDeps, leaseUntil: number) {
 type TransportBudget = ReturnType<typeof transportBudget>
 
 function callOf(row: ExecutionRow, signal: AbortSignal): TransportCall {
-  return { executionId: row.id, operation: row.operation, arguments: row.arguments, resolution: row.resolution, clientRef: row.client_ref, attempt: row.attempts, signal }
+  return {
+    executionId: row.id,
+    operation: row.operation,
+    arguments: row.arguments,
+    resolution: row.resolution,
+    clientRef: row.client_ref,
+    attempt: row.attempts,
+    signal,
+  }
 }
 /** A transport that throws has told us nothing: the call may have been made. */
-async function dispatchSafe(transport: Transport, call: TransportCall, budget: TransportBudget): Promise<DispatchOutcome> {
+async function dispatchSafe(
+  transport: Transport,
+  call: TransportCall,
+  budget: TransportBudget,
+): Promise<DispatchOutcome> {
   return budget.call<DispatchOutcome>(() => transport.dispatch(call), { kind: 'unknown' })
 }
-async function reconcileSafe(transport: Transport, call: TransportCall, budget: TransportBudget): Promise<ReconcileOutcome> {
+async function reconcileSafe(
+  transport: Transport,
+  call: TransportCall,
+  budget: TransportBudget,
+): Promise<ReconcileOutcome> {
   if (!transport.reconcile) return { kind: 'unknown' }
   return budget.call<ReconcileOutcome>(() => transport.reconcile!(call), { kind: 'unknown' })
 }
@@ -107,7 +152,19 @@ export async function runExecution(d: RailDeps, id: string): Promise<RunOutcome>
   const identity = { kind: 'internal', organizationId } as const
   const now = d.clock()
   const token = crypto.randomUUID()
-  const claimed = (await execute(d.binding, identity, claimProgram({ organizationId, id, token, now: iso(now.getTime()), leaseUntil: iso(now.getTime() + EXECUTION_LEASE_MS) }))).value
+  const claimed = (
+    await execute(
+      d.binding,
+      identity,
+      claimProgram({
+        organizationId,
+        id,
+        token,
+        now: iso(now.getTime()),
+        leaseUntil: iso(now.getTime() + EXECUTION_LEASE_MS),
+      }),
+    )
+  ).value
   if (!claimed) return SKIPPED
   const budget = transportBudget(d, now.getTime() + EXECUTION_LEASE_MS)
   try {
@@ -117,7 +174,13 @@ export async function runExecution(d: RailDeps, id: string): Promise<RunOutcome>
   }
 }
 
-async function runClaimedExecution(d: RailDeps, row: ExecutionRow, token: string, now: Date, budget: TransportBudget): Promise<RunOutcome> {
+async function runClaimedExecution(
+  d: RailDeps,
+  row: ExecutionRow,
+  token: string,
+  now: Date,
+  budget: TransportBudget,
+): Promise<RunOutcome> {
   const { id, organization_id: organizationId } = row
   const identity = { kind: 'internal', organizationId } as const
   const op = d.registry.get(row.operation)
@@ -142,7 +205,9 @@ async function runClaimedExecution(d: RailDeps, row: ExecutionRow, token: string
   const fail = (code: FailureCode) => finish({ ok: false, code, message: MESSAGES[code] })
   const schedule = async (delayMs: number, keepDispatched: boolean, code: string): Promise<RunOutcome> => {
     const nextAt = iso(d.clock().getTime() + delayMs)
-    const ok = (await execute(d.binding, identity, retryProgram({ organizationId, id, token, nextAt, keepDispatched, code }))).value
+    const ok = (
+      await execute(d.binding, identity, retryProgram({ organizationId, id, token, nextAt, keepDispatched, code }))
+    ).value
     return ok ? { outcome: 'retry' } : SKIPPED
   }
 
@@ -190,7 +255,9 @@ async function runClaimedExecution(d: RailDeps, row: ExecutionRow, token: string
   }
 
   // The stamp is its own unit, before the call: a crash after it is recovered by reconciling, a crash before it by dispatching.
-  const stamped = (await execute(d.binding, identity, stampProgram({ organizationId, id, token, now: iso(d.clock().getTime()) }))).value
+  const stamped = (
+    await execute(d.binding, identity, stampProgram({ organizationId, id, token, now: iso(d.clock().getTime()) }))
+  ).value
   if (!stamped) return SKIPPED
   sentNow = true
   const out = await dispatchSafe(transport, call, budget)
@@ -200,7 +267,12 @@ async function runClaimedExecution(d: RailDeps, row: ExecutionRow, token: string
     case 'not_sent':
       if (out.code !== 'retryable') return fail(out.code)
       sentNow = false
-      return retryOr(out.retryAfterMs === undefined ? Math.max(backoffMs(row.attempts), THROTTLE_FLOOR_MS) : Math.max(backoffMs(row.attempts), out.retryAfterMs), 'retryable')
+      return retryOr(
+        out.retryAfterMs === undefined
+          ? Math.max(backoffMs(row.attempts), THROTTLE_FLOOR_MS)
+          : Math.max(backoffMs(row.attempts), out.retryAfterMs),
+        'retryable',
+      )
     case 'unknown':
       if (policy === 'never') return fail('outcome_unknown')
       return retryOr(backoffMs(row.attempts), 'unknown')
@@ -211,7 +283,17 @@ async function runClaimedExecution(d: RailDeps, row: ExecutionRow, token: string
 export async function runDueExecutions(d: RailDeps): Promise<{ attempted: number }> {
   const organizationId = organizationOf(d)
   if (organizationId === null) return { attempted: 0 }
-  const ids = (await execute(d.binding, { kind: 'internal', organizationId }, dueProgram({ organizationId, now: iso(d.clock().getTime()), limit: Math.min(DUE_BATCH,d.dueLimit??DUE_BATCH) }))).value
+  const ids = (
+    await execute(
+      d.binding,
+      { kind: 'internal', organizationId },
+      dueProgram({
+        organizationId,
+        now: iso(d.clock().getTime()),
+        limit: Math.min(DUE_BATCH, d.dueLimit ?? DUE_BATCH),
+      }),
+    )
+  ).value
   let attempted = 0
   for (const id of ids) {
     try {
@@ -251,7 +333,9 @@ export async function expireOverdueRequests(d: RailDeps): Promise<{ expired: num
       ),
     }),
     build: (found: Found, qc) => {
-      const plans: Plan[] = found.all('due').map((r: Row) => ({ id: String(r.id), before: toRecord(actionRequests, r) }))
+      const plans: Plan[] = found
+        .all('due')
+        .map((r: Row) => ({ id: String(r.id), before: toRecord(actionRequests, r) }))
       if (plans.length === 0) return unit({ steps: [], events: [], decode: () => 0 })
       const sys = systemPrincipalSteps(qc, found.maybe(SYSTEM_PRINCIPAL_READ), mintSystem, at)
       const ids = plans.map((p) => p.id)
@@ -283,9 +367,21 @@ export async function expireOverdueRequests(d: RailDeps): Promise<{ expired: num
             }),
             'first-event',
           ),
-          step(qc.db.selectFrom('action_requests').select(sql<number>`1`.as('one')).where(memberOf(qc, 'action_requests', 'id', ids)).where(expired), 'result'),
+          step(
+            qc.db
+              .selectFrom('action_requests')
+              .select(sql<number>`1`.as('one'))
+              .where(memberOf(qc, 'action_requests', 'id', ids))
+              .where(expired),
+            'result',
+          ),
         ],
-        events: plans.map((p, i) => ({ id: eventIds[i]!, type: 'action_request.expired', resourceType: 'action_request', resourceId: p.id })),
+        events: plans.map((p, i) => ({
+          id: eventIds[i]!,
+          type: 'action_request.expired',
+          resourceType: 'action_request',
+          resourceId: p.id,
+        })),
         decode: (rows) => rows.length,
       })
     },

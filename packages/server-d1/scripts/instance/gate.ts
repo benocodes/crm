@@ -29,7 +29,12 @@ export interface GateOutcome {
   /** Names in the package not applied yet, in release order. */
   pending: string[]
   /** The control-plane database ([[OPS275]] D4): present only when the settings record `control_d1`. `applied` `null`: no tracker table; `pending` then lists every control migration. */
-  control?: { expected: string[]; applied: string[] | null; pending: string[]; /** The sweep's pending counts when asked for; `null`: unreadable. */ sweep?: SweepCounts | null }
+  control?: {
+    expected: string[]
+    applied: string[] | null
+    pending: string[] /** The sweep's pending counts when asked for; `null`: unreadable. */
+    sweep?: SweepCounts | null
+  }
   notes: string[]
   secrets: Secrets
 }
@@ -56,11 +61,16 @@ const HEALTH_TIMEOUT_MS = 15_000
 async function readHealth(url: string, deps: InstanceDeps): Promise<{ version: string; commit: string | null }> {
   let res: Response
   try {
-    res = await deps.fetch(url, { redirect: 'manual', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) })
+    res = await deps.fetch(url, {
+      redirect: 'manual',
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+    })
   } catch (e) {
     throw new InstanceRefusal(`cannot reach ${url}: ${e instanceof Error ? e.message : 'request failed'}`)
   }
-  if (res.status !== 200) throw new InstanceRefusal(`${url} answered ${res.status}, not 200: is this the instance's api_host?`)
+  if (res.status !== 200)
+    throw new InstanceRefusal(`${url} answered ${res.status}, not 200: is this the instance's api_host?`)
   let body: unknown
   try {
     body = await res.json()
@@ -68,22 +78,38 @@ async function readHealth(url: string, deps: InstanceDeps): Promise<{ version: s
     body = undefined
   }
   const version = (body as { version?: unknown } | null | undefined)?.version
-  if (typeof version !== 'string') throw new InstanceRefusal(`${url} answered 200 but not with a Vibase health body (no version string): is this the instance's api_host?`)
+  if (typeof version !== 'string')
+    throw new InstanceRefusal(
+      `${url} answered 200 but not with a Vibase health body (no version string): is this the instance's api_host?`,
+    )
   const commit = (body as { commit?: unknown }).commit
   return { version, commit: typeof commit === 'string' ? commit : null }
 }
 
 /** The whole child environment of a wrangler run: no other variable of the process, and the two Cloudflare values from the secrets. */
 export function childEnv(deps: InstanceDeps, s: Secrets): Record<string, string> {
-  const env: Record<string, string> = { CI: '1', WRANGLER_SEND_METRICS: 'false', CLOUDFLARE_ACCOUNT_ID: s.CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN: s.CLOUDFLARE_API_TOKEN }
+  const env: Record<string, string> = {
+    CI: '1',
+    WRANGLER_SEND_METRICS: 'false',
+    CLOUDFLARE_ACCOUNT_ID: s.CLOUDFLARE_ACCOUNT_ID,
+    CLOUDFLARE_API_TOKEN: s.CLOUDFLARE_API_TOKEN,
+  }
   if (deps.env.PATH) env.PATH = deps.env.PATH
   if (deps.env.HOME) env.HOME = deps.env.HOME
   return env
 }
 
 /** wrangler's tracker table on the live database, read through the generated config. `null`: no tracker table. */
-export function readTrackerAt(configPath: string, secrets: Secrets, deps: InstanceDeps, binding: 'DB' | 'CONTROL_DB' = 'DB'): string[] | null {
-  const r = deps.runWrangler(['d1', 'execute', binding, '--remote', '--json', '--command', 'select name from d1_migrations', '-c', configPath], { cwd: join(configPath, '..'), env: childEnv(deps, secrets) })
+export function readTrackerAt(
+  configPath: string,
+  secrets: Secrets,
+  deps: InstanceDeps,
+  binding: 'DB' | 'CONTROL_DB' = 'DB',
+): string[] | null {
+  const r = deps.runWrangler(
+    ['d1', 'execute', binding, '--remote', '--json', '--command', 'select name from d1_migrations', '-c', configPath],
+    { cwd: join(configPath, '..'), env: childEnv(deps, secrets) },
+  )
   try {
     return parseTrackerOutput(r.stdout)
   } catch (e) {
@@ -92,25 +118,37 @@ export function readTrackerAt(configPath: string, secrets: Secrets, deps: Instan
   }
 }
 /** Both trackers from one generated config, the control one first when the settings record a control database. */
-const readTrackers = (settings: InstanceSettings, secrets: Secrets, deps: InstanceDeps, withCounts = false): { control: string[] | null | undefined; crm: string[] | null; sweep?: SweepCounts | null } =>
+const readTrackers = (
+  settings: InstanceSettings,
+  secrets: Secrets,
+  deps: InstanceDeps,
+  withCounts = false,
+): { control: string[] | null | undefined; crm: string[] | null; sweep?: SweepCounts | null } =>
   withGeneratedConfig({ packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot }, (configPath) => {
     const control = settings.control_d1 ? readTrackerAt(configPath, secrets, deps, 'CONTROL_DB') : undefined
     const crm = readTrackerAt(configPath, secrets, deps, 'DB')
     // [[CORE289]] P6: two read-only SELECTs through the same generated config; a failed read is `unavailable`, never a refusal.
-    const sweep = withCounts && settings.control_d1
-      ? readSweepCounts((binding, sql) => {
-          const r = deps.runWrangler(['d1', 'execute', binding, '--remote', '--json', '--command', sql, '-c', configPath], { cwd: join(configPath, '..'), env: childEnv(deps, secrets) })
-          if (r.status !== 0) throw new Error('wrangler d1 execute failed')
-          return r.stdout
-        }, new Date())
-      : undefined
+    const sweep =
+      withCounts && settings.control_d1
+        ? readSweepCounts((binding, sql) => {
+            const r = deps.runWrangler(
+              ['d1', 'execute', binding, '--remote', '--json', '--command', sql, '-c', configPath],
+              { cwd: join(configPath, '..'), env: childEnv(deps, secrets) },
+            )
+            if (r.status !== 0) throw new Error('wrangler d1 execute failed')
+            return r.stdout
+          }, new Date())
+        : undefined
     return { control, crm, ...(sweep === undefined ? {} : { sweep }) }
   })
 
 export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateOutcome> {
   // (a) the installed package is the release, before any network call or child process.
   const problems = verifyRelease(deps.packageDir)
-  if (problems.length > 0) throw new InstanceRefusal(`the installed package does not match its release.json: ${problems.map((p) => `${p.path} (${p.kind})`).join(', ')}: reinstall it`)
+  if (problems.length > 0)
+    throw new InstanceRefusal(
+      `the installed package does not match its release.json: ${problems.map((p) => `${p.path} (${p.kind})`).join(', ')}: reinstall it`,
+    )
   const manifest = JSON.parse(readFileSync(join(deps.packageDir, 'release.json'), 'utf8')) as ReleaseManifest
 
   // (b) settings and secrets.
@@ -134,30 +172,66 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
     if (controlApplied !== undefined) {
       const haveControl = new Set(controlApplied ?? [])
       const controlMissing = controlKnown.filter((n) => !haveControl.has(n))
-      if (controlMissing.length > 0) throw new InstanceRefusal(`a rollback cannot add migrations: the control database lacks ${controlMissing.join(', ')} that this release has; run upgrade without --rollback`)
+      if (controlMissing.length > 0)
+        throw new InstanceRefusal(
+          `a rollback cannot add migrations: the control database lacks ${controlMissing.join(', ')} that this release has; run upgrade without --rollback`,
+        )
     }
-    if (missing.length > 0) throw new InstanceRefusal(`a rollback cannot add migrations: the database lacks ${missing.join(', ')} that this release has; run upgrade without --rollback`)
-    if (parseSemver(live.version) === null) notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
+    if (missing.length > 0)
+      throw new InstanceRefusal(
+        `a rollback cannot add migrations: the database lacks ${missing.join(', ')} that this release has; run upgrade without --rollback`,
+      )
+    if (parseSemver(live.version) === null)
+      notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
     else if (parseSemver(manifest.version) !== null && compareSemver(live.version, manifest.version) <= 0) {
-      throw new InstanceRefusal(`the instance runs ${live.version} and this package is ${manifest.version}: --rollback needs a newer instance; use upgrade without --rollback`)
+      throw new InstanceRefusal(
+        `the instance runs ${live.version} and this package is ${manifest.version}: --rollback needs a newer instance; use upgrade without --rollback`,
+      )
     }
   } else {
     // (d, control) the control database's applied migrations are all known too (shipped ⊇ applied).
     const controlUnknown = (controlApplied ?? []).filter((n) => !controlKnown.includes(n))
-    if (controlUnknown.length > 0) throw new InstanceRefusal(`the control database has migrations this release does not know: install a newer release (${controlUnknown.join(', ')})`)
+    if (controlUnknown.length > 0)
+      throw new InstanceRefusal(
+        `the control database has migrations this release does not know: install a newer release (${controlUnknown.join(', ')})`,
+      )
     // (d) the database's applied migrations are all known to this release.
     const unknown = (applied ?? []).filter((n) => !known.includes(n))
-    if (unknown.length > 0) throw new InstanceRefusal(`the database has migrations this release does not know: install a newer release (${unknown.join(', ')})`)
+    if (unknown.length > 0)
+      throw new InstanceRefusal(
+        `the database has migrations this release does not know: install a newer release (${unknown.join(', ')})`,
+      )
     // (e) a newer semver live version refuses; (f) a non-semver one proceeds with a note.
-    if (parseSemver(live.version) === null) notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
+    if (parseSemver(live.version) === null)
+      notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
     else if (parseSemver(manifest.version) !== null && compareSemver(live.version, manifest.version) > 0) {
-      throw new InstanceRefusal(`the instance runs ${live.version} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package with --rollback)`)
+      throw new InstanceRefusal(
+        `the instance runs ${live.version} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package with --rollback)`,
+      )
     }
   }
   const have = new Set(applied ?? [])
   const haveControl = new Set(controlApplied ?? [])
-  const control = controlApplied === undefined ? undefined : { expected: controlKnown, applied: controlApplied, pending: controlKnown.filter((n) => !haveControl.has(n)), ...(trackers.sweep === undefined ? {} : { sweep: trackers.sweep }) }
-  return { manifest, settings, settingsPath, live, applied, pending: known.filter((n) => !have.has(n)), ...(control ? { control } : {}), notes, secrets }
+  const control =
+    controlApplied === undefined
+      ? undefined
+      : {
+          expected: controlKnown,
+          applied: controlApplied,
+          pending: controlKnown.filter((n) => !haveControl.has(n)),
+          ...(trackers.sweep === undefined ? {} : { sweep: trackers.sweep }),
+        }
+  return {
+    manifest,
+    settings,
+    settingsPath,
+    live,
+    applied,
+    pending: known.filter((n) => !have.has(n)),
+    ...(control ? { control } : {}),
+    notes,
+    secrets,
+  }
 }
 
 /** The tracker diff of each database ([[OPS275]] D14): with a control database each is prefixed `[control]` / `[crm]`; without, today's unprefixed CRM lines and the P1 line. */
@@ -174,9 +248,13 @@ export function diffLines(g: GateOutcome): string[] {
 
 /** The pending lists a plan prints, control first. */
 export function pendingLines(g: GateOutcome): string[] {
-  const one = (tag: string, pending: string[]): string[] => [pending.length === 0 ? `${tag}migrations to apply: none` : `${tag}migrations to apply (${pending.length}):`, ...pending.map((n) => `${tag}  ${n}`)]
+  const one = (tag: string, pending: string[]): string[] => [
+    pending.length === 0 ? `${tag}migrations to apply: none` : `${tag}migrations to apply (${pending.length}):`,
+    ...pending.map((n) => `${tag}  ${n}`),
+  ]
   return g.control ? [...one('[control] ', g.control.pending), ...one('[crm] ', g.pending)] : one('', g.pending)
 }
 
 /** True when every configured database has nothing pending and the CRM tracker is exactly the shipped list. */
-export const databasesCurrent = (g: GateOutcome, crmStatus: string): boolean => crmStatus === 'current' && (g.control === undefined || g.control.pending.length === 0)
+export const databasesCurrent = (g: GateOutcome, crmStatus: string): boolean =>
+  crmStatus === 'current' && (g.control === undefined || g.control.pending.length === 0)

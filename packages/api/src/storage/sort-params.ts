@@ -6,8 +6,13 @@ import type { PreparedResource } from './definition.js'
 
 export const SORTED_AFTER = z
   .string()
-  .describe('Opaque cursor: pass the next_cursor of the previous page back unchanged. With sort it must come from a page with the same sort and order; without sort it is the id of the last record.')
-export const SORTED_NEXT = z.string().nullable().describe('Opaque cursor for the next page, or null at the end. Pass it back as after, with the same sort and order.')
+  .describe(
+    'Opaque cursor: pass the next_cursor of the previous page back unchanged. With sort it must come from a page with the same sort and order; without sort it is the id of the last record.',
+  )
+export const SORTED_NEXT = z
+  .string()
+  .nullable()
+  .describe('Opaque cursor for the next page, or null at the end. Pass it back as after, with the same sort and order.')
 /** The `sort` parameter text, with the cursor-stability caveat ([[CORE133]] D9). */
 export const sortDescription = (def: Pick<PreparedResource<any, any>, 'sorts' | 'sortNote'>): string =>
   `Sort by ${(def.sorts ?? []).join(' or ')}. Stored columns need only this list's read scope; derived fields need the scopes that show them. null sorts as the lowest value: first in asc, last in desc. Ties break on id in the same direction. ` +
@@ -17,10 +22,15 @@ export const sortDescription = (def: Pick<PreparedResource<any, any>, 'sorts' | 
   (def.sortNote === undefined ? '' : ` ${def.sortNote}`)
 
 /** The `after`, `sort` and `order` query fields of a sorted list, with the opaque-cursor typing; the caller adds `limit` and its filters. */
-export function sortedQueryFields(def: Pick<PreparedResource<any, any>, 'sorts' | 'sortNote'>): Record<string, z.ZodType> {
+export function sortedQueryFields(
+  def: Pick<PreparedResource<any, any>, 'sorts' | 'sortNote'>,
+): Record<string, z.ZodType> {
   return {
     after: SORTED_AFTER.optional(),
-    sort: z.enum((def.sorts ?? []) as [string, ...string[]]).describe(sortDescription(def)).optional(),
+    sort: z
+      .enum((def.sorts ?? []) as [string, ...string[]])
+      .describe(sortDescription(def))
+      .optional(),
     order: z.enum(['asc', 'desc']).describe('Sort direction: asc (default) or desc. Needs sort.').optional(),
   }
 }

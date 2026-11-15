@@ -13,7 +13,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const OPEN_PACKAGES = ['auth', 'storage', 'storage-d1', 'api', 'server-d1'] as const
 export const ENTERPRISE_PACKAGES = ['db', 'storage-postgres', 'server-postgres'] as const
-export const ENTERPRISE_SPECIFIERS = ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] as const
+export const ENTERPRISE_SPECIFIERS = [
+  'pg',
+  '@vibase/db',
+  '@vibase/storage-postgres',
+  '@vibase/server-postgres',
+] as const
 
 export interface PackageJson {
   name?: string
@@ -53,14 +58,19 @@ export function openManifest(manifest: PackageJson): PackageJson {
   }
   const out: PackageJson = structuredClone(manifest)
   if (out.devDependencies) {
-    out.devDependencies = Object.fromEntries(Object.entries(out.devDependencies).filter(([dependency]) => !enterpriseSpecifier(dependency)))
+    out.devDependencies = Object.fromEntries(
+      Object.entries(out.devDependencies).filter(([dependency]) => !enterpriseSpecifier(dependency)),
+    )
   }
   return out
 }
 
 /** The tsconfig.open-check.json content for a package: production code only (P12). */
 export function productionTsconfig(): { extends: './tsconfig.json'; exclude: string[] } {
-  return { extends: './tsconfig.json', exclude: ['**/*.test.ts', '**/*.typecheck.ts', '**/test/**', 'vitest.config.ts'] }
+  return {
+    extends: './tsconfig.json',
+    exclude: ['**/*.test.ts', '**/*.typecheck.ts', '**/test/**', 'vitest.config.ts'],
+  }
 }
 
 // ---- the CLI ---------------------------------------------------------------------------------------------------------
@@ -93,7 +103,11 @@ function main(): void {
   try {
     // copy
     try {
-      const { open } = classifyPackages(readdirSync(join(REPO, 'packages'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name))
+      const { open } = classifyPackages(
+        readdirSync(join(REPO, 'packages'), { withFileTypes: true })
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name),
+      )
       for (const pkg of open) {
         const to = join(dir, 'packages', pkg)
         cpSync(join(REPO, 'packages', pkg), to, {
@@ -104,14 +118,28 @@ function main(): void {
           },
         })
         const manifestPath = join(to, 'package.json')
-        writeFileSync(manifestPath, JSON.stringify(openManifest(JSON.parse(readFileSync(manifestPath, 'utf-8'))), null, 2) + '\n')
+        writeFileSync(
+          manifestPath,
+          JSON.stringify(openManifest(JSON.parse(readFileSync(manifestPath, 'utf-8'))), null, 2) + '\n',
+        )
       }
       const root = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf-8')) as Record<string, unknown>
       writeFileSync(
         join(dir, 'package.json'),
-        JSON.stringify({ name: 'open-check', private: true, type: root.type, packageManager: root.packageManager, engines: root.engines }, null, 2) + '\n',
+        JSON.stringify(
+          {
+            name: 'open-check',
+            private: true,
+            type: root.type,
+            packageManager: root.packageManager,
+            engines: root.engines,
+          },
+          null,
+          2,
+        ) + '\n',
       )
-      for (const file of ['pnpm-workspace.yaml', 'pnpm-lock.yaml', '.nvmrc']) if (existsSync(join(REPO, file))) cpSync(join(REPO, file), join(dir, file))
+      for (const file of ['pnpm-workspace.yaml', 'pnpm-lock.yaml', '.nvmrc'])
+        if (existsSync(join(REPO, file))) cpSync(join(REPO, file), join(dir, file))
       step('copy', true)
     } catch (err) {
       step('copy', false, err instanceof Error ? err.message : String(err))
@@ -127,7 +155,8 @@ function main(): void {
     if (existsSync(store)) present.push(...readdirSync(store).filter((e) => e.startsWith('pg@')))
     for (const base of [dir, ...readdirSync(join(dir, 'packages')).map((p) => join(dir, 'packages', p))]) {
       for (const name of ['db', 'storage-postgres', 'server-postgres']) {
-        if (existsSync(join(base, 'node_modules', '@vibase', name))) present.push(join(base, 'node_modules', '@vibase', name).replace(dir, '.'))
+        if (existsSync(join(base, 'node_modules', '@vibase', name)))
+          present.push(join(base, 'node_modules', '@vibase', name).replace(dir, '.'))
       }
     }
     step('no-enterprise-in-node_modules', present.length === 0, present.join(', '))
@@ -140,7 +169,8 @@ function main(): void {
     }
 
     // the open suites and the Worker smoke
-    for (const pkg of ['storage', 'storage-d1', 'server-d1']) step(`test ${pkg}`, run('pnpm', ['test'], join(dir, 'packages', pkg)))
+    for (const pkg of ['storage', 'storage-d1', 'server-d1'])
+      step(`test ${pkg}`, run('pnpm', ['test'], join(dir, 'packages', pkg)))
     step('smoke:worker', run('pnpm', ['smoke:worker'], join(dir, 'packages', 'server-d1')))
   } finally {
     if (keep) console.log(`kept ${dir}`)

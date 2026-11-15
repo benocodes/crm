@@ -19,7 +19,8 @@ export interface EmbedSpec {
 export function checkEmbed(spec: EmbedSpec): void {
   const kinds = (COLUMN_KINDS as Record<string, Record<string, ColumnKind>>)[spec.table]
   if (!kinds) throw new Error(`embed: table "${spec.table}" is not modelled`)
-  for (const c of [spec.key, ...spec.columns, ...spec.orderBy]) if (!(c in kinds)) throw new Error(`embed: "${c}" is not a column of ${spec.table}`)
+  for (const c of [spec.key, ...spec.columns, ...spec.orderBy])
+    if (!(c in kinds)) throw new Error(`embed: "${c}" is not a column of ${spec.table}`)
   if (!('organization_id' in kinds)) throw new Error(`embed: ${spec.table} has no organization_id`)
 }
 
@@ -28,7 +29,12 @@ export function checkEmbed(spec: EmbedSpec): void {
  * `ctx` is where it lands: 'select' (a record select, any value type is fine) or 'json' (nested inside `recordJson`'s object,
  * where D1 must see JSON, not text, hence the `json(...)` wrap).
  */
-export function embedJson(qc: QueryContext, parent: PhysicalTable, spec: EmbedSpec, ctx: 'select' | 'json'): RawBuilder<unknown> {
+export function embedJson(
+  qc: QueryContext,
+  parent: PhysicalTable,
+  spec: EmbedSpec,
+  ctx: 'select' | 'json',
+): RawBuilder<unknown> {
   checkEmbed(spec)
   const kinds = COLUMN_KINDS[spec.table] as Record<string, ColumnKind>
   const ref = (c: string) => sql.ref(`${spec.table}.${c}`)

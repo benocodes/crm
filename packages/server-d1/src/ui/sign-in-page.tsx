@@ -46,7 +46,15 @@ export function SignInPage({ navigate = goTo }: PageProps) {
   )
 }
 
-function SignedIn({ user, target, onSignedOut }: { user: SessionUser; target: string | null; onSignedOut: () => void }) {
+function SignedIn({
+  user,
+  target,
+  onSignedOut,
+}: {
+  user: SessionUser
+  target: string | null
+  onSignedOut: () => void
+}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const out = async () => {
@@ -78,7 +86,15 @@ const callbackError = (search: string): string | undefined => {
   return code === null ? undefined : code === 'invitation_required' ? MESSAGES.invitationRefused : MESSAGES.googleFailed
 }
 
-function SignInForm({ oauthQuery, navigate, onSignedIn }: { oauthQuery: string | undefined; navigate: (path: string) => void; onSignedIn: (user: SessionUser, redirect?: string) => void }) {
+function SignInForm({
+  oauthQuery,
+  navigate,
+  onSignedIn,
+}: {
+  oauthQuery: string | undefined
+  navigate: (path: string) => void
+  onSignedIn: (user: SessionUser, redirect?: string) => void
+}) {
   const google = useGoogleEnabled()
   const [googleError, setGoogleError] = useState<string | undefined>(undefined)
   // [[CORE294]] P1: the callback error is taken into state once and leaves the address, so it cannot mask a later error.
@@ -131,8 +147,26 @@ function SignInForm({ oauthQuery, navigate, onSignedIn }: { oauthQuery: string |
       }
     >
       {notice ? <Alert variant="success">{MESSAGES.passwordResetDone}</Alert> : null}
-      <Field label="Email" name="email" type="email" autoComplete="email" value={email} onChange={setEmail} error={errors.email} required />
-      <Field label="Password" name="password" type="password" autoComplete="current-password" value={password} onChange={setPassword} error={errors.password} required />
+      <Field
+        label="Email"
+        name="email"
+        type="email"
+        autoComplete="email"
+        value={email}
+        onChange={setEmail}
+        error={errors.email}
+        required
+      />
+      <Field
+        label="Password"
+        name="password"
+        type="password"
+        autoComplete="current-password"
+        value={password}
+        onChange={setPassword}
+        error={errors.password}
+        required
+      />
       {google ? <GoogleButton onError={setGoogleError} navigate={navigate} /> : null}
       <p>{MESSAGES.signInHelp}</p>
     </FormLayout>

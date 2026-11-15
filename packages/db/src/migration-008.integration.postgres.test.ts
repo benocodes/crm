@@ -11,52 +11,127 @@ beforeAll(() => {
 })
 afterAll(() => pool.end())
 
-const q = async <T = Record<string, any>>(text: string, values: unknown[] = []): Promise<T[]> => (await pool.query(text, values)).rows as T[]
+const q = async <T = Record<string, any>>(text: string, values: unknown[] = []): Promise<T[]> =>
+  (await pool.query(text, values)).rows as T[]
 
-const CAPTURE = ['threads', 'messages', 'interactions', 'files', 'interaction_participants', 'message_attachments', 'message_sources', 'thread_sources']
+const CAPTURE = [
+  'threads',
+  'messages',
+  'interactions',
+  'files',
+  'interaction_participants',
+  'message_attachments',
+  'message_sources',
+  'thread_sources',
+]
 const LINKS = ['contact_files', 'company_files']
 const ALL = [...CAPTURE, ...LINKS]
 
 // [column, udt_name, nullable]
 type Col = [string, string, boolean]
-const base = (): Col[] => [['id', 'uuid', false], ['organization_id', 'uuid', false], ['created_by', 'uuid', false], ['created_at', 'timestamptz', false]]
+const base = (): Col[] => [
+  ['id', 'uuid', false],
+  ['organization_id', 'uuid', false],
+  ['created_by', 'uuid', false],
+  ['created_at', 'timestamptz', false],
+]
 const link = (parent: string): Col[] => [
-  ...base(), [`${parent}_id`, 'uuid', false], ['file_id', 'uuid', false], ['updated_at', 'timestamptz', false], ['deleted_at', 'timestamptz', true],
+  ...base(),
+  [`${parent}_id`, 'uuid', false],
+  ['file_id', 'uuid', false],
+  ['updated_at', 'timestamptz', false],
+  ['deleted_at', 'timestamptz', true],
 ]
 const COLUMNS: Record<string, Col[]> = {
   threads: [...base(), ['channel', 'text', false], ['subject', 'text', true]],
   messages: [
-    ...base(), ['thread_id', 'uuid', false], ['channel', 'text', false], ['kind', 'text', false], ['external_id', 'text', false], ['in_reply_to', 'text', true],
-    ['author', 'jsonb', false], ['occurred_at', 'timestamptz', false], ['preview', 'text', false], ['content_key', 'text', true], ['version', 'int4', false],
+    ...base(),
+    ['thread_id', 'uuid', false],
+    ['channel', 'text', false],
+    ['kind', 'text', false],
+    ['external_id', 'text', false],
+    ['in_reply_to', 'text', true],
+    ['author', 'jsonb', false],
+    ['occurred_at', 'timestamptz', false],
+    ['preview', 'text', false],
+    ['content_key', 'text', true],
+    ['version', 'int4', false],
     ['retracted_at', 'timestamptz', true],
   ],
   interactions: [
-    ...base(), ['kind', 'text', false], ['channel', 'text', false], ['direction', 'text', false], ['occurred_at', 'timestamptz', false],
-    ['thread_id', 'uuid', true], ['message_id', 'uuid', true],
+    ...base(),
+    ['kind', 'text', false],
+    ['channel', 'text', false],
+    ['direction', 'text', false],
+    ['occurred_at', 'timestamptz', false],
+    ['thread_id', 'uuid', true],
+    ['message_id', 'uuid', true],
   ],
-  files: [...base(), ['name', 'text', false], ['mime_type', 'text', false], ['size_bytes', 'int8', false], ['sha256', 'text', false], ['storage_key', 'text', false]],
+  files: [
+    ...base(),
+    ['name', 'text', false],
+    ['mime_type', 'text', false],
+    ['size_bytes', 'int8', false],
+    ['sha256', 'text', false],
+    ['storage_key', 'text', false],
+  ],
   contact_files: link('contact'),
   company_files: link('company'),
-  interaction_participants: [...base(), ['interaction_id', 'uuid', false], ['identity_id', 'uuid', false], ['role', 'text', false]],
-  message_attachments: [
-    ...base(), ['message_id', 'uuid', false], ['position', 'int4', false], ['file_id', 'uuid', true], ['type', 'text', false], ['name', 'text', true],
-    ['mime_type', 'text', true], ['size_bytes', 'int8', true], ['inline', 'bool', false], ['content_id', 'text', true], ['fetch_status', 'text', false],
-    ['fetch_metadata', 'jsonb', true], ['fetch_error', 'text', true],
+  interaction_participants: [
+    ...base(),
+    ['interaction_id', 'uuid', false],
+    ['identity_id', 'uuid', false],
+    ['role', 'text', false],
   ],
-  message_sources: [...base(), ['message_id', 'uuid', false], ['connection_id', 'uuid', false], ['provider_message_id', 'text', false], ['provider_thread_id', 'text', false]],
-  thread_sources: [...base(), ['thread_id', 'uuid', false], ['connection_id', 'uuid', false], ['provider_thread_id', 'text', false]],
+  message_attachments: [
+    ...base(),
+    ['message_id', 'uuid', false],
+    ['position', 'int4', false],
+    ['file_id', 'uuid', true],
+    ['type', 'text', false],
+    ['name', 'text', true],
+    ['mime_type', 'text', true],
+    ['size_bytes', 'int8', true],
+    ['inline', 'bool', false],
+    ['content_id', 'text', true],
+    ['fetch_status', 'text', false],
+    ['fetch_metadata', 'jsonb', true],
+    ['fetch_error', 'text', true],
+  ],
+  message_sources: [
+    ...base(),
+    ['message_id', 'uuid', false],
+    ['connection_id', 'uuid', false],
+    ['provider_message_id', 'text', false],
+    ['provider_thread_id', 'text', false],
+  ],
+  thread_sources: [
+    ...base(),
+    ['thread_id', 'uuid', false],
+    ['connection_id', 'uuid', false],
+    ['provider_thread_id', 'text', false],
+  ],
 }
 
 const CHECKS: Record<string, string[]> = {
   threads: ['threads_channel'],
-  messages: ['messages_channel', 'messages_kind', 'messages_content_key', 'messages_preview_length', 'messages_version_positive'],
+  messages: [
+    'messages_channel',
+    'messages_kind',
+    'messages_content_key',
+    'messages_preview_length',
+    'messages_version_positive',
+  ],
   interactions: ['interactions_kind', 'interactions_channel', 'interactions_direction', 'interactions_kind_pointers'],
   files: ['files_size_nonnegative', 'files_sha256_hex'],
   contact_files: [],
   company_files: [],
   interaction_participants: ['interaction_participants_role'],
   message_attachments: [
-    'message_attachments_type', 'message_attachments_fetch_status', 'message_attachments_stored_file', 'message_attachments_position_nonnegative',
+    'message_attachments_type',
+    'message_attachments_fetch_status',
+    'message_attachments_stored_file',
+    'message_attachments_position_nonnegative',
     'message_attachments_size_nonnegative',
   ],
   message_sources: [],
@@ -65,7 +140,12 @@ const CHECKS: Record<string, string[]> = {
 
 // [constraint name, columns, referenced table, referenced columns]
 type Fk = [string, string[], string, string[]]
-const tenantFk = (name: string, cols: string[], target: string, targetCols = ['id']): Fk => [name, ['organization_id', ...cols], target, ['organization_id', ...targetCols]]
+const tenantFk = (name: string, cols: string[], target: string, targetCols = ['id']): Fk => [
+  name,
+  ['organization_id', ...cols],
+  target,
+  ['organization_id', ...targetCols],
+]
 const FKS: Record<string, Fk[]> = {
   threads: [],
   messages: [tenantFk('messages_thread_fk', ['thread_id'], 'threads')],
@@ -74,13 +154,22 @@ const FKS: Record<string, Fk[]> = {
     tenantFk('interactions_message_fk', ['message_id', 'thread_id'], 'messages', ['id', 'thread_id']),
   ],
   files: [],
-  contact_files: [tenantFk('contact_files_contact_fk', ['contact_id'], 'contacts'), tenantFk('contact_files_file_fk', ['file_id'], 'files')],
-  company_files: [tenantFk('company_files_company_fk', ['company_id'], 'companies'), tenantFk('company_files_file_fk', ['file_id'], 'files')],
+  contact_files: [
+    tenantFk('contact_files_contact_fk', ['contact_id'], 'contacts'),
+    tenantFk('contact_files_file_fk', ['file_id'], 'files'),
+  ],
+  company_files: [
+    tenantFk('company_files_company_fk', ['company_id'], 'companies'),
+    tenantFk('company_files_file_fk', ['file_id'], 'files'),
+  ],
   interaction_participants: [
     tenantFk('interaction_participants_interaction_fk', ['interaction_id'], 'interactions'),
     tenantFk('interaction_participants_identity_fk', ['identity_id'], 'identities'),
   ],
-  message_attachments: [tenantFk('message_attachments_message_fk', ['message_id'], 'messages'), tenantFk('message_attachments_file_fk', ['file_id'], 'files')],
+  message_attachments: [
+    tenantFk('message_attachments_message_fk', ['message_id'], 'messages'),
+    tenantFk('message_attachments_file_fk', ['file_id'], 'files'),
+  ],
   message_sources: [tenantFk('message_sources_message_fk', ['message_id'], 'messages')],
   thread_sources: [tenantFk('thread_sources_thread_fk', ['thread_id'], 'threads')],
 }
@@ -88,7 +177,10 @@ const FKS: Record<string, Fk[]> = {
 // Table-level uniques (names ignored: the audit compares columns only).
 const UNIQUES: Record<string, string[][]> = {
   threads: [['organization_id', 'id']],
-  messages: [['organization_id', 'id'], ['organization_id', 'id', 'thread_id']],
+  messages: [
+    ['organization_id', 'id'],
+    ['organization_id', 'id', 'thread_id'],
+  ],
   interactions: [['organization_id', 'id']],
   files: [['organization_id', 'id']],
   contact_files: [],
@@ -146,7 +238,9 @@ describe('migration 008 messaging model: shape', () => {
       `SELECT column_name, udt_name, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
       [table],
     )
-    const actual = rows.map((r) => [r.column_name, r.udt_name, r.is_nullable === 'YES'] as Col).sort((a, b) => a[0].localeCompare(b[0]))
+    const actual = rows
+      .map((r) => [r.column_name, r.udt_name, r.is_nullable === 'YES'] as Col)
+      .sort((a, b) => a[0].localeCompare(b[0]))
     expect(actual).toEqual([...COLUMNS[table]!].sort((a, b) => a[0].localeCompare(b[0])))
   })
 
@@ -164,7 +258,10 @@ describe('migration 008 messaging model: shape', () => {
   })
 
   it.each(ALL)('%s: exactly the named CHECKs', async (table) => {
-    const rows = await q<{ conname: string }>(`SELECT conname FROM pg_constraint WHERE conrelid = $1::regclass AND contype = 'c'`, [table])
+    const rows = await q<{ conname: string }>(
+      `SELECT conname FROM pg_constraint WHERE conrelid = $1::regclass AND contype = 'c'`,
+      [table],
+    )
     expect(rows.map((r) => r.conname).sort()).toEqual([...CHECKS[table]!].sort())
   })
 
@@ -179,7 +276,9 @@ describe('migration 008 messaging model: shape', () => {
       [table],
     )
     const composite = rows.filter((r) => r.cols.length > 1).map((r) => [r.conname, r.cols, r.ref, r.refcols] as Fk)
-    expect(composite.sort((a, b) => a[0].localeCompare(b[0]))).toEqual([...FKS[table]!].sort((a, b) => a[0].localeCompare(b[0])))
+    expect(composite.sort((a, b) => a[0].localeCompare(b[0]))).toEqual(
+      [...FKS[table]!].sort((a, b) => a[0].localeCompare(b[0])),
+    )
     for (const r of rows.filter((r) => r.cols.length > 1)) expect(r.del, r.conname).toBe('a')
     const single = rows.filter((r) => r.cols.length === 1)
     expect(single.map((r) => [r.cols[0], r.ref, r.del]).sort()).toEqual([
@@ -201,15 +300,23 @@ describe('migration 008 messaging model: shape', () => {
       [table],
     )
     const actual = idx.map((i) => {
-      const cols = /\(([^)]*)\)/.exec(i.indexdef.replace(/^.*USING btree /, ''))![1]!.split(',').map((s) => s.trim().replace(/"/g, ''))
+      const cols = /\(([^)]*)\)/
+        .exec(i.indexdef.replace(/^.*USING btree /, ''))![1]!
+        .split(',')
+        .map((s) => s.trim().replace(/"/g, ''))
       const where = /WHERE \((.*)\)$/.exec(i.indexdef)?.[1]
       return [i.indexname, i.indexdef.startsWith('CREATE UNIQUE'), cols, ...(where ? [where] : [])] as Idx
     })
-    expect(actual.sort((a, b) => a[0].localeCompare(b[0]))).toEqual([...INDEXES[table]!].sort((a, b) => a[0].localeCompare(b[0])))
+    expect(actual.sort((a, b) => a[0].localeCompare(b[0]))).toEqual(
+      [...INDEXES[table]!].sort((a, b) => a[0].localeCompare(b[0])),
+    )
   })
 
   it.each(ALL)('%s: row level security enabled, forced, with the tenant policy', async (table) => {
-    const [c] = await q<{ relrowsecurity: boolean; relforcerowsecurity: boolean }>(`SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = $1::regclass`, [table])
+    const [c] = await q<{ relrowsecurity: boolean; relforcerowsecurity: boolean }>(
+      `SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = $1::regclass`,
+      [table],
+    )
     expect([c!.relrowsecurity, c!.relforcerowsecurity]).toEqual([true, true])
     const pol = await q<{ policyname: string; cmd: string; roles: string[]; qual: string; with_check: string }>(
       `SELECT policyname, cmd, roles::text[] AS roles, qual, with_check FROM pg_policies WHERE schemaname = 'public' AND tablename = $1`,
@@ -232,7 +339,10 @@ describe('migration 008 messaging model: grants (D41)', () => {
       )
       expect(rows.map((r) => r.privilege_type).sort(), t).toEqual(['INSERT', 'SELECT'])
       for (const col of COLUMNS[t]!.map((c) => c[0])) {
-        const [p] = await q<{ p: boolean }>(`SELECT has_column_privilege('vault_authenticated', $1, $2, 'UPDATE') AS p`, [t, col])
+        const [p] = await q<{ p: boolean }>(
+          `SELECT has_column_privilege('vault_authenticated', $1, $2, 'UPDATE') AS p`,
+          [t, col],
+        )
         expect(p!.p, `${t}.${col} UPDATE`).toBe(false)
       }
     }
@@ -249,8 +359,13 @@ describe('migration 008 messaging model: grants (D41)', () => {
       // A column-level UPDATE grant shows as table-level UPDATE in role_table_grants only when it covers every column; it must not.
       expect(rows.map((r) => r.privilege_type).sort(), t).toEqual(['INSERT', 'SELECT'])
       for (const col of COLUMNS[t]!.map((c) => c[0])) {
-        const [p] = await q<{ p: boolean }>(`SELECT has_column_privilege('vault_authenticated', $1, $2, 'UPDATE') AS p`, [t, col])
-        expect(p!.p, `${t}.${col} UPDATE`).toBe(col === 'deleted_at' || col === 'updated_at' || (t === 'contact_files' && col === 'contact_id'))
+        const [p] = await q<{ p: boolean }>(
+          `SELECT has_column_privilege('vault_authenticated', $1, $2, 'UPDATE') AS p`,
+          [t, col],
+        )
+        expect(p!.p, `${t}.${col} UPDATE`).toBe(
+          col === 'deleted_at' || col === 'updated_at' || (t === 'contact_files' && col === 'contact_id'),
+        )
       }
     }
   })
@@ -261,7 +376,10 @@ describe('migration 008 messaging model: grants (D41)', () => {
         `SELECT privilege_type FROM information_schema.role_table_grants WHERE grantee = 'vault_service' AND table_schema = 'public' AND table_name = $1`,
         [t],
       )
-      expect(rows.map((r) => r.privilege_type), t).toEqual(['SELECT'])
+      expect(
+        rows.map((r) => r.privilege_type),
+        t,
+      ).toEqual(['SELECT'])
     }
     const bad = await q(
       `SELECT grantee, table_name, privilege_type FROM information_schema.role_table_grants
@@ -277,7 +395,9 @@ describe('migration 008 messaging model: grants (D41)', () => {
 
 const H64 = 'a'.repeat(64)
 type Tx = pg.PoolClient
-async function inTenantTx(fn: (c: Tx, ctx: { orgA: string; orgB: string; actor: string }) => Promise<void>): Promise<void> {
+async function inTenantTx(
+  fn: (c: Tx, ctx: { orgA: string; orgB: string; actor: string }) => Promise<void>,
+): Promise<void> {
   const c = await pool.connect()
   try {
     await c.query('BEGIN')
@@ -285,7 +405,10 @@ async function inTenantTx(fn: (c: Tx, ctx: { orgA: string; orgB: string; actor: 
     const orgA = (await c.query(`INSERT INTO organizations (name) VALUES ('a') RETURNING id`)).rows[0].id as string
     const orgB = (await c.query(`INSERT INTO organizations (name) VALUES ('b') RETURNING id`)).rows[0].id as string
     const actor = (await c.query(`INSERT INTO principals (kind) VALUES ('user') RETURNING id`)).rows[0].id as string
-    await c.query(`SELECT set_config('app.organization_id', $1, true), set_config('app.principal_id', $2, true)`, [orgA, actor])
+    await c.query(`SELECT set_config('app.organization_id', $1, true), set_config('app.principal_id', $2, true)`, [
+      orgA,
+      actor,
+    ])
     await c.query('SET LOCAL ROLE vault_authenticated')
     await fn(c, { orgA, orgB, actor })
   } finally {
@@ -308,15 +431,47 @@ async function failure(c: Tx, text: string, values: unknown[] = []): Promise<str
 }
 const at = '2026-10-28T09:00:00Z'
 const insertThread = async (c: Tx, org: string, actor: string, channel = 'email') =>
-  (await c.query(`INSERT INTO threads (organization_id, created_by, created_at, channel) VALUES ($1, $2, $3, $4) RETURNING id`, [org, actor, at, channel])).rows[0].id as string
+  (
+    await c.query(
+      `INSERT INTO threads (organization_id, created_by, created_at, channel) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [org, actor, at, channel],
+    )
+  ).rows[0].id as string
 const messageSql = `INSERT INTO messages (organization_id, created_by, created_at, thread_id, channel, kind, external_id, author, occurred_at, preview, content_key, version)
                     VALUES ($1, $2, $3, $4, 'email', $5, $6, '{"user_id":"u"}', $3, $7, $8, 1) RETURNING id`
-const insertMessage = async (c: Tx, org: string, actor: string, thread: string, over: { kind?: string; external?: string; preview?: string; contentKey?: string | null } = {}) =>
-  (await c.query(messageSql, [org, actor, at, thread, over.kind ?? 'message', over.external ?? 'x@y', over.preview ?? 'hi', over.contentKey === undefined ? 'orgs/x/' : over.contentKey])).rows[0].id as string
+const insertMessage = async (
+  c: Tx,
+  org: string,
+  actor: string,
+  thread: string,
+  over: { kind?: string; external?: string; preview?: string; contentKey?: string | null } = {},
+) =>
+  (
+    await c.query(messageSql, [
+      org,
+      actor,
+      at,
+      thread,
+      over.kind ?? 'message',
+      over.external ?? 'x@y',
+      over.preview ?? 'hi',
+      over.contentKey === undefined ? 'orgs/x/' : over.contentKey,
+    ])
+  ).rows[0].id as string
 const insertFile = async (c: Tx, org: string, actor: string, sha = H64, size = 10) =>
-  (await c.query(`INSERT INTO files (organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) VALUES ($1, $2, $3, 'f', 'text/plain', $4, $5, 'k') RETURNING id`, [org, actor, at, size, sha])).rows[0].id as string
+  (
+    await c.query(
+      `INSERT INTO files (organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) VALUES ($1, $2, $3, 'f', 'text/plain', $4, $5, 'k') RETURNING id`,
+      [org, actor, at, size, sha],
+    )
+  ).rows[0].id as string
 const insertContact = async (c: Tx, org: string, actor: string) =>
-  (await c.query(`INSERT INTO contacts (organization_id, created_by, created_at, updated_at) VALUES ($1, $2, $3, $3) RETURNING id`, [org, actor, at])).rows[0].id as string
+  (
+    await c.query(
+      `INSERT INTO contacts (organization_id, created_by, created_at, updated_at) VALUES ($1, $2, $3, $3) RETURNING id`,
+      [org, actor, at],
+    )
+  ).rows[0].id as string
 
 describe('migration 008 messaging model: behaviour', () => {
   it('append-only: a tenant UPDATE on a capture table is refused (42501)', async () => {
@@ -343,7 +498,8 @@ describe('migration 008 messaging model: behaviour', () => {
   it('kind pointers: a message interaction without message_id is refused (23514)', async () => {
     await inTenantTx(async (c, { orgA, actor }) => {
       const t = await insertThread(c, orgA, actor)
-      const sql = (kind: string) => `INSERT INTO interactions (organization_id, created_by, created_at, kind, channel, direction, occurred_at, thread_id, message_id) VALUES ($1, $2, $3, '${kind}', 'email', 'inbound', $3, $4, NULL)`
+      const sql = (kind: string) =>
+        `INSERT INTO interactions (organization_id, created_by, created_at, kind, channel, direction, occurred_at, thread_id, message_id) VALUES ($1, $2, $3, '${kind}', 'email', 'inbound', $3, $4, NULL)`
       expect(await failure(c, sql('message'), [orgA, actor, at, t])).toBe('23514')
       expect(await failure(c, sql('reaction'), [orgA, actor, at, t])).toBe('23514')
     })
@@ -366,10 +522,30 @@ describe('migration 008 messaging model: behaviour', () => {
   it('sha256, preview length and sizes are checked (23514)', async () => {
     await inTenantTx(async (c, { orgA, actor }) => {
       const t = await insertThread(c, orgA, actor)
-      expect(await failure(c, `INSERT INTO files (organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) VALUES ($1, $2, $3, 'f', 't', 1, $4, 'k')`, [orgA, actor, at, 'A'.repeat(64)])).toBe('23514')
-      expect(await failure(c, `INSERT INTO files (organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) VALUES ($1, $2, $3, 'f', 't', 1, $4, 'k')`, [orgA, actor, at, 'a'.repeat(63)])).toBe('23514')
-      expect(await failure(c, `INSERT INTO files (organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) VALUES ($1, $2, $3, 'f', 't', -1, $4, 'k')`, [orgA, actor, at, H64])).toBe('23514')
-      expect(await failure(c, messageSql, [orgA, actor, at, t, 'message', 'long@y', 'p'.repeat(201), 'k'])).toBe('23514')
+      expect(
+        await failure(
+          c,
+          `INSERT INTO files (organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) VALUES ($1, $2, $3, 'f', 't', 1, $4, 'k')`,
+          [orgA, actor, at, 'A'.repeat(64)],
+        ),
+      ).toBe('23514')
+      expect(
+        await failure(
+          c,
+          `INSERT INTO files (organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) VALUES ($1, $2, $3, 'f', 't', 1, $4, 'k')`,
+          [orgA, actor, at, 'a'.repeat(63)],
+        ),
+      ).toBe('23514')
+      expect(
+        await failure(
+          c,
+          `INSERT INTO files (organization_id, created_by, created_at, name, mime_type, size_bytes, sha256, storage_key) VALUES ($1, $2, $3, 'f', 't', -1, $4, 'k')`,
+          [orgA, actor, at, H64],
+        ),
+      ).toBe('23514')
+      expect(await failure(c, messageSql, [orgA, actor, at, t, 'message', 'long@y', 'p'.repeat(201), 'k'])).toBe(
+        '23514',
+      )
       expect(await failure(c, messageSql, [orgA, actor, at, t, 'message', 'ok@y', 'p'.repeat(200), 'k'])).toBeNull()
       expect(await failure(c, messageSql, [orgA, actor, at, t, 'message', 'nokey@y', 'p', null])).toBe('23514') // messages_content_key
       expect(await failure(c, messageSql, [orgA, actor, at, t, 'reaction', 'react@y', 'p', null])).toBeNull()
@@ -386,7 +562,9 @@ describe('migration 008 messaging model: behaviour', () => {
       await c.query(`UPDATE contact_files SET deleted_at = $2, updated_at = $2 WHERE id = $1`, [first, at])
       expect(await failure(c, sql, [orgA, actor, at, k, f])).toBeNull()
       expect(await failure(c, `UPDATE contact_files SET file_id = $2 WHERE id = $1`, [first, f])).toBe('42501')
-      expect(await failure(c, `UPDATE contact_files SET contact_id = $2, updated_at = $3 WHERE id = $1`, [first, k, at])).toBeNull() // merge's re-point
+      expect(
+        await failure(c, `UPDATE contact_files SET contact_id = $2, updated_at = $3 WHERE id = $1`, [first, k, at]),
+      ).toBeNull() // merge's re-point
     })
   })
 
@@ -396,7 +574,13 @@ describe('migration 008 messaging model: behaviour', () => {
       await asOrg(c, orgB)
       const foreign = await insertFile(c, orgB, actor)
       await asOrg(c, orgA)
-      expect(await failure(c, `INSERT INTO contact_files (organization_id, created_by, created_at, updated_at, contact_id, file_id) VALUES ($1, $2, $3, $3, $4, $5)`, [orgA, actor, at, k, foreign])).toBe('23503')
+      expect(
+        await failure(
+          c,
+          `INSERT INTO contact_files (organization_id, created_by, created_at, updated_at, contact_id, file_id) VALUES ($1, $2, $3, $3, $4, $5)`,
+          [orgA, actor, at, k, foreign],
+        ),
+      ).toBe('23503')
     })
   })
 
@@ -413,7 +597,13 @@ describe('migration 008 messaging model: behaviour', () => {
 
   it('vocabularies are checked (23514)', async () => {
     await inTenantTx(async (c, { orgA, actor }) => {
-      expect(await failure(c, `INSERT INTO threads (organization_id, created_by, created_at, channel) VALUES ($1, $2, $3, 'sms')`, [orgA, actor, at])).toBe('23514')
+      expect(
+        await failure(
+          c,
+          `INSERT INTO threads (organization_id, created_by, created_at, channel) VALUES ($1, $2, $3, 'sms')`,
+          [orgA, actor, at],
+        ),
+      ).toBe('23514')
       const t = await insertThread(c, orgA, actor)
       expect(await failure(c, messageSql, [orgA, actor, at, t, 'draft', 'k@y', 'p', 'k'])).toBe('23514')
     })

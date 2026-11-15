@@ -50,21 +50,46 @@ const utc = (v: unknown): string => new Date(v as string).toISOString()
 const flag = z.enum(['true', 'false'])
 
 type Field = keyof typeof contactDerived
-const valueOf = (field: Field, qc: QueryContext, parent: (column: string) => Expression<unknown>) => contactDerived[field].expression(qc, parent)
+const valueOf = (field: Field, qc: QueryContext, parent: (column: string) => Expression<unknown>) =>
+  contactDerived[field].expression(qc, parent)
 const parentOf = (column: string) => sql.ref(`contacts.${column}`)
 
-const filter = (field: Field, schema: z.ZodType, normalize: CustomFilter['normalize'], where: (value: Expression<unknown>, v: unknown) => Expression<SqlBool>, description: string): CustomFilter => ({
+const filter = (
+  field: Field,
+  schema: z.ZodType,
+  normalize: CustomFilter['normalize'],
+  where: (value: Expression<unknown>, v: unknown) => Expression<SqlBool>,
+  description: string,
+): CustomFilter => ({
   schema: schema.describe(description),
   ...(normalize ? { normalize } : {}),
   requires: REQUIRES,
   where: (qc, v) => where(valueOf(field, qc, parentOf), v),
 })
 const since = (field: Field, what: string) =>
-  filter(field, instant, utc, (value, v) => sql<SqlBool>`${value} >= ${v as string}`, `Only contacts ${what} at or after this ISO-8601 time (Z or an offset). Needs interactions:read.`)
+  filter(
+    field,
+    instant,
+    utc,
+    (value, v) => sql<SqlBool>`${value} >= ${v as string}`,
+    `Only contacts ${what} at or after this ISO-8601 time (Z or an offset). Needs interactions:read.`,
+  )
 const notSince = (field: Field, what: string) =>
-  filter(field, instant, utc, (value, v) => sql<SqlBool>`(${value} is null or ${value} < ${v as string})`, `Only contacts ${what} before this ISO-8601 time (Z or an offset), including those never ${what.replace(/ (contacted|interacted)$/, '')}. Needs interactions:read.`)
+  filter(
+    field,
+    instant,
+    utc,
+    (value, v) => sql<SqlBool>`(${value} is null or ${value} < ${v as string})`,
+    `Only contacts ${what} before this ISO-8601 time (Z or an offset), including those never ${what.replace(/ (contacted|interacted)$/, '')}. Needs interactions:read.`,
+  )
 const never = (field: Field, what: string) =>
-  filter(field, flag, (v) => v === 'true', (value, v) => (v === true ? sql<SqlBool>`${value} is null` : sql<SqlBool>`${value} is not null`), `true: only contacts never ${what}; false: only contacts ${what} at least once. Needs interactions:read.`)
+  filter(
+    field,
+    flag,
+    (v) => v === 'true',
+    (value, v) => (v === true ? sql<SqlBool>`${value} is null` : sql<SqlBool>`${value} is not null`),
+    `true: only contacts never ${what}; false: only contacts ${what} at least once. Needs interactions:read.`,
+  )
 
 /** The six custom filters of `contacts.list`, ANDed with the others. */
 export const contactActivityFilters = {

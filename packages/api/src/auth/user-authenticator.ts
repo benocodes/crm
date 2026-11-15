@@ -22,7 +22,10 @@ const NO_ORGANIZATION = (actor: Principal['actor'], forbidden: boolean): Princip
 })
 
 /** The [[CORE3]] implementation of the [[CORE15]] seam: verify, first sight, organisation claim, role scopes. */
-export function createUserAuthenticator(opts: { adapter: AuthAdapter; declaredScopes: readonly string[] }): UserAuthenticator {
+export function createUserAuthenticator(opts: {
+  adapter: AuthAdapter
+  declaredScopes: readonly string[]
+}): UserAuthenticator {
   const { adapter, declaredScopes } = opts
   return {
     async authenticate(token, { storage, organizationHeader, env }) {
@@ -33,13 +36,20 @@ export function createUserAuthenticator(opts: { adapter: AuthAdapter; declaredSc
       const claim = verified.organization
       // D19: a D1 serves ONE provider organisation. A claim for another is refused before any lookup, fetch or SQL. This is
       // the one place the authenticator throws for an organisation problem: the decision is about the deployment, not the operation.
-      if (storage.kind === 'd1' && claim && (adapter.provider !== storage.authProvider || claim.externalId !== storage.authOrgId)) {
+      if (
+        storage.kind === 'd1' &&
+        claim &&
+        (adapter.provider !== storage.authProvider || claim.externalId !== storage.authOrgId)
+      ) {
         throw new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
       }
 
       const login =
-        (await lookupUser(storage, { provider: adapter.provider, subject: verified.subject, organizationExternalId: claim?.externalId ?? null })) ??
-        (await provisionUser(storage, adapter, verified.subject, env))
+        (await lookupUser(storage, {
+          provider: adapter.provider,
+          subject: verified.subject,
+          organizationExternalId: claim?.externalId ?? null,
+        })) ?? (await provisionUser(storage, adapter, verified.subject, env))
       const actor = { id: login.userId, kind: 'user' as const }
 
       let active: { organizationId: string; role: Role } | null = null
@@ -53,13 +63,23 @@ export function createUserAuthenticator(opts: { adapter: AuthAdapter; declaredSc
           // The copy changed after this token was issued: it wins, and there is nothing to repair.
           if (latest.deletedAt !== null) return NO_ORGANIZATION(actor, true)
           active = { organizationId: login.linkedOrganizationId!, role: latest.role }
-        } else if (login.linkedOrganizationId !== null && latest && latest.deletedAt === null && latest.role === claim.role) {
+        } else if (
+          login.linkedOrganizationId !== null &&
+          latest &&
+          latest.deletedAt === null &&
+          latest.role === claim.role
+        ) {
           active = { organizationId: login.linkedOrganizationId, role: claim.role }
         } else {
           const organizationId = await repairMembership(
             storage,
             adapter,
-            { userId: login.userId, externalId: claim.externalId, role: claim.role, known: { organizationId: login.linkedOrganizationId } },
+            {
+              userId: login.userId,
+              externalId: claim.externalId,
+              role: claim.role,
+              known: { organizationId: login.linkedOrganizationId },
+            },
             env,
           )
           active = { organizationId, role: claim.role }

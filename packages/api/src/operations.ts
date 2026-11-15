@@ -43,14 +43,36 @@ import type { WebhooksRuntime } from './webhooks/config.js'
  * A fresh registry per call: no module-level mutable registry. Later specs append here. `connections` is the Gmail configuration the
  * authorize operation reads ([[CHN5]] D58); the registry has the same operations whatever it is.
  */
-export function createVibaseRegistry(options: { connections?: ConnectionsRuntime; /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */ operations?: (registry: Registry) => void; /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */ webhooks?: WebhooksRuntime; /** [[CORE245]] P2: the control-plane port of the invitation operations; absent or null: this composition has no control store and they answer `501 provider_not_configured`. The registry has them all the same. */ invitations?: InvitationsRuntime | null; /** [[CORE288]] P1, P2: the membership writes' control-plane port; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */ members?: MembersRuntime | null } = {}): Registry {
-  const registry = new Registry().registerResource(tasks).registerResource(companies).registerResource(contacts).registerResource(identities).registerResource(notes).registerResource(tags)
+export function createVibaseRegistry(
+  options: {
+    connections?: ConnectionsRuntime /** Operations registered before the queue's, so `action_requests.create` lists the proposable ones (Node tests and compositions that add an enqueued operation; the Worker passes none). */
+    operations?: (
+      registry: Registry,
+    ) => void /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */
+    webhooks?: WebhooksRuntime /** [[CORE245]] P2: the control-plane port of the invitation operations; absent or null: this composition has no control store and they answer `501 provider_not_configured`. The registry has them all the same. */
+    invitations?: InvitationsRuntime | null /** [[CORE288]] P1, P2: the membership writes' control-plane port; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
+    members?: MembersRuntime | null
+  } = {},
+): Registry {
+  const registry = new Registry()
+    .registerResource(tasks)
+    .registerResource(companies)
+    .registerResource(contacts)
+    .registerResource(identities)
+    .registerResource(notes)
+    .registerResource(tags)
   registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
   registry.registerResource(connections)
   registry.decorate('connections.delete', (op) => withWatchStop(op, options.connections ?? null))
   for (const op of connectionOperations(options.connections ?? null)) registry.register(op)
   for (const op of dealOperations()) registry.register(op)
-  registry.registerResource(threads).registerResource(messages).registerResource(interactions).registerResource(files).registerResource(contactFiles).registerResource(companyFiles)
+  registry
+    .registerResource(threads)
+    .registerResource(messages)
+    .registerResource(interactions)
+    .registerResource(files)
+    .registerResource(contactFiles)
+    .registerResource(companyFiles)
   assertNeighbours(endpointTypesOf(registry.resources()))
   for (const op of associationOperations(() => registry.resources())) registry.register(op)
   for (const op of contentOperations()) registry.register(op)
@@ -70,11 +92,17 @@ export function createVibaseRegistry(options: { connections?: ConnectionsRuntime
   registry.register(messageSendOperation())
   // [[AGT8]] D33: last, because the `operation` enum of `action_requests.create` lists the proposal-eligible operations registered before it.
   registry.registerResource(actionRequests)
-  registry.registerEventType('action_request', { invisible: 'visibility is per row (the target operation\'s authority, AGT8 D38/D57), not per type: a row predicate is #217' })
+  registry.registerEventType('action_request', {
+    invisible:
+      "visibility is per row (the target operation's authority, AGT8 D38/D57), not per type: a row predicate is #217",
+  })
   for (const op of actionRequestOperations(registry)) registry.register(op)
   // [[AGT8]] D57: the execution reads, after every enqueued operation so a caller's readable set is the registry's whole.
   registry.registerResource(actionExecutions)
-  registry.registerEventType('action_execution', { invisible: 'visibility is per row (the target operation\'s authority, AGT8 D57), not per type: a row predicate is #217' })
+  registry.registerEventType('action_execution', {
+    invisible:
+      "visibility is per row (the target operation's authority, AGT8 D57), not per type: a row predicate is #217",
+  })
   for (const op of executionReadOperations(registry)) registry.register(op)
   for (const op of schemaOperations(() => registry.resources())) registry.register(op)
   for (const op of eventOperations(() => registry)) registry.register(op)

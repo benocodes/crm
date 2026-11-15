@@ -37,14 +37,27 @@ try {
     return { label, n: ts.length, median: median(ts), max: Math.max(...ts), min: Math.min(...ts) }
   }
   const baseline = await series('no-op request (dispatch round trip)', '/__noop')
-  const rows = [baseline, await series('scrypt (Better Auth default, one hash)', '/__hash?kdf=scrypt'), await series(`PBKDF2-SHA256, ${ITERATIONS} iterations (one hash)`, `/__hash?kdf=pbkdf2&iterations=${ITERATIONS}`)]
-  console.log(`N = ${N} requests per series after one warm-up; times are wall-clock milliseconds as seen by the caller (a proxy for Workers CPU time)`)
-  console.log(`${'series'.padEnd(52)} ${'median'.padStart(8)} ${'max'.padStart(8)} ${'min'.padStart(8)}   median minus no-op`)
-  for (const r of rows) console.log(`${r.label.padEnd(52)} ${ms(r.median).padStart(8)} ${ms(r.max).padStart(8)} ${ms(r.min).padStart(8)}   ${r === baseline ? '-' : ms(r.median - baseline.median)}`)
+  const rows = [
+    baseline,
+    await series('scrypt (Better Auth default, one hash)', '/__hash?kdf=scrypt'),
+    await series(`PBKDF2-SHA256, ${ITERATIONS} iterations (one hash)`, `/__hash?kdf=pbkdf2&iterations=${ITERATIONS}`),
+  ]
+  console.log(
+    `N = ${N} requests per series after one warm-up; times are wall-clock milliseconds as seen by the caller (a proxy for Workers CPU time)`,
+  )
+  console.log(
+    `${'series'.padEnd(52)} ${'median'.padStart(8)} ${'max'.padStart(8)} ${'min'.padStart(8)}   median minus no-op`,
+  )
+  for (const r of rows)
+    console.log(
+      `${r.label.padEnd(52)} ${ms(r.median).padStart(8)} ${ms(r.max).padStart(8)} ${ms(r.min).padStart(8)}   ${r === baseline ? '-' : ms(r.median - baseline.median)}`,
+    )
   console.log('\nPBKDF2 iteration cap in workerd (one hash each; 200 = accepted):')
   for (const n of [100_000, 100_001, 200_000, 600_000, 1_000_000]) {
     const r = await time(`/__hash?kdf=pbkdf2&iterations=${n}`)
-    console.log(`  ${String(n).padStart(9)} iterations -> ${r.status}${r.status === 200 ? ` (${ms(r.t)} ms)` : ` ${r.body}`}`)
+    console.log(
+      `  ${String(n).padStart(9)} iterations -> ${r.status}${r.status === 200 ? ` (${ms(r.t)} ms)` : ` ${r.body}`}`,
+    )
   }
 } finally {
   await w.dispose()

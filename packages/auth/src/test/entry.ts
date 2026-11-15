@@ -24,7 +24,10 @@ export default {
       const kdf = url.searchParams.get('kdf')
       try {
         if (kdf === 'scrypt') await scryptHash('correct horse battery staple')
-        else if (kdf === 'pbkdf2') await hashPassword('correct horse battery staple', { iterations: Number(url.searchParams.get('iterations') ?? 100_000) })
+        else if (kdf === 'pbkdf2')
+          await hashPassword('correct horse battery staple', {
+            iterations: Number(url.searchParams.get('iterations') ?? 100_000),
+          })
         else return new Response('unknown kdf', { status: 400 })
         return new Response('ok')
       } catch (err) {
@@ -36,10 +39,27 @@ export default {
       return Response.json({ ok: await verifyPassword({ hash, password: url.searchParams.get('password') ?? '' }) })
     }
     if (url.pathname.startsWith('/auth/')) {
-      const handler = createAuthHandler(env.CONTROL_DB, { secret: env.AUTH_SECRET, baseURL: env.PUBLIC_BASE_URL, ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}) }, {
-        unsafeOpenAdmissionForTests: env.OPEN_ADMISSION === '1',
-        ...(env.FAKE_ADMISSION ? { admission: { admits: async (a: { email: string; token: string }) => `${a.email}|${a.token}` === env.FAKE_ADMISSION, settle: async () => undefined } } : {}),
-      })
+      const handler = createAuthHandler(
+        env.CONTROL_DB,
+        {
+          secret: env.AUTH_SECRET,
+          baseURL: env.PUBLIC_BASE_URL,
+          ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+            ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } }
+            : {}),
+        },
+        {
+          unsafeOpenAdmissionForTests: env.OPEN_ADMISSION === '1',
+          ...(env.FAKE_ADMISSION
+            ? {
+                admission: {
+                  admits: async (a: { email: string; token: string }) => `${a.email}|${a.token}` === env.FAKE_ADMISSION,
+                  settle: async () => undefined,
+                },
+              }
+            : {}),
+        },
+      )
       return handler(req)
     }
     return new Response('not found', { status: 404 })

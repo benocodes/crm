@@ -5,7 +5,7 @@ import { eventSetStatement } from '../outbox.js'
 import { afterOf } from '../storage/crud.js'
 import { tasks } from '../resources/tasks.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
-import { captureMessage, runCapture } from "../test/capture-kit.js"
+import { captureMessage, runCapture } from '../test/capture-kit.js'
 import { readStableFeed, type FeedEvent } from './feed.js'
 
 // API105 (D1, D13, D15, D22): `seq` is the commit order, and readStableFeed pages after a cursor without skipping an event that
@@ -23,8 +23,12 @@ beforeEach(async () => {
 
 const AT = '2026-10-28T10:00:00.000Z'
 const TYPES = ['task', 'contact', 'note']
-const feed = async (d: { readable?: readonly string[]; types?: readonly string[]; after?: string | null; limit?: number }) =>
-  (await e.run(readStableFeed({ readable: TYPES, after: null, limit: 50, ...d }))).value
+const feed = async (d: {
+  readable?: readonly string[]
+  types?: readonly string[]
+  after?: string | null
+  limit?: number
+}) => (await e.run(readStableFeed({ readable: TYPES, after: null, limit: 50, ...d }))).value
 const page = async (d: Parameters<typeof feed>[0]): Promise<{ events: FeedEvent[]; has_more: boolean }> => {
   const r = await feed(d)
   if (r.status !== 'ok') throw new Error('unknown cursor')
@@ -40,7 +44,20 @@ function emit(eventId: string, taskId: string, type = 'task.created'): PreparedO
     reads: () => ({}),
     build: (_found, qc) =>
       unit({
-        steps: [step(eventSetStatement(qc, { at: AT, organizationId: e.organizationId, actorId: e.userId, type, resourceType: 'task', after: afterOf(tasks), rows: [{ eventId, resourceId: taskId, before: null }] }), 'first-event')],
+        steps: [
+          step(
+            eventSetStatement(qc, {
+              at: AT,
+              organizationId: e.organizationId,
+              actorId: e.userId,
+              type,
+              resourceType: 'task',
+              after: afterOf(tasks),
+              rows: [{ eventId, resourceId: taskId, before: null }],
+            }),
+            'first-event',
+          ),
+        ],
         events: [{ id: eventId, type, resourceType: 'task', resourceId: taskId }],
         decode: () => null,
       }),
@@ -53,8 +70,10 @@ const newTask = async () => {
 }
 /** A raw event row (setup only), for the read program's filters. */
 const rawEvent = (id: string, type: string, resourceType: string) =>
-  e.d1!
-    .prepare('INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+  e
+    .d1!.prepare(
+      'INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
     .bind(id, AT, e.organizationId, type, resourceType, uuidv7(), e.userId)
     .run()
 
@@ -84,7 +103,20 @@ describe('emit order and atomicity within a unit', () => {
       reads: () => ({}),
       build: (_f, qc) =>
         unit({
-          steps: [step(eventSetStatement(qc, { at: AT, organizationId: e.organizationId, actorId: e.userId, type: 'task.updated', resourceType: 'task', after: afterOf(tasks), rows: t.map((id, i) => ({ eventId: evIds[i]!, resourceId: id, before: null })) }), 'first-event')],
+          steps: [
+            step(
+              eventSetStatement(qc, {
+                at: AT,
+                organizationId: e.organizationId,
+                actorId: e.userId,
+                type: 'task.updated',
+                resourceType: 'task',
+                after: afterOf(tasks),
+                rows: t.map((id, i) => ({ eventId: evIds[i]!, resourceId: id, before: null })),
+              }),
+              'first-event',
+            ),
+          ],
           events: [],
           decode: () => null,
         }),
@@ -109,7 +141,18 @@ describe('emit order and atomicity within a unit', () => {
       build: (_f, qc) =>
         unit({
           steps: [
-            step(eventSetStatement(qc, { at: AT, organizationId: e.organizationId, actorId: e.userId, type: 'task.created', resourceType: 'task', after: afterOf(tasks), rows: [{ eventId: evId, resourceId: t, before: null }] }), 'first-event'),
+            step(
+              eventSetStatement(qc, {
+                at: AT,
+                organizationId: e.organizationId,
+                actorId: e.userId,
+                type: 'task.created',
+                resourceType: 'task',
+                after: afterOf(tasks),
+                rows: [{ eventId: evId, resourceId: t, before: null }],
+              }),
+              'first-event',
+            ),
             step(sql`insert into tasks (id) values (${uuidv7()})`.compile(qc.db)), // NOT NULL violation after the event
           ],
           events: [],
@@ -132,7 +175,15 @@ describe('the read program (D2 resolution, D22)', () => {
     const id = uuidv7()
     await e.run(emit(id, t))
     const [ev] = (await page({})).events
-    expect(ev).toMatchObject({ id, type: 'task.created', resource_type: 'task', resource_id: t, actor_id: e.userId, created_at: AT, before: null })
+    expect(ev).toMatchObject({
+      id,
+      type: 'task.created',
+      resource_type: 'task',
+      resource_id: t,
+      actor_id: e.userId,
+      created_at: AT,
+      before: null,
+    })
     expect((ev!.after as { id: string }).id).toBe(t)
     expect(ev).not.toHaveProperty('seq')
   })
@@ -161,19 +212,25 @@ describe('the read program (D2 resolution, D22)', () => {
   })
 
   it('readable and types exclude other types; types is an exact event type', async () => {
-    const t1 = uuidv7(), c1 = uuidv7(), t2 = uuidv7(), n1 = uuidv7()
+    const t1 = uuidv7(),
+      c1 = uuidv7(),
+      t2 = uuidv7(),
+      n1 = uuidv7()
     await rawEvent(t1, 'task.created', 'task')
     await rawEvent(c1, 'contact.created', 'contact')
     await rawEvent(t2, 'task.updated', 'task')
     await rawEvent(n1, 'note.created', 'note')
     expect(ids((await page({ readable: ['task'] })).events)).toEqual([t1, t2])
     expect(ids((await page({ readable: ['task', 'note'] })).events)).toEqual([t1, t2, n1])
-    expect(ids((await page({ readable: ['task', 'contact'], types: ['task.updated', 'contact.created'] })).events)).toEqual([c1, t2])
+    expect(
+      ids((await page({ readable: ['task', 'contact'], types: ['task.updated', 'contact.created'] })).events),
+    ).toEqual([c1, t2])
     expect(ids((await page({ readable: ['contact'], types: ['task.updated'] })).events)).toEqual([])
   })
 
   it('a cursor on an event outside readable still resolves, and the next page starts after it', async () => {
-    const c1 = uuidv7(), t1 = uuidv7()
+    const c1 = uuidv7(),
+      t1 = uuidv7()
     await rawEvent(c1, 'contact.created', 'contact')
     await rawEvent(t1, 'task.created', 'task')
     expect(ids((await page({ readable: ['task'], after: c1 })).events)).toEqual([t1])

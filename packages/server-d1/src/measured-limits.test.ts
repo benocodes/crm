@@ -11,7 +11,16 @@ import { captureMessage, ensureConnection, tenantEnv } from '@vibase/api/test/ca
 import { captureMessages, fileBlobKey, messageBodyKey, r2ObjectStore, recordMessagesOperation } from '@vibase/api'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { NOW, clerkKit, meterD1, openWorkerD1, type ClerkKit, type D1Meter, type InvocationMeasure, type WorkerD1 } from './test/kit.js'
+import {
+  NOW,
+  clerkKit,
+  meterD1,
+  openWorkerD1,
+  type ClerkKit,
+  type D1Meter,
+  type InvocationMeasure,
+  type WorkerD1,
+} from './test/kit.js'
 
 // Spec CORE38 D11 (CORE47 P6-P8): what one request sends to D1, measured through the real composition (local Miniflare,
 // not remote), set against Cloudflare's documented limits (fetched 2026-10-28):
@@ -61,9 +70,14 @@ const measures = new Map<string, InvocationMeasure & { outbound: number; status:
 
 const bucket = fakeR2Bucket()
 const env = (): D1WorkerEnv => ({ DB: meter.d1, BODIES: bucket, ...kit.env })
-const fresh = () => composeD1Worker(env(), { fetch: kit.fetch, clock: () => now, nowMs: () => migrationNow, newId: () => uuidv7(now) })
-const req = (method: string, path: string, body?: unknown, headers: Record<string, string> = { authorization: `Bearer ${key}` }) =>
-  new Request(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+const fresh = () =>
+  composeD1Worker(env(), { fetch: kit.fetch, clock: () => now, nowMs: () => migrationNow, newId: () => uuidv7(now) })
+const req = (
+  method: string,
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = { authorization: `Bearer ${key}` },
+) => new Request(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
 const send = async (method: string, path: string, body?: unknown) => {
   const res = await worker.fetch(req(method, path, body))
   return { status: res.status, json: res.status === 204 ? null : ((await res.json()) as any) }
@@ -86,16 +100,42 @@ beforeAll(async () => {
   w = await openWorkerD1()
   // Query budgets model a migrated deployment, including Wrangler's tracker.
   await createMigrationTracker(w.d1)
-  await recordMigrations(w.d1, MIGRATIONS.map((m) => m.name))
+  await recordMigrations(
+    w.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
   kit = await clerkKit()
   meter = meterD1(w.d1)
-  const r = await bootstrapD1(w.d1, { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' }, { now: NOW, newId: () => uuidv7(NOW) })
+  const r = await bootstrapD1(
+    w.d1,
+    { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' },
+    { now: NOW, newId: () => uuidv7(NOW) },
+  )
   key = r.key
   worker = fresh()
 }, 30_000)
 afterAll(() => w?.dispose())
 
-const SCENARIOS = ['cold-first-request', 'key-auth-stamp', 'key-auth-read', 'task-patch', 'resolve-100-new', 'resolve-100-existing', 'company-delete-100', 'contact-delete-100', 'messages-list-50', 'messages-content', 'files-content', 'interactions-list-contact', 'merge-100-links', 'contact-delete-100-with-links', 'capture-chunk-1', 'capture-chunk-100', 'pipeline-batch-25', 'pipeline-batch-25-existing'] as const
+const SCENARIOS = [
+  'cold-first-request',
+  'key-auth-stamp',
+  'key-auth-read',
+  'task-patch',
+  'resolve-100-new',
+  'resolve-100-existing',
+  'company-delete-100',
+  'contact-delete-100',
+  'messages-list-50',
+  'messages-content',
+  'files-content',
+  'interactions-list-contact',
+  'merge-100-links',
+  'contact-delete-100-with-links',
+  'capture-chunk-1',
+  'capture-chunk-100',
+  'pipeline-batch-25',
+  'pipeline-batch-25-existing',
+] as const
 const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'cold-first-request': 200,
   'key-auth-stamp': 200,
@@ -131,7 +171,11 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     const task = (await send('POST', '/api/v1/tasks', { title: 'one' })).json
     await measure('task-patch', () => send('PATCH', `/api/v1/tasks/${task.id}`, { title: 'two' }))
 
-    const emails = Array.from({ length: 100 }, (_, i) => ({ kind: 'email', value: `p${i}@measure.test`, name: `P${i}` }))
+    const emails = Array.from({ length: 100 }, (_, i) => ({
+      kind: 'email',
+      value: `p${i}@measure.test`,
+      name: `P${i}`,
+    }))
     await measure('resolve-100-new', () => send('POST', '/api/v1/identities/resolve', { identities: emails }))
     await measure('resolve-100-existing', () => send('POST', '/api/v1/identities/resolve', { identities: emails }))
 
@@ -140,7 +184,8 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     await measure('company-delete-100', () => send('DELETE', `/api/v1/companies/${company.id}`))
 
     const contact = (await send('POST', '/api/v1/contacts', { name: 'Many' })).json
-    for (let i = 0; i < 100; i++) await send('POST', '/api/v1/identities', { kind: 'email', value: `own${i}@measure.test`, contact_id: contact.id })
+    for (let i = 0; i < 100; i++)
+      await send('POST', '/api/v1/identities', { kind: 'email', value: `own${i}@measure.test`, contact_id: contact.id })
     await measure('contact-delete-100', () => send('DELETE', `/api/v1/contacts/${contact.id}`))
 
     // CORE25 C1 (D55): the read and merge scenarios. Conversations are seeded by direct inserts on the unmetered D1.
@@ -148,15 +193,39 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     // A user, not the first principal (an agent): a connection's owner is a user (CHN140 D31), and the seeded sources name a connection.
     const creator = uuidv7(now)
     await w.d1.batch([
-      w.d1.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(creator, 'user', now.toISOString()),
-      w.d1.prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)').bind(creator, now.toISOString(), now.toISOString(), 'measure-owner@measure.test'),
+      w.d1
+        .prepare('insert into principals (id, kind, created_at) values (?, ?, ?)')
+        .bind(creator, 'user', now.toISOString()),
+      w.d1
+        .prepare('insert into users (id, created_at, updated_at, email, email_verified) values (?, ?, ?, ?, 0)')
+        .bind(creator, now.toISOString(), now.toISOString(), 'measure-owner@measure.test'),
     ])
     const insert = async (table: string, row: Record<string, unknown>) => {
-      const full: Record<string, unknown> = { id: uuidv7(now), organization_id: orgId, created_by: creator, created_at: now.toISOString(), ...row }
-      if (['contact_files', 'company_files', 'identities', 'channel_connections'].includes(table)) full.updated_at ??= now.toISOString()
+      const full: Record<string, unknown> = {
+        id: uuidv7(now),
+        organization_id: orgId,
+        created_by: creator,
+        created_at: now.toISOString(),
+        ...row,
+      }
+      if (['contact_files', 'company_files', 'identities', 'channel_connections'].includes(table))
+        full.updated_at ??= now.toISOString()
       const cols = Object.keys(full)
-      const vals = cols.map((c) => (typeof full[c] === 'boolean' ? (full[c] ? 1 : 0) : full[c] !== null && typeof full[c] === 'object' ? JSON.stringify(full[c]) : (full[c] ?? null)))
-      await w.d1.prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`).bind(...vals).run()
+      const vals = cols.map((c) =>
+        typeof full[c] === 'boolean'
+          ? full[c]
+            ? 1
+            : 0
+          : full[c] !== null && typeof full[c] === 'object'
+            ? JSON.stringify(full[c])
+            : (full[c] ?? null),
+      )
+      await w.d1
+        .prepare(
+          `insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`,
+        )
+        .bind(...vals)
+        .run()
       return full
     }
     for (let i = 0; i < 50; i++) await seedConversation(insert, { attachments: 2, interaction: false })
@@ -177,20 +246,29 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     expect(bucket.gets).toEqual([fileBlobKey(withObjects.storageKeys[0]!)])
 
     const reader = (await send('POST', '/api/v1/contacts', { name: 'Reader' })).json
-    const readerIdentity = (await send('POST', '/api/v1/identities', { kind: 'email', value: 'reader@measure.test', contact_id: reader.id })).json
-    for (let i = 0; i < 50; i++) await seedConversation(insert, { participants: [{ identityId: readerIdentity.id, role: 'from' }] })
-    await measure('interactions-list-contact', () => send('GET', `/api/v1/interactions?contact_id=${reader.id}&limit=50`))
+    const readerIdentity = (
+      await send('POST', '/api/v1/identities', { kind: 'email', value: 'reader@measure.test', contact_id: reader.id })
+    ).json
+    for (let i = 0; i < 50; i++)
+      await seedConversation(insert, { participants: [{ identityId: readerIdentity.id, role: 'from' }] })
+    await measure('interactions-list-contact', () =>
+      send('GET', `/api/v1/interactions?contact_id=${reader.id}&limit=50`),
+    )
 
     const files = (await seedConversation(insert, { attachments: 100, interaction: false })).fileIds
     const survivor = (await send('POST', '/api/v1/contacts', { name: 'Survivor' })).json
     const source = (await send('POST', '/api/v1/contacts', {})).json
     for (const f of files) await send('POST', '/api/v1/contact-files', { contact_id: source.id, file_id: f })
-    for (const f of files.slice(0, 50)) await send('POST', '/api/v1/contact-files', { contact_id: survivor.id, file_id: f })
-    await measure('merge-100-links', () => send('POST', `/api/v1/contacts/${survivor.id}/merge`, { source_id: source.id }))
+    for (const f of files.slice(0, 50))
+      await send('POST', '/api/v1/contact-files', { contact_id: survivor.id, file_id: f })
+    await measure('merge-100-links', () =>
+      send('POST', `/api/v1/contacts/${survivor.id}/merge`, { source_id: source.id }),
+    )
 
     const linked = (await send('POST', '/api/v1/contacts', { name: 'Linked' })).json
     const moreFiles = (await seedConversation(insert, { attachments: 100, interaction: false })).fileIds
-    for (let i = 0; i < 100; i++) await send('POST', '/api/v1/identities', { kind: 'email', value: `lk${i}@measure.test`, contact_id: linked.id })
+    for (let i = 0; i < 100; i++)
+      await send('POST', '/api/v1/identities', { kind: 'email', value: `lk${i}@measure.test`, contact_id: linked.id })
     for (const f of moreFiles) await send('POST', '/api/v1/contact-files', { contact_id: linked.id, file_id: f })
     await measure('contact-delete-100-with-links', () => send('DELETE', `/api/v1/contacts/${linked.id}`))
 
@@ -200,7 +278,14 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     const captureConnection = uuidv7(now)
     await ensureConnection(binding, { organizationId: orgId, userId: creator }, captureConnection)
     const captureAt = (messages: ReturnType<typeof captureMessage>[]) => async () => {
-      await execute(binding, { kind: 'tenant', actorId: creator, organizationId: orgId }, recordMessagesOperation(tenantEnv({ organizationId: orgId, userId: creator, agentId: creator }, now), { connection_id: captureConnection, messages }))
+      await execute(
+        binding,
+        { kind: 'tenant', actorId: creator, organizationId: orgId },
+        recordMessagesOperation(tenantEnv({ organizationId: orgId, userId: creator, agentId: creator }, now), {
+          connection_id: captureConnection,
+          messages,
+        }),
+      )
       return { status: 200 }
     }
     await measure('capture-chunk-1', captureAt([captureMessage(orgId, { attachments: 1 })]))
@@ -217,14 +302,28 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
 
     // CORE69 D16: a page of 25 through the content pipeline (FakeChannel, memory-fast Node streams, the fake bucket), then the same page again.
     const channel = new FakeChannel(
-      Array.from({ length: 25 }, (_, i) => ({ providerMessageId: `pipe-${i}`, from: `ps${i}@measure.test`, to: [`pr${i}@measure.test`], attachments: [{ name: `p${i}.bin`, bytes: bytesOf(32, i) }] })),
+      Array.from({ length: 25 }, (_, i) => ({
+        providerMessageId: `pipe-${i}`,
+        from: `ps${i}@measure.test`,
+        to: [`pr${i}@measure.test`],
+        attachments: [{ name: `p${i}.bin`, bytes: bytesOf(32, i) }],
+      })),
     )
     const pageIds = Array.from({ length: 25 }, (_, i) => `pipe-${i}`)
     const pipelineConnection = uuidv7(now)
     await ensureConnection(binding, { organizationId: orgId, userId: creator }, pipelineConnection)
     const pipeline = () => async () => {
       await captureMessages(
-        { binding, organizationId: orgId, actorId: creator, objects: r2ObjectStore(bucket), streams: nodeStreams(), clock: () => now, newId: () => uuidv7(now), randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)) },
+        {
+          binding,
+          organizationId: orgId,
+          actorId: creator,
+          objects: r2ObjectStore(bucket),
+          streams: nodeStreams(),
+          clock: () => now,
+          newId: () => uuidv7(now),
+          randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+        },
         channel,
         { id: pipelineConnection },
         pageIds,
@@ -241,7 +340,10 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     for (const k of Object.keys(FREE_PLAN_EXCEPTIONS)) {
       const m = measures.get(k)
       expect(m, `${k} is not a scenario`).toBeDefined()
-      expect(m!.queries > FREE.queries || m!.queries + m!.outbound > FREE.subrequests, `${k} no longer exceeds a Free bound: drop its exception`).toBe(true)
+      expect(
+        m!.queries > FREE.queries || m!.queries + m!.outbound > FREE.subrequests,
+        `${k} no longer exceeds a Free bound: drop its exception`,
+      ).toBe(true)
     }
   })
 
@@ -260,13 +362,19 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
   })
 
   it('the cascades really ran at the cap', async () => {
-    expect(await count("select count(*) as n from contacts where company_id is null and name like 'C%' and name <> 'Many'")).toBe(100)
-    expect(await count('select count(*) as n from identities where deleted_at is not null and own = 0 and value like \'own%\'')).toBe(100)
+    expect(
+      await count("select count(*) as n from contacts where company_id is null and name like 'C%' and name <> 'Many'"),
+    ).toBe(100)
+    expect(
+      await count(
+        "select count(*) as n from identities where deleted_at is not null and own = 0 and value like 'own%'",
+      ),
+    ).toBe(100)
   })
 
   it('the messaging scenarios really ran at their sizes', async () => {
     expect(await count('select count(*) as n from messages')).toBe(229) // 50 listed + the content scenarios' one + 50 interactions + the two attachment sets + the capture chunks' 1 and 100, the pipeline's 25
-    expect(await count("select count(*) as n from contact_files where deleted_at is not null")).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
+    expect(await count('select count(*) as n from contact_files where deleted_at is not null')).toBe(50 + 100) // 50 duplicates, then the 100 of the deleted contact
   })
 })
 
@@ -279,7 +387,24 @@ describe('search index cost (CORE194 D14)', () => {
   const USER = '0190b2c4-0000-7000-8000-00000000b001'
   const AT = '2026-10-22T09:00:00.000Z'
   const sid = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')}`
-  const WORDS = ['renewal', 'pricing', 'contract', 'invoice', 'meeting', 'quarterly', 'onboarding', 'proposal', 'discount', 'support', 'integration', 'security', 'legal', 'budget', 'roadmap', 'feedback']
+  const WORDS = [
+    'renewal',
+    'pricing',
+    'contract',
+    'invoice',
+    'meeting',
+    'quarterly',
+    'onboarding',
+    'proposal',
+    'discount',
+    'support',
+    'integration',
+    'security',
+    'legal',
+    'budget',
+    'roadmap',
+    'feedback',
+  ]
   let seed = 7
   const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff)
   const text = (n: number) => Array.from({ length: n }, () => WORDS[rnd() % WORDS.length] + (rnd() % 50)).join(' ')
@@ -294,24 +419,72 @@ describe('search index cost (CORE194 D14)', () => {
         for (let i = from; i < to; i += 100) {
           const st = []
           for (let j = i; j < Math.min(i + 100, to); j++) {
-            st.push(d.prepare('INSERT INTO companies (id, organization_id, created_by, created_at, updated_at, name, domain) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(sid(j + 1), ORG, USER, AT, AT, `Co ${text(2)}`, `d${j}.example`))
-            st.push(d.prepare('INSERT INTO notes (id, organization_id, created_by, created_at, updated_at, title, content) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(sid(j + 1), ORG, USER, AT, AT, text(3), text(150)))
-            st.push(d.prepare('INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, notes) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(sid(j + 1), ORG, USER, AT, AT, text(4), text(20)))
+            st.push(
+              d
+                .prepare(
+                  'INSERT INTO companies (id, organization_id, created_by, created_at, updated_at, name, domain) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                )
+                .bind(sid(j + 1), ORG, USER, AT, AT, `Co ${text(2)}`, `d${j}.example`),
+            )
+            st.push(
+              d
+                .prepare(
+                  'INSERT INTO notes (id, organization_id, created_by, created_at, updated_at, title, content) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                )
+                .bind(sid(j + 1), ORG, USER, AT, AT, text(3), text(150)),
+            )
+            st.push(
+              d
+                .prepare(
+                  'INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                )
+                .bind(sid(j + 1), ORG, USER, AT, AT, text(4), text(20)),
+            )
           }
           await d.batch(st)
         }
       }
-      const meta = async (sql: string, ...b: unknown[]) => ((await d.prepare(sql).bind(...b).all()) as unknown as { results: unknown[]; meta: { rows_read: number; rows_written: number } })
-      const match = (table: string, expr: string) => meta(`SELECT t.id FROM ${table} t WHERE t.deleted_at IS NULL AND t.id IN (SELECT id FROM ${table}_search WHERE ${table}_search MATCH ?) ORDER BY t.id LIMIT 50`, expr)
+      const meta = async (sql: string, ...b: unknown[]) =>
+        (await d
+          .prepare(sql)
+          .bind(...b)
+          .all()) as unknown as { results: unknown[]; meta: { rows_read: number; rows_written: number } }
+      const match = (table: string, expr: string) =>
+        meta(
+          `SELECT t.id FROM ${table} t WHERE t.deleted_at IS NULL AND t.id IN (SELECT id FROM ${table}_search WHERE ${table}_search MATCH ?) ORDER BY t.id LIMIT 50`,
+          expr,
+        )
       const measure = async (n: number) => {
         const common = await match('notes', '"renewal7"') // a term in roughly 1 note in 50, first page of 50
         const rare = await match('notes', '"onboarding49 proposal3"') // two terms, no match
         const company = await match('companies', `"d${n - 1}.ex"`) // one company by domain substring
         const edit = await meta("UPDATE notes SET title = 'changed title here' WHERE id = ?", sid(Math.floor(n / 2)))
-        const stamp = await meta('UPDATE notes SET updated_at = ? WHERE id = ?', '2026-10-23T09:00:00.000Z', sid(Math.floor(n / 2) + 1))
-        const ins = await meta('INSERT INTO notes (id, organization_id, created_by, created_at, updated_at, title, content) VALUES (?, ?, ?, ?, ?, ?, ?)', sid(90_000), ORG, USER, AT, AT, 't', text(150))
+        const stamp = await meta(
+          'UPDATE notes SET updated_at = ? WHERE id = ?',
+          '2026-10-23T09:00:00.000Z',
+          sid(Math.floor(n / 2) + 1),
+        )
+        const ins = await meta(
+          'INSERT INTO notes (id, organization_id, created_by, created_at, updated_at, title, content) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          sid(90_000),
+          ORG,
+          USER,
+          AT,
+          AT,
+          't',
+          text(150),
+        )
         const del = await meta('DELETE FROM notes WHERE id = ?', sid(90_000))
-        return { n, matchCommon: [common.results.length, common.meta.rows_read], matchRare: [rare.results.length, rare.meta.rows_read], matchCompany: [company.results.length, company.meta.rows_read], editReads: edit.meta.rows_read, stampReads: stamp.meta.rows_read, insertWritten: ins.meta.rows_written, deleteReads: del.meta.rows_read }
+        return {
+          n,
+          matchCommon: [common.results.length, common.meta.rows_read],
+          matchRare: [rare.results.length, rare.meta.rows_read],
+          matchCompany: [company.results.length, company.meta.rows_read],
+          editReads: edit.meta.rows_read,
+          stampReads: stamp.meta.rows_read,
+          insertWritten: ins.meta.rows_written,
+          deleteReads: del.meta.rows_read,
+        }
       }
       await grow(0, 500)
       const small = await measure(500)
@@ -327,7 +500,9 @@ describe('search index cost (CORE194 D14)', () => {
       // size: the payload bytes of the FTS5 shadow tables (pragma page_count and dbstat are not available in workerd): `_data` holds the
       // trigram posting blocks, `_content` the stored copy of the indexed text (a standalone table), `_docsize` the per-row sizes.
       const num = async (sql: string) => ((await d.prepare(sql).all()).results as { v: number }[])[0]!.v
-      const baseText = await num('SELECT (SELECT sum(length(title) + length(content)) FROM notes) + (SELECT sum(length(name) + length(domain)) FROM companies) + (SELECT sum(length(title) + coalesce(length(notes), 0)) FROM tasks) AS v')
+      const baseText = await num(
+        'SELECT (SELECT sum(length(title) + length(content)) FROM notes) + (SELECT sum(length(name) + length(domain)) FROM companies) + (SELECT sum(length(title) + coalesce(length(notes), 0)) FROM tasks) AS v',
+      )
       let data = 0
       let content = 0
       let docsize = 0
@@ -335,8 +510,21 @@ describe('search index cost (CORE194 D14)', () => {
         data += await num(`SELECT coalesce(sum(length(block)), 0) AS v FROM ${t}_search_data`)
         docsize += await num(`SELECT coalesce(sum(length(sz)), 0) AS v FROM ${t}_search_docsize`)
       }
-      content += await num('SELECT sum(length(c1) + length(c2)) AS v FROM notes_search_content') + (await num('SELECT sum(length(c1) + length(c2)) AS v FROM companies_search_content')) + (await num('SELECT sum(length(c1) + length(coalesce(c2, ""))) AS v FROM tasks_search_content'))
-      console.info('CORE194 search size', JSON.stringify({ baseText, postingBytes: data, storedTextBytes: content, docsizeBytes: docsize, postingOverText: +(data / baseText).toFixed(2), totalOverText: +((data + content + docsize) / baseText).toFixed(2) }))
+      content +=
+        (await num('SELECT sum(length(c1) + length(c2)) AS v FROM notes_search_content')) +
+        (await num('SELECT sum(length(c1) + length(c2)) AS v FROM companies_search_content')) +
+        (await num('SELECT sum(length(c1) + length(coalesce(c2, ""))) AS v FROM tasks_search_content'))
+      console.info(
+        'CORE194 search size',
+        JSON.stringify({
+          baseText,
+          postingBytes: data,
+          storedTextBytes: content,
+          docsizeBytes: docsize,
+          postingOverText: +(data / baseText).toFixed(2),
+          totalOverText: +((data + content + docsize) / baseText).toFixed(2),
+        }),
+      )
       expect(data).toBeGreaterThan(0)
     } finally {
       await local.dispose()

@@ -67,7 +67,10 @@ export async function mintClerkToken(issuer: TestIssuer, opts: MintOptions = {})
   if (!opts.omit?.includes('iat')) jwt.setIssuedAt(now)
   if (!opts.omit?.includes('sub')) jwt.setSubject(opts.sub ?? 'user_1')
   if (!opts.omit?.includes('exp')) jwt.setExpirationTime(opts.exp ?? now + 60)
-  const key = opts.alg === 'HS256' ? new TextEncoder().encode('a-symmetric-secret-of-32-bytes!!!') : (opts.key ?? issuer.privateKey)
+  const key =
+    opts.alg === 'HS256'
+      ? new TextEncoder().encode('a-symmetric-secret-of-32-bytes!!!')
+      : (opts.key ?? issuer.privateKey)
   const token = await jwt.sign(key)
   return token
 }
@@ -105,7 +108,10 @@ export function clerkMembership(o: { organizationId: string; userId: string; rol
   }
 }
 
-export function clerkWebhook(type: string, data: unknown): { data: unknown; object: 'event'; type: string; timestamp: number } {
+export function clerkWebhook(
+  type: string,
+  data: unknown,
+): { data: unknown; object: 'event'; type: string; timestamp: number } {
   return { data, object: 'event', type, timestamp: Date.now() }
 }
 
@@ -121,12 +127,24 @@ export function signClerkWebhook(
   const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
   const signature = createHmac('sha256', key).update(`${id}.${timestamp}.${body}`).digest('base64')
   return {
-    headers: { 'svix-id': id, 'svix-timestamp': String(timestamp), 'svix-signature': `v1,${signature}`, 'content-type': 'application/json' },
+    headers: {
+      'svix-id': id,
+      'svix-timestamp': String(timestamp),
+      'svix-signature': `v1,${signature}`,
+      'content-type': 'application/json',
+    },
     body,
   }
 }
 
-export function clerkUser(o: { id: string; email?: string | null; verified?: boolean; first?: string | null; last?: string | null; role?: unknown }): ClerkUserJson {
+export function clerkUser(o: {
+  id: string
+  email?: string | null
+  verified?: boolean
+  first?: string | null
+  last?: string | null
+  role?: unknown
+}): ClerkUserJson {
   const addresses =
     o.email === null || o.email === undefined
       ? []
@@ -158,7 +176,8 @@ export type FakeFetch = typeof fetch & {
 }
 
 const notFound = () => new Response(JSON.stringify({ errors: [{ code: 'resource_not_found' }] }), { status: 404 })
-const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
+const ok = (body: unknown) =>
+  new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
 
 /**
  * A `fetch` answering `GET /v1/users/<sub>`, `/v1/organizations/<id>` and `/v1/organizations/<id>/memberships`
@@ -188,7 +207,9 @@ export function fakeClerkFetch(
     if (parsed.pathname === '/v1/oauth_applications') {
       if (f.fail.clients) return new Response('{}', { status: f.fail.clients })
       const q = parsed.searchParams.get('name_query') ?? ''
-      const data = [...(opts.clients ?? new Map<string, string>())].filter(([id]) => id === q).map(([client_id, name]) => ({ object: 'oauth_application', id: `oauth_app_${client_id}`, client_id, name }))
+      const data = [...(opts.clients ?? new Map<string, string>())]
+        .filter(([id]) => id === q)
+        .map(([client_id, name]) => ({ object: 'oauth_application', id: `oauth_app_${client_id}`, client_id, name }))
       return ok({ data, total_count: data.length })
     }
     const org = /\/v1\/organizations\/([^/?]+)(\/memberships)?$/.exec(parsed.pathname)

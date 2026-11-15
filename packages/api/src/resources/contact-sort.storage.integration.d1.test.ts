@@ -85,7 +85,8 @@ async function seed(): Promise<void> {
 
 type Page = { data: Array<Record<string, unknown>>; next_cursor: string | null }
 type Raw = { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> }
-const page = async (raw: Raw, scopes?: readonly string[]): Promise<Page> => (await e.run(listOperation(contacts, env(scopes), raw as never))).value as Page
+const page = async (raw: Raw, scopes?: readonly string[]): Promise<Page> =>
+  (await e.run(listOperation(contacts, env(scopes), raw as never))).value as Page
 /** Walks every page at `limit` and returns the names in the order met, and the page sizes. */
 async function walk(raw: Raw, limit: number): Promise<{ names: string[]; pages: string[][] }> {
   const pages: string[][] = []
@@ -134,9 +135,25 @@ describe('keyset order with nulls, ties and page breaks (D8, D9)', () => {
 
   it('the first page is the head of the sorted set (the page break falls inside the nulls, then inside a tie)', async () => {
     await seed()
-    expect((await walk({ sort: 'last_contacted_at', order: 'asc' }, 2)).pages).toEqual([['c01', 'c02'], ['c03', 'c09'], ['c04', 'c05'], ['c06', 'c07'], ['c08']])
-    expect((await walk({ sort: 'last_contacted_at', order: 'desc' }, 2)).pages).toEqual([['c08', 'c07'], ['c06', 'c05'], ['c04', 'c09'], ['c03', 'c02'], ['c01']])
-    expect((await walk({ sort: 'last_interacted_at', order: 'desc' }, 3)).pages).toEqual([['c08', 'c07', 'c09'], ['c06', 'c05', 'c04'], ['c03', 'c02', 'c01']])
+    expect((await walk({ sort: 'last_contacted_at', order: 'asc' }, 2)).pages).toEqual([
+      ['c01', 'c02'],
+      ['c03', 'c09'],
+      ['c04', 'c05'],
+      ['c06', 'c07'],
+      ['c08'],
+    ])
+    expect((await walk({ sort: 'last_contacted_at', order: 'desc' }, 2)).pages).toEqual([
+      ['c08', 'c07'],
+      ['c06', 'c05'],
+      ['c04', 'c09'],
+      ['c03', 'c02'],
+      ['c01'],
+    ])
+    expect((await walk({ sort: 'last_interacted_at', order: 'desc' }, 3)).pages).toEqual([
+      ['c08', 'c07', 'c09'],
+      ['c06', 'c05', 'c04'],
+      ['c03', 'c02', 'c01'],
+    ])
   })
 
   it('next_cursor is base64url of [sort, order, value or null, id] and the last page has none', async () => {
@@ -164,7 +181,9 @@ describe('keyset order with nulls, ties and page breaks (D8, D9)', () => {
     const sorted = await page({ sort: 'last_contacted_at', order: 'desc', limit: 50 })
     const plain = await page({ limit: 50 })
     const key = (r: Record<string, unknown>) => String(r.id)
-    expect(sorted.data.map((r) => JSON.stringify(r, Object.keys(r).sort())).sort()).toEqual(plain.data.map((r) => JSON.stringify(r, Object.keys(r).sort())).sort())
+    expect(sorted.data.map((r) => JSON.stringify(r, Object.keys(r).sort())).sort()).toEqual(
+      plain.data.map((r) => JSON.stringify(r, Object.keys(r).sort())).sort(),
+    )
     expect(sorted.data.map(key)).not.toEqual(plain.data.map(key))
   })
 })
@@ -191,7 +210,10 @@ describe('the scope gate (D5)', () => {
     })
   }
   it('a malformed cursor is a 400 before the scope check, a well-formed one without the scope is a 403 (the check order)', () => {
-    expect(refused('last_contacted_at', ['contacts:read'], { after: 'not-a-cursor' })).toMatchObject({ status: 400, code: 'validation_error' })
+    expect(refused('last_contacted_at', ['contacts:read'], { after: 'not-a-cursor' })).toMatchObject({
+      status: 400,
+      code: 'validation_error',
+    })
     const cursor = Buffer.from(JSON.stringify(['last_contacted_at', 'asc', null, id(1)])).toString('base64url')
     expect(refused('last_contacted_at', ['contacts:read'], { after: cursor })).toMatchObject({ status: 403 })
   })
@@ -203,7 +225,10 @@ describe('unsorted lists are unchanged', () => {
     const p = await page({ limit: 2 })
     expect(p.data.map((r) => byId.get(r.id as string))).toEqual(['c01', 'c02'])
     expect(p.next_cursor).toBe(id(2))
-    expect((await page({ limit: 2, after: p.next_cursor! })).data.map((r) => byId.get(r.id as string))).toEqual(['c03', 'c04'])
+    expect((await page({ limit: 2, after: p.next_cursor! })).data.map((r) => byId.get(r.id as string))).toEqual([
+      'c03',
+      'c04',
+    ])
   })
   it('a non-UUID after is still refused without sort', () => {
     expect(() => listOperation(contacts, env(), { after: 'nope' } as never)).toThrow(/after/)
@@ -213,25 +238,56 @@ describe('unsorted lists are unchanged', () => {
 describe('query plan of a sorted list (D10)', () => {
   const planOf = async (op: Parameters<typeof compileOperation>[0]): Promise<string[]> => {
     const read = compileOperation(op, 'd1').reads[0]!
-    const rows = (await e.d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`).bind(...read.parameters).all()).results as Array<{ detail: string }>
+    const rows = (
+      await e
+        .d1!.prepare(`EXPLAIN QUERY PLAN ${read.sql}`)
+        .bind(...read.parameters)
+        .all()
+    ).results as Array<{ detail: string }>
     return rows.map((r) => r.detail)
   }
   const assertSearches = (plan: string[]) => {
     const text = plan.join('\n')
     for (const table of ['identities', 'interaction_participants', 'interactions']) {
       expect(text, `${table} is touched`).toMatch(new RegExp(`SEARCH ${table}\\b`))
-      expect(plan.filter((l) => new RegExp(`\\bSCAN ${table}\\b`).test(l)), `${table} is never scanned:\n${text}`).toEqual([])
+      expect(
+        plan.filter((l) => new RegExp(`\\bSCAN ${table}\\b`).test(l)),
+        `${table} is never scanned:\n${text}`,
+      ).toEqual([])
     }
     expect(text).toMatch(/SEARCH identities USING INDEX idx_identities_contact_id \(contact_id=\?\)/)
-    expect(text).toMatch(/SEARCH interaction_participants USING COVERING INDEX idx_interaction_participants_identity \(organization_id=\? AND identity_id=\?\)/)
+    expect(text).toMatch(
+      /SEARCH interaction_participants USING COVERING INDEX idx_interaction_participants_identity \(organization_id=\? AND identity_id=\?\)/,
+    )
     expect(text).toMatch(/SEARCH interactions USING INDEX \w+ \(organization_id=\? AND id=\?\)/)
   }
   it('a sorted first page and a sorted page behind a cursor (both directions) only SEARCH the three tables by index', async () => {
-    const cursor = (sort: string, order: string, value: string | null) => Buffer.from(JSON.stringify([sort, order, value, id(5)])).toString('base64url')
+    const cursor = (sort: string, order: string, value: string | null) =>
+      Buffer.from(JSON.stringify([sort, order, value, id(5)])).toString('base64url')
     for (const order of ['asc', 'desc']) {
-      assertSearches(await planOf(listOperation(contacts, env(), { sort: 'last_contacted_at', order, limit: 20 } as never)))
-      assertSearches(await planOf(listOperation(contacts, env(), { sort: 'last_interacted_at', order, limit: 20, after: cursor('last_interacted_at', order, T2) } as never)))
-      assertSearches(await planOf(listOperation(contacts, env(), { sort: 'last_contacted_at', order, limit: 20, after: cursor('last_contacted_at', order, null) } as never)))
+      assertSearches(
+        await planOf(listOperation(contacts, env(), { sort: 'last_contacted_at', order, limit: 20 } as never)),
+      )
+      assertSearches(
+        await planOf(
+          listOperation(contacts, env(), {
+            sort: 'last_interacted_at',
+            order,
+            limit: 20,
+            after: cursor('last_interacted_at', order, T2),
+          } as never),
+        ),
+      )
+      assertSearches(
+        await planOf(
+          listOperation(contacts, env(), {
+            sort: 'last_contacted_at',
+            order,
+            limit: 20,
+            after: cursor('last_contacted_at', order, null),
+          } as never),
+        ),
+      )
     }
   })
 })
@@ -239,13 +295,27 @@ describe('query plan of a sorted list (D10)', () => {
 describe('the mechanism beyond contacts (D8)', () => {
   const record = z.object({ id: z.uuid(), title: z.string(), shout: z.number().int().nullable().optional() })
   // title length, but null for a title of exactly four characters: a second derived field with nulls and ties.
-  const shout = { kind: 'integer', requires: [{ resource: 'notes', action: 'read' }], expression: (_qc: unknown, parent: (c: string) => unknown) => sql`case when length(${parent('title')}) = 4 then null else length(${parent('title')}) end` } as const
+  const shout = {
+    kind: 'integer',
+    requires: [{ resource: 'notes', action: 'read' }],
+    expression: (_qc: unknown, parent: (c: string) => unknown) =>
+      sql`case when length(${parent('title')}) = 4 then null else length(${parent('title')}) end`,
+  } as const
   const synthetic = () =>
-    definePreparedResource({ surface: 'api', name: 'tasks', eventName: 'task', table: 'tasks', record, derived: { shout }, sorts: ['shout'] } as never) as unknown as Parameters<typeof listOperation>[0]
+    definePreparedResource({
+      surface: 'api',
+      name: 'tasks',
+      eventName: 'task',
+      table: 'tasks',
+      record,
+      derived: { shout },
+      sorts: ['shout'],
+    } as never) as unknown as Parameters<typeof listOperation>[0]
   const taskId = (n: number) => `0190b2c4-0000-7000-8000-${String(n + 500).padStart(12, '0')}`
   const titles = ['aaaa', 'bb', 'bbbbbb', 'cc', 'dddd', 'eeeeee', 'f'] // lengths 4(null) 2 6 2 4(null) 6 1
   const names = new Map(titles.map((t, i) => [taskId(i + 1), `${i + 1}:${t}`]))
-  const run = async (raw: Raw, scopes = ['tasks:read', 'notes:read']) => (await e.run(listOperation(synthetic(), env(scopes), raw as never))).value as Page
+  const run = async (raw: Raw, scopes = ['tasks:read', 'notes:read']) =>
+    (await e.run(listOperation(synthetic(), env(scopes), raw as never))).value as Page
   async function walkTasks(raw: Raw, limit: number): Promise<string[]> {
     const out: string[] = []
     let after: string | undefined
@@ -280,13 +350,27 @@ describe('the mechanism beyond contacts (D8)', () => {
 
   it('a cursor of the synthetic sort does not fit another sort name or a wrong value type', async () => {
     const wrongType = Buffer.from(JSON.stringify(['shout', 'asc', 'two', taskId(1)])).toString('base64url')
-    expect(() => listOperation(synthetic(), env(['tasks:read', 'notes:read']), { sort: 'shout', after: wrongType } as never)).toThrow(/cursor/)
+    expect(() =>
+      listOperation(synthetic(), env(['tasks:read', 'notes:read']), { sort: 'shout', after: wrongType } as never),
+    ).toThrow(/cursor/)
   })
 
   it('a list that declares no sorts refuses sort and order exactly as before (an unknown filter)', async () => {
-    const plain = definePreparedResource({ surface: 'api', name: 'tasks', eventName: 'task', table: 'tasks', record: z.object({ id: z.uuid(), title: z.string() }) } as never) as unknown as Parameters<typeof listOperation>[0]
-    expect(() => listOperation(plain, env(['tasks:read']), { sort: 'title' } as never)).toThrow(/unknown filter: sort|sort/)
-    expect(() => listOperation(plain, env(['tasks:read']), { filters: { sort: 'title' } } as never)).toThrow(/unknown filter: sort/)
-    expect(() => listOperation(plain, env(['tasks:read']), { filters: { order: 'asc' } } as never)).toThrow(/unknown filter: order/)
+    const plain = definePreparedResource({
+      surface: 'api',
+      name: 'tasks',
+      eventName: 'task',
+      table: 'tasks',
+      record: z.object({ id: z.uuid(), title: z.string() }),
+    } as never) as unknown as Parameters<typeof listOperation>[0]
+    expect(() => listOperation(plain, env(['tasks:read']), { sort: 'title' } as never)).toThrow(
+      /unknown filter: sort|sort/,
+    )
+    expect(() => listOperation(plain, env(['tasks:read']), { filters: { sort: 'title' } } as never)).toThrow(
+      /unknown filter: sort/,
+    )
+    expect(() => listOperation(plain, env(['tasks:read']), { filters: { order: 'asc' } } as never)).toThrow(
+      /unknown filter: order/,
+    )
   })
 })

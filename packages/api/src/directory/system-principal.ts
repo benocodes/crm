@@ -18,9 +18,17 @@ export function systemPrincipalRead(qc: QueryContext): Read {
  * IS the minted one, so two racing first uses cannot both proceed (the loser drifts and its retry finds the winner's).
  * The caller labels the unit's first statement; nothing gated on `changes()` may directly follow the assertion.
  */
-export function systemPrincipalSteps(qc: QueryContext, found: Row | null, mint: string, now: string): { id: string; steps: Step[] } {
+export function systemPrincipalSteps(
+  qc: QueryContext,
+  found: Row | null,
+  mint: string,
+  now: string,
+): { id: string; steps: Step[] } {
   if (found) return { id: found.id as string, steps: [] }
-  const insert = qc.db.insertInto('principals').values({ id: mint, kind: 'system', created_at: now }).onConflict((oc) => oc.doNothing())
+  const insert = qc.db
+    .insertInto('principals')
+    .values({ id: mint, kind: 'system', created_at: now })
+    .onConflict((oc) => oc.doNothing())
   const holds = sql<SqlBool>`exists (select 1 from "principals" where "principals"."kind" = 'system' and "principals"."id" = ${mint})`
   return { id: mint, steps: [step(insert), assertStep(qc, holds)] }
 }
