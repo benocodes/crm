@@ -14,20 +14,31 @@ import { controlStdout, countsFacts, crmStdout, isReadOnlySql, sweepReadOf } fro
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf-8')
 const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
+/** An env block with no `CONTROL_DB` entry: refused by every remote script ([[CORE326]] P4). */
 const config = {
   name: 'vault-smoked1',
   d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }],
 }
+const CONTROL_ID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+const paired = {
+  ...config,
+  d1_databases: [
+    ...config.d1_databases,
+    { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_ID, remote: true },
+  ],
+}
+const CONTROL_CURRENT = JSON.stringify([{ results: CONTROL_MIGRATIONS.map((name) => ({ name: name.name })), success: true }])
 
-function deps(stdout: string, calls: string[] = []): StatusDeps & { out: string[] } {
+/** `stdout` is the CRM tracker; the control database is current. */
+function deps(stdout: string, calls: string[] = [], cfg: object = paired): StatusDeps & { out: string[] } {
   const out: string[] = []
   return {
     out,
     loadEnv: () => void calls.push('loadEnv'),
-    readConfig: () => config,
+    readConfig: () => cfg as never,
     exec: (cmd) => {
       calls.push(cmd.args.join(' '))
-      return { status: 0, stdout }
+      return { status: 0, stdout: cmd.args.includes('CONTROL_DB') ? CONTROL_CURRENT : stdout }
     },
     log: (l) => void out.push(l),
   }
@@ -47,7 +58,7 @@ describe('db:status:remote guards (same as db:migrate:remote)', () => {
     expect(calls).toEqual([])
   })
   it('refuses the local top-level config', () => {
-    const d = { ...deps('[]'), readConfig: () => ({ ...config, name: 'vb' }) }
+    const d = { ...deps('[]'), readConfig: () => ({ ...paired, name: 'vb' }) as never }
     expect(() => runStatus(['--env', 'nope'], { CONFIRM_REMOTE: '1' }, d)).toThrow('unknown env nope')
   })
   it('reads through wrangler d1 execute --remote --json for the named env', () => {
@@ -115,7 +126,6 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
   const rows = (names: string[]) => JSON.stringify([{ results: names.map((name) => ({ name })), success: true }])
   const CONTROL = CONTROL_MIGRATIONS.map((m) => m.name)
   const controlOutput = {
-    none: null,
     unknown: fixture('d1-execute-missing-table.json'),
     behind: rows([]),
     current: rows(CONTROL),
@@ -134,7 +144,7 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
     }
     const d: StatusDeps = {
       loadEnv: () => {},
-      readConfig: () => (control === 'none' ? config : withControl),
+      readConfig: () => withControl,
       exec: (cmd) => {
         calls.push(cmd.args.join(' '))
         return { status: 0, stdout: cmd.args.includes('CONTROL_DB') ? controlOutput[control]! : crmOutput[crm] }
@@ -144,24 +154,33 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
     const code = runStatus(['--env', 'smoked1'], { CONFIRM_REMOTE: '1' }, d)
     return { code, out: out.join('\n'), calls }
   }
-  const cases = (['none', 'unknown', 'behind', 'current', 'ahead'] as const).flatMap((c) =>
+  const cases = (['unknown', 'behind', 'current', 'ahead'] as const).flatMap((c) =>
     (['current', 'behind'] as const).map((m) => [c, m] as const),
   )
   it.each(cases)('control %s x crm %s', (control, crm) => {
     const r = run(control, crm)
-    const ok = (control === 'none' || control === 'current') && crm === 'current'
+    const ok = control === 'current' && crm === 'current'
     expect(r.code).toBe(ok ? 0 : 1)
     if (crm === 'behind') expect(r.out).toMatch(/\[crm\] migrations: behind/)
     if (crm === 'current') expect(r.out).toMatch(/\[crm\] migrations: current/)
-    if (control === 'none') {
-      expect(r.out).toContain('control plane: not configured for env smoked1')
-      expect(r.calls.some((c) => c.includes('CONTROL_DB'))).toBe(false)
-    } else {
-      expect(r.out).toContain(`[control] migrations: ${control}`)
-      expect(
-        r.calls.some((c) => c.includes('CONTROL_DB') && c.includes('--remote') && c.includes('--env smoked1')),
-      ).toBe(true)
+    expect(r.out).toContain(`[control] migrations: ${control}`)
+    expect(
+      r.calls.some((c) => c.includes('CONTROL_DB') && c.includes('--remote') && c.includes('--env smoked1')),
+    ).toBe(true)
+  })
+  it('an env without a CONTROL_DB entry is refused before any wrangler call, naming setup:remote ([[CORE326]] P4)', () => {
+    const calls: string[] = []
+    const d = deps(fixture('d1-execute-migrations.json'), calls, config)
+    let err: unknown
+    try {
+      runStatus(['--env', 'smoked1'], { CONFIRM_REMOTE: '1' }, d)
+    } catch (e) {
+      err = e
     }
+    expect(err).toBeInstanceOf(RemoteRefusal)
+    expect((err as Error).message).toContain('setup:remote --env smoked1')
+    expect(calls.filter((c) => c !== 'loadEnv')).toEqual([])
+    expect(d.out).toEqual([])
   })
   it('the control database with no d1_migrations table is unknown, not current (the empty state)', () => {
     const r = run('unknown', 'current')

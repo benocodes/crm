@@ -1,6 +1,5 @@
 // OPS275: the instance tooling for both databases: `status` per database (the matrix), the gate's control refusals, and `upgrade`'s order and failures.
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { controlNotConfigured } from '../remote.js'
 import { runStatus } from './status.js'
 import { runUpgrade } from './upgrade.js'
 import {
@@ -33,17 +32,15 @@ const json = (status: number, body: unknown) =>
 const writes = (w: World) => w.wrangler.filter((c) => c.args[0] !== 'd1' || c.args[1] !== 'execute')
 
 describe('OPS275 status per database (the matrix)', () => {
-  const run = async (control: Tracker | 'absent', crm: Tracker, version = '0.1.0') => {
+  const run = async (control: Tracker, crm: Tracker, version = '0.1.0') => {
     const w = makeWorld({
-      settings: control === 'absent' ? validSettings() : controlSettings(),
+      settings: controlSettings(),
       health: () => json(200, { ...HEALTH, version }),
       runner: (args) => answer(bindingOf(args) === 'CONTROL_DB' ? (control as Tracker) : crm),
     })
     return { w, code: await runStatus(['--env', 'demo'], w.deps) }
   }
-  const matrix: [Tracker | 'absent', Tracker, number][] = [
-    ['absent', CRM_ALL, 0],
-    ['absent', ['0001_a.sql'], 1],
+  const matrix: [Tracker, Tracker, number][] = [
     [CONTROL_ALL, CRM_ALL, 0],
     [CONTROL_ALL, ['0001_a.sql'], 1],
     ['none', CRM_ALL, 1],
@@ -60,14 +57,9 @@ describe('OPS275 status per database (the matrix)', () => {
       expect(code).toBe(exit)
       expect(writes(w)).toEqual([])
       const out = w.out.join('\n')
-      expect(out.includes(controlNotConfigured('demo'))).toBe(control === 'absent')
       if (exit === 2) {
         expect(w.err.join('\n')).toMatch(/control database/)
         expect(w.err.join('\n')).toMatch(/0003_x\.sql|0009_zzz\.sql/)
-        return
-      }
-      if (control === 'absent') {
-        expect(out).not.toMatch(/\[control\]|\[crm\]/)
         return
       }
       const behind = control === 'none' || (control as string[]).length < CONTROL_ALL.length
@@ -99,6 +91,27 @@ describe('OPS275 status per database (the matrix)', () => {
   it('a live version that differs is exit 1 even when both databases are current', async () => {
     expect((await run(CONTROL_ALL, CRM_ALL, '0.0.9')).code).toBe(1)
   })
+})
+
+// [[CORE326]] P5: `control_d1` is required; setup (the one command that still loads such settings) is in setup-control.test.ts.
+describe('settings without control_d1 are refused before any wrangler call', () => {
+  const providers = [
+    ['unset', { AUTH_PROVIDER: '' }],
+    ['clerk', { AUTH_PROVIDER: 'clerk' }],
+    ['better-auth', { AUTH_PROVIDER: 'better-auth' }],
+  ] as const
+  for (const [name, vars] of providers) {
+    for (const command of ['status', 'upgrade'] as const) {
+      it(`${command} with AUTH_PROVIDER ${name}: exit 2, naming vibase-server setup --env demo, zero wrangler calls`, async () => {
+        const w = makeWorld({ settings: validSettings({ vars }), processEnv: { CONFIRM_REMOTE: '1' } })
+        const code = await (command === 'status' ? runStatus : runUpgrade)(['--env', 'demo'], w.deps)
+        expect(code).toBe(2)
+        expect(w.err.join('\n')).toContain('vibase-server setup --env demo')
+        expect(w.wrangler).toEqual([])
+        expect(w.fetchUrls).toEqual([])
+      })
+    }
+  }
 })
 
 describe('OPS275 gate refusals reach no write', () => {
@@ -215,13 +228,6 @@ describe('OPS275 upgrade order and failure', () => {
     expect(await runUpgrade(['--env', 'demo'], w.deps)).toBe(3)
     expect(w.err.join('\n')).toMatch(/tracker check control failed.*behind/)
     expect(steps(w).filter((x) => x === 'apply:DB' || x === 'deploy:')).toEqual([])
-  })
-  it('without control_d1 the crm path is as before, plus the P1 line', async () => {
-    const w = worldFor({ control: 'none', crm: [], deployed: false }, { settings: validSettings() })
-    expect(await runUpgrade(['--env', 'demo'], w.deps)).toBe(0)
-    expect(steps(w)).toEqual(['read:DB', 'apply:DB', 'read:DB', 'deploy:'])
-    expect(w.out.join('\n')).toContain(controlNotConfigured('demo'))
-    expect(JSON.parse(w.wrangler[0]!.configText!).d1_databases).toHaveLength(1)
   })
   it('--dry-run records no write', async () => {
     const w = worldFor({ control: 'none', crm: [], deployed: false })

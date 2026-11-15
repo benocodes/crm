@@ -80,69 +80,51 @@ describe('the control gate matrix (D6, D7)', () => {
     'other organisation': { status: 500, body: INTERNAL, log: /control database not paired/ },
   }
 
-  for (const control of CONTROLS) {
-    it(`better-auth with the control database ${control}: ${control === 'paired' ? 'served' : `${refusal[control].status} on every non-health request`}, /health 200`, async () => {
-      const worker = composeD1Worker(await envFor('better-auth', control))
-      const health = await call(worker, '/health')
-      expect(health.status).toBe(200)
-      for (const path of ['/api/v1/contacts', '/auth/ok', '/meta/v1/schema']) {
-        const res = await call(worker, path)
-        if (control === 'paired') {
-          expect(res.status, path).not.toBe(500)
-          expect(res.status, path).not.toBe(503)
-          continue
-        }
-        const want = refusal[control]
-        expect(res.status, `${control} ${path}`).toBe(want.status)
-        expect(await res.json(), `${control} ${path}`).toEqual(want.body)
-      }
-      expect(logged()).toMatch(control === 'paired' ? /^$/ : refusal[control].log)
-      if (control === 'paired') {
-        expect((await call(worker, '/auth/ok')).status).toBe(200)
-        expect((await call(worker, '/api/v1/contacts')).status).toBe(401)
-      }
-    })
-  }
-
-  for (const provider of ['clerk', 'unset'] as const) {
+  // [[CORE326]] P1: the same gate on every provider; `/auth/*` is a route only for better-auth.
+  for (const provider of PROVIDERS) {
     for (const control of CONTROLS) {
-      it(`${provider} with the control database ${control}: served as without it (CONTROL_DB is never read)`, async () => {
-        const env = await envFor(provider, control)
-        // A control binding that throws on any touch: if the Worker read it, the request would not be served.
-        const touched: string[] = []
-        const trap = {
-          prepare: (q: string) => (
-            touched.push(q),
-            (() => {
-              throw new Error('CONTROL_DB was read')
-            })()
-          ),
-          batch: () => {
-            throw new Error('CONTROL_DB was read')
-          },
-        } as unknown as D1Like
-        const worker = composeD1Worker(env.CONTROL_DB ? { ...env, CONTROL_DB: trap } : env)
-        expect((await call(worker, '/health')).status).toBe(200)
-        const res = await call(worker, '/api/v1/contacts')
-        expect(res.status).toBe(401)
-        expect(touched).toEqual([])
-        expect(logged()).not.toMatch(/CONTROL_DB|control database/)
+      it(`${provider} with the control database ${control}: ${control === 'paired' ? 'served' : `${refusal[control].status} on every non-health request`}, /health 200`, async () => {
+        const worker = composeD1Worker(await envFor(provider, control))
+        const health = await call(worker, '/health')
+        expect(health.status).toBe(200)
+        const paths = ['/api/v1/contacts', '/meta/v1/schema', ...(provider === 'better-auth' ? ['/auth/ok'] : [])]
+        for (const path of paths) {
+          const res = await call(worker, path)
+          if (control === 'paired') {
+            expect(res.status, path).not.toBe(500)
+            expect(res.status, path).not.toBe(503)
+            continue
+          }
+          const want = refusal[control]
+          expect(res.status, `${control} ${path}`).toBe(want.status)
+          expect(await res.json(), `${control} ${path}`).toEqual(want.body)
+        }
+        expect(logged()).toMatch(control === 'paired' ? /^$/ : refusal[control].log)
+        if (control === 'paired') {
+          if (provider === 'better-auth') expect((await call(worker, '/auth/ok')).status).toBe(200)
+          expect((await call(worker, '/api/v1/contacts')).status).toBe(401)
+        }
       })
     }
   }
 
-  it('the OpenAPI documents stay exempt from the control gate, as they are from the CRM migration and marker gates', async () => {
-    const worker = composeD1Worker(await envFor('better-auth', 'no marker'))
-    for (const path of [openApiPath('api'), openApiPath('meta')])
-      expect((await call(worker, path)).status, path).toBe(200)
-  })
+  for (const provider of PROVIDERS)
+    it(`${provider}: the OpenAPI documents stay exempt from the control gate (no marker), as they are from the CRM migration and marker gates; a missing binding is not exempt`, async () => {
+      const worker = composeD1Worker(await envFor(provider, 'no marker'))
+      for (const path of [openApiPath('api'), openApiPath('meta')])
+        expect((await call(worker, path)).status, path).toBe(200)
+      const none = composeD1Worker(await envFor(provider, 'absent'))
+      for (const path of [openApiPath('api'), openApiPath('meta')])
+        expect((await call(none, path)).status, path).toBe(500)
+    })
 
-  it('CRM not initialised: 503 not_initialised (nothing to pair with yet), not the not-paired 500', async () => {
+  for (const provider of PROVIDERS)
+  it(`${provider}: CRM not initialised: 503 not_initialised (nothing to pair with yet), not the not-paired 500`, async () => {
     const fresh = await openLocalD1(['F'])
     try {
-      const env = { ...(await envFor('better-auth', 'no marker')), DB: fresh.bindings.F! }
+      const env = { ...(await envFor(provider, 'no marker')), DB: fresh.bindings.F! }
       const worker = composeD1Worker(env)
-      for (const path of ['/auth/ok', '/api/v1/contacts']) {
+      for (const path of ['/api/v1/contacts']) {
         const res = await call(worker, path)
         expect(res.status, path).toBe(503)
         expect(await res.json(), path).toEqual(NOT_INITIALISED)
@@ -176,6 +158,45 @@ describe('the control gate matrix (D6, D7)', () => {
     await recordMigrations(w.control, ['9999_future.sql'])
     expect((await call(composeD1Worker(await envFor('better-auth', 'no marker')), '/auth/ok')).status).toBe(200)
   })
+})
+
+describe('clerk and unset: behind and ahead control trackers (P1)', () => {
+  // The behind test empties the tracker; a failing run must not leak that into the next file's rows.
+  afterEach(async () => {
+    await w.control.prepare('delete from d1_migrations').run()
+    await recordMigrations(
+      w.control,
+      CONTROL_MIGRATIONS.map((m) => m.name),
+    )
+  })
+  for (const provider of ['clerk', 'unset'] as const) {
+    it(`${provider}: a behind control tracker is 503 migrations_pending, re-read; ahead is served`, async () => {
+      await writeControlMarker(openControlDb(w.control), orgId)
+      await w.control.prepare('delete from d1_migrations').run()
+      let now = 1_000_000
+      const env = { ...(await envFor(provider, 'paired')) }
+      const worker = composeD1Worker(env, { nowMs: () => now })
+      const res = await call(worker, '/api/v1/contacts')
+      expect(res.status).toBe(503)
+      expect(await res.json()).toEqual(MIGRATIONS_PENDING)
+      await recordMigrations(
+        w.control,
+        CONTROL_MIGRATIONS.map((m) => m.name),
+      )
+      await recordMigrations(w.control, ['9999_future.sql'])
+      now += 6_000
+      expect((await call(worker, '/api/v1/contacts')).status).toBe(401)
+    })
+    it(`${provider}: a refusal is never cached, a held pairing is (marker read once)`, async () => {
+      const spy = spyD1(w.control)
+      const env = { ...(await envFor(provider, 'no marker')), CONTROL_DB: spy.d1 }
+      const worker = composeD1Worker(env)
+      expect((await call(worker, '/api/v1/contacts')).status).toBe(500)
+      await writeControlMarker(openControlDb(w.control), orgId)
+      for (let i = 0; i < 3; i++) expect((await call(worker, '/api/v1/contacts')).status).toBe(401)
+      expect(spy.log.statements.filter((s) => /control_deployment/.test(s)).length).toBe(2)
+    })
+  }
 })
 
 describe('the marker check and the per-isolate cache (D7, decision)', () => {

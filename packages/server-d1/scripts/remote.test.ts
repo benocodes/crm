@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -11,6 +11,7 @@ import {
   migrateCommands,
   parseEnvFlag,
   requireConfirm,
+  requireControlTarget,
   resolveTarget,
 } from './remote.js'
 
@@ -46,6 +47,40 @@ describe('the control placeholder ([[CORE259]])', () => {
       }
       refusal(() => resolveTarget(config, 'smoked1'), 'CONTROL_DB still has a placeholder database_id')
     }
+  })
+})
+
+describe('requireControlTarget ([[CORE326]] P4)', () => {
+  const withControl = {
+    ...good,
+    d1_databases: [
+      ...good.d1_databases,
+      { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: OTHER, remote: true },
+    ],
+  }
+  it('an env without a CONTROL_DB entry is refused, naming setup:remote --env <name>', () => {
+    refusal(() => requireControlTarget(good, 'smoked1'), 'setup:remote --env smoked1')
+  })
+  it('an env with one resolves like resolveTarget, with the control target present', () => {
+    expect(requireControlTarget(withControl, 'smoked1').control).toEqual({
+      databaseName: 'vb-control-smoked1',
+      databaseId: OTHER,
+    })
+  })
+  it('the other guards still apply first (the local top level is unknown)', () => {
+    refusal(() => requireControlTarget({ ...withControl, name: 'vb' }, 'nope'), 'unknown env nope')
+  })
+  it('no script prints a CRM-only line: the not-configured wording is in no non-test script source', () => {
+    const dirs = ['.', 'instance', 'setup']
+    const here = new URL('.', import.meta.url).pathname
+    const offenders: string[] = []
+    for (const d of dirs)
+      for (const f of readdirSync(here + d)) {
+        if (!f.endsWith('.ts') || f.endsWith('.test.ts') || f === 'remote.test.ts') continue
+        const text = readFileSync(`${here}${d}/${f}`, 'utf8')
+        if (/control plane: not configured|\(CRM only\)|controlNotConfigured/.test(text)) offenders.push(`${d}/${f}`)
+      }
+    expect(offenders).toEqual([])
   })
 })
 
