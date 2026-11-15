@@ -131,7 +131,6 @@ class CountingAgent extends http.Agent {
   peakOpen = 0
   readonly live = new Set<import('node:net').Socket>()
   override createConnection(options: unknown, cb?: unknown): import('node:net').Socket {
-    // biome-ignore lint/suspicious/noExplicitAny: Node's Agent typings leave createConnection's signature open
     const socket = (super.createConnection as any)(options, cb) as import('node:net').Socket
     this.opened++
     this.open++
