@@ -244,7 +244,8 @@ describe('the docs name only what the programs have (D20, P4)', () => {
 // [[OPS306]] obligation 6 (D13, cycle 1's part): the install docs describe Better Auth as the default path and say what the program says.
 const read = (url: string) => readFileSync(fileURLToPath(new URL(url, import.meta.url)), 'utf8')
 const README = () => read('../../README.md')
-const AGENTS = () => read('../../../../AGENTS.md')
+// The release and remote command lines moved from AGENTS.md to the ship-branch skill's command reference (#332).
+const COMMANDS = () => read('../../../../.agents/skills/ship-branch/SKILL.md')
 const FREE_PLAN =
   "one password hash may exceed the Workers Free plan's 10 ms CPU limit; Workers Paid is the safe plan for password sign-in until it is measured on Cloudflare"
 const has = (md: string, text: string) =>
@@ -326,15 +327,15 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
       )
     }
   })
-  it('AGENTS.md lists the owner-reset command line', () => {
-    const line = AGENTS()
+  it('the ship-branch command reference lists the owner-reset command line', () => {
+    const line = COMMANDS()
       .split('\n')
       .find((l) => l.includes('bootstrap -- --remote --env <name> --owner-reset'))
     expect(line).toBeDefined()
     expect(line).toContain('vibase-server owner-reset --env <name>')
   })
-  it('AGENTS.md: setup:remote takes [--auth better-auth|clerk|none] and says better-auth is the default for a new instance', () => {
-    const line = AGENTS()
+  it('the ship-branch command reference: setup:remote takes [--auth better-auth|clerk|none] and says better-auth is the default for a new instance', () => {
+    const line = COMMANDS()
       .split('\n')
       .find((l) => l.includes('setup:remote -- --env <name>'))!
     expect(line).toContain('[--auth better-auth|clerk|none]')
@@ -362,10 +363,10 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
     for (const w of ['sign in again', 'vibase login', 'reconnect', 'redirect URI']) expect(has(md, w), w).toBe(true)
     expect(body.length).toBeGreaterThan(0)
   })
-  it("the server-d1 README has the no-domain path and the move, and AGENTS.md's setup:remote line takes the host flag pair", () => {
+  it("the server-d1 README has the no-domain path and the move, and the ship-branch command reference's setup:remote line takes the host flag pair", () => {
     expect(README()).toMatch(/--workers-dev/)
     expect(README()).toMatch(/--change-host/)
-    const line = AGENTS()
+    const line = COMMANDS()
       .split('\n')
       .find((l) => l.includes('setup:remote -- --env <name>'))!
     expect(line).toContain(USAGE)

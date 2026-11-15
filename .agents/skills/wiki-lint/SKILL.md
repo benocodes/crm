@@ -1,6 +1,6 @@
 ---
 name: wiki-lint
-description: Health-check the repo's knowledge layer — AGENTS.md, .agents/skills/, and the nested knowledge/ repo (specs, architecture, project-state) — for dead paths, contradictions, stale spec statuses, seq-prefixed spec references, shipped-but-unrecorded specs, broken wiki-links and a sprint that should have been closed. Run periodically, after a burst of shipped cycles, or when something in the knowledge layer smells stale. Reports findings ranked by severity; fixes only the mechanical ones.
+description: Health-check the repo's knowledge layer — AGENTS.md, .agents/skills/, and the nested knowledge/ repo (specs, architecture, project-state) — for dead paths, contradictions, stale spec statuses, seq-prefixed spec references, shipped-but-unrecorded specs, broken wiki-links, a sprint that should have been closed, and an AGENTS.md that has grown past its size budget. Run periodically, after a burst of shipped cycles, or when something in the knowledge layer smells stale. Reports findings ranked by severity; fixes only the mechanical ones.
 ---
 
 # Wiki Lint
@@ -138,6 +138,30 @@ The `board` skill holds the project board's IDs. If a skill hard-codes a board I
 that disagrees with it, report it. If `gh project field-list` (see the `board` skill) no longer matches the file,
 the IDs have rotted: re-derive them.
 
+### 10. Size and accretion
+
+`AGENTS.md` is loaded into every agent session, so every word in it is paid for on every run. Agents add
+clauses and rarely remove one; this check is the counterweight.
+
+```bash
+wc -w AGENTS.md                                           # budget: 4,000 words
+awk '{ if (NF > 120) print "LONG: line " NR " (" NF " words)" }' AGENTS.md
+grep -nE '\*\*(Extended|Exception|Standing exception)[^*]*\((user, )?20[0-9]{2}-' AGENTS.md
+```
+
+- **Over the budget:** move detail to the skill that owns the topic and leave the rule plus a pointer. The
+  precedents (#332): invariant 5's list of event-less writes lives in `api-routes`, the release and
+  remote commands in `ship-branch`, the E2E scripts in `writing-tests`. Raise the budget only when the user
+  says so.
+- **A line over 120 words** is a list that grew inside a sentence. Turn it into a table or bullets, in the
+  skill if it is detail.
+- **Dated rulings appended to a rule** (`**Extended (user, <date>)**` and the like): a rule is stated once, as
+  it stands today, with its ruling dates in one closing line. Merge the chain into one statement. Environment
+  permissions go in `AGENTS.md`'s "Environments" section and nowhere else.
+
+Consolidating changes wording, never authority: the merged rule must grant and forbid exactly what the chain
+did. Where two rulings contradict each other, report it and let the user rule; do not pick one.
+
 ---
 
 ## Reporting and fixing
@@ -145,6 +169,8 @@ the IDs have rotted: re-derive them.
 1. **Fix mechanically, in place:** dead references where the target clearly moved (1), seq-prefixed IDs
    (4), dangling links with an obvious target (6), skill-list drift (7).
 2. **Fix after reading the source of truth:** contradictions (2) and statuses (3).
+   Size and accretion (10) too: move or merge the text, and show the before and after in the summary so the user can
+   confirm that no permission changed.
 3. **Report as a backlog, don't write speculatively:** unrecorded specs (5), board drift (9).
 
 Finish with a summary: findings by check, what was fixed, what remains as backlog. Zero findings is a

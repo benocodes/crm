@@ -122,47 +122,60 @@ Next Action) and tells the user before any of these, and never works around one:
 
 - **money or external accounts:** creating paid or external accounts or resources (Google Cloud, Neon,
   Clerk, Cloudflare resources, the Chrome Web Store, domains);
-- **production:** a deploy, or a migration against a production database;
-  **Standing exception, `smoked1` (user, 2026-10-28):** the internal single-org D1 instance
-  (`--env smoked1`, Worker `vault-smoked1`, `api.smoked1.vibase.ai`) is the agents' own; they may deploy
-  and migrate it without stopping, through the guarded `deploy:remote` / `db:migrate:remote` scripts.
-  **Extended (user, 2026-11-13, [[OPS250]]):** agents may also generate and set `smoked1`'s own
-  `AUTH_SECRET` (Better Auth, [[CORE243]]) as a Worker secret; the value lives only in the gitignored
-  `.env.smoked1` or the macOS keychain, is never printed, logged or committed, and may be regenerated (it
-  signs everyone out of `smoked1`).
-  **Extended (user, 2026-11-13, [[CORE259]], [[OPS262]]):** agents may also create `smoked1`'s resources under
-  the `vb-` naming (databases `vb-crm-smoked1` and `vb-control-smoked1`, the Worker `vb-smoked1`, and its
-  queues, workflows and buckets named `vb-<kind>-smoked1`), apply the control-plane migrations to them, and
-  move `smoked1` onto them (the rename and the Better Auth cutover, [[OPS250]]). Deleting the old
-  `vault-smoked1` resources, DNS and custom-domain changes stay hard stops until the user confirms them. New
-  installs and every new resource anywhere use `vb-<kind>-<env>` names; `hq` keeps its `vault-hq` names unless
-  the user says otherwise, and no code may hard-code a `vault` prefix.
-  **Extended (user, 2026-11-14, [[CORE294]]):** agents may also set Worker secrets on `smoked1` (Worker
-  `vb-smoked1`, `wrangler secret put --env smoked1`, or the guarded setup scripts) from values in the gitignored
-  `.env.smoked1` (for example `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET`). The values are read from that
-  file only, never printed, logged, committed or put on a command line (pipe them on stdin); `.env.hq` and
-  `.env.hq-staging` are not a source for this (the user copies a value into `.env.smoked1` first).
-  Creating resources beyond it, DNS, Clerk, and any other environment stay hard stops.
-  **Standing exception, Clerk dev instance (user, 2026-11-02):** the Clerk *development* instance whose
-  keys are in the gitignored `.env.dev` (`sk_test_`/`pk_test_`, `CLERK_JWT_KEY`, `CLERK_FRONTEND_API_URL`)
-  is the agents' own for tests and E2E: they may configure it (session-token claims such as `vibase_role`,
-  OAuth applications, device grant, dynamic client registration) and create and delete test users on it.
-  The root `.env` holds **live** Clerk keys: never use them in tests, E2E or scripts. Any other Clerk
-  instance stays a hard stop.
-  **The Vibase team instance (`hq`, 2026-11-03):** production is `--env hq` (Worker `vault-hq`,
-  `api.hq.vibase.ai`), a later staging copy is `--env hq-staging` (`api.hq-staging.vibase.ai`). Their Clerk
-  keys live in the gitignored `.env.hq` and `.env.hq-staging`; agents never source or print those
-  files, and may not use them in tests, E2E or scripts. **Exception (user, 2026-11-03):** an agent working
-  directly with the user may read `.env.hq` to check that it is well formed and fix its formatting
-  (escape newlines in PEM keys, quoting, stray whitespace); it masks every value in anything it prints, and
-  never commits, copies or sends the file. Every deploy, migration or Clerk change on either env is a hard stop (the `smoked1` and
-  Clerk-dev exceptions above do not extend to them).
+- **production:** a deploy, a migration, a secret or a provider (Clerk) change on a deployed environment,
+  except what **Environments** below grants on the agents' own instances;
 - **public announcements:** releases, posts, emails or messages to people outside the repo;
 - **irreversible data changes:** dropping any database other than the vault's own test databases,
   force-pushing, deleting branches the sprint didn't create.
 
 It also stops when the fix loop exhausts its two coder rounds, when an agent is blocked on something no other
 agent can resolve, and when the sprint is finished.
+
+### Environments
+
+What agents may do on each deployed environment. Anything not granted here is a hard stop. This section is
+the one current statement of the rules: a new ruling from the user is merged into it, never appended as
+another dated paragraph.
+
+| Environment | What it is | Agents may | Keys |
+|---|---|---|---|
+| `smoked1` | the agents' own single-organisation D1 instance: `--env smoked1`, `api.smoked1.vibase.ai`, Worker `vault-smoked1` until it moves to `vb-smoked1` ([[OPS250]]) | deploy, migrate, set secrets and create its `vb-` resources, as listed below | `.env.smoked1` |
+| Clerk dev instance | the Clerk *development* instance (`sk_test_`/`pk_test_`, `CLERK_JWT_KEY`, `CLERK_FRONTEND_API_URL`) | configure it and create and delete test users, for tests and E2E, as listed below | `.env.dev` |
+| `hq` | the Vibase team's production instance: `--env hq`, Worker `vault-hq`, `api.hq.vibase.ai` | nothing: every deploy, migration or Clerk change is a hard stop | `.env.hq`, never sourced or printed |
+| `hq-staging` | a later staging copy of `hq`: `--env hq-staging`, `api.hq-staging.vibase.ai` | nothing, as for `hq` | `.env.hq-staging`, never sourced or printed |
+| anything else | any other environment or Clerk instance | nothing: a hard stop | none |
+
+All of these files are gitignored. The root `.env` holds **live** Clerk keys: never use them in tests, E2E or
+scripts.
+
+**`smoked1`.** Agents may, without stopping:
+
+- deploy and migrate it, through the guarded `deploy:remote` / `db:migrate:remote` scripts, and run the other
+  remote commands against it (`db:status:remote`, `setup:remote`, `owner-reset`, `vibase-server status`);
+- create its resources under the `vb-` naming (databases `vb-crm-smoked1` and `vb-control-smoked1`, the Worker
+  `vb-smoked1`, and its queues, workflows and buckets named `vb-<kind>-smoked1`), apply the control-plane
+  migrations to them, and move `smoked1` onto them (the rename and the Better Auth cutover, [[OPS250]]);
+- set Worker secrets on whichever Worker serves it (`wrangler secret put --env smoked1`, or the guarded setup
+  scripts), for example `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET`, and generate, set or
+  regenerate its own `AUTH_SECRET` (Better Auth, [[CORE243]]; regenerating signs everyone out of `smoked1`).
+
+Secret values come only from the gitignored `.env.smoked1` or the macOS keychain, are piped on stdin, and are
+never printed, logged, committed or put on a command line. `.env.hq` and `.env.hq-staging` are never a source:
+the user copies a value into `.env.smoked1` first.
+
+Still hard stops on `smoked1`, until the user confirms each: deleting the old `vault-smoked1` resources, DNS
+and custom-domain changes, and creating any resource not listed above.
+
+(User rulings: 2026-10-28, 2026-11-13, 2026-11-14; [[OPS250]], [[CORE259]], [[OPS262]], [[CORE294]].)
+
+**Clerk dev instance.** It is the agents' own for tests and E2E: they may configure it (session-token claims
+such as `vibase_role`, OAuth applications, device grant, dynamic client registration) and create and delete
+test users on it. (User ruling: 2026-11-02.)
+
+**`hq` and `hq-staging`.** Agents may not use their env files in tests, E2E or scripts. One exception: an
+agent working directly with the user may read `.env.hq` to check that it is well formed and fix its formatting
+(escape newlines in PEM keys, quoting, stray whitespace); it masks every value in anything it prints, and
+never commits, copies or sends the file. (User ruling: 2026-11-03.)
 
 ## Identities
 
@@ -214,26 +227,23 @@ pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need 
 pnpm -C packages/api golden:generate               # and golden:check; goldens generated on D1 (Miniflare), review the fixture diff
 pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner; `--auth-provider better-auth --public-base-url <url> [--auth-org-id <label>]` creates no human and seeds `vibase-cli` in the control database (CORE283)
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the /connect page first
-pnpm release:build [--allow-dirty]                 # the two release packages in packages/release/dist/: vibase-cli-<version>.tgz (@vibase/cli, bin `vibase`) and vibase-server-d1-<version>.tgz (@vibase/server-d1, bin `vibase-server`) plus one SHA256SUMS (OPS210, OPS240); refuses a dirty tree unless --allow-dirty (commit <sha>-dirty); nothing published; not in the gate
-pnpm release:check [<cli tarball> <server tarball>]  # verifies and scans both tarballs, npm-installs each into its own directory outside the repo (public registry read), runs the installed `vibase` and `vibase-server`, `npm exec --package`, the exports, the migrations and the Worker in workerd; not in the gate
-.github/workflows/release.yml                    # OPS237: `workflow_dispatch` or a `v*` tag runs install, the gate, release:build, release:check and uploads both tarballs and SHA256SUMS (7 days); a tag equal to the version of packages/cli and packages/server-d1 (a changesets `fixed` group, OPS210 D1/D25) then makes a DRAFT GitHub Release (never npm, never published); agents never push the tag, publish the draft or run it except the one post-merge dispatch on main (`pnpm release:ci tag|assets` are its checks). `.github/workflows/version.yml` (push to main) opens the Version Packages PR only; the user merges it
-pnpm changeset                                     # add a changeset (a `.changeset/*.md`); a PR that changes what `@vibase/cli` or `@vibase/server-d1` ships adds one (OPS210 D25; the PR check is #264); agents never run `changeset publish`, `changeset version` outside a scratch copy, or merge the Version Packages PR
-npx @vibase/server-d1@<version> status --env <name> [--settings <p>] [--secrets-file <p>]  # or `vibase-server status ...` once installed; the server package's bin, never the client's (OPS240; `vibase instance ...` only prints this redirect): verify, settings ~/.config/vibase/instances/<env>.json + <env>.env (mode 600), /health and a read-only tracker select; exit 0 current, 1 behind, 2 refused; reads a remote env, so agents run it only where that env is theirs (same for `upgrade` and `setup`; before a registry publish: `npx --package ./vibase-server-d1-<version>.tgz vibase-server status ...`)
 pnpm -C packages/server-d1 build                   # the connect page (UI30) into dist/assets/connect/; `dev` runs it before `wrangler dev --local`
 pnpm -C packages/ui test                          # @vibase/ui component suites under Preact (`ui-preact`) and React (`ui-react`) plus its node-side suites (UI254); component suites are `*.ui.test.tsx`, never run by the root shared projects
-pnpm -C packages/ui e2e:gallery                   # builds the test-only gallery, serves it on localhost, Playwright screenshots per state in light/dark (forced and emulated) into the gitignored packages/ui/e2e-screenshots/, axe zero violations, keyboard order; not in the gate. If `playwright install chromium` fails (it does on the dev Mac), run with E2E_BROWSER_CHANNEL=chrome (installed Google Chrome)
-pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
-pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
-pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
-pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
-pnpm -C packages/server-d1 e2e:rail -- --base https://api.smoked1.vibase.ai --expect-version <sha>  # on-demand real-cron expiry check, not in the gate; runnable once #173 supplies owner-bound administration of newly added scopes
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> (--api-host <host> | --workers-dev) --owner-email <e> [--auth better-auth|clerk|none] [--clerk-env-file .env.<name>] [--register-workers-subdomain <name>] [--change-host] [--dry-run]  # one guarded idempotent setup of a self-managed env (OPS65, OPS87, OPS249, OPS306); `better-auth` is the default for a new instance (a recorded instance keeps its provider); the instance's own env file .env.<name> holds Clerk keys, `AUTH_SECRET` and the optional Google pair, never the root `.env`; --dry-run reads only
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset [--email <owner>]  # OPS307: owner recovery for a Better Auth instance, from `.env.<name>`'s `AUTH_SECRET` (never the root `.env`): prints a one-time owner reset link (`vibase-server owner-reset --env <name> [--email <owner>] [--dry-run]` from a release, exit 0/2/3), or with no owner an owner invitation for `--email`; printed once, stored nowhere; no remote run by agents except on `smoked1`
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:status:remote -- --env <name>    # applied vs expected; exit 0 only when current (CORE61)
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env <name>   # remote D1 migrations (OPS4); migrate before deploy
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env <name>       # deploy the Worker; /health shows the sha
-pnpm -C packages/server-d1 smoke:remote -- --base <url> --phase before|after --expect-version <sha>
+pnpm changeset                                     # add a changeset (a `.changeset/*.md`); a PR that changes what `@vibase/cli` or `@vibase/server-d1` ships adds one (OPS210 D25; the PR check is #264)
 ```
+
+These are the commands of everyday work. The rest live in the skill that uses them; read it before running one:
+
+- **Release packages and deployed instances** (`release:build`, `release:check`, the release and version
+  workflows, `vibase-server status`, and every `CONFIRM_REMOTE=1` command: `setup:remote`, `db:status:remote`,
+  `db:migrate:remote`, `deploy:remote`, `smoke:remote`, `owner-reset`, `e2e:rail`): `ship-branch`, "Command
+  reference".
+- **Browser E2E scripts** (`e2e:gallery`, `e2e:oauth-pages`, `e2e:auth-pages`, `e2e:auth-pages-reset`,
+  `e2e:connect`, `e2e:mcp-oauth`; none is in the gate): `writing-tests` §7, "Scripts".
+
+Two rules hold wherever those commands are run. Agents run a remote command only against an environment that
+is theirs ("Environments"). Agents never push a release tag, publish the draft GitHub Release, run
+`changeset publish` (or `changeset version` outside a scratch copy) or merge the Version Packages PR.
 
 The `db:*` scripts are the contract the skills assume; they arrive with the first CORE cycle.
 
@@ -307,20 +317,15 @@ Carried over from the predecessor product, where each cost real time. Add new on
 5. **Every write emits an event** to the outbox in the same unit. Nothing else inserts into a
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).
-   Writes that skip events are allowed only when they are not resources and a spec decision names them.
-   Today that means the list below (no count: it grows by spec decision): identity bookkeeping (`principals`, `users` on first sight, on a provider
-   profile refresh and on invitation acceptance, [[CORE3]] D12, [[CORE41]] P11, [[CORE287]] P3), channel machinery tables (credentials, subscriptions,
-   sync state and cursors, [[CHN5]] D22; the provider-id maps `message_sources` and `thread_sources`, [[CORE25]] D17), the dev/ops `bootstrap` script ([[CORE15]]), the API-key
-   usage stamp (`api_keys.last_used_at` only, at most once a minute, never `updated_at`, [[CORE36]] D17), and
-   execution machinery tables' lease columns: claim, dispatch stamp, retry scheduling and lease recovery
-   write `action_executions.attempts`, `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`,
-   `last_error_code` (and the `queued`/`claimed` status they move between) without an event and without
-   changing `updated_at`; creation and the final outcome of an execution, and the linked request's
-   `executed`/`failed`, are resources and emit `action_execution.created|completed|failed` and
-   `action_request.executed|failed` ([[AGT8]] D56); and the D1 full-text search indexes (`<table>_search` FTS5
-   tables), written only by triggers on their base table, never by a program, an operation or a script ([[CORE194]] D5); and the webhook machinery tables (`webhook_secrets`, `webhook_dispatch_state`, later `webhook_deliveries`), written by the subscription units, the dispatcher, the sender and the purge without an event and without touching `webhook_subscriptions.updated_at`, while creation, update, deletion, rotation and auto-disable of a subscription emit `webhook.*` ([[API7]] D20); and the built-in auth provider's tables (`auth_*`, in the control-plane database `CONTROL_DB`, control migration 0001, [[CORE259]]; the CRM copy from 0018 is dropped by CRM 0019, [[OPS260]]) and the control marker `control_deployment` (written only by `bootstrap`), written only by Better Auth's handler at `/auth`, by `bootstrap`'s idempotent seed of the first-party `vibase-cli` client and its two resource rows (through Better Auth's own adapter in-process, never hand-written SQL, [[CORE283]]), by the same Better Auth instance's in-process reset request behind an owner-issued reset link (`issueResetToken` in `@vibase/auth`, writing the verification row, [[CORE288]]; its second caller is the operator command `owner-reset`, which composes the same instance in the operator's process against the remote control database, [[OPS307]]), by the control store's `revokeSubjectCredentials` (one control batch of hand-written deletes of a removed member's `auth_sessions`, `auth_oauth_access_tokens`, `auth_oauth_refresh_tokens` and `auth_device_codes` with its `user.sessions_revoked` audit row, atomic with it, [[CORE288]]), by the control store's repair sweep `runAuthSweep` (the one-minute rail cron on `better-auth`: one control batch of hand-written deletes of the credentials of linked subjects without authority, created before the sweep's CRM read, and of stale unlinked `auth_users` rows, [[CORE289]], [[CORE259]] D10; it writes no `control_audit` row and nothing in the CRM database; its counts are read-only `SELECT`s from the two status commands) and later [[OPS250]]'s migration tool, never by a program or an operation, without events and outside the `updated_at` rules; they are deployment-scoped (no `organization_id`), and the `auth_` prefix is reserved and hidden from schema discovery ([[CORE243]] D5); only composition, bootstrap (and its `owner-reset` twin), `vibase-server owner-reset` ([[OPS307]]), the control store and the release tooling (binding-to-directory mapping; tracker reads in the local `release:check` only, [[OPS260]]) may touch `CONTROL_DB`, never an operation (`control-boundary.test.ts`, [[CORE259]] D5). Likewise the control-plane `invitations` and `control_audit` (control migration 0002, [[CORE245]], [[CORE259]] D12): written only by the control store, one control batch per change and its audit row, `control_audit` append-only by trigger, no CRM event. If such a write has a tenant-visible consequence (a
-   membership, a connection's status), that consequence must still emit its event. Add a new exception
-   through a spec decision, never ad hoc.
+   Writes that skip events are allowed only when they are not resources and a spec decision names them:
+   identity bookkeeping, channel machinery tables, the `bootstrap` script, the API-key usage stamp, the
+   execution lease columns, the D1 full-text search indexes, the webhook machinery tables, and the
+   control-plane database `CONTROL_DB` (`auth_*`, `control_deployment`, `invitations`, `control_audit`).
+   The exact tables and columns, who may write each and the deciding spec are the table in `api-routes`
+   ("Writes that emit no event"); read it before writing to any of them. No operation may touch
+   `CONTROL_DB` (`control-boundary.test.ts`, [[CORE259]] D5). If such a write has a tenant-visible
+   consequence (a membership, a connection's status), that consequence must still emit its event. Add a
+   new exception through a spec decision and a row in that table, never ad hoc.
 6. **Raw bodies stay out of the database**, Postgres and D1 alike (R2 behind `ObjectStore`).
 7. **A workflow step's return value must be structured-cloneable by workerd**, which is stricter than
    Node. Return plain data, never class instances (see `cloudflare-workflows`).
@@ -336,4 +341,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
 
 - `retrospect` closes a cycle and pushes its lessons into skills, this file and `knowledge/`.
 - `reconcile-knowledge` closes issue-only work.
-- `wiki-lint` audits the knowledge layer for rot. Run it after a burst of shipped cycles.
+- `wiki-lint` audits the knowledge layer for rot and for growth. Run it after a burst of shipped cycles.
+- This file is read by every agent on every run and has a budget of 4,000 words (`wiki-lint` check 10). Detail
+  belongs in the skill that owns the topic; this file keeps the rule and a pointer. A new user ruling is merged
+  into the rule it changes, never appended as a dated paragraph.
