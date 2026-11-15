@@ -49,6 +49,7 @@ describe('control migration 0001_control_plane on an empty database', () => {
       '0001_control_plane.sql',
       '0002_invitations.sql',
       '0003_invitation_delivery.sql',
+      '0004_webhooks.sql',
     ])
     const state = await readMigrationState(
       control,
@@ -56,17 +57,18 @@ describe('control migration 0001_control_plane on an empty database', () => {
     )
     expect(state).toMatchObject({
       status: 'current',
-      applied: ['0001_control_plane.sql', '0002_invitations.sql', '0003_invitation_delivery.sql'],
+      applied: ['0001_control_plane.sql', '0002_invitations.sql', '0003_invitation_delivery.sql', '0004_webhooks.sql'],
     })
     expect(CONTROL_MIGRATIONS_DIR).toMatch(/storage-d1\/control-migrations$/)
   })
 
-  it('creates the 14 auth tables, control_deployment and (0002, CORE245) invitations and control_audit, and no CRM table', async () => {
+  it('creates the 14 auth tables, control_deployment (0002, CORE245) invitations and control_audit, (0004, CORE327) the four webhook tables, and no CRM table', async () => {
     const names = (await tables(control)).filter((n) => n !== 'd1_migrations')
     expect(names).toContain('control_deployment')
     expect(names).toEqual(expect.arrayContaining(['invitations', 'control_audit']))
     expect(names.filter((n) => n.startsWith('auth_'))).toHaveLength(14)
-    expect(names).toHaveLength(17)
+    expect(names.filter((n) => n.startsWith('webhook_'))).toHaveLength(4)
+    expect(names).toHaveLength(21)
     for (const crmTable of ['deployment', 'organizations', 'principals', 'events', 'api_keys'])
       expect(names).not.toContain(crmTable)
   })
@@ -96,14 +98,15 @@ describe('control migration 0001_control_plane on an empty database', () => {
     for (const t of (await tables(control)).filter((n) => n !== 'd1_migrations')) {
       const fks = ((await control.prepare(`select "table" as ref from pragma_foreign_key_list('${t}')`).all())
         .results ?? []) as Array<{ ref: string }>
-      for (const fk of fks) expect(fk.ref, t).toMatch(/^auth_/)
+      for (const fk of fks) expect(fk.ref, t).toMatch(/^(auth_|webhook_subscriptions$)/)
     }
     const triggers = ((await control.prepare("select name from sqlite_master where type = 'trigger'").all()).results ??
       []) as unknown[]
-    // control_audit's two append-only triggers (0002, CORE245 P5) are the only ones, and name no other database.
+    // control_audit's two append-only triggers (0002, CORE245 P5) and webhook_secrets' (0004, CORE327 P1) are the only ones, and name no other database.
     expect(triggers.map((t) => (t as { name: string }).name).sort()).toEqual([
       'control_audit_no_delete',
       'control_audit_no_update',
+      'webhook_secrets_append_only',
     ])
   })
 })

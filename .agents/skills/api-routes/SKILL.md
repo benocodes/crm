@@ -114,6 +114,17 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     link) stay `501 provider_not_configured` on `clerk`/unset. The cron ticks read `CONTROL_DB` only for the
     `better-auth` sweep (until #327). The gate reads the CRM `deployment` row once per isolate, so every cold-request
     query count in `measured-limits.test.ts` and `gmail-send.test.ts` rose by one ([[CORE326]] D8).
+  - **Moving a CRM-backed program onto the control store** ([[CORE327]], `control-store.ts` webhook section). The
+    control store never reads the CRM database and the two share no join (D8), so each CRM join in today's statement
+    becomes a by-value parameter (`eligibleAgentIds`, `cursorEventId`) or a two-step read (the store returns ids,
+    the caller reads CRM facts for them and treats a missing CRM row as "not live"); never copy CRM rows into control
+    tables. Put the new methods in `control-store.ts` itself: a new file naming `ControlDb` needs a
+    `control-boundary.test.ts` allow-list entry, a spec decision. Validation, sealing and scope checks stay in
+    `@vibase/api`; the store takes ids, `now` and sealed values (as the invitation writes do). An owner-scoped write
+    folds `ownerAgentId` into its WHERE and, when it changes nothing, splits `not_found` from `drifted` with one
+    follow-up get. A guard that refuses a change must refuse its `control_audit` row too: guard the audit insert on the
+    row's resulting state (`updated_at = now`). When a cursor-advancing batch also inserts rows, guard the inserts on
+    the expected cursor as well, so a stale page writes nothing.
   - **Better Auth tokens on the API** ([[CORE243]] D8 as pinned by [[CORE244]]; `packages/api/src/auth/better-auth.ts`):
     the adapter's `roleSource` is `'membership'` (role read live from `memberships` per request, in the principal
     lookup's read-only unit; Clerk stays `'claim'`). Kinds: header `typ: at+jwt` (+ `client_id`) = OAuth access token;

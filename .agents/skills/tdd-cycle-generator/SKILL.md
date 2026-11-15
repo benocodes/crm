@@ -74,6 +74,11 @@ review rounds were never the problem with big cycles. Their cost was coder token
 gives each piece obligations it can prove on its own (often the mechanism first, proven through a test kit,
 then its entry points, then its riders) and names every deferred item.
 
+A dormant cycle usually proves "nothing calls this yet" with a test (a grep for callers, [[CORE327]] group 6 in
+`packages/storage-d1/src/control-webhooks.integration.test.ts`). That test is meant to break: the wiring cycle's
+charter names it under "In this cycle" as a deletion, with the dormant cycle's review notes carried into its Watch
+out, so the coder does not "fix" the wiring to keep it green.
+
 #### Size budget
 
 Count these before you write the charter, and put the counts in its **Size** line:
