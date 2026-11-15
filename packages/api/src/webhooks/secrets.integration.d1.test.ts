@@ -49,19 +49,20 @@ describe('what is shown (D12)', () => {
     expect(Object.keys(made).sort()).toEqual([...Object.keys(got.body), 'secret'].sort())
   })
 
-  it('no event carries it or the sealed text, in before or after', async () => {
+  it('no audit row and no event carries it or the sealed text', async () => {
     const made = await k.create(await k.seedAgent(TASKS))
     const rotated = (await k.owner('POST', `${BASE}/${made.id}/rotate-secret`)).body.secret
     await k.owner('PATCH', `${BASE}/${made.id}`, { status: 'paused' })
     await k.owner('DELETE', `${BASE}/${made.id}`)
-    const events = await k.all('select type, "before", "after" from events where type like \'webhook.%\'')
-    expect(events.map((e) => e.type).sort()).toEqual([
+    const audit = await k.all('select action, detail from control_audit')
+    expect(audit.map((e) => e.action).sort()).toEqual([
       'webhook.created',
       'webhook.deleted',
       'webhook.secret_rotated',
       'webhook.updated',
     ])
-    const text = JSON.stringify(events)
+    expect(await k.crm("select id from events where type like 'webhook.%'")).toEqual([])
+    const text = JSON.stringify(audit) + JSON.stringify(await k.crm('select "before", "after" from events'))
     for (const s of [made.secret, rotated, ...(await secrets()).map((r) => r.sealed as string)])
       expect(text).not.toContain(s)
     expect(text).not.toContain('whsec_')
@@ -140,16 +141,16 @@ describe('rotation (D12)', () => {
 
   it('an UPDATE of webhook_secrets aborts (append-only); inserts of later rows are untouched', async () => {
     await k.create(await k.seedAgent(TASKS))
-    const err = await k.e
-      .d1!.prepare("UPDATE webhook_secrets SET sealed = 'x'")
+    const err = await k.control
+      .prepare("UPDATE webhook_secrets SET sealed = 'x'")
       .run()
       .then(
         () => null,
         (e: Error) => e.message,
       )
     expect(err).toContain('append_only')
-    const err2 = await k.e
-      .d1!.prepare('UPDATE webhook_secrets SET key_version = 99')
+    const err2 = await k.control
+      .prepare('UPDATE webhook_secrets SET key_version = 99')
       .run()
       .then(
         () => null,
@@ -174,8 +175,8 @@ describe('configuration (D12)', () => {
       // a subscription that exists (inserted raw) cannot be rotated
       const id = '0190b2c4-0000-7000-8000-0000000000bb'
       const at = '2026-11-12T09:00:00.000Z'
-      await bare.e
-        .d1!.prepare(
+      await bare.control
+        .prepare(
           "INSERT INTO webhook_subscriptions (id, created_at, updated_at, organization_id, created_by, agent_id, url, event_types, status) VALUES (?, ?, ?, ?, ?, ?, ?, '[\"task.created\"]', 'active')",
         )
         .bind(id, at, at, bare.e.organizationId, bare.e.userId, a, URL_OK)

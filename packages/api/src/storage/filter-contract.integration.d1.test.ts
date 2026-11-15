@@ -18,7 +18,7 @@ import { FILTER_EXEMPT_LISTS, STATED_FILTER_COSTS } from './filter-costs.js'
 // [[CORE201]] D10, D12, D18: the registry-wide filter contract. The registry's real lists, the real D1 plan of each list's production query at
 // `<column>=eq.<value>` with the default order, the checked-in lists (`filter-costs.ts`) and the NOCASE columns of the real D1 schema are one input to a
 // pure checker; the strength tests then break that input one way at a time and name the check that must notice.
-const HAND_WRITTEN = ['associations', 'events', 'users', 'webhooks']
+const HAND_WRITTEN = ['associations', 'events', 'users']
 // A filter value that parses as its kind and passes the column's own option (an enum, a UUID, a domain, a SHA-256), tried in order.
 const SAMPLES = [
   '018f0000-0000-7000-8000-000000000001',
@@ -135,7 +135,7 @@ const withDef = (name: string, patch: Partial<FilterContractDef>): FilterContrac
 })
 
 describe('the registry satisfies the filter contract (CORE201 D10, D12, D18)', () => {
-  it('has twenty-one generic lists with column filters and exactly the four hand-written ones left out', () => {
+  it('has twenty-one generic lists with column filters and exactly the three hand-written ones left out', () => {
     expect(
       base.lists
         .filter((l) => l.def === null)
@@ -147,7 +147,7 @@ describe('the registry satisfies the filter contract (CORE201 D10, D12, D18)', (
     for (const l of generic)
       expect(Object.keys(l.def!.columnFilters ?? {}).length, `${l.name} column filters`).toBeGreaterThan(0)
   })
-  it('the exemption list is exactly associations, events, users and webhooks, each with a reason', () => {
+  it('the exemption list is exactly associations, events and users, each with a reason (webhooks.list left with the move of subscriptions to the control plane, CORE337)', () => {
     expect(FILTER_EXEMPT_LISTS.map((x) => x.list).sort()).toEqual(HAND_WRITTEN)
     for (const x of FILTER_EXEMPT_LISTS) expect(x.reason.length, x.list).toBeGreaterThan(10)
   })

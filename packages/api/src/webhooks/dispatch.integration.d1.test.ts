@@ -100,6 +100,17 @@ describe('dispatch core (D4, D20)', () => {
     expect(await k.cursorOf(made.id)).toBe(ids[519])
   })
 
+  it('the empty state: no subscription and no event, then a subscription and no event, then no store: nothing is read into a row and nothing is written', async () => {
+    const quiet = { subscriptions: 0, events: 0, unknownCursor: 0, failed: 0, deferred: 0 }
+    expect(await k.dispatch()).toEqual(quiet)
+    await k.create(await agentWith())
+    expect(await k.dispatch()).toEqual(quiet)
+    expect(await k.deliveries()).toEqual([])
+    await k.task('ignored without a store')
+    expect(await dispatchWebhooks({ ...k.deps(), port: null })).toEqual(quiet)
+    expect(await k.deliveries(), 'no store: nothing is dispatched').toEqual([])
+  })
+
   it('dispatch adds no row to events and writes no updated_at on the subscription (D20)', async () => {
     const made = await k.create(await agentWith())
     await k.task('quiet')
@@ -146,14 +157,16 @@ describe('overlapping dispatches (D4, invariant 3): asserted on the cursor itsel
     expect(await k.cursorOf(made.id)).toBe(e3)
   })
 
-  it('the stale run applied first, then the newer: each row once, the first to apply wins the cursor and the next tick converges with no duplicate', async () => {
+  it('the stale run applied first, then the newer: the first to apply wins the cursor, the loser writes NOTHING (no row, no cursor move), and the next tick converges with each row once', async () => {
     const { made, e1, e2, e3, stale, newer } = await setup()
     await applyPage(k.deps(), stale)
     expect(await k.cursorOf(made.id)).toBe(e2)
     const second = await applyPage(k.deps(), newer)
     expect(second.moved, 'the loser matched no cursor row').toBe(false)
     expect(await k.cursorOf(made.id)).toBe(e2)
-    expect(eventIds(await k.deliveries(made.id)).sort()).toEqual([e1, e2, e3].sort())
+    expect(eventIds(await k.deliveries(made.id)).sort(), 'the stale page wrote no row of its own').toEqual(
+      [e1, e2].sort(),
+    )
     await k.dispatch()
     expect(await k.cursorOf(made.id)).toBe(e3)
     expect(await k.deliveries(made.id)).toHaveLength(3)
@@ -204,7 +217,7 @@ describe('eligibility and visibility at dispatch (one case per condition)', () =
 
   it('disabled (by the vault): no rows', async () => {
     const sub = await k.create(await agentWith())
-    await k.e.d1!.prepare("UPDATE webhook_subscriptions SET status = 'disabled' WHERE id = ?").bind(sub.id).run()
+    await k.control.prepare("UPDATE webhook_subscriptions SET status = 'disabled' WHERE id = ?").bind(sub.id).run()
     expect(await rowsAfterOneTask(sub)).toEqual([])
   })
 
@@ -265,8 +278,8 @@ describe('eligibility and visibility at dispatch (one case per condition)', () =
     const broken = await k.create(a)
     const fine = await k.create(a)
     const missing = uuidv7()
-    await k.e
-      .d1!.prepare('UPDATE webhook_dispatch_state SET cursor_event_id = ? WHERE subscription_id = ?')
+    await k.control
+      .prepare('UPDATE webhook_dispatch_state SET cursor_event_id = ? WHERE subscription_id = ?')
       .bind(missing, broken.id)
       .run()
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

@@ -28,8 +28,9 @@ const call = async (wk: ReturnType<typeof worker>, method: string, path: string,
 }
 const create = (wk: ReturnType<typeof worker>, url = 'https://example.com/hook') =>
   call(wk, 'POST', '/meta/v1/webhooks', { url, event_types: ['task.created'] })
+// [[CORE337]]: the webhook tables are in the control database.
 const count = async (table: string) =>
-  ((await w.d1.prepare(`select count(*) as n from ${table}`).first()) as { n: number }).n
+  ((await w.control.prepare(`select count(*) as n from ${table}`).first()) as { n: number }).n
 
 beforeAll(async () => {
   w = await openWorkerD1()
@@ -59,7 +60,7 @@ describe('CREDENTIALS_KEY reaches the webhook operations on its own', () => {
     const wk = worker({ CREDENTIALS_KEY: KEY })
     const r = await create(wk)
     expect([r.status, r.body.secret?.slice(0, 6), r.body.status]).toEqual([201, 'whsec_', 'active'])
-    const row = (await w.d1.prepare('select sealed, key_version from webhook_secrets').first()) as {
+    const row = (await w.control.prepare('select sealed, key_version from webhook_secrets').first()) as {
       sealed: string
       key_version: number
     }
@@ -71,7 +72,8 @@ describe('CREDENTIALS_KEY reaches the webhook operations on its own', () => {
   it('CREDENTIALS_KEY_VERSION is the stored key_version', async () => {
     await create(worker({ CREDENTIALS_KEY: KEY, CREDENTIALS_KEY_VERSION: '4' }))
     expect(
-      ((await w.d1.prepare('select key_version from webhook_secrets').first()) as { key_version: number }).key_version,
+      ((await w.control.prepare('select key_version from webhook_secrets').first()) as { key_version: number })
+        .key_version,
     ).toBe(4)
   })
 

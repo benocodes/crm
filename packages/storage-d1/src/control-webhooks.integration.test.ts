@@ -1,6 +1,3 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
 import {
@@ -905,38 +902,5 @@ describe('group 5: machinery (P3, invariant 3)', () => {
     const after = Number((await rows('select count(*) as n from control_audit'))[0]!.n)
     expect(after - before).toBe(1) // only the create's own row
     expect((await audit(a.id)).map((r) => r.action)).toEqual(['webhook.created'])
-  })
-})
-
-describe('group 6: dormant and bounded (D5, P5)', () => {
-  const PACKAGES = fileURLToPath(new URL('../../', import.meta.url))
-  const NAMES =
-    /\b(createWebhookSubscription|updateWebhookSubscription|deleteWebhookSubscription|rotateWebhookSecret|getWebhookSubscription|listWebhookSubscriptions|listWebhookDeliveries|readWebhookSecrets|listDispatchableWebhooks|applyWebhookDispatchPage|claimWebhookDeliveries|recordWebhookDeliveries)\b/
-  function* sources(dir: string): Generator<string> {
-    for (const name of readdirSync(dir)) {
-      if (name === 'node_modules' || name === 'dist' || name === '.wrangler') continue
-      const path = join(dir, name)
-      if (statSync(path).isDirectory()) yield* sources(path)
-      else if (/\.ts$/.test(name) && !/\.(test|suite)\.ts$/.test(name)) yield path
-    }
-  }
-  it('no production module outside the control store and its package index names the new store methods', () => {
-    const hits: string[] = []
-    for (const pkg of readdirSync(PACKAGES)) {
-      for (const sub of ['src', 'scripts']) {
-        let files: string[] = []
-        try {
-          files = [...sources(join(PACKAGES, pkg, sub))]
-        } catch {
-          continue
-        }
-        for (const f of files) {
-          const rel = f.slice(PACKAGES.length)
-          if (rel === 'storage-d1/src/control-store.ts' || rel === 'storage-d1/src/index.ts') continue
-          if (NAMES.test(readFileSync(f, 'utf8'))) hits.push(rel)
-        }
-      }
-    }
-    expect(hits).toEqual([])
   })
 })

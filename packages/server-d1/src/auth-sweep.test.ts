@@ -502,7 +502,8 @@ describe('P4, P5 cron wiring and isolation', () => {
       clock: () => new Date(),
     })
     await tick(wk)
-    expect(touched).toEqual([])
+    // [[CORE337]] P2: the tick's webhook gate asks the control database (its migration state and marker) on every provider; the SWEEP's reads (the auth tables) are what this case is about.
+    expect(touched.filter((q) => /\bauth_/.test(q))).toEqual([])
   })
 
   it('an injected sweep failure still lets the rail work run, and a rail failure still lets the sweep run', async () => {

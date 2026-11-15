@@ -61,18 +61,22 @@ function autoPairedControl(crm: D1Like, control: D1Like): D1Like {
     const db = openControlDb(control)
     if (!(await readControlMarker(db))) await writeControlMarker(db, link.organization_id)
   }
+  // A batch is run by the real handle, which only takes statements it prepared itself (the request transport checks): the wrappers are unwrapped first.
+  const inners = new WeakMap<object, D1PreparedLike>()
   const wrap = (q: string, inner: D1PreparedLike): D1PreparedLike => {
     const gate = /control_deployment/.test(q)
-    return {
+    const wrapped = {
       bind: (...v: unknown[]) => wrap(q, inner.bind(...v)),
       run: async () => (gate && (await ensure()), inner.run()),
       all: async () => (gate && (await ensure()), inner.all()),
       first: async () => (gate && (await ensure()), inner.first()),
     } as D1PreparedLike
+    inners.set(wrapped, inner)
+    return wrapped
   }
   return {
     prepare: (q: string) => wrap(q, control.prepare(q)),
-    batch: (b: D1PreparedLike[]) => control.batch(b),
+    batch: (b: D1PreparedLike[]) => control.batch(b.map((s) => inners.get(s) ?? s)),
   } as D1Like
 }
 

@@ -19,7 +19,7 @@ import { SORT_EXEMPT_LISTS, STATED_SORT_COSTS } from './sort-costs.js'
 // way at a time and name the check that must notice.
 const TEMP = 'USE TEMP B-TREE FOR ORDER BY'
 // CORE188 D6: action_executions is a sorted list measured on its own registered operation; only these two stay exempt.
-const HAND_WRITTEN = ['associations', 'events', 'users', 'webhooks']
+const HAND_WRITTEN = ['associations', 'events', 'users']
 let e: Engine
 let lists: ContractList[]
 let base: ContractInput
@@ -87,7 +87,7 @@ const withDef = (name: string, patch: Partial<ContractDef>): ContractInput => ({
 })
 
 describe('the registry satisfies the contract (CORE175 D12, D15)', () => {
-  it('has twenty-one sorted lists and exactly the four hand-written ones left out', () => {
+  it('has twenty-one sorted lists and exactly the three hand-written ones left out', () => {
     expect(
       base.lists
         .filter((l) => l.def === null)
@@ -113,7 +113,7 @@ describe('the registry satisfies the contract (CORE175 D12, D15)', () => {
     expect(STATED_SORT_COSTS.map((c) => `${c.list}.${c.sort}`).sort()).toEqual(temp)
     for (const c of STATED_SORT_COSTS) expect(c.reason.length, `${c.list}.${c.sort} reason`).toBeGreaterThan(10)
   })
-  it('the exemption list is exactly associations, events, users and webhooks, each with a reason', () => {
+  it('the exemption list is exactly associations, events and users, each with a reason (webhooks.list left with the move of subscriptions to the control plane, CORE337)', () => {
     expect(SORT_EXEMPT_LISTS.map((x) => x.list).sort()).toEqual(HAND_WRITTEN)
     for (const x of SORT_EXEMPT_LISTS) expect(x.reason.length, x.list).toBeGreaterThan(10)
   })
@@ -258,7 +258,7 @@ describe('contract checker strength: each fault is noticed by its named check (C
   })
   it('removing one exemption entry leaves a hand-written list unexplained', () => {
     const exemptions = SORT_EXEMPT_LISTS.filter((x) => x.list !== 'users')
-    expect(exemptions).toHaveLength(3)
+    expect(exemptions).toHaveLength(2)
     expect(find(checkSortContract({ ...base, exemptions }), 'missing-exemption', 'users')).toHaveLength(1)
   })
   it('an exemption naming a generic list, or no list, is refused', () => {

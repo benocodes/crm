@@ -53,8 +53,11 @@ const call = async (wk: ReturnType<typeof worker>, method: string, path: string,
   )
   return { status: res.status, body: (await res.json().catch(() => null)) as any }
 }
+// [[CORE337]]: the webhook tables live in the control database; every other table is the CRM's.
 const rows = async (sqlText: string) =>
-  ((await w.d1.prepare(sqlText).all()).results ?? []) as Array<Record<string, any>>
+  ((await (/\bwebhook_/.test(sqlText) ? w.control : w.d1).prepare(sqlText).all()).results ?? []) as Array<
+    Record<string, any>
+  >
 const subscribe = async (wk: ReturnType<typeof worker>, n = 1) => {
   const ids: string[] = []
   for (let i = 0; i < n; i++) {
@@ -144,7 +147,7 @@ describe('the per-minute handler sends webhooks after dispatch (D6)', () => {
     await task(wk, 'sender is down')
     vi.spyOn(console, 'log').mockImplementation(() => {})
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const breaking = new Proxy(w.d1, {
+    const breaking = new Proxy(w.control, {
       get: (t: any, p) =>
         p === 'prepare'
           ? (q: string) =>
@@ -156,8 +159,8 @@ describe('the per-minute handler sends webhooks after dispatch (D6)', () => {
           : typeof t[p] === 'function'
             ? t[p].bind(t)
             : t[p],
-    }) as typeof w.d1
-    await expect(worker({}, breaking).scheduled({ cron: '* * * * *' })).rejects.toThrow()
+    }) as typeof w.control
+    await expect(worker({ CONTROL_DB: breaking }).scheduled({ cron: '* * * * *' })).rejects.toThrow()
     expect(await rows('select status from webhook_deliveries')).toEqual([{ status: 'pending' }])
     expect(logs(error).join('\n')).toContain('webhook send failed')
   })
@@ -181,7 +184,9 @@ describe('one budget for the whole tick (D24)', () => {
     await recordMigrations(w.d1, NAMES)
     const wk = worker()
     const meter = meterD1(w.d1)
-    const metered = worker(env, meter.d1)
+    // [[CORE337]]: the webhook phases query the control database; its statements spend the same budget, so they are metered and added to the CRM's.
+    const controlMeter = meterD1(w.control)
+    const metered = worker({ ...env, CONTROL_DB: controlMeter.d1 }, meter.d1)
     vi.spyOn(console, 'log').mockImplementation(() => {})
     await metered.scheduled({ cron: '* * * * *' }) // a warm isolate: the marker and the migration state are read once, on an empty tick
     await subscribe(wk, SUBS)
@@ -195,15 +200,17 @@ describe('one budget for the whole tick (D24)', () => {
         expires_at: new Date(now.getTime() + 60_000 + i * 1000).toISOString(),
       })
     now = new Date(now.getTime() + 200_000)
-    return { meter, metered }
+    return { meter, controlMeter, metered }
   }
   async function tick(f: Awaited<ReturnType<typeof fixture>>) {
     const wallClock = vi.spyOn(Date, 'now').mockReturnValue(now.getTime())
     const before = fetches.length
     f.meter.start()
+    f.controlMeter.start()
     await f.metered.scheduled({ cron: '* * * * *' })
     wallClock.mockRestore()
-    return { m: f.meter.take(), fetched: fetches.length - before }
+    const crm = f.meter.take()
+    return { m: { ...crm, queries: crm.queries + f.controlMeter.take().queries }, fetched: fetches.length - before }
   }
   const cursors = async () =>
     (await rows('select cursor_event_id from webhook_dispatch_state order by subscription_id')).map(
@@ -223,10 +230,10 @@ describe('one budget for the whole tick (D24)', () => {
     expect(sendLine.length).toBeGreaterThan(0)
     const after = await cursors()
     const moved = after.filter((c, i) => c !== before[i]).length
-    // The marker read and the rail spent 24 of the 50 (rail.test's pin of 25 less dispatch's own read), so dispatch may spend half of the 26 left: 13, which is the eligibility read and six
-    // subscriptions' pages (2 each). The other four keep their cursors.
-    expect(moved).toBe(6)
-    expect(dispatchLine.join('\n')).toMatch(/4 deferred/)
+    // The marker read and the rail spent 24 of the 50 (rail.test's pin of 25 less dispatch's own read), so dispatch may spend half of the 26 left: 13, which is the two eligibility reads (the CRM agents,
+    // the control subscriptions) and five subscriptions' pages (2 each: the CRM read, the control write). The other five keep their cursors ([[CORE337]]: the eligibility cost one more query).
+    expect(moved).toBe(5)
+    expect(dispatchLine.join('\n')).toMatch(/5 deferred/)
     expect(sendLine.join('\n')).toMatch(/deferred [1-9]/)
     expect((await rows('select count(*) as n from webhook_deliveries'))[0]!.n).toBeLessThan(SUBS * 3)
     expect(m.maxParameters).toBeLessThanOrEqual(100)

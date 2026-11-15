@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { scopesForRole, isAgentGrantable, SCOPE_DESCRIPTIONS, SCOPE_POLICY } from '../auth/roles.js'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
-import { coldStorage } from '../test/storage.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 import { AGENT_SCOPES, NO_SUCH, URL_OK, openWebhookKit, type WebhookKit } from '../test/webhook-kit.js'
 
@@ -175,13 +175,9 @@ describe('scopes (D2)', () => {
 })
 
 describe('proposals (D2)', () => {
-  it('every webhook write is registered proposal-ineligible with a reason, and an action request naming one is refused', async () => {
-    for (const name of ['webhooks.create', 'webhooks.update', 'webhooks.delete', 'webhooks.rotate_secret']) {
-      const op = k.registry.get(name)
-      expect(op?.kind === 'tenant' && op.proposal && !op.proposal.eligible && op.proposal.reason.length > 0, name).toBe(
-        true,
-      )
-    }
+  it('every webhook write is a control operation (never proposable), and an action request naming one is refused', async () => {
+    for (const name of ['webhooks.create', 'webhooks.update', 'webhooks.delete', 'webhooks.rotate_secret'])
+      expect(k.registry.get(name)?.kind, name).toBe('control')
     const r = await k.owner('POST', '/api/v1/action-requests', {
       operation: 'webhooks.create',
       arguments: { url: URL_OK, agent_id: k.e.agentId },
@@ -242,8 +238,9 @@ describe('surfaces (D22, D23)', () => {
     expect(JSON.stringify(out)).toContain('whsec_')
   })
 
-  it('a binding that is not D1 answers 501 not_implemented for all six, after the scope check', async () => {
-    const cold = createApp({ storage: coldStorage(), registry: k.registry, userAuthenticator: fakeUserAuthenticator() })
+  it('a composition without the control store answers 501 provider_not_configured for all six, after the scope check', async () => {
+    const registry = createVibaseRegistry({ webhooks: { ...k.runtime, port: null } })
+    const cold = createApp({ storage: () => k.e.binding, registry, userAuthenticator: fakeUserAuthenticator() })
     const token = (scopes: string[]) =>
       mintTestUserToken({ userId: k.e.userId, organizationId: k.e.organizationId, scopes, kind: 'user' })
     const calls: [string, string, unknown?][] = [
@@ -261,7 +258,11 @@ describe('surfaces (D22, D23)', () => {
         body: payload === undefined ? undefined : JSON.stringify(payload),
       })
       const res = await cold.request(path, init(['webhooks:read', 'webhooks:write']))
-      expect([method, res.status, ((await res.json()) as any).error.code]).toEqual([method, 501, 'not_implemented'])
+      expect([method, res.status, ((await res.json()) as any).error.code]).toEqual([
+        method,
+        501,
+        'provider_not_configured',
+      ])
       expect((await cold.request(path, init(['tasks:read']))).status, method).toBe(403)
     }
   })
