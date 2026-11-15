@@ -28,7 +28,7 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
       the database stays at its newer schema. The fast path for a bad deploy is Cloudflare's own
       \`wrangler rollback\` (previous Worker version), with the same warning: it never reverses a migration.
 
-  vibase-server setup --env <name> --api-host <host> [--auth clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
+  vibase-server setup --env <name> --api-host <host> [--auth better-auth|clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
                         [--dry-run] [--only <steps>] [--settings <path>] [--secrets-file <path>] [more flags: --web-origin, --extra-origin, --org,
                         --worker-name, --d1-name, --control-d1-name, --r2-name, --clerk-publishable-key, --clerk-production, --no-dcr, --rotate-secrets]
       From nothing, or from an instance deployed from source, to a migrated, bootstrapped, deployed, verified instance, with no checkout:

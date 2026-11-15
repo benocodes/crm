@@ -80,6 +80,10 @@ export interface WorldOptions {
   clerkFileStatus?: 'ok' | 'root-env' | 'not-ignored'
   /** Secret names already on the Worker. */
   secrets?: string[]
+  /** `wrangler secret bulk` fails (exit 1) and puts nothing (OPS249 D3: the partial state after the env file was written). */
+  failBulk?: boolean
+  /** A missing env file is not ignored by git: creating it is refused, as the real `appendEnvFileVar` does (OPS249 D3). */
+  missingFileNotIgnored?: boolean
   /** What the Worker's `/.well-known/vibase` reports (`auth.issuer`, `auth.cli_client_id`); default: matches `state.configText`'s vars. */
   vibase?: { issuer: string | null; cli_client_id: string | null } | 'absent'
 }
@@ -93,16 +97,21 @@ export interface World {
   probes: { arg: string | undefined; envName: string }[]
   fetched: string[]
   logs: string[]
-  state: { configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; appliedControl: string[] | null; deployedSha: string | null; sleeps: number[]; secrets: Record<string, string> }
+  state: { failBulk: boolean; envFileText: string | null; configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; appliedControl: string[] | null; deployedSha: string | null; sleeps: number[]; secrets: Record<string, string> }
   writes(): string[][]
   /** The control database behind `CONTROL_DB`. */
   control: D1Like
+  /** Ordered side effects: `file:<NAME>` for a value appended to the instance's env file, `put:<NAMES>` for a `secret bulk` (OPS249 D3: the file is written before the put). */
+  events: string[]
   /** Every string that reached argv, stdin or a log line (fetched URLs carry the account id as an API path and are checked apart). */
   surface(): string
 }
 
 export function makeWorld(o: WorldOptions): World {
+  const events: string[] = []
   const state = {
+    failBulk: o.failBulk === true,
+    envFileText: (o.clerkEnvText === undefined ? `CLERK_SECRET_KEY=${SK_TEST}\nVITE_CLERK_PUBLISHABLE_KEY=${PK_TEST}\n` : o.clerkEnvText) as string | null,
     configText: o.configText ?? readFileSync(FIXTURE_CONFIG_PATH, 'utf8'),
     envText: o.envText ?? '',
     configWrites: 0,
@@ -138,6 +147,8 @@ export function makeWorld(o: WorldOptions): World {
     }
     if (has('secret', 'list')) return json(Object.keys(state.secrets).map((name) => ({ name, type: 'secret_text' })))
     if (has('secret', 'bulk')) {
+      if (state.failBulk) return { status: 1, stdout: '', stderr: 'bulk blew up' }
+      events.push(`put:${Object.keys(JSON.parse(cmd.input ?? '{}')).join(',')}`)
       Object.assign(state.secrets, JSON.parse(cmd.input ?? '{}'))
       return text('Success! Uploaded secrets\n')
     }
@@ -169,6 +180,9 @@ export function makeWorld(o: WorldOptions): World {
         if (state.applied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: d1_migrations' } }), stderr: '' }
         return json([{ results: state.applied.map((name) => ({ name })), success: true }])
       }
+      // OPS249 D7: the owner state, read from the real databases behind the proxy (CRM memberships, control invitations).
+      if (/from memberships/.test(sql)) return json([{ results: (await o.d1.prepare(sql).all()).results ?? [], success: true }])
+      if (/from invitations/.test(sql)) return json([{ results: (await control.prepare(sql).all()).results ?? [], success: true }])
       if (/from deployment/.test(sql)) {
         if (state.applied === null) return { status: 1, stdout: JSON.stringify({ error: { text: 'no such table: deployment' } }), stderr: '' }
         const row = await o.d1.prepare(sql).first()
@@ -235,8 +249,15 @@ export function makeWorld(o: WorldOptions): World {
       probes.push({ arg, envName })
       const display = arg ?? `.env.${envName}`
       if (o.clerkFileStatus && o.clerkFileStatus !== 'ok') return { display, status: o.clerkFileStatus }
-      const text = o.clerkEnvText === undefined ? `CLERK_SECRET_KEY=${SK_TEST}\nVITE_CLERK_PUBLISHABLE_KEY=${PK_TEST}\n` : o.clerkEnvText
+      const text = state.envFileText
       return text === null ? { display, status: 'missing' } : { display, status: 'ok', text }
+    },
+    appendEnvFileVar: (_arg, _envName, name, value) => {
+      if (state.envFileText === null && o.missingFileNotIgnored) throw new Error('not ignored by git')
+      const text = state.envFileText ?? ''
+      if (new RegExp(`^${name}=`, 'm').test(text)) throw new Error(`${name} is already set in the env file`)
+      events.push(`file:${name}`)
+      state.envFileText = `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${name}=${value}\n`
     },
     readEnvText: () => state.envText,
     appendEnvVar: (name, value) => {
@@ -260,6 +281,7 @@ export function makeWorld(o: WorldOptions): World {
     fetched,
     logs,
     state,
+    events,
     writes: () => argv.filter((c) => isWriteCommand(c)),
     control,
     surface: () => [...argv.map((c) => c.join(' ')), ...inputs, ...logs].join('\n'),

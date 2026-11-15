@@ -26,6 +26,14 @@ export const markerCommand = (env: string): SetupCmd => wrangler(['d1', 'execute
 /** The control marker ([[CORE259]] D7): the one organisation the control plane serves. */
 export const CONTROL_MARKER_SQL = 'select organization_id from control_deployment where singleton = 1'
 export const controlMarkerCommand = (env: string): SetupCmd => wrangler(['d1', 'execute', 'CONTROL_DB', '--remote', '--env', env, '--json', '--command', CONTROL_MARKER_SQL])
+/**
+ * The owner state ([[OPS249]] D7), two reads: whether an owner membership exists in the CRM database, and the newest live owner invitation in the control database
+ * (live = not accepted, not revoked, `expires_at` in the future by the database's own clock, [[CORE245]]).
+ */
+export const OWNERS_SQL = "select count(*) as owners from memberships where role = 'owner' and deleted_at is null"
+export const OWNER_INVITATIONS_SQL = "select email, expires_at from invitations where role = 'owner' and accepted_at is null and revoked_at is null and expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now') order by created_at desc"
+export const ownersCommand = (env: string): SetupCmd => wrangler(['d1', 'execute', 'DB', '--remote', '--env', env, '--json', '--command', OWNERS_SQL])
+export const ownerInvitationsCommand = (env: string): SetupCmd => wrangler(['d1', 'execute', 'CONTROL_DB', '--remote', '--env', env, '--json', '--command', OWNER_INVITATIONS_SQL])
 /** `wrangler secret list --format json`: `[{name, type}]`, the names only are read. */
 export const secretListCommand = (env: string): SetupCmd => wrangler(['secret', 'list', '--env', env, '--format', 'json'])
 /** `wrangler secret bulk --env <name>`: the JSON object `{NAME: value}` goes on stdin, never argv (D12). */
@@ -106,6 +114,18 @@ export function parseControlMarkerOutput(stdout: string): { organizationId: stri
   if (!row) return null
   if (typeof row.organization_id !== 'string') throw new Error('unexpected control marker row shape')
   return { organizationId: row.organization_id }
+}
+
+/** The owner state of the two reads ([[OPS249]] D7): `owner` when a membership exists, else `pending` with the newest live owner invitation's address and expiry, else `none`. */
+export type OwnerState = { kind: 'owner' } | { kind: 'pending'; email: string; expiresAt: string } | { kind: 'none' }
+export function parseOwnerState(ownersStdout: string, invitationsStdout: string): OwnerState {
+  const owners = rowsOf(ownersStdout)
+  if (owners !== 'no-table' && Number(owners[0]?.owners ?? 0) > 0) return { kind: 'owner' }
+  const inv = rowsOf(invitationsStdout)
+  if (inv === 'no-table' || inv.length === 0) return { kind: 'none' }
+  const { email, expires_at: expiresAt } = inv[0]!
+  if (typeof email !== 'string' || typeof expiresAt !== 'string') throw new Error('unexpected owner invitation row shape')
+  return { kind: 'pending', email, expiresAt }
 }
 
 /** The secret names of `wrangler secret list --format json`. */

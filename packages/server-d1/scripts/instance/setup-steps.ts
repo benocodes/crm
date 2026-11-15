@@ -9,10 +9,11 @@ import { d1Binding, openControlDb, writeControlMarker } from '@vibase/storage-d1
 import { bootstrapD1, probeBatchAtomicity } from '../../src/bootstrap-d1.js'
 import { initDeploymentOperation } from '../../src/init-deployment.js'
 import { PLACEHOLDER_DATABASE_ID, formatMigrationDiff, statusOf } from '../remote.js'
+import { GOOGLE_SECRET_NAMES, authSecretManual, authSecretState, newAuthSecret, type BetterAuthInputs } from '../setup/better-auth.js'
 import { clerkStep, configuredCliClientId, signingKeyPem, type ClerkCtx } from '../setup/clerk.js'
 import type { ClerkKeys } from '../setup/clerk-keys.js'
 import { desiredBlock } from '../setup/config-editor.js'
-import { CONTROL_MARKER_SQL, MARKER_SQL, parseControlMarkerOutput, parseD1List, parseMarkerOutput, parseR2List, parseSecretList, parseTrackerOutput } from '../setup/commands.js'
+import { CONTROL_MARKER_SQL, MARKER_SQL, OWNERS_SQL, OWNER_INVITATIONS_SQL, parseControlMarkerOutput, parseD1List, parseMarkerOutput, parseOwnerState, parseR2List, parseSecretList, parseTrackerOutput, type MarkerRow } from '../setup/commands.js'
 import { GMAIL_SECRET_NAMES, NEVER_REPLACED, type Gmail } from '../setup/gmail.js'
 import { preflight } from '../setup/steps.js'
 import type { Credentials, SetupOptions, StepName, StepResult } from '../setup/types.js'
@@ -37,6 +38,8 @@ export interface SetupCtx extends ClerkCtx {
   /** The settings as they stand after `config:write` (the file's content, or what a dry run would write). */
   current?: InstanceSettings
   gmail: Gmail | null
+  /** `--auth better-auth`: `AUTH_SECRET` and the Google pair as the secrets file holds them ([[OPS249]] D3, D4). */
+  betterAuth?: BetterAuthInputs
   facts?: { d1s: { uuid: string; name: string }[]; r2s: string[] }
   /** A change was planned that later steps wait on (a dry run). */
   pending: boolean
@@ -78,6 +81,8 @@ export function desiredSettings(ctx: SetupCtx): InstanceSettings {
     apiHost: opts.apiHost,
     corsOrigins: CORS(opts),
     ...(ctx.gmail ? { gmailVars: ctx.gmail.vars } : {}),
+    // [[OPS249]] D2: `better-auth` writes `AUTH_PROVIDER` and `PUBLIC_BASE_URL` and nothing else.
+    ...(opts.auth === 'better-auth' ? { authVars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: `https://${opts.apiHost}` } } : {}),
     ...(clerk
       ? { authVars: { AUTH_PROVIDER: 'clerk', CLERK_ISSUER: ctx.keys!.issuer, CLERK_PUBLISHABLE_KEY: ctx.keys!.publishableKey, CLERK_AUTHORIZED_PARTIES: [...new Set([`https://${opts.apiHost}`, ...opts.origins])].join(','), AUTH_CLI_CLIENT_ID: cliId } }
       : {}),
@@ -275,7 +280,7 @@ const migrate: Step = async (ctx) => {
   return result('migrate', 'update', 'applied', diff(after))
 }
 
-const wantedLink = (ctx: SetupCtx) => (ctx.opts.auth === 'clerk' ? { authProvider: 'clerk', authOrgId: ctx.keys!.issuer } : { authProvider: 'none', authOrgId: ctx.opts.env })
+const wantedLink = (ctx: SetupCtx) => (ctx.opts.auth === 'clerk' ? { authProvider: 'clerk', authOrgId: ctx.keys!.issuer } : { authProvider: ctx.opts.auth, authOrgId: ctx.opts.env })
 
 const assigned = (text: string, name: string) => new RegExp(`^\\s*(export\\s+)?${name}=`, 'm').test(text)
 
@@ -290,6 +295,66 @@ function appendSecret(ctx: SetupCtx, name: string, value: string): void {
     mkdirSync(dirname(ctx.secretsPath), { recursive: true })
     writeFileSync(ctx.secretsPath, line, { mode: 0o600 })
   }
+}
+
+/**
+ * [[OPS249]] D6, D7: the `better-auth` bootstrap over the release's wrangler and D1. The owner state is read first (an owner membership, else the newest live owner invitation, else neither) and
+ * `ownerEmail` reaches the shared `bootstrapD1` only in the third state, so a re-run never re-issues (or reprints) the link. A dry run reports the state it found and writes nothing.
+ */
+async function betterAuthBootstrap(ctx: SetupCtx, want: { authProvider: string; authOrgId: string }, marker: MarkerRow | null, control: { organizationId: string } | null | undefined): Promise<StepResult> {
+  const { opts } = ctx
+  if (ctx.current?.control_d1 === undefined) return result('bootstrap', 'fail', 'better-auth needs the control database: the settings file records none')
+  const complete = marker !== null && marker.organizations > 0 && control !== null
+  const read = (binding: 'DB' | 'CONTROL_DB', sql: string) => wr(ctx, ['d1', 'execute', binding, '--remote', '--json', '--command', sql]).stdout
+  const state = parseOwnerState(read('DB', OWNERS_SQL), read('CONTROL_DB', OWNER_INVITATIONS_SQL))
+  const operator = opts.operatorAgent !== undefined
+  const mark = `marker ${want.authProvider}:${want.authOrgId} present`
+  if (complete && state.kind !== 'none') {
+    const note = operator ? ': bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key through api_keys.create on /meta/v1' : ''
+    return result('bootstrap', 'ok', state.kind === 'owner' ? `${mark}, an owner exists: nothing to issue${note}` : `${mark}, owner invitation pending for ${state.email} (expires ${state.expiresAt})${note}`)
+  }
+  const issue = state.kind === 'none'
+  if (issue && opts.ownerEmail === undefined) {
+    return result('bootstrap', 'fail', '--owner-email is required: this instance has no owner and no live owner invitation, so setup must issue one (pass --owner-email <address>)')
+  }
+  if (operator && !complete && assigned(ctx.secrets.text, opts.keyEnv!)) return result('bootstrap', 'fail', `${opts.keyEnv} is already set in ${ctx.secretsPath}: refusing to overwrite a key`)
+  const invite = issue ? `an owner invitation for ${opts.ownerEmail}` : undefined
+  if (opts.dryRun) {
+    ctx.pending = true
+    if (complete) return result('bootstrap', 'create', `would issue ${invite}`)
+    const parts = [...(marker === null ? [`marker ${want.authProvider}:${want.authOrgId}`] : []), ...(marker === null || marker.organizations === 0 ? [`organisation ${opts.org}`] : []), ...(control === null ? ['control marker'] : []), 'the vibase-cli client', ...(operator ? [`operator agent ${opts.operatorAgent} (key to ${ctx.secretsPath} as ${opts.keyEnv})`] : [])]
+    return result('bootstrap', 'create', `would write ${parts.join(', ')}${invite ? `, then issue ${invite}` : ''}`)
+  }
+  ctx.wrote = true
+  return withGeneratedConfigAsync({ packageDir: ctx.deps.packageDir, settings: effective(ctx), tmpRoot: ctx.deps.tmpRoot }, async (configPath) => {
+    const { d1, control: controlD1, dispose } = await ctx.deps.openD1({ configPath, remoteBindings: true, persist: false, env: childEnv(ctx.deps, ctx.secrets) })
+    try {
+      if (!controlD1) return result('bootstrap', 'fail', 'the control database is not bound in the instance proxy')
+      const link = { organizationId: marker?.organizationId ?? uuidv7(), ...want }
+      if (marker === null && (await probeBatchAtomicity(d1, link)) === 'not-atomic') return result('bootstrap', 'fail', 'atomicity probe failed (a failed batch left a row): stopping')
+      const r = await bootstrapD1(
+        d1,
+        { organizationName: opts.org, agentName: opts.operatorAgent, ...want, organizationId: link.organizationId, publicBaseUrl: `https://${opts.apiHost}`, ...(issue ? { ownerEmail: opts.ownerEmail } : {}) },
+        { control: openControlDb(controlD1) },
+      )
+      const lines: string[] = []
+      if (r.key !== null && r.agentId !== null) {
+        ctx.extraMasks.push(r.key)
+        try {
+          appendSecret(ctx, opts.keyEnv!, r.key)
+        } catch {
+          return result('bootstrap', 'fail', `the API key could not be written to ${ctx.secretsPath}; it is lost: revoke api key ${r.apiKeyId} and create a new one`)
+        }
+        ctx.keyWritten = true
+        lines.push(`agent_id: ${r.agentId}`, `api_key_id: ${r.apiKeyId}`, `api_key: written to ${ctx.secretsPath} as ${opts.keyEnv} (not shown)`)
+      }
+      // The URL is printed once, here, and stored nowhere (a later run reads the state and prints none).
+      if (r.ownerInvitation) lines.push(`owner invitation for ${r.ownerInvitation.email} (expires ${r.ownerInvitation.expiresAt}; shown once, stored nowhere): ${r.ownerInvitation.url}`)
+      return result('bootstrap', 'create', `wrote ${[...(marker === null ? [`marker ${want.authProvider}:${want.authOrgId}`] : []), `organisation ${opts.org}`, 'control marker', 'the vibase-cli client', ...(r.ownerInvitation ? ['an owner invitation'] : [])].join(', ')}`, lines.length ? lines : undefined)
+    } finally {
+      await dispose()
+    }
+  })
 }
 
 /** [[OPS65]] D18, D39 over the release's wrangler and D1: the marker, the organisation and (with the flags) the operator agent, whose key goes to the secrets file. */
@@ -309,10 +374,11 @@ const bootstrap: Step = async (ctx) => {
   if (control && (marker === null || control.organizationId !== marker.organizationId)) {
     return result('bootstrap', 'fail', `the control database is already paired with organization ${control.organizationId}, not ${marker === null ? 'this deployment' : marker.organizationId}: it belongs to another deployment`)
   }
+  if (marker !== null && (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId)) {
+    return result('bootstrap', 'fail', `the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`)
+  }
+  if (opts.auth === 'better-auth') return betterAuthBootstrap(ctx, want, marker, control)
   if (marker !== null) {
-    if (marker.authProvider !== want.authProvider || marker.authOrgId !== want.authOrgId) {
-      return result('bootstrap', 'fail', `the database is marked ${marker.authProvider}:${marker.authOrgId}, not ${want.authProvider}:${want.authOrgId}: it belongs to another deployment`)
-    }
     // A Clerk bootstrap always makes the organisation (CORE64 D11); `none` without the operator flags is the marker alone.
     if (!clerk || marker.organizations > 0) {
       const mark = `marker ${want.authProvider}:${want.authOrgId} present`
@@ -415,12 +481,16 @@ const deploy: Step = async (ctx) => {
 
 const CLERK_SECRET_NAMES = ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'] as const
 
-/** [[OPS87]], [[OPS150]] over `wrangler secret bulk` on stdin: present secrets stay without `--rotate-secrets`; `CREDENTIALS_KEY` is put only when absent. */
+/**
+ * [[OPS87]], [[OPS150]] over `wrangler secret bulk` on stdin: present secrets stay without `--rotate-secrets`; `CREDENTIALS_KEY` is put only when absent. [[OPS249]] D3: `AUTH_SECRET` is
+ * judged by its four states and never rotated; a generated value is written to the secrets file BEFORE the put, so a failed put cannot lose it.
+ */
 const secrets: Step = async (ctx) => {
   const b = blocked(ctx, 'secrets')
   if (b) return b
   const clerk = ctx.opts.auth === 'clerk'
-  const names: string[] = [...(clerk ? CLERK_SECRET_NAMES : []), ...(ctx.gmail ? GMAIL_SECRET_NAMES : [])]
+  const ba = ctx.betterAuth
+  const names: string[] = [...(clerk ? CLERK_SECRET_NAMES : []), ...(ba ? ['AUTH_SECRET', ...(ba.google ? GOOGLE_SECRET_NAMES : [])] : []), ...(ctx.gmail ? GMAIL_SECRET_NAMES : [])]
   if (names.length === 0) return result('secrets', 'ok', 'no secrets for this configuration (--auth none, no Gmail group)')
   const list = wr(ctx, ['secret', 'list', '--format', 'json'])
   if (list.status !== 0) {
@@ -429,18 +499,38 @@ const secrets: Step = async (ctx) => {
       : result('secrets', 'fail', `wrangler secret list failed (exit ${list.status ?? 'none'}): is the Worker deployed?`)
   }
   const present = parseSecretList(list.stdout)
-  const put = names.filter((n) => (n === NEVER_REPLACED && ctx.gmail ? !present.includes(n) : ctx.opts.rotateSecrets || !present.includes(n)))
+  const authState = ba ? authSecretState(ba.authSecret !== undefined, present.includes('AUTH_SECRET')) : undefined
+  const put = names.filter((n) => (n === 'AUTH_SECRET' ? authState === 'a' || authState === 'b' : n === NEVER_REPLACED && ctx.gmail ? !present.includes(n) : ctx.opts.rotateSecrets || !present.includes(n)))
   const kept = ctx.gmail && ctx.opts.rotateSecrets && present.includes(NEVER_REPLACED) ? [`${NEVER_REPLACED} kept: stored credentials are encrypted under it (rotate through CREDENTIALS_KEY_VERSION, not setup)`] : []
-  if (put.length === 0) return result('secrets', 'ok', `${names.join(' and ')} are present (--rotate-secrets replaces them${ctx.gmail ? `, except ${NEVER_REPLACED}` : ''})`, kept.length ? kept : undefined)
+  const manual = authState === 'd' ? authSecretManual(ba!.file) : undefined
+  if (put.length === 0) {
+    if (manual) return result('secrets', 'manual', manual, kept.length ? kept : undefined)
+    return result('secrets', 'ok', `${names.join(' and ')} are present (--rotate-secrets replaces them${ctx.gmail ? `, except ${NEVER_REPLACED}` : ''}${ba ? ', and never AUTH_SECRET' : ''})`, kept.length ? kept : undefined)
+  }
   const status = put.filter((n) => present.includes(n)).length === put.length ? 'update' : 'create'
-  if (ctx.opts.dryRun) return result('secrets', status, `would put ${put.join(', ')}`, kept.length ? kept : undefined)
+  const wouldPut = `${authState === 'a' ? `would generate AUTH_SECRET into ${ba!.file} and ` : 'would '}put ${put.join(', ')}`
+  if (ctx.opts.dryRun) return manual ? result('secrets', 'manual', manual, [wouldPut, ...kept]) : result('secrets', status, wouldPut, kept.length ? kept : undefined)
   const values: Record<string, string> = {}
   if (put.includes('CLERK_SECRET_KEY')) values.CLERK_SECRET_KEY = ctx.keys!.secretKey
   if (put.includes('CLERK_JWT_KEY')) values.CLERK_JWT_KEY = await signingKeyPem(ctx)
+  if (authState === 'b') values.AUTH_SECRET = ba!.authSecret!
+  if (authState === 'a') {
+    values.AUTH_SECRET = newAuthSecret()
+    // Masked from every later line before it can be printed, then written to the file before the put.
+    ctx.extraMasks.push(values.AUTH_SECRET)
+    try {
+      appendSecret(ctx, 'AUTH_SECRET', values.AUTH_SECRET)
+      ctx.wrote = true
+    } catch {
+      return result('secrets', 'fail', `AUTH_SECRET could not be written to ${ba!.file}; nothing was put`)
+    }
+  }
+  if (ba?.google) for (const n of GOOGLE_SECRET_NAMES) if (put.includes(n)) values[n] = ba.google[n]
   for (const n of GMAIL_SECRET_NAMES) if (put.includes(n)) values[n] = ctx.gmail!.secrets[n]!
   const r = wr(ctx, ['secret', 'bulk'], { input: JSON.stringify(values) })
-  if (r.status !== 0) return result('secrets', 'fail', `wrangler secret bulk failed (exit ${r.status ?? 'none'})`)
-  return result('secrets', status, `put ${put.join(', ')}`, kept.length ? kept : undefined)
+  if (r.status !== 0) return result('secrets', 'fail', `wrangler secret bulk failed (exit ${r.status ?? 'none'})${authState === 'a' ? `; AUTH_SECRET is in ${ba!.file}, the next run puts it` : ''}`)
+  const done = `put ${put.join(', ')}`
+  return manual ? result('secrets', 'manual', manual, [done, ...kept]) : result('secrets', status, done, kept.length ? kept : undefined)
 }
 
 /** `/.well-known/vibase` `auth` must equal what setup configured ([[OPS65]] D21). */

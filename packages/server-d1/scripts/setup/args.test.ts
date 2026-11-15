@@ -3,7 +3,7 @@ import { RemoteRefusal } from '../remote.js'
 import { parseSetupArgs } from './args.js'
 
 const base = ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai']
-const clerk = ['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-email', 'o@example.com']
+const clerk = ['--env', 'acme', '--auth', 'clerk', '--api-host', 'api.acme.vibase.ai', '--owner-email', 'o@example.com']
 
 describe('parseSetupArgs: valid input (D6, D9, D18, D20)', () => {
   it('derives names from the env and defaults the organisation to the env name', () => {
@@ -20,8 +20,8 @@ describe('parseSetupArgs: valid input (D6, D9, D18, D20)', () => {
   })
 })
 
-describe('parseSetupArgs: --auth clerk, the default (OPS87)', () => {
-  it('is the default, and takes the Clerk flags', () => {
+describe('parseSetupArgs: --auth clerk (OPS87; explicit since OPS249, the default is better-auth)', () => {
+  it('takes the Clerk flags', () => {
     const o = parseSetupArgs([...clerk, '--clerk-env-file', '.env.dev', '--clerk-publishable-key', 'pk_test_x', '--clerk-production', '--no-dcr', '--rotate-secrets', '--only', 'clerk,secrets'])
     expect(o).toMatchObject({ auth: 'clerk', clerkEnvFile: '.env.dev', clerkPublishableKey: 'pk_test_x', clerkProduction: true, noDcr: true, rotateSecrets: true, ownerEmail: 'o@example.com', only: ['clerk', 'secrets'] })
   })
@@ -58,7 +58,7 @@ describe('parseSetupArgs: refusals before any network call (D19, D20, D18, D6)',
     ['a Clerk-only flag with --auth none', [...base, '--clerk-publishable-key', 'pk_test_x'], /--auth clerk/],
     ['--clerk-production with --auth none', [...base, '--clerk-production'], /--auth clerk/],
     ['--only clerk with --auth none', [...base, '--only', 'clerk'], /--auth clerk/],
-    ['--auth clerk without --owner-email (D17)', ['--env', 'acme', '--api-host', 'api.acme.vibase.ai'], /--owner-email/],
+    ['--auth clerk without --owner-email (D17)', ['--env', 'acme', '--auth', 'clerk', '--api-host', 'api.acme.vibase.ai'], /--owner-email/],
     ['--clerk-key-env is gone (D34)', [...clerk, '--clerk-key-env', 'X'], /clerk-key-env/],
   ]
   it.each(cases)('%s', (_name, argv, message) => {

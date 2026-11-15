@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util'
 import { RemoteRefusal } from '../remote.js'
+import { PROVIDERS, chooseProvider, type RecordLookup } from './better-auth.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupOptions, type StepName } from './types.js'
 
 const ENV_SHAPE = /^[a-z0-9][a-z0-9-]*$/
@@ -63,12 +64,15 @@ export function parseSetupFlags(argv: string[], extra: Extra): FlagValues {
 }
 
 /** Parses and validates the flags ([[OPS65]] D6, D18, D19, D20) before anything touches a network; throws `RemoteRefusal`. */
-export function parseSetupArgs(argv: string[]): SetupOptions {
-  return buildSetupOptions(parseSetupFlags(argv, { 'clerk-env-file': { type: 'string' } }))
+export function parseSetupArgs(argv: string[], record?: RecordLookup): SetupOptions {
+  return buildSetupOptions(parseSetupFlags(argv, { 'clerk-env-file': { type: 'string' } }), record)
 }
 
-/** The validation and defaults of the parsed flags; shared with `vibase-server setup`. */
-export function buildSetupOptions(values: FlagValues): SetupOptions {
+/**
+ * The validation and defaults of the parsed flags; shared with `vibase-server setup`. `record` finds the instance's recorded provider ([[OPS249]] D1): a recorded
+ * instance runs with it and refuses a differing `--auth`; a new one defaults to `better-auth`.
+ */
+export function buildSetupOptions(values: FlagValues, record?: RecordLookup): SetupOptions {
   const str = (k: string) => values[k] as string | undefined
 
   const env = str('env')
@@ -78,9 +82,11 @@ export function buildSetupOptions(values: FlagValues): SetupOptions {
   if (!apiHost) throw new RemoteRefusal('--api-host <host> is required (the API is served on a custom domain, OPS65 D19)')
   if (apiHost.includes('*') || !HOST_SHAPE.test(apiHost)) throw new RemoteRefusal(`--api-host ${apiHost}: expected a bare host name such as api.example.com (no scheme, path or wildcard)`)
 
-  const auth = str('auth') ?? 'clerk'
-  if (auth !== 'clerk' && auth !== 'none') throw new RemoteRefusal(`--auth ${auth}: expected clerk (the default) or none (API keys only)`)
-  if (auth === 'none') for (const f of CLERK_FLAGS) if (values[f] !== undefined) throw new RemoteRefusal(`--${f} only applies with --auth clerk`)
+  const flagAuth = str('auth')
+  if (flagAuth !== undefined && !(PROVIDERS as readonly string[]).includes(flagAuth)) throw new RemoteRefusal(`--auth ${flagAuth}: expected better-auth (the default for a new instance), clerk or none (API keys only)`)
+  const recorded = record?.(env) ?? null
+  const auth = chooseProvider(flagAuth, recorded)
+  if (auth !== 'clerk') for (const f of CLERK_FLAGS) if (values[f] !== undefined) throw new RemoteRefusal(`--${f} only applies with --auth clerk`)
 
   const operatorAgent = str('operator-agent')
   const keyEnv = str('key-env')
@@ -89,6 +95,8 @@ export function buildSetupOptions(values: FlagValues): SetupOptions {
   const ownerEmail = str('owner-email')
   // `--owner-email` follows the auth mode ([[OPS65]] D38): the invitation target with clerk, the API-key owner with none.
   if (auth === 'clerk' && !ownerEmail) throw new RemoteRefusal('--owner-email is required with --auth clerk (the first owner is invited, OPS65 D17)')
+  // [[OPS249]] D6: a new better-auth instance has no owner yet, so it needs the address its owner invitation goes to; a recorded one needs it only while it has no owner (the bootstrap step reads that).
+  if (auth === 'better-auth' && recorded === null && !ownerEmail) throw new RemoteRefusal('--owner-email is required for a new better-auth instance (the first owner is invited; a recorded instance needs it only while it has no owner)')
   if (auth === 'none' && operatorAgent !== undefined && !ownerEmail) throw new RemoteRefusal('--owner-email is required with --operator-agent on --auth none (the API-key deployment needs a human owner, as bootstrap does)')
 
   if (auth === 'none' && str('org') !== undefined && operatorAgent === undefined) throw new RemoteRefusal('--org only applies with --operator-agent on --auth none (without it only the deployment marker is written)')
@@ -102,7 +110,7 @@ export function buildSetupOptions(values: FlagValues): SetupOptions {
     only = onlyRaw.split(',').map((s) => s.trim()).filter(Boolean) as StepName[]
     const unknown = only.filter((s) => !(STEP_NAMES as readonly string[]).includes(s))
     if (unknown.length > 0 || only.length === 0) throw new RemoteRefusal(`--only: unknown step ${unknown.join(', ') || '(none given)'}; steps are ${STEP_NAMES.join(', ')}`)
-    if (auth === 'none' && only.some((s) => CLERK_ONLY_STEPS.includes(s))) throw new RemoteRefusal(`--only ${only.filter((s) => CLERK_ONLY_STEPS.includes(s)).join(', ')} needs --auth clerk`)
+    if (auth !== 'clerk' && only.some((s) => CLERK_ONLY_STEPS.includes(s))) throw new RemoteRefusal(`--only ${only.filter((s) => CLERK_ONLY_STEPS.includes(s)).join(', ')} needs --auth clerk`)
   }
 
   // [[OPS262]] D5: a new instance's names are vb-<kind>-<env>; a recorded instance's names are applied by `applyRecordedNames`. Cloudflare's limit is 63.

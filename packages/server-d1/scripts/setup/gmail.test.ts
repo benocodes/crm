@@ -13,7 +13,7 @@ import { FIXTURE_CONFIG_PATH, makeWorld, type World, type WorldOptions } from '.
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const NONE = ['--env', 'acme', '--auth', 'none', '--api-host', 'api.acme.vibase.ai']
-const CLERK = ['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-email', OWNER_EMAIL]
+const CLERK = ['--env', 'acme', '--auth', 'clerk', '--api-host', 'api.acme.vibase.ai', '--owner-email', OWNER_EMAIL]
 const realConfig = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const states = (o: SetupOutcome) => o.results.map((r) => `${r.step}:${r.status}`)
 const KEY32 = Buffer.alloc(32, 7).toString('base64')

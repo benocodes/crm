@@ -392,6 +392,15 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   `vb-control-<env>` (or take the record / `--control-d1-name`), adopt a D1 of that name, migrate control before CRM
   inside the one `migrate` step, and write the control marker after the CRM `deployment` row, also on an instance
   bootstrapped before the control plane existed. `bootstrap --remote` writes it when the env binds `CONTROL_DB`.
+- **Setup on Better Auth** ([[OPS249]]): a new instance defaults to `better-auth`; a recorded one runs with its
+  recorded `AUTH_PROVIDER` (absent = `none`), and a differing `--auth` is refused before any step. The bootstrap step
+  reads the owner state first (CRM `memberships`, control `invitations`, `setup/commands.ts`) and passes `ownerEmail`
+  to `bootstrapD1` only when there is neither an owner nor a live owner invitation, so a re-run never re-issues the
+  link. `AUTH_SECRET` goes to the instance's secrets file before the put, so a failed put loses nothing.
+- **A "create if missing" path for a secrets file checks git's ignore rule itself** ([[OPS249]] review): the env-file
+  probe returns `missing` before it runs `git check-ignore`, so a writer that creates the file must run the check
+  before writing (`appendEnvFileVar` in `scripts/setup/env-file.ts`). Prove it against a real `git init` repository;
+  the setup kit's fake world has no notion of ignore.
 - **Dropping or moving a table: grep every package for its name** (sources, tests, fixtures), not only the package
   that owns the migration. CRM `0019` (drop `auth_*`) broke `packages/server-d1/src/auth-routing.test.ts`, which the
   charter's watch list missed and only the full gate found ([[OPS260]]). Grep `scripts/` too: `smoke:worker` is not

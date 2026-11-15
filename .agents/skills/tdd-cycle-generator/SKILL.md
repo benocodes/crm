@@ -205,6 +205,13 @@ read-only resource becoming writable: the generic contract suite (a `patch` fixt
 write operations"), a roles test and three goldens all pinned read-only and turned red. When a charter adds writes to an
 existing resource, name those pins in Watch out. A charter that lists every partial state of a cross-store write (P5) and
 puts the race inside the guard (P4), each with an absence mutation, drew no review finding: the CORE287 lesson applied.
+**OPS249** (`knowledge/specs/015-OPS249-programmatic-setup/RETRO.md`): 6 groups (1 matrix), 6 decisions, no migration,
+scripts-only, rider existing fixtures, split at plan time from 9 decisions. It cost ~327k / 82 calls in one run plus a 3k fix
+round (+405 / +938 lines, 26 files). The budget holds, but every obligation ran on both setup front-ends: six groups became two
+51-test files, and kit work in both kits was the largest part. When obligations must be proven on two parallel front-ends,
+write "× 2 front-ends" in the Size line. The one finding was a file-creating path that skipped a check the read-side probe
+only made for existing files: when a charter adds a write to a file that holds a secret, make "refused unless git ignores it"
+an obligation of its own.
 
 ### Step 3: Resolve identities
 
