@@ -451,7 +451,9 @@ describe('clerk and unset compositions serve it too ([[CORE326]] P3)', () => {
   it('the generated OpenAPI document and the MCP tool text no longer name provider_not_configured for audit.list', async () => {
     const wk = worker()
     const doc = await wk.fetch(new Request(`${AUTH_BASE}/meta/v1/openapi.json`))
-    const op = ((await doc.json()) as any).paths['/audit'].get
+    const paths = ((await doc.json()) as any).paths as Record<string, any>
+    const op = paths['/meta/v1/audit'] ?? paths['/audit']
+    expect(op, Object.keys(paths).join(',')).toBeDefined()
     expect(JSON.stringify(op)).not.toMatch(/provider_not_configured|does not have/)
   })
 })

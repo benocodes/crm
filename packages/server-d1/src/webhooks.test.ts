@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { NOW, openWorkerD1, type WorkerD1 } from './test/kit.js'
+import { type D1WorkerEnv } from './compose.js'
+import { NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // API7 cycle 1 (D12, D13, Configuration): the Worker's composition is the only place CREDENTIALS_KEY and WEBHOOK_ALLOW_INSECURE_URLS reach the webhook operations, and
 // they must do so with no Google variable set. The operations' own behaviour is proven in @vibase/api with the configuration injected.

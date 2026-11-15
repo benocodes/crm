@@ -374,11 +374,12 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
 - **Tooling maps each database by its `binding`, never by position** ([[OPS260]]): `DB` → `migrations/`,
   `CONTROL_DB` → `control-migrations/`, each with its own `database_id` and `migrations_dir`
   (`packages/release/src/check-config.ts`). `db:migrate:remote` applies control first and stops on its failure;
-  control is "current" only when applied = shipped exactly (unknown and ahead are not). Until [[CORE261]], an env
-  whose config has no `CONTROL_DB` entry is CRM only, with a printed not-configured line ([[CORE259]] P1).
+  control is "current" only when applied = shipped exactly (unknown and ahead are not). The control plane is required in
+  every auth mode ([[CORE326]]): `db:migrate:remote`, `db:status:remote`, `deploy:remote` and `bootstrap --remote` refuse an env
+  whose config has no `CONTROL_DB` entry before any wrangler call, naming `setup:remote --env <name>` (`requireControlTarget`).
   The instance commands (`vibase-server status`/`upgrade`, `packages/server-d1/scripts/instance/`) take the control
-  database's name and id only from the settings' optional `control_d1`, never derived from the env ([[OPS275]]); settings
-  with `AUTH_PROVIDER=better-auth` and no `control_d1` are refused (P2).
+  database's name and id only from the settings' `control_d1`, never derived from the env ([[OPS275]]); settings
+  without `control_d1` are refused in every auth mode, `setup` aside, which records it ([[CORE326]] P5).
 - **"No tracker" differs by database and by reader** ([[OPS275]] D-b): for status and upgrade, a control database with no
   `d1_migrations` table is `behind` with every control migration pending (a new instance before its first migrate); the
   Worker's runtime control gate refuses it as `unknown`; the CRM no-tracker case is `unknown` in both.

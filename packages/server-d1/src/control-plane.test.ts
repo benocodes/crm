@@ -119,20 +119,20 @@ describe('the control gate matrix (D6, D7)', () => {
     })
 
   for (const provider of PROVIDERS)
-  it(`${provider}: CRM not initialised: 503 not_initialised (nothing to pair with yet), not the not-paired 500`, async () => {
-    const fresh = await openLocalD1(['F'])
-    try {
-      const env = { ...(await envFor(provider, 'no marker')), DB: fresh.bindings.F! }
-      const worker = composeD1Worker(env)
-      for (const path of ['/api/v1/contacts']) {
-        const res = await call(worker, path)
-        expect(res.status, path).toBe(503)
-        expect(await res.json(), path).toEqual(NOT_INITIALISED)
+    it(`${provider}: CRM not initialised: 503 not_initialised (nothing to pair with yet), not the not-paired 500`, async () => {
+      const fresh = await openLocalD1(['F'])
+      try {
+        const env = { ...(await envFor(provider, 'no marker')), DB: fresh.bindings.F! }
+        const worker = composeD1Worker(env)
+        for (const path of ['/api/v1/contacts']) {
+          const res = await call(worker, path)
+          expect(res.status, path).toBe(503)
+          expect(await res.json(), path).toEqual(NOT_INITIALISED)
+        }
+      } finally {
+        await fresh.dispose()
       }
-    } finally {
-      await fresh.dispose()
-    }
-  })
+    })
 
   it('a pending control migration (tracker behind the shipped set) is 503 migrations_pending, and is re-read: applying it lets the next request through', async () => {
     await writeControlMarker(openControlDb(w.control), orgId)

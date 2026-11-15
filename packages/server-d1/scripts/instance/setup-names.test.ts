@@ -11,7 +11,7 @@ import {
   type SetupWorldOptions,
 } from './setup-kit.js'
 import { runSetup } from './setup.js'
-import { CONTROL_ALL, CONTROL_UUID, cleanup, UUID, validSettings } from './test-kit.js'
+import { CONTROL_ALL, CONTROL_UUID, cleanup, UUID, noControlSettings } from './test-kit.js'
 
 let d1: WorkerD1
 beforeAll(async () => {
@@ -100,7 +100,7 @@ describe('recorded names win (matrix: resource kind)', () => {
   it.each(cases)(
     '%s: a re-run with no name flags creates nothing, keeps the record and targets the recorded names',
     async (kind, n) => {
-      const settings = validSettings({
+      const settings = noControlSettings({
         worker: n.worker,
         d1: { name: n.d1, id: UUID },
         r2_bucket: n.r2,
@@ -149,7 +149,7 @@ describe('recorded names win (matrix: resource kind)', () => {
 describe('P3: a name flag that disagrees with the record is refused', () => {
   const recorded = () =>
     world({
-      settings: validSettings(),
+      settings: noControlSettings(),
       sim: {
         d1s: [{ uuid: UUID, name: 'vault-demo' }],
         r2s: ['vault-demo-bodies'],

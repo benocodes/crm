@@ -30,7 +30,7 @@ import {
   type SetupWorldOptions,
 } from './setup-kit.js'
 import { runSetup } from './setup.js'
-import { CONTROL_ALL, CONTROL_UUID, cleanup, mkTmp, packageLine, TOKEN, UUID, validSettings } from './test-kit.js'
+import { CONTROL_ALL, CONTROL_UUID, cleanup, mkTmp, packageLine, TOKEN, UUID, noControlSettings } from './test-kit.js'
 import { loadSettings } from './settings.js'
 import { deployArgs } from './upgrade.js'
 import { InstanceRefusal } from './types.js'
@@ -282,7 +282,7 @@ describe('adoption and the settings file', () => {
     const s = world({
       controlMarker: 'org-1',
       sim: ADOPTED(),
-      settings: validSettings({
+      settings: noControlSettings({
         api_host: 'other.demo.invalid',
         control_d1: { name: 'vb-control-demo', id: CONTROL_UUID },
       }),
@@ -330,7 +330,7 @@ describe('refusals and failures (the matrix)', () => {
     expect(await run(d, [...NONE_ARGS, '--dry-run'])).toBe(0)
   })
   it('worker "vb" in an existing settings file', async () => {
-    const s = world({ settings: validSettings({ worker: 'vb' }) })
+    const s = world({ settings: noControlSettings({ worker: 'vb' }) })
     refused(s, await run(s), /unknown env demo/, true)
     expect(s.w.wrangler).toHaveLength(0)
   })

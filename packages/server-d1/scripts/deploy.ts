@@ -14,7 +14,7 @@ import {
   loadRootEnv,
   parseEnvFlag,
   requireConfirm,
-  resolveTarget,
+  requireControlTarget,
   type Cmd,
   type ConfigLike,
 } from './remote.js'
@@ -51,7 +51,8 @@ export function runDeploy(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Depl
   if (status.status !== 0 || status.stdout.trim() !== '')
     throw new RemoteRefusal('the working tree is not clean: commit or stash first')
   deps.loadEnv()
-  const target = resolveTarget(deps.readConfig(envName), envName)
+  // [[CORE326]] P4: a Worker without its control database answers 500 on every request, so the deploy is refused before the build.
+  const target = requireControlTarget(deps.readConfig(envName), envName)
   const head = deps.git(['rev-parse', 'HEAD'])
   if (head.status !== 0) throw new RemoteRefusal('could not read the commit (git rev-parse HEAD failed)')
   const sha = head.stdout.trim()

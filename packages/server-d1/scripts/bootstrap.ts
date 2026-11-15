@@ -24,10 +24,9 @@ import {
   REPO_ROOT,
   ROOT_ENV_PATH,
   RemoteRefusal,
-  controlNotConfigured,
   loadRootEnv,
   requireConfirm,
-  resolveTarget,
+  requireControlTarget,
   type ConfigLike,
   type Target,
 } from './remote.js'
@@ -146,7 +145,8 @@ export async function runRemoteGuards(
   if (!KEY_ENV_SHAPE.test(parsed.keyEnv)) throw new RemoteRefusal(`--key-env ${parsed.keyEnv} must be UPPER_SNAKE_CASE`)
   if (assigned(deps.readEnvText(), parsed.keyEnv))
     throw new RemoteRefusal(`${parsed.keyEnv} is already set in .env: refusing to overwrite a key`)
-  const target = resolveTarget(deps.readConfig(), parsed.envName)
+  // [[CORE326]] P4: an env with no CONTROL_DB entry is refused before the proxy opens, so nothing is written.
+  const target = requireControlTarget(deps.readConfig(), parsed.envName)
   ;(deps.log ?? console.log)(`target: env ${target.env}, database ${target.databaseName} (${target.databaseId})`)
   const proxy = await deps.getPlatformProxy(remoteProxyOptions(parsed.envName))
   return { target, proxy }
@@ -167,9 +167,9 @@ export interface BootstrapIo {
   writeEnvText(text: string): void
 }
 /**
- * OPS279: the body of `main` once the proxy is open, as a function a test can call; returns the exit code. A remote env whose config binds `CONTROL_DB` pairs the control
- * database ([[CORE259]] D7): the marker follows the CRM row, and `bootstrapD1` refuses a marker for another organisation before either database is written (the atomicity probe leaves nothing when it passes). An env
- * that binds none stays CRM only and says so ([[CORE259]] P1). Locally the control database is paired when the local env binds one, as before.
+ * OPS279: the body of `main` once the proxy is open, as a function a test can call; returns the exit code. Every mode pairs the control
+ * database ([[CORE259]] D7, [[CORE326]] P6): the marker follows the CRM row, and `bootstrapD1` refuses a marker for another organisation before either database is written (the atomicity probe leaves nothing when it passes). A remote env
+ * with no `CONTROL_DB` entry never gets here (`runRemoteGuards`); a local env whose proxy has no control database is refused before either database is written.
  */
 export async function runBootstrap(
   run: BootstrapRun,
@@ -181,14 +181,20 @@ export async function runBootstrap(
   let control: ControlDb | undefined
   if (run.mode === 'remote') {
     const target = run.target!
-    if (!target.control) io.log(controlNotConfigured(target.env))
-    else if (!proxy.env.CONTROL_DB) {
+    if (!proxy.env.CONTROL_DB) {
       io.error(
         `bootstrap: env ${target.env} binds CONTROL_DB in wrangler.jsonc but the remote proxy has none: nothing was written`,
       )
       return 1
-    } else control = openControlDb(proxy.env.CONTROL_DB)
-  } else if (proxy.env.CONTROL_DB) control = openControlDb(proxy.env.CONTROL_DB)
+    }
+    control = openControlDb(proxy.env.CONTROL_DB)
+  } else {
+    if (!proxy.env.CONTROL_DB) {
+      io.error('bootstrap: the local environment binds no CONTROL_DB (wrangler.jsonc): nothing was written')
+      return 1
+    }
+    control = openControlDb(proxy.env.CONTROL_DB)
+  }
   try {
     let organizationId = values['organization-id']
     if (run.mode === 'remote') {

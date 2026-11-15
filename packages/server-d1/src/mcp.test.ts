@@ -7,11 +7,21 @@ import { d1Binding } from '@vibase/storage-d1'
 import { closeScopes, createVibaseRegistry, grantableScopes, toolName } from '@vibase/api'
 import { mintClerkToken, mintOAuthToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import { type D1WorkerEnv } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { NOW, clerkKit, clerkUser, meterD1, openWorkerD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
+import {
+  NOW,
+  clerkKit,
+  clerkUser,
+  meterD1,
+  openWorkerD1,
+  type ClerkKit,
+  type WorkerD1,
+  composeD1Worker,
+  inheritPairing,
+} from './test/kit.js'
 
 // [[API106]] cycle 1: the MCP endpoint through the real D1 composition (local Miniflare, a fake Clerk Backend API, locally minted tokens).
 
@@ -602,7 +612,7 @@ describe('executor parity with REST (D12)', () => {
     }
     const wk = worker()
     const { key } = await agentKey(wk, 'a')
-    const wkBroken = worker({}, broken as typeof w.d1)
+    const wkBroken = worker({}, inheritPairing(w.d1, broken as typeof w.d1))
     const r = await callTool(wkBroken, key, 'companies_list')
     expect(r.json.result.isError).toBe(true)
     expect(r.json.result.structuredContent).toEqual({ error: { code: 'internal', message: 'internal error' } })

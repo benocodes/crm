@@ -22,8 +22,8 @@ const auditRecord = z.object({
 })
 
 /**
- * [[CORE261]] P1-P6: the control plane's audit log on the meta surface. A control operation: where composition has no control store (`runtime` null: Clerk, unset) it answers
- * `501 provider_not_configured` after the scope check. Reading writes nothing and is not itself audited (P6).
+ * [[CORE261]] P1-P6: the control plane's audit log on the meta surface. A control operation, served on every D1 composition ([[CORE326]] P3); the parked Postgres composition has no control store (`runtime` null) and answers
+ * `501 provider_not_configured` after the scope check (parked, undeclared behaviour). Reading writes nothing and is not itself audited (P6).
  */
 export function auditOperations(runtime: AuditRuntime | null): ControlOperation[] {
   return [
@@ -35,7 +35,7 @@ export function auditOperations(runtime: AuditRuntime | null): ControlOperation[
       name: 'audit.list',
       summary: 'Browse the control-plane audit log',
       description:
-        'Owners, and agents an owner granted audit:read. A log to browse, not a feed: rows come oldest first by id, filtered by exact action, target_type and target_id (combinable), 50 per page by default (limit 1 to 200); pass next_cursor as after for the next page, null on the last. Rows are as stored (invitations created, revoked and accepted, sessions revoked on removal, reset links issued); detail is the stored object and never holds a token. Reading is not itself audited. The log has no sequence number, so a row written by a lagging clock can land behind a cursor already read. Answers 501 provider_not_configured when the deployment has no control-plane database.',
+        'Owners, and agents an owner granted audit:read. A log to browse, not a feed: rows come oldest first by id, filtered by exact action, target_type and target_id (combinable), 50 per page by default (limit 1 to 200); pass next_cursor as after for the next page, null on the last. Rows are as stored (invitations created, revoked and accepted, sessions revoked on removal, reset links issued); detail is the stored object and never holds a token. Reading is not itself audited. The log has no sequence number, so a row written by a lagging clock can land behind a cursor already read.',
       method: 'get',
       path: '/audit',
       scope: { resource: 'audit', action: 'read' },

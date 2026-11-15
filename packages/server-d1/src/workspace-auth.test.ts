@@ -4,9 +4,9 @@ import { d1Binding } from '@vibase/storage-d1'
 import { createVibaseRegistry, scopesForRole } from '@vibase/api'
 import { mintClerkToken, orgClaim } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import { type D1WorkerEnv } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
-import { NOW, clerkKit, clerkUser, openWorkerD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
+import { NOW, clerkKit, clerkUser, openWorkerD1, type ClerkKit, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[CORE64]] cycle 1: workspace sign-in on D1. A Clerk session token's `vibase_role` claim is the only authority; the vault
 // keeps no membership state and reads no organisation claim.

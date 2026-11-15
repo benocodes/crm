@@ -10,9 +10,8 @@ import { mintOAuthToken } from '@vibase/api/test/clerk'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { mintClerkToken } from '@vibase/api/test/clerk'
-import { composeD1Worker } from './compose.js'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { clerkKit, openWorkerD1, meterD1, type WorkerD1, type ClerkKit } from './test/kit.js'
+import { clerkKit, openWorkerD1, meterD1, type WorkerD1, type ClerkKit, composeD1Worker } from './test/kit.js'
 import { d1Binding } from '@vibase/storage-d1'
 import { runGmailSync } from '@vibase/api/test/gmail-sync'
 import { nodeStreams } from '@vibase/api/test/streams'
@@ -279,9 +278,9 @@ it('real Worker direct/approved cold paths count D1, object put/get, Gmail, refr
   )
   expect(measured.queries + external).toBeLessThanOrEqual(50)
   expect({ queries: measured.queries, external, total: measured.queries + external }).toEqual({
-    queries: 15,
+    queries: 16, // +1 for the control gate's deployment read, once per isolate ([[CORE326]] P1); was 15
     external: 5,
-    total: 20,
+    total: 21,
   })
   const pending = await req(wk, 'POST', '/api/v1/action-requests', {
     operation: 'messages.send',
@@ -308,9 +307,9 @@ it('real Worker direct/approved cold paths count D1, object put/get, Gmail, refr
   )
   expect(measured.queries + external).toBeLessThanOrEqual(50)
   expect({ queries: measured.queries, external, total: measured.queries + external }).toEqual({
-    queries: 13,
+    queries: 14, // +1 for the control gate's deployment read ([[CORE326]] P1); was 13
     external: 6,
-    total: 19,
+    total: 20,
   })
   expect(mail.sendRequests).toHaveLength(2)
 })

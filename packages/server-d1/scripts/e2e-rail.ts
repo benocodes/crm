@@ -1,3 +1,4 @@
+// [[CORE326]]: the instance must have its control-plane database (setup:remote --env <name> adds it): the Worker answers 500 without one in every auth mode.
 // The AGT165 E2E on a deployed instance (the charter's steps 3 to 5), after the branch is migrated and deployed:
 //   pnpm -C packages/server-d1 e2e:rail -- --base https://api.smoked1.vibase.ai --expect-version <sha> [--wait-seconds 240]
 // It proposes `tasks.create` with an `expires_at` two minutes ahead, polls the request once a minute until the per-minute cron expires it, and checks what

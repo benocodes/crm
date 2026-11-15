@@ -27,7 +27,9 @@ const paired = {
     { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_ID, remote: true },
   ],
 }
-const CONTROL_CURRENT = JSON.stringify([{ results: CONTROL_MIGRATIONS.map((name) => ({ name: name.name })), success: true }])
+const CONTROL_CURRENT = JSON.stringify([
+  { results: CONTROL_MIGRATIONS.map((name) => ({ name: name.name })), success: true },
+])
 
 /** `stdout` is the CRM tracker; the control database is current. */
 function deps(stdout: string, calls: string[] = [], cfg: object = paired): StatusDeps & { out: string[] } {
@@ -164,9 +166,9 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
     if (crm === 'behind') expect(r.out).toMatch(/\[crm\] migrations: behind/)
     if (crm === 'current') expect(r.out).toMatch(/\[crm\] migrations: current/)
     expect(r.out).toContain(`[control] migrations: ${control}`)
-    expect(
-      r.calls.some((c) => c.includes('CONTROL_DB') && c.includes('--remote') && c.includes('--env smoked1')),
-    ).toBe(true)
+    expect(r.calls.some((c) => c.includes('CONTROL_DB') && c.includes('--remote') && c.includes('--env smoked1'))).toBe(
+      true,
+    )
   })
   it('an env without a CONTROL_DB entry is refused before any wrangler call, naming setup:remote ([[CORE326]] P4)', () => {
     const calls: string[] = []
@@ -267,9 +269,4 @@ describe('db:status:remote sweep counts (CORE289 P6)', () => {
       expect(run({ fail, crmBehind: true }).code).toBe(1)
     },
   )
-  it('no control database configured: no count line and no count read', () => {
-    const r = run({ control: false })
-    expect(r.out.some((l) => /sweep:/.test(l))).toBe(false)
-    expect(r.sql.every((s) => !s.includes('auth_users'))).toBe(true)
-  })
 })

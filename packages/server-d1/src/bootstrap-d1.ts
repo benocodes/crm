@@ -66,7 +66,7 @@ type BootstrapD1Env = {
   now?: Date
   newId?: () => string
   randomBytes?: (n: number) => Uint8Array
-  /** The control-plane database ([[CORE259]] D7), when the local environment has one: its marker is written after the CRM deployment row. Absent: no control marker (remote and Clerk instances until [[OPS260]]). */
+  /** The control-plane database ([[CORE259]] D7), when the local environment has one: its marker is written after the CRM deployment row. Required by every caller since [[CORE326]] P6 (the local `bootstrap` script refuses an environment with none). */
   control?: ControlDb
 }
 

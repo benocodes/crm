@@ -46,7 +46,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       parsed = parseInstanceSetupArgs(argv, (env, given) => {
         const path = given ?? defaultSettingsPath(deps.env, deps.homedir, env)
         if (!existsSync(path)) return null
-        const rec = loadSettings(path, env)
+        const rec = loadSettings(path, env, { allowNoControl: true })
         return {
           provider: providerFromVars(rec.vars, path),
           where: path,
@@ -72,7 +72,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     const secrets = loadSecrets(secretsPath, deps.env)
     redactSecrets = secrets.redact
     const settingsPath = parsed.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, derived.env)
-    const existing = existsSync(settingsPath) ? loadSettings(settingsPath, derived.env) : null
+    const existing = existsSync(settingsPath) ? loadSettings(settingsPath, derived.env, { allowNoControl: true }) : null
     // [[OPS276]]: the names the settings file records win over the derivation; a name flag that differs is refused before any step.
     const named = existing
       ? applyRecordedNames(

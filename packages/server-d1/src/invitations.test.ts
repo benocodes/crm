@@ -14,9 +14,18 @@ import { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/tes
 import { SCOPE_POLICY, assertAgentGrantable, createVibaseRegistry, grantableScopes, scopesForRole } from '@vibase/api'
 import { mintClerkToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import { type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
-import { NOW, clerkKit, clerkUser, openWorkerD1, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
+import {
+  NOW,
+  clerkKit,
+  clerkUser,
+  openWorkerD1,
+  openWorkerPair,
+  type ClerkKit,
+  type WorkerPair,
+  composeD1Worker,
+} from './test/kit.js'
 
 // [[CORE245]] P1-P6 through the composition: the REAL Better Auth mints the tokens on the control-plane database, the Worker (composeD1Worker, `better-auth`) serves the three invitation operations
 // on REST and MCP, and every write lands in `CONTROL_DB` with its `control_audit` row.

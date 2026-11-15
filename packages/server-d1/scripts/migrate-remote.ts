@@ -1,11 +1,11 @@
 // Applies the D1 migrations to a deployed instance ([[OPS4]] C5, D7; [[OPS260]] D14):
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env <name>
 // Guards first (env flag, confirmation, credentials, target), then per database the migration diff, `migrations list`, `migrations apply` and the diff again ([[CORE61]] D7), remote.
-// The control-plane database (`CONTROL_DB`) is migrated FIRST and a failure there stops before the CRM step; an env whose config has no `CONTROL_DB` entry is migrated CRM only and says so (P1).
+// The control-plane database (`CONTROL_DB`) is migrated FIRST and a failure there stops before the CRM step; an env whose config has no `CONTROL_DB` entry is refused before any call ([[CORE326]] P4).
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { CONTROL_EXPECTED, EXPECTED, guardedTarget, readApplied, realDeps, type StatusDeps } from './status-remote.js'
-import { PACKAGE_DIR, RemoteRefusal, controlNotConfigured, formatMigrationDiff, migrateCommands } from './remote.js'
+import { PACKAGE_DIR, RemoteRefusal, formatMigrationDiff, migrateCommands } from './remote.js'
 
 export type MigrateDeps = StatusDeps
 
@@ -13,21 +13,16 @@ export type MigrateDeps = StatusDeps
 export function runMigrate(argv: string[], procEnv: NodeJS.ProcessEnv, deps: MigrateDeps): number {
   const target = guardedTarget(argv, procEnv, deps)
   const databases = [
-    ...(target.control
-      ? [
-          {
-            label: 'control',
-            binding: 'CONTROL_DB' as const,
-            expected: CONTROL_EXPECTED,
-            name: target.control.databaseName,
-            id: target.control.databaseId,
-          },
-        ]
-      : []),
+    {
+      label: 'control',
+      binding: 'CONTROL_DB' as const,
+      expected: CONTROL_EXPECTED,
+      name: target.control.databaseName,
+      id: target.control.databaseId,
+    },
     { label: 'crm', binding: 'DB' as const, expected: EXPECTED, name: target.databaseName, id: target.databaseId },
   ]
-  if (!target.control) deps.log(controlNotConfigured(target.env))
-  const commands = migrateCommands(target.env, { control: Boolean(target.control) })
+  const commands = migrateCommands(target.env, { control: true })
   for (const db of databases) {
     deps.log(`target: env ${target.env}, ${db.label} database ${db.name} (${db.id})`)
     const show = (when: string) => {

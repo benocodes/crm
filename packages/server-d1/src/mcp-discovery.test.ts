@@ -9,8 +9,8 @@ import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/tes
 import { createVibaseRegistry, defaultGrantScopes, grantableScopes, toProviderScope } from '@vibase/api'
 import { mintClerkToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { NOW, clerkKit, openWorkerD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
+import { type D1WorkerEnv } from './compose.js'
+import { NOW, clerkKit, openWorkerD1, type ClerkKit, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[API115]] (API106 cycle 2): MCP OAuth discovery through the real D1 composition: the path-specific protected-resource document (D13),
 // the `/mcp` challenge (D14), the preflight on the discovery documents (D16) and the `mcp` field of `/.well-known/vibase` (D17).

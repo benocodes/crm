@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { verifyRelease, type ReleaseManifest } from '../../../release/src/manifest.js'
-import { controlNotConfigured, formatMigrationDiff, parseTrackerOutput } from '../remote.js'
+import { formatMigrationDiff, parseTrackerOutput } from '../remote.js'
 import { readSweepCounts, sweepCountLines, type SweepCounts } from '../sweep-counts.js'
 import { withGeneratedConfig } from './config.js'
 import { defaultSecretsPath, loadSecrets, type Secrets } from './secrets.js'
@@ -28,7 +28,7 @@ export interface GateOutcome {
   applied: string[] | null
   /** Names in the package not applied yet, in release order. */
   pending: string[]
-  /** The control-plane database ([[OPS275]] D4): present only when the settings record `control_d1`. `applied` `null`: no tracker table; `pending` then lists every control migration. */
+  /** The control-plane database ([[OPS275]] D4): present whenever the settings record `control_d1` (always, for every command but `setup`, [[CORE326]] P5). `applied` `null`: no tracker table; `pending` then lists every control migration. */
   control?: {
     expected: string[]
     applied: string[] | null
@@ -237,7 +237,7 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
 /** The tracker diff of each database ([[OPS275]] D14): with a control database each is prefixed `[control]` / `[crm]`; without, today's unprefixed CRM lines and the P1 line. */
 export function diffLines(g: GateOutcome): string[] {
   const expected = g.manifest.migrations.map((m) => m.name)
-  if (!g.control) return [...formatMigrationDiff(g.applied, expected), controlNotConfigured(g.settings.env)]
+  if (!g.control) return formatMigrationDiff(g.applied, expected)
   return [
     ...formatMigrationDiff(g.control.applied ?? [], g.control.expected).map((l) => `[control] ${l}`),
     ...(g.control.applied === null ? ['[control]   (no d1_migrations table)'] : []),

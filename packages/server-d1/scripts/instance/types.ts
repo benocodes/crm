@@ -12,7 +12,7 @@ export interface InstanceSettings {
   /** [[OPS308]]: workers.dev is on. With a `*.workers.dev` `api_host` it is the instance's only host (no route); with a custom `api_host` it is kept from a move. Absent means false. */
   workers_dev?: boolean
   d1: { name: string; id: string }
-  /** The control-plane database ([[OPS275]] P1): optional until [[CORE261]]; recorded by name and id, never derived from the env (D16). */
+  /** The control-plane database ([[OPS275]] P1): recorded by name and id, never derived from the env (D16). Required by every command but `setup` (which records it, [[CORE326]] P5); the type stays optional for that one. */
   control_d1?: { name: string; id: string }
   r2_bucket: string
   /** The Gmail sync Workflow's instance name; binding `MAIL_SYNC` and class `MailSyncWorkflow` come from the release's base config. */

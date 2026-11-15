@@ -11,7 +11,7 @@ import {
   makeWorld,
   NO_TRACKER_JSON,
   trackerJson,
-  validSettings,
+  noControlSettings,
   type World,
   type WorldOptions,
 } from './test-kit.js'
@@ -103,7 +103,7 @@ describe('settings without control_d1 are refused before any wrangler call', () 
   for (const [name, vars] of providers) {
     for (const command of ['status', 'upgrade'] as const) {
       it(`${command} with AUTH_PROVIDER ${name}: exit 2, naming vibase-server setup --env demo, zero wrangler calls`, async () => {
-        const w = makeWorld({ settings: validSettings({ vars }), processEnv: { CONFIRM_REMOTE: '1' } })
+        const w = makeWorld({ settings: noControlSettings({ vars }), processEnv: { CONFIRM_REMOTE: '1' } })
         const code = await (command === 'status' ? runStatus : runUpgrade)(['--env', 'demo'], w.deps)
         expect(code).toBe(2)
         expect(w.err.join('\n')).toContain('vibase-server setup --env demo')

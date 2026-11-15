@@ -42,10 +42,13 @@ describe('/connect CSP per provider (composed Worker)', () => {
     expect(csp).not.toMatch(/clerk|challenges\.cloudflare\.com|\/auth|vibase\.test/)
   })
   it('clerk: the UI30 D9 policy with the issuer origin, unchanged', async () => {
-    const csp = await policy({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined }, kit.fetch)
+    const csp = await policy(
+      { DB: w.d1, CONTROL_DB: w.control, ...kit.env, CLERK_WEBHOOK_SECRET: undefined },
+      kit.fetch,
+    )
     expect(csp).toBe(clerkCsp(new URL(kit.issuer.issuer).origin))
   })
   it('no provider: the self-only policy, unchanged', async () => {
-    expect(await policy({ DB: w.d1 })).toBe(SELF_ONLY)
+    expect(await policy({ DB: w.d1, CONTROL_DB: w.control })).toBe(SELF_ONLY)
   })
 })

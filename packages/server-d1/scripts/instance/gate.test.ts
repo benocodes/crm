@@ -8,6 +8,8 @@ import {
   NO_TRACKER_JSON,
   trackerJson,
   validSettings,
+  crmOnly,
+  crmCallsOf,
   makeWorld,
   type World,
   type WorldOptions,
@@ -121,7 +123,11 @@ describe('D14 gate matrix', () => {
   it('(d) an applied migration the release lacks refuses with the D14 message, naming it', async () => {
     const w = world()
     const w2 = world({
-      runner: () => ({ status: 0, stdout: trackerJson([...w.pkg.migrations, '9999_from_the_future.sql']), stderr: '' }),
+      runner: crmOnly(() => ({
+        status: 0,
+        stdout: trackerJson([...w.pkg.migrations, '9999_from_the_future.sql']),
+        stderr: '',
+      })),
     })
     await refusal(
       gate(w2),
@@ -147,7 +153,7 @@ describe('D14 gate matrix', () => {
   )
 
   it('(g) no tracker table: the gate passes, applied is null and every package migration is pending', async () => {
-    const w = world({ runner: () => ({ status: 1, stdout: NO_TRACKER_JSON, stderr: '' }) })
+    const w = world({ runner: crmOnly(() => ({ status: 1, stdout: NO_TRACKER_JSON, stderr: '' })) })
     const g = await gate(w)
     expect(g.applied).toBeNull()
     expect(g.pending).toEqual(w.pkg.migrations)
@@ -157,14 +163,16 @@ describe('D14 gate matrix', () => {
   it('an older live version passes the gate (status prints the plan)', async () => {
     const w = world({
       health: healthRes({ version: '0.0.9' }),
-      runner: () => ({ status: 0, stdout: trackerJson(['0001_a.sql']), stderr: '' }),
+      runner: crmOnly(() => ({ status: 0, stdout: trackerJson(['0001_a.sql']), stderr: '' })),
     })
     const g = await gate(w)
     expect(g.pending).toEqual(['0002_b.sql'])
   })
 
   it('a wrangler failure is a refusal that leaves no temp directory', async () => {
-    const w = world({ runner: () => ({ status: 1, stdout: '', stderr: 'Authentication error [code: 10000]' }) })
+    const w = world({
+      runner: crmOnly(() => ({ status: 1, stdout: '', stderr: 'Authentication error [code: 10000]' })),
+    })
     await refusal(gate(w), /wrangler d1 execute failed \(exit 1\).*Authentication error/s)
     expect(readdirSync(w.tmpRoot)).toEqual([])
   })

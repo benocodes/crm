@@ -11,9 +11,18 @@ import {
   type ScopePolicy,
 } from '@vibase/api'
 import { mintClerkToken, mintOAuthToken } from '@vibase/api/test/clerk'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import { type D1WorkerEnv } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
-import { NOW, clerkKit, clerkUser, openWorkerD1, spyD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
+import {
+  NOW,
+  clerkKit,
+  clerkUser,
+  openWorkerD1,
+  spyD1,
+  type ClerkKit,
+  type WorkerD1,
+  composeD1Worker,
+} from './test/kit.js'
 
 // [[CORE64]] cycle 2 ([[CORE77]]): agent principals from Clerk OAuth access tokens on D1 (D12-D18, D23). A fake Backend API, locally
 // minted tokens, no network.

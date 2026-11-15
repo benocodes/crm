@@ -2,7 +2,7 @@ import { clerk, setupClerkTestingToken } from '@clerk/testing/playwright'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 // [[UI30]] PLAN, E2E steps 1 to 6 (the restarts of step 7 and the smoke of step 8 are run by hand by the tester).
-// Prerequisite: a local Worker on E2E_BASE_URL (default http://localhost:8787) built from this worktree, migrated, bootstrapped with an
+// Prerequisite: a local Worker on E2E_BASE_URL (default http://localhost:8787) built from this worktree, migrated on BOTH local databases (`wrangler d1 migrations apply DB --local` and `... CONTROL_DB --local`: the control plane is required in every auth mode, [[CORE326]]), bootstrapped (local bootstrap writes the control marker) with an
 // API-key agent named `e2e-key` (its key in E2E_AGENT_KEY), with AUTH_PROVIDER=clerk and CLERK_AUTHORIZED_PARTIES=<the base URL>.
 
 const SECRET = process.env.CLERK_SECRET_KEY!

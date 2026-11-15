@@ -14,7 +14,7 @@ import type {
 // registers by DCR, gets a person's consent and works through /mcp as that person's delegated agent, which an owner then disables.
 //
 // Prerequisite, as for the connect E2E: a local Worker on E2E_BASE_URL (default http://localhost:8787) from this worktree (`pnpm -C packages/server-d1 dev`),
-// its local D1 migrated (`wrangler d1 migrations apply DB --local`, before `bootstrap`) and bootstrapped on the Clerk path (`bootstrap -- --org <n> --issuer <CLERK_ISSUER>`), with the full Clerk configuration of
+// its local D1 migrated (`wrangler d1 migrations apply DB --local` and `... CONTROL_DB --local`, before `bootstrap`: the control plane is required in every auth mode, [[CORE326]]) and bootstrapped on the Clerk path (`bootstrap -- --org <n> --issuer <CLERK_ISSUER>`), with the full Clerk configuration of
 // `.dev.vars.example` from `.env.dev` (AUTH_PROVIDER=clerk, CLERK_ISSUER, CLERK_JWT_KEY, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, AUTH_CLI_CLIENT_ID,
 // CLERK_AUTHORIZED_PARTIES=<base URL>); in `.dev.vars` the CLERK_JWT_KEY PEM needs its newlines escaped as \n. The database it reads is that Worker's LOCAL D1 (`wrangler d1 execute DB --local`), never a remote one.
 // Keys: `.env.dev` only (playwright.config.ts). Run with:  pnpm -C packages/server-d1 e2e:mcp-oauth

@@ -97,8 +97,8 @@ import { cloudflareEmailSender, parseEmailConfig, type EmailBindingLike } from '
 export interface D1WorkerEnv {
   DB: D1Like
   /**
-   * The control-plane database ([[CORE259]] D1): its own compiled migrations and tracker, Better Auth composed on it. Read only for `AUTH_PROVIDER=better-auth` (D6): there a missing
-   * binding is `500 internal`; `clerk` and unset never read it, present or not. Only this composition reads it (D5); the operations receive `DB` alone.
+   * The control-plane database ([[CORE259]] D1): its own compiled migrations and tracker, Better Auth composed on it. Required in every auth mode ([[CORE326]] P1): a missing
+   * binding is `500 internal`. Only this composition reads it (D5); the operations receive `DB` alone.
    */
   CONTROL_DB?: D1Like
   AUTH_PROVIDER?: string
@@ -280,11 +280,10 @@ export function composeD1Worker(
   let emailFrom: string | undefined
   let builtInService: AuthService | undefined
   // [[CORE259]] D5: the control handle is opened here, once, and goes to the auth provider and the control gate below; nothing else is handed it.
-  const control: ControlDb | undefined = builtIn && env.CONTROL_DB ? openControlDb(env.CONTROL_DB) : undefined
+  const control: ControlDb | undefined = env.CONTROL_DB ? openControlDb(env.CONTROL_DB) : undefined
   try {
-    // [[CORE259]] D6: the built-in provider keeps its credentials in the control-plane database; without the binding it fails closed like a bad variable (the message names the binding).
-    if (builtIn && !control)
-      throw new Error('AUTH_PROVIDER=better-auth requires the CONTROL_DB binding (the control-plane database)')
+    // [[CORE259]] D6, [[CORE326]] P1: every instance, whatever `AUTH_PROVIDER`, has a control-plane database; without the binding the Worker fails closed like a bad variable (the message names the binding).
+    if (!control) throw new Error('the CONTROL_DB binding (the control-plane database) is required in every auth mode')
     if (builtIn) builtInConfig = parseBuiltInAuthConfig(vars)
     // [[CORE248]] D2: read for the built-in provider only; half a pair or a malformed address fails closed like every auth variable.
     if (builtIn) emailFrom = parseEmailConfig({ EMAIL: env.EMAIL, AUTH_EMAIL_FROM: vars.AUTH_EMAIL_FROM })?.from
@@ -411,13 +410,13 @@ export function composeD1Worker(
     return ok
   }
   /**
-   * The control gate for `better-auth` ([[CORE259]] D6, D7): `503 migrations_pending` while the control migrations are behind, `503 not_initialised` while the CRM database has no
+   * The control gate, every auth mode ([[CORE259]] D6, D7, [[CORE326]] P1): `503 migrations_pending` while the control migrations are behind, `503 not_initialised` while the CRM database has no
    * marker to pair with, `500 internal` (log `control database not paired`) when the control marker is missing or names another organisation. A pairing that held is remembered for the isolate (the
    * marker is written once and never changes); a refusal is never cached, so bootstrap's marker is picked up by the next request. `undefined` means go on.
    */
   let paired = false
   async function controlGate(): Promise<Response | undefined> {
-    if (!builtIn || !control || paired) return undefined
+    if (!control || paired) return undefined
     if (!(await controlMigrated(control))) return json(MIGRATIONS_PENDING, 503)
     let link
     try {
@@ -529,7 +528,7 @@ export function composeD1Worker(
           publicBaseUrl: builtInConfig.baseURL,
         }
       : null
-  // [[CORE261]] P1: the audit log's read port over the control store, only with the built-in provider (until the control plane is required everywhere, #326).
+  // [[CORE261]] P1: the audit log's read port over the control store, on every D1 composition ([[CORE326]] P3).
   const audit: AuditRuntime | null = control ? { port: { list: (a) => listControlAudit(control, a) } } : null
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
     createApp({
@@ -732,7 +731,7 @@ export function composeD1Worker(
     }
     // [[CORE259]] D10, [[CORE289]] P5: the repair sweep of the built-in provider's control plane, behind the same gates, independent of the work above (it never stops it, and it runs whatever failed).
     // It reads the CRM through the tick's counted D1 and writes the control database only; no audit row, no event.
-    if (control) {
+    if (builtIn && control) {
       try {
         const out = await runAuthSweep(control, db, clock)
         if (out.revoked > 0 || out.deleted > 0)

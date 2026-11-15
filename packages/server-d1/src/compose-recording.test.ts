@@ -11,9 +11,9 @@ import { makeWorkerdStepShim } from '@vibase/api/test/workerd-boundary'
 import { d1Binding } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import { type D1WorkerEnv } from './compose.js'
 import { readDeployment } from './init-deployment.js'
-import { NOW, openWorkerD1, type WorkerD1 } from './test/kit.js'
+import { NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[CHN5]] D78 ([[CHN153]]): the composed Worker's recorder switch and seam, over a local D1 with Google faked at the `fetch` seam.
 const KEY = new Uint8Array(32).fill(7)

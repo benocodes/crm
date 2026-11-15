@@ -10,7 +10,7 @@ import { nodeStreams } from '@vibase/api/test/streams'
 import { captureMessage, ensureConnection, tenantEnv } from '@vibase/api/test/capture'
 import { captureMessages, fileBlobKey, messageBodyKey, r2ObjectStore, recordMessagesOperation } from '@vibase/api'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import { type D1WorkerEnv } from './compose.js'
 import {
   NOW,
   clerkKit,
@@ -20,6 +20,7 @@ import {
   type D1Meter,
   type InvocationMeasure,
   type WorkerD1,
+  composeD1Worker,
 } from './test/kit.js'
 
 // Spec CORE38 D11 (CORE47 P6-P8): what one request sends to D1, measured through the real composition (local Miniflare,
@@ -38,7 +39,7 @@ const FREE_PLAN_EXCEPTIONS: Record<string, string> = {
 
 /** The exact D1 query count of each scenario, pinned from the first green run: a new round trip is a reviewed change. */
 const EXPECTED_QUERIES: Record<string, number> = {
-  'cold-first-request': 5, // migration-state read ([[CORE61]] D6, once per isolate), marker read, auth read, auth stamp, operation read
+  'cold-first-request': 6, // migration-state read ([[CORE61]] D6, once per isolate), the control gate's deployment read ([[CORE326]] P1, once per isolate; the control database's own reads are not metered), marker read, auth read, auth stamp, operation read
   'key-auth-stamp': 3, // auth read, auth stamp, operation read
   'key-auth-read': 2, // auth read, operation read
   'task-patch': 3, // auth read, operation read, operation write

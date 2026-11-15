@@ -14,7 +14,7 @@ import {
   type SetupWorldOptions,
 } from './setup-kit.js'
 import { runSetup } from './setup.js'
-import { CONTROL_ALL, CONTROL_D1, CONTROL_UUID, UUID, cleanup, controlSettings, validSettings } from './test-kit.js'
+import { CONTROL_ALL, CONTROL_D1, CONTROL_UUID, UUID, cleanup, controlSettings, noControlSettings } from './test-kit.js'
 
 let d1: WorkerD1
 beforeAll(async () => {
@@ -181,7 +181,7 @@ describe('the recorded control name wins, and a disagreeing flag is refused (P3 
 
   it('P4: a recorded vault-<env> CRM database and no control database gets vb-control-<env> created and recorded, every CRM name as recorded', async () => {
     const s = world({
-      settings: validSettings(VARS),
+      settings: noControlSettings(VARS),
       sim: { ...crmOnly(), applied: [...ALL_MIGRATIONS], marker: MARKER, deployed: HEALTHY },
     })
     expect(await run(s)).toBe(0)
@@ -198,7 +198,7 @@ describe('the recorded control name wins, and a disagreeing flag is refused (P3 
 
   it('P4 --dry-run: nothing is created and the settings file is untouched', async () => {
     const s = world({
-      settings: validSettings(VARS),
+      settings: noControlSettings(VARS),
       sim: { ...crmOnly(), applied: [...ALL_MIGRATIONS], marker: MARKER, deployed: HEALTHY },
     })
     const before = s.settings()
