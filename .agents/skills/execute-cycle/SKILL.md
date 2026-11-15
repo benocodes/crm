@@ -155,9 +155,10 @@ context uncached, and a Monitor that expires (900 s) and is re-armed is one such
 - Never start a second gate run while one is going (they contend for the machine and both slow down).
 
 Every D1 package (`@vibase/api`, `server-d1`, `storage-d1`, `cli`) runs its files in parallel at 4 workers ([[OPS223]], [[OPS338]]), alone on the machine, on the 8-core
-development machine: api about 6 minutes (360 to 364 s in two gates at load 5 to 8; 276 to 339 s alone at load 3.4 to 3.8; 971 s serial); server-d1 about
-6 minutes (354 to 358 s in two gates; 973 s serial); storage-d1 22 to 26 s (55 s serial); cli 15 to 18 s (28 s serial) (OPS339); the whole gate about 14 minutes
-(13m42s and about 14 min, two green gates on one sha, OPS339 `GATE.md`). On a loaded machine lower the count with
+development machine: api about 105 s (104 s in the OPS340 run; 382 s on the binding transport; 971 s serial); server-d1 about
+130 s (129 s; 376 s on the binding transport; 973 s serial); storage-d1 about 13 s (12 s; 24 s binding; 55 s serial); cli about 10 s (9 s; 15 s binding; 28 s serial) (OPS340 runs at
+load 4 to 6; OPS339's earlier numbers were for the binding transport); the whole gate about 5 to 7 minutes (the sum of those stages plus typecheck, build and lint; the OPS340 gates' measured time replaces this).
+Since OPS340 a test reaches D1 through the request transport: if a failure might be the transport's, rerun the file with `VIBASE_TEST_D1_TRANSPORT=binding` ([[writing-tests]]). On a loaded machine lower the count with
 `VITEST_MAX_WORKERS=N pnpm -C packages/<pkg> test` and name N in RESULT.md. A plain `pnpm -r test` runs the packages concurrently
 (each package's 4 workers beside the others'), which is why the gate splits it as above. The default reporter prints nothing until the end, so a slow run looks like a
 hang: run it as `pnpm -C packages/api test --reporter=dot` (or `verbose`) and keep its log ([[CORE200]] retro).
