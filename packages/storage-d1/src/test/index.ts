@@ -79,6 +79,8 @@ export async function openLocalD1(
   opts: {
     migrate?: boolean /** Names that are control-plane databases ([[CORE259]]): migrated from `control-migrations/` and tracked in their own `d1_migrations`. */
     control?: readonly string[]
+    /** OPS340 D9: how a statement reaches D1. An explicit value wins over `VIBASE_TEST_D1_TRANSPORT`; unset means the variable, then `request`. */
+    transport?: 'binding' | 'request'
   } = {},
 ): Promise<LocalD1> {
   const mf = new Miniflare({
