@@ -107,7 +107,7 @@ function lookupSubjectOperation(subject: string): PreparedOperation<AcceptedAcco
 }
 
 /** What the vault holds for a Better Auth subject ([[CORE302]] P1, P4): a `users` row or an agent account, and for a human the creation time of its LIVE membership (ISO), if it has one. */
-export type SubjectStanding = { kind: 'user' | 'agent'; id: string; liveMembershipCreatedAt: string | null }
+export type SubjectStanding = { kind: 'user' | 'agent'; id: string; liveMembershipCreatedAt: string | null; /** ISO instant of the latest removal (max `memberships.deleted_at`) of this user, or null ([[CORE302]] P1: a re-admitting invitation must be created strictly after it). */ lastRemovedAt: string | null }
 
 /** The standing of the subject: a linked subject never re-runs the first-sight program ([[CORE287]] P5); it may complete P4, or (a human with no live membership) be re-admitted ([[CORE302]]). */
 export function subjectStandingOperation(subject: string): PreparedOperation<SubjectStanding | null> {
@@ -126,6 +126,14 @@ export function subjectStandingOperation(subject: string): PreparedOperation<Sub
           .where('users.auth_subject', '=', subject)
           .where('memberships.deleted_at', 'is', null),
       ),
+      removed: readMaybe(
+        qc.db
+          .selectFrom('memberships')
+          .innerJoin('users', 'users.id', 'memberships.user_id')
+          .select((eb) => eb.fn.max('memberships.deleted_at').as('last'))
+          .where('users.auth_provider', '=', BUILT_IN_PROVIDER)
+          .where('users.auth_subject', '=', subject),
+      ),
     }),
     build: (found) =>
       unit({
@@ -133,9 +141,9 @@ export function subjectStandingOperation(subject: string): PreparedOperation<Sub
         events: [],
         decode: () => {
           const user = found.maybe('user')
-          if (user) return { kind: 'user' as const, id: user.id as string, liveMembershipCreatedAt: found.maybe('live') ? new Date(found.maybe('live')!.created_at as string).toISOString() : null }
+          if (user) return { kind: 'user' as const, id: user.id as string, liveMembershipCreatedAt: found.maybe('live') ? new Date(found.maybe('live')!.created_at as string).toISOString() : null, lastRemovedAt: found.maybe('removed')?.last ? new Date(found.maybe('removed')!.last as string).toISOString() : null }
           const agent = found.maybe('agent')
-          return agent ? { kind: 'agent' as const, id: agent.id as string, liveMembershipCreatedAt: null } : null
+          return agent ? { kind: 'agent' as const, id: agent.id as string, liveMembershipCreatedAt: null, lastRemovedAt: null } : null
         },
       }),
   })

@@ -43,6 +43,8 @@ export function invitationAdmission(d: InvitationAdmissionDeps): InvitationAdmis
         if (token === undefined || token === '') return
         const invitation = await d.store.findLiveByToken({ tokenHash: await hashInvitationToken(token), email: address, now: now.toISOString() })
         if (!invitation || invitation.role === 'agent') return
+        // P1 (tightened): the invitation must have been created strictly after the subject's latest removal (one ISO-ms encoding, text compare), else it is an older token and is ignored (P3).
+        if (standing.lastRemovedAt !== null && !(new Date(invitation.createdAt).toISOString() > standing.lastRemovedAt)) return
         // P2: the CRM unit is the commit point (a new membership, the removed row stays); then the guarded control batch. A [[CORE248]] D5 emailed invitation proves the mailbox: `email_verified` true.
         await readmitMember(storage, { now, newId: d.newId }, { subject, role: invitation.role, verifyEmail: invitation.delivery === 'email' })
         await d.store.accept({ id: invitation.id, auditId: d.newId(), actorId: standing.id, now: now.toISOString() })

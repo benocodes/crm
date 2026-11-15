@@ -199,6 +199,14 @@ describe('re-admission by password (P1, P2)', () => {
   })
 })
 
+/** Removes the live membership of `email` through `memberships.delete`. */
+async function removeMembership(email: string) {
+  const userId = (await crm('select id from users where email = ?', email))[0]!.id as string
+  const m = (await crm('select id from memberships where user_id = ? and deleted_at is null', userId))[0]!
+  const del = await send(`/meta/v1/memberships/${m.id}`, { method: 'DELETE', bearer: ownerJwt })
+  expect(del.status, await del.clone().text()).toBe(200)
+}
+
 describe('tokens that do not re-admit are ignored (P3)', () => {
   type Arranged = { email: string; token?: string; meStatus: number }
   const removed = async () => (await admitAndRemove('p@x.test', 'member'), 'p@x.test')
@@ -236,6 +244,29 @@ describe('tokens that do not re-admit are ignored (P3)', () => {
         return { email: 'orphan@x.test', token: (await invite('orphan@x.test', 'member')).token, meStatus: 403 }
       },
     ],
+    [
+      'an invitation created while the person was live, then the removal (older than the removal, P1)',
+      async () => {
+        const { token } = await invite('p@x.test', 'member')
+        expect((await signUp('p@x.test', token)).status).toBe(200)
+        const older = await invite('p@x.test', 'owner')
+        await new Promise((r) => setTimeout(r, 5))
+        await removeMembership('p@x.test')
+        return { email: 'p@x.test', token: older.token, meStatus: 403 }
+      },
+    ],
+    [
+      'the original invitation left pending by an injected control failure, then the removal (older than the removal, P1)',
+      async () => {
+        const { token } = await invite('p@x.test', 'member')
+        failControl.on = true
+        expect((await signUp('p@x.test', token)).status).toBeGreaterThanOrEqual(400)
+        failControl.on = false
+        await new Promise((r) => setTimeout(r, 5))
+        await removeMembership('p@x.test')
+        return { email: 'p@x.test', token, meStatus: 403 }
+      },
+    ],
   ]
   it.each(cases)('%s: a session, nothing written, the invitation untouched', async (_name, arrange) => {
     const a = await arrange()
@@ -249,6 +280,20 @@ describe('tokens that do not re-admit are ignored (P3)', () => {
     const got = await me(cookieOf(res))
     expect(got.status).toBe(a.meStatus)
     if (a.meStatus === 403) expect(got.json.error?.code).toBe('organization_forbidden')
+  })
+
+  it('the tie: an invitation created in the same millisecond as the removal is ignored, one a millisecond later re-admits (strictly after)', async () => {
+    const p = await admitAndRemove('p@x.test', 'member')
+    const removedAt = Date.parse((await crm('select max(deleted_at) d from memberships where user_id = ?', p.userId))[0]!.d)
+    const tie = await invite('p@x.test', 'member', { createdAt: removedAt })
+    const crmBefore = await dump(w.d1)
+    expect((await signIn('p@x.test', tie.token)).status).toBe(200)
+    expect(await dump(w.d1)).toEqual(crmBefore)
+    expect((await ctl('select accepted_at from invitations where id = ?', tie.id))[0]!.accepted_at).toBeNull()
+    await w.control.prepare('delete from invitations where id = ?').bind(tie.id).run()
+    const later = await invite('p@x.test', 'member', { createdAt: removedAt + 1 })
+    expect((await signIn('p@x.test', later.token)).status).toBe(200)
+    expect(await crm('select id from memberships where user_id = ? and deleted_at is null', p.userId)).toHaveLength(1)
   })
 
   it('a live member keeps their role: /meta/v1/me still says member after presenting an owner token', async () => {
@@ -358,7 +403,8 @@ describe('partial states and races (P4)', () => {
 
   it("the new bound (a live invitation created no later than the live membership), pinned within one second: an invitation made 300 ms before re-admission is completed, one made 300 ms after is not", async () => {
     const p = await admitAndRemove('p@x.test', 'member')
-    const T = Math.floor(Date.now() / 1000) * 1000 + 100
+    // Strictly after the removal (P1), and within one second of the re-admission at T + 300.
+    const T = Date.parse((await crm('select max(deleted_at) d from memberships where user_id = ?', p.userId))[0]!.d) + 10
     const before = await invite('p@x.test', 'member', { createdAt: T })
     clock = () => new Date(T + 300)
     failControl.on = true
