@@ -2,7 +2,8 @@ import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { runStatus } from './status.js'
-import { ACCOUNT, captureHealthBody, cleanup, makeWorld, mkTmp, NO_TRACKER_JSON, packageLine, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
+import { controlStdout, countsFacts, crmStdout, isReadOnlySql, sweepReadOf } from '../sweep-counts-kit.js'
+import { ACCOUNT, bindingOf, captureHealthBody, CONTROL_ALL, controlSettings, cleanup, makeWorld, mkTmp, NO_TRACKER_JSON, packageLine, TOKEN, trackerJson, validSettings, type World, type WorldOptions } from './test-kit.js'
 
 afterEach(cleanup)
 let HEALTH: Record<string, any>
@@ -166,5 +167,47 @@ describe('P4 refusal mapping', () => {
       expect(w.err.join('\n')).toMatch(/CLOUDFLARE_(ACCOUNT_ID|API_TOKEN) is not set/)
       expect(w.wrangler).toEqual([])
     }
+  })
+})
+
+// [[CORE289]] P6 on `vibase-server status`: the sweep's pending counts after the control database's migration diff, `[control] ` prefixed, read-only, never changing the exit code.
+describe('CORE289 sweep counts', () => {
+  const f = countsFacts()
+  const run = async (o: { fail?: boolean; behind?: boolean; control?: boolean } = {}) => {
+    const { w, code } = await status({
+      ...(o.control === false ? {} : { settings: controlSettings() }),
+      runner: (args) => {
+        const kind = sweepReadOf(args)
+        if (kind) return o.fail ? { status: 1, stdout: '', stderr: 'wrangler exploded' } : { status: 0, stdout: kind === 'control' ? controlStdout(f.control) : crmStdout(f.crm), stderr: '' }
+        const names = bindingOf(args) === 'CONTROL_DB' ? CONTROL_ALL : o.behind ? ['0001_a.sql'] : ['0001_a.sql', '0002_b.sql']
+        return { status: 0, stdout: trackerJson(names), stderr: '' }
+      },
+    })
+    return { w, code }
+  }
+  it('prints both counts after the control diff, [control] prefixed; exit 0 on a current instance and 1 on a behind one', async () => {
+    const { w, code } = await run()
+    expect(code).toBe(0)
+    const lines = w.out.filter((l) => l.startsWith('[control] sweep:'))
+    expect(lines).toEqual(['[control] sweep: 1 subject(s) pending revocation', '[control] sweep: 1 orphan account(s) pending deletion'])
+    const at = (l: string) => w.out.findIndex((x) => x.startsWith(l))
+    expect(at('[control] sweep:')).toBeGreaterThan(at('[control] migrations:'))
+    expect(at('[control] sweep:')).toBeLessThan(at('[crm] migrations:'))
+    expect((await run({ behind: true })).code).toBe(1)
+  })
+  it('every command issued is a read', async () => {
+    const { w } = await run()
+    for (const c of w.wrangler) expect(isReadOnlySql(c.args[c.args.indexOf('--command') + 1]!), c.args.join(' ')).toBe(true)
+  })
+  it('an unreadable count prints unavailable with the exit code unchanged', async () => {
+    const { w, code } = await run({ fail: true })
+    expect(code).toBe(0)
+    expect(w.out).toContain('[control] sweep: counts unavailable')
+    expect((await run({ fail: true, behind: true })).code).toBe(1)
+  })
+  it('no control database configured: no count line and no count read', async () => {
+    const { w } = await run({ control: false })
+    expect(w.out.some((l) => /sweep:/.test(l))).toBe(false)
+    expect(w.wrangler.some((c) => sweepReadOf(c.args))).toBe(false)
   })
 })

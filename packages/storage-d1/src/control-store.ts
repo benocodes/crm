@@ -279,3 +279,16 @@ export async function recordResetLinkIssued(c: ControlDb, a: { auditId: string; 
     .bind(a.auditId, a.now, a.actorId, a.subject, a.expiresAt, ...(a.via === undefined ? [] : [a.via]))
     .run()
 }
+
+// ---- The repair sweep ([[CORE259]] D10, [[CORE289]]). ----
+export interface AuthSweepOutcome {
+  /** Linked subjects without authority whose credentials were deleted. */
+  revoked: number
+  /** Orphan accounts deleted. */
+  deleted: number
+}
+
+/** One sweep: control facts, then the CRM's, then one control batch. Writes nothing when there is nothing to do or a read fails (the error is thrown, the next tick retries). */
+export async function runAuthSweep(_c: ControlDb, _crm: D1Like, _clock: () => Date): Promise<AuthSweepOutcome> {
+  throw new Error('not implemented')
+}
