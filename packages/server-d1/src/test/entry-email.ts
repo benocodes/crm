@@ -1,4 +1,4 @@
-// TEST-ONLY Worker entry (never deployed) for [[CORE304]]: the REAL Worker module (src/worker.ts) with a recording `EMAIL` binding, so what the Worker would send can be read back at `/__emails`. The Playwright leg
+// TEST-ONLY Worker entry (never deployed) for [[CORE304]]: the REAL Worker module (src/worker.ts) with a recording `EMAIL` binding, so what the Worker would send can be read back at `/__emails`. The browser E2E leg
 // (`e2e/auth-pages-reset.e2e.ts`) runs the same entry under `wrangler dev`, and `self-service-reset-workerd.test.ts` runs it in Miniflare. With `SIGNUP_OPEN=1` only `/auth/sign-up/email` is answered by the test
 // composition (open admission), so a test can make an account without an invitation; every other path, `/auth/request-password-reset` included, is the real composition untouched.
 import { createAuthHandler } from '@vibase/auth'
