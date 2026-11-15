@@ -66,7 +66,7 @@ describe('control migrations manifest (CORE259 D4)', () => {
   it('catches an unlisted file', () => {
     const dir = copyOfTree()
     writeFileSync(join(dir, '0005_stray.sql'), 'select 1;')
-    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0003_stray.sql'])
+    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0005_stray.sql'])
   })
   it('catches an entry without a file', () => {
     const dir = copyOfTree()

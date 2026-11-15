@@ -83,7 +83,8 @@ const seedSub = async () => {
 describe('control 0004: the four webhook tables', () => {
   it('creates them in the control database, with the columns, types and nullability of CRM 0016/0017', async () => {
     for (const t of TABLES) {
-      const info = (d1: D1Like) => all(d1, `select name, type, "notnull", dflt_value, pk from pragma_table_info('${t}') order by cid`)
+      const info = (d1: D1Like) =>
+        all(d1, `select name, type, "notnull", dflt_value, pk from pragma_table_info('${t}') order by cid`)
       const mine = await info(control)
       expect(mine.length, t).toBeGreaterThan(0)
       expect(mine, t).toEqual(await info(crm))
@@ -125,19 +126,35 @@ describe('control 0004: the four webhook tables', () => {
     const ghost = id()
     expect(
       await insert('webhook_secrets', {
-        id: id(), created_at: AT, organization_id: ORG, created_by: ACTOR, subscription_id: ghost, sealed: 's', key_version: 1,
+        id: id(),
+        created_at: AT,
+        organization_id: ORG,
+        created_by: ACTOR,
+        subscription_id: ghost,
+        sealed: 's',
+        key_version: 1,
       }),
     ).toMatch(/FOREIGN KEY/i)
     expect(
       await insert('webhook_dispatch_state', {
-        subscription_id: ghost, created_at: AT, organization_id: ORG, created_by: ACTOR, cursor_event_id: id(),
+        subscription_id: ghost,
+        created_at: AT,
+        organization_id: ORG,
+        created_by: ACTOR,
+        cursor_event_id: id(),
       }),
     ).toMatch(/FOREIGN KEY/i)
     expect(await insert('webhook_deliveries', delivery(ghost))).toMatch(/FOREIGN KEY/i)
     const sub = await seedSub()
     expect(
       await insert('webhook_secrets', {
-        id: id(), created_at: AT, organization_id: ORG, created_by: ACTOR, subscription_id: sub, sealed: 's', key_version: 1,
+        id: id(),
+        created_at: AT,
+        organization_id: ORG,
+        created_by: ACTOR,
+        subscription_id: sub,
+        sealed: 's',
+        key_version: 1,
       }),
     ).toBeNull()
     expect(await insert('webhook_deliveries', delivery(sub))).toBeNull()
@@ -150,12 +167,23 @@ describe('control 0004: the four webhook tables', () => {
   })
 
   it('refuses what 0016 refuses: status, event_types, url, ids and timestamps', async () => {
-    expect(await insert('webhook_subscriptions', subRow({ status: 'bogus' }))).toMatch(/webhook_subscriptions_status|CHECK/i)
-    expect(await insert('webhook_subscriptions', subRow({ event_types: '[]' }))).toMatch(/webhook_subscriptions_event_types|CHECK/i)
+    expect(await insert('webhook_subscriptions', subRow({ status: 'bogus' }))).toMatch(
+      /webhook_subscriptions_status|CHECK/i,
+    )
+    expect(await insert('webhook_subscriptions', subRow({ event_types: '[]' }))).toMatch(
+      /webhook_subscriptions_event_types|CHECK/i,
+    )
     expect(await insert('webhook_subscriptions', subRow({ event_types: '{}' }))).toMatch(/CHECK/i)
-    expect(await insert('webhook_subscriptions', subRow({ event_types: JSON.stringify(Array.from({ length: 21 }, (_, i) => `a.b${i}`)) }))).toMatch(/CHECK/i)
+    expect(
+      await insert(
+        'webhook_subscriptions',
+        subRow({ event_types: JSON.stringify(Array.from({ length: 21 }, (_, i) => `a.b${i}`)) }),
+      ),
+    ).toMatch(/CHECK/i)
     expect(await insert('webhook_subscriptions', subRow({ url: '' }))).toMatch(/webhook_subscriptions_url|CHECK/i)
-    expect(await insert('webhook_subscriptions', subRow({ url: `https://x.test/${'a'.repeat(2048)}` }))).toMatch(/CHECK/i)
+    expect(await insert('webhook_subscriptions', subRow({ url: `https://x.test/${'a'.repeat(2048)}` }))).toMatch(
+      /CHECK/i,
+    )
     expect(await insert('webhook_subscriptions', subRow({ id: 'XYZ' }))).toMatch(/CHECK/i)
     expect(await insert('webhook_subscriptions', subRow({ created_at: 'yesterday' }))).toMatch(/CHECK/i)
     expect(await insert('webhook_subscriptions', subRow({ deleted_at: 'yesterday' }))).toMatch(/CHECK/i)
@@ -163,21 +191,39 @@ describe('control 0004: the four webhook tables', () => {
     expect(await insert('webhook_subscriptions', dup)).toBeNull()
     expect(await insert('webhook_subscriptions', dup)).toMatch(/UNIQUE|PRIMARY/i)
     const sub = await seedSub()
-    expect(await insert('webhook_deliveries', delivery(sub, { status: 'bogus' }))).toMatch(/webhook_deliveries_status|CHECK/i)
+    expect(await insert('webhook_deliveries', delivery(sub, { status: 'bogus' }))).toMatch(
+      /webhook_deliveries_status|CHECK/i,
+    )
     expect(await insert('webhook_deliveries', delivery(sub, { attempts: -1 }))).toMatch(/CHECK/i)
     expect(
       await insert('webhook_secrets', {
-        id: id(), created_at: AT, organization_id: ORG, created_by: ACTOR, subscription_id: sub, sealed: '', key_version: 1,
+        id: id(),
+        created_at: AT,
+        organization_id: ORG,
+        created_by: ACTOR,
+        subscription_id: sub,
+        sealed: '',
+        key_version: 1,
       }),
     ).toMatch(/CHECK/i)
     expect(
       await insert('webhook_secrets', {
-        id: id(), created_at: AT, organization_id: ORG, created_by: ACTOR, subscription_id: sub, sealed: 's', key_version: 0,
+        id: id(),
+        created_at: AT,
+        organization_id: ORG,
+        created_by: ACTOR,
+        subscription_id: sub,
+        sealed: 's',
+        key_version: 0,
       }),
     ).toMatch(/CHECK/i)
     expect(
       await insert('webhook_dispatch_state', {
-        subscription_id: sub, created_at: AT, organization_id: ORG, created_by: ACTOR, cursor_event_id: 'nope',
+        subscription_id: sub,
+        created_at: AT,
+        organization_id: ORG,
+        created_by: ACTOR,
+        cursor_event_id: 'nope',
       }),
     ).toMatch(/CHECK/i)
   })
@@ -187,22 +233,34 @@ describe('control 0004: the four webhook tables', () => {
     const d = delivery(sub)
     expect(await insert('webhook_deliveries', d)).toBeNull()
     expect(await insert('webhook_deliveries', delivery(sub, { event_id: d.event_id }))).toMatch(/UNIQUE/i)
-    expect(await insert('webhook_deliveries', delivery(sub, { lease_until: AT }))).toMatch(/webhook_deliveries_lease|CHECK/i)
-    expect(await insert('webhook_deliveries', delivery(sub, { lease_token: 't' }))).toMatch(/webhook_deliveries_lease|CHECK/i)
-    expect(await insert('webhook_deliveries', delivery(sub, { lease_until: AT, lease_token: 't', status: 'delivered' }))).toMatch(
+    expect(await insert('webhook_deliveries', delivery(sub, { lease_until: AT }))).toMatch(
       /webhook_deliveries_lease|CHECK/i,
     )
+    expect(await insert('webhook_deliveries', delivery(sub, { lease_token: 't' }))).toMatch(
+      /webhook_deliveries_lease|CHECK/i,
+    )
+    expect(
+      await insert('webhook_deliveries', delivery(sub, { lease_until: AT, lease_token: 't', status: 'delivered' })),
+    ).toMatch(/webhook_deliveries_lease|CHECK/i)
     expect(await insert('webhook_deliveries', delivery(sub, { lease_until: AT, lease_token: 't' }))).toBeNull()
   })
 
   it('webhook_secrets refuses an UPDATE (append-only) and is the only table with a trigger of this set', async () => {
     const sub = await seedSub()
-    const secret = { id: id(), created_at: AT, organization_id: ORG, created_by: ACTOR, subscription_id: sub, sealed: 's', key_version: 1 }
+    const secret = {
+      id: id(),
+      created_at: AT,
+      organization_id: ORG,
+      created_by: ACTOR,
+      subscription_id: sub,
+      sealed: 's',
+      key_version: 1,
+    }
     expect(await insert('webhook_secrets', secret)).toBeNull()
     expect(await run("update webhook_secrets set sealed = 'x' where id = ?", secret.id)).toMatch(/append_only/)
-    const triggers = (await all(control, "select name, tbl_name from sqlite_master where type = 'trigger' order by name")).map(
-      (r) => `${r.tbl_name}:${r.name}`,
-    )
+    const triggers = (
+      await all(control, "select name, tbl_name from sqlite_master where type = 'trigger' order by name")
+    ).map((r) => `${r.tbl_name}:${r.name}`)
     expect(triggers).toEqual([
       'control_audit:control_audit_no_delete',
       'control_audit:control_audit_no_update',

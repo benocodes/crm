@@ -57,12 +57,7 @@ describe('control migration 0001_control_plane on an empty database', () => {
     )
     expect(state).toMatchObject({
       status: 'current',
-      applied: [
-        '0001_control_plane.sql',
-        '0002_invitations.sql',
-        '0003_invitation_delivery.sql',
-        '0004_webhooks.sql',
-      ],
+      applied: ['0001_control_plane.sql', '0002_invitations.sql', '0003_invitation_delivery.sql', '0004_webhooks.sql'],
     })
     expect(CONTROL_MIGRATIONS_DIR).toMatch(/storage-d1\/control-migrations$/)
   })

@@ -583,9 +583,35 @@ export interface WebhookDeliveryRecord {
 /** The previous secret still signs for this long after a rotation ([[API7]] D12); the same constant as `@vibase/api`'s `ROTATION_OVERLAP_MS`. */
 export const WEBHOOK_ROTATION_OVERLAP_MS = 24 * 3_600_000
 
-const NOT_IMPLEMENTED = (): never => {
-  throw new Error('not implemented')
+export interface WebhookDispatchTarget {
+  subscriptionId: string
+  createdBy: string
+  agentId: string
+  eventTypes: string[]
+  cursor: string
 }
+export interface WebhookDueDelivery {
+  id: string
+  subscriptionId: string
+  eventId: string
+  /** Attempts before this claim. */
+  attempts: number
+  url: string
+  deleted: boolean
+  agentId: string
+}
+export type WebhookDeliveryOutcome =
+  | { id: string; subscriptionId: string; kind: 'delivered'; statusCode: number }
+  | {
+      id: string
+      subscriptionId: string
+      kind: 'failed'
+      code: string
+      statusCode: number | null
+      nextAttemptAt: string | null
+      dead: boolean
+    }
+  | { id: string; subscriptionId: string; kind: 'cancelled'; code: string }
 export interface NewWebhookSubscription {
   id: string
   secretId: string
@@ -601,11 +627,10 @@ export interface NewWebhookSubscription {
   keyVersion: number
   /** The newest event's id, read by the caller from the CRM feed: the dispatch position at creation ([[API7]] D5). */
   cursorEventId: string
+  /** [[API7]] D16: the caller's limit of live subscriptions per agent. */
   maxLivePerAgent: number
   now: string
 }
-export const createWebhookSubscription = (_c: ControlDb, _a: NewWebhookSubscription): Promise<'created' | 'limit'> =>
-  NOT_IMPLEMENTED()
 export interface WebhookChange {
   id: string
   auditId: string
@@ -613,18 +638,164 @@ export interface WebhookChange {
   now: string
   /** The `updated_at` the caller read: the write applies only while the row still carries it. */
   expectedUpdatedAt: string
-  /** An agent caller's own id: a subscription of another agent is `not_found`. */
+  /** An agent caller's own id: a subscription of another agent is `not_found` ([[API7]] D1). */
   ownerAgentId?: string
 }
-export const updateWebhookSubscription = (
-  _c: ControlDb,
-  _a: WebhookChange & { url?: string; eventTypes?: string[]; status?: 'active' | 'paused' },
-): Promise<'updated' | 'not_found' | 'drifted'> => NOT_IMPLEMENTED()
-export const deleteWebhookSubscription = (_c: ControlDb, _a: WebhookChange): Promise<'deleted' | 'not_found' | 'drifted'> =>
-  NOT_IMPLEMENTED()
-export const rotateWebhookSecret = (
-  _c: ControlDb,
-  _a: {
+
+const WEBHOOK_COLUMNS = 'id, organization_id, agent_id, url, event_types, status, created_by, created_at, updated_at'
+const webhookOf = (r: Record<string, unknown>): WebhookSubscriptionRecord => ({
+  id: r.id as string,
+  organizationId: r.organization_id as string,
+  agentId: r.agent_id as string,
+  url: r.url as string,
+  eventTypes: JSON.parse(r.event_types as string) as string[],
+  status: r.status as WebhookStatus,
+  createdBy: r.created_by as string,
+  createdAt: r.created_at as string,
+  updatedAt: r.updated_at as string,
+})
+/** The origin of a target URL, the only part of it an audit row may hold: a receiver may put a token in the path or query. */
+const originOf = (url: string): string => {
+  try {
+    return new URL(url).origin
+  } catch {
+    return ''
+  }
+}
+const OWNER = ' and (? is null or agent_id = ?)'
+const owner = (id: string | undefined): unknown[] => [id ?? null, id ?? null]
+const AUDIT_INSERT = 'insert into control_audit (id, at, actor_id, action, target_type, target_id, detail)'
+const SUBSCRIPTION_EXISTS = 'exists (select 1 from webhook_subscriptions where id = ?)'
+
+/**
+ * Creates a subscription, its first secret and its dispatch state at `cursorEventId`, with its `webhook.created` audit row, in ONE batch ([[CORE259]] D9 (c), D12). `limit` (nothing written) when the
+ * agent already holds `maxLivePerAgent` live subscriptions: the count is judged in the statement that inserts, and every other statement is guarded on the subscription existing. Whether the agent is
+ * eligible, the event types and the URL are the caller's to judge (P4).
+ */
+export async function createWebhookSubscription(c: ControlDb, a: NewWebhookSubscription): Promise<'created' | 'limit'> {
+  const d1 = raw(c)
+  const detail = JSON.stringify({
+    agent_id: a.agentId,
+    event_types: a.eventTypes,
+    status: 'active',
+    url_origin: originOf(a.url),
+  })
+  const results = await d1.batch([
+    d1
+      .prepare(
+        `insert into webhook_subscriptions (id, created_at, updated_at, organization_id, created_by, agent_id, url, event_types, status, deleted_at)
+         select ?, ?, ?, ?, ?, ?, ?, ?, 'active', null
+         where (select count(*) from webhook_subscriptions where agent_id = ? and deleted_at is null) < ?`,
+      )
+      .bind(
+        a.id,
+        a.now,
+        a.now,
+        a.organizationId,
+        a.actorId,
+        a.agentId,
+        a.url,
+        JSON.stringify(a.eventTypes),
+        a.agentId,
+        a.maxLivePerAgent,
+      ),
+    d1
+      .prepare(
+        `insert into webhook_secrets (id, created_at, organization_id, created_by, subscription_id, sealed, key_version)
+         select ?, ?, ?, ?, ?, ?, ? where ${SUBSCRIPTION_EXISTS}`,
+      )
+      .bind(a.secretId, a.now, a.organizationId, a.actorId, a.id, a.sealed, a.keyVersion, a.id),
+    d1
+      .prepare(
+        `insert into webhook_dispatch_state (subscription_id, created_at, organization_id, created_by, cursor_event_id, last_dispatched_at, last_success_at)
+         select ?, ?, ?, ?, ?, null, null where ${SUBSCRIPTION_EXISTS}`,
+      )
+      .bind(a.id, a.now, a.organizationId, a.actorId, a.cursorEventId, a.id),
+    d1
+      .prepare(
+        `${AUDIT_INSERT} select ?, ?, ?, 'webhook.created', 'webhook', id, json(?) from webhook_subscriptions where id = ?`,
+      )
+      .bind(a.auditId, a.now, a.actorId, detail, a.id),
+  ])
+  return (results[0]?.meta?.changes ?? 0) === 1 ? 'created' : 'limit'
+}
+
+/** Why a guarded update or delete changed nothing: the subscription is gone or not the caller's (`not_found`), or it is there but no longer as the caller read it (`drifted`). */
+const refusal = async (c: ControlDb, a: { id: string; ownerAgentId?: string }): Promise<'not_found' | 'drifted'> =>
+  (await getWebhookSubscription(c, a)) === null ? 'not_found' : 'drifted'
+
+/**
+ * Updates a live subscription (`url`, `eventTypes`, `status`) and writes `webhook.updated` in one batch. Applies only while the row is live and still carries `expectedUpdatedAt`; otherwise nothing is
+ * written, audit row included: `not_found` (missing, deleted or another agent's) or `drifted`. At least one field must change (the empty update is the operation's no-op, never a store write).
+ */
+export async function updateWebhookSubscription(
+  c: ControlDb,
+  a: WebhookChange & { url?: string; eventTypes?: string[]; status?: 'active' | 'paused' },
+): Promise<'updated' | 'not_found' | 'drifted'> {
+  const changed: string[] = []
+  const detail: Record<string, unknown> = {}
+  const sets: string[] = ['updated_at = ?']
+  const binds: unknown[] = [a.now]
+  if (a.url !== undefined) {
+    changed.push('url')
+    detail.url_origin = originOf(a.url)
+    sets.push('url = ?')
+    binds.push(a.url)
+  }
+  if (a.eventTypes !== undefined) {
+    changed.push('event_types')
+    detail.event_types = a.eventTypes
+    sets.push('event_types = ?')
+    binds.push(JSON.stringify(a.eventTypes))
+  }
+  if (a.status !== undefined) {
+    changed.push('status')
+    detail.status = a.status
+    sets.push('status = ?')
+    binds.push(a.status)
+  }
+  if (changed.length === 0) throw new Error('webhook update: nothing to change')
+  const d1 = raw(c)
+  const results = await d1.batch([
+    d1
+      .prepare(
+        `update webhook_subscriptions set ${sets.join(', ')} where id = ? and deleted_at is null and updated_at = ?${OWNER}`,
+      )
+      .bind(...binds, a.id, a.expectedUpdatedAt, ...owner(a.ownerAgentId)),
+    d1
+      .prepare(
+        `${AUDIT_INSERT} select ?, ?, ?, 'webhook.updated', 'webhook', id, json(?) from webhook_subscriptions where id = ? and updated_at = ? and deleted_at is null`,
+      )
+      .bind(a.auditId, a.now, a.actorId, JSON.stringify({ changed, ...detail }), a.id, a.now),
+  ])
+  return (results[0]?.meta?.changes ?? 0) === 1 ? 'updated' : refusal(c, a)
+}
+
+/** Soft-deletes a live subscription (`deleted_at` set, the row and its machinery rows kept) and writes `webhook.deleted` in one batch; same guards and refusals as the update. */
+export async function deleteWebhookSubscription(
+  c: ControlDb,
+  a: WebhookChange,
+): Promise<'deleted' | 'not_found' | 'drifted'> {
+  const d1 = raw(c)
+  const results = await d1.batch([
+    d1
+      .prepare(
+        `update webhook_subscriptions set deleted_at = ?, updated_at = ? where id = ? and deleted_at is null and updated_at = ?${OWNER}`,
+      )
+      .bind(a.now, a.now, a.id, a.expectedUpdatedAt, ...owner(a.ownerAgentId)),
+    d1
+      .prepare(
+        `${AUDIT_INSERT} select ?, ?, ?, 'webhook.deleted', 'webhook', id, json_object('agent_id', agent_id) from webhook_subscriptions where id = ? and deleted_at = ?`,
+      )
+      .bind(a.auditId, a.now, a.actorId, a.id, a.now),
+  ])
+  return (results[0]?.meta?.changes ?? 0) === 1 ? 'deleted' : refusal(c, a)
+}
+
+/** Rotates the signing secret: a NEW sealed secret row (rows are never updated) for a live subscription, and `webhook.secret_rotated` holding the new row's id, in one batch. `not_found` writes nothing. */
+export async function rotateWebhookSecret(
+  c: ControlDb,
+  a: {
     id: string
     secretId: string
     auditId: string
@@ -634,37 +805,178 @@ export const rotateWebhookSecret = (
     now: string
     ownerAgentId?: string
   },
-): Promise<'rotated' | 'not_found'> => NOT_IMPLEMENTED()
-export const getWebhookSubscription = (
-  _c: ControlDb,
-  _a: { id: string; ownerAgentId?: string },
-): Promise<WebhookSubscriptionRecord | null> => NOT_IMPLEMENTED()
-export const listWebhookSubscriptions = (
-  _c: ControlDb,
-  _a: { ownerAgentId?: string; agentId?: string; after?: string; limit: number },
-): Promise<WebhookSubscriptionRecord[]> => NOT_IMPLEMENTED()
-export const listWebhookDeliveries = (
-  _c: ControlDb,
-  _a: { subscriptionId: string; ownerAgentId?: string; status?: WebhookDeliveryStatus; after?: string; limit: number },
-): Promise<WebhookDeliveryRecord[] | null> => NOT_IMPLEMENTED()
-export const readWebhookSecrets = (
-  _c: ControlDb,
-  _a: { subscriptionIds: string[]; inForceAt?: string },
-): Promise<Array<{ subscriptionId: string; sealed: string; createdAt: string }>> => NOT_IMPLEMENTED()
-export interface DispatchTarget {
-  subscriptionId: string
-  createdBy: string
-  agentId: string
-  eventTypes: string[]
-  cursor: string
+): Promise<'rotated' | 'not_found'> {
+  const d1 = raw(c)
+  const results = await d1.batch([
+    d1
+      .prepare(
+        `insert into webhook_secrets (id, created_at, organization_id, created_by, subscription_id, sealed, key_version)
+         select ?, ?, organization_id, ?, id, ?, ? from webhook_subscriptions where id = ? and deleted_at is null${OWNER}`,
+      )
+      .bind(a.secretId, a.now, a.actorId, a.sealed, a.keyVersion, a.id, ...owner(a.ownerAgentId)),
+    d1
+      .prepare(
+        `${AUDIT_INSERT} select ?, ?, ?, 'webhook.secret_rotated', 'webhook', subscription_id, json_object('secret_id', id) from webhook_secrets where id = ?`,
+      )
+      .bind(a.auditId, a.now, a.actorId, a.secretId),
+  ])
+  return (results[0]?.meta?.changes ?? 0) === 1 ? 'rotated' : 'not_found'
 }
-export const listDispatchableWebhooks = (
-  _c: ControlDb,
-  _a: { organizationId: string; eligibleAgentIds: string[] },
-): Promise<DispatchTarget[]> => NOT_IMPLEMENTED()
-export const applyWebhookDispatchPage = (
-  _c: ControlDb,
-  _a: {
+
+/** A live subscription by id; `ownerAgentId` (an agent caller's own id) hides another agent's. `null` for a missing or deleted one. */
+export async function getWebhookSubscription(
+  c: ControlDb,
+  a: { id: string; ownerAgentId?: string },
+): Promise<WebhookSubscriptionRecord | null> {
+  const row = await raw(c)
+    .prepare(`select ${WEBHOOK_COLUMNS} from webhook_subscriptions where id = ? and deleted_at is null${OWNER}`)
+    .bind(a.id, ...owner(a.ownerAgentId))
+    .first()
+  return row ? webhookOf(row) : null
+}
+
+/** Live subscriptions in id order after the cursor; `ownerAgentId` limits an agent caller to its own, `agentId` is the optional filter. The caller asks for `limit + 1` to see whether a page follows. */
+export async function listWebhookSubscriptions(
+  c: ControlDb,
+  a: { ownerAgentId?: string; agentId?: string; after?: string; limit: number },
+): Promise<WebhookSubscriptionRecord[]> {
+  const where = ['deleted_at is null']
+  const binds: unknown[] = []
+  if (a.ownerAgentId !== undefined) {
+    where.push('agent_id = ?')
+    binds.push(a.ownerAgentId)
+  }
+  if (a.agentId !== undefined) {
+    where.push('agent_id = ?')
+    binds.push(a.agentId)
+  }
+  if (a.after !== undefined) {
+    where.push('id > ?')
+    binds.push(a.after)
+  }
+  const res = await raw(c)
+    .prepare(`select ${WEBHOOK_COLUMNS} from webhook_subscriptions where ${where.join(' and ')} order by id limit ?`)
+    .bind(...binds, a.limit)
+    .all()
+  return ((res.results ?? []) as Array<Record<string, unknown>>).map(webhookOf)
+}
+
+const DELIVERY_COLUMNS =
+  'id, subscription_id, event_id, event_type, status, attempts, next_attempt_at, last_attempt_at, last_status_code, last_error, delivered_at, created_at'
+
+/**
+ * A subscription's deliveries in id order (the order the dispatcher inserted them), no lease columns. `null` when the subscription is not visible to the caller (missing, deleted or another agent's),
+ * judged as `getWebhookSubscription` judges it.
+ */
+export async function listWebhookDeliveries(
+  c: ControlDb,
+  a: { subscriptionId: string; ownerAgentId?: string; status?: WebhookDeliveryStatus; after?: string; limit: number },
+): Promise<WebhookDeliveryRecord[] | null> {
+  if (
+    (await getWebhookSubscription(c, {
+      id: a.subscriptionId,
+      ...(a.ownerAgentId ? { ownerAgentId: a.ownerAgentId } : {}),
+    })) === null
+  )
+    return null
+  const where = ['subscription_id = ?']
+  const binds: unknown[] = [a.subscriptionId]
+  if (a.status !== undefined) {
+    where.push('status = ?')
+    binds.push(a.status)
+  }
+  if (a.after !== undefined) {
+    where.push('id > ?')
+    binds.push(a.after)
+  }
+  const res = await raw(c)
+    .prepare(`select ${DELIVERY_COLUMNS} from webhook_deliveries where ${where.join(' and ')} order by id limit ?`)
+    .bind(...binds, a.limit)
+    .all()
+  return ((res.results ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id as string,
+    subscriptionId: r.subscription_id as string,
+    eventId: r.event_id as string,
+    eventType: r.event_type as string,
+    status: r.status as WebhookDeliveryStatus,
+    attempts: Number(r.attempts),
+    nextAttemptAt: r.next_attempt_at as string,
+    lastAttemptAt: (r.last_attempt_at as string | null) ?? null,
+    lastStatusCode: r.last_status_code === null || r.last_status_code === undefined ? null : Number(r.last_status_code),
+    lastError: (r.last_error as string | null) ?? null,
+    deliveredAt: (r.delivered_at as string | null) ?? null,
+    createdAt: r.created_at as string,
+  }))
+}
+
+/**
+ * The sealed secrets of the named subscriptions, oldest first (the sender's context read). With `inForceAt`, only those that sign at that instant ([[API7]] D12): the newest, plus the one before it
+ * while the newest is under 24 hours old (the rotation overlap).
+ */
+export async function readWebhookSecrets(
+  c: ControlDb,
+  a: { subscriptionIds: string[]; inForceAt?: string },
+): Promise<Array<{ subscriptionId: string; sealed: string; createdAt: string }>> {
+  if (a.subscriptionIds.length === 0) return []
+  const res = await raw(c)
+    .prepare(
+      'select subscription_id, sealed, created_at from webhook_secrets where subscription_id in (select value from json_each(?)) order by created_at, id',
+    )
+    .bind(JSON.stringify(a.subscriptionIds))
+    .all()
+  const all = ((res.results ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    subscriptionId: r.subscription_id as string,
+    sealed: r.sealed as string,
+    createdAt: r.created_at as string,
+  }))
+  if (a.inForceAt === undefined) return all
+  const now = Date.parse(a.inForceAt)
+  const bySub = new Map<string, typeof all>()
+  for (const r of all) bySub.set(r.subscriptionId, [...(bySub.get(r.subscriptionId) ?? []), r])
+  const inForce = new Set<(typeof all)[number]>()
+  for (const rowsOfSub of bySub.values()) {
+    const newest = rowsOfSub[rowsOfSub.length - 1]!
+    const previous = rowsOfSub[rowsOfSub.length - 2]
+    inForce.add(newest)
+    if (previous && now - Date.parse(newest.createdAt) < WEBHOOK_ROTATION_OVERLAP_MS) inForce.add(previous)
+  }
+  return all.filter((r) => inForce.has(r))
+}
+
+/**
+ * The subscriptions to dispatch: active and live, of the agents the caller names (`eligibleAgentIds`: the CRM facts "live and not delegated", read by the caller, P4), with the position each was last
+ * dispatched to. The agent's scopes are the caller's too.
+ */
+export async function listDispatchableWebhooks(
+  c: ControlDb,
+  a: { organizationId: string; eligibleAgentIds: string[] },
+): Promise<WebhookDispatchTarget[]> {
+  if (a.eligibleAgentIds.length === 0) return []
+  const res = await raw(c)
+    .prepare(
+      `select s.id as id, s.created_by as created_by, s.agent_id as agent_id, s.event_types as event_types, st.cursor_event_id as cursor_event_id
+       from webhook_subscriptions s join webhook_dispatch_state st on st.subscription_id = s.id and st.organization_id = s.organization_id
+       where s.organization_id = ? and s.status = 'active' and s.deleted_at is null and s.agent_id in (select value from json_each(?))
+       order by s.id`,
+    )
+    .bind(a.organizationId, JSON.stringify(a.eligibleAgentIds))
+    .all()
+  return ((res.results ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    subscriptionId: r.id as string,
+    createdBy: r.created_by as string,
+    agentId: r.agent_id as string,
+    eventTypes: JSON.parse(r.event_types as string) as string[],
+    cursor: r.cursor_event_id as string,
+  }))
+}
+
+/**
+ * One page of the dispatcher (invariant 3): inserts the page's `pending` deliveries (`ON CONFLICT (subscription_id, event_id) DO NOTHING`) and moves the cursor to the page's last event, both only while
+ * the state still holds `expectedCursor`, in one batch. A stale page (another tick moved the cursor) writes nothing: `moved: false`. An empty page writes nothing. Machinery: no audit row (P3).
+ */
+export async function applyWebhookDispatchPage(
+  c: ControlDb,
+  a: {
     organizationId: string
     subscriptionId: string
     createdBy: string
@@ -672,19 +984,47 @@ export const applyWebhookDispatchPage = (
     events: Array<{ id: string; eventId: string; eventType: string }>
     now: string
   },
-): Promise<{ moved: boolean }> => NOT_IMPLEMENTED()
-export interface DueDelivery {
-  id: string
-  subscriptionId: string
-  eventId: string
-  attempts: number
-  url: string
-  deleted: boolean
-  agentId: string
+): Promise<{ moved: boolean }> {
+  const last = a.events[a.events.length - 1]
+  if (!last) return { moved: false }
+  const d1 = raw(c)
+  const atCursor = 'exists (select 1 from webhook_dispatch_state where subscription_id = ? and cursor_event_id = ?)'
+  const results = await d1.batch([
+    d1
+      .prepare(
+        `insert into webhook_deliveries (id, created_at, organization_id, created_by, subscription_id, event_id, event_type, status, attempts, next_attempt_at)
+         select json_extract(value, '$.id'), ?, ?, ?, ?, json_extract(value, '$.event_id'), json_extract(value, '$.event_type'), 'pending', 0, ?
+         from json_each(?) where ${atCursor}
+         on conflict (subscription_id, event_id) do nothing`,
+      )
+      .bind(
+        a.now,
+        a.organizationId,
+        a.createdBy,
+        a.subscriptionId,
+        a.now,
+        JSON.stringify(a.events.map((e) => ({ id: e.id, event_id: e.eventId, event_type: e.eventType }))),
+        a.subscriptionId,
+        a.expectedCursor,
+      ),
+    d1
+      .prepare(
+        `update webhook_dispatch_state set cursor_event_id = ?, last_dispatched_at = ? where subscription_id = ? and organization_id = ? and cursor_event_id = ?`,
+      )
+      .bind(last.eventId, a.now, a.subscriptionId, a.organizationId, a.expectedCursor),
+  ])
+  return { moved: (results[1]?.meta?.changes ?? 0) === 1 }
 }
-export const claimWebhookDeliveries = (
-  _c: ControlDb,
-  _a: {
+
+/**
+ * The claim of one sender wave: the due rows (a `pending` row due by `cutoff` whose lease is absent or lapsed at `now`, of a subscription that is active or deleted; a paused or disabled one is left alone),
+ * at most `caps[subscription]` (else `defaultCap`) of each subscription and `limit` in all, then ONE batch that ends the spent ones (`attempts >= maxAttempts`) `dead` with `sender_failed` and leases the rest
+ * (`attempts + 1`, `lease_until`, `lease_token`) with a guarded update. `rows` are the rows that really carry `token`, so a row another sender took between the read and the write is not ours; each carries the
+ * subscription facts the sender needs (`url`, `deleted`, `agentId`) and nothing from the CRM: the agent's scopes and the event are the caller's reads (P4). No due row means no write.
+ */
+export async function claimWebhookDeliveries(
+  c: ControlDb,
+  a: {
     organizationId: string
     cutoff: string
     now: string
@@ -695,12 +1035,128 @@ export const claimWebhookDeliveries = (
     token: string
     leaseUntil: string
   },
-): Promise<{ rows: DueDelivery[]; dead: number; totalDue: number }> => NOT_IMPLEMENTED()
-export type DeliveryOutcome =
-  | { id: string; subscriptionId: string; kind: 'delivered'; statusCode: number }
-  | { id: string; subscriptionId: string; kind: 'failed'; code: string; statusCode: number | null; nextAttemptAt: string | null; dead: boolean }
-  | { id: string; subscriptionId: string; kind: 'cancelled'; code: string }
-export const recordWebhookDeliveries = (
-  _c: ControlDb,
-  _a: { token: string; at: string; outcomes: DeliveryOutcome[] },
-): Promise<boolean[]> => NOT_IMPLEMENTED()
+): Promise<{ rows: WebhookDueDelivery[]; dead: number; totalDue: number }> {
+  const d1 = raw(c)
+  const res = await d1
+    .prepare(
+      `with due as (
+         select d.id as id, d.subscription_id as subscription_id, d.event_id as event_id, d.attempts as attempts, d.next_attempt_at as next_attempt_at,
+           row_number() over (partition by d.subscription_id order by d.next_attempt_at, d.id) as rn
+         from webhook_deliveries d
+         join webhook_subscriptions s on s.organization_id = d.organization_id and s.id = d.subscription_id
+         where d.organization_id = ? and d.status = 'pending' and d.next_attempt_at <= ?
+           and (d.lease_until is null or d.lease_until <= ?) and (s.status = 'active' or s.deleted_at is not null)
+       )
+       select due.id as id, due.subscription_id as subscription_id, due.event_id as event_id, due.attempts as attempts, s.url as url, s.deleted_at as deleted_at, s.agent_id as agent_id,
+         count(*) over () as total_due
+       from due
+       join webhook_subscriptions s on s.organization_id = ? and s.id = due.subscription_id
+       left join json_each(?) c on c.key = due.subscription_id
+       where due.rn <= coalesce(c.value, ?)
+       order by due.next_attempt_at, due.id
+       limit ?`,
+    )
+    .bind(a.organizationId, a.cutoff, a.now, a.organizationId, JSON.stringify(a.caps), a.defaultCap, a.limit)
+    .all()
+  const found = ((res.results ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id as string,
+    subscriptionId: r.subscription_id as string,
+    eventId: r.event_id as string,
+    attempts: Number(r.attempts),
+    url: r.url as string,
+    deleted: r.deleted_at !== null && r.deleted_at !== undefined,
+    agentId: r.agent_id as string,
+    totalDue: Number(r.total_due),
+  }))
+  const totalDue = found[0]?.totalDue ?? 0
+  const spent = found.filter((r) => r.attempts >= a.maxAttempts).map((r) => r.id)
+  const claim = found.filter((r) => r.attempts < a.maxAttempts).map((r) => r.id)
+  const statements: D1PreparedLike[] = []
+  if (spent.length > 0)
+    statements.push(
+      d1
+        .prepare(
+          `update webhook_deliveries set status = 'dead', last_error = 'sender_failed', lease_until = null, lease_token = null
+           where organization_id = ? and id in (select value from json_each(?)) and status = 'pending' and attempts >= ?
+             and (lease_until is null or lease_until <= ?)`,
+        )
+        .bind(a.organizationId, JSON.stringify(spent), a.maxAttempts, a.now),
+    )
+  if (claim.length > 0)
+    statements.push(
+      d1
+        .prepare(
+          `update webhook_deliveries set attempts = attempts + 1, lease_until = ?, lease_token = ?, last_attempt_at = ?
+           where organization_id = ? and id in (select value from json_each(?)) and status = 'pending' and attempts < ?
+             and next_attempt_at <= ? and (lease_until is null or lease_until <= ?)
+             and exists (select 1 from webhook_subscriptions s where s.organization_id = webhook_deliveries.organization_id and s.id = webhook_deliveries.subscription_id and (s.status = 'active' or s.deleted_at is not null))`,
+        )
+        .bind(a.leaseUntil, a.token, a.now, a.organizationId, JSON.stringify(claim), a.maxAttempts, a.cutoff, a.now),
+    )
+  if (statements.length === 0) return { rows: [], dead: 0, totalDue }
+  statements.push(
+    d1
+      .prepare(
+        `select id, status, lease_token from webhook_deliveries where organization_id = ? and id in (select value from json_each(?)) and (lease_token = ? or status = 'dead')`,
+      )
+      .bind(a.organizationId, JSON.stringify(found.map((r) => r.id)), a.token),
+  )
+  const results = await d1.batch(statements)
+  const outcome = (results[results.length - 1]?.results ?? []) as Array<Record<string, unknown>>
+  const mine = new Set(outcome.filter((r) => r.lease_token === a.token).map((r) => r.id as string))
+  return {
+    rows: found.filter((r) => mine.has(r.id)).map(({ totalDue: _total, ...row }) => row),
+    dead: outcome.filter((r) => r.status === 'dead').length,
+    totalDue,
+  }
+}
+
+/**
+ * The record of a sender wave: ONE batch, one guarded update per outcome (`id` and `lease_token`), so a stale sender whose lease was taken over, or a second completion (the lease is cleared), changes nothing.
+ * A delivered row also stamps `last_success_at` on its subscription's state. Returns, per outcome in order, whether it applied. Machinery: no audit row (P3).
+ */
+export async function recordWebhookDeliveries(
+  c: ControlDb,
+  a: { token: string; at: string; outcomes: WebhookDeliveryOutcome[] },
+): Promise<boolean[]> {
+  if (a.outcomes.length === 0) return []
+  const d1 = raw(c)
+  const statements: D1PreparedLike[] = []
+  const index: number[] = []
+  for (const o of a.outcomes) {
+    index.push(statements.length)
+    if (o.kind === 'delivered') {
+      statements.push(
+        d1
+          .prepare(
+            `update webhook_deliveries set status = 'delivered', delivered_at = ?, last_status_code = ?, last_error = null, lease_until = null, lease_token = null where id = ? and lease_token = ?`,
+          )
+          .bind(a.at, o.statusCode, o.id, a.token),
+        d1
+          .prepare(
+            `update webhook_dispatch_state set last_success_at = ? where subscription_id = ?
+               and exists (select 1 from webhook_deliveries where id = ? and status = 'delivered' and delivered_at = ?)`,
+          )
+          .bind(a.at, o.subscriptionId, o.id, a.at),
+      )
+    } else if (o.kind === 'failed') {
+      statements.push(
+        d1
+          .prepare(
+            `update webhook_deliveries set status = ?, last_error = ?, last_status_code = ?, next_attempt_at = coalesce(?, next_attempt_at), lease_until = null, lease_token = null where id = ? and lease_token = ?`,
+          )
+          .bind(o.dead ? 'dead' : 'pending', o.code, o.statusCode, o.nextAttemptAt, o.id, a.token),
+      )
+    } else {
+      statements.push(
+        d1
+          .prepare(
+            `update webhook_deliveries set status = 'cancelled', last_error = ?, lease_until = null, lease_token = null where id = ? and lease_token = ?`,
+          )
+          .bind(o.code, o.id, a.token),
+      )
+    }
+  }
+  const results = await d1.batch(statements)
+  return index.map((i) => (results[i]?.meta?.changes ?? 0) === 1)
+}
