@@ -169,6 +169,8 @@ export interface ControlEnv {
   readonly now: Date
   readonly newId: () => string
   readonly randomBytes: (n: number) => Uint8Array
+  /** Runs a read-only CRM program as the caller's tenant ([[CORE337]] P1: the CRM facts a control write needs, read before the control call). Writes belong to the control port only. */
+  readonly read: <T>(program: PreparedOperation<T>) => Promise<T>
 }
 /**
  * An administration operation whose state lives in the control-plane database, not the CRM one ([[CORE245]]): scope-checked like a tenant operation, run by `run` against a port instead of a

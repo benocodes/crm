@@ -251,6 +251,16 @@ try {
         .all()
     ).results ?? []) as Array<Record<string, unknown>>
   const count = async (table: string) => Number((await rows(`select count(*) as n from "${table}"`))[0]!.n)
+  // [[CORE337]]: the webhook tables live in the control database; these read it.
+  const controlRows = async (sqlText: string, ...binds: unknown[]) =>
+    ((
+      await controlD1
+        .prepare(sqlText)
+        .bind(...binds)
+        .all()
+    ).results ?? []) as Array<Record<string, any>>
+  const controlCount = async (table: string) =>
+    Number((await controlRows(`select count(*) as n from "${table}"`))[0]!.n)
 
   // 1-2: before bootstrap
   let res = await call('GET', '/health')
@@ -667,7 +677,7 @@ try {
   )
   check(
     'W6a a webhook subscription and a task made after it, before the per-minute cron (no delivery row yet)',
-    typeof hook.id === 'string' && typeof hooked.id === 'string' && (await count('webhook_deliveries')) === 0,
+    typeof hook.id === 'string' && typeof hooked.id === 'string' && (await controlCount('webhook_deliveries')) === 0,
     { hook: hook.id, task: hooked.id },
   )
   await ((await mf.getWorker()) as unknown as { scheduled(o: { cron: string }): Promise<unknown> }).scheduled({
@@ -690,7 +700,7 @@ try {
     })(),
     logLines.filter((l) => l.includes('[cron]')).slice(-4),
   )
-  const delivery = await rows('select subscription_id, event_type, status, attempts from webhook_deliveries')
+  const delivery = await controlRows('select subscription_id, event_type, status, attempts from webhook_deliveries')
   check(
     'W6b the delivery row: the subscription, task.created, delivered, attempts 1',
     delivery.length === 1 &&
@@ -699,6 +709,17 @@ try {
       delivery[0]!.status === 'delivered' &&
       Number(delivery[0]!.attempts) === 1,
     delivery,
+  )
+  check(
+    'W6d the subscription change is audited in the control database and the CRM holds no webhook row and no webhook event',
+    (await controlCount('webhook_subscriptions')) === 1 &&
+      (await controlRows("select id from control_audit where action = 'webhook.created'")).length === 1 &&
+      (await count('webhook_subscriptions')) === 0 &&
+      (await count('webhook_secrets')) === 0 &&
+      (await count('webhook_dispatch_state')) === 0 &&
+      (await count('webhook_deliveries')) === 0 &&
+      (await rows("select id from events where type like 'webhook.%'")).length === 0,
+    undefined,
   )
   check(
     'W6c the receiver got one POST with the five headers and the event record as the body, and the Worker log holds no signature',

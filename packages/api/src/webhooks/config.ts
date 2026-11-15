@@ -1,4 +1,5 @@
 import { decodeBase64 } from '../connections/config.js'
+import type { WebhooksPort } from './port.js'
 
 // [[API7]] D12, D13, "Configuration": what the webhook operations need from the composition. `CREDENTIALS_KEY` and `CREDENTIALS_KEY_VERSION` are shared with [[CHN5]] D4 but are read
 // here ON THEIR OWN: webhooks do not depend on the Gmail connect switch, which also needs three Google variables. A problem is a NAME, never a value.
@@ -8,6 +9,8 @@ export interface WebhooksRuntime {
   key: { bytes: Uint8Array; version: number } | null
   /** `WEBHOOK_ALLOW_INSECURE_URLS=true`: `http://` and loopback targets (local development and the local E2E only). */
   allowInsecureUrls: boolean
+  /** [[CORE337]] P5: the control-plane store. Absent or null: the operations answer `501 provider_not_configured` and dispatch and the sender do nothing. Composition sets it; the parser does not. */
+  port?: WebhooksPort | null
 }
 
 const present = (v: string | undefined): v is string => typeof v === 'string' && v.trim() !== ''

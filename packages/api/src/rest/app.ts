@@ -244,7 +244,19 @@ async function executeOperation(
   // [[CORE245]] P2: a control operation (the control plane's invitations): the same scope refusal, no storage unit, no proposal hint, no CRM event.
   if (op.kind === 'control') {
     if (!scopes.has(op.scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}`)
-    return op.run({ actor, organizationId, scopes, now, newId: env.newId, randomBytes: env.randomBytes }, input)
+    return op.run(
+      {
+        actor,
+        organizationId,
+        scopes,
+        now,
+        newId: env.newId,
+        randomBytes: env.randomBytes,
+        read: async (program) =>
+          (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, program)).value,
+      },
+      input,
+    )
   }
   if (op.scope !== null && !scopes.has(op.scope)) {
     // The one refusal path of REST and MCP alike: a caller that can propose this call is told how ([[AGT8]] D42).

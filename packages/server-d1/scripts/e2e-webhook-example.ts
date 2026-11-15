@@ -10,8 +10,14 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
 import { execute, uuidv7 } from '@vibase/storage'
-import { d1Binding, MIGRATIONS, type D1Like } from '@vibase/storage-d1'
-import { MIGRATIONS_DIR, splitStatements, createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
+import { d1Binding, MIGRATIONS, openControlDb, type D1Like } from '@vibase/storage-d1'
+import {
+  MIGRATIONS_DIR,
+  applyControlMigrations,
+  splitStatements,
+  createMigrationTracker,
+  recordMigrations,
+} from '@vibase/storage-d1/test'
 import { seedAgent } from '@vibase/storage-d1/test/seed'
 import { ScopeSet, sealToken, hashApiKey } from '@vibase/api'
 import { connectOperation } from '../../api/src/connections/connect.js'
@@ -55,7 +61,8 @@ const options = () => ({
       modulesRoot: dir,
       compatibilityDate: '2026-07-30',
       compatibilityFlags: ['nodejs_compat'],
-      d1Databases: { DB: 'webhook-example-e2e' },
+      // [[CORE337]]: the subscription, its secret, its dispatch state and its deliveries live in CONTROL_DB (every composition needs one since CORE326).
+      d1Databases: { DB: 'webhook-example-e2e', CONTROL_DB: 'webhook-example-e2e-control' },
       r2Buckets: ['BODIES'],
       workflows: { MAIL_SYNC: { name: 'webhook-example-e2e-sync', className: 'MailSyncWorkflow' } },
       bindings: {
@@ -132,11 +139,17 @@ try {
     .sort()
   for (const f of migrations)
     await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR, f), 'utf8')).map((s) => d1.prepare(s)))
-  const boot = await bootstrapD1(d1, {
-    organizationName: 'Webhook Example E2E',
-    agentName: 'bootstrap-agent',
-    authOrgId: issuer.issuer,
-  })
+  let control = (await mf.getD1Database('CONTROL_DB')) as unknown as D1Like
+  await applyControlMigrations(control)
+  const boot = await bootstrapD1(
+    d1,
+    {
+      organizationName: 'Webhook Example E2E',
+      agentName: 'bootstrap-agent',
+      authOrgId: issuer.issuer,
+    },
+    { control: openControlDb(control) },
+  )
   await createMigrationTracker(d1)
   await recordMigrations(
     d1,
@@ -240,6 +253,7 @@ try {
   await mf.setOptions(options() as never)
   await mf.ready
   d1 = (await mf.getD1Database('DB')) as unknown as D1Like
+  control = (await mf.getD1Database('CONTROL_DB')) as unknown as D1Like
   // 2. Capture one inbound message through the real sync path.
   assert.equal((await call(ownerToken, 'POST', `/meta/v1/connections/${connection}/sync`, {})).status, 202)
   await poll('incoming capture', async () => (await rows('select id from interactions')).length === 1)
@@ -304,6 +318,24 @@ try {
       ),
     'no instance for the forged event',
   )
+  // 7. [[CORE337]]: the subscription state is in the control database with its audit row; the CRM holds no webhook row and no webhook event.
+  const inControl = async (table: string) =>
+    ((await control.prepare(`select * from ${table}`).all()).results ?? []) as Array<Record<string, any>>
+  assert.equal((await inControl('webhook_subscriptions')).length, 1, 'the subscription is in CONTROL_DB')
+  assert.equal((await inControl('webhook_secrets')).length, 1, 'its sealed secret is in CONTROL_DB')
+  assert.equal((await inControl('webhook_dispatch_state')).length, 1, 'its dispatch state is in CONTROL_DB')
+  assert.deepEqual(
+    (await inControl('webhook_deliveries')).map((r) => r.status),
+    ['delivered'],
+  )
+  const audit = (await inControl('control_audit')).filter((r) => r.action === 'webhook.created')
+  assert.equal(audit.length, 1, 'one webhook.created audit row')
+  const detail = JSON.parse(audit[0]!.detail)
+  assert.equal(detail.url_origin, 'http://receiver.test')
+  assert(!audit[0]!.detail.includes('/hook'), 'the audit detail holds the origin, never the path')
+  for (const table of ['webhook_subscriptions', 'webhook_secrets', 'webhook_dispatch_state', 'webhook_deliveries'])
+    assert.equal((await rows(`select * from ${table}`)).length, 0, `the CRM ${table} table is empty`)
+  assert.equal((await rows("select id from events where type like 'webhook.%'")).length, 0, 'no webhook.* event')
   const all = logs.join('')
   for (const [name, value] of [
     ['webhook secret', secret],
