@@ -11,12 +11,12 @@ export interface SessionUser {
   name?: string
 }
 
-async function call(method: 'GET' | 'POST', path: string, body?: unknown): Promise<ApiResult<unknown>> {
+async function call(method: 'GET' | 'POST', path: string, body?: unknown, headers: Record<string, string> = {}): Promise<ApiResult<unknown>> {
   try {
     const res = await fetch(path, {
       method,
       credentials: 'include',
-      ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+      ...(body === undefined ? {} : { headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) }),
     })
     const text = await res.text()
     let json: unknown
@@ -73,8 +73,9 @@ export const signUp = async (b: { name: string; email: string; password: string;
  * [[UI247]] D6: with `oauthQuery` (the signed query of an OAuth flow, verbatim) the request carries it as `oauth_query`, and a success may answer `{ redirect: true, url }`: the data then holds the
  * validated URL (`isFollowable`). A redirect that is not followable is a failure, never a navigation.
  */
-export const signIn = async (b: { email: string; password: string; oauthQuery?: string }): Promise<ApiResult<{ user?: SessionUser; redirect?: string }>> => {
-  const raw = await call('POST', '/auth/sign-in/email', { email: b.email, password: b.password, ...(b.oauthQuery === undefined ? {} : { oauth_query: b.oauthQuery }) })
+export const signIn = async (b: { email: string; password: string; oauthQuery?: string; invitationToken?: string }): Promise<ApiResult<{ user?: SessionUser; redirect?: string }>> => {
+  // [[CORE302]] P1: the invitation token of a re-admission rides a header (Better Auth's sign-in body schema strips unknown fields).
+  const raw = await call('POST', '/auth/sign-in/email', { email: b.email, password: b.password, ...(b.oauthQuery === undefined ? {} : { oauth_query: b.oauthQuery }) }, b.invitationToken === undefined ? {} : { 'vibase-invitation': b.invitationToken })
   const r = withUser(raw)
   return r.ok && raw.ok ? withRedirect(r, raw.data) : r
 }

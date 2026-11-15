@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
-import { signUp } from './auth-api.js'
+import { signIn, signUp } from './auth-api.js'
 import { takeFragmentToken } from './fragment.js'
 import { GoogleButton, useGoogleEnabled } from './google-button.js'
 import { MESSAGES, genericFailure } from './messages.js'
@@ -21,6 +21,8 @@ export function InvitePage({ navigate = goTo }: PageProps) {
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
+  // [[CORE302]] P6: a person whose account already exists (a removed member invited again) signs in with the token instead of creating an account.
+  const [mode, setMode] = useState<'sign-up' | 'sign-in'>('sign-up')
   const google = useGoogleEnabled()
   const [googleError, setGoogleError] = useState<string | undefined>(undefined)
 
@@ -32,8 +34,34 @@ export function InvitePage({ navigate = goTo }: PageProps) {
     )
   }
 
+  const switchMode = (next: 'sign-up' | 'sign-in') => {
+    setMode(next)
+    setErrors({})
+  }
+
+  const onSignIn = async () => {
+    const found: Errors = {}
+    const emailProblem = emailError(email.trim())
+    if (emailProblem) found.email = emailProblem
+    if (password === '') found.password = MESSAGES.passwordRequired
+    setErrors(found)
+    if (Object.keys(found).length > 0) return MESSAGES.fixFields
+    setBusy(true)
+    const result = await signIn({ email: email.trim(), password, invitationToken: token })
+    setBusy(false)
+    if (result.ok) {
+      navigate('/sign-in')
+      return undefined
+    }
+    if (result.code === 'invitation_acceptance_failed') return MESSAGES.signInAcceptanceFailed
+    if (result.status === 401) return MESSAGES.wrongCredentials
+    if (result.status === 429) return MESSAGES.rateLimited
+    return genericFailure(result.status)
+  }
+
   const onSubmit = async () => {
     setGoogleError(undefined)
+    if (mode === 'sign-in') return onSignIn()
     const found: Errors = {}
     if (name.trim() === '') found.name = MESSAGES.nameRequired
     const emailProblem = emailError(email.trim())
@@ -55,6 +83,7 @@ export function InvitePage({ navigate = goTo }: PageProps) {
     return genericFailure(result.status)
   }
 
+  const signingIn = mode === 'sign-in'
   return (
     <FormLayout
       title="Accept your invitation"
@@ -62,13 +91,26 @@ export function InvitePage({ navigate = goTo }: PageProps) {
       error={googleError}
       actions={
         <Button type="submit" busy={busy}>
-          Create account
+          {signingIn ? 'Sign in' : 'Create account'}
         </Button>
       }
     >
-      <Field label="Name" name="name" autoComplete="name" value={name} onChange={setName} error={errors.name} required />
+      {signingIn ? null : <Field label="Name" name="name" autoComplete="name" value={name} onChange={setName} error={errors.name} required />}
       <Field label="Email" name="email" type="email" autoComplete="email" hint="The address the invitation was sent to." value={email} onChange={setEmail} error={errors.email} required />
-      <Field label="Password" name="password" type="password" autoComplete="new-password" hint="8 to 128 characters." value={password} onChange={setPassword} error={errors.password} required />
+      <Field
+        label="Password"
+        name="password"
+        type="password"
+        autoComplete={signingIn ? 'current-password' : 'new-password'}
+        hint={signingIn ? undefined : '8 to 128 characters.'}
+        value={password}
+        onChange={setPassword}
+        error={errors.password}
+        required
+      />
+      <Button type="button" variant="secondary" onClick={() => switchMode(signingIn ? 'sign-up' : 'sign-in')}>
+        {signingIn ? 'Create an account instead' : 'Already have an account? Sign in to accept'}
+      </Button>
       {google ? <GoogleButton invitationToken={token} onError={setGoogleError} navigate={navigate} /> : null}
     </FormLayout>
   )
