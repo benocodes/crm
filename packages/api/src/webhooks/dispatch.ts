@@ -1,34 +1,25 @@
-import { sql } from 'kysely'
-import {
-  appliedPrev,
-  codecs,
-  defineOperation,
-  execute,
-  readAll,
-  step,
-  unit,
-  type PreparedOperation,
-  type StorageBinding,
-} from '@vibase/storage'
+import { execute, type StorageBinding } from '@vibase/storage'
 import { feedVisibility } from '../events/operations.js'
 import { readStableFeed, type FeedEvent } from '../events/feed.js'
 import type { Registry } from '../registry.js'
 import { ScopeSet } from '../scopes.js'
 import type { BudgetView } from './budget.js'
+import { NIL_CURSOR, readEligibleAgents } from './crm-reads.js'
+import type { WebhooksPort } from './port.js'
 
-// [[API7]] D4, D6, D17, D19, D20 ([[API219]]): the dispatcher. For every eligible subscription it reads the agent's own view of the event feed after the subscription's cursor
-// (`readStableFeed`, with `feedVisibility` computed from the agent's STORED scopes and identity), inserts one `pending` delivery row per event and moves the cursor in one `batch()`.
-// Nothing is sent here: the rows are the queue the sender (API220) works. A Node-safe module taking storage, the registry, the clock and an id source; `compose.ts` wires it into the
-// per-minute expression after the rail's sweeps. It writes machinery rows only, so it emits no event (D20) and never touches `updated_at`.
+// [[API7]] D4, D6, D17, D19, D20 ([[API219]]), moved onto the control plane by [[CORE337]] (D8): the dispatcher. For every eligible subscription it reads the agent's own view of the event feed after the subscription's cursor
+// (`readStableFeed` on the CRM database, with `feedVisibility` computed from the agent's STORED scopes and identity), records one `pending` delivery row per event and moves the cursor in one control batch (the port).
+// Nothing is sent here: the rows are the queue the sender (API220) works. A Node-safe module taking storage, the port, the registry, the clock and an id source; `compose.ts` wires it into the per-minute expression
+// after the rail's sweeps. It writes machinery rows only, so it emits no event and no audit row (D20) and never touches `updated_at`. With no port it does nothing.
 
 /** Events read per page, and pages per subscription per tick (D4): at most 500 rows a subscription a minute; the cursor is the backlog. */
 export const PAGE_LIMIT = 100
 export const MAX_PAGES = 5
 
-const SCOPE_STRING = /^[a-z][a-z0-9_]*:(read|request_approval|write)$/
-
 export interface DispatchDeps {
   binding: StorageBinding
+  /** The control-plane store; null: this composition has none and nothing is dispatched. */
+  port: WebhooksPort | null
   registry: Registry
   clock: () => Date
   newId: () => string
@@ -61,52 +52,28 @@ export interface DispatchSummary {
   deferred: number
 }
 
-/** D24's pinned costs: the eligibility read is one query; a page is its read and its write batch. */
-export const ELIGIBLE_COST = 1
+/** D24's pinned costs: the eligibility read is two queries (the CRM agents, then the control subscriptions); a page is its read and its write batch. */
+export const ELIGIBLE_COST = 2
 export const PAGE_COST = 2
 
 const organizationOf = (d: DispatchDeps): string | null => (d.binding.kind === 'd1' ? d.binding.organizationId : null)
-const ts = (d: DispatchDeps) => codecs.timestamp.write(d.clock())
 
 /**
- * D4: the subscriptions to dispatch: active and not deleted, the agent live and not delegated (D1) and holding `events:read` (D2). Visibility of the types themselves is judged
- * per read, from the same stored scopes.
+ * D4: the subscriptions to dispatch: active and not deleted (the control read), the agent live and not delegated (D1) and holding `events:read` (D2), both read from the CRM by value (the agents named, the grants kept).
+ * Visibility of the types themselves is judged per read, from the same stored scopes.
  */
 export async function eligibleSubscriptions(d: DispatchDeps): Promise<DispatchTarget[]> {
   const organizationId = organizationOf(d)
-  if (organizationId === null) return []
-  const read: PreparedOperation<DispatchTarget[]> = defineOperation({
-    name: 'webhooks.dispatch_targets',
-    mutates: false,
-    reads: (qc) => ({
-      rows: readAll(
-        sql`select s.id as id, s.created_by as created_by, s.agent_id as agent_id, s.event_types as event_types, st.cursor_event_id as cursor_event_id, a.scopes as scopes
-          from webhook_subscriptions s
-          join webhook_dispatch_state st on st.subscription_id = s.id and st.organization_id = s.organization_id
-          join agents a on a.id = s.agent_id and a.organization_id = s.organization_id
-          where s.organization_id = ${organizationId} and s.status = 'active' and s.deleted_at is null and a.disabled_at is null and a.delegated_by is null
-          order by s.id`.compile(qc.db),
-      ),
-    }),
-    build: (found) =>
-      unit({
-        steps: [],
-        events: [],
-        decode: () =>
-          found
-            .all('rows')
-            .map((r) => ({
-              subscriptionId: String(r.id),
-              createdBy: String(r.created_by),
-              agentId: String(r.agent_id),
-              eventTypes: codecs.stringArray.read(r.event_types),
-              cursor: String(r.cursor_event_id),
-              scopes: codecs.stringArray.read(r.scopes).filter((s) => SCOPE_STRING.test(s)),
-            }))
-            .filter((t) => ScopeSet.parse(t.scopes).has({ resource: 'events', action: 'read' })),
-      }),
-  })
-  return (await execute(d.binding, { kind: 'internal', organizationId }, read)).value
+  if (organizationId === null || d.port === null) return []
+  const agents = (await execute(d.binding, { kind: 'internal', organizationId }, readEligibleAgents(organizationId)))
+    .value
+  const scopesOf = new Map(
+    agents
+      .filter((a) => ScopeSet.parse(a.scopes).has({ resource: 'events', action: 'read' }))
+      .map((a) => [a.id, a.scopes]),
+  )
+  const rows = await d.port.dispatchable({ organizationId, eligibleAgentIds: [...scopesOf.keys()] })
+  return rows.map((r) => ({ ...r, scopes: scopesOf.get(r.agentId) ?? [] }))
 }
 
 /**
@@ -124,7 +91,12 @@ export async function readPage(d: DispatchDeps, target: DispatchTarget): Promise
     await execute(
       d.binding,
       { kind: 'internal', organizationId },
-      readStableFeed({ ...vis, types: target.eventTypes, after: target.cursor, limit: PAGE_LIMIT }),
+      readStableFeed({
+        ...vis,
+        types: target.eventTypes,
+        after: target.cursor === NIL_CURSOR ? null : target.cursor,
+        limit: PAGE_LIMIT,
+      }),
     )
   ).value
   if (feed.status === 'unknown_cursor') return { kind: 'unknown_cursor', target }
@@ -132,45 +104,22 @@ export async function readPage(d: DispatchDeps, target: DispatchTarget): Promise
 }
 
 /**
- * D4, invariant 3: ONE unit per page. It inserts the page's delivery rows `ON CONFLICT (subscription_id, event_id) DO NOTHING` and moves the cursor compare-and-set (`WHERE cursor_event_id =
- * the cursor the page was read at`). Overlapping ticks are harmless: the loser's inserts are duplicates and its cursor update matches no row, which does NOT fail a `batch()`, so the
- * result step reports whether the update changed a row (`moved`). `last_dispatched_at` is stamped with the cursor, so an empty read writes nothing.
+ * D4, invariant 3: ONE control batch per page (the port). It records the page's delivery rows `ON CONFLICT (subscription_id, event_id) DO NOTHING` and moves the cursor compare-and-set (to the page's last event, only
+ * while the state still holds the cursor the page was read at). Overlapping ticks are harmless: the loser writes nothing (`moved` false). An empty page writes nothing.
  */
 export async function applyPage(d: DispatchDeps, plan: PagePlan): Promise<{ moved: boolean }> {
   const organizationId = organizationOf(d)
-  if (organizationId === null || plan.kind !== 'page' || plan.events.length === 0) return { moved: false }
+  if (organizationId === null || d.port === null || plan.kind !== 'page' || plan.events.length === 0)
+    return { moved: false }
   const { target, events } = plan
-  const at = ts(d)
-  const last = events[events.length - 1]!.id
-  // One JSON parameter carries the page (D1 allows 100 bound parameters a statement, a page is 100 events of 3 fields each).
-  const page = JSON.stringify(events.map((e) => ({ id: d.newId(), event_id: e.id, event_type: e.type })))
-  const program: PreparedOperation<boolean> = defineOperation({
-    name: 'webhooks.dispatch_page',
-    mutates: true,
-    reads: () => ({}),
-    build: (_found, qc) =>
-      unit({
-        steps: [
-          step(
-            sql`insert into "webhook_deliveries" ("id", "created_at", "organization_id", "created_by", "subscription_id", "event_id", "event_type", "status", "attempts", "next_attempt_at")
-              select json_extract(value, '$.id'), ${at}, ${organizationId}, ${target.createdBy}, ${target.subscriptionId}, json_extract(value, '$.event_id'), json_extract(value, '$.event_type'), 'pending', 0, ${at}
-              from json_each(${page}) where true
-              on conflict ("subscription_id", "event_id") do nothing`.compile(qc.db),
-            'first-mutation',
-          ),
-          step(
-            sql`update "webhook_dispatch_state" set "cursor_event_id" = ${last}, "last_dispatched_at" = ${at}
-              where "subscription_id" = ${target.subscriptionId} and "organization_id" = ${organizationId} and "cursor_event_id" = ${target.cursor}`.compile(
-              qc.db,
-            ),
-          ),
-          step(qc.db.selectNoFrom(sql<number>`1`.as('moved')).where(appliedPrev(qc)), 'result'),
-        ],
-        events: [],
-        decode: (rows) => rows.length > 0,
-      }),
+  return d.port.applyPage({
+    organizationId,
+    subscriptionId: target.subscriptionId,
+    createdBy: target.createdBy,
+    expectedCursor: target.cursor,
+    events: events.map((e) => ({ id: d.newId(), eventId: e.id, eventType: e.type })),
+    now: d.clock().toISOString(),
   })
-  return { moved: (await execute(d.binding, { kind: 'internal', organizationId }, program)).value }
 }
 
 /**
@@ -179,7 +128,7 @@ export async function applyPage(d: DispatchDeps, plan: PagePlan): Promise<{ move
  */
 export async function dispatchWebhooks(d: DispatchDeps): Promise<DispatchSummary> {
   const out: DispatchSummary = { subscriptions: 0, events: 0, unknownCursor: 0, failed: 0, deferred: 0 }
-  if (organizationOf(d) === null) return out
+  if (organizationOf(d) === null || d.port === null) return out
   const affords = (cost: number) => d.budget === undefined || d.budget.remaining() >= cost
   if (!affords(ELIGIBLE_COST)) return out
   const targets = await eligibleSubscriptions(d)

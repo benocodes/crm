@@ -1,6 +1,8 @@
 // Test-only: never import from non-test code. The webhook suites' harness ([[API7]]): the D1 engine, a registry with the webhook configuration injected, the app with
 // an injected clock, a caller that is the owner (a user) or an agent with explicit token scopes, and raw readers of the three webhook tables.
 import { uuidv7 } from '@vibase/storage'
+import { openControlDb, webhookStore, type D1Like } from '@vibase/storage-d1'
+import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { createVibaseRegistry } from '../operations.js'
 import { dispatchWebhooks, type DispatchDeps, type DispatchSummary } from '../webhooks/dispatch.js'
 import { createApp } from '../rest/app.js'
@@ -37,8 +39,10 @@ export interface Res {
 
 export interface WebhookKit {
   e: Engine
-  /** The runtime the registry was built with. */
+  /** The runtime the registry was built with (its `port` is the store over `control`). */
   runtime: WebhooksRuntime
+  /** The control-plane database the subscriptions live in ([[CORE337]]), migrated; the CRM engine `e` holds none of the webhook tables' rows. */
+  control: D1Like
   app: ReturnType<typeof createApp>
   registry: ReturnType<typeof createVibaseRegistry>
   call(who: Who, method: string, path: string, body?: unknown): Promise<Res>
@@ -52,13 +56,19 @@ export interface WebhookKit {
   grant(agentId: string, scopes: string[]): Promise<void>
   /** Creates a subscription as the owner for `agentId`; asserts success. */
   create(agentId: string, body?: Record<string, unknown>): Promise<any>
+  /** A raw read. A statement naming a `webhook_*` table or `control_audit` reads the CONTROL database; every other reads the CRM engine's. */
   all<T = Record<string, any>>(sqlText: string, ...binds: unknown[]): Promise<T[]>
+  /** A raw read of the CRM database whatever the statement names (the suites assert the CRM `webhook_*` tables stay empty). */
+  crm<T = Record<string, any>>(sqlText: string, ...binds: unknown[]): Promise<T[]>
   /** The dependencies the dispatcher takes ([[API219]]): the engine's binding, the registry, the kit's clock and an id source on it. */
   deps(): DispatchDeps
   /** One dispatch tick, as the per-minute cron runs it. */
   dispatch(): Promise<DispatchSummary>
   /** A raw `events` row (the next `seq`), for events no operation emits; returns its id. `after`/`before` are stored as JSON. */
-  rawEvent(type: string, over?: { resourceType?: string; after?: unknown; before?: unknown }): Promise<string>
+  rawEvent(
+    type: string,
+    over?: { resourceType?: string; resourceId?: string; after?: unknown; before?: unknown },
+  ): Promise<string>
   /** A task created through the REST app as the owner (one `task.created` event); returns that event's id. */
   task(title: string): Promise<string>
   /** `webhook_dispatch_state.cursor_event_id` of a subscription. */
@@ -73,13 +83,24 @@ export async function openWebhookKit(
   opts: { key?: Uint8Array | null; version?: number; allowInsecureUrls?: boolean; clock?: () => Date } = {},
 ): Promise<WebhookKit> {
   const e = await openD1Engine()
+  const local: LocalD1 = await openLocalD1(['control'], { control: ['control'] })
+  const control = local.bindings.control!
+  const port = webhookStore(openControlDb(control))
   const runtime: WebhooksRuntime = {
     key: opts.key === null ? null : { bytes: opts.key ?? KEY_BYTES, version: opts.version ?? 3 },
     allowInsecureUrls: opts.allowInsecureUrls ?? false,
+    port,
   }
   const registry = createVibaseRegistry({ webhooks: runtime })
   const clock = opts.clock ?? (() => NOW)
   const kit = {} as WebhookKit
+  // [[CORE337]] D12: the CRM's `webhook_*` tables are no longer read or written, so every suite on this kit holds them empty throughout; checked before each reset and at close.
+  const assertCrmUntouched = async () => {
+    for (const table of ['webhook_subscriptions', 'webhook_secrets', 'webhook_dispatch_state', 'webhook_deliveries']) {
+      const n = ((await e.d1!.prepare(`select count(*) as n from ${table}`).first()) as { n: number }).n
+      if (n !== 0) throw new Error(`the CRM table ${table} holds ${n} row(s): the webhook code wrote to it`)
+    }
+  }
   const build = () =>
     createApp({
       registry,
@@ -91,10 +112,13 @@ export async function openWebhookKit(
   Object.assign(kit, {
     e,
     runtime,
+    control,
     registry,
     app: build(),
     async reset() {
+      await assertCrmUntouched()
       await e.reset()
+      await clearD1(control)
       kit.app = build()
     },
     async call(who: Who, method: string, path: string, body?: unknown): Promise<Res> {
@@ -153,11 +177,14 @@ export async function openWebhookKit(
       if (r.status >= 300) throw new Error(`create failed ${r.status}: ${r.text}`)
       return r.body
     },
-    deps: () => ({ binding: e.binding, registry, clock, newId: () => uuidv7(clock()) }),
+    deps: () => ({ binding: e.binding, port, registry, clock, newId: () => uuidv7(clock()) }),
     dispatch: () => dispatchWebhooks(kit.deps()),
-    async rawEvent(type: string, over: { resourceType?: string; after?: unknown; before?: unknown } = {}) {
+    async rawEvent(
+      type: string,
+      over: { resourceType?: string; resourceId?: string; after?: unknown; before?: unknown } = {},
+    ) {
       const id = uuidv7()
-      const json = (v: unknown) => (v === undefined ? null : JSON.stringify(v))
+      const json = (v: unknown) => (v === undefined || v === null ? null : JSON.stringify(v))
       await e
         .d1!.prepare(
           'INSERT INTO events (id, created_at, organization_id, type, resource_type, resource_id, actor_id, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -168,7 +195,7 @@ export async function openWebhookKit(
           e.organizationId,
           type,
           over.resourceType ?? type.slice(0, type.indexOf('.')),
-          uuidv7(),
+          over.resourceId ?? uuidv7(),
           e.userId,
           json(over.before),
           json(over.after),
@@ -199,6 +226,17 @@ export async function openWebhookKit(
         ? kit.all('select * from webhook_deliveries order by id')
         : kit.all('select * from webhook_deliveries where subscription_id = ? order by id', subscriptionId),
     async all(sqlText: string, ...binds: unknown[]) {
+      const db = /\bwebhook_(subscriptions|secrets|dispatch_state|deliveries)\b|\bcontrol_audit\b/.test(sqlText)
+        ? control
+        : e.d1!
+      return ((
+        await db
+          .prepare(sqlText)
+          .bind(...binds)
+          .all()
+      ).results ?? []) as any[]
+    },
+    async crm(sqlText: string, ...binds: unknown[]) {
       return ((
         await e
           .d1!.prepare(sqlText)
@@ -206,7 +244,11 @@ export async function openWebhookKit(
           .all()
       ).results ?? []) as any[]
     },
-    close: () => e.close(),
+    close: async () => {
+      await assertCrmUntouched()
+      await e.close()
+      await local.dispose()
+    },
   })
   return kit
 }

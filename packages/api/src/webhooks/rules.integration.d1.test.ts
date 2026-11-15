@@ -131,7 +131,7 @@ describe('update (D3, D18)', () => {
     refused(await k.owner('PATCH', path, { status: 'disabled' }), 400, 'validation_error')
     expect((await k.owner('GET', path)).body.status).toBe('active')
     expect((await k.owner('PATCH', path, { status: 'paused' })).body.status).toBe('paused')
-    await k.e.d1!.prepare("UPDATE webhook_subscriptions SET status = 'disabled' WHERE id = ?").bind(made.id).run()
+    await k.control.prepare("UPDATE webhook_subscriptions SET status = 'disabled' WHERE id = ?").bind(made.id).run()
     expect((await k.owner('GET', path)).body.status).toBe('disabled')
     expect((await k.owner('PATCH', path, { status: 'active' })).body.status).toBe('active')
   })
@@ -192,19 +192,28 @@ describe('the limit (D16)', () => {
     refused(await post(a, { event_types: ['task.created'] }), 409, 'webhook_limit')
   })
 
-  it('a create that loses a race for the last slot between plan and commit is refused, never stored as an eleventh', async () => {
+  it('a create that loses a race for the last slot between the CRM reads and the control write is refused, never stored as an eleventh', async () => {
     const a = await k.seedAgent(TASKS)
     for (let i = 0; i < 9; i++) await k.create(a)
-    k.e.betweenPlanAndCommit(async () => {
+    // The competitor lands after the operation's reads and before its control batch: the limit is judged in the insert, not in the earlier count.
+    const port = k.runtime.port!
+    const real = port.create
+    port.create = async (args) => {
       const at = '2026-11-12T09:00:00.000Z'
-      await k.e
-        .d1!.prepare(
+      await k.control
+        .prepare(
           "INSERT INTO webhook_subscriptions (id, created_at, updated_at, organization_id, created_by, agent_id, url, event_types, status) VALUES (?, ?, ?, ?, ?, ?, ?, '[\"task.created\"]', 'active')",
         )
         .bind('0190b2c4-0000-7000-8000-0000000000aa', at, at, k.e.organizationId, k.e.userId, a, URL_OK)
         .run()
-    })
-    const r = await post(a, { event_types: ['task.created'] })
+      return real(args)
+    }
+    let r: Awaited<ReturnType<typeof post>>
+    try {
+      r = await post(a, { event_types: ['task.created'] })
+    } finally {
+      port.create = real
+    }
     refused(r, 409, 'webhook_limit')
     expect(await rows()).toHaveLength(10)
   })

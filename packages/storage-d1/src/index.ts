@@ -191,6 +191,8 @@ export {
   recordWebhookDeliveries,
   rotateWebhookSecret,
   updateWebhookSubscription,
+  webhookStore,
+  type WebhookStore,
   type WebhookDeliveryOutcome,
   type WebhookDispatchTarget,
   type WebhookDueDelivery,

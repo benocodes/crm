@@ -72,6 +72,7 @@ import {
   listInvitations,
   revokeInvitation,
   readControlMigrations,
+  webhookStore,
   readMigrationState,
   runAuthSweep,
   type ControlDb,
@@ -315,7 +316,12 @@ export function composeD1Worker(
   // [[CHN5]] D58: parsed once; the app logs what is missing or malformed (names only) and gates the Gmail surface on it.
   const gmail = parseGmailConfig(vars)
   // [[API7]] D12, D13: read from `CREDENTIALS_KEY` on its own, so webhooks do not depend on the Google variables above.
-  const webhooks = parseWebhooksConfig(vars)
+  const parsedWebhooks = parseWebhooksConfig(vars)
+  // [[CORE337]] P5: the subscriptions, their dispatch and the sender run on the control store; the port is the one handle composition gives the API package.
+  const webhooks = {
+    ...parsedWebhooks,
+    runtime: { ...parsedWebhooks.runtime, port: control ? webhookStore(control) : null },
+  }
   // [[CHN5]] D87: push is judged once, by the parser `setup:remote` shares. It is ON only with Gmail and the MAIL_SYNC binding too; the app logs why when it is not.
   const pushParsed = parsePushConfig(vars)
   const pushOn = gmail.config !== null && env.MAIL_SYNC !== undefined && pushParsed.config !== null
@@ -415,23 +421,36 @@ export function composeD1Worker(
    * marker is written once and never changes); a refusal is never cached, so bootstrap's marker is picked up by the next request. `undefined` means go on.
    */
   let paired = false
-  async function controlGate(): Promise<Response | undefined> {
-    if (!control || paired) return undefined
-    if (!(await controlMigrated(control))) return json(MIGRATIONS_PENDING, 503)
+  type ControlCondition = 'ok' | 'migrations_pending' | 'not_initialised' | 'not_paired'
+  /**
+   * The conditions the control gate judges, as a reason ([[CORE337]] P2 reuses them for the tick): `c` and `crm` are the handles to ask through (the tick passes its counted ones, so every query counts
+   * against its budget). A pairing that held is remembered and costs no query.
+   */
+  async function controlCondition(c: ControlDb, crm: D1Like): Promise<ControlCondition> {
+    if (paired) return 'ok'
+    if (!(await controlMigrated(c))) return 'migrations_pending'
     let link
     try {
-      link = await readDeployment(env.DB)
+      link = await readDeployment(crm)
     } catch (err) {
-      if (/no such table/i.test(err instanceof Error ? err.message : '')) return json(NOT_INITIALISED, 503)
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) return 'not_initialised'
       throw err
     }
-    if (!link) return json(NOT_INITIALISED, 503)
-    const marker = await readControlMarker(control)
-    if (!marker || marker.organizationId !== link.organizationId) {
+    if (!link) return 'not_initialised'
+    const marker = await readControlMarker(c)
+    if (!marker || marker.organizationId !== link.organizationId) return 'not_paired'
+    paired = true
+    return 'ok'
+  }
+  async function controlGate(): Promise<Response | undefined> {
+    if (!control || paired) return undefined
+    const why = await controlCondition(control, env.DB)
+    if (why === 'migrations_pending') return json(MIGRATIONS_PENDING, 503)
+    if (why === 'not_initialised') return json(NOT_INITIALISED, 503)
+    if (why === 'not_paired') {
       console.error('[d1-worker] control database not paired: its marker is missing or names another organisation')
       return json(INTERNAL, 500)
     }
-    paired = true
     return undefined
   }
 
@@ -653,6 +672,8 @@ export function composeD1Worker(
       )
     const budget = new TickBudget(tickBudget.limit)
     const db = countD1(env.DB, budget)
+    // [[CORE337]] P2: every control query of the tick is counted against the same budget.
+    const controlCounted = env.CONTROL_DB ? openControlDb(countD1(env.CONTROL_DB, budget)) : undefined
     const outbound = countFetch(
       (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => (deps.fetch ?? fetch)(input, init),
       budget,
@@ -689,45 +710,64 @@ export function composeD1Worker(
       console.error(`[cron] ${controller.cron}: failed: ${err instanceof Error ? err.name : 'error'}`)
       failure = err
     }
+    // [[CORE337]] P2: webhook dispatch and the sender run only when the request path's control conditions hold (binding, control migrations current or ahead, the marker paired with the CRM's); otherwise both
+    // are skipped with one line naming the reason. The sweeps above and below run as they do.
+    let tickPort: ReturnType<typeof webhookStore> | null = null
     try {
-      // At most half of what the rail left (D24); the sender takes the rest.
-      const out = await dispatchWebhooks({
-        binding: found.binding,
-        registry: railRegistry,
-        clock,
-        newId,
-        budget: budget.slice(Math.floor(budget.remaining() / 2)),
-      })
-      const trouble = [
-        out.unknownCursor > 0 ? `${out.unknownCursor} with an unknown cursor` : '',
-        out.failed > 0 ? `${out.failed} not dispatched` : '',
-        out.deferred > 0 ? `${out.deferred} deferred` : '',
-      ].filter(Boolean)
-      console.log(
-        `[cron] ${controller.cron}: webhooks dispatched ${out.events} event(s) for ${out.subscriptions} subscription(s)${trouble.length > 0 ? ` (${trouble.join(', ')})` : ''}`,
-      )
+      const why = controlCounted ? await controlCondition(controlCounted, db) : 'no_binding'
+      if (why === 'ok' && controlCounted) tickPort = webhookStore(controlCounted)
+      else console.log(`[cron] ${controller.cron}: webhooks skipped, control plane: ${why}`)
     } catch (err) {
-      console.error(`[cron] ${controller.cron}: webhook dispatch failed: ${err instanceof Error ? err.name : 'error'}`)
+      console.error(
+        `[cron] ${controller.cron}: webhooks skipped, control check failed: ${err instanceof Error ? err.name : 'error'}`,
+      )
       failure ??= err
     }
-    try {
-      const out = await sendWebhooks({
-        binding: found.binding,
-        registry: railRegistry,
-        clock,
-        newId,
-        fetch: outbound,
-        key: webhooks.runtime.key?.bytes ?? null,
-        budget,
-        startedAt: tickStart,
-      })
-      if (!out.noKey)
+    if (tickPort) {
+      try {
+        // At most half of what the rail left (D24); the sender takes the rest.
+        const out = await dispatchWebhooks({
+          binding: found.binding,
+          port: tickPort,
+          registry: railRegistry,
+          clock,
+          newId,
+          budget: budget.slice(Math.floor(budget.remaining() / 2)),
+        })
+        const trouble = [
+          out.unknownCursor > 0 ? `${out.unknownCursor} with an unknown cursor` : '',
+          out.failed > 0 ? `${out.failed} not dispatched` : '',
+          out.deferred > 0 ? `${out.deferred} deferred` : '',
+        ].filter(Boolean)
         console.log(
-          `[cron] ${controller.cron}: webhooks sent ${out.sent}, failed ${out.failed}, dead ${out.dead}, cancelled ${out.cancelled}, deferred ${out.deferred}`,
+          `[cron] ${controller.cron}: webhooks dispatched ${out.events} event(s) for ${out.subscriptions} subscription(s)${trouble.length > 0 ? ` (${trouble.join(', ')})` : ''}`,
         )
-    } catch (err) {
-      console.error(`[cron] ${controller.cron}: webhook send failed: ${err instanceof Error ? err.name : 'error'}`)
-      failure ??= err
+      } catch (err) {
+        console.error(
+          `[cron] ${controller.cron}: webhook dispatch failed: ${err instanceof Error ? err.name : 'error'}`,
+        )
+        failure ??= err
+      }
+      try {
+        const out = await sendWebhooks({
+          binding: found.binding,
+          port: tickPort,
+          registry: railRegistry,
+          clock,
+          newId,
+          fetch: outbound,
+          key: webhooks.runtime.key?.bytes ?? null,
+          budget,
+          startedAt: tickStart,
+        })
+        if (!out.noKey)
+          console.log(
+            `[cron] ${controller.cron}: webhooks sent ${out.sent}, failed ${out.failed}, dead ${out.dead}, cancelled ${out.cancelled}, deferred ${out.deferred}`,
+          )
+      } catch (err) {
+        console.error(`[cron] ${controller.cron}: webhook send failed: ${err instanceof Error ? err.name : 'error'}`)
+        failure ??= err
+      }
     }
     // [[CORE259]] D10, [[CORE289]] P5: the repair sweep of the built-in provider's control plane, behind the same gates, independent of the work above (it never stops it, and it runs whatever failed).
     // It reads the CRM through the tick's counted D1 and writes the control database only; no audit row, no event.

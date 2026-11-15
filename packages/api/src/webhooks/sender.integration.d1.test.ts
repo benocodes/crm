@@ -22,13 +22,16 @@ const iso = (ms: number) => new Date(ms).toISOString()
 const SCHEDULE_MS = [30_000, 300_000, 1_800_000, 7_200_000, 21_600_000, 43_200_000, 86_400_000]
 const raw = (sql: string, ...binds: unknown[]) => s.k.all(sql, ...binds)
 const setRow = (id: string, set: string, ...binds: unknown[]) =>
-  s.k.e
-    .d1!.prepare(`UPDATE webhook_deliveries SET ${set} WHERE id = ?`)
+  s.k.control
+    .prepare(`UPDATE webhook_deliveries SET ${set} WHERE id = ?`)
     .bind(...binds, id)
     .run()
 const state = async (subscriptionId: string) =>
   (await raw('select * from webhook_dispatch_state where subscription_id = ?', subscriptionId))[0]!
-/** Wraps the binding so each executed operation is recorded with what it ran (and, for `failing`, one operation throws before anything is written). */
+/**
+ * Wraps the CRM binding and the control port so each executed CRM operation and each port call is recorded (and, for `failing`, one of them throws before anything is written). CRM operations carry their name and
+ * the reads and writes they ran; port calls are `port.claim`, `port.secrets` and `port.record`.
+ */
 function spy(failing?: string) {
   const ops: { name: string; reads: number; writes: number }[] = []
   const base = s.k.deps().binding
@@ -44,7 +47,16 @@ function spy(failing?: string) {
       },
     },
   } as StorageBinding
-  return { ops, binding }
+  const real = s.k.runtime.port!
+  const port: any = { ...real }
+  for (const m of ['claim', 'secrets', 'record'] as const)
+    port[m] = async (a: any) => {
+      if (failing === `port.${m}`) throw new Error('boom')
+      const r = await (real[m] as any)(a)
+      ops.push({ name: `port.${m}`, reads: 0, writes: 0 })
+      return r
+    }
+  return { ops, binding, port: port as typeof real }
 }
 const answer = (status: number) => () =>
   new Response(status === 204 ? null : 'response body that must never be stored', { status })
@@ -342,9 +354,9 @@ describe('leases and attempts at claim (D15, D10)', () => {
   it('a claim whose attempt never records is counted at the next claim after the lease lapses', async () => {
     const { sub } = await s.subscribe()
     const { delivery } = await s.due(sub.id)
-    const crashing = spy('webhooks.send_record')
+    const crashing = spy('port.record')
     s.handler = answer(200)
-    await s.send({ binding: crashing.binding }).catch(() => {}) // the record is lost: the sender "crashed" after its fetch
+    await s.send({ binding: crashing.binding, port: crashing.port }).catch(() => {}) // the record is lost: the sender "crashed" after its fetch
     expect(s.calls).toHaveLength(1)
     const stuck = await s.row(delivery)
     expect(stuck).toMatchObject({ status: 'pending', attempts: 1 })
@@ -452,6 +464,33 @@ describe('send-time checks (D3, D6, D12)', () => {
     })
   })
 
+  it('a due row whose agent row is missing from the CRM is cancelled with cancelled_subscription: no fetch, never left leased, never retried (P3)', async () => {
+    const { agent, sub } = await s.subscribe()
+    const { delivery } = await s.due(sub.id)
+    await s.k.crm('delete from agents where id = ?', agent)
+    const summary = await s.send()
+    expect(s.calls).toHaveLength(0)
+    expect(summary).toMatchObject({ cancelled: 1, sent: 0, failed: 0 })
+    expect(await s.row(delivery)).toMatchObject({
+      status: 'cancelled',
+      last_error: 'cancelled_subscription',
+      lease_until: null,
+      lease_token: null,
+    })
+    s.advance(24 * 3_600_000)
+    await s.send()
+    expect(s.calls, 'a cancelled row is not retried').toHaveLength(0)
+  })
+
+  it('a composition with no control store sends nothing and claims nothing', async () => {
+    const { sub } = await s.subscribe()
+    const { delivery } = await s.due(sub.id)
+    const summary = await s.send({ port: null })
+    expect(summary).toEqual({ sent: 0, failed: 0, dead: 0, cancelled: 0, deferred: 0, noKey: false })
+    expect(s.calls).toHaveLength(0)
+    expect(await s.row(delivery)).toMatchObject({ status: 'pending', attempts: 0, lease_token: null })
+  })
+
   it('a disabled agent, a removed events:read and a removed type scope each cancel the row with cancelled_scope and make no fetch', async () => {
     const cases: [string, (agent: string) => Promise<unknown>][] = [
       [
@@ -496,7 +535,7 @@ describe('send-time checks (D3, D6, D12)', () => {
   it('a subscription disabled by the vault is held the same way', async () => {
     const { sub } = await s.subscribe()
     const { delivery } = await s.due(sub.id)
-    await s.k.e.d1!.prepare("UPDATE webhook_subscriptions SET status = 'disabled' WHERE id = ?").bind(sub.id).run()
+    await s.k.control.prepare("UPDATE webhook_subscriptions SET status = 'disabled' WHERE id = ?").bind(sub.id).run()
     await s.send()
     expect(s.calls).toHaveLength(0)
     expect(await s.row(delivery)).toMatchObject({ status: 'pending', attempts: 0 })
@@ -520,7 +559,7 @@ describe('send-time checks (D3, D6, D12)', () => {
     for (const m of ['log', 'warn', 'error'] as const)
       vi.spyOn(console, m).mockImplementation((...a) => void logs.push(a.join(' ')))
     const probe = spy()
-    const summary = await s.send({ key: null, binding: probe.binding })
+    const summary = await s.send({ key: null, binding: probe.binding, port: probe.port })
     expect(summary.noKey).toBe(true)
     expect(s.calls).toHaveLength(0)
     expect(probe.ops).toEqual([])
@@ -622,24 +661,25 @@ describe('tick bounds (D6)', () => {
     expect(s.calls).toHaveLength(5) // a wave starts 38 s into the tick and takes 2 s; the next would start at 40 s
   })
 
-  it('no due row: one read, no write, no claim', async () => {
+  it('no due row: one claim read on control, no write, no CRM read, no secrets, no record', async () => {
     const probe = spy()
-    const summary = await s.send({ binding: probe.binding })
+    const summary = await s.send({ binding: probe.binding, port: probe.port })
     expect(summary).toEqual({ sent: 0, failed: 0, dead: 0, cancelled: 0, deferred: 0, noKey: false })
-    expect(probe.ops).toEqual([{ name: 'webhooks.send_claim', reads: 1, writes: 0 }])
+    expect(probe.ops).toEqual([{ name: 'port.claim', reads: 0, writes: 0 }])
     expect(s.calls).toHaveLength(0)
   })
 
-  it('a wave costs four queries (claim read and write, context read, record) and one fetch a row', async () => {
+  it('a wave costs six queries (control claim read and write, the CRM agents and events read, the CRM visibility read, the control secrets read, the control record) and one fetch a row', async () => {
     await fill(1, 3)
     const probe = spy()
-    await s.send({ binding: probe.binding })
-    // The claim is a read batch and a write batch (the lease update and the result select); the context one read batch; the record one write batch.
-    expect(probe.ops.map((o) => `${o.name}:${o.reads > 0 ? 'r' : ''}${o.writes > 0 ? 'w' : ''}`)).toEqual([
-      'webhooks.send_claim:rw',
-      'webhooks.send_context:r',
-      'webhooks.send_record:w',
-    ])
+    await s.send({ binding: probe.binding, port: probe.port })
+    // The context's two reads run together: the CRM visibility read and the control secrets read.
+    const names = probe.ops.map((o) => o.name)
+    expect(names[0]).toBe('port.claim')
+    expect(names[1]).toBe('webhooks.read_agents_and_events')
+    expect(names.slice(2, 4).sort()).toEqual(['port.secrets', 'webhooks.send_context'])
+    expect(names[4]).toBe('port.record')
+    expect(names).toHaveLength(5)
     expect(s.calls).toHaveLength(3)
   })
 })
@@ -659,17 +699,25 @@ describe('the budget (D24), as the sender meets it', () => {
         },
       },
     } as StorageBinding
-    return { b, binding }
+    // The control queries cost what the tick's counting handle charges: the claim is a read and a batch (2), the secrets read and the record one each.
+    const real = s.k.runtime.port!
+    const port = {
+      ...real,
+      claim: async (a: Parameters<typeof real.claim>[0]) => (b.spend(2), real.claim(a)),
+      secrets: async (a: Parameters<typeof real.secrets>[0]) => (b.spend(1), real.secrets(a)),
+      record: async (a: Parameters<typeof real.record>[0]) => (b.spend(1), real.record(a)),
+    }
+    return { b, binding, port }
   }
 
   it('claims only what the budget can finish: queries plus fetches never exceed it, unserved rows keep attempts 0, and the summary counts them deferred', async () => {
     await fill(2, 5) // 10 due rows
-    const { b, binding } = meter(14) // one wave of 5 costs 4 + 5 = 9; a second does not fit in the 5 left (4 + 1 fits only one row)
+    const { b, binding, port } = meter(14) // one wave of 5 costs 6 + 5 = 11; a second does not fit in the 3 left
     s.handler = () => {
       b.spend(1)
       return ok(200)
     }
-    const summary = await s.send({ binding, budget: b })
+    const summary = await s.send({ binding, port, budget: b })
     expect(b.used).toBeLessThanOrEqual(14)
     expect(summary.sent).toBe(s.calls.length)
     expect(summary.sent).toBeGreaterThanOrEqual(5)
@@ -687,7 +735,7 @@ describe('the budget (D24), as the sender meets it', () => {
   it('a budget too small for the smallest wave starts nothing, writes nothing and reads nothing', async () => {
     await fill(1, 5)
     const probe = spy()
-    const summary = await s.send({ binding: probe.binding, budget: { remaining: () => 4 } })
+    const summary = await s.send({ binding: probe.binding, port: probe.port, budget: { remaining: () => 6 } })
     expect(probe.ops).toEqual([])
     expect(s.calls).toHaveLength(0)
     expect(summary.sent).toBe(0)

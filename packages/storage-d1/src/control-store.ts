@@ -1160,3 +1160,38 @@ export async function recordWebhookDeliveries(
   const results = await d1.batch(statements)
   return index.map((i) => (results[i]?.meta?.changes ?? 0) === 1)
 }
+
+/** A function of this module with its leading `ControlDb` argument bound. */
+type Bound<F> = F extends (c: ControlDb, ...a: infer A) => infer R ? (...a: A) => R : never
+/**
+ * The webhook store as the port composition hands `@vibase/api` ([[CORE337]] P5): the twelve methods above bound to one control handle, so that package reaches the control plane through a plain object
+ * and never names the handle ([[CORE259]] D5). The tick builds its own over a counted handle.
+ */
+export interface WebhookStore {
+  create: Bound<typeof createWebhookSubscription>
+  update: Bound<typeof updateWebhookSubscription>
+  delete: Bound<typeof deleteWebhookSubscription>
+  rotateSecret: Bound<typeof rotateWebhookSecret>
+  get: Bound<typeof getWebhookSubscription>
+  list: Bound<typeof listWebhookSubscriptions>
+  deliveries: Bound<typeof listWebhookDeliveries>
+  secrets: Bound<typeof readWebhookSecrets>
+  dispatchable: Bound<typeof listDispatchableWebhooks>
+  applyPage: Bound<typeof applyWebhookDispatchPage>
+  claim: Bound<typeof claimWebhookDeliveries>
+  record: Bound<typeof recordWebhookDeliveries>
+}
+export const webhookStore = (c: ControlDb): WebhookStore => ({
+  create: (a) => createWebhookSubscription(c, a),
+  update: (a) => updateWebhookSubscription(c, a),
+  delete: (a) => deleteWebhookSubscription(c, a),
+  rotateSecret: (a) => rotateWebhookSecret(c, a),
+  get: (a) => getWebhookSubscription(c, a),
+  list: (a) => listWebhookSubscriptions(c, a),
+  deliveries: (a) => listWebhookDeliveries(c, a),
+  secrets: (a) => readWebhookSecrets(c, a),
+  dispatchable: (a) => listDispatchableWebhooks(c, a),
+  applyPage: (a) => applyWebhookDispatchPage(c, a),
+  claim: (a) => claimWebhookDeliveries(c, a),
+  record: (a) => recordWebhookDeliveries(c, a),
+})

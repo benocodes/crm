@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
-import { coldStorage } from '../test/storage.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 import { AGENT_SCOPES, NO_SUCH, NOW, openWebhookKit, type WebhookKit } from '../test/webhook-kit.js'
 import { scopesForRole } from '../auth/roles.js'
@@ -39,14 +39,14 @@ async function seeded(agent: string, n = 4) {
   await k.dispatch()
   const rows = await k.deliveries(sub.id)
   expect(rows).toHaveLength(n)
-  await k.e
-    .d1!.prepare(
+  await k.control
+    .prepare(
       "UPDATE webhook_deliveries SET status = 'delivered', attempts = 1, last_attempt_at = ?, last_status_code = 204, delivered_at = ? WHERE id = ?",
     )
     .bind(AT, AT, rows[n - 1]!.id)
     .run()
-  await k.e
-    .d1!.prepare(
+  await k.control
+    .prepare(
       "UPDATE webhook_deliveries SET status = 'dead', attempts = 8, last_attempt_at = ?, last_status_code = 500, last_error = 'http_status' WHERE id = ?",
     )
     .bind(AT, rows[n - 2]!.id)
@@ -148,14 +148,15 @@ describe('webhooks.deliveries (D14)', () => {
     expect(res.result.tools.map((t: any) => t.name)).toContain('webhooks_deliveries')
   })
 
-  it('a binding that is not D1 answers 501 not_implemented after the scope check', async () => {
-    const cold = createApp({ storage: coldStorage(), registry: k.registry, userAuthenticator: fakeUserAuthenticator() })
+  it('a composition without the control store answers 501 provider_not_configured after the scope check', async () => {
+    const registry = createVibaseRegistry({ webhooks: { ...k.runtime, port: null } })
+    const bare = createApp({ storage: () => k.e.binding, registry, userAuthenticator: fakeUserAuthenticator() })
     const token = (scopes: string[]) =>
       mintTestUserToken({ userId: k.e.userId, organizationId: k.e.organizationId, scopes, kind: 'user' })
     const init = (scopes: string[]) => ({ headers: { authorization: `Bearer ${token(scopes)}` } })
-    const res = await cold.request(`${BASE}/${NO_SUCH}/deliveries`, init(['webhooks:read']))
-    expect([res.status, ((await res.json()) as any).error.code]).toEqual([501, 'not_implemented'])
-    expect((await cold.request(`${BASE}/${NO_SUCH}/deliveries`, init(['tasks:read']))).status).toBe(403)
+    const res = await bare.request(`${BASE}/${NO_SUCH}/deliveries`, init(['webhooks:read']))
+    expect([res.status, ((await res.json()) as any).error.code]).toEqual([501, 'provider_not_configured'])
+    expect((await bare.request(`${BASE}/${NO_SUCH}/deliveries`, init(['tasks:read']))).status).toBe(403)
   })
 })
 

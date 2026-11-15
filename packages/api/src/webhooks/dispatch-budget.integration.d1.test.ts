@@ -4,7 +4,7 @@ import { openWebhookKit, type WebhookKit } from '../test/webhook-kit.js'
 import { TickBudget } from './budget.js'
 import { dispatchWebhooks } from './dispatch.js'
 
-// API7 D24 (API220): dispatch takes a budget view and asks it before each unit (the eligibility read costs 1, a page of one subscription 2: the read and the write). Exhaustion defers, never fails:
+// API7 D24 (API220): dispatch takes a budget view and asks it before each unit (the eligibility reads cost 2, the CRM agents then the control subscriptions; a page of one subscription 2: the CRM read and the control write). Exhaustion defers, never fails:
 // an unserved subscription keeps its cursor and the next tick serves it. With no budget (the dispatch suites) nothing changes.
 let k: WebhookKit
 beforeAll(async () => {
@@ -27,7 +27,14 @@ function metered(b: TickBudget) {
       },
     },
   } as StorageBinding
-  return { ...k.deps(), binding }
+  // [[CORE337]]: the control queries are spent too, one each (what the tick's counting control handle does).
+  const port = k.runtime.port!
+  const counted = {
+    ...port,
+    dispatchable: async (a: Parameters<typeof port.dispatchable>[0]) => (b.spend(1), port.dispatchable(a)),
+    applyPage: async (a: Parameters<typeof port.applyPage>[0]) => (b.spend(1), port.applyPage(a)),
+  }
+  return { ...k.deps(), binding, port: counted }
 }
 async function backlog(subs: number) {
   const agent = await k.seedAgent(['events:read', 'tasks:read'])
@@ -43,9 +50,9 @@ describe('dispatch and the budget (D24)', () => {
     const ids = await backlog(6)
     const before = await cursors(ids)
     const total = new TickBudget(100)
-    const share = total.slice(5) // 1 for the eligibility read, then 2 a subscription: two subscriptions
+    const share = total.slice(6) // 2 for the eligibility reads, then 2 a subscription: two subscriptions
     const summary = await dispatchWebhooks({ ...metered(total), budget: share })
-    expect(total.used).toBeLessThanOrEqual(5)
+    expect(total.used).toBeLessThanOrEqual(6)
     expect(summary).toMatchObject({ subscriptions: 2, events: 2, deferred: 4, failed: 0 })
     const after = await cursors(ids)
     expect(after.filter((c, i) => c !== before[i])).toHaveLength(2)
@@ -56,7 +63,7 @@ describe('dispatch and the budget (D24)', () => {
   it('the next tick serves the deferred: every subscription ends with one row, none twice', async () => {
     const ids = await backlog(6)
     for (let tick = 0; tick < 3; tick++)
-      await dispatchWebhooks({ ...metered(new TickBudget(100)), budget: new TickBudget(5) })
+      await dispatchWebhooks({ ...metered(new TickBudget(100)), budget: new TickBudget(6) })
     expect(await k.deliveries()).toHaveLength(6)
     for (const id of ids) expect(await k.deliveries(id)).toHaveLength(1)
   })
@@ -85,7 +92,7 @@ describe('dispatch and the budget (D24)', () => {
     const sub = await k.create(agent)
     for (let i = 0; i < 101; i++) await k.rawEvent('task.created', { resourceType: 'task', after: { id: String(i) } })
     const total = new TickBudget(100)
-    const summary = await dispatchWebhooks({ ...metered(total), budget: total.slice(3) }) // the eligibility read, then one page (2); a second page (2 more) does not fit
+    const summary = await dispatchWebhooks({ ...metered(total), budget: total.slice(5) }) // the eligibility reads (2), then one page (2); a second page (2 more) does not fit
     expect(summary).toMatchObject({ subscriptions: 1, events: 100, deferred: 1 })
     expect(await k.deliveries(sub.id)).toHaveLength(100)
     await dispatchWebhooks({ ...metered(new TickBudget(100)), budget: new TickBudget(10) })

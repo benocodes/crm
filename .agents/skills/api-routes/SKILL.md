@@ -351,6 +351,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     composition hands in no port (`clerk`, unset) it answers `501 provider_not_configured`; it stays registered on every
     provider, so there is one registry and one golden. Reuse this kind for the next control-plane resource
     (`audit.list`, [[CORE261]]) rather than adding another.
+    Turning tenant operations into control operations ([[CORE337]], webhooks, `WebhooksPort` in
+    `src/webhooks/port.ts`) changes more than the store: no `x-vibase-proposal` is emitted, `d1Only` goes (a
+    composition without the port answers `501 provider_not_configured`, not `not_implemented`), and a list leaves the
+    tenant hand-written lists (the exemption lists in `storage/filter-costs.ts`, `sort-costs.ts` and their contract
+    tests shrink). Declare the port's record types in `@vibase/api` itself; never re-export the store's types from
+    `@vibase/storage-d1` (the [[CORE337]] review finding). CRM facts the control write needs (an agent's scopes, the
+    newest event id) are read before the control call through `ControlEnv.read(program)`, which refuses a mutating
+    program; it is the only CRM access a control operation has.
   - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
     derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
   - `surface` is required, `'api'` (records) or `'meta'` (configuration: agents, API keys, members, users, `me`,
@@ -517,7 +525,8 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   `decode` ([[CORE27]] P6, [[CORE40]]). The contract fixture names the route in `handwritten: ['create']`,
   so the suite's "not generated" case skips it.
 - **An owner-scoped configuration object with no generic CRUD uses an unregistered definition as its record
-  helper.** `webhooks/operations.ts` ([[API7]] D22) builds `definePreparedResource({ …, operations: [] })` for
+  helper** (webhooks did, [[API7]] D22, until [[CORE337]] moved them to the control plane as control operations;
+  the pattern stands for a CRM-held object). `webhooks/operations.ts` built `definePreparedResource({ …, operations: [] })` for
   `webhook_subscriptions` and never registers it: `selectRecord`, `toRecord`, `afterOf`, `receipt` and
   `resultStep` give the hand-written operations the same projection, event `after` and receipts as a resource,
   with no generated route and no event-type map entry (register the type yourself, `{ invisible }` until its
@@ -1044,7 +1053,7 @@ that consequence still emits its event.
 | The API-key usage stamp | `api_keys.last_used_at` only, at most once a minute, never `updated_at` | [[CORE36]] D17 |
 | Execution lease columns: `action_executions.attempts`, `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`, `last_error_code`, and the `queued`/`claimed` status they move between | claim, dispatch stamp, retry scheduling and lease recovery, without changing `updated_at`. Creation and the final outcome of an execution, and the linked request's `executed`/`failed`, are resources: they emit `action_execution.created`, `.completed`, `.failed` and `action_request.executed`, `.failed` | [[AGT8]] D56 |
 | The D1 full-text search indexes (`<table>_search` FTS5 tables) | triggers on the base table only, never a program, an operation or a script | [[CORE194]] D5 |
-| Webhook machinery tables: `webhook_secrets`, `webhook_dispatch_state`, later `webhook_deliveries` | the subscription units, the dispatcher, the sender and the purge, without touching `webhook_subscriptions.updated_at`. Creation, update, deletion, rotation and auto-disable of a subscription are resources and emit `webhook.*` | [[API7]] D20 |
+| The CRM database's webhook tables (`webhook_subscriptions`, `webhook_secrets`, `webhook_dispatch_state`, `webhook_deliveries`) | none: since [[CORE337]] nothing reads or writes them (the subscription operations, dispatch and the sender run on the control plane, below); they stay, empty and inert, until #329 drops them. The old rule (machinery rows without events, subscription changes as `webhook.*` resources) is [[API7]] D20's and holds for no live code | [[API7]] D20, [[CORE337]] |
 | The control-plane database `CONTROL_DB` | see below | [[CORE259]] |
 
 **The control-plane database.** Its tables are deployment-scoped (no `organization_id`), emit no CRM event and
@@ -1076,6 +1085,15 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
 - **`invitations` and `control_audit`** (control migration 0002, [[CORE245]], [[CORE259]] D12): written only
   by the control store, one control batch per change and its audit row; `control_audit` is append-only by
   trigger.
+- **`webhook_subscriptions`, `webhook_secrets`, `webhook_dispatch_state` and `webhook_deliveries`** (control
+  migration 0004, [[CORE327]], switched on by [[CORE337]], [[CORE259]] D3, D8, D9 (c), D12): written only by the
+  control store's webhook methods, reached through the `WebhooksPort`. A subscription change (create, update,
+  delete, rotate secret) is one control batch with its `webhook.*` `control_audit` row (the URL's origin only,
+  never the path or a secret) and emits **no** CRM event. Machinery (dispatch state, deliveries, leases,
+  attempts, the sender's records) writes no audit row and no event. Facts that live in the CRM (an agent's
+  eligibility and scopes, the newest event's id, the events and agents of a claimed delivery) are read from the
+  CRM by the caller and handed to the store by value; the store never reads the CRM database. `webhook_secrets`
+  is append-only by trigger.
 
 ## Response shape and errors
 

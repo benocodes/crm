@@ -1,41 +1,24 @@
-import { sql, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import {
-  UnitDriftError,
-  appliedPrev,
-  bind,
-  codecs,
-  defineOperation,
-  readAll,
-  readMaybe,
-  recordColumns,
-  step,
-  ts,
-  unit,
-  type PreparedOperation,
-  type QueryContext,
-} from '@vibase/storage'
-import { ApiError } from '../errors.js'
+import { UnitDriftError } from '@vibase/storage'
+import { ApiError, mapStorageError } from '../errors.js'
 import { feedVisibility } from '../events/operations.js'
-import { eventStatement } from '../outbox.js'
 import { ScopeSet } from '../scopes.js'
-import type { Registry, TenantOperation } from '../registry.js'
-import { afterOf, receipt, resultStep, selectRecord, toRecord } from '../storage/crud.js'
-import type { PreparedEnv } from '../storage/definition.js'
-import { definePreparedResource } from '../storage/definition.js'
+import type { ControlEnv, ControlOperation, Registry } from '../registry.js'
+import { NIL_CURSOR, readAgent, readLatestEventId, type AgentFacts } from './crm-reads.js'
 import type { WebhooksRuntime } from './config.js'
+import type { WebhookDeliveryRecord, WebhookSubscriptionRecord, WebhooksPort } from './port.js'
 import { ROTATION_OVERLAP_MS, mintSecret } from './secrets.js'
 import { validateWebhookUrl } from './urls.js'
 
-// [[API7]] cycle 1 (D1, D2, D3, D5, D12, D13, D16, D18, D22, D23): the six hand-written subscription operations of `/meta/v1`. Ownership is the D1 predicate, applied in every read: an
-// agent sees and changes only its own subscriptions (the rest are 404), an owner (a user holding the scope) any. Every write is one unit: the row, its secret and dispatch-state
-// machinery rows where it has them, and ONE event, in a single `batch()`. The machinery rows are written without events (D20).
+// [[API7]] cycle 1 (D1, D2, D3, D5, D12, D13, D16, D18, D22, D23), moved onto the control plane by [[CORE337]] ([[CORE259]] D3, D5, D9 (c), D12): the seven hand-written subscription operations of `/meta/v1` are
+// control operations run against the `WebhooksPort`. Ownership is the D1 predicate, applied in every read and write by the store: an agent sees and changes only its own subscriptions (the rest are 404), an
+// owner (a user holding the scope) any. A write is ONE control batch with its `control_audit` row (P1) and emits no CRM event; the CRM facts it needs (the agent's eligibility and scopes, the newest event's id) are read
+// before the control call. Without a port the operations answer `501 provider_not_configured` (P5).
 
 /** [[API7]] D16: live subscriptions per agent. */
 export const MAX_SUBSCRIPTIONS_PER_AGENT = 10
 /** [[API7]] D18: the default `event_types`, stored resolved. */
 export const DEFAULT_EVENT_TYPES = ['interaction.created'] as const
-
 const EVENT_TYPE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/
 const SCOPE_STRING = /^[a-z][a-z0-9_]*:(read|request_approval|write)$/
 
@@ -55,22 +38,6 @@ export const webhookRecord = z.object({
   updated_at: z.string(),
 })
 export type WebhookRecord = z.infer<typeof webhookRecord>
-
-/**
- * The record helper of the table: it gives the operations the projection, the event `after` and the receipts the resources use. It is NOT registered (no generic CRUD, D22):
- * it generates no operation and adds no entry to the feed's event-type map, where `webhook` is registered invisible.
- */
-const webhooks = definePreparedResource({
-  surface: 'meta',
-  name: 'webhooks',
-  eventName: 'webhook',
-  table: 'webhook_subscriptions',
-  scopeResource: 'webhooks',
-  d1Only: true,
-  operations: [],
-  notProposable: 'webhook subscriptions are not proposable',
-  record: webhookRecord,
-})
 
 const createBody = z.strictObject({
   url: z.string().describe('The target URL: https, a public host, at most 2048 characters.'),
@@ -181,33 +148,14 @@ const notConfigured = () =>
     'webhooks_not_configured',
     'webhooks are not configured on this deployment: set CREDENTIALS_KEY (base64 of 32 bytes)',
   )
-const lower = (s: string) => s.toLowerCase()
-const SUB = (column: string) => sql.ref(`webhook_subscriptions.${column}`)
-
-/** D1: an agent caller sees only its own subscriptions; a user (the scope is the owner's) any. */
-const ownership = (env: PreparedEnv) =>
-  env.actor.kind === 'agent' ? sql<SqlBool>`${SUB('agent_id')} = ${env.actor.id}` : sql<SqlBool>`1 = 1`
-
-const unique = (types: readonly string[]) => [...new Set(types)]
-
-/** The agent whose visibility judges the types, as the plan reads it. */
-type AgentRow = { disabled_at: string | null; delegated_by: string | null; scopes: string[] }
-const agentRead = (qc: QueryContext, env: PreparedEnv, agentId: string) =>
-  readMaybe(
-    qc.db
-      .selectFrom('agents')
-      .select(['agents.id', 'agents.scopes', 'agents.disabled_at', 'agents.delegated_by'])
-      .where('agents.id', '=', agentId)
-      .where('agents.organization_id', '=', env.organizationId),
+const noStore = () =>
+  new ApiError(
+    501,
+    'provider_not_configured',
+    'webhook subscriptions are held in the control plane; this deployment has none',
   )
-const agentOf = (row: Record<string, unknown> | null): AgentRow | null =>
-  row
-    ? {
-        disabled_at: (row.disabled_at as string | null) ?? null,
-        delegated_by: (row.delegated_by as string | null) ?? null,
-        scopes: codecs.stringArray.read(row.scopes),
-      }
-    : null
+const lower = (s: string) => s.toLowerCase()
+const unique = (types: readonly string[]) => [...new Set(types)]
 
 /**
  * D3: every type must name a resource type the registry's event-type map knows (`unknown_event_type`) and the agent must be able to see it through the feed (`event_type_not_readable`):
@@ -246,476 +194,259 @@ function checkUrl(runtime: WebhooksRuntime | null, raw: string): void {
   if (!verdict.ok) throw new ApiError(400, 'invalid_url', verdict.reason)
 }
 
-// ---- reads ---------------------------------------------------------------------------------------------
-
-function listOperation(env: PreparedEnv, q: z.infer<typeof listQuery>): PreparedOperation<unknown> {
-  const limit = q.limit ?? 50
-  return defineOperation({
-    name: 'webhooks.list',
-    mutates: false,
-    reads: (qc) => {
-      let query = selectRecord(webhooks, qc, env).where(ownership(env))
-      if (q.agent_id !== undefined) query = query.where(sql<SqlBool>`${SUB('agent_id')} = ${lower(q.agent_id)}`)
-      if (q.after !== undefined) query = query.where(sql<SqlBool>`${SUB('id')} > ${lower(q.after)}`)
-      return { page: readAll(query.orderBy(SUB('id')).limit(limit + 1)) }
-    },
-    build: (found) =>
-      unit({
-        steps: [],
-        events: [],
-        decode: () => {
-          const rows = found.all('page')
-          const page = rows.slice(0, limit).map((r) => toRecord(webhooks, r))
-          return { data: page, next_cursor: rows.length > limit ? page[page.length - 1]!.id : null }
-        },
-      }),
+const recordOf = (r: WebhookSubscriptionRecord): z.infer<typeof webhookRecord> => ({
+  id: r.id,
+  organization_id: r.organizationId,
+  agent_id: r.agentId,
+  url: r.url,
+  event_types: r.eventTypes,
+  status: r.status,
+  created_by: r.createdBy,
+  created_at: r.createdAt,
+  updated_at: r.updatedAt,
+})
+const deliveryOf = (r: WebhookDeliveryRecord): z.infer<typeof deliveryRecord> =>
+  deliveryRecord.parse({
+    id: r.id,
+    subscription_id: r.subscriptionId,
+    event_id: r.eventId,
+    event_type: r.eventType,
+    status: r.status,
+    attempts: r.attempts,
+    next_attempt_at: r.nextAttemptAt,
+    last_attempt_at: r.lastAttemptAt,
+    last_status_code: r.lastStatusCode,
+    last_error: r.lastError,
+    delivered_at: r.deliveredAt,
+    created_at: r.createdAt,
   })
+
+/** D1: an agent caller's own id, folded into every store call; a user (the scope is the owner's) sees all. */
+const ownerOf = (env: ControlEnv): { ownerAgentId?: string } =>
+  env.actor.kind === 'agent' ? { ownerAgentId: env.actor.id } : {}
+
+/**
+ * A guarded write that reports `drifted` (the row moved between the caller's read and the write) is planned afresh and run once more; a second drift is `409 conflict`, as the storage unit's
+ * `replanOnDrift` did ([[AGT8]] D28).
+ */
+async function replanned<T>(name: string, attempt: () => Promise<T | 'drifted'>): Promise<T> {
+  for (let i = 0; i < 2; i++) {
+    const out = await attempt()
+    if (out !== 'drifted') return out
+  }
+  throw mapStorageError(new UnitDriftError(name))
 }
 
-function getOperation(env: PreparedEnv, rawId: string): PreparedOperation<unknown> {
-  const id = lower(rawId)
-  return defineOperation({
-    name: 'webhooks.get',
-    mutates: false,
-    reads: (qc) => ({ row: readMaybe(selectRecord(webhooks, qc, env, id).where(ownership(env))) }),
-    build: (found) =>
-      unit({
-        steps: [],
-        events: [],
-        decode: () => {
-          const row = found.maybe('row')
-          if (!row) throw notFound()
-          return toRecord(webhooks, row)
-        },
-      }),
+// ---- reads ---------------------------------------------------------------------------------------------
+
+async function listOperation(port: WebhooksPort, env: ControlEnv, q: z.infer<typeof listQuery>) {
+  const limit = q.limit ?? 50
+  const rows = await port.list({
+    ...ownerOf(env),
+    ...(q.agent_id !== undefined ? { agentId: lower(q.agent_id) } : {}),
+    ...(q.after !== undefined ? { after: lower(q.after) } : {}),
+    limit: limit + 1,
   })
+  const page = rows.slice(0, limit).map(recordOf)
+  return { data: page, next_cursor: rows.length > limit ? page[page.length - 1]!.id : null }
+}
+
+async function getOperation(port: WebhooksPort, env: ControlEnv, rawId: string) {
+  const row = await port.get({ id: lower(rawId), ...ownerOf(env) })
+  if (!row) throw notFound()
+  return recordOf(row)
 }
 
 /** D14: a subscription's deliveries, oldest id first (the order the dispatcher inserted them), the subscription found by the same ownership and liveness as `webhooks.get`. */
-function deliveriesOperation(
-  env: PreparedEnv,
+async function deliveriesOperation(
+  port: WebhooksPort,
+  env: ControlEnv,
   rawId: string,
   q: z.infer<typeof deliveriesQuery>,
-): PreparedOperation<unknown> {
-  const id = lower(rawId)
+) {
   const limit = q.limit ?? 50
-  return defineOperation({
-    name: 'webhooks.deliveries',
-    mutates: false,
-    reads: (qc) => {
-      let page = qc.db
-        .selectFrom('webhook_deliveries')
-        .select(recordColumns(qc, 'webhook_deliveries', DELIVERY_COLUMNS))
-        .where('webhook_deliveries.organization_id', '=', env.organizationId)
-        .where('webhook_deliveries.subscription_id', '=', id)
-      if (q.status !== undefined) page = page.where('webhook_deliveries.status', '=', q.status)
-      if (q.after !== undefined)
-        page = page.where(sql<SqlBool>`${sql.ref('webhook_deliveries.id')} > ${lower(q.after)}`)
-      return {
-        sub: readMaybe(selectRecord(webhooks, qc, env, id).where(ownership(env))),
-        page: readAll(page.orderBy('webhook_deliveries.id').limit(limit + 1)),
-      }
-    },
-    build: (found) =>
-      unit({
-        steps: [],
-        events: [],
-        decode: () => {
-          if (!found.maybe('sub')) throw notFound()
-          const rows = found.all('page')
-          const data = rows.slice(0, limit).map((r) => deliveryRecord.parse(r))
-          return { data, next_cursor: rows.length > limit ? data[data.length - 1]!.id : null }
-        },
-      }),
+  const rows = await port.deliveries({
+    subscriptionId: lower(rawId),
+    ...ownerOf(env),
+    ...(q.status !== undefined ? { status: q.status } : {}),
+    ...(q.after !== undefined ? { after: lower(q.after) } : {}),
+    limit: limit + 1,
   })
+  if (rows === null) throw notFound()
+  const data = rows.slice(0, limit).map(deliveryOf)
+  return { data, next_cursor: rows.length > limit ? data[data.length - 1]!.id : null }
 }
-
-/** The subscription as an event's `before` and as the unit's guard: the record and its exact stored `updated_at`. */
-const beforeOf = (qc: QueryContext, env: PreparedEnv, id: string) =>
-  readMaybe(
-    selectRecord(webhooks, qc, env, id, { derived: false })
-      .where(ownership(env))
-      .select(ts.exact(qc, 'webhook_subscriptions.updated_at').as('__stamp')),
-  )
 
 // ---- writes --------------------------------------------------------------------------------------------
 
-function createOperation(
-  env: PreparedEnv,
-  runtime: WebhooksRuntime,
+async function createOperation(
+  port: WebhooksPort,
+  env: ControlEnv,
+  runtime: WebhooksRuntime & { key: NonNullable<WebhooksRuntime['key']> },
   registry: Registry,
   body: z.infer<typeof createBody>,
-  minted: { secret: string; sealed: string },
-): PreparedOperation<unknown> {
+) {
+  checkUrl(runtime, body.url)
+  const minted = await mintSecret(env.randomBytes, runtime.key.bytes)
   const own = env.actor.kind === 'agent'
   if (own && body.agent_id !== undefined && lower(body.agent_id) !== env.actor.id) throw invalidReference()
   if (!own && body.agent_id === undefined)
     throw new ApiError(400, 'validation_error', 'agent_id is required: a subscription belongs to an agent')
   const agentId = own ? env.actor.id : lower(body.agent_id!)
   const types = unique(body.event_types ?? DEFAULT_EVENT_TYPES)
+  const agent = await env.read(readAgent(env.organizationId, agentId))
+  if (!agent || agent.disabledAt !== null) throw invalidReference()
+  if (agent.delegatedBy !== null)
+    throw new ApiError(
+      400,
+      'agent_not_eligible',
+      'a delegated agent (an OAuth client acting for a person) cannot own a webhook subscription',
+    )
+  checkEventTypes(registry, { id: agentId, scopes: agent.scopes }, types)
+  // D5: the position is the newest event now; nothing committed before creation is delivered, nothing after is lost.
+  const cursorEventId = (await env.read(readLatestEventId())) ?? NIL_CURSOR
   const id = env.newId()
-  const secretId = env.newId()
-  const eventId = env.newId()
-  const at = codecs.timestamp.write(env.now)
-  return defineOperation({
-    name: 'webhooks.create',
-    mutates: true,
-    reads: (qc) => ({
-      agent: agentRead(qc, env, agentId),
-      live: readMaybe(
-        qc.db
-          .selectFrom('webhook_subscriptions')
-          .select(sql<number>`count(*)`.as('n'))
-          .where('webhook_subscriptions.organization_id', '=', env.organizationId)
-          .where('webhook_subscriptions.agent_id', '=', agentId)
-          .where('webhook_subscriptions.deleted_at', 'is', null),
-      ),
-    }),
-    build: (found, qc) => {
-      const agent = agentOf(found.maybe('agent'))
-      if (!agent || agent.disabled_at !== null) throw invalidReference()
-      if (agent.delegated_by !== null)
-        throw new ApiError(
-          400,
-          'agent_not_eligible',
-          'a delegated agent (an OAuth client acting for a person) cannot own a webhook subscription',
-        )
-      checkEventTypes(registry, { id: agentId, scopes: agent.scopes }, types)
-      if (Number(found.maybe('live')?.n ?? 0) >= MAX_SUBSCRIPTIONS_PER_AGENT)
-        throw new ApiError(
-          409,
-          'webhook_limit',
-          `an agent may have ${MAX_SUBSCRIPTIONS_PER_AGENT} webhook subscriptions`,
-        )
-      // The commit-time form of the plan's checks: the agent is still live and eligible and the limit still holds, else nothing is written (the unit drifts, is planned again and refused above).
-      const eligible = sql<SqlBool>`exists (select 1 from "agents" where "agents"."id" = ${agentId} and "agents"."organization_id" = ${env.organizationId} and "agents"."disabled_at" is null and "agents"."delegated_by" is null)`
-      const underLimit = sql<SqlBool>`(select count(*) from "webhook_subscriptions" where "webhook_subscriptions"."organization_id" = ${env.organizationId} and "webhook_subscriptions"."agent_id" = ${agentId} and "webhook_subscriptions"."deleted_at" is null) < ${MAX_SUBSCRIPTIONS_PER_AGENT}`
-      const insertSubscription = qc.db
-        .insertInto('webhook_subscriptions')
-        .columns([
-          'id',
-          'created_at',
-          'updated_at',
-          'organization_id',
-          'created_by',
-          'agent_id',
-          'url',
-          'event_types',
-          'status',
-          'deleted_at',
-        ])
-        .expression(
-          qc.db
-            .selectNoFrom([
-              bind(qc, 'uuid', id).as('id'),
-              bind(qc, 'timestamp', at).as('created_at'),
-              bind(qc, 'timestamp', at).as('updated_at'),
-              bind(qc, 'uuid', env.organizationId).as('organization_id'),
-              bind(qc, 'uuid', env.actor.id).as('created_by'),
-              bind(qc, 'uuid', agentId).as('agent_id'),
-              bind(qc, 'text', body.url).as('url'),
-              bind(qc, 'string_array', types).as('event_types'),
-              bind(qc, 'text', 'active').as('status'),
-              bind(qc, 'timestamp', null).as('deleted_at'),
-            ])
-            .where(eligible)
-            .where(underLimit),
-        )
-      // Each machinery row is gated on the statement before it having applied, so a refused insert leaves nothing of the unit (D20: no events for machinery).
-      const insertSecret = qc.db
-        .insertInto('webhook_secrets')
-        .columns(['id', 'created_at', 'organization_id', 'created_by', 'subscription_id', 'sealed', 'key_version'])
-        .expression(
-          qc.db
-            .selectNoFrom([
-              bind(qc, 'uuid', secretId).as('id'),
-              bind(qc, 'timestamp', at).as('created_at'),
-              bind(qc, 'uuid', env.organizationId).as('organization_id'),
-              bind(qc, 'uuid', env.actor.id).as('created_by'),
-              bind(qc, 'uuid', id).as('subscription_id'),
-              bind(qc, 'text', minted.sealed).as('sealed'),
-              bind(qc, 'integer', runtime.key!.version).as('key_version'),
-            ])
-            .where(appliedPrev(qc)),
-        )
-      // D5: the horizon is the newest event once this unit's own `webhook.created` is in, which is that event: nothing committed before creation is delivered, nothing after is lost.
-      const insertState = qc.db
-        .insertInto('webhook_dispatch_state')
-        .columns([
-          'subscription_id',
-          'created_at',
-          'organization_id',
-          'created_by',
-          'cursor_event_id',
-          'last_dispatched_at',
-          'last_success_at',
-        ])
-        .expression(
-          qc.db
-            .selectNoFrom([
-              bind(qc, 'uuid', id).as('subscription_id'),
-              bind(qc, 'timestamp', at).as('created_at'),
-              bind(qc, 'uuid', env.organizationId).as('organization_id'),
-              bind(qc, 'uuid', env.actor.id).as('created_by'),
-              sql<string>`(select "id" from "events" order by "seq" desc limit 1)`.as('cursor_event_id'),
-              bind(qc, 'timestamp', null).as('last_dispatched_at'),
-              bind(qc, 'timestamp', null).as('last_success_at'),
-            ])
-            .where(appliedPrev(qc)),
-        )
-      return unit({
-        steps: [
-          step(insertSubscription, 'first-mutation', { expect: 'affected' }),
-          step(insertSecret),
-          step(
-            eventStatement(qc, {
-              id: eventId,
-              at,
-              organizationId: env.organizationId,
-              actorId: env.actor.id,
-              type: 'webhook.created',
-              resourceType: 'webhook',
-              resourceId: id,
-              before: null,
-              after: afterOf(webhooks),
-            }),
-            'first-event',
-          ),
-          step(insertState),
-          resultStep(webhooks, qc, env, id, eventId),
-        ],
-        events: [receipt(webhooks, eventId, 'created', id)],
-        decode: (rows) => {
-          if (rows.length === 0) throw new UnitDriftError('webhooks.create')
-          return { ...toRecord(webhooks, rows[0]!), secret: minted.secret }
-        },
-      })
-    },
+  const now = env.now.toISOString()
+  const made = await port.create({
+    id,
+    secretId: env.newId(),
+    auditId: env.newId(),
+    organizationId: env.organizationId,
+    actorId: env.actor.id,
+    agentId,
+    url: body.url,
+    eventTypes: types,
+    sealed: minted.sealed,
+    keyVersion: runtime.key.version,
+    cursorEventId,
+    maxLivePerAgent: MAX_SUBSCRIPTIONS_PER_AGENT,
+    now,
   })
+  if (made === 'limit')
+    throw new ApiError(409, 'webhook_limit', `an agent may have ${MAX_SUBSCRIPTIONS_PER_AGENT} webhook subscriptions`)
+  return {
+    id,
+    organization_id: env.organizationId,
+    agent_id: agentId,
+    url: body.url,
+    event_types: types,
+    status: 'active' as const,
+    created_by: env.actor.id,
+    created_at: now,
+    updated_at: now,
+    secret: minted.secret,
+  }
 }
 
-function updateOperation(
-  env: PreparedEnv,
+async function updateOperation(
+  port: WebhooksPort,
+  env: ControlEnv,
   registry: Registry,
   rawId: string,
   body: z.infer<typeof updateBody>,
-): PreparedOperation<unknown> {
+) {
   const id = lower(rawId)
   const types = body.event_types === undefined ? undefined : unique(body.event_types)
-  const eventId = env.newId()
-  const at = codecs.timestamp.write(env.now)
   const empty = body.url === undefined && types === undefined && body.status === undefined
-  return defineOperation({
-    name: 'webhooks.update',
-    mutates: true,
-    reads: (qc) => ({
-      before: beforeOf(qc, env, id),
-      agent: readMaybe(
-        qc.db
-          .selectFrom('agents')
-          .innerJoin('webhook_subscriptions', 'webhook_subscriptions.agent_id', 'agents.id')
-          .select(['agents.id', 'agents.scopes', 'agents.disabled_at', 'agents.delegated_by'])
-          .where('webhook_subscriptions.id', '=', id)
-          .where('webhook_subscriptions.organization_id', '=', env.organizationId),
-      ),
-    }),
-    build: (found, qc) => {
-      const row = found.maybe('before')
-      if (!row) throw notFound()
-      const { __stamp, ...rest } = row as Record<string, unknown>
-      const before = toRecord(webhooks, rest as never)
-      if (types !== undefined)
-        checkEventTypes(
-          registry,
-          { id: String(found.maybe('agent')?.id ?? ''), scopes: agentOf(found.maybe('agent'))?.scopes ?? [] },
-          types,
-        )
-      if (empty) return unit({ steps: [], events: [], decode: () => before })
-      const update = qc.db
-        .updateTable('webhook_subscriptions')
-        .set({
-          updated_at: at,
-          ...(body.url !== undefined ? { url: body.url } : {}),
-          ...(types !== undefined ? { event_types: types } : {}),
-          ...(body.status !== undefined ? { status: body.status } : {}),
-        })
-        .where(sql<SqlBool>`${SUB('id')} = ${id}`)
-        .where(sql<SqlBool>`${SUB('organization_id')} = ${env.organizationId}`)
-        .where(sql<SqlBool>`${SUB('deleted_at')} is null`)
-        .where(sql<SqlBool>`${ts.exact(qc, 'webhook_subscriptions.updated_at')} = ${String(__stamp)}`)
-      return unit({
-        steps: [
-          step(update, 'first-mutation', { expect: 'affected' }),
-          step(
-            eventStatement(qc, {
-              id: eventId,
-              at,
-              organizationId: env.organizationId,
-              actorId: env.actor.id,
-              type: 'webhook.updated',
-              resourceType: 'webhook',
-              resourceId: id,
-              before,
-              after: afterOf(webhooks),
-            }),
-            'first-event',
-          ),
-          resultStep(webhooks, qc, env, id, eventId),
-        ],
-        events: [receipt(webhooks, eventId, 'updated', id)],
-        decode: (rows) => {
-          if (rows.length === 0) throw new UnitDriftError('webhooks.update')
-          return toRecord(webhooks, rows[0]!)
-        },
-      })
-    },
+  return replanned('webhooks.update', async () => {
+    const before = await port.get({ id, ...ownerOf(env) })
+    if (!before) throw notFound()
+    if (types !== undefined) {
+      // The agent as the subscription's owner holds it now; one that is gone has no grants, so nothing is readable.
+      const agent: AgentFacts | null = await env.read(readAgent(env.organizationId, before.agentId))
+      checkEventTypes(registry, { id: agent?.id ?? '', scopes: agent?.scopes ?? [] }, types)
+    }
+    if (empty) return recordOf(before)
+    const now = env.now.toISOString()
+    const done = await port.update({
+      id,
+      auditId: env.newId(),
+      actorId: env.actor.id,
+      now,
+      expectedUpdatedAt: before.updatedAt,
+      ...ownerOf(env),
+      ...(body.url !== undefined ? { url: body.url } : {}),
+      ...(types !== undefined ? { eventTypes: types } : {}),
+      ...(body.status !== undefined ? { status: body.status } : {}),
+    })
+    if (done === 'not_found') throw notFound()
+    if (done === 'drifted') return 'drifted' as const
+    return recordOf({
+      ...before,
+      updatedAt: now,
+      ...(body.url !== undefined ? { url: body.url } : {}),
+      ...(types !== undefined ? { eventTypes: types } : {}),
+      ...(body.status !== undefined ? { status: body.status } : {}),
+    })
   })
 }
 
-function deleteOperation(env: PreparedEnv, rawId: string): PreparedOperation<void> {
+async function deleteOperation(port: WebhooksPort, env: ControlEnv, rawId: string): Promise<void> {
   const id = lower(rawId)
-  const eventId = env.newId()
-  const at = codecs.timestamp.write(env.now)
-  return defineOperation<void>({
-    name: 'webhooks.delete',
-    mutates: true,
-    reads: (qc) => ({ before: beforeOf(qc, env, id) }),
-    build: (found, qc) => {
-      const row = found.maybe('before')
-      if (!row) throw notFound()
-      const { __stamp, ...rest } = row as Record<string, unknown>
-      const before = toRecord(webhooks, rest as never)
-      const update = qc.db
-        .updateTable('webhook_subscriptions')
-        .set({ deleted_at: at, updated_at: at })
-        .where(sql<SqlBool>`${SUB('id')} = ${id}`)
-        .where(sql<SqlBool>`${SUB('organization_id')} = ${env.organizationId}`)
-        .where(sql<SqlBool>`${SUB('deleted_at')} is null`)
-        .where(sql<SqlBool>`${ts.exact(qc, 'webhook_subscriptions.updated_at')} = ${String(__stamp)}`)
-      return unit({
-        steps: [
-          step(update, 'first-mutation', { expect: 'affected' }),
-          step(
-            eventStatement(qc, {
-              id: eventId,
-              at,
-              organizationId: env.organizationId,
-              actorId: env.actor.id,
-              type: 'webhook.deleted',
-              resourceType: 'webhook',
-              resourceId: id,
-              before,
-              after: null,
-            }),
-            'first-event',
-          ),
-          step(
-            qc.db
-              .selectNoFrom(sql<number>`1`.as('applied'))
-              .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`),
-            'result',
-          ),
-        ],
-        events: [receipt(webhooks, eventId, 'deleted', id)],
-        decode: (rows) => {
-          if (rows.length === 0) throw new UnitDriftError('webhooks.delete')
-        },
-      })
-    },
+  await replanned('webhooks.delete', async () => {
+    const before = await port.get({ id, ...ownerOf(env) })
+    if (!before) throw notFound()
+    const done = await port.delete({
+      id,
+      auditId: env.newId(),
+      actorId: env.actor.id,
+      now: env.now.toISOString(),
+      expectedUpdatedAt: before.updatedAt,
+      ...ownerOf(env),
+    })
+    if (done === 'not_found') throw notFound()
+    if (done === 'drifted') return 'drifted' as const
+    return null
   })
 }
 
-function rotateOperation(
-  env: PreparedEnv,
-  runtime: WebhooksRuntime,
+async function rotateOperation(
+  port: WebhooksPort,
+  env: ControlEnv,
+  runtime: WebhooksRuntime & { key: NonNullable<WebhooksRuntime['key']> },
   rawId: string,
-  minted: { secret: string; sealed: string },
-): PreparedOperation<unknown> {
-  const id = lower(rawId)
-  const secretId = env.newId()
-  const eventId = env.newId()
-  const at = codecs.timestamp.write(env.now)
-  const previousValidUntil = new Date(env.now.getTime() + ROTATION_OVERLAP_MS).toISOString()
-  return defineOperation({
-    name: 'webhooks.rotate_secret',
-    mutates: true,
-    reads: (qc) => ({ before: beforeOf(qc, env, id) }),
-    build: (found, qc) => {
-      const row = found.maybe('before')
-      if (!row) throw notFound()
-      const { __stamp: _stamp, ...rest } = row as Record<string, unknown>
-      const before = toRecord(webhooks, rest as never)
-      const live = sql<SqlBool>`exists (select 1 from "webhook_subscriptions" where ${SUB('id')} = ${id} and ${SUB('organization_id')} = ${env.organizationId} and ${SUB('deleted_at')} is null)`
-      // Append-only (D12): a rotation is an insert; the subscription row is not touched, so its updated_at stays.
-      const insertSecret = qc.db
-        .insertInto('webhook_secrets')
-        .columns(['id', 'created_at', 'organization_id', 'created_by', 'subscription_id', 'sealed', 'key_version'])
-        .expression(
-          qc.db
-            .selectNoFrom([
-              bind(qc, 'uuid', secretId).as('id'),
-              bind(qc, 'timestamp', at).as('created_at'),
-              bind(qc, 'uuid', env.organizationId).as('organization_id'),
-              bind(qc, 'uuid', env.actor.id).as('created_by'),
-              bind(qc, 'uuid', id).as('subscription_id'),
-              bind(qc, 'text', minted.sealed).as('sealed'),
-              bind(qc, 'integer', runtime.key!.version).as('key_version'),
-            ])
-            .where(live),
-        )
-      return unit({
-        steps: [
-          step(insertSecret, 'first-mutation', { expect: 'affected' }),
-          // The record, never the secret: before and after are the same row.
-          step(
-            eventStatement(qc, {
-              id: eventId,
-              at,
-              organizationId: env.organizationId,
-              actorId: env.actor.id,
-              type: 'webhook.secret_rotated',
-              resourceType: 'webhook',
-              resourceId: id,
-              before,
-              after: afterOf(webhooks),
-            }),
-            'first-event',
-          ),
-          resultStep(webhooks, qc, env, id, eventId),
-        ],
-        events: [receipt(webhooks, eventId, 'secret_rotated', id)],
-        decode: (rows) => {
-          if (rows.length === 0) throw new UnitDriftError('webhooks.rotate_secret')
-          return { secret: minted.secret, previous_valid_until: previousValidUntil }
-        },
-      })
-    },
+) {
+  const minted = await mintSecret(env.randomBytes, runtime.key.bytes)
+  const done = await port.rotateSecret({
+    id: lower(rawId),
+    secretId: env.newId(),
+    auditId: env.newId(),
+    actorId: env.actor.id,
+    sealed: minted.sealed,
+    keyVersion: runtime.key.version,
+    now: env.now.toISOString(),
+    ...ownerOf(env),
   })
+  if (done === 'not_found') throw notFound()
+  return {
+    secret: minted.secret,
+    previous_valid_until: new Date(env.now.getTime() + ROTATION_OVERLAP_MS).toISOString(),
+  }
 }
 
 // ---- the operations ------------------------------------------------------------------------------------
 
-const WRITE_NOT_PROPOSABLE =
-  'webhook subscriptions carry a signing secret shown once and are administered directly, never proposed'
-
 /**
- * `webhooks.list`, `get`, `deliveries`, `create`, `update`, `delete` and `rotate_secret` ([[API7]] D14, D22): `/meta/v1`, `d1Only`, scopes `webhooks:read` and `webhooks:write`. The registry carries them
- * whatever the configuration (the CLI and MCP tool lists must not change per deployment); a deployment without a usable `CREDENTIALS_KEY` answers `501 webhooks_not_configured`
- * on `create` and `rotate_secret` only (D12). `registry` is read at call time, for the feed's event-type map.
+ * `webhooks.list`, `get`, `deliveries`, `create`, `update`, `delete` and `rotate_secret` ([[API7]] D14, D22): `/meta/v1`, scopes `webhooks:read` and `webhooks:write`, control operations ([[CORE337]]). The
+ * registry carries them whatever the configuration (the CLI and MCP tool lists must not change per deployment); a deployment without a port answers `501 provider_not_configured`, and one without a usable
+ * `CREDENTIALS_KEY` answers `501 webhooks_not_configured` on `create` and `rotate_secret` only (D12). `registry` is read at call time, for the feed's event-type map. They are never proposable: the
+ * secret is shown once and the authority is administration.
  */
-export function webhookOperations(runtime: WebhooksRuntime | null, registry: () => Registry): TenantOperation[] {
+export function webhookOperations(runtime: WebhooksRuntime | null, registry: () => Registry): ControlOperation[] {
   const base = {
-    kind: 'tenant' as const,
+    kind: 'control' as const,
     surface: 'meta' as const,
     tags: ['webhooks'],
     validation: 'adapter' as const,
-    d1Only: true,
-    replanOnDrift: true,
   }
   const readScope = { resource: 'webhooks', action: 'read' as const }
   const writeScope = { resource: 'webhooks', action: 'write' as const }
-  const proposal = { eligible: false as const, reason: WRITE_NOT_PROPOSABLE }
+  const store = (): WebhooksPort => {
+    if (!runtime?.port) throw noStore()
+    return runtime.port
+  }
   const keyed = (): WebhooksRuntime & { key: NonNullable<WebhooksRuntime['key']> } => {
+    store()
     if (!runtime?.key) throw notConfigured()
     return runtime as WebhooksRuntime & { key: NonNullable<WebhooksRuntime['key']> }
   }
@@ -731,7 +462,7 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       scope: readScope,
       request: { query: listQuery },
       response: { status: 200, schema: z.object({ data: z.array(webhookRecord), next_cursor: z.uuid().nullable() }) },
-      prepare: (env, input) => listOperation(env, input.query as z.infer<typeof listQuery>),
+      run: (env, input) => listOperation(store(), env, input.query as z.infer<typeof listQuery>),
     },
     {
       ...base,
@@ -743,7 +474,7 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       scope: readScope,
       request: { params: idParams },
       response: { status: 200, schema: webhookRecord },
-      prepare: (env, input) => getOperation(env, String((input.params as { id: string }).id)),
+      run: (env, input) => getOperation(store(), env, String((input.params as { id: string }).id)),
     },
     {
       ...base,
@@ -757,8 +488,9 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       scope: readScope,
       request: { params: idParams, query: deliveriesQuery },
       response: { status: 200, schema: z.object({ data: z.array(deliveryRecord), next_cursor: z.uuid().nullable() }) },
-      prepare: (env, input) =>
+      run: (env, input) =>
         deliveriesOperation(
+          store(),
           env,
           String((input.params as { id: string }).id),
           input.query as z.infer<typeof deliveriesQuery>,
@@ -773,14 +505,11 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       method: 'post',
       path: '/webhooks',
       scope: writeScope,
-      proposal,
       request: { body: createBody },
       response: { status: 201, schema: created },
-      prepare: async (env, input) => {
+      run: (env, input) => {
         const config = keyed()
-        const body = input.body as z.infer<typeof createBody>
-        checkUrl(config, body.url)
-        return createOperation(env, config, registry(), body, await mintSecret(env.randomBytes, config.key.bytes))
+        return createOperation(store(), env, config, registry(), input.body as z.infer<typeof createBody>)
       },
     },
     {
@@ -792,13 +521,13 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       method: 'patch',
       path: '/webhooks/{id}',
       scope: writeScope,
-      proposal,
       request: { params: idParams, body: updateBody },
       response: { status: 200, schema: webhookRecord },
-      prepare: (env, input) => {
+      run: async (env, input) => {
+        const port = store()
         const body = input.body as z.infer<typeof updateBody>
         if (body.url !== undefined) checkUrl(runtime, body.url)
-        return updateOperation(env, registry(), String((input.params as { id: string }).id), body)
+        return updateOperation(port, env, registry(), String((input.params as { id: string }).id), body)
       },
     },
     {
@@ -809,10 +538,9 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       method: 'delete',
       path: '/webhooks/{id}',
       scope: writeScope,
-      proposal,
       request: { params: idParams },
       response: { status: 204 },
-      prepare: (env, input) => deleteOperation(env, String((input.params as { id: string }).id)),
+      run: (env, input) => deleteOperation(store(), env, String((input.params as { id: string }).id)),
     },
     {
       ...base,
@@ -823,17 +551,11 @@ export function webhookOperations(runtime: WebhooksRuntime | null, registry: () 
       method: 'post',
       path: '/webhooks/{id}/rotate-secret',
       scope: writeScope,
-      proposal,
       request: { params: idParams },
       response: { status: 200, schema: rotated },
-      prepare: async (env, input) => {
+      run: (env, input) => {
         const config = keyed()
-        return rotateOperation(
-          env,
-          config,
-          String((input.params as { id: string }).id),
-          await mintSecret(env.randomBytes, config.key.bytes),
-        )
+        return rotateOperation(store(), env, config, String((input.params as { id: string }).id))
       },
     },
   ]

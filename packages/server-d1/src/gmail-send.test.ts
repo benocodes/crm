@@ -235,22 +235,26 @@ it('production tick caps real Gmail work at two and the next tick serves the rem
       expires_at: new Date(now.getTime() + 1000).toISOString(),
     })
   now = new Date(now.getTime() + 2000)
+  // [[CORE337]]: the webhook phases query the control database too; its statements spend the same budget, so they are metered and added.
   const meter = meterD1(w.d1),
-    cold = worker(meter.d1)
+    controlMeter = meterD1(w.control),
+    cold = composeD1Worker({ ...env(meter.d1), CONTROL_DB: controlMeter.d1 }, { fetch: f, clock: () => now })
   fetches = starts = 0
   const getBefore = bucket.gets.length
   meter.start()
+  controlMeter.start()
   await cold.scheduled({ cron: '* * * * *' })
-  const m = meter.take()
+  const crm = meter.take()
+  const m = { ...crm, queries: crm.queries + controlMeter.take().queries }
   const external = fetches + starts + (bucket.gets.length - getBefore)
   console.log('MEASURE ' + JSON.stringify({ key: 'gmail-tick-100-2', ...m, external, total: m.queries + external }))
   expect(mail.sendRequests).toHaveLength(2)
   expect(m.queries + external).toBeLessThanOrEqual(50)
   expect({ queries: m.queries, external, total: m.queries + external }).toEqual({
-    queries: 23,
+    queries: 27,
     external: 10,
-    total: 33,
-  }) // API220: 22 + the webhook sender's one claim read (no subscription here, so no write and no fetch)
+    total: 37,
+  }) // API220: 22 + the webhook sender's one claim read (no subscription here, so no write and no fetch); CORE337: + the tick's cold control gate (migration state, deployment, marker) and the dispatcher's control read
   expect(m.maxParameters).toBeLessThanOrEqual(100)
   expect(m.maxStatementBytes).toBeLessThanOrEqual(100000)
   expect((await sql("select count(*) as n from action_requests where status='expired'"))[0].n).toBe(100)
@@ -500,7 +504,13 @@ it('API220 D24: the Gmail rail worst case plus a webhook backlog stays within 50
   )
   expect(mail.sendRequests.length).toBeGreaterThan(0)
   expect(m.queries + external).toBeLessThanOrEqual(50)
-  expect((await sql('select count(*) as n from webhook_deliveries'))[0].n).toBeGreaterThan(0)
+  expect(
+    (
+      ((await w.control.prepare('select count(*) as n from webhook_deliveries').all()).results as any[])[0] as {
+        n: number
+      }
+    ).n,
+  ).toBeGreaterThan(0)
 })
 it('production cap includes dispatch plus immediate terminal reconciliation, with 100 expiries and rotating refreshes', async () => {
   await createMigrationTracker(w.d1)
@@ -561,12 +571,15 @@ it('production cap includes dispatch plus immediate terminal reconciliation, wit
   now = new Date(now.getTime() + 2000)
   spoilFirstConfirmation = true
   const meter = meterD1(w.d1),
-    cold = worker(meter.d1)
+    controlMeter = meterD1(w.control),
+    cold = composeD1Worker({ ...env(meter.d1), CONTROL_DB: controlMeter.d1 }, { fetch: f, clock: () => now })
   fetches = starts = 0
   const io = bucket.gets.length + bucket.calls.length
   meter.start()
+  controlMeter.start()
   await cold.scheduled({ cron: '* * * * *' })
-  const measured = meter.take()
+  const crm = meter.take()
+  const measured = { ...crm, queries: crm.queries + controlMeter.take().queries }
   const external = fetches + starts + bucket.gets.length + bucket.calls.length - io
   console.log(
     'MEASURE ' +
@@ -574,10 +587,10 @@ it('production cap includes dispatch plus immediate terminal reconciliation, wit
   )
   expect(measured.queries + external).toBeLessThanOrEqual(50)
   expect({ queries: measured.queries, external, total: measured.queries + external }).toEqual({
-    queries: 23,
+    queries: 27,
     external: 10,
-    total: 33,
-  }) // API220: 22 + the webhook sender's one claim read (no subscription here, so no write and no fetch)
+    total: 37,
+  }) // API220: 22 + the webhook sender's one claim read (no subscription here, so no write and no fetch); CORE337: + the tick's cold control gate (migration state, deployment, marker) and the dispatcher's control read
   expect(mail.sendRequests).toHaveLength(2)
   expect(starts).toBe(2)
   expect((await sql("select count(*) n from action_executions where status='done'"))[0].n).toBe(2)

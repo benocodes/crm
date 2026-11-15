@@ -3,7 +3,7 @@ import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
+import { NOW, inheritPairing, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // API219 (D6, dispatch half): the per-minute expression runs webhook dispatch after the rail's sweeps, behind the migration gate; the real bundle does it in workerd (`pnpm smoke:worker`).
 // Dispatch's own behaviour is proven in @vibase/api; here only the composition: the one handler, its order, its gate and its log line.
@@ -33,8 +33,11 @@ const call = async (wk: ReturnType<typeof worker>, method: string, path: string,
   )
   return { status: res.status, body: (await res.json().catch(() => null)) as any }
 }
+// [[CORE337]]: the webhook tables live in the control database; every other table is the CRM's.
 const rows = async (sqlText: string) =>
-  ((await w.d1.prepare(sqlText).all()).results ?? []) as Array<Record<string, any>>
+  ((await (/\bwebhook_/.test(sqlText) ? w.control : w.d1).prepare(sqlText).all()).results ?? []) as Array<
+    Record<string, any>
+  >
 
 beforeAll(async () => {
   w = await openWorkerD1()
@@ -80,23 +83,26 @@ describe('the per-minute handler dispatches webhooks after the rail (D6)', () =>
 
   // The two halves are independent (a decision of this cycle): one failing does not stop the other, and the failure is rethrown after both ran. A statement that mentions
   // `table` throws at prepare time, standing in for a database fault in that half only.
-  const breaking = (table: RegExp) =>
-    new Proxy(w.d1, {
-      get: (t: any, p) =>
-        p === 'prepare'
-          ? (q: string) =>
-              table.test(q)
-                ? (() => {
-                    throw new Error('database fault')
-                  })()
-                : t.prepare(q)
-          : typeof t[p] === 'function'
-            ? t[p].bind(t)
-            : t[p],
-    }) as typeof w.d1
-  const workerOn = (d1: typeof w.d1, at = NOW) =>
+  const breaking = (table: RegExp, db: typeof w.d1 = w.d1) =>
+    inheritPairing(
+      db,
+      new Proxy(db, {
+        get: (t: any, p) =>
+          p === 'prepare'
+            ? (q: string) =>
+                table.test(q)
+                  ? (() => {
+                      throw new Error('database fault')
+                    })()
+                  : t.prepare(q)
+            : typeof t[p] === 'function'
+              ? t[p].bind(t)
+              : t[p],
+      }) as typeof w.d1,
+    )
+  const workerOn = (d1: typeof w.d1, at = NOW, control?: typeof w.d1) =>
     composeD1Worker(
-      { DB: d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY },
+      { DB: d1, AUTH_PROVIDER: '', CREDENTIALS_KEY: KEY, ...(control ? { CONTROL_DB: control } : {}) },
       { fetch: receiver, clock: () => at, newId: () => uuidv7(at) },
     )
 
@@ -123,7 +129,9 @@ describe('the per-minute handler dispatches webhooks after the rail (D6)', () =>
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     await expect(
-      workerOn(breaking(/webhook_dispatch_state/), new Date(NOW.getTime() + 120_000)).scheduled({ cron: '* * * * *' }),
+      workerOn(w.d1, new Date(NOW.getTime() + 120_000), breaking(/webhook_dispatch_state/, w.control)).scheduled({
+        cron: '* * * * *',
+      }),
     ).rejects.toThrow()
     expect((await rows(`select status from action_requests where id = '${r.body.id}'`))[0]!.status).toBe('expired')
   })
