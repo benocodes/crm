@@ -191,6 +191,59 @@ describe('atomicity in control: a failing statement leaves nothing of the batch'
   })
 })
 
+describe('drift between the read and the control write (D4 of CORE327, AGT8 D28)', () => {
+  /** Lets `times` calls of the port method move the row first (a concurrent writer), then runs the real one. */
+  const racing = (method: 'update' | 'delete', id: string, times: number) => {
+    const port = k.runtime.port!
+    const real = port[method] as (a: any) => Promise<unknown>
+    let left = times
+    ;(port as any)[method] = async (a: any) => {
+      if (left-- > 0)
+        await k.control
+          .prepare('UPDATE webhook_subscriptions SET updated_at = ? WHERE id = ?')
+          .bind(new Date(Date.parse(a.now) + 1 + left).toISOString(), id)
+          .run()
+      return real(a)
+    }
+    return () => void ((port as any)[method] = real)
+  }
+
+  it('one concurrent move is planned afresh and applies: 200 with the change, ONE audit row', async () => {
+    const made = await k.create(await k.seedAgent(TASKS))
+    const restore = racing('update', made.id, 1)
+    try {
+      const r = await k.owner('PATCH', `${BASE}/${made.id}`, { status: 'paused' })
+      expect(r.status, r.text).toBe(200)
+      expect(r.body.status).toBe('paused')
+    } finally {
+      restore()
+    }
+    expect((await audit()).filter((x) => x.action === 'webhook.updated')).toHaveLength(1)
+  })
+
+  it('a second move is 409 conflict and nothing is written, audit included (update and delete)', async () => {
+    const made = await k.create(await k.seedAgent(TASKS))
+    for (const [method, call] of [
+      ['update', () => k.owner('PATCH', `${BASE}/${made.id}`, { status: 'paused' })],
+      ['delete', () => k.owner('DELETE', `${BASE}/${made.id}`)],
+    ] as const) {
+      const before = await counts()
+      const restore = racing(method, made.id, 2)
+      try {
+        const r = await call()
+        expect([method, r.status, r.body?.error?.code]).toEqual([method, 409, 'conflict'])
+      } finally {
+        restore()
+      }
+      expect(await counts(), method).toEqual(before)
+      expect((await k.all('select status, deleted_at from webhook_subscriptions'))[0], method).toEqual({
+        status: 'active',
+        deleted_at: null,
+      })
+    }
+  })
+})
+
 describe('the creation horizon (D5)', () => {
   const seqOf = async (id: string) =>
     ((await k.crm('select seq from events where id = ?', id))[0] as { seq: number }).seq
