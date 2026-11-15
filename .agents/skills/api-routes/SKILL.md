@@ -102,7 +102,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `d1Binding(control)` does not typecheck. Only `server-d1/src/compose.ts`, `server-d1/src/bootstrap-d1.ts`,
     `server-d1/scripts/*` and the control store may name it (`packages/server-d1/src/control-boundary.test.ts`); a new
     reader is a spec decision. The boundary test greps text, comments included: a comment in `@vibase/api` that says
-    `control-store` fails it ([[CORE288]]). An operation that must reach the control plane after its CRM unit takes a
+    `control-store` fails it ([[CORE288]]), and so does an error message naming the binding (say "control-plane
+    database", [[CORE261]]). A control **read** takes a port the same way (`AuditPort` over `listControlAudit`,
+    `packages/api/src/audit/port.ts`; `createApp({ audit })`), and without one answers `501 provider_not_configured`
+    after the scope check. An operation that must reach the control plane after its CRM unit takes a
     narrow port composition hands in (`InvitationsPort`, `MembersPort`) in a decorated `after` stage. Under `better-auth` the Worker fails closed without the binding (`500`, log names
     `CONTROL_DB`), refuses an untracked or behind control database (`503 migrations_pending`) and an unpaired control
     marker (`500`, log `control database not paired`); `clerk` and unset never open it.
@@ -955,6 +958,14 @@ service context enforces it, so scope checks are written once.
     `scopes_supported` advertises it at once, and `vibase login` requests every advertised scope ([[API6]] D19).
     Name the mirror run as owed for each env in the retro and SPRINT.md (`events:read`, [[API214]]).
   - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
+  - **"Not a default grant" covers every place the vault picks scopes the owner did not name** ([[CORE261]]
+    review round 1): Clerk setup's C7 `default_scopes`, Better Auth's `clientRegistrationDefaultScopes`, the
+    bootstrap default agent (`bootstrap.ts`, `bootstrap-workspace.ts`), and the `/mcp` 401 challenge's `scope` hint
+    (`discovery.ts`: spec-following MCP clients request exactly that value). All four use
+    `defaultGrantScopes(declared)` (`src/auth/roles.ts`, list `NOT_DEFAULT_GRANT`); `scopes_supported` and the
+    registration allowed list stay on `grantableScopes`, so the scope can still be named. A new such scope is one list
+    entry; grep `grantableScopes(` for any new default-picking site. Better Auth 1.7.22 stores a registered client's
+    scopes as default ∪ allowed, so a scope-less authorize still asks for the full ceiling; consent is the gate (#330).
 - **Owner-granted resource authority** ([[AGT8]] D1, D30, D31; shipped in cycle 1): three actions,
   `<resource>:read`, `<resource>:request_approval`, `<resource>:write`. Write includes request_approval; read
   stays independent. A user or agent with target write authority can approve. Do not reintroduce a

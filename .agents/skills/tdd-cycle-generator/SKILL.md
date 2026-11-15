@@ -148,6 +148,11 @@ cost ~374k tokens / 75 calls over three runs (the first ran out of context at 20
 calls, many tokens: a real `release:build` + `release:check` run and full-suite output fill the context. The budget holds; when a
 charter asks for such a run, say "capture the output to a file, quote the decisive lines", and for a migration that drops or
 moves tables, Watch out says "grep every package for the names" rather than listing the files the planner found.
+**CORE261** (`knowledge/specs/015-CORE261-audit-list/RETRO.md`): 5 groups (1 matrix), 1 spec decision + 6 planner rules, no
+migration, cost 245k / 148 calls including one 5k fix round. The budget holds. The fix round came from a rule worded as
+"anywhere" (P2, "not a default grant anywhere") with an enumeration of only two sites; the coder found a third, review a fourth
+(the `/mcp` challenge hint). When a rule says "every" or "anywhere", state the property and the grep that finds the sites
+(here `grantableScopes(`), never a closed list of the sites the planner remembered.
 **OPS275** (`knowledge/specs/015-OPS275-instance-tooling-two-databases/RETRO.md`): the same Size line (5 groups, 1 matrix, 5
 decisions), no migration, scripts-only, cost 143k / 41 calls in one run with review approved in round 1; without release runs
 and with the `@vibase/api` suite legitimately skipped (`execute-cycle` §5) the same counts cost ~40% of OPS260. The budget holds.

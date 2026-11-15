@@ -653,6 +653,9 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   - `browser.newContext({ ignoreHTTPSErrors: true })`.
   (`packages/server-d1/e2e/oauth-pages.e2e.ts`, [[UI247]].)
 - **Better Auth trusts only `PUBLIC_BASE_URL` as an origin.**
+  - In a Vitest harness (no TLS), use `http://localhost:<port>` as that origin: Better Auth accepts `https://` or
+    `http://localhost` only. A CLI test that needs the control database gets `openControlDb` from
+    `@vibase/server-d1/test` (`packages/cli/src/audit.integration.test.ts`, [[CORE261]]).
   - Open the pages at exactly that origin.
   - Give server-side `request` calls to `/auth/oauth2/register` and `/auth/oauth2/token` an `Origin` header.
   - A live session makes `/auth/oauth2/authorize` skip `/sign-in`, so a signed-out leg signs out same-origin
