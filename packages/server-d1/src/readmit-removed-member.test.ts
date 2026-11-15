@@ -325,6 +325,37 @@ describe('partial states and races (P4)', () => {
     expect(await acceptedAudit(id)).toHaveLength(1)
   })
 
+  it('a racing winner between plan and commit: our membership insert does nothing and no second membership.created is written (the event statement is gated on the row it describes)', async () => {
+    const p = await admitAndRemove('p@x.test', 'member')
+    const { id, token } = await invite('p@x.test', 'member')
+    // The competing sign-in's membership, committed (without an event, to tell the two apart) just before ours.
+    let hook: (() => Promise<void>) | null = async () => {
+      await w.d1.prepare('insert into memberships (id, created_at, updated_at, organization_id, user_id, role, created_by) values (?, ?, ?, ?, ?, ?, ?)').bind(uuidv7(), iso(Date.now()), iso(Date.now()), orgId, p.userId, 'member', systemId).run()
+    }
+    const sqlOf = new WeakMap<object, string>()
+    const racing: D1Like = {
+      prepare(query: string) {
+        const q = w.d1.prepare(query)
+        return { bind: (...v: unknown[]) => { const b = q.bind(...v); sqlOf.set(b, query); return b }, run: () => q.run(), all: () => q.all(), first: () => q.first() } as D1PreparedLike
+      },
+      async batch(batch: D1PreparedLike[]) {
+        if (hook && batch.some((s) => /insert\s+into\s+"?memberships"?/i.test(sqlOf.get(s) ?? ''))) {
+          const run = hook
+          hook = null
+          await run()
+        }
+        return w.d1.batch(batch)
+      },
+    }
+    const racer = composeD1Worker({ DB: racing, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE }, { clock: () => clock() })
+    const eventsBefore = await count(w.d1, 'events')
+    const res = await racer.fetch(new Request(AUTH_BASE + '/auth/sign-in/email', { method: 'POST', headers: { origin: AUTH_BASE, 'content-type': 'application/json', 'cf-connecting-ip': '198.51.100.9', [CARRIER]: token }, body: JSON.stringify({ email: 'p@x.test', password: PASSWORD }) }))
+    expect(res.status, await res.clone().text()).toBe(200)
+    expect(await liveCount(p.userId)).toHaveLength(1)
+    expect(await count(w.d1, 'events')).toBe(eventsBefore)
+    expect(await acceptedAudit(id)).toHaveLength(1)
+  })
+
   it("the new bound (a live invitation created no later than the live membership), pinned within one second: an invitation made 300 ms before re-admission is completed, one made 300 ms after is not", async () => {
     const p = await admitAndRemove('p@x.test', 'member')
     const T = Math.floor(Date.now() / 1000) * 1000 + 100
