@@ -22,6 +22,7 @@ import { withGeneratedConfig, withGeneratedConfigAsync } from './config.js'
 import { childEnv } from './gate.js'
 import type { Secrets } from './secrets.js'
 import { verify, deployArgs, migrateArgs } from './upgrade.js'
+import { betterAuthNextSteps, checkBetterAuthIssuer } from '../setup/verify-better-auth.js'
 import type { InstanceDeps, InstanceSettings, RunResult } from './types.js'
 
 export interface SetupCtx extends ClerkCtx {
@@ -47,6 +48,8 @@ export interface SetupCtx extends ClerkCtx {
   /** An earlier step made a change: a refusal after this is a failed step (exit 3), not a refusal before the first step (exit 2). */
   wrote: boolean
   keyWritten?: boolean
+  /** `bootstrap` issued an owner invitation in this run: the only run whose next steps say "open the link printed above" ([[OPS306]] P4). */
+  ownerLinkIssued?: boolean
   /** Values that must never be printed beyond the secrets file's own: the operator key once it exists. */
   extraMasks: string[]
 }
@@ -349,6 +352,7 @@ async function betterAuthBootstrap(ctx: SetupCtx, want: { authProvider: string; 
         lines.push(`agent_id: ${r.agentId}`, `api_key_id: ${r.apiKeyId}`, `api_key: written to ${ctx.secretsPath} as ${opts.keyEnv} (not shown)`)
       }
       // The URL is printed once, here, and stored nowhere (a later run reads the state and prints none).
+      if (r.ownerInvitation) ctx.ownerLinkIssued = true
       if (r.ownerInvitation) lines.push(`owner invitation for ${r.ownerInvitation.email} (expires ${r.ownerInvitation.expiresAt}; shown once, stored nowhere): ${r.ownerInvitation.url}`)
       return result('bootstrap', 'create', `wrote ${[...(marker === null ? [`marker ${want.authProvider}:${want.authOrgId}`] : []), `organisation ${opts.org}`, 'control marker', 'the vibase-cli client', ...(r.ownerInvitation ? ['an owner invitation'] : [])].join(', ')}`, lines.length ? lines : undefined)
     } finally {
@@ -572,13 +576,25 @@ const verifyStep: Step = async (ctx) => {
     const mismatch = await checkDiscovery(ctx)
     if (mismatch) return result('verify', 'fail', mismatch)
   }
+  let signInMethods: string[] = []
+  if (ctx.opts.auth === 'better-auth') {
+    // OPS306 D8, P1: the issuer is the recorded PUBLIC_BASE_URL (`https://<api host>`, the value setup records), never a request host.
+    const issuer = await checkBetterAuthIssuer(url, { fetch: ctx.deps.fetch, now: ctx.deps.now, sleep: ctx.deps.sleep, dryRun: ctx.opts.dryRun })
+    if (!issuer.ok) return result('verify', 'fail', issuer.detail)
+    signInMethods = issuer.signInMethods
+  }
+  const hint = ctx.keyWritten ? `agents use the operator key in ${ctx.secretsPath} (${ctx.opts.keyEnv}) as a Bearer token` : 'no operator key was created in this run; create agents and keys through agents.create and api_keys.create on /meta/v1 (re-run with --operator-agent and --key-env only while the organisation does not exist yet)'
+  if (ctx.opts.auth === 'better-auth') {
+    // The settings file holds variables only, never a `send_email` binding, so email is never recorded here and the statement always prints (OPS306 D5).
+    return result('verify', 'ok', `${url}/health is ${version}, migrations current`, betterAuthNextSteps({ url, claimLink: ctx.ownerLinkIssued === true, google: signInMethods.includes('google'), emailConfigured: false, hint: [hint] }))
+  }
   const clerk = ctx.opts.auth === 'clerk'
   const next = [
     `API: ${url}`,
     ...(clerk
       ? [`accept the owner invitation Clerk emailed to ${ctx.opts.ownerEmail}`, `vibase login --server ${url}`, 'GET /meta/v1/me must show role: owner (this is the C3 check: a missing vibase_role session-token claim refuses the sign-in)', ...(ctx.manualRows ?? []).map((m) => `manual ${m}`)]
       : []),
-    ctx.keyWritten ? `agents use the operator key in ${ctx.secretsPath} (${ctx.opts.keyEnv}) as a Bearer token` : 'no operator key was created in this run; create agents and keys through agents.create and api_keys.create on /meta/v1 (re-run with --operator-agent and --key-env only while the organisation does not exist yet)',
+    hint,
   ]
   return result('verify', 'ok', `${url}/health is ${version}, migrations current`, next)
 }

@@ -165,7 +165,7 @@ describe('2. the next steps on better-auth (D8)', () => {
     const o = await fullRun(w)
     const l = lines(o)
     expect(l.slice(0, 5)).toEqual([`API: ${BASE}`, CLAIM, `vibase login --server ${BASE}`, `MCP: ${BASE}/mcp`, NO_EMAIL_STATEMENT])
-    expect(l[5]).toMatch(/^no operator key was created in this run/)
+    expect(l[5]).toMatch(/^this env is bootstrapped; create agents and keys through agents\.create/)
   })
 
   it('the invitation URL and token appear in the bootstrap step\'s lines only, never in verify\'s', async () => {
