@@ -829,7 +829,9 @@ interactive transaction, no `withContext` and no `executor` marker.
     A guard read in its own query and acted on in a later `batch()` is a race: a concurrent writer lands in between.
     Put the guard in the write (`insert ... select ... where not exists (live same email)`), make the dependent row
     conditional on it (the audit row as `insert ... select ... from invitations where id = ?`, so it exists only if the
-    change did), and read `meta.changes` of the guarded statement for the outcome. Set-based changes go the same way
+    change did, with `changes() = 1` of that update in its `where`: a guard on the value written alone, `accepted_at = ?`,
+    also holds for a concurrent writer that wrote the same millisecond, which gave two `invitation.accepted` rows once statements
+    really overlapped, #343, OPS340), and read `meta.changes` of the guarded statement for the outcome. Set-based changes go the same way
     (`update ... where role = 'owner' and <live>` rather than reading ids first). `reissueOwnerInvitation` still reads
     the live owner invitations before its batch (acceptable for a single-operator bootstrap; not for [[OPS249]]'s
     `owner-reset`).

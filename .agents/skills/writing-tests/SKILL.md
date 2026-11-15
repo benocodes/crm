@@ -522,12 +522,20 @@ A test that fails once and then passes is a bug until its cause is found. Do not
 - Never run two suites against one database at once (`pgrep -f vitest`); run the `db` and `api` suites
   serially. Inside a package, Vitest 4+ has no `poolOptions.forks.singleFork`: use `pool: 'forks'` with
   `fileParallelism: false`.
+- **D1 tests reach D1 through the request transport ([[OPS338]], OPS340).** `openLocalD1` (`packages/storage-d1/src/test/`) returns handles that send one HTTP
+  request per statement or batch to a harness Worker in the same Miniflare, instead of Miniflare's `mf.getD1Database` handle (one workerd round trip per method
+  call, blocking). Values and errors cross unchanged (parity test `transport-parity.test.ts`); the connection is the harness's own bounded keep-alive `node:http`
+  agent (16 sockets, never the global `fetch`, so a test may stub `fetch`). Consequences: a `Promise.all` over statements **really overlaps** now, so a race the
+  old handle hid can surface (diagnose it: never serialise, retry or loosen the test; a product race is a bug issue; pin it with a **deterministic** test beside the repeated one, which forces the losing interleaving and asserts the outcome, as OPS340's #343 calls `acceptInvitation` and `revokeInvitation` twice with the same `now` in `packages/storage-d1/src/control-invitations.integration.test.ts`: a race that fails 6 runs in 25 is evidence it exists, not an absence mutation a reviewer can rerun once), and a test must not assume two un-awaited
+  statements run in the order written. When a failure might be the transport's, rerun the file with `VIBASE_TEST_D1_TRANSPORT=binding pnpm -C packages/<pkg> test <file>`
+  (today's handle); an unset variable or `request` is the default, any other value throws; `openLocalD1(names, { transport })` overrides the variable. Harnesses that call
+  `mf.getD1Database` themselves (`@vibase/auth`'s, the release check, the smoke and E2E scripts) stay on the binding transport.
 - **Every D1 package runs its files in parallel ([[OPS223]], [[OPS338]]).** The `engine-neutral` and `d1` projects allow file parallelism (each file
   has a private in-memory D1 in its own forked process) and the `test` scripts of `packages/api`, `server-d1`, `storage-d1` and `cli` set 4 workers; the
   root default stays `maxWorkers: 1`. The `postgres` project stays serial (`fileParallelism: false`, `vitest.postgres.config.ts` has
-  `maxWorkers: 1`; `packages/storage/src/test-config.test.ts` asserts both, and each package's worker count). Alone on the machine, api takes about 4.5 to 6 minutes
-  (360 to 364 s in the gate; 971 s serial), server-d1 about 6 minutes (354 to 358 s in the gate; 973 s serial), storage-d1 22 to 26 s, cli 15 to 18 s, the
-  whole gate about 14 minutes (OPS339), and each must be alone; on a loaded one run `VITEST_MAX_WORKERS=N pnpm -C packages/<pkg> test` with a lower N and name N in
+  `maxWorkers: 1`; `packages/storage/src/test-config.test.ts` asserts both, and each package's worker count). Alone on the machine, on the request transport (below), api takes about
+  105 s, server-d1 about 130 s, storage-d1 about 13 s and cli about 10 s (OPS340 runs; on the binding transport 382, 376, 24 and 15 s; 971 and 973 s serial for api
+  and server-d1), the whole gate about 5 minutes (OPS340's two green gates: server-d1 122 to 132 s, api 87 to 100 s, the other packages about 30 s, typecheck, build and lint about 35 s), and each must be alone; on a loaded one run `VITEST_MAX_WORKERS=N pnpm -C packages/<pkg> test` with a lower N and name N in
   RESULT.md. Vitest rejects a second `--maxWorkers` flag, so use the variable. A new test file must not rely on running
   alone: no fixed ports, no files under the repo, no `process.env` another file reads.
 - **Run the heavy suites one package at a time.** `packages/api` (the `contract.integration.d1` file especially), `packages/cli`

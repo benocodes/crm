@@ -9,7 +9,7 @@
 #   tail -f ~/.cache/vibase-gate/latest/all.log
 # all.log is every step's output in order, each under a `==== <step> ====` header.
 # Writes <log-dir>/<step>.log per step and, last, <log-dir>/gate.status: one `<step> exit=<n>` line per
-# step, then `GATE_EXIT=<0|1>`. Wait for that marker (`until grep -q GATE_EXIT <log-dir>/gate.status; ...`)
+# step, then `GATE_EXIT=<0|1>`; the file opens with `GATE_SHA=<sha of HEAD at the start>` and `GATE_TREE=clean|dirty` (#342). Wait for that marker (`until grep -q GATE_EXIT <log-dir>/gate.status; ...`)
 # instead of polling the logs. Pass VITEST_MAX_WORKERS=N on a loaded machine.
 set -u
 # $HOME can be unset or redirected in a sandboxed run: resolve the home directory from the account, and
@@ -37,6 +37,9 @@ step() {
 }
 
 rm -f "$log_dir/gate.status.partial"
+# Stamp (#342): the commit the run started on and whether the tree was clean, so a green gate can be tied to a pushed sha from the file alone.
+echo "GATE_SHA=$(git rev-parse HEAD 2>/dev/null || echo unknown)" >>"$log_dir/gate.status.partial"
+if [ -z "$(git status --porcelain 2>/dev/null)" ]; then echo "GATE_TREE=clean" >>"$log_dir/gate.status.partial"; else echo "GATE_TREE=dirty" >>"$log_dir/gate.status.partial"; fi
 step packages pnpm -r --workspace-concurrency=1 --filter '!@vibase/api' test --reporter=dot
 step api pnpm -C packages/api test --reporter=dot
 step typecheck pnpm -r typecheck

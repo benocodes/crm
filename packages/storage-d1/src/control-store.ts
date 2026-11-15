@@ -306,7 +306,7 @@ export async function revokeInvitation(
       actorId: a.actorId,
       action: 'invitation.revoked',
       invitationId: a.id,
-      guard: 'revoked_at = ?',
+      guard: 'revoked_at = ? and changes() = 1',
       guardBinds: [a.now],
       ...(a.reason === undefined ? {} : { reason: a.reason }),
     }),
@@ -409,7 +409,7 @@ export async function acceptInvitation(
       actorId: a.actorId,
       action: 'invitation.accepted',
       invitationId: a.id,
-      guard: 'accepted_at = ?',
+      guard: 'accepted_at = ? and changes() = 1',
       guardBinds: [a.now],
     }),
   ])
