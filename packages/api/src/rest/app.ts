@@ -18,6 +18,7 @@ import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js
 import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVibaseRegistry } from '../operations.js'
+import type { AuditRuntime } from '../audit/port.js'
 import type { InvitationsRuntime } from '../invitations/port.js'
 import type { MembersRuntime } from '../members/port.js'
 import { webhooksConfigNotice, type WebhooksRuntime } from '../webhooks/config.js'
@@ -107,6 +108,8 @@ export interface AppOptions {
   invitations?: InvitationsRuntime | null
   /** [[CORE288]]: the membership writes' control-plane port (and the reset link's origin); absent or null: they answer `501 provider_not_configured`. */
   members?: MembersRuntime | null
+  /** [[CORE261]]: the audit log's read port; absent or null: `audit.list` answers `501 provider_not_configured`. Ignored when `registry` is given. */
+  audit?: AuditRuntime | null
   /** Extra operations registered before the queue's (Node tests; see `createVibaseRegistry`). Ignored when `registry` is given. */
   extraOperations?: (registry: Registry) => void
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
@@ -295,6 +298,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
       operations: options.extraOperations,
       ...(options.invitations ? { invitations: options.invitations } : {}),
       ...(options.members ? { members: options.members } : {}),
+      ...(options.audit ? { audit: options.audit } : {}),
       ...(options.webhooks ? { webhooks: options.webhooks.runtime } : {}),
       connections: {
         config: gmail?.config ?? null,

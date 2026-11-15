@@ -246,10 +246,36 @@ export interface ControlAuditRecord {
 
 /** One page of the audit log in id order after the cursor, with optional exact-match filters ([[CORE261]] P3). Reads only. */
 export async function listControlAudit(
-  _c: ControlDb,
-  _a: { after?: string; limit: number; action?: string; targetType?: string; targetId?: string },
+  c: ControlDb,
+  a: { after?: string; limit: number; action?: string; targetType?: string; targetId?: string },
 ): Promise<ControlAuditRecord[]> {
-  throw new Error('not implemented')
+  const where: string[] = []
+  const binds: unknown[] = []
+  for (const [column, value] of [
+    ['id >', a.after],
+    ['action =', a.action],
+    ['target_type =', a.targetType],
+    ['target_id =', a.targetId],
+  ] as const)
+    if (value !== undefined) {
+      where.push(`${column} ?`)
+      binds.push(value)
+    }
+  const res = await raw(c)
+    .prepare(
+      `select id, at, actor_id, action, target_type, target_id, detail from control_audit ${where.length ? `where ${where.join(' and ')}` : ''} order by id limit ?`,
+    )
+    .bind(...binds, a.limit)
+    .all()
+  return ((res.results ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id as string,
+    at: r.at as string,
+    actorId: r.actor_id as string,
+    action: r.action as string,
+    targetType: r.target_type as string,
+    targetId: r.target_id as string,
+    detail: JSON.parse(r.detail as string),
+  }))
 }
 
 const readInvitation = async (d1: D1Like, id: string): Promise<InvitationRecord | null> => {

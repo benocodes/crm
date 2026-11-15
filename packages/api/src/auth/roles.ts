@@ -64,6 +64,8 @@ export const SCOPE_POLICY: ScopePolicy = {
   // Invitations ([[CORE245]] P1): owner-held and human-only, like agents:write. They live in the control plane; no agent ever holds them, and a member cannot read who was invited.
   'invitations:read': { member: false, agentGrantable: false },
   'invitations:write': { member: false, agentGrantable: false },
+  // The control-plane audit log ([[CORE261]] P2): owner-held, never a member scope; an owner may grant it to an agent, but it is not in any default grant (`NOT_DEFAULT_GRANT`). No write scope: only the control store writes the log.
+  'audit:read': { member: false, agentGrantable: true },
 }
 
 export { SCOPE_DESCRIPTIONS } from './scope-descriptions.js'
@@ -98,7 +100,7 @@ export function assertAgentGrantable(
 }
 
 /** Scopes grantable to an agent but never part of a default grant ([[CORE261]] P2). */
-export const NOT_DEFAULT_GRANT: readonly string[] = []
+export const NOT_DEFAULT_GRANT: readonly string[] = ['audit:read']
 
 /** What a dynamically registered client or a default agent holds when nothing narrower is asked: the grantable scopes minus `NOT_DEFAULT_GRANT`. */
 export function defaultGrantScopes(declared: readonly string[], policy: ScopePolicy = SCOPE_POLICY): string[] {

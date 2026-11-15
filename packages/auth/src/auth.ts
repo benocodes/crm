@@ -20,6 +20,8 @@ export interface AuthRuntimeConfig {
   vaultScopes?: readonly string[]
   /** The subset of `vaultScopes` an agent may be granted ([[CORE243]] D11, P6): the only vault scopes a dynamically registered client may hold. Default none (OIDC scopes only). */
   grantableScopes?: readonly string[]
+  /** The subset of `grantableScopes` a registration naming no scope holds ([[CORE261]] P2: a scope may be grantable and still not a default). Default: all of `grantableScopes`. */
+  defaultScopes?: readonly string[]
   /** The Google client for sign-in ([[CORE294]] D7), already resolved by the Worker's composition (`AUTH_GOOGLE_*`, else the Gmail pair). Absent: Google sign-in is off and Better Auth registers no provider. */
   google?: { clientId: string; clientSecret: string }
 }
@@ -166,16 +168,36 @@ function schemaFor(key: ModelKey): { modelName: string; fields: Record<string, s
   return { modelName: MODELS[key], fields: Object.fromEntries(Object.keys(table.fields).map((f) => [f, snake(f)])) }
 }
 
+/**
+ * The scopes a dynamically registered client may name (`allowed`) and the ones a registration naming none is given (`defaults`) ([[CORE283]] P6, [[CORE261]] P2): the OIDC scopes and the grantable vault scopes,
+ * never a human-only one. `defaults` is `grantable` unless the composition narrows it. Note: Better Auth persists a client's scopes as the union of both lists, so a scope that is allowed but not a default is
+ * accepted when named and is still bound by the consent step; narrowing the default list is what the library's configuration offers.
+ */
+export function registrationScopes(
+  vaultScopes: readonly string[],
+  grantable: readonly string[],
+  defaults?: readonly string[],
+): { allowed: string[]; defaults: string[] } {
+  const allowed = [...AUTH_SCOPES, ...grantable.filter((x) => vaultScopes.includes(x))]
+  return {
+    allowed,
+    defaults: [
+      ...AUTH_SCOPES,
+      ...(defaults ?? grantable).filter((x) => vaultScopes.includes(x) && allowed.includes(x)),
+    ],
+  }
+}
+
 function composePlugins(
   baseURL: string,
   schema?: (key: ModelKey) => ReturnType<typeof schemaFor>,
   vaultScopes: readonly string[] = [],
   grantable: readonly string[] = [],
+  defaults: readonly string[] | undefined = undefined,
 ) {
   const s = schema ?? (() => undefined)
   const scopes = [...AUTH_SCOPES, ...vaultScopes]
-  // [[CORE283]] P6: a registered client holds the OIDC scopes and the grantable vault scopes, never a human-only one (the stored client scopes bound every later grant).
-  const registrable = [...AUTH_SCOPES, ...grantable.filter((x) => vaultScopes.includes(x))]
+  const { allowed: registrable, defaults: defaultScopes } = registrationScopes(vaultScopes, grantable, defaults)
   const resources = resourcesFor(baseURL)
   return [
     jwt({
@@ -202,7 +224,7 @@ function composePlugins(
       resources,
       clientRegistrationDefaultResources: resources,
       clientRegistrationAllowedResources: resources,
-      clientRegistrationDefaultScopes: registrable,
+      clientRegistrationDefaultScopes: defaultScopes,
       clientRegistrationAllowedScopes: registrable,
       // Native MCP clients register a loopback `http://127.0.0.1:<port>` redirect and send no application_type: treat those as native (the web rules for any other client).
       clientRegistrationDefaultApplicationType: 'infer',
@@ -403,7 +425,13 @@ export function authOptions(
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
     },
     telemetry: { enabled: false },
-    plugins: composePlugins(config.baseURL, schemaFor, config.vaultScopes, config.grantableScopes),
+    plugins: composePlugins(
+      config.baseURL,
+      schemaFor,
+      config.vaultScopes,
+      config.grantableScopes,
+      config.defaultScopes,
+    ),
     hooks: { before: endpointGate(admission, open, opts.resetCaptures, opts.deliverResetToken !== undefined) },
     databaseHooks: {
       user: {

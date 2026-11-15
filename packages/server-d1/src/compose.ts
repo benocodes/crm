@@ -22,6 +22,7 @@ import {
   openApiPath,
   createBetterAuthAdapter,
   createWorkspaceAuthAdapter,
+  defaultGrantScopes,
   grantableScopes,
   logEmailFailure,
   membershipRoleReader,
@@ -35,6 +36,7 @@ import {
   runMailSync,
   workerdStreams,
   workspaceRole,
+  type AuditRuntime,
   type AuthAdapter,
   type InvitationsRuntime,
   type MembersRuntime,
@@ -66,6 +68,7 @@ import {
   revokeSubjectCredentials,
   hasLiveInvitationForToken,
   createInvitation,
+  listControlAudit,
   listInvitations,
   revokeInvitation,
   readControlMigrations,
@@ -445,6 +448,7 @@ export function composeD1Worker(
         ...builtInConfig!,
         vaultScopes: discovery.declaredScopes,
         grantableScopes: grantableScopes(discovery.declaredScopes),
+        defaultScopes: defaultGrantScopes(discovery.declaredScopes),
       },
       {
         // [[CORE304]] D4: with email on, a reset requested over HTTP is built into the reset message and SCHEDULED (never awaited: the answer's timing must not reveal whether the address has an account). A failure is
@@ -525,11 +529,14 @@ export function composeD1Worker(
           publicBaseUrl: builtInConfig.baseURL,
         }
       : null
+  // [[CORE261]] P1: the audit log's read port over the control store, only with the built-in provider (until the control plane is required everywhere, #326).
+  const audit: AuditRuntime | null = control ? { port: { list: (a) => listControlAudit(control, a) } } : null
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
     createApp({
       storage: () => binding,
       invitations,
       members,
+      audit,
       workspace: { adapter: authAdapter, cliClientId },
       gmail: {
         ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}),

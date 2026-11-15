@@ -1,6 +1,6 @@
 // Test support ([[CORE244]]): the REAL Better Auth composition (open admission, the test switch) on a control-plane database in Node, minting the tokens the Worker under test then verifies.
 // `test/` is exempt from the control-boundary check; production code never gets a handle like this.
-import { grantableScopes } from '@vibase/api'
+import { defaultGrantScopes, grantableScopes } from '@vibase/api'
 import { createAuthHandler } from '@vibase/auth'
 import type { D1Like } from '@vibase/storage-d1'
 
@@ -37,6 +37,7 @@ export function authKit(
       baseURL: base,
       vaultScopes: over.scopes ?? [],
       grantableScopes: grantableScopes(over.scopes ?? []),
+      defaultScopes: defaultGrantScopes(over.scopes ?? []),
     },
     { unsafeOpenAdmissionForTests: true },
   )

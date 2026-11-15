@@ -2,7 +2,7 @@
 // (plain `fetch`, no SDK), the Frontend API and the issuer's metadata. Every row is evaluated and the whole checklist is printed (D26); a
 // dashboard-only row is checked where a read exists and otherwise `manual`, never claimed. Requests go only to the paths of the table
 // (D33): no Platform API, no dashboard endpoints. Nothing here prints a key, the PEM, an invitation link or a client secret.
-import { SCOPE_DESCRIPTIONS, SCOPE_POLICY, createVibaseRegistry, toProviderScope } from '@vibase/api'
+import { SCOPE_DESCRIPTIONS, createVibaseRegistry, defaultGrantScopes, toProviderScope } from '@vibase/api'
 import { parse } from 'jsonc-parser'
 import { pemFromJwk, type ClerkKeys } from './clerk-keys.js'
 import type { SetupDeps, SetupOptions, Status, StepResult } from './types.js'
@@ -44,8 +44,8 @@ export function desiredScopes() {
     /** C8's ceiling: every declared scope and `offline_access` (refresh tokens for the CLI, D31). */
     cli: [...provider, 'offline_access'],
     /** C7: declared scopes with the verb `read` an agent may hold (D16, D40). */
-    defaults: declared
-      .filter((s) => SCOPE_POLICY[s]?.agentGrantable === true && s.split(':')[1] === 'read')
+    defaults: defaultGrantScopes(declared)
+      .filter((s) => s.split(':')[1] === 'read')
       .map(toProviderScope),
     checklist: declared.map((s) => `  ${toProviderScope(s)}  ${SCOPE_DESCRIPTIONS[s] ?? ''}`),
   }

@@ -1,6 +1,8 @@
 import { connectionOperations, withWatchStop, type ConnectionsRuntime } from './connections/operations.js'
 import { contentOperations } from './messaging/content-operations.js'
 import { adminOperations } from './admin/operations.js'
+import { auditOperations } from './audit/operations.js'
+import type { AuditRuntime } from './audit/port.js'
 import { invitationOperations } from './invitations/operations.js'
 import { resetLinkOperation, withMembershipWrites } from './members/operations.js'
 import type { MembersRuntime } from './members/port.js'
@@ -51,7 +53,8 @@ export function createVibaseRegistry(
     ) => void /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */
     webhooks?: WebhooksRuntime /** [[CORE245]] P2: the control-plane port of the invitation operations; absent or null: this composition has no control store and they answer `501 provider_not_configured`. The registry has them all the same. */
     invitations?: InvitationsRuntime | null /** [[CORE288]] P1, P2: the membership writes' control-plane port; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
-    members?: MembersRuntime | null
+    members?: MembersRuntime | null /** [[CORE261]] P1, P5: the audit log's read port; absent or null: `audit.list` answers `501 provider_not_configured`. The registry has it all the same. */
+    audit?: AuditRuntime | null
   } = {},
 ): Registry {
   const registry = new Registry()
@@ -85,6 +88,7 @@ export function createVibaseRegistry(
   registry.registerEventType('organization', { scope: 'members' })
   for (const op of adminOperations()) registry.register(op)
   for (const op of invitationOperations(options.invitations ?? null)) registry.register(op)
+  for (const op of auditOperations(options.audit ?? null)) registry.register(op)
   registry.register(resetLinkOperation(options.members ?? null))
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)

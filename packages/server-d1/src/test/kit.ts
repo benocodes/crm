@@ -20,6 +20,8 @@ import {
 import type { D1WorkerEnv } from '../compose.js'
 
 export { clerkOrganization, clerkMembership, clerkUser, mintOAuthToken }
+/** For another package's integration test that bootstraps a Better Auth instance (the CLI's `audit` test). */
+export { openControlDb } from '@vibase/storage-d1'
 
 export interface WorkerD1 {
   readonly d1: D1Like

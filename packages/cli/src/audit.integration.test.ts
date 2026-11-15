@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { composeD1Worker } from '@vibase/server-d1/compose'
 import { bootstrapD1 } from '@vibase/server-d1/bootstrap'
-import { openWorkerPair, type WorkerPair } from '@vibase/server-d1/test'
-import { rig, SERVER } from './test/harness.js'
+import { openControlDb, openWorkerPair, type WorkerPair } from '@vibase/server-d1/test'
+import { rig } from './test/harness.js'
 
 // [[CORE261]] P1: `vibase audit list` is derived from the registry's operation; here it runs against the real Worker (`better-auth`, with the control-plane database) with an API-key agent holding audit:read.
+const BASE = 'http://localhost:8787'
 let w: WorkerPair
 let key: string
 const rigs: ReturnType<typeof rig>[] = []
@@ -17,14 +18,18 @@ afterEach(() => {
 })
 beforeEach(async () => {
   await w.reset()
-  const b = await bootstrapD1(w.d1, {
-    organizationName: 'Acme',
-    authProvider: 'none',
-    authOrgId: 'e2e',
-    email: 'e2e@example.com',
-    agentName: 'auditor',
-    scopes: ['audit:read'],
-  })
+  const b = await bootstrapD1(
+    w.d1,
+    {
+      organizationName: 'Acme',
+      authProvider: 'better-auth',
+      authOrgId: 'better-auth',
+      publicBaseUrl: BASE,
+      agentName: 'auditor',
+      scopes: ['audit:read'],
+    },
+    { control: openControlDb(w.control) },
+  )
   key = b.key
 })
 
@@ -48,11 +53,11 @@ it('audit list answers the control-plane log, filters by flag, and the command i
     CONTROL_DB: w.control,
     AUTH_PROVIDER: 'better-auth',
     AUTH_SECRET: 'x'.repeat(40),
-    PUBLIC_BASE_URL: SERVER,
+    PUBLIC_BASE_URL: BASE,
   })
   const r = rig({ fetch: (req) => worker.fetch(req) })
   rigs.push(r)
-  expect((await r.run(['login', '--api-key', '--server', SERVER], { stdin: key + '\n' })).code).toBe(0)
+  expect((await r.run(['login', '--api-key', '--server', BASE], { stdin: key + '\n' })).code).toBe(0)
   const all = await r.run(['audit', 'list'])
   expect(all.stderr).toBe('')
   expect(all.code).toBe(0)

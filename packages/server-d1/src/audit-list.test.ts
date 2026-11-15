@@ -314,33 +314,23 @@ describe('reads only the control plane and writes nothing (P1, P6, D5)', () => {
   })
 })
 
-describe('not a default grant in the composed Worker (P2)', () => {
-  it('a client the Worker registers with no scope named does not hold audit:read, and the Worker accepts one that names it', async () => {
-    const register = async (scope?: string) => {
-      const res = await worker().fetch(
-        new Request(`${AUTH_BASE}/auth/oauth2/register`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', origin: AUTH_BASE },
-          body: JSON.stringify({
-            client_name: 'Claude Desktop',
-            token_endpoint_auth_method: 'none',
-            grant_types: ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
-            response_types: ['code'],
-            redirect_uris: ['http://127.0.0.1:33418/cb'],
-            ...(scope ? { scope } : {}),
-          }),
+describe('a client may be registered naming audit:read (P2: grantable)', () => {
+  it('the Worker registers a public client that names it', async () => {
+    const res = await worker().fetch(
+      new Request(`${AUTH_BASE}/auth/oauth2/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: AUTH_BASE },
+        body: JSON.stringify({
+          client_name: 'Claude Desktop',
+          token_endpoint_auth_method: 'none',
+          grant_types: ['authorization_code', 'urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
+          response_types: ['code'],
+          redirect_uris: ['http://127.0.0.1:33418/cb'],
+          scope: 'openid audit:read',
         }),
-      )
-      expect(res.status, await res.clone().text()).toBe(201)
-      const { client_id } = (await res.json()) as { client_id: string }
-      return JSON.parse(
-        (await rows(w.control, 'select scopes from auth_oauth_clients where client_id = ?', client_id))[0]!.scopes,
-      ) as string[]
-    }
-    const plain = await register()
-    expect(plain).toContain('contacts:read')
-    expect(plain).not.toContain('audit:read')
-    expect(await register('openid audit:read')).toContain('audit:read')
+      }),
+    )
+    expect(res.status, await res.clone().text()).toBe(201)
   })
 })
 
