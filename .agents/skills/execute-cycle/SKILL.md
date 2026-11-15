@@ -159,6 +159,9 @@ The `@vibase/api` suite runs its files in parallel at 4 workers ([[OPS223]]): ab
 `VITEST_MAX_WORKERS=N pnpm -C packages/api test` and name N in RESULT.md. A plain `pnpm -r test` runs the packages concurrently
 (api's 4 workers beside `cli` and `server-d1`), which is why the gate splits it as above. The default reporter prints nothing until the end, so a slow run looks like a
 hang: run it as `pnpm -C packages/api test --reporter=dot` (or `verbose`) and keep its log ([[CORE200]] retro).
+The same holds for `server-d1`'s scripts: `pnpm -C packages/server-d1 test scripts` as one process with the default reporter printed
+nothing for over 12 minutes, while the same files split by directory (`test scripts/instance`, `test scripts/setup scripts/bootstrap ...`)
+finished in minutes ([[OPS307]] retro). Split by directory, or pass `--reporter=verbose`, and run it in the background.
 Run a package's full suite only through its `test` script (`pnpm -C packages/<pkg> test`), which passes the root
 `vitest.config.ts` (D1 and engine-neutral projects). A bare `vitest run` or `pnpm exec vitest run` inside the package has no
 config, collects the `*.postgres.test.ts` files and fails them without a Postgres database: the [[CORE202]] reviewer's api
