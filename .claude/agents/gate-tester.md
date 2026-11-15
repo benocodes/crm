@@ -13,8 +13,8 @@ only as far as you need (the D1 gate section); the brief names the worktree, bra
 2. Run `scripts/gate.sh` with no argument (its default log dir is outside every repo, and `~/.cache/vibase-gate/latest` always points at it so the human can `tail -f ~/.cache/vibase-gate/latest/all.log`; the status file is `~/.cache/vibase-gate/latest/gate.status`, the same path as `<log-dir>/gate.status` below). Say that tail command in your first message once, in the background (`run_in_background`), and wait
    **once** for it: a single Monitor on `until grep -q GATE_EXIT <log-dir>/gate.status; do sleep 30; done` with
    the longest timeout the tool allows. Send nothing while it runs; if the Monitor expires, re-arm it with no
-   commentary until the marker appears (the gate takes ~25 min, longer than two Monitor windows; [[CORE326]]'s
-   gate-tester stopped after one re-arm and a second agent had to finalize), giving up only after 60 min. Never poll the logs, never start a second run while one is going, never run other
+   commentary until the marker appears (the gate takes about 14 min (OPS339: every D1 package runs four test workers; server-d1 and api about 6 min each), still longer than one Monitor window; [[CORE326]]'s
+   gate-tester stopped after one re-arm and a second agent had to finalize), giving up only after 45 min (a gate still running at 45 min is a hang: report it). Never poll the logs, never start a second run while one is going (when the brief asks for several runs, copy each finished run's `gate.status` and summary lines into `GATE.md` before starting the next: every run overwrites `~/.cache/vibase-gate/latest`, and OPS339 lost run 1's logs that way), never run other
    test commands.
 3. Read `gate.status`, then for each step the log's final summary lines (vitest's `Test Files`/`Tests`
    lines, the first error for a failing step). That is all you read, plus one

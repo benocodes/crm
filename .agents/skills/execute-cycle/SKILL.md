@@ -154,10 +154,12 @@ context uncached, and a Monitor that expires (900 s) and is re-armed is one such
   or run other commands in between.
 - Never start a second gate run while one is going (they contend for the machine and both slow down).
 
-The `@vibase/api` suite runs its files in parallel at 4 workers ([[OPS223]]): about 4.5 to 6 minutes on the 8-core development machine
-(276 to 339 s measured at load 3.4 to 3.8 before the start; 971 s serial), alone on the machine. On a loaded machine lower it with
-`VITEST_MAX_WORKERS=N pnpm -C packages/api test` and name N in RESULT.md. A plain `pnpm -r test` runs the packages concurrently
-(api's 4 workers beside `cli` and `server-d1`), which is why the gate splits it as above. The default reporter prints nothing until the end, so a slow run looks like a
+Every D1 package (`@vibase/api`, `server-d1`, `storage-d1`, `cli`) runs its files in parallel at 4 workers ([[OPS223]], [[OPS338]]), alone on the machine, on the 8-core
+development machine: api about 6 minutes (360 to 364 s in two gates at load 5 to 8; 276 to 339 s alone at load 3.4 to 3.8; 971 s serial); server-d1 about
+6 minutes (354 to 358 s in two gates; 973 s serial); storage-d1 22 to 26 s (55 s serial); cli 15 to 18 s (28 s serial) (OPS339); the whole gate about 14 minutes
+(13m42s and about 14 min, two green gates on one sha, OPS339 `GATE.md`). On a loaded machine lower the count with
+`VITEST_MAX_WORKERS=N pnpm -C packages/<pkg> test` and name N in RESULT.md. A plain `pnpm -r test` runs the packages concurrently
+(each package's 4 workers beside the others'), which is why the gate splits it as above. The default reporter prints nothing until the end, so a slow run looks like a
 hang: run it as `pnpm -C packages/api test --reporter=dot` (or `verbose`) and keep its log ([[CORE200]] retro).
 The same holds for `server-d1`'s scripts: `pnpm -C packages/server-d1 test scripts` as one process with the default reporter printed
 nothing for over 12 minutes, while the same files split by directory (`test scripts/instance`, `test scripts/setup scripts/bootstrap ...`)
