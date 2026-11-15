@@ -135,7 +135,23 @@ database and the R2 bucket, configures Clerk, writes `env.<name>` into `wrangler
 already have is a `fail`, never overwritten) and **stops**: review and commit the file, then run the same command again to
 migrate, bootstrap, deploy, put the secrets and verify. Re-running a finished setup changes nothing.
 
-**`--auth clerk` (the default)** also configures a Clerk instance from its Backend API and checks what the API cannot do. The
+**`--auth better-auth` (the default for a new instance)** needs no Clerk and no account beyond Cloudflare: the Worker's own
+sign-in, OAuth consent and device login. Setup writes `AUTH_PROVIDER` and `PUBLIC_BASE_URL` into `env.<name>.vars`, generates
+`AUTH_SECRET` into the instance's own gitignored env file (`.env.<env>`, or `--clerk-env-file`) before it puts it on the Worker
+(never printed), bootstraps the CRM and control markers, the `vibase-cli` client and an **owner invitation for `--owner-email`
+that is printed once** and never again (a re-run reads the owner state first and issues nothing while an owner or a pending
+invitation exists). Both `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET` in the same file turn Google sign-in on
+(both or neither); then add the redirect URI `<PUBLIC_BASE_URL>/auth/callback/google` to the Google OAuth client, the one step no
+program can do. Verify checks that `/.well-known/vibase` reports `better-auth` with the issuer `<PUBLIC_BASE_URL>/auth` and that
+`/.well-known/oauth-authorization-server/auth` names it too (a 5xx is retried inside the 300 s bound, a wrong answer fails at
+once), then prints the next steps (the claim line only in the run that issued the link, `vibase login --server <url>`,
+`<url>/mcp`). Email is not configured by setup, and setup says so:
+
+> Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner. Invitation links are printed for you to send.
+
+One password hash may exceed the Workers Free plan's 10 ms CPU limit; Workers Paid is the safe plan for password sign-in until it is measured on Cloudflare.
+
+**`--auth clerk` (optional)** also configures a Clerk instance from its Backend API and checks what the API cannot do. The
 instance's keys live in **one gitignored env file per instance**, `.env.<env>` at the repo root by default (`--clerk-env-file`
 to name another), with `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` (or `VITE_CLERK_PUBLISHABLE_KEY`). The file is read on its
 own: never the root `.env` (the command refuses it), never the process environment, and no value is ever printed. A production
@@ -166,6 +182,10 @@ and `CREDENTIALS_KEY` is never replaced (`--rotate-secrets` replaces the other t
 ```bash
 pnpm -C packages/server-d1 setup:remote -- --env acme --api-host api.acme.example.com --owner-email you@example.com --dry-run
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --api-host api.acme.example.com --owner-email you@example.com \
+  [--clerk-env-file .env.acme] [--rotate-secrets] \
+  [--operator-agent operator --key-env ACME_OPERATOR_KEY [--org <name>]] [--only secrets]
+# Clerk instead of Better Auth (Clerk keys in .env.acme; --clerk-production for sk_live_ keys):
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --auth clerk --api-host api.acme.example.com --owner-email you@example.com \
   [--clerk-env-file .env.acme] [--clerk-production] [--no-dcr] [--rotate-secrets] \
   [--web-origin https://app.example.com] [--extra-origin https://other.example.com] \
   [--operator-agent operator --key-env ACME_OPERATOR_KEY [--org <name>]] [--only clerk,secrets]
@@ -174,7 +194,7 @@ CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env smoked1 --auth
 ```
 
 `--api-host` is required (a custom domain on a zone in your account). With `--auth none` and no `--operator-agent` the bootstrap
-writes only the deployment marker `none:<env>`; with `--auth clerk` it writes `clerk:<issuer>` and the organisation (`--org`, default the env name), and an operator agent and key only with `--operator-agent`. The commands below stay as the manual and repair path.
+writes only the deployment marker `none:<env>`; with `--auth better-auth` it writes `better-auth:<env>`, the organisation, the control marker and the owner invitation; with `--auth clerk` it writes `clerk:<issuer>` and the organisation (`--org`, default the env name), and an operator agent and key only with `--operator-agent`. The commands below stay as the manual and repair path.
 
 **The API token** (in the gitignored root `.env` as `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID`; see `.env.example`).
 Account level: Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Workers Tail Read, Account Settings Read. On the
