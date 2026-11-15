@@ -1,5 +1,5 @@
 // The repair sweep's facts and classifier ([[CORE259]] D10, [[CORE289]]): pure. The same read statements, row parsers and `classifySweep` serve the one-minute cron (through the control store)
-// and the two status commands (through wrangler's `d1 execute --json`), so "what the next sweep would do" is one function. Every statement here is a SELECT.
+// and the two status commands (through wrangler's `d1 execute --json`), so "what the next sweep would do" is one function. The read statements they share are SELECTs.
 // This module names no table and holds no database handle; the control store holds the statements (the auth tables are named only there) and reads and writes with them.
 
 /** An account is an orphan candidate only when strictly older than this ([[CORE289]] P2). */
