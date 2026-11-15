@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { uuidv7 } from '@vibase/storage'
 import { captureMessage, runCapture } from '../test/capture-kit.js'
 import { NOW, openWebhookKit, type WebhookKit } from '../test/webhook-kit.js'
+import { NIL_CURSOR } from './crm-reads.js'
 import { applyPage, dispatchWebhooks, eligibleSubscriptions, readPage } from './dispatch.js'
 
 // API7 cycle 2 / API219 (D4, D6, D17, D20): the dispatcher turns each eligible subscription's new feed events into `pending` delivery rows and moves its cursor. The kit seeds
@@ -109,6 +110,16 @@ describe('dispatch core (D4, D20)', () => {
     await k.task('ignored without a store')
     expect(await dispatchWebhooks({ ...k.deps(), port: null })).toEqual(quiet)
     expect(await k.deliveries(), 'no store: nothing is dispatched').toEqual([])
+  })
+
+  it('a subscription created on an empty feed holds the nil position and is dispatched from the start: its first event is delivered and the cursor moves onto it', async () => {
+    await k.crm('delete from events')
+    const made = await k.create(await agentWith())
+    expect(await k.cursorOf(made.id)).toBe(NIL_CURSOR)
+    const first = await k.rawEvent('task.created')
+    await k.dispatch()
+    expect(eventIds(await k.deliveries(made.id))).toEqual([first])
+    expect(await k.cursorOf(made.id)).toBe(first)
   })
 
   it('dispatch adds no row to events and writes no updated_at on the subscription (D20)', async () => {
