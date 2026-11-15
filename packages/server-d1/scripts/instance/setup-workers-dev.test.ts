@@ -42,7 +42,7 @@ afterEach(() => cleanup())
 const world = (o: Partial<SetupWorldOptions> = {}): SetupWorld => setupWorld({ d1: pair, control: pair.control, ...o })
 const run = (s: SetupWorld, argv: string[]) => runSetup(argv, s.w.deps)
 const row = (s: SetupWorld, name: string) => s.rows().find((r) => r.step === name)!
-const hostOf = (s: SetupWorld) => /api host (\S+),/.exec(s.w.out.find((l) => l.startsWith('setup: env')) ?? '')?.[1]
+const hostOf = (s: SetupWorld) => /api host (\S+?)(?: \(workers\.dev\))?,/.exec(s.w.out.find((l) => l.startsWith('setup: env')) ?? '')?.[1]
 const settings = (s: SetupWorld) => JSON.parse(s.settings()!) as Record<string, any>
 const configs = (s: SetupWorld) => s.w.wrangler.flatMap((c) => (c.configText ? [JSON.parse(c.configText) as Record<string, any>] : []))
 const pkgManifest = (s: SetupWorld) => JSON.parse(readFileSync(join(s.w.pkg.dir, 'release.json'), 'utf8')) as { version: string; commit: string }

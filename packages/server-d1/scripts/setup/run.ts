@@ -4,6 +4,7 @@ import { parse } from 'jsonc-parser'
 import { parseSetupArgs } from './args.js'
 import { applyRecordedNames, type RecordedNames } from './names.js'
 import { loadBetterAuth, providerFromVars } from './better-auth.js'
+import { moveLines, resolveHost } from './host.js'
 import { loadClerkKeys } from './clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from './gmail.js'
 import { STEPS, type Ctx } from './steps.js'
@@ -24,8 +25,11 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     // [[OPS249]] D1: the provider the env block already records wins; a differing --auth is refused here, before any step.
     const parsed = parseSetupArgs(argv, (env) => recordedAuth(readOrEmpty(deps), env))
     // [[OPS276]]: the names the env block already records win over the derivation, before any step creates anything.
-    const opts = applyRecordedNames(parsed, recordedNames(readOrEmpty(deps), parsed.env), 'wrangler.jsonc')
-    if (!opts.dryRun) requireConfirm(procEnv)
+    const named = applyRecordedNames(parsed, recordedNames(readOrEmpty(deps), parsed.env), 'wrangler.jsonc')
+    if (!named.dryRun) requireConfirm(procEnv)
+    // [[OPS308]] P1, P3: the one host of this run, resolved before any write and before anything reads the base URL (the Gmail group's default and refusal, bootstrap, verify).
+    const creds = deps.loadEnv()
+    const opts = await resolveHost(named, creds, deps.fetch)
     // The Clerk keys come from the instance's own file, before any request; the process environment is never read for them (D34).
     // The same file also holds the Gmail group ([[OPS150]]), on `--auth none` too: one probe, the same refusals.
     const probe = deps.probeEnvFile(opts.clerkEnvFile, opts.env)
@@ -33,7 +37,7 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     const gmail = loadGmail(opts, probe)
     // `--auth better-auth`: `AUTH_SECRET` and the optional Google pair from the same file ([[OPS249]] D3, D4), judged before any request.
     const betterAuth = loadBetterAuth(opts, probe.text, probe.display)
-    ctx = { opts, deps, creds: deps.loadEnv(), pending: false, keys, gmail, betterAuth }
+    ctx = { opts, deps, creds, pending: false, keys, gmail, betterAuth }
   } catch (err) {
     if (!(err instanceof RemoteRefusal)) throw err
     deps.log(`setup: ${err.message}`)
@@ -41,7 +45,9 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
   }
   const { opts } = ctx
   const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)) && !(s === 'secrets' && opts.only === undefined && opts.auth === 'none' && !ctx.gmail))
-  deps.log(`setup:remote env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
+  deps.log(`setup:remote env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
+  for (const n of opts.hostNotes ?? []) deps.log(n)
+  if (opts.move) for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined || ctx.gmail != null)) deps.log(l)
   if (ctx.keys) {
     const k = ctx.keys
     deps.log(`clerk instance: ${k.kind}${k.kind === 'development' ? ' (warning: a development instance is a test instance, with Clerk\'s user cap and dev-browser handshake)' : ''}, issuer ${k.issuer}, keys from ${k.file}`)
@@ -103,7 +109,19 @@ export function recordedAuth(configText: string, env: string) {
   const block = root?.env?.[env]
   if (typeof block !== 'object' || block === null) return null
   const where = `env.${env} in wrangler.jsonc`
-  return { provider: providerFromVars(block.vars, where), where }
+  const routes: unknown[] = Array.isArray(block.routes) ? block.routes : []
+  const route = routes.find((r) => typeof r === 'object' && r !== null && (r as { custom_domain?: unknown }).custom_domain === true && typeof (r as { pattern?: unknown }).pattern === 'string') as { pattern: string } | undefined
+  const base = typeof block.vars?.PUBLIC_BASE_URL === 'string' ? safeHost(block.vars.PUBLIC_BASE_URL) : undefined
+  // [[OPS308]]: the host is the custom route, else the recorded PUBLIC_BASE_URL (a workers.dev instance has no route); `none` on workers.dev records neither, so only the flag is known.
+  return { provider: providerFromVars(block.vars, where), where, host: { apiHost: route?.pattern ?? base, workersDev: block.workers_dev === true } }
+}
+
+function safeHost(url: string): string | undefined {
+  try {
+    return new URL(url).host
+  } catch {
+    return undefined
+  }
 }
 
 /** A config that cannot be read is no record: `config:write` reports the read error as its own step failure, as before. */

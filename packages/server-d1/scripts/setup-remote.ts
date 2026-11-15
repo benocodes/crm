@@ -1,9 +1,9 @@
 // One guarded, idempotent command from nothing to a migrated, bootstrapped, deployed, verified instance ([[OPS65]] D6):
-//   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --api-host <host> --owner-email <email> [flags]   (--auth better-auth is the default for a new instance;
+//   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> (--api-host <host> | --workers-dev) --owner-email <email> [flags]   (--auth better-auth is the default for a new instance;
 //                                                                                                                      a recorded instance keeps its recorded provider, OPS249 D1)
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --auth clerk --api-host <host> --owner-email <email> [flags]  (Clerk keys from .env.<name>)
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --auth none --api-host <host> [flags]            (API keys only)
-//   pnpm -C packages/server-d1 setup:remote -- --env <name> --api-host <host> --owner-email <email> --dry-run                   (reads only)
+//   pnpm -C packages/server-d1 setup:remote -- --env <name> (--api-host <host> | --workers-dev) --owner-email <email> --dry-run                   (reads only)
 // The steps and their guards live in scripts/setup/; this file only wires the real wrangler, git, fetch, files and D1.
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'

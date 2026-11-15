@@ -124,7 +124,8 @@ describe('D9 refusal: a differing present value fails naming the key and stops t
   const cases: [string, string, string[], RegExp][] = [
     ['resource id', smoked1Config.replace(SMOKED1_ID, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'), SMOKED1, /database_id/],
     // The Worker, D1 and R2 names are the record itself now ([[OPS276]]): drift is shown on another key.
-    ['workers_dev', smoked1Config.replace('"workers_dev": false', '"workers_dev": true'), SMOKED1, /smoked1\.workers_dev/],
+    // OPS308 P5: `workers_dev: true` beside a custom-domain route is the record of an instance moved from workers.dev, so it is no longer drift; another present key shows the rule.
+    ['preview_urls', smoked1Config.replace('"preview_urls": false', '"preview_urls": true'), SMOKED1, /smoked1\.preview_urls/],
     ['var', smoked1Config, [...SMOKED1, '--web-origin', 'https://app.example.com'], /CORS_ALLOWED_ORIGINS/],
   ]
   it.each(cases)('%s', async (_n, configText, args, key) => {

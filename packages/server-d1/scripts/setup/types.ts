@@ -1,5 +1,6 @@
 // Shared types of `setup:remote` ([[OPS65]] D6, D7): the step model and the seams the tests fake (command runner, fetch, files, D1).
 import type { D1Like } from '@vibase/storage-d1'
+import type { HostMode, RecordedHost } from './host.js'
 
 export const STEP_NAMES = ['preflight', 'config:resources', 'clerk', 'config:write', 'migrate', 'bootstrap', 'deploy', 'secrets', 'verify'] as const
 /** Steps that exist only with `--auth clerk` ([[OPS65]] D11); `secrets` also runs on `--auth none` for the Gmail group ([[OPS65]] D41). */
@@ -72,7 +73,20 @@ export interface SetupDeps {
 
 export interface SetupOptions {
   env: string
+  /** The host of this run ([[OPS308]] P1): the `--api-host` flag, or (with `--workers-dev`) empty until `resolveHost` derives `<worker>.<subdomain>.workers.dev`. */
   apiHost: string
+  /** `--workers-dev`: the host is derived from the account's workers.dev subdomain ([[OPS249]] D12). */
+  workersDev: boolean
+  /** `--register-workers-subdomain <name>`: the explicit, one-time account-wide registration. */
+  registerSubdomain?: string
+  /** `--change-host`: the operator accepts the consequences of a host change ([[OPS249]] D14). */
+  changeHost: boolean
+  /** What the instance's record says about its host, when it has a record. */
+  recordedHost?: RecordedHost
+  /** Set by `resolveHost` when this run changes the host: the record's old host (absent when it was not recorded) and mode. */
+  move?: { from?: string; fromMode: HostMode }
+  /** Lines of the host resolution to print under the header (a registration done or planned). */
+  hostNotes?: string[]
   auth: 'better-auth' | 'clerk' | 'none'
   org: string
   origins: string[]

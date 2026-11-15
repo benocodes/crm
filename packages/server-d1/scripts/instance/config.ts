@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'jsonc-parser'
 import { RemoteRefusal, resolveTarget } from '../remote.js'
+import { isWorkersDevHost } from '../setup/host.js'
 import type { InstanceSettings } from './types.js'
 
 export interface InstalledPaths {
@@ -21,9 +22,10 @@ export function generateConfig(base: Record<string, any>, settings: InstanceSett
     name: settings.worker,
     main: paths.worker,
     assets: { ...top.assets, directory: paths.assets },
-    workers_dev: false,
+    workers_dev: settings.workers_dev === true,
     preview_urls: false,
-    routes: [{ pattern: settings.api_host, custom_domain: true }],
+    // A workers.dev host has no route ([[OPS308]] D12); a custom one (also after a move, which keeps workers_dev) has its custom_domain route.
+    ...(isWorkersDevHost(settings.api_host) ? {} : { routes: [{ pattern: settings.api_host, custom_domain: true }] }),
     // By binding, from the recorded values only ([[OPS275]] D16): the control entry is present exactly when the settings record one.
     d1_databases: [
       { binding: 'DB', database_name: settings.d1.name, database_id: settings.d1.id, migrations_dir: paths.migrations, remote: true },

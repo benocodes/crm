@@ -120,13 +120,12 @@ describe('adoption and the settings file', () => {
     expect(loadSettings(clerk.w.settingsPath, 'demo').vars).toEqual(fx.clerk.vars)
   })
 
-  it('a settings file that differs from the flags fails config:write, names the key, and stays unchanged', async () => {
+  it('a settings file whose host differs from --api-host is refused before any step (OPS308 D14: a host change needs --change-host), names the host and the flag, and stays unchanged', async () => {
     const s = world({ controlMarker: 'org-1', sim: ADOPTED(), settings: validSettings({ api_host: 'other.demo.invalid', control_d1: { name: 'vb-control-demo', id: CONTROL_UUID } }) })
     const before = s.settings()
-    expect(await run(s)).toBe(3)
-    const fail = s.rows().find((r) => r.status === 'fail')!
-    expect(fail.step).toBe('config:write')
-    expect(fail.detail).toMatch(/api_host/)
+    expect(await run(s)).toBe(2)
+    expect(s.w.err.join('\n')).toMatch(/other\.demo\.invalid/)
+    expect(s.w.err.join('\n')).toMatch(/--change-host/)
     expect(s.rows().map((r) => r.step)).not.toContain('migrate')
     expect(s.settings()).toBe(before)
     expect(s.writes()).toEqual([])
@@ -329,7 +328,7 @@ describe('secrets and side effects', () => {
 describe('the instance entry', () => {
   it('lists setup in the help', async () => {
     const { INSTANCE_HELP } = await import('./main.js')
-    expect(INSTANCE_HELP).toMatch(/vibase-server setup --env <name> --api-host <host>/)
+    expect(INSTANCE_HELP).toContain('vibase-server setup --env <name> (--api-host <host> | --workers-dev)')
     expect(INSTANCE_HELP).toMatch(/--secrets-file/)
     expect(INSTANCE_HELP).toMatch(/Exit 0: done, or the dry run is complete; 2: refused before the first step; 3: a step failed/)
   })

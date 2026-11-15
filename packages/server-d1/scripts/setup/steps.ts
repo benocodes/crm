@@ -6,6 +6,7 @@ import { initDeploymentOperation } from '../../src/init-deployment.js'
 import { execute, uuidv7 } from '@vibase/storage'
 import { CONTROL_MIGRATIONS, MIGRATIONS, d1Binding, openControlDb, writeControlMarker } from '@vibase/storage-d1'
 import { PLACEHOLDER_DATABASE_ID, RemoteRefusal, formatMigrationDiff, resolveTarget, statusOf, type ConfigLike, type Target } from '../remote.js'
+import { oldDomainManual } from './host.js'
 import { GOOGLE_SECRET_NAMES, authSecretManual, authSecretState, newAuthSecret, type BetterAuthInputs } from './better-auth.js'
 import { clerkStep, configuredCliClientId, signingKeyPem } from './clerk.js'
 import type { ClerkKeys } from './clerk-keys.js'
@@ -112,7 +113,7 @@ const cfGet = (ctx: PreflightCtx, path: string) => ctx.deps.fetch(`${CF}${path}`
 /** What `preflight` reads: shared with `vibase-server setup` ([[OPS232]]). */
 export interface PreflightCtx {
   creds: Credentials
-  opts: Pick<SetupOptions, 'apiHost'>
+  opts: Pick<SetupOptions, 'apiHost' | 'workersDev'>
   deps: Pick<SetupDeps, 'fetch'>
 }
 export const preflight = async (ctx: PreflightCtx): Promise<StepResult> => {
@@ -126,6 +127,11 @@ export const preflight = async (ctx: PreflightCtx): Promise<StepResult> => {
   for (const [path, permission] of probes) {
     const res = await cfGet(ctx, path)
     if (!res.ok) failures.push(`${permission}: the token cannot read it (HTTP ${res.status})`)
+  }
+  // [[OPS308]] D12: a workers.dev host is on no zone of the account; D1, R2 and Workers are still checked.
+  if (ctx.opts.workersDev) {
+    if (failures.length > 0) return result('preflight', 'fail', `missing: ${failures.map((f) => f.split(':')[0]).join(', ')}`, failures)
+    return result('preflight', 'ok', 'Cloudflare credentials reach D1, R2 and Workers (workers.dev mode: no zone check)')
   }
   const labels = ctx.opts.apiHost.split('.')
   let zone: string | null = null
@@ -208,6 +214,9 @@ const configWrite: Step = async (ctx) => {
     controlD1Id: createdControl?.uuid ?? PLACEHOLDER_DATABASE_ID,
     r2Name: ctx.opts.r2Name,
     apiHost: ctx.opts.apiHost,
+    workersDev: ctx.opts.workersDev || ctx.opts.recordedHost?.workersDev === true,
+    noRoute: ctx.opts.workersDev,
+    move: ctx.opts.move !== undefined,
     corsOrigins: ctx.opts.origins.join(','),
     ...(ctx.gmail ? { gmailVars: ctx.gmail.vars } : {}),
     // [[UI30]] D7: the connect page's own origin is an authorized party (never a CORS origin, never a Clerk allowed origin), and the
@@ -233,14 +242,18 @@ const configWrite: Step = async (ctx) => {
   }
   if (r.changed.length === 0) return result('config:write', 'ok', `env.${ctx.opts.env} in wrangler.jsonc is as desired`)
   const diff = lineDiff(before, r.text).map(hideGmailValues)
+  const { move } = ctx.opts
+  // [[OPS308]] P5: setup makes no DNS or custom-domain delete call, so a custom domain the move leaves behind is the operator's to detach.
+  const leftBehind = move?.fromMode === 'custom' && move.from !== undefined && !ctx.opts.workersDev ? [oldDomainManual(move.from)] : []
+  const withManual = (res: StepResult): StepResult => (leftBehind.length ? { ...res, manual: leftBehind } : res)
   if (ctx.opts.dryRun) {
     ctx.pending = true
     ctx.blockedBy = 'config:write'
-    return result('config:write', 'update', `would write ${r.changed.join(', ')}${clerk && cliId === undefined ? ' (AUTH_CLI_CLIENT_ID follows once the Vibase CLI application exists)' : ''}`, diff)
+    return withManual(result('config:write', 'update', `would write ${r.changed.join(', ')}${clerk && cliId === undefined ? ' (AUTH_CLI_CLIENT_ID follows once the Vibase CLI application exists)' : ''}`, diff))
   }
   ctx.deps.writeConfigText(r.text)
   ctx.stop = true
-  return result('config:write', 'update', `wrote ${r.changed.join(', ')}`, [...diff, 'review and commit wrangler.jsonc, then re-run the same command to migrate, bootstrap, deploy and verify'])
+  return withManual(result('config:write', 'update', `wrote ${r.changed.join(', ')}`, [...diff, 'review and commit wrangler.jsonc, then re-run the same command to migrate, bootstrap, deploy and verify']))
 }
 
 const blocked = (ctx: Ctx, step: StepName): StepResult | null =>
@@ -601,11 +614,12 @@ const verify: Step = async (ctx) => {
   const b = blocked(ctx, 'verify')
   if (b) return b
   const ready = (h: Awaited<ReturnType<typeof readHealth>>) => h !== null && h.migrations === 'current' && (ctx.expectSha === undefined || h.version === ctx.expectSha)
+  // [[OPS308]] P2: one deadline, started here, covers the health wait and both discovery reads.
+  const start = ctx.deps.now()
   let health = await readHealth(ctx)
   if (ctx.opts.dryRun) {
     if (!ready(health)) return ctx.pending ? result('verify', 'blocked', 'waits on the changes planned above') : result('verify', 'fail', `https://${ctx.opts.apiHost}/health is not at the expected version with migrations current`)
   } else {
-    const start = ctx.deps.now()
     while (!ready(health) && ctx.deps.now() - start < VERIFY_BOUND_MS) {
       await ctx.deps.sleep(VERIFY_INTERVAL_MS)
       health = await readHealth(ctx)
@@ -623,7 +637,7 @@ const verify: Step = async (ctx) => {
   let signInMethods: string[] = []
   if (ctx.opts.auth === 'better-auth') {
     // OPS306 D8, P1: the issuer is the recorded PUBLIC_BASE_URL (`https://<api host>`, the value config:write records), never a request host.
-    const issuer = await checkBetterAuthIssuer(`https://${ctx.opts.apiHost}`, { fetch: ctx.deps.fetch, now: ctx.deps.now, sleep: ctx.deps.sleep, dryRun: ctx.opts.dryRun })
+    const issuer = await checkBetterAuthIssuer(`https://${ctx.opts.apiHost}`, { fetch: ctx.deps.fetch, now: ctx.deps.now, sleep: ctx.deps.sleep, dryRun: ctx.opts.dryRun, start })
     if (!issuer.ok) return result('verify', 'fail', issuer.detail)
     signInMethods = issuer.signInMethods
   }

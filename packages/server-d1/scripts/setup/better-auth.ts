@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { parseEnv } from 'node:util'
 import { AUTH_SECRET_MIN_LENGTH } from '../../src/auth-config.js'
 import { RemoteRefusal } from '../remote.js'
+import type { RecordedHost } from './host.js'
 import type { SetupOptions } from './types.js'
 
 export const PROVIDERS = ['better-auth', 'clerk', 'none'] as const
@@ -13,6 +14,8 @@ export type AuthProvider = (typeof PROVIDERS)[number]
 export interface RecordedAuth {
   provider: AuthProvider
   where: string
+  /** The record's host ([[OPS308]]); absent for a lookup that has none. */
+  host?: RecordedHost
 }
 /** Looks an instance up by `--env`: `null` is a new instance (no record). */
 export type RecordLookup = (env: string) => RecordedAuth | null
