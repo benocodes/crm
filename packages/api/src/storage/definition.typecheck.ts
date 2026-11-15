@@ -426,8 +426,8 @@ definePreparedResource({
   eventName: 'message',
   table: 'messages',
   record: z.object(messagesBase),
-  // @ts-expect-error 'bogus' is not a column of message_attachments
   embed: {
+    // @ts-expect-error 'bogus' is not a column of message_attachments
     attachments: { table: 'message_attachments', key: 'message_id', columns: ['bogus'], orderBy: ['position'] },
   },
 })

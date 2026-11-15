@@ -124,8 +124,8 @@ describe('placement (D6)', () => {
 
 describe('type-level: surface is required (D1)', () => {
   it('a resource definition and a hand-written operation without a surface do not compile', () => {
-    // @ts-expect-error surface is required on a resource definition
     const noSurfaceDef = () =>
+      // @ts-expect-error surface is required on a resource definition
       definePreparedResource({ name: 'x', eventName: 'x', table: 'tasks', record: z.object({ id: z.uuid() }) })
     // @ts-expect-error surface is required on a hand-written operation
     const noSurfaceOp: Operation = {
