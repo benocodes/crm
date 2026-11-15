@@ -252,8 +252,10 @@ async function executeOperation(
         now,
         newId: env.newId,
         randomBytes: env.randomBytes,
-        read: async (program) =>
-          (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, program)).value,
+        read: async (program) => {
+          if (program.mutates) throw new Error('ControlEnv.read runs read-only programs')
+          return (await execute(storage, { kind: 'tenant', actorId: actor.id, organizationId }, program)).value
+        },
       },
       input,
     )
