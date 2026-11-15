@@ -403,8 +403,9 @@ describe('partial states and races (P4)', () => {
 
   it("the new bound (a live invitation created no later than the live membership), pinned within one second: an invitation made 300 ms before re-admission is completed, one made 300 ms after is not", async () => {
     const p = await admitAndRemove('p@x.test', 'member')
-    // Strictly after the removal (P1), and within one second of the re-admission at T + 300.
-    const T = Date.parse((await crm('select max(deleted_at) d from memberships where user_id = ?', p.userId))[0]!.d) + 10
+    // The first whole second after the removal, plus 100 ms: strictly after the removal (P1), and T, T + 300 (the re-admission) and T + 600 (the late invitation) share one second on every run.
+    const removedAt = Date.parse((await crm('select max(deleted_at) d from memberships where user_id = ?', p.userId))[0]!.d)
+    const T = (Math.floor(removedAt / 1000) + 1) * 1000 + 100
     const before = await invite('p@x.test', 'member', { createdAt: T })
     clock = () => new Date(T + 300)
     failControl.on = true
