@@ -1,21 +1,9 @@
 // The repair sweep's facts and classifier ([[CORE259]] D10, [[CORE289]]): pure. The same read statements, row parsers and `classifySweep` serve the one-minute cron (through the control store)
 // and the two status commands (through wrangler's `d1 execute --json`), so "what the next sweep would do" is one function. Every statement here is a SELECT.
-// This module never holds a database handle; the control store reads and writes with it.
+// This module names no table and holds no database handle; the control store holds the statements (the auth tables are named only there) and reads and writes with them.
 
 /** An account is an orphan candidate only when strictly older than this ([[CORE289]] P2). */
 export const ORPHAN_AGE_MS = 24 * 60 * 60 * 1000
-
-/**
- * The control-plane read: one result set, a `kind` column and five generic columns. `user`: id, email, created_at. `credential`: a user id that still has a session, refresh token, access token
- * or device code. `invitation`: email, created_at, accepted_at, revoked_at, expires_at.
- */
-export const SWEEP_CONTROL_READ = `select 'user' as kind, id as k1, email as k2, created_at as k3, null as k4, null as k5 from auth_users
-union all select 'credential', user_id, null, null, null, null from (select user_id from auth_sessions union select user_id from auth_oauth_refresh_tokens union select user_id from auth_oauth_access_tokens union select user_id from auth_device_codes) where user_id is not null
-union all select 'invitation', email, created_at, accepted_at, revoked_at, expires_at from invitations`
-
-/** The CRM read: every Better Auth subject a CRM user or agent names, and whether it still has authority (a live membership; an enabled agent). */
-export const SWEEP_CRM_READ = `select u.auth_subject as subject, case when exists (select 1 from memberships m where m.user_id = u.id and m.deleted_at is null) then 1 else 0 end as authority from users u where u.auth_provider = 'better-auth' and u.auth_subject is not null
-union all select a.auth_subject, case when a.disabled_at is null then 1 else 0 end from agents a where a.auth_provider = 'better-auth' and a.auth_subject is not null`
 
 export interface SweepControlFacts {
   users: Array<{ id: string; email: string; createdAt: string }>
@@ -66,9 +54,6 @@ export function parseSweepCrmRows(rows: unknown): SweepCrmFacts {
 export function orphanCutoff(now: string): string {
   return new Date(Date.parse(now) - ORPHAN_AGE_MS).toISOString()
 }
-
-/** The SQL condition, over an `auth_users` row, that an invitation keeps the account: for its email, created no later than the account, and accepted or still live at `?`. One bind: the instant. */
-export const KEEPING_INVITATION = `exists (select 1 from invitations i where i.email = lower(auth_users.email) and i.created_at <= auth_users.created_at and (i.accepted_at is not null or (i.revoked_at is null and i.expires_at > ?)))`
 
 /**
  * What the next sweep does ([[CORE289]] P1, P2). `revoke`: linked subjects with no authority that still hold a credential. `orphans`: accounts no CRM row names, strictly older than 24 hours,
