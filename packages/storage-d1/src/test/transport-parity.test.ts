@@ -156,7 +156,9 @@ add('first() on a row', (h) => h.a.prepare("SELECT 1 AS one, 'x' AS two").first(
 add('all() on no rows', (h) => h.a.prepare('SELECT * FROM vals WHERE id = -1').all())
 add('run() of a select', (h) => h.a.prepare('SELECT 1 AS one').run())
 add('all() of an insert carries meta', (h) => h.a.prepare('INSERT INTO mid (label) VALUES (?)').bind('m1').all())
-add('run() of an update carries changes', (h) => h.a.prepare("UPDATE mid SET label = 'm1b' WHERE label = ?").bind('m1').run())
+add('run() of an update carries changes', (h) =>
+  h.a.prepare("UPDATE mid SET label = 'm1b' WHERE label = ?").bind('m1').run(),
+)
 add('run() of a delete that matches nothing', (h) => h.a.prepare("DELETE FROM mid WHERE label = 'nothing'").run())
 add('statement without bind', (h) => h.a.prepare('SELECT 7 AS seven').all())
 add('bind() with no values', (h) => h.a.prepare('SELECT 7 AS seven').bind().all())

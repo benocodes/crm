@@ -63,7 +63,10 @@ describe('request handle (OPS340 D4)', () => {
     const l = await open({ transport: 'request' })
     const d1 = l.bindings.S!
     expect(transportStats(l)!.requests).toBeGreaterThan(0) // the migrations went through it
-    await d1.prepare("INSERT INTO deployment (organization_id) VALUES ('o')").run().catch(() => undefined)
+    await d1
+      .prepare("INSERT INTO deployment (organization_id) VALUES ('o')")
+      .run()
+      .catch(() => undefined)
     const before = transportStats(l)!.requests
     await clearD1(d1)
     expect(transportStats(l)!.requests).toBeGreaterThan(before)

@@ -38,9 +38,7 @@ describe('the request transport connection (OPS340 D6)', () => {
     expect(stats.maxSockets).toBe(MAX_SOCKETS)
     for (let i = 0; i < 300; i++) expect(await d1.prepare('SELECT ? AS i').bind(i).first()).toEqual({ i })
     const burst = MAX_SOCKETS * 10
-    const rows = await Promise.all(
-      Array.from({ length: burst }, (_, i) => d1.prepare('SELECT ? AS i').bind(i).first()),
-    )
+    const rows = await Promise.all(Array.from({ length: burst }, (_, i) => d1.prepare('SELECT ? AS i').bind(i).first()))
     expect(rows.map((r) => (r as { i: number }).i)).toEqual(Array.from({ length: burst }, (_, i) => i))
     const after = transportStats(l)!
     expect(after.requests).toBeGreaterThanOrEqual(300 + burst)
@@ -59,7 +57,8 @@ describe('the request transport connection (OPS340 D6)', () => {
     expect(stats.closed).toBe(false)
     await l.dispose()
     local = undefined
-    expect(stats.closed).toBe(true)
-    expect(stats.open).toBe(0)
+    const after = transportStats(l)!
+    expect(after.closed).toBe(true)
+    expect(after.open).toBe(0)
   })
 })
