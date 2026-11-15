@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { D1Like, D1PreparedLike } from './binding.js'
 import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
 import { acceptInvitation, createInvitation, findAdoptableInvitation, hasLiveInvitationForToken, listInvitations, openControlDb, reissueOwnerInvitation, revokeInvitation, type NewInvitation } from './control-store.js'
@@ -162,27 +162,78 @@ describe('one control batch (D9 c)', () => {
   })
 })
 
-describe('reissue the owner invitation (P7)', () => {
+describe('reissue the owner invitation (P7, OPS307 D11): one batch, nothing read first', () => {
+  // Its own control database per test: `control_audit` cannot be emptied, and "no live owner invitation" must be true.
+  let own: LocalD1
+  let ctl: D1Like
+  beforeEach(async () => {
+    own = await openLocalD1(['C'], { control: ['C'] })
+    ctl = own.bindings.C!
+  })
+  afterEach(() => own.dispose())
+  const c = () => openControlDb(ctl)
+  const audit = (targetId: string) => rows(ctl, 'select * from control_audit where target_id = ? order by id', targetId)
+  const liveOwners = (now: string) => rows(ctl, "select id from invitations where role = 'owner' and accepted_at is null and revoked_at is null and expires_at > ? order by id", now)
+  const AT = plus(NOW, 60_000)
+
   it('revokes every live owner invitation and creates a fresh one in one batch, each change audited', async () => {
     const old = inv({ email: 'owner-old@x.test', role: 'owner' })
     await createInvitation(c(), old)
-    const fresh = inv({ email: 'owner-new@x.test', role: 'owner', now: plus(NOW, 60_000) })
+    const fresh = inv({ email: 'owner-new@x.test', role: 'owner', now: AT })
     const out = await reissueOwnerInvitation(c(), { ...fresh, newAuditId: nextId })
-    expect(out).toMatchObject({ result: 'created', revoked: expect.arrayContaining([old.id]) })
-    expect((await rows(control, "select id from invitations where role = 'owner' and accepted_at is null and revoked_at is null and expires_at > ?", plus(NOW, 60_000))).map((r) => r.id)).toEqual([fresh.id])
-    expect((await rows(control, 'select revoked_at from invitations where id = ?', old.id))[0]!.revoked_at).toBe(plus(NOW, 60_000))
-    expect((await audit(old.id)).map((r) => r.action)).toEqual(['invitation.created', 'invitation.revoked'])
+    expect(out).toEqual({ result: 'created', revoked: 1 })
+    expect((await liveOwners(AT)).map((r) => r.id)).toContain(fresh.id)
+    expect((await rows(ctl, 'select revoked_at from invitations where id = ?', old.id))[0]!.revoked_at).toBe(AT)
+    expect((await audit(old.id)).map((r) => r.action).sort()).toEqual(['invitation.created', 'invitation.revoked'])
     expect((await audit(fresh.id)).map((r) => r.action)).toEqual(['invitation.created'])
+    const revoked = (await audit(old.id)).find((r) => r.action === 'invitation.revoked')!
+    expect(revoked).toMatchObject({ at: AT, actor_id: ACTOR, target_type: 'invitation' })
+    expect(JSON.parse(revoked.detail)).toMatchObject({ email: 'owner-old@x.test', role: 'owner' })
   })
 
-  it('a live non-owner invitation for the same address refuses the reissue before anything is revoked', async () => {
+  it('empty state: no live owner invitation, one invitation created and no invitation.revoked row', async () => {
+    const fresh = inv({ email: 'owner-first@x.test', role: 'owner', now: AT })
+    expect(await reissueOwnerInvitation(c(), { ...fresh, newAuditId: nextId })).toEqual({ result: 'created', revoked: 0 })
+    expect((await audit(fresh.id)).map((r) => r.action)).toEqual(['invitation.created'])
+    expect(await rows(ctl, "select id from control_audit where action = 'invitation.revoked' and at = ?", AT)).toEqual([])
+  })
+
+  it('race: a live owner invitation inserted after any read the function could make is still revoked', async () => {
+    const early = inv({ email: 'owner-early@x.test', role: 'owner' })
+    await createInvitation(c(), early)
+    const late = inv({ email: 'owner-late@x.test', role: 'owner', now: plus(NOW, 30_000) })
+    // The wrapper writes the late invitation just before the batch runs: a read-then-revoke-by-id would have missed it.
+    let slipped = false
+    const racing: D1Like = {
+      prepare: (q: string) => ctl.prepare(q),
+      batch: async (s: D1PreparedLike[]) => {
+        if (!slipped) {
+          slipped = true
+          await createInvitation(c(), late)
+        }
+        return ctl.batch(s)
+      },
+    }
+    const fresh = inv({ email: 'owner-race@x.test', role: 'owner', now: AT })
+    const out = await reissueOwnerInvitation(openControlDb(racing), { ...fresh, newAuditId: nextId })
+    expect(slipped).toBe(true)
+    expect(out).toMatchObject({ result: 'created' })
+    expect((await liveOwners(AT)).map((r) => r.id)).toEqual([fresh.id])
+    expect((await audit(late.id)).map((r) => r.action).sort()).toEqual(['invitation.created', 'invitation.revoked'])
+  })
+
+  it('P1: a live non-owner invitation for the same address refuses it, every owner invitation stays live and no row is audited', async () => {
     const live = inv({ email: 'both@x.test', role: 'member' })
     await createInvitation(c(), live)
     const owner = inv({ email: 'other-owner@x.test', role: 'owner' })
     await createInvitation(c(), owner)
-    const out = await reissueOwnerInvitation(c(), { ...inv({ email: 'both@x.test', role: 'owner', now: plus(NOW, 60_000) }), newAuditId: nextId })
+    const auditBefore = (await rows(ctl, 'select count(*) n from control_audit'))[0]!.n
+    const out = await reissueOwnerInvitation(c(), { ...inv({ email: 'both@x.test', role: 'owner', now: AT }), newAuditId: nextId })
     expect(out).toEqual({ result: 'live_exists' })
-    expect((await rows(control, 'select revoked_at from invitations where id = ?', owner.id))[0]!.revoked_at).toBeNull()
+    expect((await liveOwners(AT)).map((r) => r.id)).toContain(owner.id)
+    expect((await rows(ctl, 'select revoked_at from invitations where id = ?', owner.id))[0]!.revoked_at).toBeNull()
+    expect((await audit(owner.id)).map((r) => r.action)).toEqual(['invitation.created'])
+    expect((await rows(ctl, 'select count(*) n from control_audit'))[0]!.n).toBe(auditBefore)
   })
 })
 

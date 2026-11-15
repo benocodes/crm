@@ -332,6 +332,7 @@ describe('6. re-runs and the one-time link (D7)', () => {
     const b = row(s, 'bootstrap')
     expect(b.status).toBe('ok')
     expect(b.detail).toContain(`owner invitation pending for ${OWNER} (expires ${first!.expires_at})`)
+    expect(b.detail).toContain(`a new link: vibase-server owner-reset --env demo --email ${OWNER}`)
     expect(await invitationRows()).toEqual([first])
     expect(await auditRows()).toHaveLength(audits)
     expect(urlLines(s)).toEqual([])
@@ -389,6 +390,7 @@ describe('6. re-runs and the one-time link (D7)', () => {
       before(s)
       expect(await run(s, [...ARGS, '--dry-run'])).toBe(0)
       expect(row(s, 'bootstrap').detail).toContain(`owner invitation pending for ${OWNER}`)
+      expect(row(s, 'bootstrap').detail).toContain(`a new link: vibase-server owner-reset --env demo --email ${OWNER}`)
       expect(await invitationRows()).toEqual(snapshot)
     })
     it('owner exists: reports it and issues nothing', async () => {

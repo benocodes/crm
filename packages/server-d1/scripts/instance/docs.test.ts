@@ -48,7 +48,7 @@ export function shellLines(md: string): Line[] {
 const stripEnv = (l: string) => l.replace(/^(?:[A-Z_][A-Z0-9_]*=\S+\s+)+/, '')
 const flagsOf = (words: string[]) => words.filter((w) => w.startsWith('--') && w.length > 2).map((w) => w.split('=')[0]!)
 
-const SERVER_COMMANDS = ['status', 'upgrade', 'setup']
+const SERVER_COMMANDS = ['status', 'upgrade', 'setup', 'owner-reset']
 const probes = new Map<string, Promise<boolean>>()
 /** Does the shipped program accept this flag for this command? Asked of its own parser: the flag alone, and only "Unknown option" counts as no. */
 function accepts(command: string, flag: string): Promise<boolean> {
@@ -227,10 +227,38 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
     expect(lines[0]!.line).not.toContain('--auth clerk')
     expect(lines.some((l) => l.line.includes('--auth clerk'))).toBe(true)
   })
-  it('self-hosting names the owner invitation link printed once, and promises neither owner-reset nor workers.dev (later cycles)', () => {
+  it('self-hosting names the owner invitation link printed once, and still promises no workers.dev (a later cycle)', () => {
     expect(s()).toMatch(/shown once|printed once/i)
-    expect(s()).not.toMatch(/owner-reset|workers\.dev/i)
-    expect(README()).not.toMatch(/owner-reset|--workers-dev/)
+    expect(s()).not.toMatch(/workers\.dev/i)
+    expect(README()).not.toMatch(/--workers-dev/)
+  })
+  it.each([['self-hosting', () => s()], ['the server-d1 README', () => README()]])('%s: an owner-reset section gives the command, says what it prints once, and why the secrets file must be kept (OPS307 D13)', (_n, md) => {
+    const text = md()
+    const section = /^#{2,3}\s+.*(owner-reset|recover).*$/im.exec(text)
+    expect(section, 'a heading naming owner-reset or recovery').not.toBeNull()
+    const body = text.slice(section!.index).split(/^## /m)[0]!
+    expect(body).toContain('owner-reset --env <name>')
+    expect(body).toMatch(/--email/)
+    expect(has(body, 'reset link')).toBe(true)
+    expect(has(body, 'invitation')).toBe(true)
+    expect(has(body, 'printed once')).toBe(true)
+    expect(has(body, 'AUTH_SECRET')).toBe(true)
+    expect(has(body, 'keep')).toBe(true)
+    expect(has(body, 'Cloudflare credentials')).toBe(true)
+    expect(body).toMatch(/--dry-run/)
+  })
+  it('self-hosting: the source path under "From source" carries the bootstrap --owner-reset command line', () => {
+    const lines = shellLines(s()).filter((l) => l.line.includes('--owner-reset'))
+    expect(lines.length).toBeGreaterThan(0)
+    for (const l of lines) {
+      expect(l.heading).toBe('From source')
+      expect(l.line).toContain('CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset')
+    }
+  })
+  it('AGENTS.md lists the owner-reset command line', () => {
+    const line = AGENTS().split('\n').find((l) => l.includes('bootstrap -- --remote --env <name> --owner-reset'))
+    expect(line).toBeDefined()
+    expect(line).toContain('vibase-server owner-reset --env <name>')
   })
   it('AGENTS.md: setup:remote takes [--auth better-auth|clerk|none] and says better-auth is the default for a new instance', () => {
     const line = AGENTS().split('\n').find((l) => l.includes('setup:remote -- --env <name>'))!

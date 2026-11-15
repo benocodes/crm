@@ -217,9 +217,9 @@ describe('3. the Google line (D4, P2)', () => {
 
 describe('4. the no-email statement (D5, P3)', () => {
   const stmt = (s: SetupWorld) => lines(s).includes(NO_EMAIL_STATEMENT)
-  it('the text has no owner sentence', () => {
-    expect(NO_EMAIL_STATEMENT).toBe('Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner. Invitation links are printed for you to send.')
-    expect(NO_EMAIL_STATEMENT).not.toMatch(/owner-reset|vibase-server/)
+  it('the text is CORE243 D16\'s in full, with its owner sentence (OPS307 D5)', () => {
+    expect(NO_EMAIL_STATEMENT).toBe('Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner; an owner gets one from `vibase-server owner-reset` (needs this instance\'s Cloudflare credentials). Invitation links are printed for you to send.')
+    expect(NO_EMAIL_STATEMENT).toMatch(/an owner gets one from `vibase-server owner-reset`/)
   })
   it('the empty state prints it', async () => {
     const s = deployed()
