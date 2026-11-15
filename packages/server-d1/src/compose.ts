@@ -491,7 +491,7 @@ export function composeD1Worker(
     return builtInService
   }
 
-  // [[CORE245]] P2: the invitation operations' port over the control store, only with the built-in provider (`control` exists only for it); `PUBLIC_BASE_URL` names the invitation URL's origin.
+  // [[CORE245]] P2: the invitation operations' port over the control store, needs `builtInConfig` (Better Auth, [[CORE326]] P3); `control` itself exists in every mode; `PUBLIC_BASE_URL` names the invitation URL's origin.
   const invitations: InvitationsRuntime | null =
     control && builtInConfig
       ? {

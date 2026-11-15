@@ -123,8 +123,8 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
       if (!rollback) {
         // Control first, then CRM ([[OPS275]] D14): each is applied, then its tracker must read exactly the shipped list before the next step.
         const targets: { binding: 'DB' | 'CONTROL_DB'; label: string; expected: string[] }[] = [
-          ...(g.control ? [{ binding: 'CONTROL_DB' as const, label: ' control', expected: g.control.expected }] : []),
-          { binding: 'DB' as const, label: g.control ? ' crm' : '', expected },
+          { binding: 'CONTROL_DB' as const, label: ' control', expected: g.control.expected },
+          { binding: 'DB' as const, label: ' crm', expected },
         ]
         for (const t of targets) {
           step = `migrate${t.label}`

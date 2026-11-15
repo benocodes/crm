@@ -28,8 +28,8 @@ export interface GateOutcome {
   applied: string[] | null
   /** Names in the package not applied yet, in release order. */
   pending: string[]
-  /** The control-plane database ([[OPS275]] D4): present whenever the settings record `control_d1` (always, for every command but `setup`, [[CORE326]] P5). `applied` `null`: no tracker table; `pending` then lists every control migration. */
-  control?: {
+  /** The control-plane database ([[OPS275]] D4): always present: every command but `setup` loads settings that record `control_d1` ([[CORE326]] P5). `applied` `null`: no tracker table; `pending` then lists every control migration. */
+  control: {
     expected: string[]
     applied: string[] | null
     pending: string[] /** The sweep's pending counts when asked for; `null`: unreadable. */
@@ -117,28 +117,27 @@ export function readTrackerAt(
     throw new InstanceRefusal(`wrangler d1 execute failed (exit ${r.status ?? 'none'}): ${secrets.redact(detail)}`)
   }
 }
-/** Both trackers from one generated config, the control one first when the settings record a control database. */
+/** Both trackers from one generated config, the control one first (settings always record one, [[CORE326]] P5). */
 const readTrackers = (
   settings: InstanceSettings,
   secrets: Secrets,
   deps: InstanceDeps,
   withCounts = false,
-): { control: string[] | null | undefined; crm: string[] | null; sweep?: SweepCounts | null } =>
+): { control: string[] | null; crm: string[] | null; sweep?: SweepCounts | null } =>
   withGeneratedConfig({ packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot }, (configPath) => {
-    const control = settings.control_d1 ? readTrackerAt(configPath, secrets, deps, 'CONTROL_DB') : undefined
+    const control = readTrackerAt(configPath, secrets, deps, 'CONTROL_DB')
     const crm = readTrackerAt(configPath, secrets, deps, 'DB')
     // [[CORE289]] P6: two read-only SELECTs through the same generated config; a failed read is `unavailable`, never a refusal.
-    const sweep =
-      withCounts && settings.control_d1
-        ? readSweepCounts((binding, sql) => {
-            const r = deps.runWrangler(
-              ['d1', 'execute', binding, '--remote', '--json', '--command', sql, '-c', configPath],
-              { cwd: join(configPath, '..'), env: childEnv(deps, secrets) },
-            )
-            if (r.status !== 0) throw new Error('wrangler d1 execute failed')
-            return r.stdout
-          }, new Date())
-        : undefined
+    const sweep = withCounts
+      ? readSweepCounts((binding, sql) => {
+          const r = deps.runWrangler(
+            ['d1', 'execute', binding, '--remote', '--json', '--command', sql, '-c', configPath],
+            { cwd: join(configPath, '..'), env: childEnv(deps, secrets) },
+          )
+          if (r.status !== 0) throw new Error('wrangler d1 execute failed')
+          return r.stdout
+        }, new Date())
+      : undefined
     return { control, crm, ...(sweep === undefined ? {} : { sweep }) }
   })
 
@@ -169,7 +168,7 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
     // [[OPS234]] P3: a rollback deploys an older Worker on a newer schema; it may not need a migration the database lacks, and the instance must be newer.
     const have = new Set(applied ?? [])
     const missing = known.filter((n) => !have.has(n))
-    if (controlApplied !== undefined) {
+    {
       const haveControl = new Set(controlApplied ?? [])
       const controlMissing = controlKnown.filter((n) => !haveControl.has(n))
       if (controlMissing.length > 0)
@@ -212,15 +211,12 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
   }
   const have = new Set(applied ?? [])
   const haveControl = new Set(controlApplied ?? [])
-  const control =
-    controlApplied === undefined
-      ? undefined
-      : {
-          expected: controlKnown,
-          applied: controlApplied,
-          pending: controlKnown.filter((n) => !haveControl.has(n)),
-          ...(trackers.sweep === undefined ? {} : { sweep: trackers.sweep }),
-        }
+  const control = {
+    expected: controlKnown,
+    applied: controlApplied,
+    pending: controlKnown.filter((n) => !haveControl.has(n)),
+    ...(trackers.sweep === undefined ? {} : { sweep: trackers.sweep }),
+  }
   return {
     manifest,
     settings,
@@ -228,16 +224,15 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
     live,
     applied,
     pending: known.filter((n) => !have.has(n)),
-    ...(control ? { control } : {}),
+    control,
     notes,
     secrets,
   }
 }
 
-/** The tracker diff of each database ([[OPS275]] D14): with a control database each is prefixed `[control]` / `[crm]`; without, today's unprefixed CRM lines and the P1 line. */
+/** The tracker diff of each database ([[OPS275]] D14): each is prefixed `[control]` / `[crm]`. */
 export function diffLines(g: GateOutcome): string[] {
   const expected = g.manifest.migrations.map((m) => m.name)
-  if (!g.control) return formatMigrationDiff(g.applied, expected)
   return [
     ...formatMigrationDiff(g.control.applied ?? [], g.control.expected).map((l) => `[control] ${l}`),
     ...(g.control.applied === null ? ['[control]   (no d1_migrations table)'] : []),
@@ -252,9 +247,9 @@ export function pendingLines(g: GateOutcome): string[] {
     pending.length === 0 ? `${tag}migrations to apply: none` : `${tag}migrations to apply (${pending.length}):`,
     ...pending.map((n) => `${tag}  ${n}`),
   ]
-  return g.control ? [...one('[control] ', g.control.pending), ...one('[crm] ', g.pending)] : one('', g.pending)
+  return [...one('[control] ', g.control.pending), ...one('[crm] ', g.pending)]
 }
 
 /** True when every configured database has nothing pending and the CRM tracker is exactly the shipped list. */
 export const databasesCurrent = (g: GateOutcome, crmStatus: string): boolean =>
-  crmStatus === 'current' && (g.control === undefined || g.control.pending.length === 0)
+  crmStatus === 'current' && g.control.pending.length === 0
