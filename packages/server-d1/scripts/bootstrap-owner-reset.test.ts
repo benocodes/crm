@@ -42,7 +42,7 @@ const driver: Driver = {
     return { code, out: d.out, err: d.err }
   },
 }
-ownerResetSuite('bootstrap --remote --owner-reset', () => driver)
+ownerResetSuite('bootstrap --remote --owner-reset', () => driver, { dryRun: false })
 
 describe('bootstrap --owner-reset: arguments and guards', () => {
   const run = async (argv: string[], env: NodeJS.ProcessEnv = { CONFIRM_REMOTE: '1' }, over: Partial<OwnerResetRemoteDeps> = {}) => {

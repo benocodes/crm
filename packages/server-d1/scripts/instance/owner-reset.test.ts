@@ -5,11 +5,10 @@ import { runInstance, INSTANCE_HELP } from './main.js'
 import { runOwnerReset } from './owner-reset.js'
 import { serverHelpProblems } from '../../../release/src/help-assertions.js'
 import { ownerResetSuite, SECRET, BASE, type Driver, type RunOptions } from '../owner-reset.suite.js'
-import { CONTROL_D1, SECRETS_TEXT, cleanup, controlSettings, makeWorld } from './test-kit.js'
+import { SECRETS_TEXT, cleanup, controlSettings, makeWorld } from './test-kit.js'
 
 afterEach(() => cleanup())
 
-const HOST = 'api.demo.invalid'
 function world(o: RunOptions) {
   const r = o.record ?? {}
   const provider = r.provider ?? 'better-auth'
@@ -30,28 +29,25 @@ const driver: Driver = {
     return { code, out: w.out, err: w.err }
   },
 }
-ownerResetSuite('vibase-server owner-reset', () => driver)
+ownerResetSuite('vibase-server owner-reset', () => driver, { dryRun: true })
 
 describe('vibase-server owner-reset: arguments and exit codes', () => {
-  const dbs = { crm: {} as never, control: {} as never }
-  const go = async (argv: string[], over: Partial<RunOptions> = {}, env: Record<string, string | undefined> = {}) => {
+  const go = async (argv: string[], env: Record<string, string | undefined> = {}) => {
     const w = makeWorld({ settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }), secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`, processEnv: env, openD1: async () => { throw new Error('the databases must not be opened') } })
-    void over
     const code = await runOwnerReset(argv, w.deps)
     return { code, text: w.all(), w }
   }
-  void dbs
 
   it('--env is required, an unknown flag is refused, and each refusal is exit 2 with the usage', async () => {
     for (const argv of [[], ['--env', 'demo', '--bogus'], ['--env', 'Bad_Name']]) {
-      const r = await go(argv, {}, { CONFIRM_REMOTE: '1' })
+      const r = await go(argv, { CONFIRM_REMOTE: '1' })
       expect(r.code, argv.join(' ')).toBe(2)
       expect(r.text).toContain('vibase-server owner-reset')
     }
   })
 
   it('a real run needs CONFIRM_REMOTE=1 and is refused before the databases are opened', async () => {
-    const r = await go(['--env', 'demo'], {}, {})
+    const r = await go(['--env', 'demo'], {})
     expect(r.code).toBe(2)
     expect(r.text).toMatch(/CONFIRM_REMOTE=1/)
     expect(r.w.openD1Calls).toEqual([])
@@ -77,8 +73,6 @@ describe('vibase-server owner-reset: arguments and exit codes', () => {
     expect(opened[0]).toMatchObject({ remoteBindings: true, persist: false })
     expect(Object.keys((opened[0] as { env: object }).env).sort()).toEqual(['CI', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'HOME', 'PATH', 'WRANGLER_SEND_METRICS'])
     expect(w.all()).not.toContain(SECRET)
-    expect(CONTROL_D1.name).toBeTruthy()
-    expect(HOST).toBeTruthy()
   })
 })
 

@@ -73,7 +73,8 @@ function failingAudit(real: D1Like): D1Like {
   }
 }
 
-export function ownerResetSuite(label: string, makeDriver: () => Driver | Promise<Driver>): void {
+/** `dryRun`: whether the front-end has `--dry-run`; the dry-run case is only registered when it does, so a front-end without it never reports a test that did not run. */
+export function ownerResetSuite(label: string, makeDriver: () => Driver | Promise<Driver>, opts: { dryRun: boolean }): void {
   describe(`owner-reset through ${label}`, () => {
     let pair: WorkerPair
     let kit: AuthKit
@@ -175,8 +176,7 @@ export function ownerResetSuite(label: string, makeDriver: () => Driver | Promis
         await seed([{ email: 'ghost@x.test', account: false }])
         await refusal({}, /ghost@x\.test/)
       })
-      it('--dry-run reads only: it names the path, writes nothing and prints no token or URL', async () => {
-        if (!driver.dryRun) return
+      if (opts.dryRun) it('--dry-run reads only: it names the path, writes nothing and prints no token or URL', async () => {
         const { owners } = await seed([{ email: 'a@x.test' }])
         const reset = await drive({ dryRun: true })
         expect(reset.code, allText(reset)).toBe(0)
@@ -228,11 +228,15 @@ export function ownerResetSuite(label: string, makeDriver: () => Driver | Promis
       })
 
       it('with several owners, --email picks one', async () => {
-        await seed([{ email: 'a@x.test' }, { email: 'b@x.test' }])
+        const { owners } = await seed([{ email: 'a@x.test' }, { email: 'b@x.test' }])
         const r = await drive({ email: 'B@X.test' })
         expect(r.code, allText(r)).toBe(0)
-        expect(allText(r)).toContain('b@x.test')
-        expect((await rows(pair.control, "select detail from control_audit where action = 'user.reset_link_issued'")).length).toBe(1)
+        const links = r.out.filter((l) => l.includes('/reset-password#token='))
+        expect(links).toHaveLength(1)
+        expect(links[0]).toContain('b@x.test')
+        expect(allText(r)).not.toContain('a@x.test')
+        const audit = await rows(pair.control, "select target_id from control_audit where action = 'user.reset_link_issued'")
+        expect(audit).toEqual([{ target_id: owners[1]!.subject }])
       })
 
       it('P3 (a): a failing audit write prints nothing, exits with the after-write code, and the unused verification row is the only trace', async () => {
