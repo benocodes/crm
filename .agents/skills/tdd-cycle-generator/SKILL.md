@@ -230,6 +230,14 @@ holds; the rounds came from the spec. P1 said which token re-admits but not *whe
 first review had to add "created after the latest removal", and the fix for that weakened a same-second pin. When a
 rule restores something a removal took away (a membership, a grant, a key), the spec bounds the restoring credential
 in time ("issued after the removal"), and every timestamp-bound pin is built on a whole second (writing-tests).
+**CORE304** (`knowledge/specs/015-CORE304-self-service-reset/RETRO.md`): 6 groups (1 matrix), 4 decisions + 4 planner
+rules, no migration, 1 local E2E part, riders folded into group 6. It cost ~300k in its final run (+278 code / +1033 test
+lines, 27 files), approved round 1 with no findings plus one free gate-fix round. The budget holds at the group limit. Two
+charter lines were wrong against the real library and tooling: a refusal row for a route Better Auth 1.7.22 does not have
+(`/forget-password`, a 404 before any hook), and "a new leg in `e2e:auth-pages`" for a scenario that needs a different
+Worker configuration (email on, its own entry), which must be its own script (writing-tests §7). Before chartering a
+behaviour of a library route, check the route exists in the pinned version; an E2E part whose Worker differs from an
+existing script's is a new script, not a leg.
 
 ### Step 3: Resolve identities
 
