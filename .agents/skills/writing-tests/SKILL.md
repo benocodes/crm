@@ -522,11 +522,11 @@ A test that fails once and then passes is a bug until its cause is found. Do not
 - Never run two suites against one database at once (`pgrep -f vitest`); run the `db` and `api` suites
   serially. Inside a package, Vitest 4+ has no `poolOptions.forks.singleFork`: use `pool: 'forks'` with
   `fileParallelism: false`.
-- **`@vibase/api` runs its files in parallel ([[OPS223]]).** The `engine-neutral` and `d1` projects allow file parallelism (each file
-  has a private in-memory D1 in its own forked process) and `packages/api`'s `test` script sets 4 workers; every other package stays
-  at the root's `maxWorkers: 1`. The `postgres` project stays serial (`fileParallelism: false`, `vitest.postgres.config.ts` has
-  `maxWorkers: 1`; `packages/storage/src/test-config.test.ts` asserts both). The api suite takes about 4.5 to 6 minutes (276 to 339 s; 971 s serial) and
-  must be alone on the machine; on a loaded one run `VITEST_MAX_WORKERS=N pnpm -C packages/api test` with a lower N and name N in
+- **Every D1 package runs its files in parallel ([[OPS223]], [[OPS338]]).** The `engine-neutral` and `d1` projects allow file parallelism (each file
+  has a private in-memory D1 in its own forked process) and the `test` scripts of `packages/api`, `server-d1`, `storage-d1` and `cli` set 4 workers; the
+  root default stays `maxWorkers: 1`. The `postgres` project stays serial (`fileParallelism: false`, `vitest.postgres.config.ts` has
+  `maxWorkers: 1`; `packages/storage/src/test-config.test.ts` asserts both, and each package's worker count). Alone on the machine, api takes about 4.5 to 6 minutes
+  (276 to 339 s; 971 s serial), server-d1 350 s (973 s serial), storage-d1 22 to 26 s, cli 16 to 18 s (OPS339), and each must be alone; on a loaded one run `VITEST_MAX_WORKERS=N pnpm -C packages/<pkg> test` with a lower N and name N in
   RESULT.md. Vitest rejects a second `--maxWorkers` flag, so use the variable. A new test file must not rely on running
   alone: no fixed ports, no files under the repo, no `process.env` another file reads.
 - **Run the heavy suites one package at a time.** `packages/api` (the `contract.integration.d1` file especially), `packages/cli`

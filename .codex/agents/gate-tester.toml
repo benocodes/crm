@@ -18,7 +18,7 @@ the worktree, branch and sha.
 2. Run `scripts/gate.sh` with no argument (its default log dir is outside every repo, and `~/.cache/vibase-gate/latest` always points at it so the human can `tail -f ~/.cache/vibase-gate/latest/all.log`; the status file is `~/.cache/vibase-gate/latest/gate.status`, the same path as `<log-dir>/gate.status` below). Say that tail command in your first message once, in the background, and wait **once** for it
    (`until grep -q GATE_EXIT <log-dir>/gate.status; do sleep 30; done`, with the longest timeout the runtime
    allows). Send nothing while it runs; if the wait expires, wait again until the marker appears (the gate takes
-   ~25 min; CORE326's gate-tester gave up early), giving up only after 60 min. Never poll the logs, never start a second run while one is going,
+   about 15 min with four test workers in every D1 package (OPS338); CORE326's gate-tester gave up early), giving up only after 45 min (a gate still running at 45 min is a hang: report it). Never poll the logs, never start a second run while one is going,
    never run other test commands.
 3. Read `gate.status`, then for each step the log's final summary lines (vitest's `Test Files`/`Tests`
    lines, the first error for a failing step). That is all you read, plus one
