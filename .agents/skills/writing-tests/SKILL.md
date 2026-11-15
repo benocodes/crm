@@ -188,6 +188,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   after, like `process.stdin` at its end. A fake that hands back the full input on every read hid a double read in the
   CLI's stale-cache retry ([[CORE136]] review); the test that caught it runs the same bad `--data -` fresh, then on the
   cached state, and asserts identical stderr and no request sent.
+- **A fake that answers for a real component is tied to it by a test.** When a kit fakes what the Worker answers
+  (discovery, metadata), build the fake from one module of answer builders and add one test that composes the real
+  Worker in-process (`composeD1Worker`) and compares its answers with the builders. Every kit then uses those builders.
+  The fake cannot drift, and no E2E is needed for that seam ([[OPS306]],
+  `packages/server-d1/scripts/setup/better-auth-answers.test.ts`).
+- **Docs that quote program text are checked against the program's constant.** The docs test imports the constant,
+  never retypes it, so editing the constant turns the docs check red. A check that the docs "do not promise X yet" can
+  only search for names (`owner-reset`, `workers.dev`). A paraphrase ("the owner recovery tools need it") passes it, so
+  the reviewer reads the prose too ([[OPS306]] review, `packages/server-d1/scripts/instance/docs.test.ts`).
 - **A polling loop is tested through its injected clock, never real time.** The CLI's `--follow` sleeps through
   `deps.sleep` and stops on an optional `deps.signal` (`AbortSignal`, checked after each drain and each sleep); the
   test's `sleep` callback adds events to the fake feed and aborts on the nth call, then asserts the sleeps
