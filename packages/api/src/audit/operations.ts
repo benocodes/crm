@@ -49,7 +49,7 @@ export function auditOperations(runtime: AuditRuntime | null): ControlOperation[
           throw new ApiError(
             501,
             'provider_not_configured',
-            'the audit log is held in the control-plane database (CONTROL_DB), which this deployment does not have',
+            'the audit log is held in the control-plane database, which this deployment does not have',
           )
         const query = input.query as z.infer<typeof listQuery>
         const limit = query.limit ?? 50
