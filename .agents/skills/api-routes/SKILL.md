@@ -351,6 +351,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     composition hands in no port (`clerk`, unset) it answers `501 provider_not_configured`; it stays registered on every
     provider, so there is one registry and one golden. Reuse this kind for the next control-plane resource
     (`audit.list`, [[CORE261]]) rather than adding another.
+    Turning tenant operations into control operations ([[CORE337]], webhooks, `WebhooksPort` in
+    `src/webhooks/port.ts`) changes more than the store: no `x-vibase-proposal` is emitted, `d1Only` goes (a
+    composition without the port answers `501 provider_not_configured`, not `not_implemented`), and a list leaves the
+    tenant hand-written lists (the exemption lists in `storage/filter-costs.ts`, `sort-costs.ts` and their contract
+    tests shrink). Declare the port's record types in `@vibase/api` itself; never re-export the store's types from
+    `@vibase/storage-d1` (the [[CORE337]] review finding). CRM facts the control write needs (an agent's scopes, the
+    newest event id) are read before the control call through `ControlEnv.read(program)`, which refuses a mutating
+    program; it is the only CRM access a control operation has.
   - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
     derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
   - `surface` is required, `'api'` (records) or `'meta'` (configuration: agents, API keys, members, users, `me`,

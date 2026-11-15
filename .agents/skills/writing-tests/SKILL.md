@@ -569,6 +569,12 @@ there is deliberately no task or event seed: create those through the service la
 is for `truncateAll` and catalog inspection only, never fixtures. Both factories refuse a database whose
 name doesn't match `/(^|_)test(_|$)/`.
 
+**Moving data to another store: the kit guards the old tables.** When a cycle moves reads and writes off a table
+that stays in the schema (dropped later), make the test kit itself throw on `reset()`/`close()` if the old table
+holds a row, rather than adding an "old table empty" assertion per test: every suite on the kit then proves "nothing
+writes there any more", including suites nobody remembered to touch ([[CORE337]] D10, `openWebhookKit` in
+`packages/api/src/test/webhook-kit.ts`; its red run turned 136 tests red on the old code at once).
+
 **D1 harness.** Each test organisation gets its own disposable binding (in-memory Miniflare), never two
 organisations in one D1. A foreign organisation's identity must be refused, not filtered: test the refusal,
 and test that a second organisation fails on a foreign key ([[CORE35]] D18).
