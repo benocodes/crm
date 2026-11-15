@@ -534,7 +534,7 @@ A test that fails once and then passes is a bug until its cause is found. Do not
   has a private in-memory D1 in its own forked process) and the `test` scripts of `packages/api`, `server-d1`, `storage-d1` and `cli` set 4 workers; the
   root default stays `maxWorkers: 1`. The `postgres` project stays serial (`fileParallelism: false`, `vitest.postgres.config.ts` has
   `maxWorkers: 1`; `packages/storage/src/test-config.test.ts` asserts both, and each package's worker count). Alone on the machine, on the request transport (below), api takes about
-  105 s, server-d1 about 130 s, storage-d1 about 13 s and cli about 10 s (OPS340 runs; on the binding transport 382, 377, 24 and 16 s; 971 and 973 s serial for api
+  105 s, server-d1 about 130 s, storage-d1 about 13 s and cli about 10 s (OPS340 runs; on the binding transport 382, 376, 24 and 15 s; 971 and 973 s serial for api
   and server-d1), the whole gate about 5 to 7 minutes (the sum of those stages plus typecheck, build and lint; the OPS340 gates' measured time replaces this), and each must be alone; on a loaded one run `VITEST_MAX_WORKERS=N pnpm -C packages/<pkg> test` with a lower N and name N in
   RESULT.md. Vitest rejects a second `--maxWorkers` flag, so use the variable. A new test file must not rely on running
   alone: no fixed ports, no files under the repo, no `process.env` another file reads.
