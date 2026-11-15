@@ -4,6 +4,8 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { runUpgrade } from './upgrade.js'
 import {
   ACCOUNT,
+  bindingOf,
+  CONTROL_ALL,
   captureHealthBody,
   cleanup,
   makeWorld,
@@ -88,6 +90,11 @@ function worldFor(s: Sim, o: WorldOptions & { runner?: WorldOptions['runner'] } 
       o.runner ??
       ((args, _env) => {
         const sub = args.slice(0, 3).join(' ')
+        // [[CORE326]] P5: every instance records a control database; here it is always current (OPS275's own matrix is in control.test.ts).
+        if (bindingOf(args) === 'CONTROL_DB')
+          return sub.startsWith('d1 execute')
+            ? { status: 0, stdout: trackerJson(CONTROL_ALL), stderr: '' }
+            : { status: 0, stdout: 'applied', stderr: '' }
         if (sub.startsWith('d1 execute')) {
           if (s.applyRan && s.trackerAfterApply !== undefined)
             return { status: 0, stdout: s.trackerAfterApply, stderr: '' }
@@ -116,7 +123,10 @@ const run = async (s: Sim, argv: string[] = ['--env', 'demo'], o: WorldOptions =
   const w = worldFor(s, o)
   return { w, s, code: await runUpgrade(argv, w.deps) }
 }
-const verbs = (w: World) => w.wrangler.map((c) => c.args.slice(0, c.args[0] === 'd1' ? 3 : 1).join(' '))
+// The CRM sequence this file pins; the control database's own calls (always current here) are OPS275's, in control.test.ts.
+const crmCalls = (w: World) =>
+  w.wrangler.filter((c) => bindingOf(c.args) !== 'CONTROL_DB' && c.args[3] !== 'CONTROL_DB')
+const verbs = (w: World) => crmCalls(w).map((c) => c.args.slice(0, c.args[0] === 'd1' ? 3 : 1).join(' '))
 const writes = (w: World) => verbs(w).filter((v) => !v.startsWith('d1 execute'))
 const noTemp = (w: World) => expect(readdirSync(w.tmpRoot)).toEqual([])
 
@@ -131,9 +141,9 @@ describe('D15 upgrade sequence and guards', () => {
       expect(c.args).not.toContain('--env')
       expect(c.configPath).toMatch(/vibase-instance-.*wrangler\.jsonc$/)
     }
-    const apply = w.wrangler[1]!.args
-    expect(apply).toEqual(['d1', 'migrations', 'apply', 'DB', '--remote', '-c', w.wrangler[1]!.configPath])
-    const deploy = w.wrangler[3]!.args
+    const apply = crmCalls(w)[1]!.args
+    expect(apply).toEqual(['d1', 'migrations', 'apply', 'DB', '--remote', '-c', crmCalls(w)[1]!.configPath])
+    const deploy = crmCalls(w)[3]!.args
     expect(deploy).toContain('--no-bundle')
     expect(deploy.join(' ')).toContain(`--var VERSION:${PKG_VERSION}`)
     expect(deploy.join(' ')).toMatch(/--var COMMIT:\S+/)
@@ -273,7 +283,7 @@ describe('D16 rollback (P3)', () => {
     expect(verbs(w)).toEqual(['d1 execute DB', 'deploy'])
     expect(w.wrangler.some((c) => c.args.includes('migrations'))).toBe(false)
     expect(w.out.join('\n')).toMatch(/database stays at its newer schema/)
-    expect(w.wrangler[1]!.args).toContain('--no-bundle')
+    expect(crmCalls(w)[1]!.args).toContain('--no-bundle')
     expect(w.out.join('\n')).toMatch(/rollback/i)
     noTemp(w)
   })
@@ -395,7 +405,11 @@ describe('secrets and side effects', () => {
       }
       if (args.slice(0, 3).join(' ').startsWith(failOn)) return echo
       if (args[0] === 'd1' && args[1] === 'execute')
-        return { status: 0, stdout: trackerJson(['0001_a.sql']), stderr: '' }
+        return {
+          status: 0,
+          stdout: trackerJson(bindingOf(args) === 'CONTROL_DB' ? CONTROL_ALL : ['0001_a.sql']),
+          stderr: '',
+        }
       return { status: 0, stdout: 'ok', stderr: '' }
     }
   it('a failing migrate or deploy that echoes its whole env prints no secret', async () => {

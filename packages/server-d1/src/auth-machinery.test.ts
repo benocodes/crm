@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { AUTH_TABLES } from '@vibase/auth'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { MIGRATIONS } from '@vibase/storage-d1'
+import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker } from './compose.js'
 import { NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
@@ -47,14 +47,14 @@ describe('the auth tables are machinery (D5)', () => {
     const { key } = await bootstrapD1(
       w.d1,
       { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme' },
-      { now: NOW, newId: () => uuidv7(NOW) },
+      { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) },
     )
     await createMigrationTracker(w.d1)
     await recordMigrations(
       w.d1,
       MIGRATIONS.map((m) => m.name),
     )
-    const res = await composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' }).fetch(
+    const res = await composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: '' }).fetch(
       new Request('https://w.test/meta/v1/schema', { headers: { authorization: `Bearer ${key}` } }),
     )
     expect(res.status).toBe(200)

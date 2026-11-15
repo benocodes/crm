@@ -21,6 +21,7 @@ describe('the bootstrap CLI never reaches a remote (spec D7)', () => {
 
 const REQUIRED = ['--org', 'smoked1', '--email', 'x@y.z', '--agent', 'operator', '--auth-org-id', 'smoked1']
 const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
+const CONTROL_UUID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 
 describe('remote mode (C7)', () => {
   it('remote proxy options name the environment and allow remote bindings', () => {
@@ -83,12 +84,31 @@ describe('remote mode (C7)', () => {
     expect(getPlatformProxy).not.toHaveBeenCalled()
   })
 
+  it('an env without a CONTROL_DB entry is refused before the proxy, naming setup:remote ([[CORE326]] P4)', async () => {
+    const getPlatformProxy = vi.fn()
+    const config = {
+      name: 'vault-smoked1',
+      d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }],
+    }
+    const err = await runRemoteGuards(
+      { envName: 'smoked1', keyEnv: 'K' },
+      { CONFIRM_REMOTE: '1' },
+      { loadEnv: () => {}, readEnvText: () => '', readConfig: () => config, getPlatformProxy, log: () => {} },
+    ).catch((e) => e)
+    expect(err).toBeInstanceOf(RemoteRefusal)
+    expect(err.message).toContain('setup:remote --env smoked1')
+    expect(getPlatformProxy).not.toHaveBeenCalled()
+  })
+
   it('opens the remote proxy only after every guard passes', async () => {
     const proxy = { env: { DB: {} }, dispose: async () => {} }
     const getPlatformProxy = vi.fn().mockResolvedValue(proxy)
     const config = {
       name: 'vault-smoked1',
-      d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }],
+      d1_databases: [
+        { binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true },
+        { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true },
+      ],
     }
     const r = await runRemoteGuards(
       { envName: 'smoked1', keyEnv: 'K' },

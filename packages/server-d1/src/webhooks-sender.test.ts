@@ -4,8 +4,8 @@ import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { FakeTransport, TEST_TRANSPORT, registerTestOperations } from '@vibase/api/test/rail'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { NOW, meterD1, openWorkerD1, type WorkerD1 } from './test/kit.js'
+import { type D1WorkerEnv } from './compose.js'
+import { NOW, meterD1, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // API220 (D6 send half, D24): the per-minute expression sends webhooks after dispatch, inside one budget of D1 queries plus outbound fetches shared with the rail. The sender's and dispatcher's own
 // behaviour is proven in @vibase/api; here only the composition: the one handler, its order, the key gate, the budget, its configuration and its log line.

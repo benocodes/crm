@@ -6,6 +6,7 @@ import { runMigrate, type MigrateDeps } from './migrate-remote.js'
 // [[OPS260]] D14: the wrangler exec is faked; nothing here reaches a remote database.
 const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
 const CONTROL_UUID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+/** An env block with no `CONTROL_DB` entry: `hq` and `smoked1` until `setup:remote` runs there. */
 const crmOnly = {
   name: 'vault-smoked1',
   d1_databases: [{ binding: 'DB', database_name: 'vault-smoked1', database_id: UUID, remote: true }],
@@ -69,12 +70,18 @@ describe('db:migrate:remote (OPS260 D14)', () => {
     expect(applies(r.calls)).toEqual([expect.stringContaining('CONTROL_DB')])
     expect(r.calls.some((c) => c.includes('migrations apply DB'))).toBe(false)
   })
-  it('an env without a CONTROL_DB entry applies the CRM only and prints the not-configured line', () => {
-    const r = run(crmOnly)
-    expect(r.code).toBe(0)
-    expect(applies(r.calls)).toEqual([expect.stringMatching(/apply DB --remote --env smoked1/)])
-    expect(r.calls.some((c) => c.includes('CONTROL_DB'))).toBe(false)
-    expect(r.out).toContain('control plane: not configured for env smoked1 (CRM only)')
+  it('an env without a CONTROL_DB entry is refused before any wrangler call, naming setup:remote ([[CORE326]] P4)', () => {
+    const f = fake(crmOnly)
+    let err: unknown
+    try {
+      runMigrate(['--env', 'smoked1'], { CONFIRM_REMOTE: '1' }, f.deps)
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(RemoteRefusal)
+    expect((err as Error).message).toContain('setup:remote --env smoked1')
+    expect(f.calls.filter((c) => c !== 'loadEnv')).toEqual([])
+    expect(f.out).toEqual([])
   })
   it('a placeholder id is refused before any exec', () => {
     for (const cfg of [

@@ -1,12 +1,12 @@
 // OPS279: `bootstrap --remote` writes the control marker after the CRM row when the env binds `CONTROL_DB` ([[CORE259]] D7, P1), refuses a marker for
-// another organisation before any write, and stays CRM only (with the not-configured line) for an env with no `CONTROL_DB`. Local bootstrap is unchanged.
+// another organisation before any write; an env with no `CONTROL_DB` is refused (CORE326 P4, in runRemoteGuards). Local bootstrap pairs in every mode (CORE326 P6).
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { execute } from '@vibase/storage'
 import { d1Binding, openControlDb, readControlMarker, writeControlMarker, type D1Like } from '@vibase/storage-d1'
 import { initDeploymentOperation, readDeployment } from '../src/init-deployment.js'
 import { openWorkerPair, type WorkerPair } from '../src/test/kit.js'
 import { runBootstrap, type BootstrapIo } from './bootstrap.js'
-import { controlNotConfigured, type Target } from './remote.js'
+import type { Target } from './remote.js'
 
 let pair: WorkerPair
 beforeAll(async () => {
@@ -29,7 +29,6 @@ const withControl: Target = {
   databaseId: UUID,
   control: { databaseName: 'vb-control-demo', databaseId: CTL_UUID },
 }
-const crmOnly: Target = { env: 'demo', workerName: 'vb-demo', databaseName: 'vb-crm-demo', databaseId: UUID }
 
 function io(): BootstrapIo & { logs: string[]; errors: string[]; env: { text: string } } {
   const state = { text: '' }
@@ -111,17 +110,51 @@ describe('bootstrap --remote with CONTROL_DB bound', () => {
 })
 
 describe('bootstrap --remote without CONTROL_DB, and local bootstrap', () => {
-  it('an env with no CONTROL_DB stays CRM only and says so', async () => {
-    const i = io()
-    expect(await runBootstrap(remote(crmOnly), { env: { DB: pair.d1 } }, i)).toBe(0)
-    expect(i.logs).toContain(controlNotConfigured('demo'))
-    expect(await readDeployment(pair.d1)).not.toBeNull()
-    expect(await controlRows()).toBe('[]')
-  })
-
   it('a remote env that binds CONTROL_DB but whose proxy has none is refused before any write', async () => {
     const i = io()
     expect(await runBootstrap(remote(withControl), { env: { DB: pair.d1 } }, i)).toBe(1)
+    expect(await readDeployment(pair.d1)).toBeNull()
+  })
+
+  it('a local env with no control database is refused with neither database written ([[CORE326]] P6)', async () => {
+    for (const provider of ['none', 'clerk']) {
+      const i = io()
+      const v = provider === 'none' ? values : { ...values, 'auth-provider': 'clerk' }
+      expect(await runBootstrap({ mode: 'local', values: v, authOrgId: 'demo' }, { env: { DB: pair.d1 } }, i)).toBe(1)
+      expect(i.errors.join('\n')).toMatch(/CONTROL_DB/)
+      expect(await readDeployment(pair.d1)).toBeNull()
+      expect(await controlRows()).toBe('[]')
+    }
+  })
+
+  it('local bootstrap pairs the control marker in every mode: none and the Clerk issuer path, and a re-run leaves the control database unchanged ([[CORE326]] P6)', async () => {
+    for (const provider of ['none', 'clerk'] as const) {
+      await pair.reset()
+      const v =
+        provider === 'none'
+          ? values
+          : { org: 'demo', 'auth-provider': 'clerk', 'auth-org-id': 'https://clerk.example.com' }
+      const run = { mode: 'local' as const, values: v as never, authOrgId: v['auth-org-id'] }
+      expect(await runBootstrap(run, { env: { DB: pair.d1, CONTROL_DB: pair.control } }, io())).toBe(0)
+      const marker = { organizationId: (await readDeployment(pair.d1))!.organizationId }
+      expect(await readControlMarker(openControlDb(pair.control))).toEqual(marker)
+      const before = await controlRows()
+      // A second run is refused by the CRM side (already initialised) and leaves the control database as it was.
+      await runBootstrap(run, { env: { DB: pair.d1, CONTROL_DB: pair.control } }, io())
+      expect(await controlRows()).toBe(before)
+    }
+  })
+
+  it('a marker for another organisation is refused locally with no CRM row written ([[CORE326]] P6)', async () => {
+    await writeControlMarker(openControlDb(pair.control), OTHER)
+    const i = io()
+    expect(
+      await runBootstrap(
+        { mode: 'local', values: { ...values, 'auth-provider': 'clerk' } as never, authOrgId: 'demo' },
+        { env: { DB: pair.d1, CONTROL_DB: pair.control } },
+        i,
+      ),
+    ).toBe(1)
     expect(await readDeployment(pair.d1)).toBeNull()
   })
 

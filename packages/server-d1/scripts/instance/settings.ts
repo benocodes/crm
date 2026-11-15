@@ -33,7 +33,16 @@ const BARE_HOST = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
-export function parseSettings(text: string, envName: string, path: string): InstanceSettings {
+/**
+ * [[CORE326]] P5: `control_d1` is required (every instance has a control-plane database). `vibase-server setup` is the one command that still loads settings without it (`allowNoControl`),
+ * because it is what records the control database.
+ */
+export function parseSettings(
+  text: string,
+  envName: string,
+  path: string,
+  opts: { allowNoControl?: boolean } = {},
+): InstanceSettings {
   const fail = (message: string): never => {
     throw new InstanceRefusal(`${path}: ${message}`)
   }
@@ -82,10 +91,10 @@ export function parseSettings(text: string, envName: string, path: string): Inst
     if (typeof v !== 'string') fail(`vars.${k} must be a string`)
     vars[k] = v as string
   }
-  // P2: a Better Auth Worker answers 500 on every non-health request without its control database ([[CORE259]] D6).
-  if (vars.AUTH_PROVIDER === 'better-auth' && !control_d1)
+  // [[CORE326]] P5 (the general case of [[OPS275]] P2): a Worker answers 500 on every non-health request without its control database, in every auth mode ([[CORE259]] D6).
+  if (!control_d1 && !opts.allowNoControl)
     fail(
-      'vars.AUTH_PROVIDER is better-auth but control_d1 is missing: that instance needs its control database (name and id)',
+      `control_d1 is missing: every instance needs its control-plane database (name and id); run vibase-server setup --env ${envName} to add it`,
     )
   const out: InstanceSettings = {
     version: 1,
@@ -107,7 +116,7 @@ export function parseSettings(text: string, envName: string, path: string): Inst
   return out
 }
 
-export function loadSettings(path: string, envName: string): InstanceSettings {
+export function loadSettings(path: string, envName: string, opts: { allowNoControl?: boolean } = {}): InstanceSettings {
   let text: string
   try {
     text = readFileSync(path, 'utf8')
@@ -116,5 +125,5 @@ export function loadSettings(path: string, envName: string): InstanceSettings {
       `no settings file at ${path}: create it (vibase-server setup, or by hand) or pass --settings <path>`,
     )
   }
-  return parseSettings(text, envName, path)
+  return parseSettings(text, envName, path, opts)
 }

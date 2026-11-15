@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultSettingsPath, loadSettings, parseSettings } from './settings.js'
 import { PLACEHOLDER_DATABASE_ID, CONTROL_PLACEHOLDER_DATABASE_ID } from '../remote.js'
-import { CONTROL_D1, cleanup, controlSettings, mkTmp, UUID, validSettings } from './test-kit.js'
+import { CONTROL_D1, cleanup, controlSettings, mkTmp, noControlSettings, UUID, validSettings } from './test-kit.js'
 import { InstanceRefusal } from './types.js'
 
 afterEach(cleanup)
@@ -75,10 +75,13 @@ describe('D9 settings validation', () => {
 })
 
 describe('OPS275 control_d1 (P1, P2, D16)', () => {
-  it('absent loads (P1), with AUTH_PROVIDER unset or clerk', () => {
-    expect(parse(validSettings()).control_d1).toBeUndefined()
-    expect(parse(validSettings({ vars: { AUTH_PROVIDER: 'clerk' } })).control_d1).toBeUndefined()
-    expect(parse(validSettings({ vars: {} })).control_d1).toBeUndefined()
+  it('absent is refused in every auth mode, naming vibase-server setup --env <env> ([[CORE326]] P5)', () => {
+    for (const vars of [{ AUTH_PROVIDER: '' }, { AUTH_PROVIDER: 'clerk' }, { AUTH_PROVIDER: 'better-auth' }, {}])
+      refuses(noControlSettings({ vars }), /control_d1 is missing.*vibase-server setup --env demo/)
+  })
+  it('absent loads only for setup (allowNoControl), which records it', () => {
+    const text = JSON.stringify(noControlSettings())
+    expect(parseSettings(text, 'demo', '/s/demo.json', { allowNoControl: true }).control_d1).toBeUndefined()
   })
   it("present loads and round-trips through the settings writer's JSON text", () => {
     const s = parse(controlSettings())
@@ -103,8 +106,5 @@ describe('OPS275 control_d1 (P1, P2, D16)', () => {
     refuses(controlSettings({ control_d1: { ...CONTROL_D1, name: 'vault-demo' } }), /control_d1\.name.*d1\.name/)
     refuses(controlSettings({ control_d1: { id: CONTROL_D1.id } }), /control_d1\.name/)
     refuses(controlSettings({ control_d1: 'x' }), /control_d1 must be an object/)
-  })
-  it('P2: AUTH_PROVIDER=better-auth without control_d1 is refused', () => {
-    refuses(validSettings({ vars: { AUTH_PROVIDER: 'better-auth' } }), /better-auth.*control_d1/)
   })
 })

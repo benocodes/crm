@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { clerkKit, openWorkerD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
+import { type D1WorkerEnv } from './compose.js'
+import { clerkKit, openWorkerD1, type ClerkKit, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[UI30]] D1, D2, D9: `/connect*` is served from the assets binding by the Worker, with the security headers on every response.
 

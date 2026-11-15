@@ -152,7 +152,7 @@ try {
     modulesRoot: workerDir,
     compatibilityDate: '2026-07-30',
     compatibilityFlags: ['nodejs_compat'],
-    d1Databases: { DB: `smoke-${crypto.randomUUID()}` },
+    d1Databases: { DB: `smoke-${crypto.randomUUID()}`, CONTROL_DB: `smoke-control-${crypto.randomUUID()}` },
     d1Persist: false,
     r2Buckets: ['BODIES'],
     // [[CHN141]] D34: the real MailSyncWorkflow, exported by the real bundle, run by Miniflare's Workflows engine.
@@ -221,6 +221,9 @@ try {
   const base = await mf.ready
   const d1 = (await mf.getD1Database('DB')) as unknown as D1Like
   await applyMigrations(d1)
+  // [[CORE326]] P1: the control database exists in every mode; the Clerk Worker needs it migrated and paired.
+  const controlD1 = (await mf.getD1Database('CONTROL_DB')) as unknown as D1Like
+  await applyControlMigrations(controlD1)
 
   const call = (
     method: string,
@@ -281,7 +284,11 @@ try {
 
   // 3: the local bootstrap, through the same code the CLI uses
   // [[CORE64]] D11: a Clerk-backed deployment creates no human; the owner arrives with a `vibase_role: owner` token
-  const boot = await bootstrapD1(d1, { organizationName: 'Smoke', agentName: 'smoke-bot', authOrgId: issuer.issuer })
+  const boot = await bootstrapD1(
+    d1,
+    { organizationName: 'Smoke', agentName: 'smoke-bot', authOrgId: issuer.issuer },
+    { control: openControlDb(controlD1) },
+  )
   check('3 bootstrapD1 -> a vk_ key and the marker', boot.key.startsWith('vk_') && boot.deployment === 'created', {
     prefix: boot.key.slice(0, 7),
     deployment: boot.deployment,

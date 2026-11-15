@@ -9,8 +9,8 @@ import {
   type LocalD1,
 } from '@vibase/storage-d1/test'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { NOW, openWorkerD1, spyD1, type WorkerD1 } from './test/kit.js'
+import { type D1WorkerEnv } from './compose.js'
+import { NOW, openWorkerD1, spyD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 const NAMES = MIGRATIONS.map((m) => m.name)
 const LAST = NAMES[NAMES.length - 1]!
@@ -210,7 +210,8 @@ describe('a database with no marker table and no tracker (edge)', () => {
     })
   })
   it('other routes are 503 not_initialised, openapi still served', async () => {
-    const worker = composeD1Worker({ DB: d1, AUTH_PROVIDER: '' })
+    // The control database is bound and migrated; the CRM database is the one with nothing in it ([[CORE326]] P1: nothing to pair with yet is 503 not_initialised).
+    const worker = composeD1Worker({ DB: d1, CONTROL_DB: w.control, AUTH_PROVIDER: '' })
     const res = await get(worker, '/api/v1/tasks', { authorization: 'Bearer vk_x' })
     expect(res.status).toBe(503)
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('not_initialised')

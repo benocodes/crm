@@ -243,6 +243,14 @@ charter lines were wrong against the real library and tooling: a refusal row for
 Worker configuration (email on, its own entry), which must be its own script (writing-tests §7). Before chartering a
 behaviour of a library route, check the route exists in the pinned version; an E2E part whose Worker differs from an
 existing script's is a new script, not a leg.
+**CORE326** (`knowledge/specs/015-CORE326-control-plane-every-mode/RETRO.md`): 5 groups (1 matrix), 3 spec decisions + 6
+planner rules, no migration, no E2E, rider existing fixtures. +185 code / +699 test lines, 70 files, approved after one fix
+round. The budget holds, but the rider was the work: "every harness that composes the Worker" was ~25 server-d1 suites, 3
+cli suites and the instance kit, absorbed only because the coder moved the new setup into the kit defaults. When a charter
+makes a configuration mandatory that tests omit today, name the kit default that should carry it in Watch out. The fix
+round was dead branches: the charter listed the scripts to refuse but not the code that consumed the old optional value
+(`instance/gate.ts`, `upgrade.ts`). When a value turns from optional to required, ask for every `?`/`undefined` branch on
+it to go, by property (grep the field name).
 
 ### Step 3: Resolve identities
 

@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker } from './compose.js'
-import { openWorkerD1, type WorkerD1 } from './test/kit.js'
+import { openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[CORE133]] D5, D12 over MCP: `contacts_list` takes sort and order, the scope gate answers a tool error naming the scope
 // (the same executor as REST), and a caller without the scope never receives a sorted cursor. An API-key agent, no auth provider.

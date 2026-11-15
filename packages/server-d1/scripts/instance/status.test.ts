@@ -17,6 +17,8 @@ import {
   TOKEN,
   trackerJson,
   validSettings,
+  crmOnly,
+  crmCallsOf,
   type World,
   type WorldOptions,
 } from './test-kit.js'
@@ -34,7 +36,7 @@ const status = async (o: WorldOptions & { version?: string; argv?: string[] } = 
 }
 /** The fake runner saw only the tracker read: `d1 execute ... --command select ...`, no write command, no `--env`. */
 const onlyTrackerReads = (w: World) => {
-  for (const c of w.wrangler) {
+  for (const c of crmCallsOf(w.wrangler)) {
     expect(c.args.slice(0, 2)).toEqual(['d1', 'execute'])
     expect(c.args.join(' ')).toMatch(/--command select name from d1_migrations/i)
     expect(c.args).toContain('--remote')
@@ -49,7 +51,7 @@ describe('D15 status', () => {
     const { w, code } = await status()
     expect(code).toBe(0)
     expect(w.deps.env.CONFIRM_REMOTE).toBeUndefined()
-    expect(w.wrangler).toHaveLength(1)
+    expect(crmCallsOf(w.wrangler)).toHaveLength(1)
     onlyTrackerReads(w)
     expect(w.out.join('\n')).toMatch(/0\.1\.0/)
     expect(w.out.join('\n')).toMatch(/migrations: current \(2 applied, 2 expected\)/)
@@ -66,7 +68,7 @@ describe('D15 status', () => {
   it('an older live version prints the plan (both versions, the pending names in order) and exits 1', async () => {
     const { w, code } = await status({
       version: '0.0.9',
-      runner: () => ({ status: 0, stdout: trackerJson([]), stderr: '' }),
+      runner: crmOnly(() => ({ status: 0, stdout: trackerJson([]), stderr: '' })),
     })
     expect(code).toBe(1)
     const out = w.out.join('\n')
@@ -78,14 +80,16 @@ describe('D15 status', () => {
   })
 
   it('equal version but a pending migration exits 1', async () => {
-    const { w, code } = await status({ runner: () => ({ status: 0, stdout: trackerJson(['0001_a.sql']), stderr: '' }) })
+    const { w, code } = await status({
+      runner: crmOnly(() => ({ status: 0, stdout: trackerJson(['0001_a.sql']), stderr: '' })),
+    })
     expect(code).toBe(1)
     expect(w.out.join('\n')).toMatch(/migrations: behind/)
     expect(w.out.join('\n')).toMatch(/0002_b\.sql/)
   })
 
   it('no tracker table: migrations unknown, exit 1 (CORE61 D7)', async () => {
-    const { w, code } = await status({ runner: () => ({ status: 1, stdout: NO_TRACKER_JSON, stderr: '' }) })
+    const { w, code } = await status({ runner: crmOnly(() => ({ status: 1, stdout: NO_TRACKER_JSON, stderr: '' })) })
     expect(code).toBe(1)
     expect(w.out.join('\n')).toMatch(/migrations: unknown/)
   })
@@ -252,10 +256,5 @@ describe('CORE289 sweep counts', () => {
     expect(code).toBe(0)
     expect(w.out).toContain('[control] sweep: counts unavailable')
     expect((await run({ fail: true, behind: true })).code).toBe(1)
-  })
-  it('no control database configured: no count line and no count read', async () => {
-    const { w } = await run({ control: false })
-    expect(w.out.some((l) => /sweep:/.test(l))).toBe(false)
-    expect(w.wrangler.some((c) => sweepReadOf(c.args))).toBe(false)
   })
 })

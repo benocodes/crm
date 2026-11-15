@@ -5,8 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sources } from '../../../release/src/fixtures.js'
 import { stageServer } from '../../../release/src/stage.js'
-import { composeD1Worker } from '../../src/compose.js'
-import { openWorkerD1 } from '../../src/test/kit.js'
+import { composeD1Worker, openWorkerD1 } from '../../src/test/kit.js'
 import type { InstanceDeps, OpenD1Options, RunResult } from './types.js'
 
 export const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
@@ -70,7 +69,8 @@ export function packageLine(dir: string): string {
   return `package: vibase-server/${r.version} (${r.commit}), ${Object.keys(r.files).length} files verified`
 }
 
-export const validSettings = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+/** Valid settings WITHOUT `control_d1`: what `setup` still loads, and what every other command refuses ([[CORE326]] P5). */
+export const noControlSettings = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   version: 1,
   env: 'demo',
   worker: 'vault-demo',
@@ -82,8 +82,11 @@ export const validSettings = (over: Record<string, unknown> = {}): Record<string
   ...over,
 })
 
-export const controlSettings = (over: Record<string, unknown> = {}): Record<string, unknown> =>
-  validSettings({ control_d1: CONTROL_D1, ...over })
+/** Valid settings: the control database is required in every auth mode ([[CORE326]] P5), so the default records one. */
+export const validSettings = (over: Record<string, unknown> = {}): Record<string, unknown> =>
+  noControlSettings({ control_d1: CONTROL_D1, ...over })
+
+export const controlSettings = validSettings
 /** The binding a fake wrangler call addresses: `d1 execute <B>` or `d1 migrations apply <B>`; null for any other call. */
 export const bindingOf = (args: string[]): string | null =>
   args[0] === 'd1' && args[1] === 'execute'
@@ -91,6 +94,22 @@ export const bindingOf = (args: string[]): string | null =>
     : args[0] === 'd1' && args[1] === 'migrations' && args[2] === 'apply'
       ? args[3]!
       : null
+
+/**
+ * A runner written for the CRM database alone (the shape most status, gate and upgrade tests were written in, before the control plane was required, [[CORE326]] P5): calls on `CONTROL_DB` get a
+ * current control tracker (a read) or a success (an apply); every other call goes to `crm`. The control database's own matrix is `control.test.ts`'s.
+ */
+export const crmOnly =
+  (crm: (args: string[], env: Record<string, string>, input?: string) => RunResult) =>
+  (args: string[], env: Record<string, string>, input?: string): RunResult =>
+    bindingOf(args) === 'CONTROL_DB'
+      ? args[0] === 'd1' && args[1] === 'execute'
+        ? { status: 0, stdout: trackerJson(CONTROL_ALL), stderr: '' }
+        : { status: 0, stdout: 'applied', stderr: '' }
+      : crm(args, env, input)
+/** The calls that reached the CRM database or the Worker (everything but `CONTROL_DB`'s). */
+export const crmCallsOf = (calls: WranglerCall[]): WranglerCall[] =>
+  calls.filter((c) => bindingOf(c.args) !== 'CONTROL_DB' && c.args[3] !== 'CONTROL_DB')
 
 export interface WranglerCall {
   args: string[]
@@ -144,7 +163,7 @@ export function makeWorld(o: WorldOptions = {}): World {
   mkdirSync(dir, { recursive: true })
   const settingsPath = join(dir, 'demo.json')
   const secretsPath = join(dir, 'demo.env')
-  if (o.settings !== null) writeFileSync(settingsPath, JSON.stringify(o.settings ?? validSettings()))
+  if (o.settings !== null) writeFileSync(settingsPath, JSON.stringify(o.settings ?? controlSettings()))
   if (o.secretsMode !== null) {
     writeFileSync(secretsPath, o.secretsText ?? SECRETS_TEXT)
     chmodSync(secretsPath, o.secretsMode ?? 0o600)
@@ -176,11 +195,13 @@ export function makeWorld(o: WorldOptions = {}): World {
         configPath,
         configText: configPath && existsSync(configPath) ? readFileSync(configPath, 'utf8') : null,
       })
-      return (o.runner ?? (() => ({ status: 0, stdout: trackerJson(pkg.migrations), stderr: '' })))(
-        args,
-        opts.env,
-        opts.input,
-      )
+      // The default answer: each database's tracker current (the control database is required in every auth mode, [[CORE326]], so the default settings record one).
+      const current = (a: string[]): RunResult => ({
+        status: 0,
+        stdout: trackerJson(bindingOf(a) === 'CONTROL_DB' ? CONTROL_ALL : pkg.migrations),
+        stderr: '',
+      })
+      return (o.runner ?? current)(args, opts.env, opts.input)
     },
     openD1: async (opts) => {
       openD1Calls.push(opts)

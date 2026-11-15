@@ -10,20 +10,19 @@ import { readSweepCounts, sweepCountLines } from './sweep-counts.js'
 import {
   CONFIG_PATH,
   PACKAGE_DIR,
-  controlNotConfigured,
   RemoteRefusal,
   formatMigrationDiff,
   loadRootEnv,
   parseEnvFlag,
   parseTrackerOutput,
   requireConfirm,
-  resolveTarget,
+  requireControlTarget,
   statusExitCode,
   statusOf,
   trackerReadCommand,
   type Cmd,
   type ConfigLike,
-  type Target,
+  type ControlTarget,
 } from './remote.js'
 
 export const EXPECTED = MIGRATIONS.map((m) => m.name)
@@ -56,11 +55,11 @@ export function guardedTarget(
   argv: string[],
   procEnv: NodeJS.ProcessEnv,
   deps: Pick<StatusDeps, 'loadEnv' | 'readConfig'>,
-): Target {
+): ControlTarget {
   const envName = parseEnvFlag(argv)
   requireConfirm(procEnv)
   deps.loadEnv()
-  return resolveTarget(deps.readConfig(envName), envName)
+  return requireControlTarget(deps.readConfig(envName), envName)
 }
 
 /** Reads the applied names (`null`: no tracker). A failed read throws. */
@@ -75,45 +74,29 @@ export function readApplied(
 
 /**
  * Prints each database's diff and returns the exit code ([[OPS260]] D14): the control database first when the env has one, then the CRM database. Exit 0 only when every configured
- * database is current; each line names its database. An env with no `CONTROL_DB` entry is reported CRM only, with one line saying so (P1).
+ * database is current; each line names its database. An env with no `CONTROL_DB` entry is refused first ([[CORE326]] P4).
  */
 export function runStatus(argv: string[], procEnv: NodeJS.ProcessEnv, deps: StatusDeps): number {
   const target = guardedTarget(argv, procEnv, deps)
   let code = 0
-  if (target.control) {
-    deps.log(
-      `target: env ${target.env}, control database ${target.control.databaseName} (${target.control.databaseId})`,
-    )
-    const applied = readApplied(target.env, deps, 'CONTROL_DB')
-    for (const line of formatMigrationDiff(applied, CONTROL_EXPECTED)) deps.log(`[control] ${line}`)
-    code = Math.max(code, statusExitCode(statusOf(applied, CONTROL_EXPECTED)))
-    // [[CORE289]] P6: what the next repair sweep would do; two read-only SELECTs, never part of the exit code.
-    const counts = readSweepCounts((binding, sql) => {
-      const r = deps.exec({
-        command: 'pnpm',
-        args: [
-          'exec',
-          'wrangler',
-          'd1',
-          'execute',
-          binding,
-          '--remote',
-          '--env',
-          target.env,
-          '--json',
-          '--command',
-          sql,
-        ],
-      })
-      if (r.status !== 0) throw new Error('wrangler d1 execute failed')
-      return r.stdout
-    }, new Date())
-    for (const line of sweepCountLines(counts)) deps.log(`[control] ${line}`)
-  } else deps.log(controlNotConfigured(target.env))
+  deps.log(`target: env ${target.env}, control database ${target.control.databaseName} (${target.control.databaseId})`)
+  const applied = readApplied(target.env, deps, 'CONTROL_DB')
+  for (const line of formatMigrationDiff(applied, CONTROL_EXPECTED)) deps.log(`[control] ${line}`)
+  code = Math.max(code, statusExitCode(statusOf(applied, CONTROL_EXPECTED)))
+  // [[CORE289]] P6: what the next repair sweep would do; two read-only SELECTs, never part of the exit code.
+  const counts = readSweepCounts((binding, sql) => {
+    const r = deps.exec({
+      command: 'pnpm',
+      args: ['exec', 'wrangler', 'd1', 'execute', binding, '--remote', '--env', target.env, '--json', '--command', sql],
+    })
+    if (r.status !== 0) throw new Error('wrangler d1 execute failed')
+    return r.stdout
+  }, new Date())
+  for (const line of sweepCountLines(counts)) deps.log(`[control] ${line}`)
   deps.log(`target: env ${target.env}, database ${target.databaseName} (${target.databaseId})`)
-  const applied = readApplied(target.env, deps)
-  for (const line of formatMigrationDiff(applied, EXPECTED)) deps.log(`[crm] ${line}`)
-  return Math.max(code, statusExitCode(statusOf(applied, EXPECTED)))
+  const crmApplied = readApplied(target.env, deps)
+  for (const line of formatMigrationDiff(crmApplied, EXPECTED)) deps.log(`[crm] ${line}`)
+  return Math.max(code, statusExitCode(statusOf(crmApplied, EXPECTED)))
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

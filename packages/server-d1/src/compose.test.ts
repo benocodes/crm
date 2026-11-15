@@ -6,8 +6,8 @@ import { messageBodyKey } from '@vibase/api'
 import { mintClerkToken, orgClaim } from '@vibase/api/test/clerk'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { NOT_INITIALISED, composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { NOW, clerkKit, openWorkerD1, spyD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
+import { NOT_INITIALISED, type D1WorkerEnv } from './compose.js'
+import { NOW, clerkKit, openWorkerD1, spyD1, type ClerkKit, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 let w: WorkerD1
 let kit: ClerkKit
@@ -116,7 +116,8 @@ describe('after bootstrap', () => {
     const worker = composeD1Worker({ DB: spy.d1, AUTH_PROVIDER: '' })
     await get(worker, '/api/v1/tasks', bearer(r.key))
     await get(worker, '/api/v1/tasks', bearer(r.key))
-    expect(spy.log.statements.filter((s) => /from "?deployment"?/i.test(s))).toHaveLength(1)
+    // Two reads, each once per isolate: the control gate's pairing check and the app's marker read ([[CORE326]] P1).
+    expect(spy.log.statements.filter((s) => /from "?deployment"?/i.test(s))).toHaveLength(2)
   })
 
   it('GET /health is 200 with initialised true', async () => {

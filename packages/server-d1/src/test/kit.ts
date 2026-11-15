@@ -1,5 +1,11 @@
 // Test support for the D1 Worker package (a `test/` directory: the boundary checker treats it as tests).
-import { type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
+import {
+  openControlDb,
+  readControlMarker,
+  writeControlMarker,
+  type D1Like,
+  type D1PreparedLike,
+} from '@vibase/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import {
   mintOAuthToken,
@@ -17,7 +23,7 @@ import {
   type FakeFetch,
   type TestIssuer,
 } from '@vibase/api/test/clerk'
-import type { D1WorkerEnv } from '../compose.js'
+import { composeD1Worker as composeRealD1Worker, type D1WorkerEnv } from '../compose.js'
 
 export { clerkOrganization, clerkMembership, clerkUser, mintOAuthToken }
 /** For another package's integration test that bootstraps a Better Auth instance (the CLI's `audit` test). */
@@ -25,21 +31,84 @@ export { openControlDb } from '@vibase/storage-d1'
 
 export interface WorkerD1 {
   readonly d1: D1Like
-  /** Empties every table, the deployment marker included, and keeps the schema. */
+  /**
+   * The control-plane database ([[CORE326]]: every composition needs one), migrated, and AUTO-PAIRED with `d1`: the first read of its marker, once `d1` holds a deployment row, writes the matching marker.
+   * Hand it to the Worker as `CONTROL_DB`, or compose through this kit's `composeD1Worker`, which does it for an env whose `DB` came from here. A test of the pairing itself uses `openWorkerPair` (no auto-pairing).
+   */
+  readonly control: D1Like
+  /** Empties every table, the deployment marker included, and keeps the schema (both databases). */
   reset(): Promise<void>
   dispose(): Promise<void>
 }
 
-/** One migrated in-memory Miniflare D1 for a test file. */
-export async function openWorkerD1(): Promise<WorkerD1> {
-  const local: LocalD1 = await openLocalD1(['W'])
-  const d1 = local.bindings.W!
-  return { d1, reset: () => clearD1(d1), dispose: () => local.dispose() }
+/** The control database a CRM binding was opened with (and the same for the spying wrappers made from it): what `composeD1Worker` below defaults `CONTROL_DB` to. */
+const pairedControl = new WeakMap<object, D1Like>()
+/** A wrapper around a CRM binding (a spy, a meter, a fault) is the same database: it keeps the pairing. */
+export const inheritPairing = <T extends D1Like>(real: D1Like, wrapper: T): T => {
+  const control = pairedControl.get(real)
+  if (control) pairedControl.set(wrapper, control)
+  return wrapper
 }
 
-export interface WorkerPair extends WorkerD1 {
+/** A control database whose marker is written on first read, from `crm`'s deployment row (nothing when there is none yet): the kit's stand-in for what bootstrap writes. */
+function autoPairedControl(crm: D1Like, control: D1Like): D1Like {
+  const ensure = async () => {
+    const link = (await crm
+      .prepare('select organization_id from deployment')
+      .first()
+      .catch(() => null)) as { organization_id: string } | null
+    if (!link) return
+    const db = openControlDb(control)
+    if (!(await readControlMarker(db))) await writeControlMarker(db, link.organization_id)
+  }
+  const wrap = (q: string, inner: D1PreparedLike): D1PreparedLike => {
+    const gate = /control_deployment/.test(q)
+    return {
+      bind: (...v: unknown[]) => wrap(q, inner.bind(...v)),
+      run: async () => (gate && (await ensure()), inner.run()),
+      all: async () => (gate && (await ensure()), inner.all()),
+      first: async () => (gate && (await ensure()), inner.first()),
+    } as D1PreparedLike
+  }
+  return {
+    prepare: (q: string) => wrap(q, control.prepare(q)),
+    batch: (b: D1PreparedLike[]) => control.batch(b),
+  } as D1Like
+}
+
+/**
+ * `composeD1Worker` for tests ([[CORE326]]): an env whose `DB` came from `openWorkerD1` (or a spy/meter/fault over it) and names no `CONTROL_DB` gets the auto-paired control database of that `DB`. An env that
+ * names `CONTROL_DB` itself, even as `undefined`, is composed as given (the control matrix and the missing-binding rows).
+ */
+export function composeD1Worker(
+  env: D1WorkerEnv,
+  deps?: Parameters<typeof composeRealD1Worker>[1],
+): ReturnType<typeof composeRealD1Worker> {
+  const control = 'CONTROL_DB' in env ? undefined : pairedControl.get(env.DB)
+  return composeRealD1Worker(control ? { ...env, CONTROL_DB: control } : env, deps)
+}
+
+/** One migrated in-memory Miniflare D1 for a test file, with its auto-paired control-plane database. */
+export async function openWorkerD1(): Promise<WorkerD1> {
+  const local: LocalD1 = await openLocalD1(['W', 'C'], { control: ['C'] })
+  const d1 = local.bindings.W!
+  const control = autoPairedControl(d1, local.bindings.C!)
+  pairedControl.set(d1, control)
+  return {
+    d1,
+    control,
+    reset: async () => (await clearD1(d1), await clearD1(local.bindings.C!)),
+    dispose: () => local.dispose(),
+  }
+}
+
+/** The CRM database and the control-plane database with NO auto-pairing: for the tests of the pairing and of the control plane itself. */
+export interface WorkerPair {
+  readonly d1: D1Like
   /** The control-plane database (`CONTROL_DB`, [[CORE259]]), migrated from `control-migrations/` with its own `d1_migrations` tracker. */
   readonly control: D1Like
+  reset(): Promise<void>
+  dispose(): Promise<void>
 }
 
 /** Two migrated in-memory Miniflare D1s for a test file: the CRM database and the control-plane database, each from its own directory. `reset()` empties both (trackers kept). */
@@ -100,7 +169,7 @@ export function spyD1(
     },
   }
   return {
-    d1,
+    d1: inheritPairing(real, d1),
     log: { statements, clear: () => void (statements.length = 0) },
     betweenPlanAndCommit: (hook) => void (pending.hook = hook),
   }
@@ -137,7 +206,7 @@ export function faultD1(
       return real.batch(batch.map((s) => info.get(s)?.real ?? s))
     },
   }
-  return { d1, fired: () => fired }
+  return { d1: inheritPairing(real, d1), fired: () => fired }
 }
 
 export interface ClerkKit {
@@ -273,7 +342,7 @@ export function meterD1(real: D1Like): D1Meter {
     },
   }
   return {
-    d1,
+    d1: inheritPairing(real, d1),
     start: () => void (m = zeroMeasure()),
     take: () => {
       const out = m

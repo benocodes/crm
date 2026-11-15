@@ -15,12 +15,16 @@ import {
   stagedPackage,
   TOKEN,
   UUID,
+  noControlSettings,
   validSettings,
 } from './test-kit.js'
 
 afterEach(cleanup)
 const settings = (over: Record<string, unknown> = {}) =>
   parseSettings(JSON.stringify(validSettings(over)), 'demo', '/s.json')
+/** Settings as `setup` still loads them before it records the control database ([[CORE326]] P5): the generated config then carries the DB entry alone. */
+const settingsNoControl = (over: Record<string, unknown> = {}) =>
+  parseSettings(JSON.stringify(noControlSettings(over)), 'demo', '/s.json', { allowNoControl: true })
 const paths = {
   worker: '/pkg/worker/worker.js',
   assets: '/pkg/assets',
@@ -31,7 +35,7 @@ const base = () => parse(readFileSync(join(stagedPackage().dir, 'wrangler.base.j
 
 describe('D11 generated config', () => {
   it('carries the settings and the installed absolute paths, with remote: true on DB', () => {
-    const c = generateConfig(base(), settings(), paths)
+    const c = generateConfig(base(), settingsNoControl(), paths)
     expect(c.name).toBe('vault-demo')
     expect(c.main).toBe(paths.worker)
     expect(c.assets.directory).toBe(paths.assets)
@@ -165,7 +169,7 @@ describe('OPS275 CONTROL_DB in the generated config', () => {
     expect(resolveTarget(c, 'demo').control).toEqual({ databaseName: CONTROL_D1.name, databaseId: CONTROL_D1.id })
   })
   it("without control_d1: exactly today's single entry", () => {
-    expect(generateConfig(base(), settings(), cpaths).d1_databases).toEqual([
+    expect(generateConfig(base(), settingsNoControl(), cpaths).d1_databases).toEqual([
       {
         binding: 'DB',
         database_name: 'vault-demo',

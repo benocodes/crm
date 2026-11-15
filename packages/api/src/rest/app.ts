@@ -108,7 +108,7 @@ export interface AppOptions {
   invitations?: InvitationsRuntime | null
   /** [[CORE288]]: the membership writes' control-plane port (and the reset link's origin); absent or null: they answer `501 provider_not_configured`. */
   members?: MembersRuntime | null
-  /** [[CORE261]]: the audit log's read port; absent or null: `audit.list` answers `501 provider_not_configured`. Ignored when `registry` is given. */
+  /** [[CORE261]]: the audit log's read port; absent or null (the parked Postgres composition only; every D1 composition has it, [[CORE326]] P3): `audit.list` answers `501 provider_not_configured`. Ignored when `registry` is given. */
   audit?: AuditRuntime | null
   /** Extra operations registered before the queue's (Node tests; see `createVibaseRegistry`). Ignored when `registry` is given. */
   extraOperations?: (registry: Registry) => void

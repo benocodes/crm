@@ -6,7 +6,7 @@ import { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/tes
 import { SCOPE_POLICY, assertAgentGrantable, createVibaseRegistry, grantableScopes, scopesForRole } from '@vibase/api'
 import { mintClerkToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker, type D1WorkerEnv } from './compose.js'
+import { type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
 import {
   NOW,
@@ -17,6 +17,7 @@ import {
   openWorkerPair,
   type ClerkKit,
   type WorkerPair,
+  composeD1Worker,
 } from './test/kit.js'
 
 // [[CORE288]] through the composition: the REAL Better Auth on the control-plane database, the Worker (composeD1Worker, `better-auth`) serving `memberships.update|delete` and `users.issue_reset_link`

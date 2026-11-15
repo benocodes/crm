@@ -8,7 +8,7 @@ import { mintClerkToken } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
-import { NOW, clerkKit, clerkUser, openWorkerD1, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
+import { NOW, clerkKit, clerkUser, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
 
 // [[CORE261]] P1-P6 through the composition: the REAL Better Auth mints the tokens on the control-plane database, the Worker (composeD1Worker, `better-auth`) serves `audit.list` on REST and MCP.
 let w: WorkerPair
@@ -381,46 +381,79 @@ describe('composed end to end (REST, MCP)', () => {
   })
 })
 
-describe('a composition without a control store (P5)', () => {
+describe('clerk and unset compositions serve it too ([[CORE326]] P3)', () => {
   let clerk: ClerkKit
-  let single: Awaited<ReturnType<typeof openWorkerD1>>
   beforeAll(async () => {
     clerk = await clerkKit()
-    single = await openWorkerD1()
   })
-  afterAll(() => single.dispose())
-
-  it('an owner gets 501 provider_not_configured naming the control-plane database; a member is still 403 first', async () => {
+  const clerkWorker = async () => {
     const issuer = clerk.issuer.issuer
-    await single.d1.batch([
-      single.d1
-        .prepare('insert into deployment (singleton, organization_id, auth_provider, auth_org_id) values (1, ?, ?, ?)')
-        .bind(orgId, 'clerk', issuer),
-      single.d1
-        .prepare(
-          'insert into organizations (id, created_at, updated_at, name, auth_provider, auth_org_id) values (?, ?, ?, ?, ?, ?)',
-        )
-        .bind(orgId, NOW.toISOString(), NOW.toISOString(), 'Acme', 'clerk', issuer),
-    ])
-    const wk = composeD1Worker({ DB: single.d1, ...clerk.env, CLERK_WEBHOOK_SECRET: undefined }, { fetch: clerk.fetch })
+    await w.d1.prepare('update deployment set auth_provider = ?, auth_org_id = ?').bind('clerk', issuer).run()
+    await w.d1.prepare('update organizations set auth_provider = ?, auth_org_id = ?').bind('clerk', issuer).run()
     clerk.profiles.set('user_a', clerkUser({ id: 'user_a', email: 'a@x.test', verified: true }))
     clerk.profiles.set('user_m', clerkUser({ id: 'user_m', email: 'm@x.test', verified: true }))
-    const get = async (sub: string, role: string) =>
+    const wk = composeD1Worker(
+      { DB: w.d1, CONTROL_DB: w.control, ...clerk.env, CLERK_WEBHOOK_SECRET: undefined },
+      { fetch: clerk.fetch },
+    )
+    const get = async (path: string, sub: string, role: string, init: RequestInit = {}) =>
       wk.fetch(
-        new Request(`https://w.test${PATH}`, {
+        new Request(`https://w.test${path}`, {
+          ...init,
           headers: {
+            ...(init.body ? { 'content-type': 'application/json' } : {}),
             authorization: `Bearer ${await mintClerkToken(clerk.issuer, { sub, extra: { vibase_role: role } })}`,
           },
         }),
       )
-    const owner = await get('user_a', 'owner')
-    expect(owner.status).toBe(501)
-    const body = (await owner.json()) as any
-    expect(body.error.code).toBe('provider_not_configured')
-    expect(body.error.message).toMatch(/control/i)
-    expect(body.error.message).not.toMatch(/AUTH_PROVIDER/)
-    const member = await get('user_m', 'member')
+    return get
+  }
+
+  it('clerk: an owner reads an empty log (200), a planted row is returned, a member is 403 insufficient_scope', async () => {
+    const get = await clerkWorker()
+    const empty = await get(PATH, 'user_a', 'owner')
+    expect(empty.status).toBe(200)
+    expect(await empty.json()).toEqual({ data: [], next_cursor: null })
+    const id = await plant({ action: 'invitation.created', targetType: 'invitation', targetId: 'seen-on-clerk' })
+    const res = await get(PATH, 'user_a', 'owner')
+    expect(((await res.json()) as any).data.map((r: any) => r.id)).toEqual([id])
+    const member = await get(PATH, 'user_m', 'member')
     expect(member.status).toBe(403)
     expect(((await member.json()) as any).error.code).toBe('insufficient_scope')
+  })
+
+  it('clerk: invitations.create and the reset-link operation still answer 501 provider_not_configured', async () => {
+    const get = await clerkWorker()
+    const inv = await get(INV, 'user_a', 'owner', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'ann@x.test', role: 'member', delivery: 'link' }),
+    })
+    expect(inv.status).toBe(501)
+    expect(((await inv.json()) as any).error.code).toBe('provider_not_configured')
+    const reset = await get('/meta/v1/users/reset-link', 'user_a', 'owner', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: uuidv7(NOW) }),
+    })
+    expect(reset.status).toBe(501)
+    expect(((await reset.json()) as any).error.code).toBe('provider_not_configured')
+  })
+
+  it('unset: an API key holding audit:read reads the log (200), and no credential is 401', async () => {
+    const wk = composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: '' })
+    const empty = await call(wk, 'GET', PATH, bootKey)
+    expect(empty.status, JSON.stringify(empty.json)).toBe(200)
+    expect(empty.json).toEqual({ data: [], next_cursor: null })
+    const id = await plant({ action: 'invitation.created', targetType: 'invitation', targetId: 'seen-on-unset' })
+    expect((await call(wk, 'GET', PATH, bootKey)).json.data.map((r: any) => r.id)).toEqual([id])
+    expect((await call(wk, 'GET', PATH, null)).status).toBe(401)
+  })
+
+  it('the generated OpenAPI document and the MCP tool text no longer name provider_not_configured for audit.list', async () => {
+    const wk = worker()
+    const doc = await wk.fetch(new Request(`${AUTH_BASE}/meta/v1/openapi.json`))
+    const paths = ((await doc.json()) as any).paths as Record<string, any>
+    const op = paths['/meta/v1/audit'] ?? paths['/audit']
+    expect(op, Object.keys(paths).join(',')).toBeDefined()
+    expect(JSON.stringify(op)).not.toMatch(/provider_not_configured|does not have/)
   })
 })

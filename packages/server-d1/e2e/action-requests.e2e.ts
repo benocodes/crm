@@ -10,7 +10,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 // and W (write), and the owner act on a task through REST, the CLI and MCP; the events are read from the Worker's LOCAL D1.
 //
 // Prerequisite, as for the other E2E specs (`e2e:connect`, `e2e:mcp-oauth`): a local Worker on E2E_BASE_URL (default http://localhost:8787) from this
-// worktree (`pnpm -C packages/server-d1 dev`), a fresh local D1 migrated through 0011 (`wrangler d1 migrations apply DB --local`) and bootstrapped on the
+// worktree (`pnpm -C packages/server-d1 dev`), a fresh local D1 migrated through 0011 (`wrangler d1 migrations apply DB --local`, and `... CONTROL_DB --local`: the control plane is required in every auth mode, [[CORE326]]) and bootstrapped on the
 // Clerk path (`bootstrap -- --org <n> --issuer <CLERK_ISSUER>`), with the full Clerk configuration of `.dev.vars.example` from `.env.dev` and
 // CLERK_AUTHORIZED_PARTIES=<base URL>. The CLI must be built (`pnpm -C packages/cli build`): step 5 runs `packages/cli/dist/vibase.js`.
 // Keys: `.env.dev` only (playwright.config.ts). Run with:  pnpm -C packages/server-d1 e2e:action-requests

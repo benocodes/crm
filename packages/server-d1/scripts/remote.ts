@@ -38,7 +38,7 @@ export interface Target {
   workerName: string
   databaseName: string
   databaseId: string
-  /** The control-plane database ([[OPS260]] P1): present only when the env's config has a `CONTROL_DB` entry; absent means the env is handled CRM only. */
+  /** The control-plane database: present when the env's config has a `CONTROL_DB` entry; the scripts that need it go through `requireControlTarget` ([[CORE326]] P4). */
   control?: { databaseName: string; databaseId: string }
 }
 export interface Cmd {
@@ -108,9 +108,16 @@ export function resolveTarget(config: ConfigLike, envName: string): Target {
   return target
 }
 
-/** The line both db scripts print for an env whose config has no `CONTROL_DB` entry ([[OPS260]] P1; [[CORE261]] turns it into a refusal). */
-export const controlNotConfigured = (envName: string): string =>
-  `control plane: not configured for env ${envName} (CRM only)`
+/** The target of a script that needs the control plane ([[CORE326]] P4): `resolveTarget`'s guards, then a refusal for an env whose config has no `CONTROL_DB` entry, before any wrangler call. */
+export type ControlTarget = Target & { control: { databaseName: string; databaseId: string } }
+export function requireControlTarget(config: ConfigLike, envName: string): ControlTarget {
+  const target = resolveTarget(config, envName)
+  if (!target.control)
+    throw new RemoteRefusal(
+      `env ${envName} has no CONTROL_DB binding: every instance needs its control-plane database. Run setup:remote --env ${envName} to add it (CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env ${envName} ...)`,
+    )
+  return target as ControlTarget
+}
 
 /** `migrations list` then `apply`, for the control database first when the env has one, then the CRM database ([[OPS260]] D14). */
 export function migrateCommands(envName: string, opts: { control?: boolean } = {}): Cmd[] {

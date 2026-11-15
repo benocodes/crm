@@ -3,9 +3,8 @@ import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding } from '@vibase/storage-d1'
 import { generateApiKey } from '@vibase/api'
 import { mintClerkToken, mintOAuthToken } from '@vibase/api/test/clerk'
-import { composeD1Worker } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
-import { NOW, clerkKit, clerkUser, openWorkerD1, type ClerkKit, type WorkerD1 } from './test/kit.js'
+import { NOW, clerkKit, clerkUser, openWorkerD1, type ClerkKit, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // AGT8 D31: containment is closure, then intersection, in EVERY authentication path. For each credential path an effective set holding
 // request_approval but not write proposes (201) and is refused the direct write (403 insufficient_scope), and a write grant narrowed by, or

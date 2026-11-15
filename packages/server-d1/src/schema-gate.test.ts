@@ -3,8 +3,7 @@ import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { bootstrapD1 } from './bootstrap-d1.js'
-import { composeD1Worker } from './compose.js'
-import { NOW, openWorkerD1, type WorkerD1 } from './test/kit.js'
+import { NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // API63 under the CORE61 gate: GET /meta/v1/schema is an ordinary route, refused while the migrations are behind.
 const NAMES = MIGRATIONS.map((m) => m.name)
