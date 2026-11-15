@@ -106,24 +106,127 @@ function lookupSubjectOperation(subject: string): PreparedOperation<AcceptedAcco
   })
 }
 
-/** The principal the vault already holds for this subject (a `users` row or an agent account). A linked subject never re-runs the CRM program ([[CORE287]] P5); it may only complete P4. */
-export function linkedSubjectOperation(subject: string): PreparedOperation<string | null> {
-  return defineOperation<string | null>({
-    name: 'invitations.linked_subject',
+/** What the vault holds for a Better Auth subject ([[CORE302]] P1, P4): a `users` row or an agent account, and for a human the creation time of its LIVE membership (ISO), if it has one. */
+export type SubjectStanding = { kind: 'user' | 'agent'; id: string; liveMembershipCreatedAt: string | null; /** ISO instant of the latest removal (max `memberships.deleted_at`) of this user, or null ([[CORE302]] P1: a re-admitting invitation must be created strictly after it). */ lastRemovedAt: string | null }
+
+/** The standing of the subject: a linked subject never re-runs the first-sight program ([[CORE287]] P5); it may complete P4, or (a human with no live membership) be re-admitted ([[CORE302]]). */
+export function subjectStandingOperation(subject: string): PreparedOperation<SubjectStanding | null> {
+  return defineOperation<SubjectStanding | null>({
+    name: 'invitations.subject_standing',
     mutates: false,
     reads: (qc) => ({
       user: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', BUILT_IN_PROVIDER).where('users.auth_subject', '=', subject)),
       agent: readMaybe(qc.db.selectFrom('agents').select('agents.id').where('agents.auth_provider', '=', BUILT_IN_PROVIDER).where('agents.auth_subject', '=', subject)),
+      live: readMaybe(
+        qc.db
+          .selectFrom('memberships')
+          .innerJoin('users', 'users.id', 'memberships.user_id')
+          .select('memberships.created_at')
+          .where('users.auth_provider', '=', BUILT_IN_PROVIDER)
+          .where('users.auth_subject', '=', subject)
+          .where('memberships.deleted_at', 'is', null),
+      ),
+      removed: readMaybe(
+        qc.db
+          .selectFrom('memberships')
+          .innerJoin('users', 'users.id', 'memberships.user_id')
+          .select((eb) => eb.fn.max('memberships.deleted_at').as('last'))
+          .where('users.auth_provider', '=', BUILT_IN_PROVIDER)
+          .where('users.auth_subject', '=', subject),
+      ),
     }),
-    build: (found) => unit({ steps: [], events: [], decode: () => ((found.maybe('user') ?? found.maybe('agent'))?.id as string | undefined) ?? null }),
+    build: (found) =>
+      unit({
+        steps: [],
+        events: [],
+        decode: () => {
+          const user = found.maybe('user')
+          if (user) return { kind: 'user' as const, id: user.id as string, liveMembershipCreatedAt: found.maybe('live') ? new Date(found.maybe('live')!.created_at as string).toISOString() : null, lastRemovedAt: found.maybe('removed')?.last ? new Date(found.maybe('removed')!.last as string).toISOString() : null }
+          const agent = found.maybe('agent')
+          return agent ? { kind: 'agent' as const, id: agent.id as string, liveMembershipCreatedAt: null, lastRemovedAt: null } : null
+        },
+      }),
   })
 }
 
-/** The principal id of the `users` row or agent account linked to the subject, or `null`. */
-export async function linkedPrincipalId(storage: StorageBinding, subject: string): Promise<string | null> {
+export async function subjectStanding(storage: StorageBinding, subject: string): Promise<SubjectStanding | null> {
   try {
-    return (await execute(storage, INTERNAL, linkedSubjectOperation(subject))).value
+    return (await execute(storage, INTERNAL, subjectStandingOperation(subject))).value
   } catch (err) {
     throw mapStorageError(err)
   }
+}
+
+const LIVE_MEMBERSHIP = 'readmit:live'
+const KNOWN_USER = 'readmit:user'
+
+/**
+ * Re-admits a removed member ([[CORE302]] P2): a NEW membership row with the invitation's role and `membership.created`, by the system principal; the removed row stays as history. `users` is not recreated;
+ * `email_verified` becomes true when `verifyEmail` (an emailed invitation, never back to false). A live membership found at plan time makes the unit empty (a retry); one that appears between plan and commit
+ * (a racing sign-in) makes the membership insert do nothing, and the assertion after the event then fails the whole unit (nothing is written, no second event).
+ */
+export function readmitHumanOperation(a: { subject: string; role: 'owner' | 'member'; verifyEmail: boolean; organizationId: string; membershipId: string; eventId: string; systemId: string; now: Date }): PreparedOperation<AcceptedAccount> {
+  const at = codecs.timestamp.write(a.now)
+  return defineOperation<AcceptedAccount>({
+    name: 'invitations.readmit_human',
+    mutates: true,
+    reads: (qc: QueryContext) => ({
+      [KNOWN_USER]: readMaybe(qc.db.selectFrom('users').select('users.id').where('users.auth_provider', '=', BUILT_IN_PROVIDER).where('users.auth_subject', '=', a.subject)),
+      [LIVE_MEMBERSHIP]: readMaybe(
+        qc.db
+          .selectFrom('memberships')
+          .innerJoin('users', 'users.id', 'memberships.user_id')
+          .select('memberships.id')
+          .where('users.auth_provider', '=', BUILT_IN_PROVIDER)
+          .where('users.auth_subject', '=', a.subject)
+          .where('memberships.deleted_at', 'is', null),
+      ),
+      [SYSTEM_PRINCIPAL_READ]: systemPrincipalRead(qc),
+    } satisfies Record<string, Read>),
+    build: (found, qc) => {
+      const user = found.maybe(KNOWN_USER)
+      if (!user) throw new ApiError(409, 'conflict', 'the account has no vault user to re-admit')
+      const userId = user.id as string
+      if (found.maybe(LIVE_MEMBERSHIP)) return unit({ steps: [], events: [], decode: () => ({ principalId: userId }) })
+      const sys = systemPrincipalSteps(qc, found.maybe(SYSTEM_PRINCIPAL_READ), a.systemId, at)
+      const verify = qc.db.updateTable('users').set({ email_verified: true, updated_at: at }).where('users.id', '=', userId).where('users.email_verified', '=', false)
+      const membership = qc.db
+        .insertInto('memberships')
+        .values({ id: a.membershipId, created_at: at, updated_at: at, organization_id: a.organizationId, user_id: userId, role: a.role, created_by: sys.id })
+        .onConflict((oc) => oc.doNothing())
+      const holds = sql<SqlBool>`exists (select 1 from "memberships" where "memberships"."id" = ${a.membershipId} and "memberships"."user_id" = ${userId} and "memberships"."deleted_at" is null)`
+      const steps: Step[] = [
+        ...sys.steps,
+        ...(a.verifyEmail ? [step(verify)] : []),
+        step(membership),
+        { ...step(eventStatement(qc, { id: a.eventId, at, organizationId: a.organizationId, actorId: sys.id, type: 'membership.created', resourceType: 'membership', resourceId: a.membershipId, before: null, after: { table: 'memberships', columns: MEMBERSHIP_COLUMNS } })), label: 'first-event' },
+        assertStep(qc, holds),
+        { ...step(qc.db.selectFrom('users').select('users.id').where('users.id', '=', userId)), label: 'result' },
+      ]
+      steps[0] = { ...steps[0]!, label: 'first-mutation' }
+      const events: EventReceipt[] = [{ id: a.eventId, type: 'membership.created', resourceType: 'membership', resourceId: a.membershipId }]
+      return unit({
+        steps,
+        events,
+        decode: (rows) => {
+          if (rows.length === 0) throw new UnitDriftError('invitations.readmit_human')
+          return { principalId: rows[0]!.id as string }
+        },
+      })
+    },
+  })
+}
+
+/** Runs the re-admission; a racing sign-in that won makes this unit drift, and its live membership is ours (one read-only recheck, as `acceptInvitedAccount` does). */
+export async function readmitMember(storage: StorageBinding, env: InternalEnv, a: { subject: string; role: 'owner' | 'member'; verifyEmail: boolean }): Promise<AcceptedAccount> {
+  if (storage.kind !== 'd1') throw new Error('invitation acceptance serves a D1 deployment only')
+  const op = readmitHumanOperation({ ...a, organizationId: storage.organizationId, membershipId: env.newId(), eventId: env.newId(), systemId: env.newId(), now: env.now })
+  try {
+    return (await execute(storage, INTERNAL, op)).value
+  } catch (err) {
+    if (!(err instanceof UnitDriftError)) throw mapStorageError(err)
+  }
+  const again = await subjectStanding(storage, a.subject)
+  if (!again || again.kind !== 'user' || again.liveMembershipCreatedAt === null) throw new ApiError(409, 'conflict', 'the record changed while the operation was running; retry')
+  return { principalId: again.id }
 }

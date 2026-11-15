@@ -229,6 +229,14 @@ export async function hasLiveInvitationForToken(c: ControlDb, a: { tokenHash: st
 }
 
 /**
+ * The LIVE invitation for this email whose token hashes to `tokenHash` ([[CORE302]] P1), or null for every failing cause alike: the re-admission of a removed member reads its role and delivery from it.
+ */
+export async function findLiveInvitationByToken(c: ControlDb, a: { tokenHash: string; email: string; now: string }): Promise<InvitationRecord | null> {
+  const row = await raw(c).prepare(`select ${COLUMNS} from invitations where token_hash = ? and email = ? and ${LIVE}`).bind(a.tokenHash, a.email, a.now).first()
+  return row ? recordOf(row) : null
+}
+
+/**
  * The invitation that admitted an account ([[CORE287]] P5): LIVE for this email and created no later than the account. A fresh invitation made after the account never adopts it. `accountCreatedAt` is
  * the caller's ISO-8601 text with milliseconds and a Z (Better Auth's own column holds another encoding; the caller converts it through a `Date`), so the comparison is text on one encoding.
  */

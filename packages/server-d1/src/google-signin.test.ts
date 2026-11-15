@@ -287,3 +287,45 @@ describe('existing accounts (D8 linking)', () => {
     expect(await count(w.d1, 'users')).toBe(0)
   })
 })
+
+// [[CORE302]] P1-P3: a removed member whose account is linked to Google is re-admitted by the token on the OAuth state's server context, read in the session hook.
+describe('re-admission of a removed member through Google (CORE302 P1, P3)', () => {
+  async function removedGoogleMember() {
+    const first = await google({ profile: { email: 'owner@x.test', email_verified: true }, token: ownerToken })
+    expect(errorOf(first.location)).toBeNull()
+    const user = (await crm('select id from users'))[0]!
+    // `memberships.delete` is proven in membership-writes; here the removal's effect on the vault is all that matters.
+    await w.d1.prepare('update memberships set deleted_at = ? where user_id = ?').bind(new Date().toISOString(), user.id).run()
+    return user.id as string
+  }
+
+  it('with a new live token: re-admitted with the invitation role, one event, the invitation accepted, a session whose /me answers that role', async () => {
+    const userId = await removedGoogleMember()
+    const { id, token } = await invite('owner@x.test', 'member')
+    const before = await vaultCounts()
+    const { cb, location, url } = await google({ profile: { email: 'owner@x.test', email_verified: true }, token })
+    expect(cb.status).toBe(302)
+    expect(errorOf(location)).toBeNull()
+    expect(url + location).not.toContain(token)
+    const live = await crm('select role from memberships where user_id = ? and deleted_at is null', userId)
+    expect(live).toEqual([{ role: 'member' }])
+    expect(await count(w.d1, 'memberships')).toBe(2)
+    expect(await vaultCounts()).toEqual({ ...before, memberships: before.memberships + 1, events: before.events + 1 })
+    expect((await ctl('select accepted_at from invitations where id = ?', id))[0]!.accepted_at).not.toBeNull()
+    expect(await ctl("select actor_id from control_audit where action = 'invitation.accepted' and target_id = ?", id)).toEqual([{ actor_id: userId }])
+    const got = await me(cookieOf(cb))
+    expect([got.status, got.json.active_organization.role]).toEqual([200, 'member'])
+  })
+
+  it('the same Google sign-in without the token writes nothing and keeps the session (every vault request 403)', async () => {
+    await removedGoogleMember()
+    const { id } = await invite('owner@x.test', 'member')
+    const crmBefore = await vaultCounts()
+    const { cb, location } = await google({ profile: { email: 'owner@x.test', email_verified: true } })
+    expect(cb.status).toBe(302)
+    expect(errorOf(location)).toBeNull()
+    expect(await vaultCounts()).toEqual(crmBefore)
+    expect((await ctl('select accepted_at from invitations where id = ?', id))[0]!.accepted_at).toBeNull()
+    expect((await me(cookieOf(cb))).status).toBe(403)
+  })
+})

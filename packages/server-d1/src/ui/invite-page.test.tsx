@@ -182,3 +182,71 @@ describe('refusals', () => {
     expect(document.body.textContent).not.toContain('server says hi')
   })
 })
+
+// [[CORE302]] P6: the sign-in mode, for a person whose account already exists (a removed member invited again): the token rides `/auth/sign-in/email` as the `vibase-invitation` header (the sign-in body schema strips it).
+describe('the sign-in mode (CORE302 P6)', () => {
+  const MODE = /already have an account\? sign in to accept/i
+  const switchToSignIn = async () => {
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: MODE }))
+    return user
+  }
+  const signInFields = async (user: ReturnType<typeof userEvent.setup>, o: { email?: string; password?: string } = {}) => {
+    await user.type(screen.getByLabelText('Email'), o.email ?? 'ann@x.test')
+    await user.type(screen.getByLabelText('Password'), o.password ?? PASSWORD)
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }))
+  }
+
+  it('the switch shows email and password only (no name), a Sign in button and a way back; the sign-up mode is the default', async () => {
+    fakeFetch({})
+    render(<InvitePage />)
+    expect(screen.getByLabelText('Name')).toBeTruthy()
+    await switchToSignIn()
+    expect(screen.queryByLabelText('Name')).toBeNull()
+    expect(screen.getByLabelText('Email')).toBeTruthy()
+    expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('current-password')
+    expect(screen.getByRole('button', { name: /^sign in$/i })).toBeTruthy()
+    await userEvent.setup().click(screen.getByRole('button', { name: /create (an )?account/i }))
+    expect(screen.getByLabelText('Name')).toBeTruthy()
+  })
+
+  it('posts /auth/sign-in/email with { email, password } and the token in the vibase-invitation header; success navigates to /sign-in', async () => {
+    const f = fakeFetch({ 'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } } })
+    const go = vi.fn()
+    render(<InvitePage navigate={go} />)
+    await signInFields(await switchToSignIn())
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/sign-in'))
+    expect(f.requests()).toEqual(['POST /auth/sign-in/email'])
+    expect(f.calls[0]!.body).toEqual({ email: 'ann@x.test', password: PASSWORD })
+    expect(new Headers(f.calls[0]!.init.headers as HeadersInit).get('vibase-invitation')).toBe(TOKEN)
+  })
+
+  it.each([
+    ['bad credentials (401)', { status: 401, json: { code: 'INVALID_EMAIL_OR_PASSWORD' } }, MESSAGES.wrongCredentials],
+    ['429', { status: 429, json: { message: 'Too many requests.' } }, MESSAGES.rateLimited],
+    ['invitation_acceptance_failed', { status: 500, json: { code: 'invitation_acceptance_failed' } }, MESSAGES.signInAcceptanceFailed],
+  ])('%s shows the existing message in an alert and it clears on the next submit', async (_n, reply, message) => {
+    let first = true
+    fakeFetch({ 'POST /auth/sign-in/email': () => (first ? ((first = false), reply) : { status: 200, json: { user: { email: 'ann@x.test' } } }) })
+    const go = vi.fn()
+    render(<InvitePage navigate={go} />)
+    const user = await switchToSignIn()
+    await signInFields(user)
+    expect((await screen.findByRole('alert')).textContent).toBe(message)
+    expect(go).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/sign-in'))
+    expect(screen.queryByText(message)).toBeNull()
+  })
+
+  it('client validation sends nothing: an empty password and a bad email', async () => {
+    const f = fakeFetch({})
+    render(<InvitePage />)
+    const user = await switchToSignIn()
+    await user.type(screen.getByLabelText('Email'), 'ann@')
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }))
+    expect(await screen.findByText(MESSAGES.emailInvalid)).toBeTruthy()
+    expect(screen.getByText(MESSAGES.passwordRequired)).toBeTruthy()
+    expect(f.calls).toEqual([])
+  })
+})

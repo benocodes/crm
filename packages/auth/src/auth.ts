@@ -57,6 +57,11 @@ export interface AuthDatabaseLike {
 export const INVITATION_REQUIRED = 'invitation_required'
 /** The body field that carries the raw invitation token on `POST /auth/sign-up/email` ([[CORE287]] P1; Better Auth's body schema passes unknown fields through). */
 export const INVITATION_TOKEN_FIELD = 'invitation_token'
+/**
+ * The request header that carries the raw invitation token on `POST /auth/sign-in/email` ([[CORE302]] P1): Better Auth 1.7.22's sign-in body schema is a strict-stripping `z.object`, so an `invitation_token`
+ * field never reaches the hooks there (the sign-up schema passes it through). Read in the session hook, after the credential is proven.
+ */
+export const INVITATION_TOKEN_HEADER = 'vibase-invitation'
 
 /**
  * What the composition hands the auth package so it can gate and settle accounts without ever reaching the CRM or control database itself ([[CORE259]] D5, [[CORE287]]): the Worker implements it over
@@ -67,9 +72,10 @@ export interface InvitationAdmission {
   admits(a: { email: string; token: string }): Promise<boolean>
   /**
    * Called on every session creation (sign-up and sign-in, [[CORE287]] P3, P5) with the Better Auth account behind it. Writes the vault's rows and marks the invitation accepted when the account has no
-   * rows yet and a live invitation created no later than the account admitted it; otherwise writes nothing. Throws when the write fails: the session is then not created.
+   * rows yet and a live invitation created no later than the account admitted it; re-admits a removed member whose sign-in carries a live token for its email ([[CORE302]]); otherwise writes nothing.
+   * Throws when the write fails: the session is then not created.
    */
-  settle(a: { subject: string; email: string; name: string; /** The Better Auth user's `emailVerified` ([[CORE294]] P5): true for a Google-verified account, false for a password sign-up. */ emailVerified: boolean; accountCreatedAt: Date }): Promise<void>
+  settle(a: { subject: string; email: string; name: string; /** The Better Auth user's `emailVerified` ([[CORE294]] P5): true for a Google-verified account, false for a password sign-up. */ emailVerified: boolean; accountCreatedAt: Date; /** The invitation token this sign-in carries ([[CORE302]] P1): the `vibase-invitation` header (password) or the OAuth state's server context (Google). Only a re-admission reads it. */ token?: string }): Promise<void>
 }
 
 export interface CreateAuthOptions {
@@ -236,6 +242,14 @@ async function oauthStateOrNull(): Promise<{ serverContext?: Record<string, unkn
   }
 }
 
+/** The invitation token a sign-in presents ([[CORE302]] P1): the `vibase-invitation` header (password), else the OAuth state's server context (Google). Only a non-empty string; never a query value. */
+async function presentedToken(ctx: { headers?: Headers } | null | undefined): Promise<string | undefined> {
+  const header = ctx?.headers?.get(INVITATION_TOKEN_HEADER)
+  if (typeof header === 'string' && header !== '') return header
+  const fromState = (await oauthStateOrNull())?.serverContext?.[SERVER_CONTEXT_TOKEN]
+  return typeof fromState === 'string' && fromState !== '' ? fromState : undefined
+}
+
 /**
  * Before-hooks of every endpoint. [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the
  * library, so it is refused too. [[CORE287]]: email sign-up is gated before anything else runs, so an unadmitted request costs no password hash and cannot tell an existing account from an absent one.
@@ -318,12 +332,13 @@ export function authOptions(db: AuthDatabaseLike, config: AuthRuntimeConfig, opt
       session: {
         // Every successful sign-up and sign-in creates a session: the one place acceptance and repair ([[CORE287]] P3, P5) run, before the session exists, so a failure leaves no cookie.
         create: {
-          before: async (session: { userId: string }, ctx: { context?: { internalAdapter?: { findUserById(id: string): Promise<{ id: string; email: string; name: string; emailVerified?: boolean; createdAt: Date | string | number } | null> }; logger?: { error(...a: unknown[]): void } } } | null | undefined) => {
+          before: async (session: { userId: string }, ctx: { headers?: Headers; context?: { internalAdapter?: { findUserById(id: string): Promise<{ id: string; email: string; name: string; emailVerified?: boolean; createdAt: Date | string | number } | null> }; logger?: { error(...a: unknown[]): void } } } | null | undefined) => {
             if (!admission) return
             const user = await ctx?.context?.internalAdapter?.findUserById(session.userId)
             if (!user) return
+            const token = await presentedToken(ctx)
             try {
-              await admission.settle({ subject: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified === true, accountCreatedAt: new Date(user.createdAt) })
+              await admission.settle({ subject: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified === true, accountCreatedAt: new Date(user.createdAt), ...(token === undefined ? {} : { token }) })
             } catch (err) {
               ctx?.context?.logger?.error('invitation acceptance failed', err instanceof Error ? err.message : 'unknown error')
               throw new APIError('INTERNAL_SERVER_ERROR', { code: 'invitation_acceptance_failed', message: 'the account could not be settled; sign in again to retry' })
