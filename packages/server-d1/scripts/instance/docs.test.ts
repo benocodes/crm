@@ -9,6 +9,8 @@ import { deriveCommands, RESERVED_FLAGS, mergeDocuments } from '../../../cli/src
 import { GLOBAL_FLAGS, HAND_COMMANDS } from '../../../cli/src/help.js'
 import { runInstance } from './main.js'
 import { NO_EMAIL_STATEMENT } from '../setup/verify-better-auth.js'
+import { INSTANCE_HELP } from './main.js'
+import { serverHelpProblems } from '../../../release/src/help-assertions.js'
 import { parseInstanceSetupArgs } from './setup-args.js'
 
 const DOCS = fileURLToPath(new URL('../../../docs/src/content/docs/', import.meta.url))
@@ -227,10 +229,8 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
     expect(lines[0]!.line).not.toContain('--auth clerk')
     expect(lines.some((l) => l.line.includes('--auth clerk'))).toBe(true)
   })
-  it('self-hosting names the owner invitation link printed once, and still promises no workers.dev (a later cycle)', () => {
+  it('self-hosting names the owner invitation link printed once', () => {
     expect(s()).toMatch(/shown once|printed once/i)
-    expect(s()).not.toMatch(/workers\.dev/i)
-    expect(README()).not.toMatch(/--workers-dev/)
   })
   it.each([['self-hosting', () => s()], ['the server-d1 README', () => README()]])('%s: an owner-reset section gives the command, says what it prints once, and why the secrets file must be kept (OPS307 D13)', (_n, md) => {
     const text = md()
@@ -268,5 +268,41 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
   it('mutation: a docs page that quotes an edited statement is not the constant (the check sees the edit)', () => {
     const edited = NO_EMAIL_STATEMENT.replace('no self-service password reset', 'self-service password reset')
     expect(has(s(), edited)).toBe(false)
+  })
+})
+
+// [[OPS308]] obligation 6 (D13, the workers.dev part): the docs, both usage lines and release:check's help assertions agree with the program.
+describe('the docs and help agree with the program on workers.dev (OPS308 D13)', () => {
+  const s = () => page('deployment/self-hosting')
+  const USAGE = '(--api-host <host> | --workers-dev)'
+  it('self-hosting has the no-domain path with --workers-dev, the registration flag as the operator\'s one-time step, and the move section with its consequences', () => {
+    const md = s()
+    expect(md).toMatch(/npx @vibase\/server-d1@<version> setup --env \S+ --workers-dev /)
+    expect(has(md, '--register-workers-subdomain')).toBe(true)
+    expect(has(md, 'one-time')).toBe(true)
+    const heads = [...md.matchAll(/^##\s+(.*)$/gm)].map((m) => m[1]!)
+    expect(heads.some((h) => /moving to a custom domain/i.test(h))).toBe(true)
+    const body = md.slice(md.search(/^##\s+Moving to a custom domain/im)).split(/^## /m)[1] ?? ''
+    expect(md).toMatch(/--api-host \S+ --change-host/)
+    for (const w of ['sign in again', 'vibase login', 'reconnect', 'redirect URI']) expect(has(md, w), w).toBe(true)
+    expect(body.length).toBeGreaterThan(0)
+  })
+  it('the server-d1 README has the no-domain path and the move, and AGENTS.md\'s setup:remote line takes the host flag pair', () => {
+    expect(README()).toMatch(/--workers-dev/)
+    expect(README()).toMatch(/--change-host/)
+    const line = AGENTS().split('\n').find((l) => l.includes('setup:remote -- --env <name>'))!
+    expect(line).toContain(USAGE)
+  })
+  it('both usage lines and the setup:remote header name the pair; release:check\'s help assertion requires it and sees an edited line', () => {
+    expect(INSTANCE_HELP).toContain(`vibase-server setup --env <name> ${USAGE}`)
+    expect(read('../setup-remote.ts')).toContain(USAGE)
+    expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
+    expect(serverHelpProblems(INSTANCE_HELP.replace(USAGE, '--api-host <host>'))).toEqual([`setup --env <name> ${USAGE}`])
+  })
+  it('the setup usage line of the program (printed on a refusal) names the pair', async () => {
+    const { runSetup } = await import('./setup.js')
+    const err: string[] = []
+    await runSetup(['--env', 'x', '--bogus'], { out: () => {}, err: (l: string) => void err.push(l) } as never)
+    expect(err.join('\n')).toContain(USAGE)
   })
 })

@@ -7,6 +7,7 @@ import { CONTROL_MIGRATIONS, MIGRATIONS, type D1Like, type D1PreparedLike } from
 import type { Credentials, EnvFileProbe, ExecResult, SetupCmd, SetupDeps } from '../types.js'
 import { PK_TEST, SK_TEST, type FakeClerk } from './clerk-world.js'
 import { scriptedAnswer, type BetterAuthScript } from './better-auth-answers.js'
+import { subdomainResponse, type SubdomainState } from './subdomain-answers.js'
 
 export const FIXTURE_CONFIG_PATH = new URL('./wrangler.fixture.jsonc', import.meta.url)
 export const EXPECTED_MIGRATIONS = MIGRATIONS.map((m) => m.name)
@@ -89,6 +90,12 @@ export interface WorldOptions {
   vibase?: { issuer: string | null; cli_client_id: string | null } | 'absent'
   /** `better-auth`: scripted answers for discovery and the RFC 8414 metadata (OPS306); default: the Worker's correct answers. */
   ba?: BetterAuthScript
+  /** The account's `workers.dev` subdomain (OPS308); `null`: none registered. Default `team`. */
+  subdomain?: string | null
+  /** The subdomain endpoint answers 403. */
+  subdomainDenied?: boolean
+  /** `/health` reports migrations `behind` until the injected clock has advanced this far from the world's start (OPS308 P2). */
+  healthCurrentAfterMs?: number
 }
 
 export interface World {
@@ -100,7 +107,7 @@ export interface World {
   probes: { arg: string | undefined; envName: string }[]
   fetched: string[]
   logs: string[]
-  state: { failBulk: boolean; envFileText: string | null; configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; appliedControl: string[] | null; deployedSha: string | null; sleeps: number[]; secrets: Record<string, string> }
+  state: { failBulk: boolean; envFileText: string | null; configText: string; envText: string; configWrites: number; d1s: { uuid: string; name: string }[]; r2s: string[]; applied: string[] | null; appliedControl: string[] | null; deployedSha: string | null; sleeps: number[]; secrets: Record<string, string>; subdomain: SubdomainState }
   writes(): string[][]
   /** The control database behind `CONTROL_DB`. */
   control: D1Like
@@ -125,6 +132,7 @@ export function makeWorld(o: WorldOptions): World {
     deployedSha: o.deployedSha === undefined ? null : o.deployedSha,
     sleeps: [] as number[],
     secrets: Object.fromEntries((o.secrets ?? []).map((n) => [n, 'present'])) as Record<string, string>,
+    subdomain: { subdomain: o.subdomain === undefined ? 'team' : o.subdomain, puts: [], denied: o.subdomainDenied } as SubdomainState,
   }
   const argv: string[][] = []
   const inputs: string[] = []
@@ -132,7 +140,8 @@ export function makeWorld(o: WorldOptions): World {
   const probes: { arg: string | undefined; envName: string }[] = []
   const fetched: string[] = []
   const logs: string[] = []
-  let clock = 1_000_000
+  const clock0 = 1_000_000
+  let clock = clock0
   const baCounters = { vibase: 0, metadata: 0 }
   const head = o.headSha ?? SHA
   const control = o.control ?? memoryControl()
@@ -219,6 +228,8 @@ export function makeWorld(o: WorldOptions): World {
     if (o.clerk?.handles(url)) return o.clerk.handle(url, init)
     if (url.startsWith('https://api.cloudflare.com/client/v4/')) {
       const path = url.slice('https://api.cloudflare.com/client/v4/'.length)
+      const sub = subdomainResponse(path, init, state.subdomain)
+      if (sub) return sub
       const kind = path.startsWith('zones') ? 'zones' : path.includes('/d1/') ? 'd1' : path.includes('/r2/') ? 'r2' : path.includes('/workers/') ? 'workers' : 'other'
       if ((o.denied ?? []).includes(kind)) return reply(403, { success: false, errors: [{ code: 10000, message: 'Authentication error' }] })
       if (kind === 'zones') return reply(200, { success: true, result: (o.zones ?? ['vibase.ai']).map((name, i) => ({ id: `z${i}`, name })) })
@@ -228,7 +239,7 @@ export function makeWorld(o: WorldOptions): World {
     if (url.endsWith('/health')) {
       if (state.deployedSha === null) return new Response('', { status: 522 })
       const initialised = (await o.d1.prepare('select 1 as x from deployment').first().catch(() => null)) !== null
-      return reply(200, { status: 'ok', version: state.deployedSha, initialised, migrations: { status: o.healthNeverCurrent ? 'behind' : state.applied && EXPECTED_MIGRATIONS.every((n) => state.applied!.includes(n)) ? 'current' : 'behind' } })
+      return reply(200, { status: 'ok', version: state.deployedSha, initialised, migrations: { status: o.healthNeverCurrent || (o.healthCurrentAfterMs !== undefined && clock - clock0 < o.healthCurrentAfterMs) ? 'behind' : state.applied && EXPECTED_MIGRATIONS.every((n) => state.applied!.includes(n)) ? 'current' : 'behind' } })
     }
     const scripted = scriptedAnswer(url, o.ba ?? {}, baCounters)
     if (scripted && (o.ba !== undefined || /AUTH_PROVIDER"\s*:\s*"better-auth"/.test(state.configText))) return scripted

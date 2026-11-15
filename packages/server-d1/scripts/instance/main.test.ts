@@ -47,7 +47,7 @@ describe('instance entry', () => {
   it('OPS240 D21: the help names the program vibase-server and no longer mentions `vibase instance`', () => {
     expect(INSTANCE_HELP).toMatch(/^vibase-server: /)
     expect(INSTANCE_HELP).not.toMatch(/vibase instance/)
-    expect(INSTANCE_HELP).toMatch(/vibase-server setup --env <name> --api-host <host>/)
+    expect(INSTANCE_HELP).toContain('vibase-server setup --env <name> (--api-host <host> | --workers-dev)')
   })
   it('status with no settings file (real deps) refuses naming the default path, before any network call', async () => {
     const xdg = mkTmp()

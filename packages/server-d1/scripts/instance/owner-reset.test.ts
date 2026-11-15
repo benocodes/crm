@@ -21,7 +21,6 @@ function world(o: RunOptions) {
 const driver: Driver = {
   refused: 2,
   failed: 3,
-  dryRun: true,
   async run(o) {
     const w = world(o)
     const argv = ['--env', 'demo', ...(o.email ? ['--email', o.email] : []), ...(o.dryRun ? ['--dry-run'] : [])]

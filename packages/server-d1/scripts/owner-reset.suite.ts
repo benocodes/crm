@@ -36,8 +36,6 @@ export interface Driver {
   /** The exit code of a refusal before any write, and of a failure after one (P6). */
   refused: number
   failed: number
-  /** Only `vibase-server` has `--dry-run` (D9). */
-  dryRun: boolean
   run(o: RunOptions): Promise<Run>
 }
 
