@@ -280,6 +280,8 @@ npx @vibase/server-d1@<version> status --env mycompany
 
 Status verifies the package files, asks the live instance for its version and migration state, and prints the upgrade plan. It changes nothing. It exits 0 when the instance runs this release with current migrations, 1 when it is behind, and 2 when it refuses to continue.
 
+On an instance with a control database it also prints, with the `[control]` prefix, what the next repair sweep would do: `sweep: N subject(s) pending revocation` (removed members and disabled agents that still hold sessions or tokens) and `sweep: M orphan account(s) pending deletion` (sign-ups older than 24 hours that no invitation completed). The sweep runs by itself every minute; the counts are read-only and never change the exit code. A count that cannot be read prints `sweep: counts unavailable`.
+
 ## Upgrade
 
 Upgrading is running a newer, explicitly pinned version. Read the plan first, then apply it:

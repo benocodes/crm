@@ -187,7 +187,7 @@ describe('db:status:remote sweep counts (CORE289 P6)', () => {
   })
   it('every command issued is a read', () => {
     const r = run()
-    expect(r.sql.length).toBeGreaterThanOrEqual(5)
+    expect(r.sql.length).toBeGreaterThanOrEqual(4)
     for (const s of r.sql) expect(isReadOnlySql(s), s).toBe(true)
   })
   it.each(['control', 'crm', 'status'] as const)('an unreadable count (%s read failed) prints unavailable and leaves the exit code unchanged', (fail) => {

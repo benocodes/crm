@@ -21,7 +21,7 @@ export async function runStatus(argv: string[], deps: InstanceDeps): Promise<num
     }
     if (!values.env) throw new InstanceRefusal('--env <name> is required; usage: vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]')
     if (!/^[a-z0-9][a-z0-9-]*$/.test(values.env)) throw new InstanceRefusal(`--env ${values.env} is not an environment name (lowercase letters, digits and dashes)`)
-    const g = await runGate({ envName: values.env, settingsPath: values.settings, secretsPath: values['secrets-file'] }, deps)
+    const g = await runGate({ envName: values.env, settingsPath: values.settings, secretsPath: values['secrets-file'], sweepCounts: true }, deps)
     const expected = g.manifest.migrations.map((m) => m.name)
     const migrations = statusOf(g.applied, expected)
     deps.out(`package: vibase-server/${g.manifest.version} (${g.manifest.commit}), ${Object.keys(g.manifest.files).length} files verified`)

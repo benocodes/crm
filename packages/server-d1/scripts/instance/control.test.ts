@@ -70,8 +70,10 @@ describe('OPS275 status per database (the matrix)', () => {
   })
   it('control is read on CONTROL_DB and crm on DB, in the same generated config', async () => {
     const { w } = await run(CONTROL_ALL, CRM_ALL)
-    expect(w.wrangler.map((c) => bindingOf(c.args))).toEqual(['CONTROL_DB', 'DB'])
-    expect(w.wrangler[0]!.configPath).toBe(w.wrangler[1]!.configPath)
+    // The two tracker reads come first; the repair sweep's count reads ([[CORE289]] P6) follow in the same config.
+    expect(w.wrangler.slice(0, 2).map((c) => bindingOf(c.args))).toEqual(['CONTROL_DB', 'DB'])
+    expect(w.wrangler.slice(0, 2).every((c) => /select name from d1_migrations/.test(c.args.join(' ')))).toBe(true)
+    expect(new Set(w.wrangler.map((c) => c.configPath)).size).toBe(1)
     expect(JSON.parse(w.wrangler[0]!.configText!).d1_databases.map((d: any) => d.binding).sort()).toEqual(['CONTROL_DB', 'DB'])
   })
   it('a live version that differs is exit 1 even when both databases are current', async () => {
