@@ -1,3 +1,4 @@
+import { logEmailFailure } from '../email/log.js'
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
 import type { ControlOperation } from '../registry.js'
@@ -89,7 +90,7 @@ export function invitationOperations(runtime: InvitationsRuntime | null): Contro
       name: 'invitations.create',
       summary: 'Invite someone to the workspace; the link is emailed or shown once',
       description:
-        'Human only (owners). Creates an invitation for an email address with a role (owner, member or agent) that expires in 7 days, and either emails the link (delivery email, the default when the deployment has email configured; the answer has no url) or returns it once (delivery link, the default otherwise): the token in the link is never stored or shown again. Delivery email while email is not configured answers 501 email_not_configured; when the message cannot be sent the invitation is revoked and the answer is 502 email_send_failed (retry, or use delivery link). One live invitation per address: a second answers 409 invitation_exists (revoke the first). The link is inert until sign-up accepts invitations. Answers 501 provider_not_configured when the deployment has no built-in auth provider.',
+        'Human only (owners). Creates an invitation for an email address with a role (owner, member or agent) that expires in 7 days, and either emails the link (delivery email, the default when the deployment has email configured; the answer has no url) or returns it once (delivery link, the default otherwise): the token in the link is never stored or shown again. Delivery email while email is not configured answers 501 email_not_configured; when the message cannot be sent the invitation is revoked and the answer is 502 email_send_failed (retry, or use delivery link); if that revoke also fails the invitation stays pending, inert, until it expires or an owner revokes it, and a retry answers 409 invitation_exists. One live invitation per address: a second answers 409 invitation_exists (revoke the first). The link is inert until sign-up accepts invitations. Answers 501 provider_not_configured when the deployment has no built-in auth provider.',
       method: 'post',
       path: '/invitations',
       scope: { resource: 'invitations', action: 'write' },
@@ -136,7 +137,8 @@ export function invitationOperations(runtime: InvitationsRuntime | null): Contro
             to: email,
             ...invitationMessage({ host: new URL(rt.publicBaseUrl).host, url, role: body.role, expiresAt }),
           })
-        } catch {
+        } catch (sendErr) {
+          logEmailFailure('invitation_send_failed', sendErr)
           try {
             await rt.port.revoke({
               id,
@@ -145,13 +147,14 @@ export function invitationOperations(runtime: InvitationsRuntime | null): Contro
               now: env.now.toISOString(),
               reason: 'email_failed',
             })
-          } catch {
+          } catch (revokeErr) {
             // The invitation stays pending with a token nobody holds: inert, visible in invitations.list, expires in 7 days.
+            logEmailFailure('invitation_revoke_failed', revokeErr)
           }
           throw new ApiError(
             502,
             'email_send_failed',
-            'the invitation email could not be sent; the invitation was not kept. Retry, or create it with delivery link',
+            'the invitation email could not be sent; the invitation may still be pending (see invitations.list). Retry, or create it with delivery link; if a retry answers invitation_exists, revoke the pending invitation first',
           )
         }
         return { id, email, role: body.role, expires_at: expiresAt, delivery }

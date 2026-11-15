@@ -120,6 +120,17 @@ export async function getSignInMethods(): Promise<string[]> {
     : undefined
   return Array.isArray(methods) ? methods.filter((m): m is string => typeof m === 'string') : ['password']
 }
+/** [[CORE304]] D2: whether discovery says a person can ask for a reset link here (`auth.self_service_reset === true`). Anything unreadable, absent or not exactly `true` is false: the "ask an owner" line stays. */
+export async function getSelfServiceReset(): Promise<boolean> {
+  const r = await call('GET', '/.well-known/vibase')
+  return (
+    r.ok &&
+    (r.data as { auth?: { self_service_reset?: unknown } } | null | undefined)?.auth?.self_service_reset === true
+  )
+}
+/** [[CORE304]] D7: `POST /auth/request-password-reset { email }`. The answer's body is never read (a known and an unknown address answer alike); only the status matters. */
+export const requestPasswordReset = (email: string): Promise<ApiResult<unknown>> =>
+  call('POST', '/auth/request-password-reset', { email })
 /**
  * [[CORE294]] D8: starts Google sign-in. The body is exactly the callback URLs (the vault's own `/sign-in`, success and failure) and, on `/invite`, the invitation token; the answer is the Google URL to follow
  * (validated like every redirect: `http:` or `https:` only).

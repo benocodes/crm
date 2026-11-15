@@ -5,10 +5,11 @@ import { MESSAGES, genericFailure } from './messages.js'
 import { returnTarget } from './continuation.js'
 import { emailError, goTo, type PageProps } from './page.js'
 import { GoogleButton, useGoogleEnabled } from './google-button.js'
+import { ResetRequest, useSelfServiceReset } from './reset-request.js'
 
 /**
- * [[UI246]] D5. A session is the signed-in view (the email as text) with sign-out; no session is the form. No sign-up link (admission is the invitation), no "forgot password" flow without email (a line says
- * to ask an owner). [[UI247]] D6 adds the continuation: a signed OAuth query (`sig`) is forwarded as `oauth_query` and the form shows even with a session; otherwise a `return_to` of `/device` or
+ * [[UI246]] D5. A session is the signed-in view (the email as text) with sign-out; no session is the form. No sign-up link (admission is the invitation), a "Forgot password?" request when discovery says `self_service_reset` ([[CORE304]] D7), otherwise a line saying
+ * to ask an owner. [[UI247]] D6 adds the continuation: a signed OAuth query (`sig`) is forwarded as `oauth_query` and the form shows even with a session; otherwise a `return_to` of `/device` or
  * `/connect` is where a finished sign-in goes (and a signed-in visitor gets a Continue link).
  */
 export function SignInPage({ navigate = goTo }: PageProps) {
@@ -96,6 +97,9 @@ function SignInForm({
   onSignedIn: (user: SessionUser, redirect?: string) => void
 }) {
   const google = useGoogleEnabled()
+  // [[CORE304]] D7: with email on the page offers a reset request instead of the "ask an owner" line; the request form replaces the sign-in form until the person goes back.
+  const selfServiceReset = useSelfServiceReset()
+  const [resetting, setResetting] = useState(false)
   const [googleError, setGoogleError] = useState<string | undefined>(undefined)
   // [[CORE294]] P1: the callback error is taken into state once and leaves the address, so it cannot mask a later error.
   const [callbackMessage, setCallbackMessage] = useState<string | undefined>(() => callbackError(location.search))
@@ -135,6 +139,7 @@ function SignInForm({
     return genericFailure(r.status)
   }
 
+  if (resetting) return <ResetRequest onBack={() => setResetting(false)} />
   return (
     <FormLayout
       title="Sign in"
@@ -168,7 +173,13 @@ function SignInForm({
         required
       />
       {google ? <GoogleButton onError={setGoogleError} navigate={navigate} /> : null}
-      <p>{MESSAGES.signInHelp}</p>
+      {selfServiceReset ? (
+        <Button variant="link" onClick={() => setResetting(true)}>
+          {MESSAGES.forgotPassword}
+        </Button>
+      ) : (
+        <p>{MESSAGES.signInHelp}</p>
+      )}
     </FormLayout>
   )
 }

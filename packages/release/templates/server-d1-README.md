@@ -24,6 +24,8 @@ Email is off by default: invitation links are handed over by the owner. To have 
 2. Add a `send_email` binding named `EMAIL` to the Worker config (`"send_email": [{ "name": "EMAIL" }]`) and a variable `AUTH_EMAIL_FROM` holding a bare sender address on that domain (for example `invites@example.com`).
 3. Deploy. Both must be present; one without the other, or a malformed address, makes every request except `/health` answer `500` and the log names the variable.
 
-With email on, `invitations.create` sends the link to the invited address by default and does not return it (`delivery: "email"`); pass `delivery: "link"` to get the link back instead. A failed send revokes the invitation and answers `502 email_send_failed`. Accepting an emailed invitation records the address as verified. Email applies to the built-in provider (`AUTH_PROVIDER=better-auth`) only.
+With email on, `invitations.create` sends the link to the invited address by default and does not return it (`delivery: "email"`); pass `delivery: "link"` to get the link back instead. A failed send revokes the invitation and answers `502 email_send_failed` (if that revoke also fails the invitation stays pending until it expires or an owner revokes it). Accepting an emailed invitation records the address as verified.
+
+Email also turns on self-service password reset: `/sign-in` then shows "Forgot password?", which asks `POST /auth/request-password-reset` for a link and emails it (valid one hour, answered the same for every address, at most 5 requests per hour per client IP; a completed reset signs the person out everywhere). Owner-issued reset links stay returned links and are never emailed. With email off, `/sign-in` keeps telling people to ask an owner and the request is refused. Email applies to the built-in provider (`AUTH_PROVIDER=better-auth`) only.
 
 Node 22 or newer. Licence: AGPL-3.0-only.

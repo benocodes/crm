@@ -9,6 +9,7 @@ export const discoveryAnswer = (base: string, signInMethods: string[] = ['passwo
     resource: base,
     protected_resource_metadata: `${base}/.well-known/oauth-protected-resource`,
     sign_in_methods: signInMethods,
+    self_service_reset: false,
   },
 })
 /** The parts of the RFC 8414 metadata verify reads. */

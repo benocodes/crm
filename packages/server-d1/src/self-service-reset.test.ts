@@ -1,9 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { MIGRATIONS, openControlDb, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
+import { MIGRATIONS, openControlDb, type D1Like } from '@vibase/storage-d1'
 import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { createVibaseRegistry } from '@vibase/api'
+import { createAuth } from '@vibase/auth'
 import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
@@ -28,50 +29,11 @@ afterAll(() => w.dispose())
 let scheduled: Array<Promise<unknown>> = []
 const settle = () => Promise.allSettled(scheduled)
 
-/** A control D1 that can hold the first `insert into auth_verifications` (the in-process reset request) while a test sends an HTTP request in the gap. */
-const hold: { armed: boolean; blocked?: Promise<void>; release?: () => void } = { armed: false }
-function holdingControl(real: D1Like): D1Like {
-  const sqlOf = new WeakMap<object, string>()
-  return {
-    prepare(query: string) {
-      const p = real.prepare(query)
-      const gate = async () => {
-        if (hold.armed && /insert\s+into\s+"?auth_verifications"?/i.test(query)) {
-          hold.armed = false
-          let open!: () => void
-          const opened = new Promise<void>((r) => (open = r))
-          let reached!: () => void
-          hold.blocked = new Promise<void>((r) => (reached = r))
-          hold.release = open
-          reached()
-          await opened
-        }
-      }
-      return {
-        bind: (...v: unknown[]) => {
-          const b = p.bind(...v)
-          sqlOf.set(b, query)
-          const inner = b as unknown as Record<string, () => Promise<unknown>>
-          return {
-            run: async () => (await gate(), inner.run!()),
-            all: async () => (await gate(), inner.all!()),
-            first: async () => (await gate(), inner.first!()),
-          } as unknown as D1PreparedLike
-        },
-        run: () => p.run(),
-        all: () => p.all(),
-        first: () => p.first(),
-      } as D1PreparedLike
-    },
-    batch: (b: D1PreparedLike[]) => real.batch(b),
-  }
-}
-
-const worker = (over: { email?: unknown; from?: string; control?: D1Like; extra?: Partial<D1WorkerEnv> } = {}) =>
+const worker = (over: { email?: unknown; from?: string; extra?: Partial<D1WorkerEnv> } = {}) =>
   composeD1Worker(
     {
       DB: w.d1,
-      CONTROL_DB: over.control ?? w.control,
+      CONTROL_DB: w.control,
       AUTH_PROVIDER: 'better-auth',
       AUTH_SECRET,
       PUBLIC_BASE_URL: AUTH_BASE,
@@ -168,7 +130,6 @@ beforeEach(async () => {
   kit = authKit(w.control, { scopes: declared })
   email = fakeEmail()
   scheduled = []
-  hold.armed = false
   for (const m of ['error', 'warn', 'log', 'info'] as const) vi.spyOn(console, m).mockImplementation(() => {})
 })
 afterEach(() => {
@@ -192,7 +153,7 @@ describe('gate matrix (D4): email on/off x request path x HTTP/in-process', () =
     expect(await verifications()).toEqual([])
   })
 
-  it('HTTP /forget-password is refused in both modes: no verification row, nothing sent', async () => {
+  it('HTTP /forget-password is refused in both modes (Better Auth 1.7.22 has no such route: 404; the gate would refuse it with RESET_PASSWORD_DISABLED if it had): no verification row, nothing sent', async () => {
     await human('member', 'ann@x.test')
     for (const wk of [on(), off()]) {
       const res = await call(wk, 'POST', '/auth/forget-password', { body: { email: 'ann@x.test' } })
@@ -256,30 +217,54 @@ describe('delivery and timing (D4, P1)', () => {
     await settle()
     expect(slow.sent).toHaveLength(1)
   })
+})
 
-  it('P1: an HTTP request for an address with a live owner-link waiter is emailed, and the waiter still gets its own token', async () => {
-    const owner = await human('owner')
-    const member = await human('member', 'ann@x.test')
-    hold.armed = true
-    const wk = on({ control: holdingControl(w.control) })
-    const issuing = issueLink(wk, await owner.session(), member.id)
-    await hold.blocked
-    // The in-process call is parked inside its verification insert with its waiter registered; an anonymous request for the same address arrives now.
-    const http = await requestReset(wk, 'ann@x.test')
-    expect(http.status, http.text).toBe(200)
-    await settle()
-    hold.release!()
-    const issued = await issuing
-    expect(issued.status, issued.text).toBe(200)
-    expect(email.sent).toHaveLength(1)
-    const emailed = tokenOf(linkIn(email.sent[0]!.text))
-    const returned = tokenOf(issued.json.url)
-    expect(emailed).not.toBe(returned)
-    // both tokens are real and distinct rows; the returned one was never sent
-    expect((await verifications()).map((v) => v.identifier).sort()).toEqual(
-      [`reset-password:${emailed}`, `reset-password:${returned}`].sort(),
+describe('P1: only the in-process call is captured', () => {
+  /** The real Better Auth handler with a hand-registered waiter (what `issueResetToken` registers around its in-process call), so the HTTP request arrives while the waiter is live. */
+  const setup = async () => {
+    const captures = new Map<string, (token: string) => void>()
+    const delivered: Array<{ email: string; token: string }> = []
+    const auth = createAuth(
+      w.control,
+      { secret: AUTH_SECRET, baseURL: AUTH_BASE },
+      { unsafeOpenAdmissionForTests: true, resetCaptures: captures, deliverResetToken: (a) => void delivered.push(a) },
     )
-    expect(JSON.stringify(email.sent)).not.toContain(returned)
+    const post = (path: string, body: unknown) =>
+      auth.handler(
+        new Request(AUTH_BASE + path, {
+          method: 'POST',
+          headers: { origin: AUTH_BASE, 'content-type': 'application/json', 'cf-connecting-ip': ipFor() },
+          body: JSON.stringify(body),
+        }),
+      )
+    expect((await post('/auth/sign-up/email', { name: 'Ann', email: 'ann@x.test', password: OLD })).status).toBe(200)
+    return { captures, delivered, auth, post }
+  }
+
+  it('an HTTP request for an address with a live waiter is delivered, and the waiter gets nothing from it', async () => {
+    const { captures, delivered, post } = await setup()
+    const got: string[] = []
+    captures.set('ann@x.test', (t) => void got.push(t))
+    const res = await post('/auth/request-password-reset', { email: 'Ann@X.test' })
+    expect(res.status, await res.clone().text()).toBe(200)
+    expect(got).toEqual([])
+    expect(delivered).toHaveLength(1)
+    expect(delivered[0]!.email).toBe('ann@x.test')
+    expect((await verifications()).map((v) => v.identifier)).toEqual([`reset-password:${delivered[0]!.token}`])
+  })
+
+  it('the in-process call still reaches its own waiter and is never delivered, before and after an HTTP request', async () => {
+    const { delivered, auth, post } = await setup()
+    const first = await auth.issueResetToken('ann@x.test')
+    expect(first?.token).toBeTruthy()
+    expect(delivered).toEqual([])
+    expect((await post('/auth/request-password-reset', { email: 'ann@x.test' })).status).toBe(200)
+    const second = await auth.issueResetToken('ann@x.test')
+    expect(second?.token).toBeTruthy()
+    expect(second!.token).not.toBe(first!.token)
+    expect(delivered).toHaveLength(1)
+    expect(delivered[0]!.token).not.toBe(first!.token)
+    expect(delivered[0]!.token).not.toBe(second!.token)
   })
 })
 
@@ -329,6 +314,17 @@ describe('rate limit (D4, P3): 5 requests per hour per client IP', () => {
     for (let i = 0; i < 6; i++) statuses.push((await requestReset(wk, 'ann@x.test', '203.0.113.7')).status)
     expect(statuses).toEqual([200, 200, 200, 200, 200, 429])
     expect((await requestReset(wk, 'ann@x.test', '203.0.113.8')).status).toBe(200)
+  })
+
+  it('the window is a whole hour, not the library default of one minute: still limited after 5 minutes, served again after the hour', async () => {
+    await human('member', 'ann@x.test')
+    const wk = on()
+    for (let i = 0; i < 5; i++) expect((await requestReset(wk, 'ann@x.test', '203.0.113.20')).status).toBe(200)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 5 * 60_000)
+    expect((await requestReset(wk, 'ann@x.test', '203.0.113.20')).status).toBe(429)
+    vi.setSystemTime(Date.now() + 60 * 60_000)
+    expect((await requestReset(wk, 'ann@x.test', '203.0.113.20')).status).toBe(200)
   })
 
   it('a request that carries no cf-connecting-ip shares one bucket per path, so the limit still applies', async () => {
