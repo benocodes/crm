@@ -134,7 +134,7 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
 }
 
 /** Polls `/health` until the package's version shows with an accepted migrations status; bounded, on the injected clock. `null` when it did, else what was last seen. */
-export async function verify(url: string, version: string, accept: readonly string[], deps: InstanceDeps): Promise<string | null> {
+export async function verify(url: string, version: string, accept: readonly string[], deps: InstanceDeps, startedAt?: number): Promise<string | null> {
   const read = async (): Promise<{ version?: string; migrations?: string } | null> => {
     try {
       const res = await deps.fetch(`${url}/health`, { method: 'GET', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) })
@@ -147,7 +147,8 @@ export async function verify(url: string, version: string, accept: readonly stri
   }
   const ready = (h: { version?: string; migrations?: string } | null) => h !== null && h.version === version && h.migrations !== undefined && accept.includes(h.migrations)
   let h = await read()
-  const start = deps.now()
+  // `setup` passes the instant its verify step began, so the health wait and discovery share one bound ([[OPS308]] P2); `upgrade` measures from here as before.
+  const start = startedAt ?? deps.now()
   while (!ready(h) && deps.now() - start < VERIFY_BOUND_MS) {
     await deps.sleep(VERIFY_INTERVAL_MS)
     h = await read()

@@ -15,6 +15,7 @@ import type { ClerkKeys } from '../setup/clerk-keys.js'
 import { desiredBlock } from '../setup/config-editor.js'
 import { CONTROL_MARKER_SQL, MARKER_SQL, OWNERS_SQL, OWNER_INVITATIONS_SQL, parseControlMarkerOutput, parseD1List, parseMarkerOutput, parseOwnerState, parseR2List, parseSecretList, parseTrackerOutput, type MarkerRow } from '../setup/commands.js'
 import { GMAIL_SECRET_NAMES, NEVER_REPLACED, type Gmail } from '../setup/gmail.js'
+import { moveLines, oldDomainManual } from '../setup/host.js'
 import { preflight } from '../setup/steps.js'
 import type { Credentials, SetupOptions, StepName, StepResult } from '../setup/types.js'
 import type { ReleaseManifest } from '../../../release/src/manifest.js'
@@ -75,6 +76,8 @@ export function desiredSettings(ctx: SetupCtx): InstanceSettings {
   const d1 = ctx.facts?.d1s.find((d) => d.name === opts.d1Name)
   const control = ctx.facts?.d1s.find((d) => d.name === opts.controlD1Name)
   const cliId = clerk ? (ctx.cliClientId ?? configuredCliClientId(ctx.deps.readConfigText(), opts.env)) : undefined
+  // [[OPS308]]: workers_dev is on in workers.dev mode and stays on after a move from it.
+  const wd = opts.workersDev || opts.recordedHost?.workersDev === true
   const block = desiredBlock({
     env: opts.env,
     workerName: opts.workerName,
@@ -82,6 +85,9 @@ export function desiredSettings(ctx: SetupCtx): InstanceSettings {
     d1Id: d1?.uuid ?? PLACEHOLDER_DATABASE_ID,
     r2Name: opts.r2Name,
     apiHost: opts.apiHost,
+    workersDev: wd,
+    noRoute: opts.workersDev,
+    move: opts.move !== undefined,
     corsOrigins: CORS(opts),
     ...(ctx.gmail ? { gmailVars: ctx.gmail.vars } : {}),
     // [[OPS249]] D2: `better-auth` writes `AUTH_PROVIDER` and `PUBLIC_BASE_URL` and nothing else.
@@ -95,6 +101,7 @@ export function desiredSettings(ctx: SetupCtx): InstanceSettings {
     env: opts.env,
     worker: opts.workerName,
     api_host: opts.apiHost,
+    ...(wd ? { workers_dev: true } : {}),
     d1: { name: opts.d1Name, id: d1?.uuid ?? PLACEHOLDER_DATABASE_ID },
     control_d1: { name: opts.controlD1Name, id: control?.uuid ?? PLACEHOLDER_DATABASE_ID },
     r2_bucket: opts.r2Name,
@@ -172,24 +179,28 @@ const configWrite: Step = async (ctx) => {
   if (opts.auth === 'clerk' && desired.vars.AUTH_CLI_CLIENT_ID === undefined && !opts.dryRun) {
     return result('config:write', 'fail', 'AUTH_CLI_CLIENT_ID is not known: the Vibase CLI application comes from the clerk step (run it, or set the variable in the settings file)')
   }
+  const { move } = opts
+  // [[OPS308]] P5: setup makes no DNS or custom-domain delete call, so a custom domain the move leaves behind is the operator's to detach.
+  const leftBehind = move?.fromMode === 'custom' && move.from !== undefined && !opts.workersDev ? [oldDomainManual(move.from)] : []
   const write = (s: InstanceSettings, detail: string, status: 'create' | 'update'): StepResult => {
     if (opts.dryRun) {
       ctx.pending = true
       ctx.blockedBy = 'config:write'
-      return result('config:write', status, `would ${detail}`)
+      return { ...result('config:write', status, `would ${detail}`), ...(leftBehind.length ? { manual: leftBehind } : {}) }
     }
     mkdirSync(dirname(ctx.settingsPath), { recursive: true })
     writeFileSync(ctx.settingsPath, textOf(s))
     ctx.current = s
     ctx.wrote = true
-    return result('config:write', status, detail)
+    return { ...result('config:write', status, detail), ...(leftBehind.length ? { manual: leftBehind } : {}) }
   }
   if (existing === null) return write(desired, `write ${ctx.settingsPath}`, 'create')
 
   const mismatches: string[] = []
   const same = (label: string, a: unknown, b: unknown) => void (a !== b && mismatches.push(label))
   same('worker', existing.worker, desired.worker)
-  same('api_host', existing.api_host, desired.api_host)
+  if (!move) same('api_host', existing.api_host, desired.api_host)
+  same('workers_dev', existing.workers_dev === true, desired.workers_dev === true)
   same('d1.name', existing.d1.name, desired.d1.name)
   if (desired.d1.id !== PLACEHOLDER_DATABASE_ID) same('d1.id', existing.d1.id, desired.d1.id)
   same('r2_bucket', existing.r2_bucket, desired.r2_bucket)
@@ -207,7 +218,10 @@ const configWrite: Step = async (ctx) => {
   const vars = { ...existing.vars }
   for (const [k, v] of Object.entries(desired.vars)) {
     const here = existing.vars[k]
-    if (here === undefined || (k === 'CLERK_PUBLISHABLE_KEY' && here === '')) {
+    if (k === 'PUBLIC_BASE_URL' && move && here !== undefined && here !== v) {
+      vars[k] = v
+      added.push(`vars.${k}`)
+    } else if (here === undefined || (k === 'CLERK_PUBLISHABLE_KEY' && here === '')) {
       vars[k] = v
       added.push(`vars.${k}`)
     } else if (k === 'CLERK_AUTHORIZED_PARTIES') {
@@ -223,11 +237,12 @@ const configWrite: Step = async (ctx) => {
   if (mismatches.length > 0) {
     return result('config:write', 'fail', `${ctx.settingsPath} differs from the desired value at ${mismatches.join(', ')}; it is never overwritten: fix it or the flag`, mismatches.map((k) => `differs: ${k}`))
   }
+  if (move) added.unshift('api_host')
   if (added.length === 0) {
     ctx.current = existing
     return result('config:write', 'ok', `${ctx.settingsPath} is as desired`)
   }
-  return write({ ...existing, ...(control_d1 ? { control_d1 } : {}), vars }, `write ${added.join(', ')} into ${ctx.settingsPath}`, 'update')
+  return write({ ...existing, ...(move ? { api_host: desired.api_host } : {}), ...(control_d1 ? { control_d1 } : {}), vars }, `write ${added.join(', ')} into ${ctx.settingsPath}`, 'update')
 }
 
 const blocked = (ctx: SetupCtx, step: StepName): StepResult | null => {
@@ -472,7 +487,8 @@ const deploy: Step = async (ctx) => {
   if (b) return b
   const { version, commit } = ctx.manifest
   const health = await readHealth(ctx)
-  if (health?.version === version && health.commit === commit) return result('deploy', 'ok', `/health already reports ${version} @ ${commit}`)
+  // [[OPS308]] D14: a host move changes the generated config (the route, the issuer) at an unchanged version, so it always deploys.
+  if (!ctx.opts.move && health?.version === version && health.commit === commit) return result('deploy', 'ok', `/health already reports ${version} @ ${commit}`)
   const seen = health?.version ? health.version.slice(0, 12) : 'no answer'
   if (ctx.opts.dryRun) {
     ctx.pending = true
@@ -563,13 +579,15 @@ const verifyStep: Step = async (ctx) => {
   if (b) return b
   const { version } = ctx.manifest
   const url = `https://${ctx.opts.apiHost}`
+  // [[OPS308]] P2: one deadline, started here, covers the health wait and both discovery reads.
+  const start = ctx.deps.now()
   let seen: string | null
   if (ctx.opts.dryRun) {
     const h = await readHealth(ctx)
     seen = h?.version === version && h.migrations === 'current' ? null : h === null ? 'no answer' : `version ${h.version ?? '?'}, migrations ${h.migrations ?? '?'}`
     if (seen !== null) return ctx.pending ? result('verify', 'blocked', 'waits on the changes planned above') : result('verify', 'fail', `${url}/health is not at ${version} with migrations current (${seen})`)
   } else {
-    seen = await verify(url, version, ['current'], ctx.deps)
+    seen = await verify(url, version, ['current'], ctx.deps, start)
     if (seen !== null) return result('verify', 'fail', `${url}/health did not become ${version} with migrations current within 300s (${seen})`)
   }
   if (ctx.opts.auth === 'clerk') {
@@ -579,14 +597,14 @@ const verifyStep: Step = async (ctx) => {
   let signInMethods: string[] = []
   if (ctx.opts.auth === 'better-auth') {
     // OPS306 D8, P1: the issuer is the recorded PUBLIC_BASE_URL (`https://<api host>`, the value setup records), never a request host.
-    const issuer = await checkBetterAuthIssuer(url, { fetch: ctx.deps.fetch, now: ctx.deps.now, sleep: ctx.deps.sleep, dryRun: ctx.opts.dryRun })
+    const issuer = await checkBetterAuthIssuer(url, { fetch: ctx.deps.fetch, now: ctx.deps.now, sleep: ctx.deps.sleep, dryRun: ctx.opts.dryRun, start })
     if (!issuer.ok) return result('verify', 'fail', issuer.detail)
     signInMethods = issuer.signInMethods
   }
   const hint = ctx.keyWritten ? `agents use the operator key in ${ctx.secretsPath} (${ctx.opts.keyEnv}) as a Bearer token` : 'no operator key was created in this run; create agents and keys through agents.create and api_keys.create on /meta/v1 (re-run with --operator-agent and --key-env only while the organisation does not exist yet)'
   if (ctx.opts.auth === 'better-auth') {
     // The settings file holds variables only, never a `send_email` binding, so email is never recorded here and the statement always prints (OPS306 D5).
-    return result('verify', 'ok', `${url}/health is ${version}, migrations current`, betterAuthNextSteps({ url, claimLink: ctx.ownerLinkIssued === true, google: signInMethods.includes('google'), emailConfigured: false, hint: [hint] }))
+    return result('verify', 'ok', `${url}/health is ${version}, migrations current`, betterAuthNextSteps({ url, claimLink: ctx.ownerLinkIssued === true, google: signInMethods.includes('google'), emailConfigured: false, hint: [hint] }).concat(ctx.opts.move ? moveLines(ctx.opts.move.from, ctx.opts.apiHost, false) : []))
   }
   const clerk = ctx.opts.auth === 'clerk'
   const next = [
@@ -595,6 +613,7 @@ const verifyStep: Step = async (ctx) => {
       ? [`accept the owner invitation Clerk emailed to ${ctx.opts.ownerEmail}`, `vibase login --server ${url}`, 'GET /meta/v1/me must show role: owner (this is the C3 check: a missing vibase_role session-token claim refuses the sign-in)', ...(ctx.manualRows ?? []).map((m) => `manual ${m}`)]
       : []),
     hint,
+    ...(ctx.opts.move ? [`host change: ${ctx.opts.move.from ?? 'workers.dev'} -> ${ctx.opts.apiHost}: point every client at the new host`] : []),
   ]
   return result('verify', 'ok', `${url}/health is ${version}, migrations current`, next)
 }

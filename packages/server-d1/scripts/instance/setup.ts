@@ -8,6 +8,7 @@ import { verifyRelease, type ReleaseManifest } from '../../../release/src/manife
 import { requireConfirm, resolveTarget } from '../remote.js'
 import { applyRecordedNames } from '../setup/names.js'
 import { loadBetterAuth, providerFromVars } from '../setup/better-auth.js'
+import { moveLines, registerPending, resolveHost } from '../setup/host.js'
 import { loadClerkKeys } from '../setup/clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from '../setup/gmail.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type EnvFileProbe, type StepResult } from '../setup/types.js'
@@ -22,7 +23,7 @@ export const EXIT_DONE = 0
 export const EXIT_REFUSED = 2
 export const EXIT_FAILED = 3
 
-const USAGE = 'usage: vibase-server setup --env <name> --api-host <host> [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
+const USAGE = 'usage: vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
 const row = (r: StepResult) => `${r.status.padEnd(7)} ${r.step.padEnd(17)} ${r.detail}`
 
 /** A step's failure that is a refusal (an unresolvable wrangler) before anything was written is a refusal, not a failed step. */
@@ -43,7 +44,9 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       // [[OPS249]] D1: the provider the settings file already records wins; a differing --auth is refused here, before any step (exit 2).
       parsed = parseInstanceSetupArgs(argv, (env, given) => {
         const path = given ?? defaultSettingsPath(deps.env, deps.homedir, env)
-        return existsSync(path) ? { provider: providerFromVars(loadSettings(path, env).vars, path), where: path } : null
+        if (!existsSync(path)) return null
+        const rec = loadSettings(path, env)
+        return { provider: providerFromVars(rec.vars, path), where: path, host: { apiHost: rec.api_host, workersDev: rec.workers_dev === true } }
       })
     } catch (e) {
       if (!isRefusal(e)) throw e
@@ -63,9 +66,14 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     const settingsPath = parsed.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, derived.env)
     const existing = existsSync(settingsPath) ? loadSettings(settingsPath, derived.env) : null
     // [[OPS276]]: the names the settings file records win over the derivation; a name flag that differs is refused before any step.
-    const opts = existing ? applyRecordedNames(derived, { workerName: existing.worker, d1Name: existing.d1.name, controlD1Name: existing.control_d1?.name, d1Id: existing.d1.id, controlD1Id: existing.control_d1?.id, r2Name: existing.r2_bucket }, settingsPath) : derived
+    const named = existing ? applyRecordedNames(derived, { workerName: existing.worker, d1Name: existing.d1.name, controlD1Name: existing.control_d1?.name, d1Id: existing.d1.id, controlD1Id: existing.control_d1?.id, r2Name: existing.r2_bucket }, settingsPath) : derived
     // The target guard of every remote command ([[OPS4]] C4): a Worker named `vault` is the local-only top level.
-    resolveTarget({ name: opts.workerName, d1_databases: [{ binding: 'DB', database_id: existing?.d1.id ?? '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', remote: true }] }, opts.env)
+    resolveTarget({ name: named.workerName, d1_databases: [{ binding: 'DB', database_id: existing?.d1.id ?? '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b', remote: true }] }, named.env)
+
+    // [[OPS308]] P1, P3: the one host of this run, resolved before any write and before anything reads the base URL. A registration is a write, so the confirmation comes first.
+    const creds = { accountId: secrets.CLOUDFLARE_ACCOUNT_ID, apiToken: secrets.CLOUDFLARE_API_TOKEN }
+    if (!named.dryRun) requireConfirm(deps.env as NodeJS.ProcessEnv)
+    const opts = await resolveHost(named, creds, deps.fetch)
 
     // The Clerk and Gmail values come from the secrets file, judged by the source path's own rules.
     const probe: EnvFileProbe = { display: secretsPath, status: 'ok', text: secrets.text }
@@ -73,7 +81,6 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     const gmail = loadGmail(opts, probe)
     // `--auth better-auth`: `AUTH_SECRET` and the optional Google pair from the same file ([[OPS249]] D3, D4), judged before any step.
     const betterAuth = loadBetterAuth(opts, secrets.text, secretsPath)
-    if (!opts.dryRun) requireConfirm(deps.env as NodeJS.ProcessEnv)
 
     // (c) P2: a live instance that is a newer release refuses before any write; no answer or a non-semver version (a source deploy) proceeds.
     const live = await readLiveVersion(opts.apiHost, deps)
@@ -85,7 +92,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       deps: { ...deps, readConfigText: () => JSON.stringify({ env: { [opts.env]: { vars: existing?.vars ?? {} } } }) },
       manifest,
       secrets,
-      creds: { accountId: secrets.CLOUDFLARE_ACCOUNT_ID, apiToken: secrets.CLOUDFLARE_API_TOKEN },
+      creds,
       settingsPath,
       secretsPath,
       existing,
@@ -108,7 +115,9 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   const say = out
   const say2 = err
   say(`package: vibase-server/${manifest.version} (${manifest.commit}), ${Object.keys(manifest.files).length} files verified`)
-  say(`setup: env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}, settings ${ctx.settingsPath}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
+  say(`setup: env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}, settings ${ctx.settingsPath}${opts.dryRun ? ' (dry run: reads only)' : ''}`)
+  for (const n of opts.hostNotes ?? []) say(n)
+  if (opts.move) for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined, ctx.gmail !== null)) say(l)
   if (ctx.keys) say(`clerk instance: ${ctx.keys.kind}${ctx.keys.kind === 'development' ? " (warning: a development instance is a test instance, with Clerk's user cap and dev-browser handshake)" : ''}, issuer ${ctx.keys.issuer}, keys from ${ctx.secretsPath}`)
   say(
     ctx.gmail
@@ -121,9 +130,19 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   }
   const selected = STEP_NAMES.filter((s) => (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)))
   const results: StepResult[] = []
+  let registered = false
   for (const name of selected) {
     let r: StepResult
     try {
+      // [[OPS308]] P3: the subdomain registration is the first write, after every refusal and once the preflight has passed.
+      if (!registered && name !== 'preflight') {
+        registered = true
+        const note = await registerPending(opts, ctx.creds, deps.fetch)
+        if (note) {
+          ctx.wrote = true
+          say(note)
+        }
+      }
       r = await STEPS[name](ctx)
     } catch (e) {
       const refusal = refusalOf(e, ctx)

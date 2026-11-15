@@ -35,7 +35,6 @@ function deps(o: RunOptions, over: Partial<OwnerResetRemoteDeps> = {}): OwnerRes
 const driver: Driver = {
   refused: 1,
   failed: 1,
-  dryRun: false,
   async run(o) {
     const d = deps(o)
     const code = await runOwnerResetRemote(['--remote', '--env', 'demo', '--owner-reset', ...(o.email ? ['--email', o.email] : [])], { CONFIRM_REMOTE: '1' }, d)

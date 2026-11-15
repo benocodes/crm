@@ -7,6 +7,7 @@ import type { WorkerD1 } from '../../src/test/kit.js'
 import { OWNERS_SQL, OWNER_INVITATIONS_SQL } from '../setup/commands.js'
 import { memoryControl } from '../setup/test/world.js'
 import { scriptedAnswer, type BetterAuthScript } from '../setup/test/better-auth-answers.js'
+import { subdomainResponse, type SubdomainState } from '../setup/test/subdomain-answers.js'
 import { ISSUER, PK_TEST, SK_TEST, type FakeClerk } from '../setup/test/clerk-world.js'
 import { CONTROL_ALL, makeWorld, NO_TRACKER_JSON, SECRETS_TEXT, trackerJson, type World, type WorldOptions } from './test-kit.js'
 import type { OpenD1Options, RunResult } from './types.js'
@@ -59,6 +60,8 @@ export interface Sim {
   /** `better-auth`: scripted answers for discovery and the RFC 8414 metadata (OPS306); default: the Worker's correct answers. */
   ba?: BetterAuthScript
   zones: string[]
+  /** The account's `workers.dev` subdomain (OPS308); `null`: none registered. */
+  subdomain: SubdomainState
   denyAll?: boolean
   /** Every bootstrap `openD1` call, with the generated config as it was on disk at that moment. */
   opened: { opts: OpenD1Options; configText: string | null }[]
@@ -111,7 +114,7 @@ export interface SetupWorldOptions extends Omit<WorldOptions, 'runner' | 'fetch'
 }
 
 export function setupWorld(o: SetupWorldOptions): SetupWorld {
-  const sim: Sim = { d1s: [], r2s: [], applied: null, controlApplied: null, deployed: null, marker: null, secrets: [], bulk: [], zones: ['demo.invalid'], opened: [], bulkFile: [], owners: 0, ownerInvitations: [], controlOrg: null, ...o.sim }
+  const sim: Sim = { d1s: [], r2s: [], applied: null, controlApplied: null, deployed: null, marker: null, secrets: [], bulk: [], zones: ['demo.invalid'], subdomain: { subdomain: 'team', puts: [] }, opened: [], bulkFile: [], owners: 0, ownerInvitations: [], controlOrg: null, ...o.sim }
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
   const control = (o.control ?? memoryControl(o.onControlInsert, o.controlMarker)) as ReturnType<typeof memoryControl>
   const ok = (stdout: string): RunResult => ({ status: 0, stdout, stderr: '' })
@@ -132,6 +135,8 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
       if (url.startsWith('https://api.cloudflare.com/client/v4/')) {
         if (sim.denyAll) return json(403, { success: false })
         const path = url.slice('https://api.cloudflare.com/client/v4/'.length)
+        const sub = subdomainResponse(path, init, sim.subdomain)
+        if (sub) return sub
         if (path.startsWith('zones')) return json(200, { success: true, result: sim.zones.map((name, i) => ({ id: `z${i}`, name })) })
         return json(200, { success: true, result: [] })
       }

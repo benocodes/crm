@@ -9,6 +9,8 @@ export interface InstanceSettings {
   env: string
   worker: string
   api_host: string
+  /** [[OPS308]]: workers.dev is on. With a `*.workers.dev` `api_host` it is the instance's only host (no route); with a custom `api_host` it is kept from a move. Absent means false. */
+  workers_dev?: boolean
   d1: { name: string; id: string }
   /** The control-plane database ([[OPS275]] P1): optional until [[CORE261]]; recorded by name and id, never derived from the env (D16). */
   control_d1?: { name: string; id: string }

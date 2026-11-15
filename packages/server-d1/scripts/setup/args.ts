@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util'
 import { RemoteRefusal } from '../remote.js'
 import { PROVIDERS, chooseProvider, type RecordLookup } from './better-auth.js'
+import { SUBDOMAIN_SHAPE, hostChangeRefusal, isWorkersDevHost, recordedMode } from './host.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupOptions, type StepName } from './types.js'
 
 const ENV_SHAPE = /^[a-z0-9][a-z0-9-]*$/
@@ -37,6 +38,9 @@ export function parseSetupFlags(argv: string[], extra: Extra): FlagValues {
       options: {
         env: { type: 'string' },
         'api-host': { type: 'string' },
+        'workers-dev': { type: 'boolean' },
+        'register-workers-subdomain': { type: 'string' },
+        'change-host': { type: 'boolean' },
         auth: { type: 'string' },
         org: { type: 'string' },
         'web-origin': { type: 'string' },
@@ -78,14 +82,38 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
   const env = str('env')
   if (!env) throw new RemoteRefusal('--env <name> is required')
   if (!ENV_SHAPE.test(env)) throw new RemoteRefusal(`--env ${env}: lower-case letters, digits and dashes only`)
-  const apiHost = str('api-host')
-  if (!apiHost) throw new RemoteRefusal('--api-host <host> is required (the API is served on a custom domain, OPS65 D19)')
-  if (apiHost.includes('*') || !HOST_SHAPE.test(apiHost)) throw new RemoteRefusal(`--api-host ${apiHost}: expected a bare host name such as api.example.com (no scheme, path or wildcard)`)
+  const apiHostFlag = str('api-host')
+  const workersDev = values['workers-dev'] === true
+  const registerSubdomain = str('register-workers-subdomain')
+  const changeHost = values['change-host'] === true
+  // [[OPS249]] D12: exactly one of the two host flags; the host of a workers.dev instance is derived, so a typed one under workers.dev is refused naming the flag.
+  if (apiHostFlag === undefined && !workersDev) throw new RemoteRefusal('give --api-host <host> (a custom domain on a zone in your account) or --workers-dev (no domain: <worker>.<subdomain>.workers.dev)')
+  if (apiHostFlag !== undefined && workersDev) throw new RemoteRefusal('--api-host and --workers-dev are exclusive: give exactly one')
+  if (apiHostFlag !== undefined) {
+    if (apiHostFlag.includes('*') || !HOST_SHAPE.test(apiHostFlag)) throw new RemoteRefusal(`--api-host ${apiHostFlag}: expected a bare host name such as api.example.com (no scheme, path or wildcard)`)
+    if (isWorkersDevHost(apiHostFlag)) throw new RemoteRefusal(`--api-host ${apiHostFlag}: a workers.dev host is derived from the account subdomain and the worker name, so it cannot be typed: use --workers-dev`)
+  }
+  if (registerSubdomain !== undefined) {
+    if (!workersDev) throw new RemoteRefusal('--register-workers-subdomain only applies with --workers-dev')
+    if (!SUBDOMAIN_SHAPE.test(registerSubdomain)) throw new RemoteRefusal(`--register-workers-subdomain ${registerSubdomain}: expected one lower-case DNS label (letters, digits and dashes)`)
+  }
 
   const flagAuth = str('auth')
   if (flagAuth !== undefined && !(PROVIDERS as readonly string[]).includes(flagAuth)) throw new RemoteRefusal(`--auth ${flagAuth}: expected better-auth (the default for a new instance), clerk or none (API keys only)`)
   const recorded = record?.(env) ?? null
   const auth = chooseProvider(flagAuth, recorded)
+  // [[OPS308]] D12, D14, P4, P6: what the host flags may do on this instance, judged against its record before any call.
+  if (workersDev && auth === 'clerk') throw new RemoteRefusal('--workers-dev is refused with --auth clerk: a Clerk production instance needs a custom domain')
+  if (changeHost && auth === 'clerk') throw new RemoteRefusal('--change-host is refused on a Clerk instance: its production domain is dashboard state setup does not move')
+  if (changeHost && recorded === null) throw new RemoteRefusal('--change-host only applies to an instance that already has a record (a new instance has no host to change)')
+  const recordedHost = recorded?.host
+  if (recordedHost !== undefined) {
+    const mode = recordedMode(recordedHost)
+    if (workersDev && mode === 'custom') throw new RemoteRefusal('--workers-dev: this instance is on a custom domain; moving back to workers.dev is not offered by setup (a re-run of --workers-dev would need a new instance)')
+    if (apiHostFlag !== undefined && !changeHost && (mode === 'workers-dev' || (recordedHost.apiHost !== undefined && recordedHost.apiHost !== apiHostFlag))) {
+      throw new RemoteRefusal(hostChangeRefusal(`--api-host ${apiHostFlag}`, `this instance is recorded on ${recordedHost.apiHost ?? 'workers.dev'} in ${recorded!.where}`))
+    }
+  }
   if (auth !== 'clerk') for (const f of CLERK_FLAGS) if (values[f] !== undefined) throw new RemoteRefusal(`--${f} only applies with --auth clerk`)
 
   const operatorAgent = str('operator-agent')
@@ -117,7 +145,11 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
   const nameFlags = { workerName: str('worker-name'), d1Name: str('d1-name'), controlD1Name: str('control-d1-name'), r2Name: str('r2-name') }
   const opts: SetupOptions = {
     env,
-    apiHost,
+    apiHost: apiHostFlag ?? '',
+    workersDev,
+    registerSubdomain,
+    changeHost,
+    ...(recordedHost ? { recordedHost } : {}),
     auth,
     org: str('org') ?? env,
     origins,

@@ -15,6 +15,12 @@ export interface DesiredEnv {
   controlD1Id?: string
   r2Name: string
   apiHost: string
+  /** [[OPS308]]: the value of `workers_dev` (default false). True in workers.dev mode, and kept true after a move from it. */
+  workersDev?: boolean
+  /** [[OPS308]]: `apiHost` is the derived workers.dev host: the block has no `routes`. */
+  noRoute?: boolean
+  /** [[OPS308]] D14: this run moves the host, so the route and `PUBLIC_BASE_URL` of the record are replaced instead of refused as mismatches. */
+  move?: boolean
   corsOrigins: string
   /**
    * The provider's variables: `--auth clerk` ([[OPS65]] D3; `AUTH_CLI_CLIENT_ID` is absent while the CLI application is only planned) or `--auth better-auth`
@@ -41,9 +47,9 @@ const controlEntry = (d: DesiredEnv): Json => ({ binding: 'CONTROL_DB', database
 export function desiredBlock(d: DesiredEnv): Json {
   return {
     name: d.workerName,
-    workers_dev: false,
+    workers_dev: d.workersDev === true,
     preview_urls: false,
-    routes: [{ pattern: d.apiHost, custom_domain: true }],
+    ...(d.noRoute ? {} : { routes: [{ pattern: d.apiHost, custom_domain: true }] }),
     observability: { enabled: true },
     d1_databases: [{ binding: 'DB', database_name: d.d1Name, database_id: d.d1Id, migrations_dir: '../storage-d1/migrations', remote: true }, ...(d.controlD1Name ? [controlEntry(d)] : [])],
     r2_buckets: [{ binding: 'BODIES', bucket_name: d.r2Name }],
@@ -73,7 +79,7 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
       }
     }
     scalar(current, ['env', d.env], 'name', d.workerName, at('name'))
-    scalar(current, ['env', d.env], 'workers_dev', false, at('workers_dev'))
+    scalar(current, ['env', d.env], 'workers_dev', d.workersDev === true, at('workers_dev'))
     scalar(current, ['env', d.env], 'preview_urls', false, at('preview_urls'))
 
     if (!('observability' in current)) edits.push({ path: ['env', d.env, 'observability'], value: { enabled: true }, label: at('observability') })
@@ -99,8 +105,16 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
     keyed('r2_buckets', 'binding', 'BODIES', { bucket_name: d.r2Name })
 
     const routes = current.routes
-    if (routes === undefined) edits.push({ path: ['env', d.env, 'routes'], value: want.routes, label: at('routes') })
-    else if (!Array.isArray(routes) || !routes.some((r) => isObj(r) && r.pattern === d.apiHost && r.custom_domain === true)) mismatches.push(at('routes'))
+    const hasRoutes = Array.isArray(routes) && routes.length > 0
+    if (d.noRoute) {
+      // workers.dev mode has no custom-domain route: a route the record holds is a mismatch (the host would not be what the record says).
+      if (routes !== undefined && !(Array.isArray(routes) && routes.length === 0)) mismatches.push(at('routes'))
+    } else if (routes === undefined) edits.push({ path: ['env', d.env, 'routes'], value: want.routes, label: at('routes') })
+    else if (!Array.isArray(routes) || !routes.some((r) => isObj(r) && r.pattern === d.apiHost && r.custom_domain === true)) {
+      // A move replaces the old route (never keeps it); anything else is a mismatch.
+      if (d.move && (hasRoutes || (Array.isArray(routes) && routes.length === 0))) edits.push({ path: ['env', d.env, 'routes'], value: want.routes, label: at('routes') })
+      else mismatches.push(at('routes'))
+    }
 
     if (!('vars' in current)) edits.push({ path: ['env', d.env, 'vars'], value: want.vars, label: at('vars') })
     else if (!isObj(current.vars)) mismatches.push(at('vars'))
@@ -115,6 +129,7 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
           const missing = v.split(',').filter((o) => o !== '' && !present.includes(o))
           if (missing.length > 0) edits.push({ path: ['env', d.env, 'vars', k], value: [...present, ...missing].join(','), label })
         } else if (k === 'CLERK_PUBLISHABLE_KEY' && here === '') edits.push({ path: ['env', d.env, 'vars', k], value: v, label })
+        else if (k === 'PUBLIC_BASE_URL' && d.move && typeof here === 'string' && here !== v) edits.push({ path: ['env', d.env, 'vars', k], value: v, label })
         else scalar(vars, ['env', d.env, 'vars'], k, v, label)
       }
     }

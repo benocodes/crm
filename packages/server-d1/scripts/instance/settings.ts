@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { CONTROL_PLACEHOLDER_DATABASE_ID, PLACEHOLDER_DATABASE_ID } from '../remote.js'
+import { isWorkersDevHost } from '../setup/host.js'
 import { InstanceRefusal, type InstanceSettings } from './types.js'
 
 /** The config root of the vibase CLI: `$XDG_CONFIG_HOME`, else `~/.config`. */
@@ -12,7 +13,7 @@ export function defaultSettingsPath(env: Record<string, string | undefined>, hom
   return join(instancesDir(env, homedir), `${envName}.json`)
 }
 
-const KEYS = ['version', 'env', 'worker', 'api_host', 'd1', 'control_d1', 'r2_bucket', 'workflow', 'vars', 'crons']
+const KEYS = ['version', 'env', 'worker', 'api_host', 'workers_dev', 'd1', 'control_d1', 'r2_bucket', 'workflow', 'vars', 'crons']
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const BARE_HOST = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i
 
@@ -36,6 +37,10 @@ export function parseSettings(text: string, envName: string, path: string): Inst
   const worker = str(json.worker, 'worker')
   const api_host = str(json.api_host, 'api_host')
   if (!BARE_HOST.test(api_host)) fail('api_host must be a bare host such as api.example.com (no scheme, port or path)')
+  // [[OPS308]] D12: `workers_dev` is a flag, absent meaning false (a custom-domain record stays as it was); a host under workers.dev needs it on.
+  if (json.workers_dev !== undefined && typeof json.workers_dev !== 'boolean') fail('workers_dev must be true or false')
+  const workers_dev = json.workers_dev === true
+  if (isWorkersDevHost(api_host) && !workers_dev) fail('api_host is a workers.dev host but workers_dev is not true')
   const r2_bucket = str(json.r2_bucket, 'r2_bucket')
   if (!isObject(json.d1)) return fail('d1 must be an object with name and id')
   for (const k of Object.keys(json.d1)) if (k !== 'name' && k !== 'id') fail(`unknown key "d1.${k}"`)
@@ -63,7 +68,7 @@ export function parseSettings(text: string, envName: string, path: string): Inst
   }
   // P2: a Better Auth Worker answers 500 on every non-health request without its control database ([[CORE259]] D6).
   if (vars.AUTH_PROVIDER === 'better-auth' && !control_d1) fail('vars.AUTH_PROVIDER is better-auth but control_d1 is missing: that instance needs its control database (name and id)')
-  const out: InstanceSettings = { version: 1, env: envName, worker, api_host, d1, ...(control_d1 ? { control_d1 } : {}), r2_bucket, workflow, vars }
+  const out: InstanceSettings = { version: 1, env: envName, worker, api_host, ...(workers_dev ? { workers_dev } : {}), d1, ...(control_d1 ? { control_d1 } : {}), r2_bucket, workflow, vars }
   if (json.crons !== undefined) {
     if (!Array.isArray(json.crons) || json.crons.some((c) => typeof c !== 'string' || c === '')) fail('crons must be a list of cron expressions')
     out.crons = json.crons as string[]

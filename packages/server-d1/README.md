@@ -198,11 +198,13 @@ CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --auth cl
   [--clerk-env-file .env.acme] [--clerk-production] [--no-dcr] [--rotate-secrets] \
   [--web-origin https://app.example.com] [--extra-origin https://other.example.com] \
   [--operator-agent operator --key-env ACME_OPERATOR_KEY [--org <name>]] [--only clerk,secrets]
+# No domain: --workers-dev instead of --api-host; later --api-host <new> --change-host moves it to a custom domain:
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --workers-dev --owner-email you@example.com
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env smoked1 --auth none --api-host api.smoked1.example.com \
   [--operator-agent operator --key-env SMOKED1_KEY --owner-email you@example.com]
 ```
 
-`--api-host` is required (a custom domain on a zone in your account). With `--auth none` and no `--operator-agent` the bootstrap
+Give exactly one of `--api-host <host>` (a custom domain on a zone in your account) or `--workers-dev` (no domain: `<worker>.<subdomain>.workers.dev`, derived from the account's workers.dev subdomain; Better Auth or `--auth none`, never Clerk). With no subdomain registered, setup refuses and names the dashboard path; `--register-workers-subdomain <name>` registers one, once, and only when you pass it (never on `--dry-run`, never a rename). **Moving to a custom domain:** re-run with `--api-host <new> --change-host` on a recorded instance: the zone is checked, the route and `PUBLIC_BASE_URL` are rewritten, and the issuer changes, so people sign in again, run `vibase login` again, reconnect MCP clients and add the new Google redirect URI. Without `--change-host` a host that differs from the record is refused. With `--auth none` and no `--operator-agent` the bootstrap
 writes only the deployment marker `none:<env>`; with `--auth better-auth` it writes `better-auth:<env>`, the organisation, the control marker and the owner invitation; with `--auth clerk` it writes `clerk:<issuer>` and the organisation (`--org`, default the env name), and an operator agent and key only with `--operator-agent`. The commands below stay as the manual and repair path.
 
 **The API token** (in the gitignored root `.env` as `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID`; see `.env.example`).

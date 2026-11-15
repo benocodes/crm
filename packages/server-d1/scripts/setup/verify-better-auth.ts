@@ -14,6 +14,8 @@ export interface DiscoveryReads {
   sleep(ms: number): Promise<void>
   /** A dry run reads once: a transient answer fails at once, nothing is retried. */
   dryRun: boolean
+  /** The instant verify started, so the health wait and these reads share one bound ([[OPS308]] P2); default: now. */
+  start?: number
 }
 export type IssuerCheck = { ok: true; signInMethods: string[] } | { ok: false; detail: string }
 
@@ -41,14 +43,14 @@ async function read(f: typeof fetch, url: string): Promise<Answer> {
 /** [[OPS306]] D8, P1: the Worker serves the configured issuer, in discovery and in the RFC 8414 metadata. The retries share one bound, on the injected clock. */
 export async function checkBetterAuthIssuer(base: string, r: DiscoveryReads): Promise<IssuerCheck> {
   const issuer = `${base}/auth`
-  const start = r.now()
+  const start = r.start ?? r.now()
   const fetchFinal = async (path: string): Promise<{ status: number; json: unknown } | string> => {
     const url = `${base}${path}`
     for (;;) {
       const a = await read(r.fetch, url)
       if (a.kind === 'final') return a
       if (r.dryRun) return `${url} ${a.detail}`
-      if (r.now() - start >= DISCOVERY_BOUND_MS) return `${url} still ${a.detail} after ${DISCOVERY_BOUND_MS / 1000}s`
+      if (r.now() - start >= DISCOVERY_BOUND_MS) return `${url} still ${a.detail} after ${Math.round((r.now() - start) / 1000)}s in total`
       await r.sleep(DISCOVERY_INTERVAL_MS)
     }
   }
