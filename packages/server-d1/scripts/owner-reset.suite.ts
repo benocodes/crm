@@ -48,6 +48,8 @@ export const NEW_PASSWORD = 'a brand new password 456'
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 const rows = async (d1: D1Like, q: string, ...b: unknown[]) => ((await d1.prepare(q).bind(...b).all()).results ?? []) as Array<Record<string, any>>
 const WRITE = /^\s*(insert|update|delete|replace|create|drop|alter)\b/i
+/** Better Auth sweeps EXPIRED verification rows whenever it looks one up: its own housekeeping, not a change the command makes (it deletes nothing live). Everything else counts as a write. */
+const LIBRARY_SWEEP = /^delete from "auth_verifications" where "auth_verifications"\."expires_at" < \?$/
 const allText = (r: Run) => [...r.out, ...r.err].join('\n')
 
 /** Every row of every table of a database, as one string: where "the token is nowhere" is looked for. `skip` names tables the library owns (its verification row holds the token it issued). */
@@ -109,7 +111,7 @@ export function ownerResetSuite(label: string, makeDriver: () => Driver | Promis
       const crm = spyD1(pair.d1)
       const control = spyD1(o.control ?? pair.control)
       const run = await driver.run({ ...o, crm: crm.d1, control: control.d1 })
-      return { ...run, writes: [...crm.log.statements, ...control.log.statements].filter((s) => WRITE.test(s)) }
+      return { ...run, writes: [...crm.log.statements, ...control.log.statements].filter((s) => WRITE.test(s) && !LIBRARY_SWEEP.test(s)) }
     }
     const sendsNoToken = async () => {
       expect(await rows(pair.control, 'select count(*) n from auth_verifications')).toEqual([{ n: 0 }])

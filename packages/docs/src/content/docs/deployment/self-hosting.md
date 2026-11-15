@@ -118,7 +118,23 @@ Google sign-in is off until the Worker has a Google OAuth client. Put both `AUTH
 
 Email is not configured by setup. The statement setup prints, and which holds until you add an email sender yourself:
 
-> Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner. Invitation links are printed for you to send.
+> Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner; an owner gets one from `vibase-server owner-reset` (needs this instance's Cloudflare credentials). Invitation links are printed for you to send.
+
+### Recover the owner (owner-reset)
+
+An owner who forgets their password has no self-service reset while email is off. Anyone holding the instance's Cloudflare credentials can issue one with `vibase-server owner-reset --env <name>` (the commands below run it through `npx`):
+
+```bash
+npx @vibase/server-d1@<version> owner-reset --env mycompany --dry-run
+CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> owner-reset --env mycompany
+CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> owner-reset --env mycompany --email owner@example.com
+```
+
+With one Better Auth owner, it prints a one-time reset link for them. With several, pass `--email` to name one; without it the command refuses and lists them. The link is a Better Auth reset link on your own host (`https://<your host>/reset-password#token=...`), valid for one hour; opening it sets a new password and signs that owner out everywhere. It is printed once and stored nowhere, and the audit log records that a link was issued (when, by the system, never the link). A second run prints a new link. `--dry-run` reads only: it names the owner (or the invitation) it would use and prints no link.
+
+If the instance has no owner at all, `owner-reset --email <address>` issues an owner invitation for that address instead and replaces any live owner invitation, printed once the same way. An instance whose owners sign in through another provider is refused: recover those through that provider.
+
+The command composes Better Auth on your machine with the instance's `AUTH_SECRET`, so keep the secrets file that setup wrote (`<env>.env`, mode 600): without `AUTH_SECRET` in it the command refuses, and a new value would sign everyone out. If the Worker has one and your file does not, copy it in.
 
 ## Use Clerk instead
 
@@ -282,6 +298,12 @@ The first real run writes the environment to `packages/server-d1/wrangler.jsonc`
 ```bash
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 db:migrate:remote -- --env mycompany
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 deploy:remote -- --env mycompany
+```
+
+To recover an owner on an instance deployed from source, run the twin of `owner-reset` (it reads `AUTH_SECRET` from the instance's own `.env.mycompany`, never the root `.env`):
+
+```bash
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset [--email <owner>]
 ```
 
 ## Host your documentation separately

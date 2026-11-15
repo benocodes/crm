@@ -24,13 +24,13 @@ export interface BootstrapD1Options {
   /** `better-auth` only ([[CORE245]] P7): issues the first owner invitation for this address (after the CRM rows, the control marker and the seed) and returns its URL once. Refused with any other provider. */
   ownerEmail?: string
 }
-/** The owner invitation a run issued ([[CORE245]] P7): the URL is returned here once and never stored. `revoked` lists the live owner invitations this run replaced (a lost-link re-run). */
+/** The owner invitation a run issued ([[CORE245]] P7): the URL is returned here once and never stored. `revoked` counts the live owner invitations this run replaced (a lost-link re-run; one set-based batch, [[OPS307]] D11). */
 export interface OwnerInvitation {
   id: string
   email: string
   url: string
   expiresAt: string
-  revoked: string[]
+  revoked: number
 }
 export interface BootstrapD1Result {
   organizationId: string

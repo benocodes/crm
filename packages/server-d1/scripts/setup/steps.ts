@@ -313,7 +313,7 @@ async function betterAuthBootstrap(ctx: Ctx, t: Target, want: { authProvider: st
   const mark = `marker ${want.authProvider}:${want.authOrgId} present`
   if (complete && state.kind !== 'none') {
     const note = operator ? ': bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key with the bootstrap script (see the README Deploy section)' : ''
-    return result('bootstrap', 'ok', state.kind === 'owner' ? `${mark}, an owner exists: nothing to issue${note}` : `${mark}, owner invitation pending for ${state.email} (expires ${state.expiresAt})${note}`)
+    return result('bootstrap', 'ok', state.kind === 'owner' ? `${mark}, an owner exists: nothing to issue${note}` : `${mark}, owner invitation pending for ${state.email} (expires ${state.expiresAt}), a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${t.env} --owner-reset --email ${state.email}${note}`)
   }
   const issue = state.kind === 'none'
   if (issue && opts.ownerEmail === undefined) {

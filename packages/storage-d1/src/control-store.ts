@@ -192,21 +192,28 @@ export async function revokeInvitation(c: ControlDb, a: { id: string; auditId: s
 }
 
 /**
- * Bootstrap's owner invitation ([[CORE245]] P7), when no owner exists: every live OWNER invitation is revoked and a fresh one is created in ONE batch, each change with its audit row. The
- * lost-link recovery before `owner-reset`. A live invitation of another role for the same address refuses it (`live_exists`) before anything is revoked.
+ * The owner invitation of bootstrap ([[CORE245]] P7) and of `owner-reset` when no owner exists ([[OPS307]] D11): every live OWNER invitation is revoked and a fresh one created in ONE control batch,
+ * each change with its audit row, and NOTHING is read first, so an owner invitation created at any moment before the batch runs is revoked with the rest. Every statement carries the same guard
+ * (P1), "no live non-owner invitation for this email": when one exists the insert is refused (`live_exists`) and the revoke and its audit rows write nothing either. The revoke audit rows are one
+ * `insert … select` over the live owner invitations; each row's id takes its first 24 characters from one fresh id (`newAuditId()`, time-ordered) and its last 12 from the invitation's own id, which
+ * keeps the 36-character shape and is distinct per row. `revoked` is how many owner invitations the batch revoked.
  */
-export async function reissueOwnerInvitation(c: ControlDb, a: NewInvitation & { newAuditId: () => string }): Promise<{ result: 'created'; revoked: string[] } | { result: 'live_exists' }> {
+export async function reissueOwnerInvitation(c: ControlDb, a: NewInvitation & { newAuditId: () => string }): Promise<{ result: 'created'; revoked: number } | { result: 'live_exists' }> {
   const d1 = raw(c)
-  const owners = ((await d1.prepare(`select id, email from invitations where role = 'owner' and ${LIVE}`).bind(a.now).all()).results ?? []) as Array<{ id: string; email: string }>
-  const blocking = await d1.prepare(`select id from invitations where email = ? and role <> 'owner' and ${LIVE}`).bind(a.email, a.now).first()
-  if (blocking) return { result: 'live_exists' }
-  const revoke = owners.flatMap((o) => [
-    d1.prepare(`update invitations set revoked_at = ? where id = ? and ${LIVE}`).bind(a.now, o.id, a.now),
-    auditStatement(d1, { auditId: a.newAuditId(), now: a.now, actorId: a.createdBy, action: 'invitation.revoked', invitationId: o.id, guard: 'revoked_at = ?', guardBinds: [a.now] }),
+  const noBlocker = `not exists (select 1 from invitations where email = ? and role <> 'owner' and ${LIVE})`
+  const results = await d1.batch([
+    d1
+      .prepare(
+        `insert into control_audit (id, at, actor_id, action, target_type, target_id, detail)
+         select substr(?, 1, 24) || substr(id, 25, 12), ?, ?, 'invitation.revoked', 'invitation', id, json_object('email', email, 'role', role, 'expires_at', expires_at)
+         from invitations where role = 'owner' and ${LIVE} and ${noBlocker}`,
+      )
+      .bind(a.newAuditId(), a.now, a.createdBy, a.now, a.email, a.now),
+    d1.prepare(`update invitations set revoked_at = ? where role = 'owner' and ${LIVE} and ${noBlocker}`).bind(a.now, a.now, a.email, a.now),
+    ...insertStatements(d1, a),
   ])
-  const results = await d1.batch([...revoke, ...insertStatements(d1, a)])
-  if ((results[revoke.length]?.meta?.changes ?? 0) !== 1) return { result: 'live_exists' }
-  return { result: 'created', revoked: owners.map((o) => o.id) }
+  if ((results[2]?.meta?.changes ?? 0) !== 1) return { result: 'live_exists' }
+  return { result: 'created', revoked: results[1]?.meta?.changes ?? 0 }
 }
 
 // ---- Sign-up gate and acceptance ([[CORE287]] P2, P4, P5). ----
@@ -266,9 +273,9 @@ export async function revokeSubjectCredentials(c: ControlDb, a: { subject: strin
 }
 
 /** The audit row of an owner-issued reset link ([[CORE288]] P6): actor the caller, target the Better Auth user id, `detail` holding the expiry only, never the token. */
-export async function recordResetLinkIssued(c: ControlDb, a: { auditId: string; actorId: string; subject: string; expiresAt: string; now: string }): Promise<void> {
+export async function recordResetLinkIssued(c: ControlDb, a: { auditId: string; actorId: string; subject: string; expiresAt: string; now: string; /** How the link was issued ([[OPS307]] D10): `owner-reset` from the operator command; absent from the owner's API call. */ via?: string }): Promise<void> {
   await raw(c)
-    .prepare("insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.reset_link_issued', 'user', ?, json_object('expires_at', ?))")
-    .bind(a.auditId, a.now, a.actorId, a.subject, a.expiresAt)
+    .prepare(`insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.reset_link_issued', 'user', ?, json_object('expires_at', ?${a.via === undefined ? '' : ", 'via', ?"}))`)
+    .bind(a.auditId, a.now, a.actorId, a.subject, a.expiresAt, ...(a.via === undefined ? [] : [a.via]))
     .run()
 }
