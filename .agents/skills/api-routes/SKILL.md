@@ -115,8 +115,12 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     any scope it was not configured with, so the registry's declared scopes are passed in (`vaultScopes`); an access
     token is a JWT only when the client sends `resource=<PUBLIC_BASE_URL>`, otherwise it is opaque and refused. Key,
     profile and client-name reads go through the control store (`readAuthJwks`, `readAuthProfile`,
-    `readOAuthClientName`), and its one writer, `revokeSubjectCredentials` ([[CORE288]]), are the only code outside the
-    provider that names `auth_*` tables.
+    `readOAuthClientName`), and its two writers, `revokeSubjectCredentials` ([[CORE288]]) and the repair sweep
+    `runAuthSweep` ([[CORE289]]), are the only code outside the provider that names `auth_*` tables. "Only the control
+    store" means the file `packages/storage-d1/src/control-store.ts`: `packages/server-d1/src/auth-machinery.test.ts`
+    greps every non-test source for the table names, so a pure helper module in `storage-d1` that holds the SQL fails
+    it. Keep shared pure logic table-free (parsers, classifiers) and the statements in the control store, exporting them
+    from there when a script needs them ([[CORE289]]'s gate-fix round).
   - **Better Auth clients, DCR and discovery** ([[CORE243]] D10–D12 as built by [[CORE283]]; `packages/auth/src/auth.ts`,
     `packages/server-d1/src/compose.ts`). Resources are `PUBLIC_BASE_URL` and `PUBLIC_BASE_URL/mcp`; the adapter's
     `audience` is that list. Discovery's issuer, `resource` and protected-resource fields come from `PUBLIC_BASE_URL`,
@@ -817,6 +821,14 @@ interactive transaction, no `withContext` and no `executor` marker.
     (`update ... where role = 'owner' and <live>` rather than reading ids first). `reissueOwnerInvitation` still reads
     the live owner invitations before its batch (acceptable for a single-operator bootstrap; not for [[OPS249]]'s
     `owner-reset`).
+  - **A write that spans the control and CRM databases reads control, then CRM, then writes one control batch, and
+    bounds that batch against what the CRM read could not see** ([[CORE289]], `runAuthSweep`). Deletes of rows that
+    may be created concurrently take a `created_at < <instant taken just before the CRM read>` bound (a session minted
+    by an acceptance that commits mid-sweep survives); deletes justified by a condition that can flip re-check it
+    inside the delete statement (the keeping-invitation clause), never only in the earlier read. A failed read or
+    batch writes nothing; the next tick retries. Bind id lists across the two databases as one JSON array
+    (`json_each(?)`), chunked, never one `?` per id (D1's 100-parameter cap). Count deletions by re-reading: D1's
+    batch `changes` include FK cascades.
   - **A compare-and-set `UPDATE` that matches no row does not fail a `batch()`.** To learn whether it applied,
     follow it with a `result` step gated on `appliedPrev`. A cursor moved this way, with the rows it covers made
     idempotent by a unique pair `ON CONFLICT DO NOTHING`, guarantees "each row once, the cursor never moves back".

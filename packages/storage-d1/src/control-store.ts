@@ -5,6 +5,7 @@
 import type { D1Like, D1PreparedLike } from './binding.js'
 import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
 import { readMigrationState, type MigrationState } from './migration-state.js'
+import { classifySweep, orphanCutoff, parseSweepControlRows, parseSweepCrmRows, type SweepPlan } from './auth-sweep.js'
 
 const handles = new WeakMap<ControlDb, D1Like>()
 
@@ -278,4 +279,76 @@ export async function recordResetLinkIssued(c: ControlDb, a: { auditId: string; 
     .prepare(`insert into control_audit (id, at, actor_id, action, target_type, target_id, detail) values (?, ?, ?, 'user.reset_link_issued', 'user', ?, json_object('expires_at', ?${a.via === undefined ? '' : ", 'via', ?"}))`)
     .bind(a.auditId, a.now, a.actorId, a.subject, a.expiresAt, ...(a.via === undefined ? [] : [a.via]))
     .run()
+}
+
+// ---- The repair sweep ([[CORE259]] D10, [[CORE289]]). The statements are here because the auth tables are named only in this module (auth-machinery.test.ts); the pure facts and classifier are `auth-sweep.ts`. ----
+/**
+ * The control-plane read: one result set, a `kind` column and five generic columns. `user`: id, email, created_at. `credential`: a user id that still has a session, refresh token, access token
+ * or device code. `invitation`: email, created_at, accepted_at, revoked_at, expires_at.
+ */
+export const SWEEP_CONTROL_READ = `select 'user' as kind, id as k1, email as k2, created_at as k3, null as k4, null as k5 from auth_users
+union all select 'credential', user_id, null, null, null, null from (select user_id from auth_sessions union select user_id from auth_oauth_refresh_tokens union select user_id from auth_oauth_access_tokens union select user_id from auth_device_codes) where user_id is not null
+union all select 'invitation', email, created_at, accepted_at, revoked_at, expires_at from invitations`
+
+/** The CRM read: every Better Auth subject a CRM user or agent names, and whether it still has authority (a live membership; an enabled agent). */
+export const SWEEP_CRM_READ = `select u.auth_subject as subject, case when exists (select 1 from memberships m where m.user_id = u.id and m.deleted_at is null) then 1 else 0 end as authority from users u where u.auth_provider = 'better-auth' and u.auth_subject is not null
+union all select a.auth_subject, case when a.disabled_at is null then 1 else 0 end from agents a where a.auth_provider = 'better-auth' and a.auth_subject is not null`
+
+/** The SQL condition, over an `auth_users` row, that an invitation keeps the account: for its email, created no later than the account, and accepted or still live at `?`. One bind: the instant. */
+export const KEEPING_INVITATION = `exists (select 1 from invitations i where i.email = lower(auth_users.email) and i.created_at <= auth_users.created_at and (i.accepted_at is not null or (i.revoked_at is null and i.expires_at > ?)))`
+
+export interface AuthSweepOutcome {
+  /** Linked subjects without authority whose credentials were deleted. */
+  revoked: number
+  /** Orphan accounts deleted. */
+  deleted: number
+}
+
+/** Subject ids per statement: one JSON-array bind each (`json_each`), so D1's 100-parameter cap never applies, and the text stays small. */
+const SWEEP_CHUNK = 500
+const chunks = <T>(xs: T[]): T[][] => Array.from({ length: Math.ceil(xs.length / SWEEP_CHUNK) }, (_, i) => xs.slice(i * SWEEP_CHUNK, (i + 1) * SWEEP_CHUNK))
+
+/** The one control batch of a sweep ([[CORE289]] P1-P3): nothing else is written. Revocation deletes only credentials created before `credentialsBefore` (the sweep's CRM read), and the deletion re-checks age and invitations in its own statements. */
+function sweepStatements(d1: D1Like, plan: SweepPlan, a: { now: string; credentialsBefore: string }): D1PreparedLike[] {
+  const statements: D1PreparedLike[] = []
+  for (const ids of chunks(plan.revoke)) {
+    const list = JSON.stringify(ids)
+    const own = 'user_id in (select value from json_each(?))'
+    statements.push(
+      d1.prepare(`delete from auth_oauth_access_tokens where ${own} and created_at < ?`).bind(list, a.credentialsBefore),
+      d1.prepare(`delete from auth_oauth_refresh_tokens where ${own} and created_at < ?`).bind(list, a.credentialsBefore),
+      d1.prepare(`delete from auth_sessions where ${own} and created_at < ?`).bind(list, a.credentialsBefore),
+      // A device code has no creation time to bound by.
+      d1.prepare(`delete from auth_device_codes where ${own}`).bind(list),
+    )
+  }
+  const cutoff = orphanCutoff(a.now)
+  for (const ids of chunks(plan.orphans)) {
+    const list = JSON.stringify(ids)
+    const orphan = `id in (select value from json_each(?)) and created_at < ? and not ${KEEPING_INVITATION}`
+    // Device codes name the user without a foreign key, so they go first, under the same guard that decides the account.
+    statements.push(d1.prepare(`delete from auth_device_codes where user_id in (select id from auth_users where ${orphan})`).bind(list, cutoff, a.now))
+    statements.push(d1.prepare(`delete from auth_users where ${orphan}`).bind(list, cutoff, a.now))
+  }
+  return statements
+}
+
+/**
+ * One sweep ([[CORE259]] D10, [[CORE289]]): control facts, then the CRM's, then ONE control batch. A failed read throws before anything is written; a failed batch writes nothing; the next tick
+ * retries. Writes no audit row and nothing in the CRM database. `crm` is only read.
+ */
+export async function runAuthSweep(c: ControlDb, crm: D1Like, clock: () => Date): Promise<AuthSweepOutcome> {
+  const d1 = raw(c)
+  const now = clock().toISOString()
+  const control = parseSweepControlRows(((await d1.prepare(SWEEP_CONTROL_READ).all()).results ?? []) as unknown[])
+  // Credentials created after this instant belong to something that began after the CRM was read (an acceptance's sign-in): they survive this sweep.
+  const credentialsBefore = clock().toISOString()
+  const facts = parseSweepCrmRows(((await crm.prepare(SWEEP_CRM_READ).all()).results ?? []) as unknown[])
+  const plan = classifySweep({ now, control, crm: facts })
+  if (plan.revoke.length === 0 && plan.orphans.length === 0) return { revoked: 0, deleted: 0 }
+  await d1.batch(sweepStatements(d1, plan, { now, credentialsBefore }))
+  // The batch's own change counts include cascaded rows, so the deletions are counted by what is gone.
+  let remaining = 0
+  for (const ids of chunks(plan.orphans)) remaining += Number(((await d1.prepare('select count(*) as n from auth_users where id in (select value from json_each(?))').bind(JSON.stringify(ids)).first()) ?? { n: 0 }).n)
+  return { revoked: plan.revoke.length, deleted: plan.orphans.length - remaining }
 }

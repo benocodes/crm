@@ -1,0 +1,42 @@
+[
+  {
+    "results": [
+      {
+        "kind": "user",
+        "k1": "u1",
+        "k2": "a@x.test",
+        "k3": "2026-11-01T00:00:00.000Z",
+        "k4": null,
+        "k5": null
+      },
+      {
+        "kind": "user",
+        "k1": "u2",
+        "k2": "b@x.test",
+        "k3": "2026-11-02T00:00:00.000Z",
+        "k4": null,
+        "k5": null
+      },
+      {
+        "kind": "credential",
+        "k1": "u1",
+        "k2": null,
+        "k3": null,
+        "k4": null,
+        "k5": null
+      },
+      {
+        "kind": "invitation",
+        "k1": "b@x.test",
+        "k2": "2026-11-01T00:00:00.000Z",
+        "k3": null,
+        "k4": null,
+        "k5": "2026-12-01T00:00:00.000Z"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "duration": 0
+    }
+  }
+]

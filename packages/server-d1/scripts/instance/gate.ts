@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { verifyRelease, type ReleaseManifest } from '../../../release/src/manifest.js'
 import { controlNotConfigured, formatMigrationDiff, parseTrackerOutput } from '../remote.js'
+import { readSweepCounts, sweepCountLines, type SweepCounts } from '../sweep-counts.js'
 import { withGeneratedConfig } from './config.js'
 import { defaultSecretsPath, loadSecrets, type Secrets } from './secrets.js'
 import { defaultSettingsPath, loadSettings } from './settings.js'
@@ -15,6 +16,8 @@ export interface GateOptions {
   secretsPath?: string
   /** `upgrade --rollback` ([[OPS234]] P3): (d) and (e) are replaced by package migrations ⊆ applied and a live version newer than the package's. */
   rollback?: boolean
+  /** `status` ([[CORE289]] P6): also read the repair sweep's pending counts (a control database only). */
+  sweepCounts?: boolean
 }
 export interface GateOutcome {
   manifest: ReleaseManifest
@@ -26,7 +29,7 @@ export interface GateOutcome {
   /** Names in the package not applied yet, in release order. */
   pending: string[]
   /** The control-plane database ([[OPS275]] D4): present only when the settings record `control_d1`. `applied` `null`: no tracker table; `pending` then lists every control migration. */
-  control?: { expected: string[]; applied: string[] | null; pending: string[] }
+  control?: { expected: string[]; applied: string[] | null; pending: string[]; /** The sweep's pending counts when asked for; `null`: unreadable. */ sweep?: SweepCounts | null }
   notes: string[]
   secrets: Secrets
 }
@@ -89,10 +92,19 @@ export function readTrackerAt(configPath: string, secrets: Secrets, deps: Instan
   }
 }
 /** Both trackers from one generated config, the control one first when the settings record a control database. */
-const readTrackers = (settings: InstanceSettings, secrets: Secrets, deps: InstanceDeps): { control: string[] | null | undefined; crm: string[] | null } =>
+const readTrackers = (settings: InstanceSettings, secrets: Secrets, deps: InstanceDeps, withCounts = false): { control: string[] | null | undefined; crm: string[] | null; sweep?: SweepCounts | null } =>
   withGeneratedConfig({ packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot }, (configPath) => {
     const control = settings.control_d1 ? readTrackerAt(configPath, secrets, deps, 'CONTROL_DB') : undefined
-    return { control, crm: readTrackerAt(configPath, secrets, deps, 'DB') }
+    const crm = readTrackerAt(configPath, secrets, deps, 'DB')
+    // [[CORE289]] P6: two read-only SELECTs through the same generated config; a failed read is `unavailable`, never a refusal.
+    const sweep = withCounts && settings.control_d1
+      ? readSweepCounts((binding, sql) => {
+          const r = deps.runWrangler(['d1', 'execute', binding, '--remote', '--json', '--command', sql, '-c', configPath], { cwd: join(configPath, '..'), env: childEnv(deps, secrets) })
+          if (r.status !== 0) throw new Error('wrangler d1 execute failed')
+          return r.stdout
+        }, new Date())
+      : undefined
+    return { control, crm, ...(sweep === undefined ? {} : { sweep }) }
   })
 
 export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateOutcome> {
@@ -109,7 +121,7 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
   // (c) the live instance answers.
   const live = await readHealth(`https://${settings.api_host}/health`, deps)
 
-  const trackers = readTrackers(settings, secrets, deps)
+  const trackers = readTrackers(settings, secrets, deps, o.sweepCounts === true)
   const applied = trackers.crm
   const known = manifest.migrations.map((m) => m.name)
   const controlKnown = (manifest.control_migrations ?? []).map((m) => m.name)
@@ -144,7 +156,7 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
   }
   const have = new Set(applied ?? [])
   const haveControl = new Set(controlApplied ?? [])
-  const control = controlApplied === undefined ? undefined : { expected: controlKnown, applied: controlApplied, pending: controlKnown.filter((n) => !haveControl.has(n)) }
+  const control = controlApplied === undefined ? undefined : { expected: controlKnown, applied: controlApplied, pending: controlKnown.filter((n) => !haveControl.has(n)), ...(trackers.sweep === undefined ? {} : { sweep: trackers.sweep }) }
   return { manifest, settings, settingsPath, live, applied, pending: known.filter((n) => !have.has(n)), ...(control ? { control } : {}), notes, secrets }
 }
 
@@ -155,6 +167,7 @@ export function diffLines(g: GateOutcome): string[] {
   return [
     ...formatMigrationDiff(g.control.applied ?? [], g.control.expected).map((l) => `[control] ${l}`),
     ...(g.control.applied === null ? ['[control]   (no d1_migrations table)'] : []),
+    ...(g.control.sweep === undefined ? [] : sweepCountLines(g.control.sweep).map((l) => `[control] ${l}`)),
     ...formatMigrationDiff(g.applied, expected).map((l) => `[crm] ${l}`),
   ]
 }

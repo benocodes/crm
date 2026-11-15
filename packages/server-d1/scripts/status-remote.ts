@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { unstable_readConfig } from 'wrangler'
 import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
+import { readSweepCounts, sweepCountLines } from './sweep-counts.js'
 import { CONFIG_PATH, PACKAGE_DIR, controlNotConfigured, RemoteRefusal, formatMigrationDiff, loadRootEnv, parseEnvFlag, parseTrackerOutput, requireConfirm, resolveTarget, statusExitCode, statusOf, trackerReadCommand, type Cmd, type ConfigLike, type Target } from './remote.js'
 
 export const EXPECTED = MIGRATIONS.map((m) => m.name)
@@ -55,6 +56,13 @@ export function runStatus(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Stat
     const applied = readApplied(target.env, deps, 'CONTROL_DB')
     for (const line of formatMigrationDiff(applied, CONTROL_EXPECTED)) deps.log(`[control] ${line}`)
     code = Math.max(code, statusExitCode(statusOf(applied, CONTROL_EXPECTED)))
+    // [[CORE289]] P6: what the next repair sweep would do; two read-only SELECTs, never part of the exit code.
+    const counts = readSweepCounts((binding, sql) => {
+      const r = deps.exec({ command: 'pnpm', args: ['exec', 'wrangler', 'd1', 'execute', binding, '--remote', '--env', target.env, '--json', '--command', sql] })
+      if (r.status !== 0) throw new Error('wrangler d1 execute failed')
+      return r.stdout
+    }, new Date())
+    for (const line of sweepCountLines(counts)) deps.log(`[control] ${line}`)
   } else deps.log(controlNotConfigured(target.env))
   deps.log(`target: env ${target.env}, database ${target.databaseName} (${target.databaseId})`)
   const applied = readApplied(target.env, deps)

@@ -1,0 +1,18 @@
+[
+  {
+    "results": [
+      {
+        "subject": "u1",
+        "authority": 1
+      },
+      {
+        "subject": "u3",
+        "authority": 0
+      }
+    ],
+    "success": true,
+    "meta": {
+      "duration": 1
+    }
+  }
+]

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
 import { RemoteRefusal, formatMigrationDiff, parseTrackerOutput, statusExitCode, statusOf, trackerReadCommand } from './remote.js'
 import { EXPECTED, runStatus, type StatusDeps } from './status-remote.js'
+import { controlStdout, countsFacts, crmStdout, isReadOnlySql, sweepReadOf } from './sweep-counts-kit.js'
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf-8')
 const UUID = '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b'
@@ -148,5 +149,56 @@ describe('db:status:remote per database (OPS260 matrix)', () => {
     const r = run('ahead', 'current')
     expect(r.code).toBe(1)
     expect(r.out).toContain('extra    0099_from_the_future.sql')
+  })
+})
+
+// [[CORE289]] P6 on db:status:remote: the sweep's pending counts after the control database's migration diff, `[control] ` prefixed, read-only, never changing the exit code.
+describe('db:status:remote sweep counts (CORE289 P6)', () => {
+  const CONTROL_UUID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+  const withControl = { ...config, d1_databases: [...config.d1_databases, { binding: 'CONTROL_DB', database_name: 'vb-control-smoked1', database_id: CONTROL_UUID, remote: true }] }
+  const rows = (names: string[]) => JSON.stringify([{ results: names.map((name) => ({ name })), success: true }])
+  const f = countsFacts()
+  const run = (o: { crmBehind?: boolean; control?: boolean; fail?: 'control' | 'crm' | 'status' } = {}) => {
+    const sql: string[] = []
+    const out: string[] = []
+    const d: StatusDeps = {
+      loadEnv: () => {},
+      readConfig: () => (o.control === false ? config : withControl),
+      exec: (cmd) => {
+        const command = cmd.args[cmd.args.indexOf('--command') + 1]!
+        sql.push(command)
+        const kind = sweepReadOf(cmd.args)
+        if (kind === 'control') return o.fail === 'control' ? { status: 1, stdout: '{"error":{"text":"no such table: invitations"}}' } : o.fail === 'status' ? { status: 1, stdout: '' } : { status: 0, stdout: controlStdout(f.control) }
+        if (kind === 'crm') return o.fail === 'crm' ? { status: 1, stdout: 'wrangler exploded' } : { status: 0, stdout: crmStdout(f.crm) }
+        return { status: 0, stdout: rows(cmd.args.includes('CONTROL_DB') ? CONTROL_MIGRATIONS.map((m) => m.name) : o.crmBehind ? EXPECTED.slice(0, -1) : EXPECTED) }
+      },
+      log: (l) => void out.push(l),
+    }
+    const code = runStatus(['--env', 'smoked1'], { CONFIRM_REMOTE: '1' }, d)
+    return { code, out, sql }
+  }
+  it('prints both counts after the control diff with the [control] prefix; nonzero counts keep exit 0 on a current instance and 1 on a behind one', () => {
+    const r = run()
+    expect(r.code).toBe(0)
+    const i = r.out.findIndex((l) => l.startsWith('[control] migrations:'))
+    expect(r.out.slice(i + 1).filter((l) => l.startsWith('[control] sweep:'))).toEqual(['[control] sweep: 1 subject(s) pending revocation', '[control] sweep: 1 orphan account(s) pending deletion'])
+    expect(r.out.findIndex((l) => l.startsWith('[control] sweep:'))).toBeLessThan(r.out.findIndex((l) => l.startsWith('target: env smoked1, database')))
+    expect(run({ crmBehind: true }).code).toBe(1)
+  })
+  it('every command issued is a read', () => {
+    const r = run()
+    expect(r.sql.length).toBeGreaterThanOrEqual(4)
+    for (const s of r.sql) expect(isReadOnlySql(s), s).toBe(true)
+  })
+  it.each(['control', 'crm', 'status'] as const)('an unreadable count (%s read failed) prints unavailable and leaves the exit code unchanged', (fail) => {
+    const r = run({ fail })
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('[control] sweep: counts unavailable')
+    expect(run({ fail, crmBehind: true }).code).toBe(1)
+  })
+  it('no control database configured: no count line and no count read', () => {
+    const r = run({ control: false })
+    expect(r.out.some((l) => /sweep:/.test(l))).toBe(false)
+    expect(r.sql.every((s) => !s.includes('auth_users'))).toBe(true)
   })
 })
