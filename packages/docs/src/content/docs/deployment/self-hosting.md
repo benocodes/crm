@@ -1,9 +1,9 @@
 ---
 title: Run an instance
-description: Set up, check and upgrade a Vibase instance in your own Cloudflare account with the vibase-server program.
+description: Set up, check and upgrade a Vibase instance in your own Cloudflare account with the vibase-server program, with built-in Better Auth sign-in.
 ---
 
-Each Vibase workspace runs in its owner's Cloudflare account. The backend is a Worker and one D1 database, with R2 for raw message bodies and files. Clerk provides sign-in, OAuth consent, and CLI device login in the current version. **Support for other authentication providers is coming soon.**
+Each Vibase workspace runs in its owner's Cloudflare account. The backend is a Worker and one D1 database, with R2 for raw message bodies and files. Sign-in, OAuth consent and CLI device login are built in (Better Auth), so a new instance needs no account beyond Cloudflare. Clerk stays available as an [optional alternative](#use-clerk-instead).
 
 This page is for the person who runs the instance. If an instance already exists and you only want to use it, see [using Vibase](/getting-started/quickstart/). Running an instance needs no checkout of the repository: the release's server package, `@vibase/server-d1`, carries the Worker, the connect page, the database migrations and the `vibase-server` program that sets up, checks and upgrades an instance. Developers who work from a clone have [a source path](#from-source) at the end of this page.
 
@@ -12,9 +12,11 @@ This page is for the person who runs the instance. If an instance already exists
 You need:
 
 - Node.js 22.12 or later.
-- A Cloudflare account and an API hostname on a zone in that account, such as `api.example.com`.
-- A Clerk application dedicated to this workspace. A development instance works for an evaluation; use a production instance for your deployed business workspace.
+- A Cloudflare account and an API hostname on a zone in that account, such as `api.example.com`. Setup does not create DNS records by hand: Cloudflare creates the custom domain's record itself.
 - An email address for the workspace's first owner.
+- Optional: a Google OAuth client, if members should sign in with Google (see [Sign in with Google](#sign-in-with-google-optional)).
+
+One password hash may exceed the Workers Free plan's 10 ms CPU limit; Workers Paid is the safe plan for password sign-in until it is measured on Cloudflare.
 
 ## Get the server package
 
@@ -39,14 +41,14 @@ An instance's two files live outside the package, so upgrading never touches the
 - Settings: `$XDG_CONFIG_HOME/vibase/instances/<env>.json` (`~/.config` when unset). `setup` writes it.
 - Secrets: `<env>.env` beside it, mode 600, dotenv format. The program refuses a file that other users can read.
 
-Create the secrets file with your Cloudflare access and the Clerk application's keys:
+Create the secrets file with your Cloudflare access:
 
 ```dotenv
 CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
 CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
-CLERK_SECRET_KEY=your_clerk_secret_key
-CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
 ```
+
+Setup generates the instance's `AUTH_SECRET` (the key that signs sessions), appends it to this file before it puts it on the Worker, and never prints it. Keep the file: a re-run reads the secret from it.
 
 The Cloudflare token needs these permissions:
 
@@ -55,7 +57,7 @@ The Cloudflare token needs these permissions:
 | Account | Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Workers Tail Read, Account Settings Read |
 | The API hostname's zone | Zone Read, Workers Routes Edit |
 
-Copy both Clerk keys from the same Clerk instance; setup derives the issuer and the JWT verification key. To keep the files elsewhere, name them on every command:
+To keep the files elsewhere, name them on every command:
 
 ```bash
 npx @vibase/server-d1@<version> status --env mycompany --settings ./mycompany.json --secrets-file ./mycompany.env
@@ -63,7 +65,75 @@ npx @vibase/server-d1@<version> status --env mycompany --settings ./mycompany.js
 
 Remote commands need `CONFIRM_REMOTE=1` in the environment; a `--dry-run` reads only and does not.
 
-## Configure Clerk sign-in and roles
+## Set up with Better Auth
+
+Run the read-only setup plan first. A dry run reads configuration and the Cloudflare account, and changes nothing:
+
+```bash
+npx @vibase/server-d1@<version> setup --env mycompany --api-host api.example.com --owner-email owner@example.com --dry-run
+```
+
+Until the packages are on npm, run the same command from the release tarball:
+
+```bash
+npx --package ./vibase-server-d1-<version>.tgz vibase-server setup --env mycompany --api-host api.example.com --owner-email owner@example.com --dry-run
+```
+
+Then run the same command without `--dry-run`:
+
+```bash
+CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env mycompany --api-host api.example.com --owner-email owner@example.com
+```
+
+Or from the tarball, until the packages are on npm:
+
+```bash
+CONFIRM_REMOTE=1 npx --package ./vibase-server-d1-<version>.tgz vibase-server setup --env mycompany --api-host api.example.com --owner-email owner@example.com
+```
+
+Setup creates or adopts the Cloudflare resources, writes the settings file, generates `AUTH_SECRET`, migrates both databases, bootstraps the deployment (the organisation, the `vibase-cli` client and the owner invitation), deploys the Worker, puts its secrets and verifies it. It stops at the first failed step and names it; rerun the same command after correcting the problem. Existing matching configuration is retained.
+
+A new instance's resources are named `vb-<env>` (Worker), `vb-crm-<env>` (D1), `vb-control-<env>` (the control-plane D1 database, which holds the sign-in data) and `vb-bodies-<env>` (R2). Setup creates the control database for every instance, migrates it before the CRM database, and pairs the two with a marker written after the CRM deployment row. A rerun takes the names recorded in the settings file and refuses a name flag that differs from them; an instance recorded without a control database gets one added on its next run.
+
+### Claim the instance
+
+The bootstrap step prints the **owner invitation link** once. It is shown once and stored nowhere: copy it when it appears. Open it in a browser to create the owner account. Setup never prints it again: a rerun reads the instance first, and if an owner or a pending invitation exists it issues nothing and prints no link.
+
+Verify then checks that the Worker serves the configured issuer: `/.well-known/vibase` must report `better-auth` with the issuer `https://<your host>/auth`, and `/.well-known/oauth-authorization-server/auth` must name the same issuer. A fresh Worker can answer `500` for a few seconds after its deploy until its secrets arrive; verify retries inside a five minute bound, and fails at once on a wrong answer. Setup ends with the next steps: sign in from the CLI with `vibase login --server https://<your host>`, point MCP clients at `https://<your host>/mcp`, and see below for Google and email.
+
+You can check the deployment yourself:
+
+```bash
+curl https://api.example.com/health
+curl https://api.example.com/.well-known/vibase
+```
+
+Health should report an initialized instance with current migrations. Discovery should report `better-auth` authentication. Then [sign in with the CLI](/getting-started/quickstart/).
+
+### Sign in with Google (optional)
+
+Google sign-in is off until the Worker has a Google OAuth client. Put both `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET` in the secrets file before you run setup (both or neither: setup refuses half a pair), and setup puts them on the Worker. When Google is on, the closing output lists one manual item that no program can do for you: add the redirect URI `https://<your host>/auth/callback/google` to that Google OAuth client. Google accepts the sign-in only after you do. A Google account joins the workspace only through an invitation sent to its verified email.
+
+### Email is off by default
+
+Email is not configured by setup. The statement setup prints, and which holds until you add an email sender yourself:
+
+> Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner. Invitation links are printed for you to send.
+
+## Use Clerk instead
+
+Clerk is an optional alternative to the built-in sign-in. Every setup command in this section carries `--auth clerk`; without it a new instance uses Better Auth. An instance keeps the provider it was set up with: changing it later is a migration, not a setup rerun.
+
+You also need a Clerk application dedicated to this workspace. A development instance works for an evaluation; use a production instance for your deployed business workspace. Create the secrets file with the Clerk application's keys as well:
+
+```dotenv
+CLERK_SECRET_KEY=your_clerk_secret_key
+CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+```
+
+Copy both keys from the same Clerk instance; setup derives the issuer and the JWT verification key. Clerk's setup uses Clerk, not Better Auth, for sign-in, OAuth consent and CLI device login.
+
+### Configure Clerk sign-in and roles
 
 In your Clerk dashboard:
 
@@ -93,7 +163,7 @@ Member permissions apply across the workspace, including records created by othe
 
 See Clerk's [session-token customization guide](https://clerk.com/docs/guides/sessions/customize-session-tokens) for the claims editor.
 
-## Review OAuth, device login and the setup plan
+### Review OAuth, device login and the Clerk setup plan
 
 Clerk also acts as the OAuth provider for Vibase clients. This is what allows the CLI to show a browser verification code and an MCP client to request consent.
 
@@ -127,7 +197,7 @@ Rows marked `manual` still need your attention. A dry run can report a scope cat
 
 The CLI client ID is written to `AUTH_CLI_CLIENT_ID` in the instance configuration. You do not need to copy a client secret into the CLI. See Clerk's [device authorization guide](https://clerk.com/docs/guides/configure/auth-strategies/oauth/device-authorization-grant) for provider-side prerequisites.
 
-## Apply setup
+### Apply Clerk setup
 
 After addressing the checklist, run the same command without `--dry-run`:
 
@@ -180,11 +250,13 @@ Upgrade migrates the database, deploys the package's own Worker, verifies `/heal
 | Symptom | What to check |
 | --- | --- |
 | Setup stops at a named step | Fix the reported problem and rerun the same command. |
-| Clerk refuses a custom scope | Add every scope named by the setup report to Clerk's OAuth scope catalog. |
-| Device authorization is unavailable | Enable device authorization for `Vibase CLI` and ensure the Account Portal verification page is reachable. |
-| Discovery reports `auth: null` or no CLI client ID | Complete the Clerk setup and rerun setup. |
+| Verify fails with `500` on `/.well-known/vibase` | The Worker has no `AUTH_SECRET` yet or it is not at every edge: rerun the same command. A wrong issuer or provider names what differs. |
+| The owner invitation link is lost | Setup shows it once and never again; recovery for a lost link is not part of this release. |
+| Clerk (only with `--auth clerk`): Clerk refuses a custom scope | Add every scope named by the setup report to Clerk's OAuth scope catalog. |
+| Clerk: device authorization is unavailable | Enable device authorization for `Vibase CLI` and ensure the Account Portal verification page is reachable. |
+| Discovery reports `auth: null` or no CLI client ID | Rerun setup and read the failed verify row; on Clerk, complete the Clerk setup first. |
 | The program refuses the secrets file | Make it readable by you only: `chmod 600`. |
-| Owner login has no access | Check the accepted invitation, `public_metadata.vibase_role`, and the session-token claim. |
+| Owner login has no access (Clerk) | Check the accepted invitation, `public_metadata.vibase_role`, and the session-token claim. |
 
 Gmail requires additional Google OAuth and Pub/Sub configuration. Consult the server package's README for the current checklist before connecting a mailbox.
 
@@ -198,11 +270,11 @@ cd crm
 pnpm install
 ```
 
-Put the Cloudflare credentials in a gitignored `.env` at the repository root and the Clerk keys in `.env.mycompany`, then review the plan and apply it:
+Put the Cloudflare credentials in a gitignored `.env` at the repository root, then review the plan and apply it. A new instance uses Better Auth: setup generates `AUTH_SECRET` into the gitignored `.env.mycompany` (and reads an optional Google pair from it). For Clerk, add `--auth clerk` and put the Clerk keys in that file:
 
 ```bash
-pnpm -C packages/server-d1 setup:remote -- --env mycompany --auth clerk --api-host api.example.com --owner-email owner@example.com --dry-run
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env mycompany --auth clerk --api-host api.example.com --owner-email owner@example.com
+pnpm -C packages/server-d1 setup:remote -- --env mycompany --api-host api.example.com --owner-email owner@example.com --dry-run
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env mycompany --api-host api.example.com --owner-email owner@example.com
 ```
 
 The first real run writes the environment to `packages/server-d1/wrangler.jsonc` and stops. Review and commit that file, then rerun the same command with a clean working tree. Later, migrate before you deploy the new Worker:

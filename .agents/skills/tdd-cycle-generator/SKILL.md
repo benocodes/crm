@@ -212,6 +212,10 @@ round (+405 / +938 lines, 26 files). The budget holds, but every obligation ran 
 write "× 2 front-ends" in the Size line. The one finding was a file-creating path that skipped a check the read-side probe
 only made for existing files: when a charter adds a write to a file that holds a secret, make "refused unless git ignores it"
 an obligation of its own.
+**OPS306** (`knowledge/specs/015-OPS306-setup-verify-docs/RETRO.md`): 6 groups (1 matrix) × 2 front-ends, 4 decisions plus 4
+planner rules, scripts and docs only. It cost 232k / 76 calls over two runs (+138 code / +639 test / +117 doc lines, 15 files),
+with one text-only review round. Writing "× 2 front-ends" in the Size line and asking for one shared fixture builder per seam
+kept this cycle under OPS249's cost.
 
 ### Step 3: Resolve identities
 

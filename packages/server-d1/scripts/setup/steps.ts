@@ -38,6 +38,7 @@ import {
 } from './commands.js'
 import type { Credentials, ExecResult, SetupCmd, SetupDeps, SetupOptions, StepName, StepResult } from './types.js'
 import type { MarkerRow } from './commands.js'
+import { betterAuthNextSteps, checkBetterAuthIssuer, emailConfigured } from './verify-better-auth.js'
 
 const EXPECTED = MIGRATIONS.map((m) => m.name)
 const CONTROL_EXPECTED = CONTROL_MIGRATIONS.map((m) => m.name)
@@ -60,6 +61,8 @@ export interface Ctx {
   stop?: boolean
   /** `bootstrap` wrote the operator key to `.env` in this run. */
   keyWritten?: boolean
+  /** `bootstrap` issued an owner invitation in this run: the only run whose next steps say "open the link printed above" ([[OPS306]] P4). */
+  ownerLinkIssued?: boolean
   /** `--auth clerk`: the instance's credentials, loaded before any request ([[OPS65]] D34). */
   keys?: ClerkKeys
   /** The `Vibase CLI` application's client id, once the `clerk` step found or created it. */
@@ -347,6 +350,7 @@ async function betterAuthBootstrap(ctx: Ctx, t: Target, want: { authProvider: st
       lines.push(`agent_id: ${r.agentId}`, `api_key_id: ${r.apiKeyId}`, `api_key: written to .env as ${opts.keyEnv} (not shown)`)
     }
     // The URL is printed once, here, and stored nowhere (a later run reads the state and prints none).
+    if (r.ownerInvitation) ctx.ownerLinkIssued = true
     if (r.ownerInvitation) lines.push(`owner invitation for ${r.ownerInvitation.email} (expires ${r.ownerInvitation.expiresAt}; shown once, stored nowhere): ${r.ownerInvitation.url}`)
     return result('bootstrap', 'create', `wrote ${[...(marker === null ? [`marker ${want.authProvider}:${want.authOrgId}`] : []), `organisation ${opts.org}`, 'control marker', 'the vibase-cli client', ...(r.ownerInvitation ? ['an owner invitation'] : [])].join(', ')}`, lines.length ? lines : undefined)
   } finally {
@@ -616,8 +620,19 @@ const verify: Step = async (ctx) => {
     const mismatch = await checkDiscovery(ctx)
     if (mismatch) return result('verify', 'fail', mismatch)
   }
+  let signInMethods: string[] = []
+  if (ctx.opts.auth === 'better-auth') {
+    // OPS306 D8, P1: the issuer is the recorded PUBLIC_BASE_URL (`https://<api host>`, the value config:write records), never a request host.
+    const issuer = await checkBetterAuthIssuer(`https://${ctx.opts.apiHost}`, { fetch: ctx.deps.fetch, now: ctx.deps.now, sleep: ctx.deps.sleep, dryRun: ctx.opts.dryRun })
+    if (!issuer.ok) return result('verify', 'fail', issuer.detail)
+    signInMethods = issuer.signInMethods
+  }
   const clerk = ctx.opts.auth === 'clerk'
   const hint = ctx.keyWritten ? [`agents use the operator key in .env (${ctx.opts.keyEnv}) as a Bearer token`] : repairLines(ctx, await readMarker(ctx))
+  if (ctx.opts.auth === 'better-auth') {
+    const root = parse(ctx.deps.readConfigText(), [], { allowTrailingComma: true }) as { env?: Record<string, Parameters<typeof emailConfigured>[0]> } | undefined
+    return result('verify', 'ok', detail, betterAuthNextSteps({ url: `https://${ctx.opts.apiHost}`, claimLink: ctx.ownerLinkIssued === true, google: signInMethods.includes('google'), emailConfigured: emailConfigured(root?.env?.[ctx.opts.env]), hint }))
+  }
   const next = [
     `API: https://${ctx.opts.apiHost}`,
     ...(clerk

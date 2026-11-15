@@ -8,6 +8,7 @@ import { createApp, openApiPath, SURFACES } from '@vibase/api'
 import { deriveCommands, RESERVED_FLAGS, mergeDocuments } from '../../../cli/src/derive.js'
 import { GLOBAL_FLAGS, HAND_COMMANDS } from '../../../cli/src/help.js'
 import { runInstance } from './main.js'
+import { NO_EMAIL_STATEMENT } from '../setup/verify-better-auth.js'
 import { parseInstanceSetupArgs } from './setup-args.js'
 
 const DOCS = fileURLToPath(new URL('../../../docs/src/content/docs/', import.meta.url))
@@ -182,5 +183,62 @@ describe('the docs name only what the programs have (D20, P4)', () => {
       expect(p).toMatch(/belongs under "From source"/)
       expect(p).toMatch(/"vibase contacts nope" is not a client command/)
     })
+  })
+})
+
+// [[OPS306]] obligation 6 (D13, cycle 1's part): the install docs describe Better Auth as the default path and say what the program says.
+const read = (url: string) => readFileSync(fileURLToPath(new URL(url, import.meta.url)), 'utf8')
+const README = () => read('../../README.md')
+const AGENTS = () => read('../../../../AGENTS.md')
+const FREE_PLAN = "one password hash may exceed the Workers Free plan's 10 ms CPU limit; Workers Paid is the safe plan for password sign-in until it is measured on Cloudflare"
+const has = (md: string, text: string) => md.replace(/\s+/g, ' ').toLowerCase().includes(text.replace(/\s+/g, ' ').toLowerCase())
+const setupLines = (md: string) => shellLines(md).filter((l) => / setup(:remote)? /.test(l.line) || /setup:remote/.test(l.line))
+const CLERK_HEADING = /clerk/i
+
+describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
+  const s = () => page('deployment/self-hosting')
+  it('self-hosting: the first setup command has no --auth clerk, and no setup command before the Clerk section has it', () => {
+    const lines = setupLines(s())
+    expect(lines.length).toBeGreaterThan(0)
+    expect(lines[0]!.line).not.toContain('--auth clerk')
+    for (const l of lines.filter((x) => !CLERK_HEADING.test(x.heading))) expect(l.line, l.heading).not.toContain('--auth clerk')
+  })
+  it('self-hosting: every setup command in the Clerk section carries --auth clerk, and there is one', () => {
+    const lines = setupLines(s()).filter((x) => CLERK_HEADING.test(x.heading))
+    expect(lines.length).toBeGreaterThan(0)
+    for (const l of lines) expect(l.line, l.heading).toContain('--auth clerk')
+  })
+  it('self-hosting: the Better Auth path comes before the Clerk section, and Clerk is not required to prepare', () => {
+    const md = s()
+    const heads = [...md.matchAll(/^##\s+(.*)$/gm)].map((m) => m[1]!)
+    const clerk = heads.findIndex((h) => CLERK_HEADING.test(h))
+    const betterAuth = heads.findIndex((h) => /better auth|owner invitation|claim/i.test(h))
+    expect(betterAuth).toBeGreaterThanOrEqual(0)
+    expect(clerk).toBeGreaterThan(betterAuth)
+    expect(md.split(/^## Prepare your accounts$/m)[1]!.split(/^## /m)[0]).not.toMatch(/Clerk/)
+  })
+  it.each([['self-hosting', () => s()], ['the server-d1 README', () => README()]])('%s: the no-email statement is the program\'s constant, the Google redirect URI form and the Free-plan sentence are there', (_n, md) => {
+    expect(has(md(), NO_EMAIL_STATEMENT)).toBe(true)
+    expect(md()).toContain('/auth/callback/google')
+    expect(has(md(), FREE_PLAN)).toBe(true)
+  })
+  it('the server-d1 README: the first setup command has no --auth clerk, and a Clerk command carries it', () => {
+    const lines = setupLines(README())
+    expect(lines[0]!.line).not.toContain('--auth clerk')
+    expect(lines.some((l) => l.line.includes('--auth clerk'))).toBe(true)
+  })
+  it('self-hosting names the owner invitation link printed once, and promises neither owner-reset nor workers.dev (later cycles)', () => {
+    expect(s()).toMatch(/shown once|printed once/i)
+    expect(s()).not.toMatch(/owner-reset|workers\.dev/i)
+    expect(README()).not.toMatch(/owner-reset|--workers-dev/)
+  })
+  it('AGENTS.md: setup:remote takes [--auth better-auth|clerk|none] and says better-auth is the default for a new instance', () => {
+    const line = AGENTS().split('\n').find((l) => l.includes('setup:remote -- --env <name>'))!
+    expect(line).toContain('[--auth better-auth|clerk|none]')
+    expect(line).toMatch(/`?better-auth`? is the default for a new instance/)
+  })
+  it('mutation: a docs page that quotes an edited statement is not the constant (the check sees the edit)', () => {
+    const edited = NO_EMAIL_STATEMENT.replace('no self-service password reset', 'self-service password reset')
+    expect(has(s(), edited)).toBe(false)
   })
 })

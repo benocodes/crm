@@ -6,6 +6,7 @@ import { parse } from 'jsonc-parser'
 import { CONTROL_MIGRATIONS, MIGRATIONS, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
 import type { Credentials, EnvFileProbe, ExecResult, SetupCmd, SetupDeps } from '../types.js'
 import { PK_TEST, SK_TEST, type FakeClerk } from './clerk-world.js'
+import { scriptedAnswer, type BetterAuthScript } from './better-auth-answers.js'
 
 export const FIXTURE_CONFIG_PATH = new URL('./wrangler.fixture.jsonc', import.meta.url)
 export const EXPECTED_MIGRATIONS = MIGRATIONS.map((m) => m.name)
@@ -86,6 +87,8 @@ export interface WorldOptions {
   missingFileNotIgnored?: boolean
   /** What the Worker's `/.well-known/vibase` reports (`auth.issuer`, `auth.cli_client_id`); default: matches `state.configText`'s vars. */
   vibase?: { issuer: string | null; cli_client_id: string | null } | 'absent'
+  /** `better-auth`: scripted answers for discovery and the RFC 8414 metadata (OPS306); default: the Worker's correct answers. */
+  ba?: BetterAuthScript
 }
 
 export interface World {
@@ -130,6 +133,7 @@ export function makeWorld(o: WorldOptions): World {
   const fetched: string[] = []
   const logs: string[] = []
   let clock = 1_000_000
+  const baCounters = { vibase: 0, metadata: 0 }
   const head = o.headSha ?? SHA
   const control = o.control ?? memoryControl()
 
@@ -226,6 +230,8 @@ export function makeWorld(o: WorldOptions): World {
       const initialised = (await o.d1.prepare('select 1 as x from deployment').first().catch(() => null)) !== null
       return reply(200, { status: 'ok', version: state.deployedSha, initialised, migrations: { status: o.healthNeverCurrent ? 'behind' : state.applied && EXPECTED_MIGRATIONS.every((n) => state.applied!.includes(n)) ? 'current' : 'behind' } })
     }
+    const scripted = scriptedAnswer(url, o.ba ?? {}, baCounters)
+    if (scripted && (o.ba !== undefined || /AUTH_PROVIDER"\s*:\s*"better-auth"/.test(state.configText))) return scripted
     if (url.endsWith('/.well-known/vibase')) {
       if (o.vibase === 'absent') return reply(404, {})
       const vars = (parse(state.configText) as { env?: Record<string, { vars?: Record<string, string> }> }).env?.[new URL(url).hostname.split('.')[1] ?? '']?.vars
