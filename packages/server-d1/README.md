@@ -147,9 +147,18 @@ program can do. Verify checks that `/.well-known/vibase` reports `better-auth` w
 once), then prints the next steps (the claim line only in the run that issued the link, `vibase login --server <url>`,
 `<url>/mcp`). Email is not configured by setup, and setup says so:
 
-> Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner. Invitation links are printed for you to send.
+> Email is not configured: there is no self-service password reset. A member who forgets their password gets a reset link from an owner; an owner gets one from `vibase-server owner-reset` (needs this instance's Cloudflare credentials). Invitation links are printed for you to send.
 
 One password hash may exceed the Workers Free plan's 10 ms CPU limit; Workers Paid is the safe plan for password sign-in until it is measured on Cloudflare.
+
+### Recover an owner (owner-reset)
+
+With email off an owner who loses their password has no self-service reset: someone holding the instance's Cloudflare credentials issues one.
+`CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset [--email <owner>]` (from a release, `vibase-server owner-reset --env <name> [--email <owner>] [--dry-run]`)
+prints a one-time reset link for the one Better Auth owner (`--email` picks one when there are several; the command refuses and lists them otherwise), a Better Auth link
+on the instance's own host that is valid for one hour, **printed once and stored nowhere**. The audit log records that a link was issued (never the link). With **no owner at all**, `--email`
+makes it issue an owner invitation for that address instead, printed once as well. Owners on another provider are refused. **Keep the instance's secrets file** (`.env.<name>`, or `<name>.env` for
+`vibase-server`): the command composes Better Auth with its `AUTH_SECRET` on your machine (that is how the link is valid on the Worker), and refuses without it. It never writes the CRM database.
 
 **`--auth clerk` (optional)** also configures a Clerk instance from its Backend API and checks what the API cannot do. The
 instance's keys live in **one gitignored env file per instance**, `.env.<env>` at the repo root by default (`--clerk-env-file`

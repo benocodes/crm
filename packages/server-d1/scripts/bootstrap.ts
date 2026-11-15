@@ -10,13 +10,16 @@
 //   pnpm -C packages/server-d1 bootstrap -- --org <name> --auth-provider better-auth --public-base-url <PUBLIC_BASE_URL> [--auth-org-id <name>] [--agent <name>] [--owner-email <email>]   (no human; seeds vibase-cli, CORE283; --owner-email issues the first owner invitation and prints its URL once, CORE245 P7)
 //   pnpm -C packages/server-d1 bootstrap -- --org <name> --auth-provider none --auth-org-id <name> --email <email> --agent <name>
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --key-env <NAME> --org ... (same flags)
+//   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset [--email <owner>]   (OPS307: a one-time owner reset link, or with no owner an owner invitation, printed once; Better Auth instances; AUTH_SECRET from .env.<name>)
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { uuidv7 } from '@vibase/storage'
 import { openControlDb, type ControlDb, type D1Like } from '@vibase/storage-d1'
 import { bootstrapD1, probeBatchAtomicity, type BootstrapD1Result } from '../src/bootstrap-d1.js'
-import { CONFIG_PATH, ROOT_ENV_PATH, RemoteRefusal, controlNotConfigured, loadRootEnv, requireConfirm, resolveTarget, type ConfigLike, type Target } from './remote.js'
+import { runOwnerResetRemote } from './bootstrap-owner-reset.js'
+import { probeEnvFile } from './setup/env-file.js'
+import { CONFIG_PATH, REPO_ROOT, ROOT_ENV_PATH, RemoteRefusal, controlNotConfigured, loadRootEnv, requireConfirm, resolveTarget, type ConfigLike, type Target } from './remote.js'
 
 type Values = Record<string, string | undefined>
 
@@ -32,7 +35,7 @@ export function remoteProxyOptions(envName: string, configPath: string = CONFIG_
 
 const KEY_ENV_SHAPE = /^[A-Z][A-Z0-9_]*$/
 const USAGE =
-  'usage: pnpm -C packages/server-d1 bootstrap -- --org <name> --issuer <CLERK_ISSUER> [--agent <name>] [--scopes a:read,b:write] [--organization-id <uuid>] [--remote --env <name> --key-env <NAME>]\n   or: ... --org <name> --auth-provider better-auth --public-base-url <PUBLIC_BASE_URL> [--auth-org-id <name>] [--agent <name>] [--owner-email <email>]   (seeds the vibase-cli client; no human; --owner-email issues the first owner invitation, its URL printed once)\n   or: ... --org <name> --auth-provider none --auth-org-id <name> --email <email> --agent <name> [--name <user name>]'
+  'usage: pnpm -C packages/server-d1 bootstrap -- --org <name> --issuer <CLERK_ISSUER> [--agent <name>] [--scopes a:read,b:write] [--organization-id <uuid>] [--remote --env <name> --key-env <NAME>]\n   or: ... --org <name> --auth-provider better-auth --public-base-url <PUBLIC_BASE_URL> [--auth-org-id <name>] [--agent <name>] [--owner-email <email>]   (seeds the vibase-cli client; no human; --owner-email issues the first owner invitation, its URL printed once)\n   or: ... --org <name> --auth-provider none --auth-org-id <name> --email <email> --agent <name> [--name <user name>]\n   or: CONFIRM_REMOTE=1 ... --remote --env <name> --owner-reset [--email <owner>]   (a one-time owner reset link, or with no owner an owner invitation; printed once; better-auth only)'
 
 export function parseBootstrapArgs(argv: string[]): { mode: 'local' | 'remote'; values: Values; envName?: string; keyEnv?: string } {
   const { values } = parseArgs({
@@ -78,7 +81,7 @@ export function reportLines(r: BootstrapD1Result, mode: 'local' | 'remote', keyE
     `deployment:      ${r.deployment}`,
     `organization_id: ${r.organizationId}`,
     ...(r.userId === null ? [] : [`user_id:         ${r.userId}`]),
-    ...(r.ownerInvitation === undefined ? [] : r.ownerInvitation === null ? ['owner_invitation: none issued: an owner already exists'] : [`owner_invitation: ${r.ownerInvitation.url}   (shown once; expires ${r.ownerInvitation.expiresAt}; ${r.ownerInvitation.revoked.length > 0 ? 'it replaced a live owner invitation' : 'send it to the owner'})`]),
+    ...(r.ownerInvitation === undefined ? [] : r.ownerInvitation === null ? ['owner_invitation: none issued: an owner already exists'] : [`owner_invitation: ${r.ownerInvitation.url}   (shown once; expires ${r.ownerInvitation.expiresAt}; ${r.ownerInvitation.revoked > 0 ? 'it replaced a live owner invitation' : 'send it to the owner'})`]),
     ...(r.organizationExisted ? ['organization:   already initialised: no agent or key was created (--agent is ignored on a re-run)'] : r.key === null ? ['agent:           none (no --agent given)'] : [`agent_id:        ${r.agentId}`, `api_key_id:      ${r.apiKeyId}`, mode === 'local' ? `api_key:         ${r.key}   (shown once)` : `api_key: written to .env as ${keyEnv} (not shown)`]),
   ]
 }
@@ -191,7 +194,21 @@ function usage(message: string): never {
   process.exit(1)
 }
 
+/** [[OPS307]] D9: `--owner-reset` is its own command in this file, with its own small argument set (`bootstrap-owner-reset.ts`). */
+async function mainOwnerReset(): Promise<void> {
+  const { getPlatformProxy, unstable_readConfig } = await import('wrangler')
+  process.exitCode = await runOwnerResetRemote(process.argv.slice(2), process.env, {
+    loadEnv: () => loadRootEnv(),
+    readConfig: (envName) => unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike & { vars?: Record<string, unknown> },
+    readInstanceEnv: (envName) => probeEnvFile(undefined, envName, REPO_ROOT, ROOT_ENV_PATH),
+    getPlatformProxy: (envName) => getPlatformProxy<{ DB: D1Like; CONTROL_DB?: D1Like }>(remoteProxyOptions(envName)),
+    log: (l) => console.log(l),
+    error: (l) => console.error(l),
+  })
+}
+
 async function main(): Promise<void> {
+  if (process.argv.slice(2).includes('--owner-reset')) return mainOwnerReset()
   let parsed: ReturnType<typeof parseBootstrapArgs>
   try {
     parsed = parseBootstrapArgs(process.argv.slice(2))

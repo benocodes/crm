@@ -388,6 +388,7 @@ describe('6. re-runs and the one-time link (D7)', () => {
     const b = step(o, 'bootstrap')
     expect(b.status).toBe('ok')
     expect(b.detail).toContain(`owner invitation pending for ${OWNER} (expires ${before!.expires_at})`)
+    expect(b.detail).toContain(`a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env acme --owner-reset --email ${OWNER}`)
     expect(await invitationRows()).toEqual([before])
     expect(await auditRows()).toHaveLength(audits)
     expect(urlLines(w.logs)).toEqual([])
@@ -442,6 +443,7 @@ describe('6. re-runs and the one-time link (D7)', () => {
       w.logs.length = 0
       const o = await dry(w)
       expect(step(o, 'bootstrap').detail).toContain(`owner invitation pending for ${OWNER}`)
+      expect(step(o, 'bootstrap').detail).toContain(`a new link: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env acme --owner-reset --email ${OWNER}`)
       expect(await invitationRows()).toEqual(rowsBefore)
     })
     it('owner exists: reports it and issues nothing', async () => {

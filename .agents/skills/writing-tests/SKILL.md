@@ -322,6 +322,9 @@ One program, two engines: the same assertions run on Postgres and D1.
     by the test glob) exporting `engineSuite(engineName)`; `x.integration.d1.test.ts` and
     `x.integration.postgres.test.ts` each call it with their engine. Write each assertion once; an engine branch
     stays in the body (`if (name === 'postgres')`). Break a shared assertion and both entry files go red.
+    The same shape serves two front-ends of one rule (`scripts/owner-reset.suite.ts`, [[OPS307]]). A case that only
+    one entry has is registered conditionally from an argument the entry passes at collection time
+    (`if (opts.dryRun) it(...)`), never an early `return` inside the test body, which reports a pass for a test that never ran.
   - `src/test/engines.ts` opens Postgres (`vault_app`, no presets) and a Miniflare D1, with injected
     clock and ids.
   - `runContractSuite({ ..., backend })` runs the same assertions on the backend it is given (`d1Backend()`,

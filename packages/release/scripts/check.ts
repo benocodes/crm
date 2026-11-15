@@ -14,6 +14,7 @@ import { ReleaseRefusal } from '../src/errors.js'
 import { assertNoForbidden, envDatabaseIds } from '../src/forbidden.js'
 import { assertClientLayout, assertCommit, assertExportsResolve, assertServerLayout, CLIENT_MARKERS } from '../src/layout.js'
 import { checkConfig } from '../src/check-config.js'
+import { serverHelpProblems } from '../src/help-assertions.js'
 import { assertRelease, type ReleaseManifest } from '../src/manifest.js'
 import { readMigrationState, type D1Like } from '@vibase/storage-d1'
 import { verifySums } from '../src/pack.js'
@@ -119,6 +120,8 @@ export async function checkRelease(tarballs: { client: string; server: string },
     // 4b. the installed `vibase-server` ([[OPS231]] D12, [[OPS240]] D21): `--help` lists the commands; `status` with an empty config home proves the command runs and refuses at the settings file, before any network call.
     const help = sh(serverBin, ['--help'], install)
     if (!/vibase-server status --env/.test(help)) throw new ReleaseRefusal('the installed `vibase-server --help` does not print the commands')
+    const missing = serverHelpProblems(help)
+    if (missing.length > 0) throw new ReleaseRefusal(`the installed \`vibase-server --help\` does not list: ${missing.join('; ')}`)
     const emptyConfig = join(root, 'empty-config')
     mkdirSync(emptyConfig)
     const noSettings = spawnSync(serverBin, ['status', '--env', 'check'], { cwd: install, env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig }, encoding: 'utf8' })
@@ -133,6 +136,9 @@ export async function checkRelease(tarballs: { client: string; server: string },
     const sample = { version: 1 as const, env: 'check', worker: 'vb-check', api_host: 'api.check.invalid', d1: { name: 'vb-check', id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b' }, r2_bucket: 'vb-check-bodies', workflow: { name: 'vb-check-mail-sync' }, vars: { AUTH_PROVIDER: '', SAMPLE_SETTING: 'kept-by-var' } }
     const dryRun = withGeneratedConfig({ packageDir: installed, settings: sample, tmpRoot: root }, (configPath) => sh(wranglerBin, [...deployArgs(manifest.version, manifest.commit, configPath), '--dry-run'], root, wranglerEnv()))
     for (const needle of [`VERSION`, `COMMIT`, `SAMPLE_SETTING`, `Total Upload`]) if (!dryRun.includes(needle)) throw new ReleaseRefusal(`the installed wrangler's deploy --dry-run of the upgrade argument list did not report ${needle}: ${dryRun.trim()}`)
+    // [[OPS307]]: `owner-reset` is in the installed bundle and refuses at the same missing settings file (exit 2) before any network call.
+    const noSettingsReset = spawnSync(serverBin, ['owner-reset', '--env', 'check'], { cwd: install, env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig, CONFIRM_REMOTE: '1' }, encoding: 'utf8' })
+    if (noSettingsReset.status !== 2 || !noSettingsReset.stderr.includes(expectedPath)) throw new ReleaseRefusal(`the installed \`vibase-server owner-reset\` did not refuse at the missing settings file (exit ${noSettingsReset.status}): ${noSettingsReset.stderr.trim()}`)
     log('vibase-server upgrade: help lists it; refuses at the missing settings file (exit 2); the installed wrangler accepts the deploy argument list (--dry-run) with the settings vars and the VERSION and COMMIT vars')
 
     // [[OPS232]]: `setup` is in the installed bundle, refuses at the missing secrets file (an empty config home, no Cloudflare values), and the bundle carries the bootstrap
