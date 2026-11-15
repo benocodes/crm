@@ -409,7 +409,7 @@ export async function acceptInvitation(
       actorId: a.actorId,
       action: 'invitation.accepted',
       invitationId: a.id,
-      guard: 'accepted_at = ?',
+      guard: 'accepted_at = ? and changes() = 1',
       guardBinds: [a.now],
     }),
   ])
