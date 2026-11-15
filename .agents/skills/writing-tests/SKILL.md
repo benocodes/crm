@@ -203,6 +203,13 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   never retypes it, so editing the constant turns the docs check red. A check that the docs "do not promise X yet" can
   only search for names (`owner-reset`, `workers.dev`). A paraphrase ("the owner recovery tools need it") passes it, so
   the reviewer reads the prose too ([[OPS306]] review, `packages/server-d1/scripts/instance/docs.test.ts`).
+- **A same-second pin anchors to a whole second, on every run.** When a bound compares timestamps that may be stored
+  at different precisions (ISO ms, SQLite seconds), the test that proves millisecond comparison puts all its instants
+  inside one second by construction: `T = (Math.floor(anchor / 1000) + 1) * 1000 + 100`, then `T + 300`, `T + 600`.
+  An offset from an arbitrary instant (`anchor + 10`) straddles a second boundary in about a third of runs, so a
+  second-precision mutation goes red only by luck. Prove it with the mutation (compare at `slice(0, 19)`) turning the
+  test red. A strict "created after" bound also gets a tie pin: same millisecond ignored, +1 ms accepted ([[CORE302]],
+  `packages/server-d1/src/readmit-removed-member.test.ts`).
 - **A polling loop is tested through its injected clock, never real time.** The CLI's `--follow` sleeps through
   `deps.sleep` and stops on an optional `deps.signal` (`AbortSignal`, checked after each drain and each sleep); the
   test's `sleep` callback adds events to the fake feed and aborts on the nth call, then asserts the sleeps

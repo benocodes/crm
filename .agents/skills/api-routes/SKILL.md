@@ -140,7 +140,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     creation passes (its `ctx.body` is the request body): put the backstop there. `databaseHooks.session.create.before`
     runs on sign-up and every sign-in before the cookie: throwing an `APIError` answers that status with no
     `set-cookie`, so side effects that must succeed before a session (acceptance, repair) go there. The sign-up body
-    schema passes unknown fields through (`invitation_token`). The auth package reaches the vault only through a port
+    schema passes unknown fields through (`invitation_token`); the **sign-in** body schema (`/sign-in/email`) is a
+    stripping `z.object` (the hook sees only `{email,password,rememberMe}`), so a value a sign-in must carry goes in a
+    request header (`vibase-invitation`, read from `ctx.headers`), proven by a test that probes the body ([[CORE302]]
+    D1). A row Better Auth writes (`auth_users`, sessions) is stamped with the real clock, never the vault's injected
+    one: a test that fakes the vault clock must place its fixtures relative to the real account time. The auth package reaches the vault only through a port
     the composition hands in (`InvitationAdmission`), never a database handle ([[CORE259]] D5).
   - **Better Auth in-process calls and captured tokens** ([[CORE288]], `packages/auth/src/auth.ts`; 1.7.22).
     `hooks.before` runs for in-process `auth.api.*` calls too (`dist/api/to-auth-endpoints.mjs`), and an in-process

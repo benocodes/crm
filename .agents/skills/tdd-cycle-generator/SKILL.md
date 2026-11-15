@@ -224,6 +224,12 @@ did the write during resolution, before later refusals. When a rule mixes a read
 the write runs after every refusal and a passing preflight, and asks for a "no write" case per later refusal. The charter
 also said "the Google redirect URI" where an instance has two (Better Auth sign-in `/auth/callback/google`, the Gmail
 connector's `/oauth/google/callback`): name each URI a consequence line must carry.
+**CORE302** (`knowledge/specs/015-CORE302-readmit-removed-member/RETRO.md`): 5 groups (1 matrix), 2 decisions + 6 planner
+rules, no migration, 1 local E2E part (+224 code / +546 test lines, 12 files), two review rounds (the cap). The budget
+holds; the rounds came from the spec. P1 said which token re-admits but not *when* it must have been issued, so the
+first review had to add "created after the latest removal", and the fix for that weakened a same-second pin. When a
+rule restores something a removal took away (a membership, a grant, a key), the spec bounds the restoring credential
+in time ("issued after the removal"), and every timestamp-bound pin is built on a whole second (writing-tests).
 
 ### Step 3: Resolve identities
 
