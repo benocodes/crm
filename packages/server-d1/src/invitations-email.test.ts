@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { MIGRATIONS, openControlDb, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
@@ -286,5 +286,86 @@ describe('send failure, every partial state (D3)', () => {
     expect(res.json.error.code).not.toBe('email_send_failed')
     expect(email.sent).toHaveLength(0)
     expect(await rows(w.control, 'select id from invitations')).toEqual([])
+  })
+})
+
+// [[CORE304]] riders (cycle 1 review) and P2: the 502 holds when the compensating revoke also failed, and a failed send and a failed revoke each log one fixed-name line that never carries the address, the token, the URL or the
+// provider's message.
+describe('riders: the 502 message and the failure log lines (P2)', () => {
+  const echoing = (code?: string) => ({
+    send: async (m: { to: string }) => {
+      throw Object.assign(new Error(`provider refused ${m.to}`), code ? { code } : {})
+    },
+  })
+  const consoleLines = () =>
+    [console.error, console.warn, console.log, console.info].flatMap((m) =>
+      vi.mocked(m).mock.calls.map((a) => a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ')),
+    )
+  beforeEach(() => {
+    for (const m of ['error', 'warn', 'log', 'info'] as const) vi.spyOn(console, m).mockImplementation(() => {})
+  })
+  afterEach(() => vi.restoreAllMocks())
+  const workerWith = (binding: unknown) =>
+    composeD1Worker({
+      DB: w.d1,
+      CONTROL_DB: flakyControl(w.control),
+      AUTH_PROVIDER: 'better-auth',
+      AUTH_SECRET,
+      PUBLIC_BASE_URL: AUTH_BASE,
+      EMAIL: binding as never,
+      AUTH_EMAIL_FROM: 'invites@vibase.test',
+    })
+
+  it('send fails, revoke works: one invitation_send_failed line, no revoke line, and the 502 message does not claim a state it cannot know', async () => {
+    const wk = workerWith(echoing('E_REJECTED'))
+    const res = await create(wk, await owner.session())
+    expect([res.status, res.json.error.code]).toEqual([502, 'email_send_failed'])
+    expect(res.json.error.message).not.toMatch(/was not kept/)
+    expect(res.json.error.message).toMatch(/may still be pending/)
+    const mine = consoleLines().filter((l) => /invitation_(send|revoke)_failed/.test(l))
+    expect(mine).toHaveLength(1)
+    expect(mine[0]).toContain('invitation_send_failed')
+    expect(mine[0]).toContain('E_REJECTED')
+  })
+
+  it('send fails and the revoke fails: the same 502 message, and a second line invitation_revoke_failed', async () => {
+    const wk = workerWith(echoing())
+    inject.revoke = true
+    const res = await create(wk, await owner.session())
+    expect([res.status, res.json.error.code]).toEqual([502, 'email_send_failed'])
+    expect(res.json.error.message).toMatch(/may still be pending/)
+    const mine = consoleLines().filter((l) => /invitation_(send|revoke)_failed/.test(l))
+    expect(mine.map((l) => /invitation_(send|revoke)_failed/.exec(l)![0])).toEqual([
+      'invitation_send_failed',
+      'invitation_revoke_failed',
+    ])
+    // the revoke's own error message ("injected revoke failure") is not echoed; its name is
+    expect(mine[1]).toContain('Error')
+  })
+
+  it('no log line carries the address, the token, the URL, the subject or the provider message', async () => {
+    const wk = workerWith(echoing('E_REJECTED'))
+    inject.revoke = true
+    await create(wk, await owner.session())
+    expect(consoleLines().some((l) => l.includes('invitation_send_failed'))).toBe(true)
+    for (const l of consoleLines()) {
+      expect(l).not.toContain('ann@x.test')
+      expect(l).not.toContain('provider refused')
+      expect(l).not.toContain('injected revoke failure')
+      expect(l).not.toContain('#token=')
+      expect(l).not.toContain("You're invited")
+    }
+  })
+
+  it('a successful send logs nothing of this kind', async () => {
+    expect((await create(worker(true), await owner.session())).status).toBe(201)
+    expect(consoleLines().filter((l) => /invitation_(send|revoke)_failed/.test(l))).toEqual([])
+  })
+
+  it('the operation description says the invitation stays pending when the revoke also fails', async () => {
+    const op = createVibaseRegistry()
+      .operations()
+      .find((o) => o.name === 'invitations.create') as { description?: string } | undefined
+    expect(op?.description).toMatch(/revoke (also )?fails|stays pending/)
   })
 })

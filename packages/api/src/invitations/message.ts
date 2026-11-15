@@ -43,3 +43,12 @@ export function invitationMessage(a: InvitationMessageInput): { subject: string;
   ].join('\n')
   return { subject, text, html }
 }
+
+// [[CORE304]] D6 stub for the red run: the real builder follows.
+export function passwordResetMessage(_a: { host: string; url: string }): {
+  subject: string
+  text: string
+  html: string
+} {
+  throw new Error('not implemented')
+}
